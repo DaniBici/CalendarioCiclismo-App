@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- La app pide ATT (NSUserTrackingUsageDescription) y sirve anuncios
+	     personalizados de AdMob con el IDFA → eso es tracking según Apple. -->
+	<key>NSPrivacyTracking</key>
+	<true/>
+	<!-- Apple exige ≥1 dominio cuando NSPrivacyTracking=true. El manifiesto del
+	     SDK GoogleMobileAds NO declara dominios de tracking (solo tipos de datos),
+	     así que lo declaramos aquí: el host de entrega/tracking de AdMob.
+	     Efecto buscado: si el usuario RECHAZA ATT, Apple bloquea las peticiones a
+	     este dominio → el SDK pasa a anuncios NO personalizados (no se rompen los
+	     anuncios, solo se impide el tracking, que es justo lo que el usuario pidió). -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array>
+		<string>googleads.g.doubleclick.net</string>
+	</array>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Acceso a timestamps de ficheros temporales usados en NotificationService
+			     (adjuntos de imágenes) y en CacheManager (datos offline).
+			     Razón C617.1: la app crea/lee ficheros en directorios temporales propios. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Espacio en disco consultado por CacheManager al calcular el tamaño
+			     de la caché offline y decidir si purgar entradas antiguas.
+			     Razón E174.1: la app comprueba el espacio disponible para gestionar
+			     su propio almacenamiento, no para inferir datos del usuario. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

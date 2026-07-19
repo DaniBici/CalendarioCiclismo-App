@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario — Calendario Ciclismo App</title>
+  <!-- La vista Mes vive ahora en /calendario.html (subvista mes). Este shell
+       conserva las URLs antiguas (?month=YYYY-MM&cat=) redirigiendo con params. -->
+  <link rel="canonical" href="https://calendariociclismo.app/calendario.html">
+  <script>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      var q = new URLSearchParams();
+      q.set('vista', 'mes');
+      var m = p.get('month');
+      if (m && /^\d{4}-\d{2}$/.test(m)) q.set('mes', m);
+      if (p.get('cat')) q.set('cat', p.get('cat'));
+      location.replace('/calendario.html?' + q.toString());
+    })();
+  </script>
+  <meta http-equiv="refresh" content="0;url=/calendario.html?vista=mes">
+<meta name="robots" content="noindex, follow">
+</head>
+<body>
+  <p><a href="/calendario.html?vista=mes">Calendario mensual</a></p>
+</body>
+</html>

@@ -1,0 +1,16 @@
+name = "cyclocal-proxy"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# Ruta gestionada A MANO en el dashboard (Workers Routes de la zona cyclocal.app):
+#   cyclocal.app/*  →  cyclocal-proxy
+# NO se declara aquí a propósito: el token de CLOUDFLARE_API_TOKEN puede subir el
+# Worker (Workers Scripts) pero NO tiene permiso de zona (Workers Routes), así que
+# `wrangler deploy` falla con "Authentication error [code: 10000]" al intentar tocar
+# /zones/.../workers/routes. Como cyclocal.app es un dominio-puente estático, la ruta
+# se crea una sola vez en el dashboard y no necesita estar en CI.
+# Si algún día se quiere reproducir desde código: dar a ese token "Zone → Workers
+# Routes → Edit" sobre cyclocal.app y descomentar:
+# [[routes]]
+# pattern = "cyclocal.app/*"
+# zone_name = "cyclocal.app"

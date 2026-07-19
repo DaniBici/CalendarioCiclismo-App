@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reglas de backup para Android < 12. Incluimos DataStore (preferences) y
+  excluimos la caché Room (se regenera al volver a descargar).
+
+  Nota sobre el token FCM (clave push_token en cc_prefs):
+  El token se incluye en el backup porque la API de backup < 12 solo permite
+  excluir ficheros enteros, no claves individuales dentro de un DataStore.
+  Excluir cc_prefs.preferences_pb completo borraría TODOS los ajustes del
+  usuario (offline, analytics, filtros, onboarding…), lo que sería peor.
+  El riesgo de restaurar un token stale está mitigado: al arrancar con
+  push_enabled=true, CalendarioCiclismoApp.bootstrap() llama a
+  refreshToken(), que obtiene el token del nuevo dispositivo y actualiza
+  Supabase. El token antiguo queda UNREGISTERED en FCM.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="datastore/" />
+    <!-- Los assets R2 descargados (OfflineAssets/) no entran en backup porque
+         no están incluidos arriba (solo se backupea lo listado en <include>).
+         Se regeneran cuando el usuario vuelve a activar el modo offline. -->
+</full-backup-content>

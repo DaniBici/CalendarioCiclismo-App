@@ -1,0 +1,5 @@
+// Supabase configuration template.
+// Copia este fichero como Supabase.xcconfig y rellena los valores reales.
+
+SUPABASE_URL = https:/$()/YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY = your_anon_key_here

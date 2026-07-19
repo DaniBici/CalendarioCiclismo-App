@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Layout de carga inicial para el widget Glance.
+     Android lo muestra mientras provideGlance() renderiza el contenido real.
+     Definido localmente para no depender de que la librería Glance exporte
+     su recurso interno (glance-appwidget no lo declara como recurso público). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />

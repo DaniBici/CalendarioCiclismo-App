@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Theme base usado por la Activity antes de que Compose monte el
+      CalendarioCiclismoTheme. Tema Material3 sin action bar; los colores
+      se sobreescriben dentro de Compose.
+    -->
+    <!-- En modo claro fijamos windowLightStatusBar=true para que la barra de
+         estado nazca con iconos OSCUROS antes de que Compose tome el control.
+         Aunque enableEdgeToEdge() también lo gestiona, en algunos dispositivos
+         (incluido Pixel 9a / API 35) el flag aplicado vía código queda en 0
+         si el theme XML no lo declara primero. -->
+    <style name="Theme.CalendarioCiclismo" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!--
+      Splash theme: la Activity arranca con este tema para que la core-splashscreen
+      library muestre fondo azul + icono (calendario + bici) en todas las APIs.
+      En API 31+ la librería delega al Splash Screen nativo del sistema.
+      postSplashScreenTheme transiciona al tema Material3 real.
+    -->
+    <style name="Theme.CalendarioCiclismo.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.CalendarioCiclismo</item>
+    </style>
+</resources>

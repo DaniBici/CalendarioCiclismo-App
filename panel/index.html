@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Panel de Administración — Acceso</title>
+  <script src="../js/theme.js"></script>
+  <link rel="stylesheet" href="../css/panel.css">
+</head>
+<body>
+
+  <div class="login-page">
+    <div class="login-box">
+      <div class="login-box__logo"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.35em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg><span class="logo-text"> Calendario Ciclismo</span></div>
+      <div class="login-box__sub">Panel de Administración</div>
+
+      <h1>Acceder</h1>
+
+      <div id="loginError" class="alert alert--error" style="display:none"></div>
+
+      <form id="loginForm" action="" method="post" autocomplete="on">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="tu@email.com" autocomplete="email">
+        </div>
+
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--full" id="loginBtn" style="margin-top:0.5rem">
+          Entrar
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script type="module" src="../js/login.js"></script>
+
+</body>
+</html>

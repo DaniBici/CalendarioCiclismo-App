@@ -1,0 +1,44 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "js/analytics.js",
+    "js/app.js",
+    "js/apps-modal.js",
+    "js/buscar.js",
+    "js/calendario.js",
+    "js/campeonatos.js",
+    "js/competicion.js",
+    "js/config.js",
+    "js/cookie-consent.js",
+    "js/corredor.js",
+    "js/equipo.js",
+    "js/header.js",
+    "js/inscritos.js",
+    "js/inscritos-pdf.js",
+    "js/jornada.js",
+    "js/lang-switch.js",
+    "js/login.js",
+    "js/orden-salida.js",
+    "js/panel.js",
+    "js/perfil.js",
+    "js/perfil-pub.js",
+    "js/race-data-modal.js",
+    "js/resultados.js",
+    "js/shared.js",
+    "js/theme.js",
+    "js/components/drawer.js",
+    "supabase/functions/**/*.ts",
+    "workers/*/src/index.js",
+    "functions/**/*.js"
+  ],
+  "project": [
+    "js/**/*.js",
+    "supabase/functions/**/*.ts",
+    "workers/*/src/**/*.js",
+    "functions/**/*.js"
+  ],
+  "ignore": [
+    "js/config.template.js",
+    "js/services/races.js"
+  ]
+}

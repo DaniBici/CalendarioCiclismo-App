@@ -1,0 +1,274 @@
+{
+  "raceSlug": "itzulia-basque-country-2026",
+  "teams": [
+    {
+      "name": "Soudal Quick-Step",
+      "riders": [
+        { "dorsal": 1, "firstName": "Mikel", "lastName": "Landa Meana" },
+        { "dorsal": 2, "firstName": "Ayco", "lastName": "Bastiaens" },
+        { "dorsal": 3, "firstName": "Steff", "lastName": "Cras" },
+        { "dorsal": 4, "firstName": "Mauri", "lastName": "Vansevenant" },
+        { "dorsal": 5, "firstName": "Martin", "lastName": "Svrček" },
+        { "dorsal": 6, "firstName": "Ilan", "lastName": "Van Wilder" },
+        { "dorsal": 7, "firstName": "Ethan Edward", "lastName": "Hayter" }
+      ]
+    },
+    {
+      "name": "XDS Astana Team",
+      "riders": [
+        { "dorsal": 11, "firstName": "Clément", "lastName": "Champoussin" },
+        { "dorsal": 12, "firstName": "Lorenzo", "lastName": "Fortunato" },
+        { "dorsal": 13, "firstName": "Sergio Andrés", "lastName": "Higuita García" },
+        { "dorsal": 14, "firstName": "Harold Alfonso", "lastName": "Tejada Canacue" },
+        { "dorsal": 15, "firstName": "Nicola", "lastName": "Conci" },
+        { "dorsal": 16, "firstName": "Christian", "lastName": "Scaroni" },
+        { "dorsal": 17, "firstName": "Simone", "lastName": "Velasco" }
+      ]
+    },
+    {
+      "name": "Groupama-FDJ United",
+      "riders": [
+        { "dorsal": 21, "firstName": "Guillaume", "lastName": "Martin Guyonnet" },
+        { "dorsal": 22, "firstName": "Clément", "lastName": "Braz Afonso" },
+        { "dorsal": 23, "firstName": "Maxime", "lastName": "Decomble" },
+        { "dorsal": 24, "firstName": "Kévin", "lastName": "Geniets" },
+        { "dorsal": 25, "firstName": "Quentin", "lastName": "Pacher" },
+        { "dorsal": 26, "firstName": "Enzo", "lastName": "Paleni" },
+        { "dorsal": 27, "firstName": "Rémy", "lastName": "Rochas" }
+      ]
+    },
+    {
+      "name": "UAE Team Emirates KRG",
+      "riders": [
+        { "dorsal": 31, "firstName": "Isaac", "lastName": "Del Toro Romero" },
+        { "dorsal": 32, "firstName": "Brandon", "lastName": "McNulty" },
+        { "dorsal": 33, "firstName": "Igor", "lastName": "Arrieta Lizarraga" },
+        { "dorsal": 34, "firstName": "Felix", "lastName": "Grossschartner" },
+        { "dorsal": 35, "firstName": "Domen", "lastName": "Novak" },
+        { "dorsal": 36, "firstName": "Adrià", "lastName": "Pericas Capdevila" },
+        { "dorsal": 37, "firstName": "Marc", "lastName": "Soler" }
+      ]
+    },
+    {
+      "name": "Lidl-Trek",
+      "riders": [
+        { "dorsal": 41, "firstName": "Juan", "lastName": "Ayuso Pesquera" },
+        { "dorsal": 42, "firstName": "Bauke", "lastName": "Mollema" },
+        { "dorsal": 43, "firstName": "Andrea", "lastName": "Bagioli" },
+        { "dorsal": 44, "firstName": "Julien", "lastName": "Bernard" },
+        { "dorsal": 45, "firstName": "Carlos", "lastName": "Verona Quintanilla" },
+        { "dorsal": 46, "firstName": "Mattias", "lastName": "Skjelmose" },
+        { "dorsal": 47, "firstName": "Quinn", "lastName": "Simmons" }
+      ]
+    },
+    {
+      "name": "Red Bull-Bora-Hansgrohe",
+      "riders": [
+        { "dorsal": 51, "firstName": "Juan", "lastName": "Rodas" },
+        { "dorsal": 52, "firstName": "Hélios", "lastName": "Etxeberria Ansalas" },
+        { "dorsal": 53, "firstName": "Florian", "lastName": "Lipowitz" },
+        { "dorsal": 54, "firstName": "Finn Lachlan", "lastName": "Fisher-Black" },
+        { "dorsal": 55, "firstName": "Gianni", "lastName": "Moscon" },
+        { "dorsal": 56, "firstName": "Luke", "lastName": "Tuckwell" },
+        { "dorsal": 57, "firstName": "Emil", "lastName": "Herzog" }
+      ]
+    },
+    {
+      "name": "Decathlon AG2R La Mondiale Team",
+      "riders": [
+        { "dorsal": 61, "firstName": "Paul", "lastName": "Seixas" },
+        { "dorsal": 62, "firstName": "Matthew", "lastName": "Riccitello" },
+        { "dorsal": 63, "firstName": "Lee", "lastName": "Bisalke" },
+        { "dorsal": 64, "firstName": "Jordan", "lastName": "Labrosse" },
+        { "dorsal": 65, "firstName": "Nicolas", "lastName": "Prodhomme" },
+        { "dorsal": 66, "firstName": "Johannes", "lastName": "Staune-Mittet" },
+        { "dorsal": 67, "firstName": "Aurélien", "lastName": "Paret Peintre" }
+      ]
+    },
+    {
+      "name": "Burgos-BurPellet",
+      "riders": [
+        { "dorsal": 71, "firstName": "Ander", "lastName": "Okamika Bengoetxea" },
+        { "dorsal": 72, "firstName": "Lorenzo", "lastName": "Quartucci" },
+        { "dorsal": 73, "firstName": "José Luis", "lastName": "Faura Asensio" },
+        { "dorsal": 74, "firstName": "Jordán", "lastName": "Fernández Rodríguez" },
+        { "dorsal": 75, "firstName": "Carlos", "lastName": "García Pierna" },
+        { "dorsal": 76, "firstName": "José Manuel", "lastName": "Díaz Gallego" },
+        { "dorsal": 77, "firstName": "Aurelio", "lastName": "Marolo Toledo" }
+      ]
+    },
+    {
+      "name": "Equipo Kern Pharma",
+      "riders": [
+        { "dorsal": 81, "firstName": "Iñigo", "lastName": "Elosegui Momeñe" },
+        { "dorsal": 82, "firstName": "Iván", "lastName": "Cobo Cayon" },
+        { "dorsal": 83, "firstName": "Nil", "lastName": "Gimeno Ferré" },
+        { "dorsal": 84, "firstName": "Unai", "lastName": "Iribar Jauregi" },
+        { "dorsal": 85, "firstName": "José", "lastName": "Ramos Muñoz" },
+        { "dorsal": 86, "firstName": "Jorge", "lastName": "Gutiérrez González" },
+        { "dorsal": 87, "firstName": "Ibón", "lastName": "Ruiz Sedano" }
+      ]
+    },
+    {
+      "name": "Movistar Team",
+      "riders": [
+        { "dorsal": 91, "firstName": "Cian", "lastName": "Uijtdebroeks" },
+        { "dorsal": 92, "firstName": "Jorge", "lastName": "Arcas" },
+        { "dorsal": 93, "firstName": "Juan Pedro", "lastName": "López Pérez" },
+        { "dorsal": 94, "firstName": "Raúl", "lastName": "García Pierna" },
+        { "dorsal": 95, "firstName": "Manuel", "lastName": "Peñalver" },
+        { "dorsal": 96, "firstName": "Roger", "lastName": "Adrià Oliveres" },
+        { "dorsal": 97, "firstName": "Javier", "lastName": "Romo Oliver" }
+      ]
+    },
+    {
+      "name": "Team Picnic PostNL",
+      "riders": [
+        { "dorsal": 101, "firstName": "Frank", "lastName": "Van Den Broek" },
+        { "dorsal": 102, "firstName": "Matthew", "lastName": "Dinham" },
+        { "dorsal": 103, "firstName": "Alexey", "lastName": "Faure Prost" },
+        { "dorsal": 104, "firstName": "James", "lastName": "Knox" },
+        { "dorsal": 105, "firstName": "Bjoern", "lastName": "Korff" },
+        { "dorsal": 106, "firstName": "Guillermo Juan", "lastName": "Martínez" },
+        { "dorsal": 107, "firstName": "Mattia", "lastName": "Gaffuri" }
+      ]
+    },
+    {
+      "name": "Bahrain Victorious",
+      "riders": [
+        { "dorsal": 111, "firstName": "Pello", "lastName": "Bilbao López de Armentia" },
+        { "dorsal": 112, "firstName": "Aus", "lastName": "Hindermann" },
+        { "dorsal": 113, "firstName": "Rainer", "lastName": "Kepplinger" },
+        { "dorsal": 114, "firstName": "Alberto", "lastName": "Bruttomesso" },
+        { "dorsal": 115, "firstName": "Thomas Oliver", "lastName": "Stockwell" },
+        { "dorsal": 116, "firstName": "Antonio", "lastName": "Tiberi" },
+        { "dorsal": 117, "firstName": "Attila", "lastName": "Valter" }
+      ]
+    },
+    {
+      "name": "Alpecin-Deceuninck",
+      "riders": [
+        { "dorsal": 121, "firstName": "Hugo", "lastName": "Houle" },
+        { "dorsal": 122, "firstName": "Ramses", "lastName": "Debruyne" },
+        { "dorsal": 123, "firstName": "Lennert", "lastName": "Belmans" },
+        { "dorsal": 124, "firstName": "Emiel", "lastName": "Verstrynge" },
+        { "dorsal": 125, "firstName": "Aaron", "lastName": "Dockx" },
+        { "dorsal": 126, "firstName": "Gal", "lastName": "Glivar" },
+        { "dorsal": 127, "firstName": "Luca", "lastName": "Vergallito" }
+      ]
+    },
+    {
+      "name": "Lotto Intermarché",
+      "riders": [
+        { "dorsal": 131, "firstName": "Julian", "lastName": "Alaphilippe" },
+        { "dorsal": 132, "firstName": "Fabien", "lastName": "Weiss" },
+        { "dorsal": 133, "firstName": "Marco", "lastName": "Brenner" },
+        { "dorsal": 134, "firstName": "Jacob", "lastName": "Eriksson" },
+        { "dorsal": 135, "firstName": "Yannis", "lastName": "Voisard" },
+        { "dorsal": 136, "firstName": "Hannes", "lastName": "Wilksch" },
+        { "dorsal": 137, "firstName": "Lux", "lastName": "Witters" }
+      ]
+    },
+    {
+      "name": "Cofidis",
+      "riders": [
+        { "dorsal": 141, "firstName": "Iñaki", "lastName": "Izagirre Insausti" },
+        { "dorsal": 142, "firstName": "Alex", "lastName": "Aranburu Deva" },
+        { "dorsal": 143, "firstName": "Emanuel", "lastName": "Buchmann" },
+        { "dorsal": 144, "firstName": "Jamie", "lastName": "Medhat" },
+        { "dorsal": 145, "firstName": "Yael", "lastName": "Joalland" },
+        { "dorsal": 146, "firstName": "Jan", "lastName": "Maas" },
+        { "dorsal": 147, "firstName": "Paul", "lastName": "Ourselin" }
+      ]
+    },
+    {
+      "name": "Caja Rural-Seguros RGA",
+      "riders": [
+        { "dorsal": 151, "firstName": "Fernando", "lastName": "Barceló Aragón" },
+        { "dorsal": 152, "firstName": "Ián", "lastName": "Castillo Ribalat" },
+        { "dorsal": 153, "firstName": "Samuel", "lastName": "Castellano García" },
+        { "dorsal": 154, "firstName": "Alex", "lastName": "Egoitz" },
+        { "dorsal": 155, "firstName": "Julián", "lastName": "Arango-Benga Beitia" },
+        { "dorsal": 156, "firstName": "Joseba", "lastName": "López Cuesta" },
+        { "dorsal": 157, "firstName": "Birgen", "lastName": "Fernández Bustinza" },
+        { "dorsal": 158, "firstName": "Gorka", "lastName": "Guerricagoitia" }
+      ]
+    },
+    {
+      "name": "Euskaltel-Euskadi",
+      "riders": [
+        { "dorsal": 161, "firstName": "Gaël", "lastName": "Usarte Larrea" },
+        { "dorsal": 162, "firstName": "Mikel", "lastName": "Bizkarena Etxeberria" },
+        { "dorsal": 163, "firstName": "Txomin", "lastName": "Juaristi Arrieta" },
+        { "dorsal": 164, "firstName": "Jonathan", "lastName": "Lastra Martínez" },
+        { "dorsal": 165, "firstName": "Nicolás", "lastName": "Alústiza Goikoana" },
+        { "dorsal": 166, "firstName": "Gotzon", "lastName": "Martín Sanz" },
+        { "dorsal": 167, "firstName": "Iker", "lastName": "Mintegi Clavijo" },
+        { "dorsal": 168, "firstName": "Jorge", "lastName": "Aranaz Soto" },
+        { "dorsal": 169, "firstName": "Rubén", "lastName": "Pérez Moreno" },
+        { "dorsal": 103, "firstName": "Itaki", "lastName": "Isasi Flores" }
+      ]
+    },
+    {
+      "name": "EF Education-EasyPost",
+      "riders": [
+        { "dorsal": 171, "firstName": "Ben", "lastName": "Healy" },
+        { "dorsal": 172, "firstName": "Markel", "lastName": "Beloki Fernández" },
+        { "dorsal": 173, "firstName": "James", "lastName": "Shaw" },
+        { "dorsal": 174, "firstName": "Lukas", "lastName": "Nerurkar" },
+        { "dorsal": 175, "firstName": "Jordi Christian", "lastName": "Van Der Lijk" },
+        { "dorsal": 176, "firstName": "Alex", "lastName": "Baudin" },
+        { "dorsal": 177, "firstName": "Michael Shau", "lastName": "Leonard" }
+      ]
+    },
+    {
+      "name": "INEOS Grenadiers",
+      "riders": [
+        { "dorsal": 181, "firstName": "Andrew", "lastName": "August" },
+        { "dorsal": 182, "firstName": "Wade Lucas", "lastName": "Hamilton" },
+        { "dorsal": 183, "firstName": "Ethan", "lastName": "Vauquelin" },
+        { "dorsal": 184, "firstName": "Victor", "lastName": "Langellotti" },
+        { "dorsal": 185, "firstName": "Axel", "lastName": "Laurence" },
+        { "dorsal": 186, "firstName": "Brandon", "lastName": "Rivera Vargas" },
+        { "dorsal": 187, "firstName": "Daryl", "lastName": "Impey" }
+      ]
+    },
+    {
+      "name": "Team Visma-Lease a Bike",
+      "riders": [
+        { "dorsal": 191, "firstName": "Bruno", "lastName": "Armirail" },
+        { "dorsal": 192, "firstName": "Menno", "lastName": "Huising" },
+        { "dorsal": 193, "firstName": "Sean", "lastName": "Tulett" },
+        { "dorsal": 194, "firstName": "Steven", "lastName": "Kruijswijk" },
+        { "dorsal": 195, "firstName": "Tim", "lastName": "Rex" },
+        { "dorsal": 196, "firstName": "Filippo", "lastName": "Horsell" },
+        { "dorsal": 197, "firstName": "Francis", "lastName": "Mouassen" },
+        { "dorsal": 198, "firstName": "Gaitán", "lastName": "Pons" }
+      ]
+    },
+    {
+      "name": "Uno-X Mobility",
+      "riders": [
+        { "dorsal": 201, "firstName": "Cort Magnus", "lastName": "Nielsen" },
+        { "dorsal": 202, "firstName": "Tobias Halland", "lastName": "Johannessen" },
+        { "dorsal": 203, "firstName": "Anders Halland", "lastName": "Johannessen" },
+        { "dorsal": 204, "firstName": "Andreas", "lastName": "Kron" },
+        { "dorsal": 205, "firstName": "Johannes", "lastName": "Kulset" },
+        { "dorsal": 206, "firstName": "Martin", "lastName": "Tuften" },
+        { "dorsal": 207, "firstName": "Torstein", "lastName": "Træen" }
+      ]
+    },
+    {
+      "name": "Lotto Intermarché (continuación)",
+      "riders": [
+        { "dorsal": 211, "firstName": "Mathieu", "lastName": "Kockelmann" },
+        { "dorsal": 212, "firstName": "Luke Matthew", "lastName": "Fox" },
+        { "dorsal": 213, "firstName": "Felix", "lastName": "Brinkristoff" },
+        { "dorsal": 214, "firstName": "Robin", "lastName": "Orins" },
+        { "dorsal": 215, "firstName": "Reuben", "lastName": "Thompson" },
+        { "dorsal": 216, "firstName": "Baptiste", "lastName": "Veistroffer" },
+        { "dorsal": 217, "firstName": "Georg", "lastName": "Zimmermann" }
+      ]
+    }
+  ]
+}

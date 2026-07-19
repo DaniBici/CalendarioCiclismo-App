@@ -1,0 +1,38 @@
+-- Habilita la extensión `unaccent` para poder hacer matching de nombres de
+-- corredores ignorando diacríticos directamente en SQL. Usada por:
+--
+-- 1. El backfill one-shot de mayo 2026 que linkó las 11.315 filas de
+--    startlist_riders al catálogo riders_men / riders_women. La estrategia
+--    original (subagente generando 23 archivos SQL con UPDATEs por id) chocó
+--    con el rate limit de sesión; se sustituyó por dos UPDATEs masivos con
+--    JOIN normalizado, que terminaron el trabajo en segundos:
+--
+--    -- Pase 1 (~7.700 filas): exact match sobre firstName/lastName.
+--    WITH norm_sr AS (
+--      SELECT sr.id AS sr_id,
+--             lower(unaccent(sr."firstName")) AS nf,
+--             lower(unaccent(sr."lastName"))  AS nl,
+--             r.gender
+--      FROM startlist_riders sr
+--      JOIN races r ON r.id = sr."raceId"
+--      WHERE sr."globalRiderId" IS NULL
+--    ), ranked AS (
+--      SELECT n.sr_id, rm.id AS rid,
+--             ROW_NUMBER() OVER (PARTITION BY n.sr_id ORDER BY rm.verified DESC, rm.id ASC) AS rn
+--      FROM norm_sr n
+--      JOIN riders_men rm
+--        ON n.gender = 'male'
+--       AND lower(unaccent(rm."firstName")) = n.nf
+--       AND lower(unaccent(rm."lastName"))  = n.nl
+--     )  -- + variante UNION ALL para riders_women
+--    UPDATE startlist_riders sr SET "globalRiderId" = ranked.rid
+--    FROM ranked WHERE sr.id = ranked.sr_id AND ranked.rn = 1;
+--
+--    -- Pase 2 (~50 filas): normalización agresiva sin caracteres especiales
+--    -- para resolver apóstrofos perdidos (O'Brien ≠ O Brien) y guiones
+--    -- (Lecamus-Lambert ≠ Lecamus Lambert):
+--    --   lower(regexp_replace(unaccent(x), '[^a-zA-Z0-9]', '', 'g'))
+--
+-- 2. Lookups futuros con tildes/diacríticos sin tener que duplicar columnas.
+
+CREATE EXTENSION IF NOT EXISTS unaccent;

@@ -1,0 +1,234 @@
+/* ─────────────────────────────────────────────────────────────────
+   FICHAJES — /fichajes/ (+ EN /en/transfers/)
+   Mercado de fichajes 2027: feed de confirmaciones + equipos por división
+   + vista de equipo (continúan / llegan / se marchan).
+   ───────────────────────────────────────────────────────────────── */
+
+.tr-main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3.5rem;
+  box-sizing: border-box;
+}
+
+.tr-heading {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.tr-section-title {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 1.75rem 0 0.6rem;
+}
+
+.tr-empty {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+}
+
+.tr-dim { color: var(--text-muted); }
+
+/* ── Feed de confirmaciones ─────────────────────────────────────── */
+.tr-feed-day {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0.9rem 0 0.35rem;
+}
+
+.tr-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.tr-row__flag {
+  flex-shrink: 0;
+  width: 1.4em;
+  text-align: center;
+}
+
+.tr-row__body { flex: 1; min-width: 0; }
+
+.tr-arrow { color: var(--text-dim); margin: 0 0.15rem; }
+
+.tr-contract {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.tr-chip {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.14rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.tr-chip--rumor {
+  background: rgba(245, 158, 11, 0.16);
+  color: #d97706;
+}
+
+html.dark .tr-chip--rumor,
+html:not(.light) .tr-chip--rumor { color: #fbbf24; }
+
+/* Duda ≠ rumor: un rumor es una noticia sin confirmar, una duda es la
+   ausencia de noticia. Violeta para que no se lean como el mismo estado. */
+.tr-chip--doubt {
+  background: rgba(139, 92, 246, 0.16);
+  color: #7c3aed;
+}
+
+html.dark .tr-chip--doubt,
+html:not(.light) .tr-chip--doubt { color: #a78bfa; }
+
+/* Aviso de continuidad del equipo en duda (vista de equipo). */
+.tr-team-notice {
+  margin: 0.6rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.1);
+  border-left: 3px solid #8b5cf6;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.tr-more {
+  display: block;
+  margin: 0.75rem auto 0;
+  padding: 0.45rem 1.3rem;
+  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+  background: var(--accent-dim);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+/* ── Divisiones + equipos ───────────────────────────────────────── */
+.tr-div-btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+/* Mismo lenguaje que las píldoras del selector de días / chips de mes:
+   sin borde, activo = relleno --accent-dim + texto accent. */
+.tr-div-btn {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tr-div-btn--active {
+  background: var(--accent-dim);
+  color: var(--accent-text, var(--accent));
+}
+
+.tr-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+@media (max-width: 560px) {
+  .tr-team-grid { grid-template-columns: 1fr; }
+}
+
+.tr-team-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tr-team-card:hover { background: var(--bg-card-hover); }
+
+.tr-team-card__name { flex: 1; min-width: 0; }
+
+.tr-team-card__chev { color: var(--text-dim); flex-shrink: 0; }
+
+/* ── Vista de equipo ────────────────────────────────────────────── */
+.tr-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0 1rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+  background: var(--accent-dim);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.tr-team-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.tr-team-header__name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.tr-team-header__cat {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.tr-team-sections section { margin-top: 0.25rem; }
+
+.tr-row--team { font-size: 0.86rem; }

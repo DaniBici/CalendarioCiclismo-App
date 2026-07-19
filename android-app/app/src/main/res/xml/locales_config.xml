@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Idiomas soportados por la app. Requerido por Android 13+ (API 33) para
+    que AppCompatDelegate.setApplicationLocales() funcione correctamente.
+    Sin este archivo el sistema ignora silenciosamente la llamada.
+    Referenciado desde AndroidManifest.xml → <application android:localeConfig>.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="es" />
+    <locale android:name="en" />
+</locale-config>
