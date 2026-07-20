@@ -610,6 +610,18 @@ enum UciResultsLogic {
         //     Colombia Femenina — rank 1 con DNS, el tiempo de cabeza es el del rank 2.
         // → `winnerIndex` solo cuenta como ganadora si su irm NO es de abandono.
         // (Swift no tiene identidad de referencia en structs → se compara por índice.)
+        // ¿Esta fila marca "mismo tiempo que la ganadora"? Mira el gap publicado y,
+        // si no lo hay, el tiempo absoluto (cuando los gaps se derivan). Se usa para
+        // delimitar el bloque de cabeza; el gap final se formatea más abajo.
+        func isZeroGapRow(_ r: RaceUciResultRow, winnerSec: Double?, deriveGaps: Bool) -> Bool {
+            let raw = (r.gapText ?? "").trimmingCharacters(in: .whitespaces)
+            if !raw.isEmpty {
+                let v = raw.hasPrefix("+") ? String(raw.dropFirst()) : raw
+                return (tttToSeconds(v) ?? -1) == 0
+            }
+            guard deriveGaps, let ws = winnerSec, let sec = tttToSeconds(r.timeText) else { return false }
+            return sec.rounded(.down) == ws.rounded(.down)
+        }
         let rank1Index = rows.firstIndex { $0.rank == 1 }
         let winnerIndex: Int? = rank1Index.flatMap { isAbandonIrm(rows[$0].irm) ? nil : $0 }
         // Clasificado a efectos de TIEMPO: el ganador (ruido aparte) o cualquier fila
@@ -641,6 +653,33 @@ enum UciResultsLogic {
                 && (tttToSeconds(rows[$0].timeText) ?? .greatestFiniteMagnitude) < winnerSec!
         }
         let deriveGaps = allTimed && !gapsDisguised
+
+        // Último índice del BLOQUE DE CABEZA: las filas que llegaron con la ganadora,
+        // contiguas desde el rank 1. Una fila con gap 0 FUERA de ese bloque no cruzó
+        // con el grupo: es una REASIGNACIÓN DE COMISARIOS (incidente en los últimos
+        // 3 km → se le acredita el tiempo del grupo con el que rodaba, pero conserva
+        // su puesto por orden de llegada; UCI 2.6.027). Caso real: Baloise Ladies Tour
+        // 2026 et.5, Manly 97ª con el tiempo de la ganadora.
+        // Esas filas NUNCA se colapsan a "m.t.": el m.t. es una abreviatura que sólo
+        // significa algo dentro de un grupo contiguo en meta, y aquí mentiría sobre
+        // cómo terminó. Se pinta su gap explícito (+0" incluido).
+        let headBlockEnd: Int = {
+            guard isTimeClass else { return -1 }
+            // Ancla = el primer CLASIFICADO real. Normalmente es winnerIndex; si el rank 1
+            // es un abandono espurio (DNS), el cabeza es el primer clasificado sin irm,
+            // que marca el tiempo de referencia (mismo criterio que minFinisherSec).
+            guard let w = rows.indices.first(where: { isRankedFinisher($0) }) else { return -1 }
+            var last = w
+            var i = w + 1
+            while i < rows.count {
+                // Los abandonos van al final y no rompen el bloque si aún no empezaron.
+                guard rows[i].rank != nil, (rows[i].irm ?? "").isEmpty else { break }
+                if !isZeroGapRow(rows[i], winnerSec: winnerSec, deriveGaps: deriveGaps) { break }
+                last = i
+                i += 1
+            }
+            return last
+        }()
 
         return rows.indices.map { i in
             let r = rows[i]
@@ -731,7 +770,7 @@ enum UciResultsLogic {
                     }
                 }
                 if wt.isEmpty { kind = .empty; value = "" } else { kind = .winnerTime; value = wt }
-            } else if let g = effGap, !g.isEmpty, g == "+0\"" {
+            } else if let g = effGap, !g.isEmpty, g == "+0\"", i <= headBlockEnd {
                 kind = .sameTime; value = ""
             } else if let g = effGap, !g.isEmpty {
                 rowGap = g; kind = .gap; value = g

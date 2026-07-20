@@ -192,7 +192,8 @@
     <string name="settings_section_appearance">Apariencia</string>
     <string name="settings_section_privacy">Privacidad</string>
     <string name="settings_section_about">Datos abiertos</string>
-    <string name="settings_licenses_body">Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles. Más detalle en calendariociclismo.app/abierto.html</string>
+    <string name="settings_licenses_body">Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles.</string>
+    <string name="settings_open_project_cta">Cómo se hace este proyecto</string>
 
     <!-- Settings: Idioma -->
     <string name="settings_language_description">Elige el idioma de la aplicación.</string>

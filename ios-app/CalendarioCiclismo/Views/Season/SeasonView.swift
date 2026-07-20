@@ -178,6 +178,11 @@ struct SeasonView: View {
                         .foregroundStyle(.white)
                         .clipShape(Capsule())
                     }
+                    // En iOS 26 el toolbar envuelve el trigger del Menu en un
+                    // botón de Liquid Glass con tinte de acento propio, que pisa
+                    // el `.background`/`.foregroundStyle` del label. `.plain` lo
+                    // desactiva para que la cápsula personalizada mande.
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Año \(viewModel.year)")
                     .accessibilityHint("Pulsa dos veces para cambiar de año")
                     .accessibilityIdentifier(AccessibilityID.yearPicker)
@@ -218,6 +223,12 @@ struct SeasonView: View {
                         // RoundedRectangle de radio 3 que se veía boxy al lado).
                         .clipShape(Capsule())
                     }
+                    // Sin esto, en iOS 26 el botón de Liquid Glass del toolbar
+                    // pinta la cápsula con tinte de acento sólido + contenido
+                    // blanco y el estado inactivo «Todos los países» (accent-dim
+                    // 14 % + texto azul) nunca se ve. `.plain` deja mandar al
+                    // estilo propio.
+                    .buttonStyle(.plain)
                     .accessibilityLabel(viewModel.activeCountry == "all" ? localeService.t("Todos los países", "All countries") : "\(localeService.t("País", "Country")): \(AccessibilityCountryNames.name(for: viewModel.activeCountry) ?? viewModel.activeCountry)")
                     .accessibilityHint("Pulsa dos veces para filtrar por país")
                     .accessibilityIdentifier(AccessibilityID.countryPicker)

@@ -3906,11 +3906,19 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 .res-stage-btn--active { color: #fff; background: var(--accent); }
 
 /* Pestañas de clasificación — heredan el look de .tcat-btn. */
-.res-tabs {
+/* Carril exterior a sangre: lleva el sticky y el FONDO OPACO. Sin él las filas
+   de la clasificación se transparentan bajo las pestañas y el selector de
+   equipos al scrollear. Va aquí y no en .res-tabs porque esa fila está acotada
+   a 860px y centrada: pintarle el fondo directamente deja los márgenes
+   laterales transparentes en pantallas anchas. Misma estructura que
+   .res-stages / .so-filters (contenedor full-bleed + inner centrado). */
+.res-tabs-bar {
   position: sticky;
   top: 56px;
   z-index: 50;
-  background: transparent;
+  background: var(--bg);
+}
+.res-tabs {
   /* Fila a 860px: pestañas (izq) + filtro por equipo (der), misma línea. */
   max-width: 860px;
   margin: 0 auto;
@@ -3919,7 +3927,8 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   align-items: center;
   gap: 0.6rem;
 }
-.res-stages + .res-tabs { top: calc(56px + 3rem); }
+/* Con selector de etapas encima, el carril se ancla bajo él (no bajo el header). */
+.res-stages + .res-tabs-bar { top: calc(56px + 3rem); }
 /* Envoltura de las pestañas: posiciona el chevron de overflow sobre el borde
    derecho sin que reste sitio al área scrolleable. */
 .res-tabs__scroll {

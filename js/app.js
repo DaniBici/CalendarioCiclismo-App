@@ -406,7 +406,13 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       return (a._race?.name || '').localeCompare(b._race?.name || '');
     });
 
-    list.innerHTML = '';
+    // ⚠️ NO vaciar la lista aquí: por debajo quedan awaits (ensureYearRacesCached,
+    // loadPlaceholders) que NO mutan el DOM. Si se limpia antes, el overlay de
+    // carga (js/page-loading.js) ve el contenedor sin marcador .loading y sin
+    // mutaciones durante SETTLE_MS → se desvanece sobre una lista VACÍA y las
+    // cards aparecen después, con la página ya destapada. El marcador se
+    // conserva hasta el instante en que hay algo que pintar (cada rama limpia
+    // justo antes de su propio render).
 
     if (raceDays.length === 0) {
       // Comprobar si hay placeholders antes de mostrar vacío
@@ -463,6 +469,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       });
 
       const total0 = allItems0.length;
+      list.innerHTML = '';
       allItems0.forEach(item => {
         if (item._placeholder) {
           const ph = item._phRace; ph._dateKey = dateKey;
@@ -524,6 +531,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       return;
     }
 
+    list.innerHTML = '';
     allItems.forEach(item => {
       if (item._placeholder) {
         list.appendChild(buildPlaceholderCard(item._phRace));

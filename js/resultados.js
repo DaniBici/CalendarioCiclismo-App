@@ -659,7 +659,9 @@ async function init() {
   const hasTabs = activeStages.length > 1;
   const activeIsIndividual = !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
   if (hasTabs || activeIsIndividual) {
-    html += `<div class="res-tabs" id="resTabs"><div class="res-tabs__scroll"><div class="res-tabs__inner" id="resTabsInner">`;
+    // Carril exterior a sangre: lleva el sticky y el fondo opaco (las filas
+    // scrollean por debajo). .res-tabs queda dentro, centrado a 860px.
+    html += `<div class="res-tabs-bar"><div class="res-tabs" id="resTabs"><div class="res-tabs__scroll"><div class="res-tabs__inner" id="resTabsInner">`;
     if (hasTabs) {
       for (const st of activeStages) {
         const lbl = (CLASS_LABELS[st.classKind] || { es: st.classKind, en: st.classKind })[lang];
@@ -679,7 +681,7 @@ async function init() {
     // Separador vertical entre las pestañas y el selector de equipos (solo con
     // pestañas; su visibilidad la afina renderClassification según haya filtro).
     if (hasTabs) html += `<div class="res-tabs__sep" id="resTabsSep" hidden></div>`;
-    html += `<div class="res-tabs__filter" id="resTeamFilterSlot"></div></div>`;
+    html += `<div class="res-tabs__filter" id="resTeamFilterSlot"></div></div></div>`;
   }
 
   // Contenedor de la tabla (se rellena por renderClassification).
@@ -1048,7 +1050,41 @@ async function init() {
         <th class="so-th res-th--result">${esc(valueHeader)}</th>
       </tr></thead><tbody>`;
 
-    rows.forEach(r => {
+    // Último índice del BLOQUE DE CABEZA: las filas que llegaron con el ganador,
+    // contiguas desde el rank 1. Una fila con gap 0 FUERA de ese bloque no cruzó con
+    // el grupo: es una REASIGNACIÓN DE COMISARIOS (incidente en los últimos 3 km → se
+    // le acredita el tiempo del grupo con el que rodaba, pero conserva su puesto por
+    // orden de llegada; UCI 2.6.027). Caso real: Baloise Ladies Tour 2026 et.5, Manly
+    // 97ª con el tiempo de la ganadora.
+    // Esas filas NUNCA se colapsan a "m.t." (ni aquí ni en applyTeamFilter, que las
+    // deja fuera al no llevar data-gap): el m.t. es una abreviatura que sólo significa
+    // algo dentro de un grupo contiguo en meta, y aquí mentiría sobre cómo terminó.
+    // Se pinta su gap explícito (+0" incluido).
+    const isZeroGapRow = (r) => {
+      const raw = String(r.gapText || '').trim();
+      if (raw) return timeToSeconds(raw.replace(/^\+/, '')) === 0;
+      if (!deriveGaps || winnerSec == null) return false;
+      const sec = timeToSeconds(r.timeText);
+      return sec != null && Math.floor(sec) === Math.floor(winnerSec);
+    };
+    let headBlockEnd = -1;
+    if (isTimeClass) {
+      // Ancla = el primer CLASIFICADO real. Normalmente es winnerRow; si el rank 1 es
+      // un abandono espurio (DNS), el cabeza es el primer clasificado sin irm, que
+      // marca el tiempo de referencia (mismo criterio que minFinisherSec).
+      const w = rows.findIndex(isRankedFinisher);
+      if (w >= 0) {
+        headBlockEnd = w;
+        for (let i = w + 1; i < rows.length; i++) {
+          // Los abandonos van al final y no rompen el bloque si aún no empezaron.
+          if (rows[i].rank == null || rows[i].irm) break;
+          if (!isZeroGapRow(rows[i])) break;
+          headBlockEnd = i;
+        }
+      }
+    }
+
+    rows.forEach((r, rowIndex) => {
       const dorsal = r.bib != null && /^\d+$/.test(String(r.bib)) ? Number(r.bib) : null;
       const fromSl = dorsal != null ? byDorsal.get(dorsal) : null;
       // Sin casar por dorsal (carrera sin startlist): caer al enriquecido por
@@ -1134,11 +1170,15 @@ async function init() {
           ? secondsToPressTime(winIttSec)
           : (cleanTimeText(r.timeText) || (winnerSec ? secondsToAbsText(winnerSec) : ''));
         resultCell = wt ? `<span class="res-time">${esc(wt)}</span>` : '';
-      } else if (effGap && /^\+0"$/.test(effGap)) {
+      } else if (effGap && /^\+0"$/.test(effGap) && rowIndex <= headBlockEnd) {
         // Gap de 0 s (mismo tiempo que el ganador, p. ej. UCI publica "00:00:00"
         // para el 2º): la prensa lo cita como m.t., no como "+0"". Sin data-gap →
         // applyTeamFilter no lo toca; queda fijo como m.t.
         resultCell = `<span class="res-gap res-gap--same">${esc(sameTimeLabel)}</span>`;
+      } else if (effGap && rowIndex > headBlockEnd && /^\+0"$/.test(effGap)) {
+        // Reasignación de comisarios (gap 0 fuera del bloque de cabeza): gap FIJO,
+        // sin data-gap → applyTeamFilter no lo toca y nunca se colapsa a m.t.
+        resultCell = `<span class="res-gap">${esc(effGap)}</span>`;
       } else if (effGap) {
         // Gap real en un span dinámico; applyTeamFilter lo convertirá a m.t. si
         // procede sobre las filas visibles. (Se llama siempre tras el render.)

@@ -788,6 +788,14 @@ function setupAssetsSection() {
     if (!btn) return;
     const row = btn.closest('.asset-row');
     if (!row) return;
+    // Marcar el tipo como borrado A PROPÓSITO. saveRaceDay reconstruye los
+    // assets desde el DOM y preserva el `startOrder` ausente (lo crea el
+    // importador, no el editor); sin esta marca, quitar la fila a mano y
+    // "que el editor nunca la renderizara" serían indistinguibles y el
+    // guardado resucitaría el asset que se acaba de borrar.
+    list.dataset.removedTypes = [
+      ...new Set([...(list.dataset.removedTypes || '').split(',').filter(Boolean), row.dataset.assetType]),
+    ].join(',');
     row.remove();
     if (!list.querySelector('.asset-row')) {
       list.innerHTML = '<div class="assets-empty">Aún no hay documentos. Usa el selector de arriba para añadir.</div>';
@@ -1206,6 +1214,13 @@ async function setupStartOrderSection(rd) {
 
       // Sincronizar el input de URL en el panel si existe
       const soInput = document.querySelector('.asset-url-input[data-type="startOrder"]');
+      // Importar deshace un borrado previo en esta misma sesión de edición:
+      // la marca de "borrado a propósito" caducó (acabamos de crear el asset).
+      const soList = document.getElementById('assetsList');
+      if (soList?.dataset.removedTypes) {
+        soList.dataset.removedTypes = soList.dataset.removedTypes
+          .split(',').filter(t => t && t !== 'startOrder').join(',');
+      }
       if (soInput) {
         soInput.value = soUrl;
       } else {
@@ -2943,7 +2958,7 @@ async function saveRaceDay(status) {
 
     // Guardar assets — misma estrategia INSERT primero + DELETE por ID
     const { data: oldAssets, error: oldAsErr } = await supabase
-      .from('assets').select('id').eq('raceDayId', rdId);
+      .from('assets').select('id, type, sourceType, url').eq('raceDayId', rdId);
     if (oldAsErr) throw oldAsErr;
 
     const assetDocTypes = ['roadbook', 'profile', 'ports', 'map', 'startOrder'];
@@ -2954,6 +2969,31 @@ async function saveRaceDay(status) {
       if (!url) continue;
       newAssets.push({ id: crypto.randomUUID(), raceDayId: rdId, type: input.dataset.type, sourceType: 'external', url });
       if (assetDocTypes.includes(input.dataset.type)) hasAssets = true;
+    }
+    // El guardado reconstruye los assets DESDE EL DOM: borra todos y reinserta
+    // los inputs con valor. Eso es correcto para los documentos que el editor
+    // renderiza siempre, pero el asset `startOrder` NO lo crea el editor: lo
+    // inserta el importador de orden de salida (attachImportHandler). Si el
+    // editor se guarda sin que su fila esté cableada en #assetsList (pestaña no
+    // abierta, editor montado antes del import…), el DELETE se lo llevaba y el
+    // INSERT no lo reponía → la jornada perdía el badge "Orden salida" en las
+    // tres plataformas, que lo gatean por la existencia de este asset, aunque
+    // `startOrderImportedAt` y las filas de start_order_entries siguieran ahí.
+    // Cazado en el Tour de Francia 2026 etapa 16 (CRI, 166 entries importados).
+    // Quitar la fila a mano (botón ✕) SÍ debe borrarlo: ese handler la apunta
+    // en `#assetsList[data-removed-types]`, que aquí se respeta. Sin esa marca
+    // el borrado explícito y "el editor nunca la renderizó" serían el mismo
+    // estado (row.remove() la saca del DOM) y resucitaríamos lo recién borrado.
+    const soInDom = document.querySelector('.asset-url-input[data-type="startOrder"]');
+    const soRemoved = (document.getElementById('assetsList')?.dataset.removedTypes || '')
+      .split(',').includes('startOrder');
+    const soOld = (oldAssets || []).find(a => a.type === 'startOrder');
+    if (!soInDom && !soRemoved && soOld?.url) {
+      newAssets.push({
+        id: crypto.randomUUID(), raceDayId: rdId,
+        type: 'startOrder', sourceType: soOld.sourceType || 'external', url: soOld.url,
+      });
+      hasAssets = true;
     }
     if (newAssets.length) {
       const { error: insAsErr } = await supabase.from('assets').insert(newAssets);

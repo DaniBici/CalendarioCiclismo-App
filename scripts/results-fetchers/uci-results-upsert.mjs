@@ -83,7 +83,8 @@
 'use strict';
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -154,10 +155,11 @@ const SKIP_EXISTING_AFTER_MIN = (() => {
 })();
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 
-if (!IN) { log('FATAL: falta --in <ruta-json-del-fetcher>'); process.exit(1); }
-if (!RACE_ID) { log('FATAL: falta --race-id <raceId nuestro>'); process.exit(1); }
+// Los obligatorios se validan en main() (dentro del guard de CLI): importado desde
+// los tests no hay argv y buildPlan recibe sus datos por parámetro.
 
-const OUT_SQL = getArg('emit-sql') || join(dirname(IN), 'upsert.sql');
+// Perezoso: al importar desde los tests no hay --in, y dirname(null) reventaría.
+const OUT_SQL = getArg('emit-sql') || (IN ? join(dirname(IN), 'upsert.sql') : null);
 
 // ── normalización de valores ────────────────────────────────────────────────
 const s = (v) => (v == null || v === '' ? null : String(v));
@@ -375,16 +377,22 @@ ON CONFLICT ("raceId") DO UPDATE SET
       // restos Tissot tras conmutar la carrera a 'uci' — se borra ANTES de
       // upsertar (cascade → también sus filas). Así la fuente que llega
       // REEMPLAZA el placeholder en vez de duplicar la pestaña en la web.
-      // A PROPÓSITO SIN guarda de lock: el candado (087) protege correcciones
-      // del panel frente a re-volcados de la MISMA clasificación (mismo
-      // eventId, guardas de abajo); NO convierte un placeholder provisional en
-      // verdad frente a la fuente oficial (decisión Dani 2026-06-10: el
-      // volcado PDF siempre es pisado por los resultados oficiales).
+      // Guarda de lock ASIMÉTRICA (decisión Dani 2026-06-10, matizada 2026-07-19):
+      //   · entrante OFICIAL (eventId > 0, DataRide): purga SIN mirar lockedAt →
+      //     un placeholder provisional nunca bloquea a la fuente oficial.
+      //   · entrante SINTÉTICA (eventId < 0, otro cronometrador/PDF): RESPETA el
+      //     candado. Entre dos fuentes provisionales ninguna es "la verdad", así
+      //     que una clasificación curada a mano y bloqueada desde el panel no se
+      //     pisa (caso Valle d'Aosta 2026: E1-E3 volcadas de fuente externa/libro STS y
+      //     curadas, con el .clax de STS llegando después bajo otro eventId).
+      const purgeLockGuard = (eventId != null && eventId < 0)
+        ? `\n  AND "lockedAt" IS NULL`
+        : '';
       plan.push({
         note: null,
         text: `DELETE FROM public.race_uci_stages
 WHERE "raceId"=$1 AND "eventId" <> $2 AND "eventId" < 0
-  AND "stageNumber" IS NOT DISTINCT FROM $3 AND "classKind"=$4 AND scope=$5`,
+  AND "stageNumber" IS NOT DISTINCT FROM $3 AND "classKind"=$4 AND scope=$5${purgeLockGuard}`,
         params: [RACE_ID, eventId, stageNumber, s(cl.classKind), s(cl.scope)],
       });
 
@@ -411,12 +419,23 @@ WHERE "raceId"=$1 AND "eventId" <> $2 AND "eventId" < 0
         : `COALESCE((SELECT "dateKey" FROM public.race_days WHERE "raceId"=$2 AND "stageNumber"=$11
              ORDER BY "neutralStartTimeUtc" ASC NULLS LAST, id ASC LIMIT 1 OFFSET $16), $12)`;
 
+      // Espejo de la guarda asimétrica de la purga: si la gemela lógica sigue viva
+      // porque está BLOQUEADA, una entrante SINTÉTICA no debe insertarse al lado
+      // (el ON CONFLICT es por "eventId", que aquí NO colisiona → saldrían dos
+      // pestañas de la misma clasificación en la web). La entrante oficial sí entra:
+      // su purga ya se llevó por delante a la gemela.
+      const insertLockGuard = (eventId != null && eventId < 0)
+        ? `\nWHERE NOT EXISTS (SELECT 1 FROM public.race_uci_stages g
+     WHERE g."raceId"=$2 AND g."eventId" <> $5 AND g."eventId" < 0
+       AND g."stageNumber" IS NOT DISTINCT FROM $11 AND g."classKind"=$6 AND g.scope=$7
+       AND g."lockedAt" IS NOT NULL)`
+        : '';
       plan.push({
         note: `stage ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} · ${cl.rowCount} filas`,
         text: `INSERT INTO public.race_uci_stages
   (id,"raceId","raceDayId","competitionId","uciRaceId","eventId","classKind",scope,"eventName",
    "isTeamEvent","stageNumber","isFinalClassification","stageDate","raceType","winnerName","rowCount")
-VALUES ($1,$2,${raceDayExpr},$3,$4,$5,$6,$7,$8,$9,$11,$10,${stageDateExpr},$13,$14,$15)
+SELECT $1,$2,${raceDayExpr},$3,$4,$5,$6,$7,$8,$9,$11,$10,${stageDateExpr},$13,$14,$15${insertLockGuard}
 ON CONFLICT ("eventId") DO UPDATE SET
   "raceId"=EXCLUDED."raceId", "raceDayId"=EXCLUDED."raceDayId",
   "competitionId"=EXCLUDED."competitionId", "uciRaceId"=EXCLUDED."uciRaceId",
@@ -428,7 +447,15 @@ WHERE race_uci_stages."lockedAt" IS NULL`,
         params: [
           stageRef, RACE_ID, competitionId, uciRaceId, eventId, s(cl.classKind), s(cl.scope),
           s(cl.eventName), !!cl.isTeamEvent, isFinal, stageNumber, dateKey, raceType,
-          s(cl.winnerName), n(cl.rowCount), sectorIndex,   // $16 = sectorIndex (doble sector)
+          s(cl.winnerName), n(cl.rowCount),
+          // $16 = sectorIndex (doble sector). SOLO se añade cuando el SQL lo
+          // referencia: con stageNumber null (Final Classification) raceDayExpr es
+          // 'NULL' y stageDateExpr es '$12', así que ninguna expresión usa $16 y
+          // pasarlo igualmente hace que Postgres rechace el bind entero
+          // ("supplies 16 parameters, but prepared statement requires 15") y aborte
+          // el --apply. Afectaba a todo volcado con pseudo-etapa final; --emit-sql
+          // no lo notaba porque serializa a literales.
+          ...(stageNumber == null ? [] : [sectorIndex]),
         ],
       });
 
@@ -457,13 +484,17 @@ WHERE race_uci_stages."lockedAt" IS NULL`,
         // fecha-nac) se reconstruye por bib→startlist_riders.dorsal→globalRiderId
         // (RPC resolve_uci_results, llamada al final del --apply). riderDisplay se
         // conserva como fallback de visualización si el dorsal no casa.
+        // Además del lock propio, la cabecera debe EXISTIR: si el guard asimétrico
+        // de arriba impidió insertarla (gemela sintética bloqueada), sus filas no
+        // tienen a qué colgar y el FK stageRef reventaría el apply entero.
         plan.push({
           note: null,
           text: `INSERT INTO public.race_uci_results
   ("stageRef","raceId","eventId",rank,"rankText",bib,"riderDisplay",
    "globalRiderId","resultValue","timeText","gapText",points,irm,"sortOrder")
 SELECT $1,$2,$3,$4,$5,$6,$7,NULL,$8,$9,$10,$11,$12,$13
-WHERE ${notLocked}`,
+WHERE ${notLocked}
+  AND EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=$1)`,
           params: [
             stageRef, RACE_ID, eventId, rank, s(r.rankText), s(r.bib), s(r.riderDisplay),
             s(r.resultValue), s(r.timeText), s(r.gapText), nInt(r.points), s(r.irm), sortOrder,
@@ -499,6 +530,9 @@ function loadEnv() {
 }
 
 async function main() {
+  if (!IN) { log('FATAL: falta --in <ruta-json-del-fetcher>'); process.exit(1); }
+  if (!RACE_ID) { log('FATAL: falta --race-id <raceId nuestro>'); process.exit(1); }
+
   const data = JSON.parse(readFileSync(IN, 'utf8'));
 
   if (!APPLY) {
@@ -729,4 +763,10 @@ async function main() {
   }
 }
 
-main();
+// Solo arranca como CLI. Importado desde los tests (que ejercitan buildPlan
+// directamente) no debe ejecutar nada ni llamar a process.exit.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
+
+export { buildPlan };

@@ -16,6 +16,7 @@ import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceUciResultRow
+import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.RiderOut
 import app.calendariociclismo.android.data.model.RiderProfile

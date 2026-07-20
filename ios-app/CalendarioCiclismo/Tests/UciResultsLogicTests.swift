@@ -196,6 +196,28 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[2].valueText, "+10\"")
     }
 
+    // ── REASIGNACIÓN DE COMISARIOS: gap 0 FUERA del bloque de cabeza ───────
+    // Caso real (Baloise Ladies Tour 2026 et.5): incidente en los últimos 3 km → a la
+    // corredora se le acredita el tiempo del grupo, pero conserva su puesto por orden
+    // de llegada. Su fila NUNCA es m.t.: se pinta el gap explícito (+0").
+    func test_commissaireReassignedRowKeepsExplicitGap() {
+        let rows = [
+            row(rank: 1, bib: "34", timeText: "2:42:24"),
+            row(rank: 2, bib: "53", gapText: "+00"),
+            row(rank: 3, bib: "6", gapText: "+00"),
+            row(rank: 4, bib: "95", gapText: "+1:33"),
+            row(rank: 5, bib: "21", gapText: "+00"),   // reasignada, la última
+        ]
+        let vms = UciResultsLogic.buildIndividualRows(rows: rows, classKind: "stage", isTeams: false, byDorsal: [:], isEn: false)
+        XCTAssertEqual(vms[0].valueKind, .winnerTime)
+        XCTAssertEqual(vms[1].valueKind, .sameTime)   // bloque de cabeza
+        XCTAssertEqual(vms[2].valueKind, .sameTime)   // bloque de cabeza
+        XCTAssertEqual(vms[3].valueText, "+1'33\"")
+        // La reasignada: gap explícito, NO m.t.
+        XCTAssertEqual(vms[4].valueKind, .gap)
+        XCTAssertEqual(vms[4].valueText, "+0\"")
+    }
+
     // ── rank 1 con ABANDONO real (DNS) — el ganador es el 2º ───────
 
     func testRank1ConDnsEsEspurioYElGanadorRealEsElRank2() {

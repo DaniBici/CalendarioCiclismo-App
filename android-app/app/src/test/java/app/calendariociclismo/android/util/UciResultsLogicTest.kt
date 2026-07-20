@@ -70,6 +70,31 @@ class UciResultsLogicTest {
         assertEquals("+1'38\"", UciResultsLogic.formatGap("+1'38\""))
     }
 
+    // ── REASIGNACIÓN DE COMISARIOS: gap 0 FUERA del bloque de cabeza ───────
+    // Caso real (Baloise Ladies Tour 2026 et.5): incidente en los últimos 3 km → a la
+    // corredora se le acredita el tiempo del grupo, pero conserva su puesto por orden
+    // de llegada. Su fila NUNCA es m.t.: se pinta el gap explícito (+0").
+    @Test
+    fun `reasignacion de comisarios conserva el gap explicito`() {
+        val rows = listOf(
+            row(rank = 1, bib = "34", timeText = "2:42:24"),
+            row(rank = 2, bib = "53", gapText = "+00"),
+            row(rank = 3, bib = "6", gapText = "+00"),
+            row(rank = 4, bib = "95", gapText = "+1:33"),
+            row(rank = 5, bib = "21", gapText = "+00"),   // reasignada, la última
+        )
+        val vms = UciResultsLogic.buildIndividualRows(
+            rows = rows, classKind = "stage", isTeams = false, byDorsal = emptyMap(), isEn = false,
+        )
+        assertEquals(UciResultsLogic.ValueKind.WINNER_TIME, vms[0].valueKind)
+        assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vms[1].valueKind)  // bloque de cabeza
+        assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vms[2].valueKind)  // bloque de cabeza
+        assertEquals("+1'33\"", vms[3].valueText)
+        // La reasignada: gap explícito, NO m.t.
+        assertEquals(UciResultsLogic.ValueKind.GAP, vms[4].valueKind)
+        assertEquals("+0\"", vms[4].valueText)
+    }
+
     // ── irmLabel ───────────────────────────────────────────────────
 
     @Test

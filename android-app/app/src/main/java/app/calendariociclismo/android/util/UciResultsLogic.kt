@@ -4,6 +4,7 @@ import app.calendariociclismo.android.data.model.RaceUciResultRow
 import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.Team
+import kotlin.math.floor
 
 /**
  * Lógica pura de las clasificaciones UCI in-house — port literal de los helpers
@@ -629,7 +630,47 @@ object UciResultsLogic {
         }
         val deriveGaps = allTimed && !gapsDisguised
 
-        return rows.map { r ->
+        // ¿Esta fila marca "mismo tiempo que la ganadora"? Mira el gap publicado y,
+        // si no lo hay, el tiempo absoluto (cuando los gaps se derivan).
+        fun isZeroGapRow(r: RaceUciResultRow): Boolean {
+            val raw = r.gapText?.trim().orEmpty()
+            if (raw.isNotEmpty()) {
+                return tttToSeconds(raw.removePrefix("+")) == 0.0
+            }
+            if (!deriveGaps || winnerSec == null) return false
+            val sec = tttToSeconds(r.timeText) ?: return false
+            return floor(sec) == floor(winnerSec)
+        }
+        // Último índice del BLOQUE DE CABEZA: las filas que llegaron con la ganadora,
+        // contiguas desde el rank 1. Una fila con gap 0 FUERA de ese bloque no cruzó
+        // con el grupo: es una REASIGNACIÓN DE COMISARIOS (incidente en los últimos
+        // 3 km → se le acredita el tiempo del grupo con el que rodaba, pero conserva
+        // su puesto por orden de llegada; UCI 2.6.027). Caso real: Baloise Ladies Tour
+        // 2026 et.5, Manly 97ª con el tiempo de la ganadora.
+        // Esas filas NUNCA se colapsan a "m.t.": el m.t. es una abreviatura que sólo
+        // significa algo dentro de un grupo contiguo en meta, y aquí mentiría sobre
+        // cómo terminó. Se pinta su gap explícito (+0" incluido).
+        val headBlockEnd: Int = run {
+            if (!isTimeClass) return@run -1
+            // Ancla = el primer CLASIFICADO real. Normalmente es winnerRow; si el rank 1
+            // es un abandono espurio (DNS), el cabeza es el primer clasificado sin irm,
+            // que marca el tiempo de referencia (mismo criterio que minFinisherSec).
+            val w = rows.indexOfFirst { isRankedFinisher(it) }
+            if (w < 0) return@run -1
+            var last = w
+            var i = w + 1
+            while (i < rows.size) {
+                val r = rows[i]
+                // Los abandonos van al final y no rompen el bloque si aún no empezaron.
+                if (r.rank == null || !r.irm.isNullOrEmpty()) break
+                if (!isZeroGapRow(r)) break
+                last = i
+                i++
+            }
+            last
+        }
+
+        return rows.mapIndexed { rowIndex, r ->
             val fromSl = r.dorsalInt?.let { byDorsal[it] }
             // Sin casar por dorsal (carrera sin startlist): caer al enriquecido por
             // globalRiderId (bandera + equipo actual + ficha de riders_*). null si la
@@ -718,7 +759,8 @@ object UciResultsLogic {
                     }
                     if (wt.isNotEmpty()) ValueKind.WINNER_TIME to wt else ValueKind.EMPTY to ""
                 }
-                !effGap.isNullOrBlank() && effGap == "+0\"" -> ValueKind.SAME_TIME to ""
+                !effGap.isNullOrBlank() && effGap == "+0\"" && rowIndex <= headBlockEnd ->
+                    ValueKind.SAME_TIME to ""
                 !effGap.isNullOrBlank() -> { rowGap = effGap; ValueKind.GAP to effGap }
                 else -> ValueKind.RAW to (r.timeText ?: r.resultValue.orEmpty())
             }

@@ -192,7 +192,8 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_section_about">Open data</string>
-    <string name="settings_licenses_body">Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles. More detail at calendariociclismo.app/en/open/</string>
+    <string name="settings_licenses_body">Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles.</string>
+    <string name="settings_open_project_cta">How this project is made</string>
 
     <!-- Settings: Language -->
     <string name="settings_language_description">Choose your app language.</string>

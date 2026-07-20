@@ -53,7 +53,7 @@
       margin: 0 0 0.75rem;
     }
     .abierto__lede {
-      font-size: 1rem; line-height: 1.75;
+      font-size: 1rem; line-height: 1.75; text-align: center;
       color: var(--text-muted); margin: 0 0 2.75rem;
     }
     .abierto section { margin-bottom: 2.5rem; }
@@ -88,6 +88,18 @@
     }
     .disclaimer { font-size: 0.88rem; line-height: 1.7; color: var(--text-muted); font-style: italic; }
     .seed { font-size: 0.9rem; line-height: 1.7; color: var(--text-muted); }
+    /* Botón al repositorio — variante outline del botón de about.html */
+    .license__btn {
+      display: inline-flex; align-items: center; gap: 0.5rem; justify-content: center;
+      font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+      padding: 0.6rem 1.4rem; margin-top: 0.4rem;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius-pill);
+      text-decoration: none;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .license__btn:hover { border-color: var(--accent); color: var(--accent); }
+    .license__btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
     /* Cuentas del proyecto — dos columnas gastos / ingresos */
     .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin: 1.25rem 0 1.1rem; }
     .ledger h3 { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.7rem; color: var(--text); }
@@ -117,21 +129,30 @@
       <h2>Código abierto (Open Source)</h2>
       <div class="license">
         <span class="license__tag">AGPL-3.0</span>
-        <p style="margin-bottom:0">
-          Queremos abrir parte del código de Calendario Ciclismo bajo licencia
-          <strong>AGPL-3.0</strong>, para que se pueda leer, aprender de él y reutilizar. No hay
-          negocio detrás de esto: la idea es devolver a la comunidad. Estamos preparando esa
-          apertura y actualizaremos esta página cuando el repositorio esté disponible.
+        <p>
+          El código de Calendario Ciclismo -la web y las apps de iOS y Android- es abierto y está
+          publicado bajo licencia <strong>AGPL-3.0</strong>. Se puede leer, aprender de él y
+          reutilizar. No hay negocio detrás de esto: la idea es devolver a la comunidad.
         </p>
+        <p class="seed">
+          El repositorio público es una copia que se sincroniza periódicamente con el que está en
+          producción. No incluye los datos ni las credenciales del proyecto, ni los logotipos de
+          las carreras, que pertenecen a sus dueños.
+        </p>
+        <a class="license__btn" href="https://github.com/DaniBici/CalendarioCiclismo-App"
+           target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Ver el código en GitHub
+        </a>
       </div>
     </section>
 
     <section>
       <h2>Cómo se sostiene</h2>
       <p>
-        Calendario Ciclismo no es un negocio. Mantenerlo en marcha tiene un coste —los servidores
+        Calendario Ciclismo no es un negocio. Mantenerlo en marcha tiene un coste -los servidores
         y la base de datos que guardan y sirven todos los datos, el envío de las notificaciones, el
-        dominio— y ese coste es lo único que los anuncios de las apps y las suscripciones buscan
+        dominio- y ese coste es lo único que los anuncios de las apps y las suscripciones buscan
         cubrir. El contenido completo es gratis para todo el mundo y seguirá siéndolo.
       </p>
     </section>

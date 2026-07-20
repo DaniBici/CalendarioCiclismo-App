@@ -2,10 +2,13 @@ package app.calendariociclismo.android.ui.settings
 
 import app.calendariociclismo.android.ui.navigation.Routes
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -58,10 +61,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.components.CCCard
@@ -565,6 +571,35 @@ fun SettingsScreen(navController: NavController) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    // Mismo aspecto que el CTA «Ver clasificaciones» (ResultsButtonsCard):
+                    // botón relleno de acento, texto onPrimary semibold, radio 3.
+                    val primary = MaterialTheme.colorScheme.primary
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(primary, RoundedCornerShape(3))
+                            .clickable(role = Role.Button) {
+                                haptic(Haptics.Event.Navigation)
+                                val url = if (LocaleHolder.shouldShowEnglishContent) {
+                                    "https://www.calendariociclismo.app/en/open/"
+                                } else {
+                                    "https://www.calendariociclismo.app/abierto.html"
+                                }
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, url.toUri())
+                                )
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_open_project_cta),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
             }
         }

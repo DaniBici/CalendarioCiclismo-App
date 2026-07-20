@@ -1324,34 +1324,39 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader(icon: "info.circle", title: localeService.t("Datos abiertos", "Open data"))
 
-            Link(destination: openPageURL) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(localeService.t(
-                        "Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles.",
-                        "Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localeService.t(
+                    "Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles.",
+                    "Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 6) {
-                        Text(localeService.t("Cómo se hace este proyecto", "How this project is made"))
-                            .font(.subheadline)
-                            .foregroundStyle(Color.accentColor)
-                        Image(systemName: "arrow.up.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
-                    }
+                // Mismo aspecto que el CTA «Ver clasificaciones» (ResultsButtonsCard):
+                // botón relleno de acento, texto blanco semibold, radio 3.
+                Link(destination: openPageURL) {
+                    Text(localeService.t("Cómo se hace este proyecto", "How this project is made"))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .ccCardSurface()
+                .accessibilityLabel(localeService.t("Cómo se hace este proyecto", "How this project is made"))
+                .accessibilityHint(localeService.t("Se abrirá en el navegador", "Will open in browser"))
+                .accessibilityIdentifier("about_licenses_link")
             }
-            .accessibilityLabel(localeService.t("Licencias y fuentes del proyecto", "Project licences and sources"))
-            .accessibilityHint(localeService.t("Se abrirá en el navegador", "Will open in browser"))
-            .accessibilityIdentifier("about_licenses_link")
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ccCardSurface()
+            // El header y la tarjeta llevan su propio `.padding(.horizontal)`
+            // (como el resto de secciones); NO poner el padding en el VStack
+            // exterior o el header quedaría con doble sangría y desalineado.
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
     }
 
     private var openPageURL: URL {
