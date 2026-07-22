@@ -27,7 +27,7 @@ struct TransfersView: View {
         Group {
             if isLoading && data == nil {
                 LoadingView(
-                    message: localeService.t("Cargando mercado de fichajes...", "Loading transfer market..."),
+                    message: localeService.t("Cargando Mercado de Fichajes...", "Loading transfer market..."),
                     branded: true
                 )
             } else if let error, data == nil {
@@ -39,8 +39,8 @@ struct TransfersView: View {
             }
         }
         .navigationTitle(localeService.t(
-            "Mercado de fichajes \(String(TransfersLogic.marketSeason))",
-            "\(String(TransfersLogic.marketSeason)) transfer market"
+            "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
+            "\(String(TransfersLogic.marketSeason)) Transfer Market"
         ))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $teamRoute) { route in
@@ -71,60 +71,84 @@ struct TransfersView: View {
     // MARK: - Lista principal
 
     private func marketList(_ data: TransfersLogic.MarketData) -> some View {
-        let feed = TransfersLogic.confirmedFeed(data.transfers)
+        let feed = TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(data.transfers))
         let feedByDay = TransfersLogic.groupByDay(feed)
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)
 
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                // ── Feed de confirmaciones ─────────────────────────
-                sectionTitle(localeService.t("Últimas confirmaciones", "Latest confirmations"))
-                if feed.isEmpty {
-                    emptyText(localeService.t("Todavía no hay movimientos confirmados.", "No confirmed moves yet."))
-                } else {
-                    ForEach(feedByDay, id: \.day) { group in
-                        Text(DateFormatting.formatDateLongContent(group.day))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 8)
-                        ForEach(group.moves) { move in
-                            TransferFeedRowView(transfer: move, data: data)
+        // Doble panel: "Últimas confirmaciones" (arriba, ~38%) y equipos (abajo,
+        // ~62%), cada uno con su propio scroll → ambos siempre visibles.
+        return GeometryReader { geo in
+            VStack(spacing: 0) {
+                // ── Panel 1: feed de confirmaciones ────────────────
+                VStack(alignment: .leading, spacing: 0) {
+                    // Primer título: pegado a la barra de navegación → menos top
+                    // que el de "Equipos" (que sí separa del feed de arriba).
+                    sectionTitle(localeService.t("Últimas confirmaciones", "Latest confirmations"), topPadding: 4)
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 8) {
+                            if feed.isEmpty {
+                                emptyText(localeService.t("Todavía no hay movimientos confirmados.", "No confirmed moves yet."))
+                            } else {
+                                ForEach(feedByDay, id: \.day) { group in
+                                    Text(DateFormatting.formatDateWeekdayNoYear(group.day))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 8)
+                                    ForEach(group.moves) { move in
+                                        TransferFeedRowView(transfer: move, data: data)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.bottom, 8)
+                    }
+                    .refreshable { await load() }
+                }
+                .frame(height: geo.size.height * 0.38, alignment: .top)
+
+                Divider()
+
+                // ── Panel 2: divisiones + equipos ──────────────────
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionTitle(localeService.t(
+                        "Equipos \(String(TransfersLogic.marketSeason))",
+                        "\(String(TransfersLogic.marketSeason)) Teams"
+                    ))
+                    .padding(.bottom, 8)
+                    HStack(spacing: 8) {
+                        ForEach(TransfersLogic.divisions, id: \.self) { div in
+                            divisionChip(div)
                         }
                     }
-                }
-
-                // ── Divisiones + equipos ───────────────────────────
-                sectionTitle(localeService.t(
-                    "Equipos \(String(TransfersLogic.marketSeason))",
-                    "\(String(TransfersLogic.marketSeason)) teams"
-                ))
-                HStack(spacing: 8) {
-                    ForEach(TransfersLogic.divisions, id: \.self) { div in
-                        divisionChip(div)
+                    .padding(.bottom, 12)
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 8) {
+                            if teams.isEmpty {
+                                emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
+                            } else {
+                                ForEach(teams, id: \.teamId) { season in
+                                    teamRow(season, prev: data.prevSeasonsByTeamId)
+                                }
+                            }
+                        }
+                        .padding(.bottom, 8)
                     }
                 }
-                if teams.isEmpty {
-                    emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
-                } else {
-                    ForEach(teams, id: \.teamId) { season in
-                        teamRow(season, prev: data.prevSeasonsByTeamId)
-                    }
-                }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.top, 8)
         }
-        .refreshable { await load() }
     }
 
-    private func sectionTitle(_ text: String) -> some View {
+    private func sectionTitle(_ text: String, topPadding: CGFloat = 16) -> some View {
         Text(text.uppercased())
             .font(.caption)
             .fontWeight(.bold)
             .kerning(0.8)
             .foregroundStyle(.secondary)
-            .padding(.top, 16)
+            .padding(.top, topPadding)
     }
 
     private func emptyText(_ text: String) -> some View {
@@ -134,8 +158,9 @@ struct TransfersView: View {
             .padding(.vertical, 4)
     }
 
-    /// Píldora de división — mismo lenguaje que los chips de filtros (activo =
-    /// relleno accent-dim + texto accent).
+    /// Píldora de división — mismo tamaño que los filtros de categoría de la
+    /// vista Hoy (`TodayFilterChip`): caption + padding 12/6 + Capsule. Activo =
+    /// relleno accent-dim + texto accent.
     private func divisionChip(_ division: String) -> some View {
         let selected = division == activeDivision
         return Button {
@@ -143,11 +168,11 @@ struct TransfersView: View {
             activeDivision = division
         } label: {
             Text(division)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .font(.caption)
+                .fontWeight(selected ? .semibold : .regular)
                 .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .background(
                     Capsule().fill(
                         selected
@@ -169,11 +194,13 @@ struct TransfersView: View {
                     // Sin chapa no se monta la vista: en un HStack con spacing,
                     // un EmptyView gastaría el hueco igual.
                     if let badge = TransfersLogic.badgeSeason(for: season, prev: prev) {
-                        TransfersSeasonBadge(season: badge, size: 26)
+                        TransfersSeasonBadge(season: badge, size: 24)
                     }
                     Text(season.name ?? "")
-                        .font(.subheadline)
+                        .font(.footnote)
                         .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // Continuidad del equipo sin confirmar (mig. 123): sigue
                     // listado, solo se advierte.
@@ -185,7 +212,7 @@ struct TransfersView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
             }
         }
         .buttonStyle(.plain)
@@ -206,36 +233,43 @@ struct TransferFeedRowView: View {
         let rider = data.ridersById[transfer.riderId]
         CCCard {
             HStack(spacing: 8) {
-                CountryFlag(countryCode: rider?.nationality, width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(moveText(rider: rider, unknownTeam: unknownTeam))
-                        .font(.subheadline)
-                    if let until = transfer.contractUntil {
-                        Text(localeService.t("hasta \(String(until))", "until \(String(until))"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
+                CountryFlag(countryCode: rider?.nationality, width: 15)
+                // Corredor + movimiento trunca con "…" a una línea (misma
+                // fórmula que las cards de Hoy): sin doble altura, y el badge de
+                // año queda fijo a la derecha.
+                Text(moveText(rider: rider, unknownTeam: unknownTeam))
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                // El año de contrato como BADGE (solo el año, sin "hasta").
+                if let until = transfer.contractUntil { YearBadge(year: until) }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
         }
     }
 
     private func moveText(rider: TransferRider?, unknownTeam: String) -> AttributedString {
         var name = AttributedString(rider.map { $0.fullName.isEmpty ? transfer.riderId : $0.fullName } ?? transfer.riderId)
-        name.font = .subheadline.weight(.semibold)
-        var out = name + AttributedString("  ")
+        name.font = .footnote.weight(.semibold)
+        var out = name
+        // Divisor atenuado del nombre solo cuando el movimiento no empieza con
+        // flecha (renovación / retirada). En un fichaje la "→" ya separa.
+        func appendSeparator() {
+            var sep = AttributedString("  ·  ")
+            sep.foregroundColor = .secondary
+            out += sep
+        }
         switch transfer.type {
         case "renewal":
+            appendSeparator()
             out += AttributedString(localeService.t("renueva con", "renews with") + " ")
-            var team = AttributedString(TransfersLogic.teamLabel(
+            out += AttributedString(TransfersLogic.teamLabel(
                 teamId: transfer.toTeamId, freeText: transfer.toTeamName,
                 names: data.teamNameById, unknownLabel: unknownTeam))
-            team.font = .subheadline.weight(.semibold)
-            out += team
         case "retirement":
+            appendSeparator()
             out += AttributedString(localeService.t("se retira", "retires") + " (")
             out += AttributedString(TransfersLogic.teamLabel(
                 teamId: transfer.fromTeamId, freeText: transfer.fromTeamName,
@@ -243,16 +277,16 @@ struct TransferFeedRowView: View {
                 side: .from, namesPrev: data.teamNamePrev))
             out += AttributedString(")")
         default:
+            // Por falta de espacio en el feed móvil solo se muestra el equipo de
+            // DESTINO (a dónde va), no el de origen. La flecha ya separa el nombre
+            // del destino → sin divisor "·". El destino NO va en negrita: el nombre
+            // del corredor ya lo está. Decisión Dani 2026-07-20.
+            var arrow = AttributedString("  →  ")
+            arrow.foregroundColor = .secondary
+            out += arrow
             out += AttributedString(TransfersLogic.teamLabel(
-                teamId: transfer.fromTeamId, freeText: transfer.fromTeamName,
-                names: data.teamNameById, unknownLabel: unknownTeam,
-                side: .from, namesPrev: data.teamNamePrev))
-            out += AttributedString(" → ")
-            var team = AttributedString(TransfersLogic.teamLabel(
                 teamId: transfer.toTeamId, freeText: transfer.toTeamName,
                 names: data.teamNameById, unknownLabel: unknownTeam))
-            team.font = .subheadline.weight(.semibold)
-            out += team
         }
         return out
     }

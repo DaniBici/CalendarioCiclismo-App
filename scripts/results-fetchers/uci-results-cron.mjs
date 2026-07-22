@@ -86,6 +86,9 @@
  *                  web: evita encadenar checkpoints de Postgres). 0 = sin pausa. Con
  *                  --race-id se ignora (no hay siguiente carrera que proteger).
  *   --race-id      procesar SOLO esa carrera (ignora la selección por estado).
+ *   --stage N      (solo con --race-id) re-escribir SOLO la etapa stageNumber==N; el
+ *                  resto de etapas del JSON se descartan (se pasa --only-stage al upsert).
+ *                  El "Volcar esta etapa" del panel: la etapa 16 no re-vuelca la 1-15.
  *   --ignore-window  (solo scope=today) ignora la ventana de meta: coge todo lo que
  *                  tenga etapa HOY, como antes de 087. Para forzados manuales.
  *   --no-skip-existing  fuerza el re-volcado COMPLETO en scope=today (desactiva la
@@ -123,6 +126,11 @@ const LIMIT = getArg('limit') != null ? parseInt(getArg('limit'), 10)
   : (SCOPE === 'today' ? 1000 : 25);
 const DELAY = getArg('delay') || '300';
 const ONE_RACE = getArg('race-id');
+// --stage N: SOLO con --race-id. Restringe el volcado a la etapa stageNumber==N (se
+// pasa como --only-stage al upsert). El fetcher siempre trae la carrera entera, pero
+// solo re-escribimos esa etapa → el "Volcar esta etapa" del panel no re-vuelca las
+// anteriores (la etapa 16 del Tour ya no arrastra la 1-15). Sin --race-id se ignora.
+const ONE_STAGE = (ONE_RACE && getArg('stage') != null) ? parseInt(getArg('stage'), 10) : null;
 const DRY = hasFlag('dry-run');
 const IGNORE_WINDOW = hasFlag('ignore-window');
 // No re-volcar clasificaciones ya presentes (ver uci-results-upsert --skip-existing).
@@ -401,6 +409,9 @@ async function main() {
     if (totalRows === 0) { log('  ∅ la fuente aún no publica filas → se deja pending (sin upsert)'); return { status: 'empty', didWrite: false }; }
 
     const upArgs = ['--in', jsonPath, '--race-id', t.raceId, '--gender', t.gender, '--apply'];
+    // Volcado dirigido a UNA etapa (--stage con --race-id): el upsert descarta el resto
+    // de etapas del JSON. Solo aquí; el cron automático (sin --race-id) nunca lo pasa.
+    if (ONE_STAGE != null) upArgs.push('--only-stage', String(ONE_STAGE));
     // CN: persistir el MISMO uciRaceId en el link (sin esto el upsert lo resetea a 0 y
     // choca con el índice único (competitionId, disciplineId, uciRaceId)).
     if (uciRaceId) upArgs.push('--uci-race-id', String(uciRaceId));

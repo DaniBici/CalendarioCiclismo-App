@@ -110,7 +110,7 @@ private data class HighlightItem(
         if (!custom.isNullOrEmpty()) return custom
         race?.let { return it.localizedName }
         if (isChampionships) return LocaleHolder.t("Campeonatos Nacionales", "National Championships")
-        if (isTransfers) return LocaleHolder.t("Mercado de fichajes", "Transfer market")
+        if (isTransfers) return LocaleHolder.t("Mercado de Fichajes", "Transfer market")
         return ""
     }
     fun detailFallback(isEn: Boolean, today: String, tomorrow: String): String {

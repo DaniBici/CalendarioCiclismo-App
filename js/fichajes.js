@@ -22,8 +22,12 @@
 //      renovación en duda (status='doubt', solo en renewal) lo saca también
 //      de "continúan" y lo lleva a su propia sección.
 //
-//  Estado compartible por URL: ?div=WT|WWT|PT|PRW y ?equipo=<teamId>
-//  (replaceState, sin recarga).
+//  Estado compartible por URL: ?div=WT|WWT|PT|PRW y ?team=<slug> (bilingüe
+//  ES/EN; ?equipo= antiguo se sigue leyendo por retrocompatibilidad), sin
+//  recarga. Abrir un equipo apila una entrada de historial (pushState) → el
+//  botón atrás del navegador vuelve a la home de mercado (o al equipo anterior),
+//  no a la home global; el listener popstate sincroniza la vista con la URL.
+//  Cambiar de división es replaceState (no apila).
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, buildTeamBadgeSvg } from './shared.js';
@@ -32,7 +36,10 @@ import { t, getLang, initI18n } from './i18n.js';
 const SEASON = 2027;
 const PREV_SEASON = SEASON - 1;
 const DIVISIONS = ['WT', 'WWT', 'PT', 'PRW'];
-const FEED_PAGE = 40;
+// Corte del feed "Últimas confirmaciones": 5 fechas distintas U 8 fichajes, lo
+// que se alcance antes.
+const FEED_MAX_DAYS = 5;
+const FEED_MAX_ITEMS = 8;
 
 // Género de la tabla riders_* por división (para la plantilla "continúan").
 const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
@@ -50,13 +57,23 @@ let _teamNameById = new Map();      // teamId → nombre 2027 (destino)
 // no tiene fila 2026 → sin entrada aquí → la chapa queda vacía (mig. 129).
 let _prevColorsByTeamId = new Map();
 let _transfers = [];                // rider_transfers 2027 + .rider hidratado
-let _feedLimit = FEED_PAGE;
 let _activeDiv = 'WT';
 let _rosterCache = new Map();       // teamId → [{ ...ficha }]
+let _slugToTeamId = new Map();      // slug del nombre 2027 → teamId (URL)
+let _teamIdToSlug = new Map();      // teamId → slug
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Slug legible para la URL: minúsculas, sin acentos, separadores → guiones.
+function teamSlug(name) {
+  return String(name || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'equipo';
+}
 
 function riderName(r) {
   if (!r) return '';
@@ -80,16 +97,24 @@ function doubtChip() {
   return `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.doubt'))}</span>`;
 }
 
+// Año centinela para contrato VITALICIO (dateTo 9999-12-31): se pinta ∞.
+const LIFETIME_YEAR = 9999;
 function contractBit(year) {
   if (!year) return '';
-  return `<span class="tr-contract">${esc(t('transfers.until', { year }))}</span>`;
+  const label = year === LIFETIME_YEAR ? '∞' : t('transfers.until', { year });
+  return `<span class="tr-contract"${year === LIFETIME_YEAR ? ' title="Vitalicio"' : ''}>${esc(label)}</span>`;
 }
 
+// Fecha del feed: día de la semana + día + mes, SIN año (ES: "martes 24 de
+// junio"; EN: "Tuesday 24 June"). Primera letra en mayúscula.
 function dayHeading(dateKey) {
   if (!dateKey) return '';
   const d = new Date(dateKey + 'T00:00:00');
   const locale = getLang() === 'en' ? 'en-GB' : 'es-ES';
-  return d.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+  // Sin coma tras el día de la semana, para casar con el formato de las apps
+  // ("Miércoles 24 de junio").
+  const s = d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // ── Carga inicial ─────────────────────────────────────────────────
@@ -112,6 +137,37 @@ async function loadData() {
   if (transfersRes.error) throw transfersRes.error;
 
   _seasonsByTeamId = new Map((seasonsRes.data || []).map(s => [s.teamId, s]));
+  // Slug legible del nombre 2027 para la URL (?equipo=visma-lease-a-bike).
+  // Varias marcas tienen equipo masculino Y femenino con el MISMO nombre
+  // (Cofidis, Lidl-Trek, Movistar…): su slug base colisiona. En ese caso se
+  // desambigua por GÉNERO con el sufijo -me (men's elite) / -we (women's
+  // elite) — la misma convención neutra que usa fuente externa, así el slug es idéntico
+  // en la web ES y en la EN (/en/transfers/ comparte este módulo y el slug se
+  // arrastra tal cual al cambiar de idioma). Estable, a diferencia del sufijo
+  // -2 posicional anterior que dependía del orden de la query. Los equipos sin
+  // colisión conservan el slug corto. Un remanente de colisión (mismo nombre +
+  // mismo género, improbable) cae al sufijo -N.
+  _slugToTeamId = new Map();
+  _teamIdToSlug = new Map();
+  const seasons = seasonsRes.data || [];
+  const baseCount = new Map();
+  for (const s of seasons) {
+    const base = teamSlug(s.name || s.teamId);
+    baseCount.set(base, (baseCount.get(base) || 0) + 1);
+  }
+  const GENDER_SUFFIX = { male: 'me', female: 'we' };
+  for (const s of seasons) {
+    const base = teamSlug(s.name || s.teamId);
+    let slug = base;
+    if (baseCount.get(base) > 1) {
+      const gender = s.gender || DIVISION_GENDER[s.category] || null;
+      slug = GENDER_SUFFIX[gender] ? `${base}-${GENDER_SUFFIX[gender]}` : base;
+    }
+    let candidate = slug, n = 1;
+    while (_slugToTeamId.has(candidate)) { n++; candidate = `${slug}-${n}`; }
+    _slugToTeamId.set(candidate, s.teamId);
+    _teamIdToSlug.set(s.teamId, candidate);
+  }
   _teamNameById = new Map((seasonsRes.data || []).map(s => [s.teamId, s.name]));
   _teamNamePrev = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s.name]));
   _prevColorsByTeamId = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s]));
@@ -152,8 +208,15 @@ async function loadData() {
 // flag de publicación en el feed, no una fecha ausente: el movimiento sigue
 // contando en la vista de equipo (llegan/se marchan/continúan) — es como se
 // puebla el mercado sin llenar el feed de anuncios viejos.
+// Solo FICHAJES REALES: un corredor que cambia de equipo (type='transfer' con
+// destino conocido). Fuera del feed las renovaciones, las retiradas y los fines
+// de contrato sin destino (transfer con toTeamName='?'). Decisión Dani 2026-07-20.
+const UNKNOWN_DEST = '?';
+function isRealSigning(x) {
+  return x.type === 'transfer' && (x.toTeamId || (x.toTeamName && x.toTeamName !== UNKNOWN_DEST));
+}
 function confirmedFeed() {
-  return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false);
+  return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x));
 }
 
 function feedRowHtml(x) {
@@ -165,13 +228,17 @@ function feedRowHtml(x) {
   } else if (x.type === 'retirement') {
     move = `${esc(t('transfers.retires'))} <span class="tr-dim">(${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))})</span>`;
   } else {
-    move = `<span class="tr-dim">${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))}</span>
-      <span class="tr-arrow">→</span>
-      <strong>${esc(teamLabel(x.toTeamId, x.toTeamName))}</strong>`;
+    // Por falta de espacio en el feed móvil solo se muestra el equipo de
+    // DESTINO (a dónde va), no el de origen. El corredor ya va aparte en
+    // .tr-name → la flecha + destino basta. El destino NO va en negrita: el
+    // nombre del corredor ya lo está. Decisión Dani 2026-07-20.
+    move = `<span class="tr-arrow">→</span>
+      ${esc(teamLabel(x.toTeamId, x.toTeamName))}`;
   }
   return `<div class="tr-row">
     <span class="tr-row__flag">${flag}</span>
-    <span class="tr-row__body">${name} ${move} ${contractBit(x.contractUntil)}</span>
+    <span class="tr-row__body"><span class="tr-name">${name}</span><span class="tr-move">${move}</span></span>
+    ${contractBit(x.contractUntil)}
   </div>`;
 }
 
@@ -183,21 +250,27 @@ function renderFeed() {
     box.innerHTML = `<div class="tr-empty">${esc(t('transfers.feedEmpty'))}</div>`;
     return;
   }
-  const visible = feed.slice(0, _feedLimit);
+  // Corte del feed: hasta FEED_MAX_DAYS fechas distintas O FEED_MAX_ITEMS
+  // fichajes, lo que se alcance antes (el feed viene en orden cronológico
+  // inverso). No hay "cargar más": el mercado completo se ve por equipo.
   let html = '';
   let lastDay = null;
-  visible.forEach(x => {
-    if (x.announcedAt !== lastDay) {
+  let daysShown = 0;
+  let itemsShown = 0;
+  for (const x of feed) {
+    const newDay = x.announcedAt !== lastDay;
+    // ¿Cabe? Si abre una fecha nueva, no debe superar el límite de fechas.
+    if (newDay && daysShown >= FEED_MAX_DAYS) break;
+    if (itemsShown >= FEED_MAX_ITEMS) break;
+    if (newDay) {
       lastDay = x.announcedAt;
+      daysShown++;
       html += `<div class="tr-feed-day">${esc(dayHeading(x.announcedAt))}</div>`;
     }
     html += feedRowHtml(x);
-  });
-  if (feed.length > _feedLimit) {
-    html += `<button class="tr-more" id="trMoreBtn">${esc(t('transfers.loadMore'))}</button>`;
+    itemsShown++;
   }
   box.innerHTML = html;
-  $('trMoreBtn')?.addEventListener('click', () => { _feedLimit += FEED_PAGE; renderFeed(); });
 }
 
 // ── Divisiones + lista de equipos ─────────────────────────────────
@@ -236,7 +309,8 @@ function renderTeams() {
       _activeDiv = b.dataset.div;
       const qs = new URLSearchParams(location.search);
       qs.set('div', _activeDiv);
-      qs.delete('equipo');
+      qs.delete('team');
+      qs.delete('equipo');   // barre también el param ES antiguo
       history.replaceState(null, '', `${location.pathname}?${qs}`);
       renderTeams();
     })
@@ -260,29 +334,67 @@ function renderTeams() {
 }
 
 // ── Vista de equipo ───────────────────────────────────────────────
+// "Continúan" = corredores que YA estaban en el equipo en la temporada en curso
+// (currentTeamId = equipo) y siguen para el mercado — se materializan como una
+// afiliación al año del mercado (year=SEASON) al marcarlos "continúa" en el
+// panel. Los afiliados cuyo currentTeamId es OTRO equipo son fichajes (llegan de
+// fuera): tienen afiliación pero NO continúan → los separa openTeam por origen.
+// El año de contrato efectivo viene de la afiliación, no de riders_*.
 async function loadRoster(teamId) {
   if (_rosterCache.has(teamId)) return _rosterCache.get(teamId);
   const season = _seasonsByTeamId.get(teamId);
   const gender = season?.gender || DIVISION_GENDER[season?.category] || null;
-  const cols = 'id, firstName, lastName, nationality, contractUntil';
-  const tables = gender === 'male' ? ['riders_men']
-    : gender === 'female' ? ['riders_women']
-    : ['riders_men', 'riders_women'];
-  const results = await Promise.all(tables.map(tb =>
-    supabase.from(tb).select(cols).eq('currentTeamId', teamId).then(r => r.data || [])
-  ));
-  const roster = results.flat().sort((a, b) =>
-    `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
+
+  const { data: affs, error: affErr } = await supabase.from('rider_team_affiliations')
+    .select('riderId, riderGender, dateTo')
+    .eq('year', SEASON)
+    .eq('teamId', teamId);
+  if (affErr) throw affErr;
+  const affRows = affs || [];
+  if (affRows.length === 0) { _rosterCache.set(teamId, []); return []; }
+
+  // Hidratar fichas por id (el riderGender de la afiliación decide la tabla; sin
+  // él, el género del equipo). Se trae currentTeamId para distinguir continúa
+  // (venía ya del equipo) de llegada (venía de fuera). El contrato = año de
+  // dateTo de la afiliación (31-dic del año de fin), no riders_*.contractUntil.
+  const cols = 'id, firstName, lastName, nationality, currentTeamId';
+  const menIds = affRows.filter(a => (a.riderGender || gender) === 'male').map(a => a.riderId);
+  const womenIds = affRows.filter(a => (a.riderGender || gender) === 'female').map(a => a.riderId);
+  const [men, women] = await Promise.all([
+    menIds.length   ? supabase.from('riders_men').select(cols).in('id', menIds).then(r => r.data || [])     : Promise.resolve([]),
+    womenIds.length ? supabase.from('riders_women').select(cols).in('id', womenIds).then(r => r.data || []) : Promise.resolve([]),
+  ]);
+  const affYear = (d) => { if (!d) return null; const y = parseInt(String(d).slice(0, 4), 10); return isNaN(y) ? null : y; };
+  const contractByRider = new Map(affRows.map(a => [a.riderId, affYear(a.dateTo)]));
+  const roster = [...men, ...women]
+    .map(r => ({ ...r, contractUntil: contractByRider.get(r.id) ?? null }))
+    .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
   _rosterCache.set(teamId, roster);
   return roster;
 }
 
-function personRowHtml({ flagCode, name, detail = '', contract = null, isRumor = false, isDoubt = false }) {
-  return `<div class="tr-row tr-row--team">
+// `linkTeamId`: si se pasa Y ese equipo tiene ficha en el mercado (fila en
+// team_seasons 2027), la FILA ENTERA del corredor enlaza a la vista de ese
+// equipo — un fichaje que LLEGA enlaza al equipo del que VENÍA; uno que se
+// MARCHA, al equipo AL QUE VA (decisión Dani 2026-07-20). No hay ficha pública
+// de corredor (retirada), así que el destino del enlace es siempre un equipo.
+// Sin destino enlazable (retirada, fin de contrato, equipo fuera de las 4
+// divisiones) la fila queda como texto plano.
+function personRowHtml({ flagCode, name, detail = '', contract = null, isRumor = false, isDoubt = false, linkTeamId = null }) {
+  // El año de contrato y el estado (rumor/duda) van como BADGES al final de la
+  // fila, no en el texto.
+  const inner = `
     <span class="tr-row__flag">${flagCode ? countryFlag(flagCode) : ''}</span>
-    <span class="tr-row__body"><strong>${esc(name)}</strong>${detail ? ` ${detail}` : ''} ${contractBit(contract)}</span>
-    ${isDoubt ? doubtChip() : isRumor ? rumorChip() : ''}
-  </div>`;
+    <span class="tr-row__body"><strong>${esc(name)}</strong>${detail ? ` ${detail}` : ''}</span>
+    ${contractBit(contract)}
+    ${isDoubt ? doubtChip() : isRumor ? rumorChip() : ''}`;
+  if (linkTeamId && _seasonsByTeamId.has(linkTeamId)) {
+    // href con el param bilingüe `?team=<slug>` (el mismo que escribe openTeam);
+    // el clic normal se intercepta y navega in-page.
+    const href = `?team=${esc(_teamIdToSlug.get(linkTeamId) || linkTeamId)}`;
+    return `<a class="tr-row tr-row--team tr-row--link" href="${href}" data-team="${esc(linkTeamId)}">${inner}</a>`;
+  }
+  return `<div class="tr-row tr-row--team">${inner}</div>`;
 }
 
 async function openTeam(teamId, { push = true } = {}) {
@@ -292,18 +404,32 @@ async function openTeam(teamId, { push = true } = {}) {
   if (push) {
     const qs = new URLSearchParams(location.search);
     qs.set('div', _activeDiv);
-    qs.set('equipo', teamId);
-    history.replaceState(null, '', `${location.pathname}?${qs}`);
+    qs.delete('equipo');   // limpia el param ES antiguo si venía en la URL
+    qs.set('team', _teamIdToSlug.get(teamId) || teamId);   // slug legible, bilingüe
+    // pushState (no replaceState): abrir un equipo apila una entrada de
+    // historial → el botón atrás del navegador vuelve a la home de mercado (o al
+    // equipo anterior si se saltó de equipo a equipo), no a la home global. La
+    // sincronización vista↔URL al usar atrás/adelante la hace el listener
+    // popstate (ver más abajo). El estado guarda el teamId para que popstate
+    // resuelva la vista sin depender de parsear la URL.
+    history.pushState({ trTeam: teamId }, '', `${location.pathname}?${qs}`);
   }
 
   $('trHome').hidden = true;
+  // El detalle de equipo scrollea como una página normal → se quita el bloqueo
+  // de doble panel del home.
+  document.body.classList.remove('tr-home-locked');
   const view = $('trTeamView');
   view.hidden = false;
+  // El "volver a todos los equipos" vive en el botón ← del header (aparece solo
+  // dentro de un equipo y cierra la vista sin recargar).
+  if (typeof window.ccHeaderBack === 'function') {
+    // El ← del header hace lo MISMO que el botón atrás del navegador
+    // (history.back): así el historial no acumula basura y ambos caminos
+    // convergen en el listener popstate, que repinta la home de mercado.
+    window.ccHeaderBack({ onClick: () => history.back(), label: t('transfers.back') });
+  }
   view.innerHTML = `
-    <button class="tr-back" id="trBackBtn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      ${esc(t('transfers.back'))}
-    </button>
     <div class="tr-team-header">
       ${badgeOrPlaceholder(season, 44)}
       <div class="tr-team-header__text">
@@ -315,33 +441,72 @@ async function openTeam(teamId, { push = true } = {}) {
       ? `<div class="tr-team-notice">${esc(t('transfers.teamDoubtNotice', { season: SEASON }))}</div>`
       : ''}
     <div class="tr-team-sections">
-      <section>
+      <section id="trSecStaying" hidden>
         <h3 class="tr-section-title">${esc(t('transfers.staying'))}</h3>
-        <div id="trStaying"><div class="tr-empty">…</div></div>
+        <div id="trStaying"></div>
       </section>
-      <section>
+      <section id="trSecDoubtful" hidden>
         <h3 class="tr-section-title">${esc(t('transfers.doubtful'))}</h3>
         <div id="trDoubtful"></div>
       </section>
-      <section>
-        <h3 class="tr-section-title">${esc(t('transfers.departures'))}</h3>
-        <div id="trDepartures"></div>
+      <section id="trSecContractEnds" hidden>
+        <h3 class="tr-section-title">${esc(t('transfers.contractEnds'))}</h3>
+        <div id="trContractEnds"></div>
       </section>
-      <section>
+      <section id="trSecArrivals" hidden>
         <h3 class="tr-section-title">${esc(t('transfers.arrivals'))}</h3>
         <div id="trArrivals"></div>
       </section>
+      <section id="trSecDepartures" hidden>
+        <h3 class="tr-section-title">${esc(t('transfers.departures'))}</h3>
+        <div id="trDepartures"></div>
+      </section>
+      <div id="trTeamEmpty" class="tr-empty" hidden>${esc(t('transfers.teamEmpty'))}</div>
     </div>`;
-  $('trBackBtn').addEventListener('click', closeTeam);
+  // (El clic en filas de corredor enlazadas se delega UNA vez en init sobre
+  // #trTeamView, que persiste entre aperturas — no se cablea aquí para no
+  // acumular handlers en cada openTeam, que con pushState apilaría varias
+  // entradas de historial por clic.)
   // El scroll del sitio vive en <body> (overflow-y auto), no en window.
   window.scrollTo(0, 0);
   document.body.scrollTop = 0;
   document.documentElement.scrollTop = 0;
 
-  // Movimientos del equipo
-  const arrivals = _transfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId);
-  const departures = _transfers.filter(x =>
+  // Movimientos del equipo. Llegan (fichajes): primero los CONFIRMADOS, luego
+  // los rumores; dentro de cada grupo, alfabético por apellido.
+  const arrivalLastName = (x) => `${x.rider?.lastName || ''} ${x.rider?.firstName || ''}`.toLowerCase();
+  const arrivals = _transfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId)
+    .sort((a, b) => {
+      const ra = a.status === 'rumor' ? 1 : 0, rb = b.status === 'rumor' ? 1 : 0;
+      if (ra !== rb) return ra - rb;   // confirmados (0) antes que rumores (1)
+      return arrivalLastName(a).localeCompare(arrivalLastName(b), 'es', { sensitivity: 'base' });
+    });
+  // Salidas del equipo. Un "fin de contrato sin destino" (transfer con
+  // toTeamName='?' y sin toTeamId) NO es marcharse a otro equipo → va a su
+  // propia sección "Terminan contrato". El resto (fichaje con destino conocido
+  // o retirada) sigue en "Se marchan".
+  const allDepartures = _transfers.filter(x =>
     (x.type === 'transfer' || x.type === 'retirement') && x.fromTeamId === teamId);
+  const isContractEnd = (x) => x.type === 'transfer' && !x.toTeamId && x.toTeamName === UNKNOWN_DEST;
+  // Terminan contrato: alfabético por apellido.
+  const lastNameKey = (x) => `${x.rider?.lastName || ''} ${x.rider?.firstName || ''}`.toLowerCase();
+  const contractEnds = allDepartures.filter(isContractEnd)
+    .sort((a, b) => lastNameKey(a).localeCompare(lastNameKey(b), 'es', { sensitivity: 'base' }));
+  // Se marchan: por categoría del equipo de destino (WT→WWT→PT→PRW→resto), luego
+  // alfabético por nombre del equipo de destino; los retiros al final.
+  const CAT_RANK = { WT: 0, WWT: 1, PT: 2, PRW: 3 };
+  const depSortKey = (x) => {
+    if (x.type === 'retirement') return { retire: 1, cat: 99, team: '' };
+    const cat = _seasonsByTeamId.get(x.toTeamId)?.category;
+    return { retire: 0, cat: (cat in CAT_RANK ? CAT_RANK[cat] : 90), team: teamLabel(x.toTeamId, x.toTeamName) };
+  };
+  const departures = allDepartures.filter(x => !isContractEnd(x))
+    .sort((a, b) => {
+      const ka = depSortKey(a), kb = depSortKey(b);
+      if (ka.retire !== kb.retire) return ka.retire - kb.retire;
+      if (ka.cat !== kb.cat) return ka.cat - kb.cat;
+      return ka.team.localeCompare(kb.team, 'es', { sensitivity: 'base' });
+    });
   // Renovaciones: las EN DUDA van a su propia sección; el resto (confirmada o
   // rumoreada) sigue anotando el contrato de quien continúa.
   const renewalsByRider = new Map();
@@ -352,49 +517,87 @@ async function openTeam(teamId, { push = true } = {}) {
       if (!bucket.has(x.riderId)) bucket.set(x.riderId, x);
     });
 
+  // Cada sección solo se muestra si tiene contenido (una categoría vacía se
+  // oculta por completo, título incluido).
+  const showSection = (secId, contentId, has) => {
+    const sec = $(secId);
+    if (sec) sec.hidden = !has;
+    if (!has) { const c = $(contentId); if (c) c.innerHTML = ''; }
+  };
+
   // Llegan: cronológico inverso (ya vienen ordenados), rumores con badge.
-  $('trArrivals').innerHTML = arrivals.length
-    ? arrivals.map(x => personRowHtml({
-        flagCode: x.rider?.nationality,
-        name: riderName(x.rider) || x.riderId,
-        detail: `<span class="tr-dim">· ${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))}</span>`,
-        contract: x.contractUntil,
-        isRumor: x.status === 'rumor',
-      })).join('')
-    : `<div class="tr-empty">${esc(t('transfers.arrivalsEmpty'))}</div>`;
+  if (arrivals.length) {
+    $('trArrivals').innerHTML = arrivals.map(x => personRowHtml({
+      flagCode: x.rider?.nationality,
+      name: riderName(x.rider) || x.riderId,
+      detail: `<span class="tr-dim">· ${esc(teamLabel(x.fromTeamId, x.fromTeamName, 'from'))}</span>`,
+      contract: x.contractUntil,
+      isRumor: x.status === 'rumor',
+      linkTeamId: x.fromTeamId,   // llega → enlaza al equipo del que VENÍA
+    })).join('');
+  }
+  showSection('trSecArrivals', 'trArrivals', arrivals.length > 0);
 
-  // Se marchan: destino (o retirada), rumores con badge.
-  $('trDepartures').innerHTML = departures.length
-    ? departures.map(x => personRowHtml({
-        flagCode: x.rider?.nationality,
-        name: riderName(x.rider) || x.riderId,
-        detail: x.type === 'retirement'
-          ? `<span class="tr-dim">· ${esc(t('transfers.retires'))}</span>`
-          : `<span class="tr-dim">· ${esc(teamLabel(x.toTeamId, x.toTeamName))}</span>`,
-        isRumor: x.status === 'rumor',
-      })).join('')
-    : `<div class="tr-empty">${esc(t('transfers.departuresEmpty'))}</div>`;
+  // Terminan contrato: acaban su contrato sin equipo conocido (sin destino).
+  if (contractEnds.length) {
+    $('trContractEnds').innerHTML = contractEnds.map(x => personRowHtml({
+      flagCode: x.rider?.nationality,
+      name: riderName(x.rider) || x.riderId,
+      isRumor: x.status === 'rumor',
+    })).join('');
+  }
+  showSection('trSecContractEnds', 'trContractEnds', contractEnds.length > 0);
 
-  // Continúan: plantilla actual MENOS los que tienen salida registrada
-  // (confirmada O rumoreada — el rumor ya los muestra como baja·Rumor) y
-  // MENOS los que están en duda (que tienen su propia sección).
-  // Contrato: el de la renovación registrada gana al de la ficha; una duda
-  // NO lo toca (no es un hecho, no puede pisar el contrato de la ficha).
+  // Se marchan: fichaje a otro equipo (destino) o retirada, rumores con badge.
+  if (departures.length) {
+    $('trDepartures').innerHTML = departures.map(x => personRowHtml({
+      flagCode: x.rider?.nationality,
+      name: riderName(x.rider) || x.riderId,
+      detail: x.type === 'retirement'
+        ? `<span class="tr-dim">· ${esc(t('transfers.retired'))}</span>`
+        : `<span class="tr-dim">· ${esc(teamLabel(x.toTeamId, x.toTeamName))}</span>`,
+      isRumor: x.status === 'rumor',
+      // Se marcha → enlaza al equipo AL QUE VA (una retirada no tiene destino).
+      linkTeamId: x.type === 'retirement' ? null : x.toTeamId,
+    })).join('');
+  }
+  showSection('trSecDepartures', 'trDepartures', departures.length > 0);
+
+  // Continúan: los del squad 2027 que YA estaban en el equipo en la temporada
+  // en curso (currentTeamId = equipo) — es lo que separa "continúa" de "llega de
+  // fuera" (un fichaje también tiene afiliación 2027, pero su currentTeamId es
+  // otro equipo, así que va a "Llegan", no aquí). MENOS los que tienen salida
+  // registrada y MENOS los que están en duda (sección propia). Contrato: el de
+  // la renovación registrada gana al de la ficha; una duda NO lo toca.
   try {
     const roster = await loadRoster(teamId);
-    const gone = new Set(departures.map(x => x.riderId));
-    const staying = roster.filter(r => !gone.has(r.id) && !doubtsByRider.has(r.id));
-    $('trStaying').innerHTML = staying.length
-      ? staying.map(r => {
-          const renewal = renewalsByRider.get(r.id);
-          return personRowHtml({
-            flagCode: r.nationality,
-            name: riderName(r),
-            contract: renewal?.contractUntil || r.contractUntil,
-            isRumor: renewal?.status === 'rumor',
-          });
-        }).join('')
-      : `<div class="tr-empty">${esc(t('transfers.stayingEmpty'))}</div>`;
+    // "gone" = toda salida registrada (fichaje, retirada Y fin de contrato):
+    // ninguno de ellos continúa.
+    const gone = new Set(allDepartures.map(x => x.riderId));
+    // Orden: por año de contrato DESC (2030 → 2029 → … → sin año al final) y,
+    // como segundo factor, el APELLIDO. El contrato efectivo = el de la
+    // renovación registrada, o el de la ficha (afiliación 2027).
+    const contractOf = (r) => (renewalsByRider.get(r.id)?.contractUntil) || r.contractUntil || null;
+    const lastNameFirst = (r) => `${r.lastName || ''} ${r.firstName || ''}`.toLowerCase();
+    const staying = roster
+      .filter(r => r.currentTeamId === teamId && !gone.has(r.id) && !doubtsByRider.has(r.id))
+      .sort((a, b) => {
+        const ya = contractOf(a), yb = contractOf(b);
+        if (ya !== yb) return (yb || 0) - (ya || 0);   // año mayor primero; sin año (0) al final
+        return lastNameFirst(a).localeCompare(lastNameFirst(b), 'es', { sensitivity: 'base' });
+      });
+    if (staying.length) {
+      $('trStaying').innerHTML = staying.map(r => {
+        const renewal = renewalsByRider.get(r.id);
+        return personRowHtml({
+          flagCode: r.nationality,
+          name: riderName(r),
+          contract: renewal?.contractUntil || r.contractUntil,
+          isRumor: renewal?.status === 'rumor',
+        });
+      }).join('');
+    }
+    showSection('trSecStaying', 'trStaying', staying.length > 0);
 
     // En duda: los de la plantilla con renovación en duda. La ficha manda
     // para el nombre/bandera; si el corredor ya no está en la plantilla
@@ -404,30 +607,71 @@ async function openTeam(teamId, { push = true } = {}) {
       .filter(x => !gone.has(x.riderId))
       .map(x => ({ x, r: byId.get(x.riderId) || x.rider }))
       .sort((a, b) => riderName(a.r).localeCompare(riderName(b.r), 'es', { sensitivity: 'base' }));
-    $('trDoubtful').innerHTML = doubtful.length
-      ? doubtful.map(({ x, r }) => personRowHtml({
-          flagCode: r?.nationality,
-          name: riderName(r) || x.riderId,
-          contract: r?.contractUntil,
-          isDoubt: true,
-        })).join('')
-      : `<div class="tr-empty">${esc(t('transfers.doubtfulEmpty'))}</div>`;
+    // Sin badge "Duda": ya están bajo la sección "En duda".
+    if (doubtful.length) {
+      $('trDoubtful').innerHTML = doubtful.map(({ x, r }) => personRowHtml({
+        flagCode: r?.nationality,
+        name: riderName(r) || x.riderId,
+        contract: r?.contractUntil,
+      })).join('');
+    }
+    showSection('trSecDoubtful', 'trDoubtful', doubtful.length > 0);
+
+    // Si TODAS las secciones quedaron vacías, un único aviso (equipo sin datos).
+    const anyShown = ['trSecStaying', 'trSecDoubtful', 'trSecContractEnds', 'trSecArrivals', 'trSecDepartures']
+      .some(id => $(id) && !$(id).hidden);
+    const emptyEl = $('trTeamEmpty'); if (emptyEl) emptyEl.hidden = anyShown;
   } catch (err) {
     console.error('[fichajes] roster', err);
+    // Error al cargar la plantilla: mostrar la sección "continúan" con el aviso.
+    const sec = $('trSecStaying'); if (sec) sec.hidden = false;
     $('trStaying').innerHTML = `<div class="tr-empty">${esc(t('transfers.loadError'))}</div>`;
-    $('trDoubtful').innerHTML = '';
   }
 }
 
+// Repinta la home de mercado (oculta el detalle de equipo). Es SOLO visual: NO
+// toca el historial. Lo dispara el listener popstate cuando la URL ya no lleva
+// ?team= (por el botón atrás del navegador o el ← del header, que hace back()).
 function closeTeam() {
-  $('trTeamView').hidden = true;
-  $('trTeamView').innerHTML = '';
+  const view = $('trTeamView');
+  if (view.hidden) return;   // ya en la home → nada que hacer
+  view.hidden = true;
+  view.innerHTML = '';
   $('trHome').hidden = false;
-  const qs = new URLSearchParams(location.search);
-  qs.delete('equipo');
-  qs.set('div', _activeDiv);
-  history.replaceState(null, '', `${location.pathname}?${qs}`);
+  document.body.classList.add('tr-home-locked');
+  // Ocultar el ← del header: en la lista de equipos no hay "volver".
+  if (typeof window.ccHeaderBack === 'function') window.ccHeaderBack(null);
+  window.scrollTo(0, 0);
 }
+
+// Resuelve un teamId desde el valor de ?team=/?equipo= (slug legible bilingüe o,
+// retrocompatible, el teamId antiguo team_...). Devuelve null si no casa.
+function resolveTeamParam(value) {
+  if (!value) return null;
+  return _slugToTeamId.get(value)
+    || (_seasonsByTeamId.has(value) ? value : null);
+}
+
+// ── Sincronización con el botón atrás/adelante del navegador ───────
+// openTeam apila una entrada con pushState; el ← del header hace history.back().
+// Aquí reaccionamos al cambio de historial: si la nueva URL lleva ?team= abrimos
+// ese equipo (sin volver a apilar), y si no, repintamos la home de mercado. Con
+// esto, atrás desde un equipo va a la home de mercado (o al equipo anterior si se
+// saltó de equipo a equipo), no a la home global, y adelante rehace el camino.
+window.addEventListener('popstate', (e) => {
+  // El feed/lista aún no está montado (navegación muy temprana): lo resuelve init.
+  if (!$('trTeamView')) return;
+  const qs = new URLSearchParams(location.search);
+  const div = (qs.get('div') || '').toUpperCase();
+  if (DIVISIONS.includes(div)) { _activeDiv = div; renderTeams(); }
+  const teamId = (e.state && e.state.trTeam)
+    || resolveTeamParam(qs.get('team') || qs.get('equipo'));
+  if (teamId && _seasonsByTeamId.has(teamId)) {
+    openTeam(teamId, { push: false });   // sin pushState: no duplica historial
+  } else {
+    closeTeam();
+  }
+});
 
 // ── Bootstrap ─────────────────────────────────────────────────────
 async function init() {
@@ -455,18 +699,32 @@ async function init() {
   content.innerHTML = `
     <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
     <div id="trHome">
-      <section>
+      <section class="tr-home-feed">
         <h2 class="tr-section-title">${esc(t('transfers.feedTitle'))}</h2>
-        <div id="trFeed"></div>
+        <div class="tr-home-scroll" id="trFeed"></div>
       </section>
-      <section>
+      <section class="tr-home-teams">
         <h2 class="tr-section-title">${esc(t('transfers.teamsTitle', { season: SEASON }))}</h2>
         <div class="tr-div-btns" id="trDivBtns"></div>
-        <div class="tr-team-grid" id="trTeamGrid"></div>
+        <div class="tr-home-scroll tr-team-grid" id="trTeamGrid"></div>
+        <a class="tr-sources-link" href="${getLang() === 'en' ? '/en/open/' : '/abierto.html'}">${esc(t('transfers.sourcesLink'))}</a>
       </section>
     </div>
     <div id="trTeamView" hidden></div>`;
   content.hidden = false;
+
+  // Clic en fila de corredor enlazada (Llegan → equipo de origen; Se marchan →
+  // equipo destino): navegación interna a ese equipo, sin recarga. Delegado UNA
+  // vez sobre #trTeamView, que persiste entre aperturas (su innerHTML se
+  // reemplaza pero el nodo no) → no se acumulan handlers. La <a> lleva href real
+  // para accesibilidad/copiar-enlace; interceptamos el clic normal.
+  $('trTeamView').addEventListener('click', (e) => {
+    const link = e.target.closest('.tr-row--link[data-team]');
+    if (!link) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; // abrir en pestaña nueva
+    e.preventDefault();
+    openTeam(link.dataset.team);
+  });
 
   // Retirar los marcadores del overlay de carga (page-loading.js) una vez
   // el contenido real está montado.
@@ -475,12 +733,22 @@ async function init() {
 
   renderFeed();
   renderTeams();
+  // Home visible → doble panel bloqueado en móvil (lo quita openTeam si se abre
+  // un equipo, incluido el de abajo por ?equipo=).
+  document.body.classList.add('tr-home-locked');
 
-  const teamParam = qs.get('equipo');
-  if (teamParam && _seasonsByTeamId.has(teamParam)) {
-    const cat = _seasonsByTeamId.get(teamParam)?.category;
+  // ?team= (bilingüe ES/EN) acepta el slug legible (visma-lease-a-bike) o,
+  // retrocompatible, el teamId antiguo (team_...). El ?equipo= previo se sigue
+  // leyendo para no romper enlaces ya compartidos.
+  const teamId = resolveTeamParam(qs.get('team') || qs.get('equipo'));
+  if (teamId) {
+    const cat = _seasonsByTeamId.get(teamId)?.category;
     if (DIVISIONS.includes(cat)) _activeDiv = cat;
-    await openTeam(teamParam, { push: false });
+    await openTeam(teamId, { push: false });
+    // Deep link a un equipo: sembramos el teamId en el estado de ESTA entrada de
+    // historial (la de entrada al sitio). Así, si el usuario navega dentro y
+    // luego vuelve, popstate reconstruye la vista de equipo sin reparsear.
+    history.replaceState({ trTeam: teamId }, '', location.href);
   }
 }
 

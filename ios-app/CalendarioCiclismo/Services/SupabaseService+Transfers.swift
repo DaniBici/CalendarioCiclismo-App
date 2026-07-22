@@ -43,25 +43,36 @@ extension SupabaseService {
         return out
     }
 
-    /// Plantilla actual de un equipo (riders con `currentTeamId` = equipo) para
-    /// la sección "continúan". El género del equipo decide la tabla; sin género
-    /// conocido se consultan ambas.
-    func ridersByCurrentTeam(teamId: String, gender: String?) async throws -> [TransferRider] {
+    /// Plantilla 2027 MATERIALIZADA de un equipo (rider_team_affiliations
+    /// year=market) para la sección "continúan". El panel la puebla al marcar
+    /// "continúa"/"duda"/incorporación; un equipo sin afiliaciones sale vacío.
+    /// El `contractUntil` efectivo del corredor viene de la afiliación.
+    func ridersByAffiliation(teamId: String, season: Int, gender: String?) async throws -> [TransferRider] {
+        struct AffRow: Decodable { let riderId: String; let riderGender: String?; let dateTo: String? }
+        let affs: [AffRow] = try await client.from("rider_team_affiliations")
+            .select("riderId,riderGender,dateTo")
+            .eq("year", value: season)
+            .eq("teamId", value: teamId)
+            .execute()
+            .value
+        if affs.isEmpty { return [] }
+
+        // El contrato = año de dateTo (31-dic del año de fin), no riders_*.contractUntil.
+        func affYear(_ d: String?) -> Int? { d.flatMap { Int($0.prefix(4)) } }
         let cols = "id,firstName,lastName,nationality,currentTeamId,contractUntil"
-        let tables: [String]
-        switch gender {
-        case "male": tables = ["riders_men"]
-        case "female": tables = ["riders_women"]
-        default: tables = ["riders_men", "riders_women"]
-        }
+        let contractByRider = Dictionary(affs.map { ($0.riderId, affYear($0.dateTo)) }, uniquingKeysWith: { a, _ in a })
+        let menIds = affs.filter { ($0.riderGender ?? gender) == "male" }.map(\.riderId)
+        let womenIds = affs.filter { ($0.riderGender ?? gender) == "female" }.map(\.riderId)
+
         var out: [TransferRider] = []
-        for table in tables {
+        for (table, ids) in [("riders_men", menIds), ("riders_women", womenIds)] where !ids.isEmpty {
             let rows: [TransferRider] = try await client.from(table)
                 .select(cols)
-                .eq("currentTeamId", value: teamId)
+                .in("id", values: ids)
                 .execute()
                 .value
-            out += rows
+            // El contrato lo manda la afiliación (no riders_*.contractUntil).
+            out += rows.map { $0.withContractUntil(contractByRider[$0.id] ?? nil) }
         }
         return out
     }

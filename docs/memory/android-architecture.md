@@ -2,8 +2,8 @@
 
 ## Stack
 
-- Gradle 8.x (Kotlin DSL) + AGP 8.5+ | minSdk 26 / targetSdk 35
-- Kotlin 2.0 + Coroutines + Flow | Compose BOM 2024.09 + Material 3 + `navigation-compose`
+- Gradle 8.x (Kotlin DSL) + AGP 8.10+ | minSdk 26 / targetSdk 36
+- Kotlin 2.2 + Coroutines + Flow | Compose BOM 2024.09 + Material 3 + `navigation-compose`
 - Supabase: `supabase-kt` (postgrest + auth) + `ktor-client-okhttp`
 - Room (KSP) | DataStore Preferences | WorkManager (sync 24 h, `UNMETERED`) | FCM | Coil 3
 - DI manual (sin Hilt)
@@ -63,3 +63,10 @@ android-app/app/src/main/java/app/calendariociclismo/android/
 **Secretos en Google Drive (sincronizado en disco):** keystore, `google-services.json`, `GoogleService-Info.plist` y service accounts viven en `~/Library/CloudStorage/GoogleDrive-<cuenta-google>/Mi unidad/Claves y ENVs/`. Carpeta única (no hay copia en `~/Documents`) — está montada por Google Drive for Desktop, así que Gradle lee el `.jks` directamente desde esa ruta. `RELEASE_STORE_FILE` en `secrets.properties` apunta ahí. Backup en la nube automático.
 
 Salida: `android-app/app/build/outputs/bundle/release/app-release.aab`.
+
+**Toolchain API 36/Billing 8:** Billing 8.2.1 requiere Kotlin 2.2.10. Para
+minificarlo correctamente, AGP debe ser 8.10.1 o posterior (R8 de AGP 8.9 no
+entiende la metadata de Kotlin 2.2); Gradle 8.11.1 acompaña a AGP 8.10.1. Room
+2.7.2 es necesario con ese KSP 2, ya que 2.6.1 falla durante el procesado de
+símbolos. Ver el diagnóstico y la prueba con Bundletool en
+`docs/runbooks/android-release.md`.

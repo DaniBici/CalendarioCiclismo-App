@@ -157,82 +157,23 @@ struct SeasonView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                HStack(spacing: 8) {
-                    Menu {
-                        Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
-                            ForEach(viewModel.availableYears, id: \.self) { year in
-                                Text(String(year)).tag(year)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "calendar")
-                            Text(String(viewModel.year))
-                        }
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
-                    }
-                    // En iOS 26 el toolbar envuelve el trigger del Menu en un
-                    // botón de Liquid Glass con tinte de acento propio, que pisa
-                    // el `.background`/`.foregroundStyle` del label. `.plain` lo
-                    // desactiva para que la cápsula personalizada mande.
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Año \(viewModel.year)")
-                    .accessibilityHint("Pulsa dos veces para cambiar de año")
-                    .accessibilityIdentifier(AccessibilityID.yearPicker)
-                    .accessibilityInputLabels(["Año", "Cambiar año", "Selector de año"])
-
-                    Menu {
-                        Picker(localeService.t("País", "Country"), selection: $viewModel.activeCountry) {
-                            Text(localeService.t("Todos los países", "All countries")).tag("all")
-                            ForEach(viewModel.availableCountries, id: \.code) { country in
-                                Text(country.label).tag(country.code)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "globe")
-                            Text(viewModel.activeCountry == "all" ? localeService.t("País", "Country") : viewModel.activeCountry.uppercased())
-                        }
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        // Inactivo = tinte accent-dim, NO un gris del sistema:
-                        // `tertiarySystemBackground` dentro de la cápsula de
-                        // cristal del toolbar (iOS 26) dispara la adaptación de
-                        // luminancia y el chip se ve "HDR", más brillante que
-                        // el resto de la pantalla.
-                        .background(
-                            viewModel.activeCountry == "all"
-                                ? Color.accentColor.opacity(0.14)
-                                : Color.accentColor
-                        )
-                        .foregroundStyle(
-                            viewModel.activeCountry == "all"
-                                ? Color.accentColor
-                                : Color.white
-                        )
-                        // Cápsula, igual que el selector de año «2026» (antes un
-                        // RoundedRectangle de radio 3 que se veía boxy al lado).
-                        .clipShape(Capsule())
-                    }
-                    // Sin esto, en iOS 26 el botón de Liquid Glass del toolbar
-                    // pinta la cápsula con tinte de acento sólido + contenido
-                    // blanco y el estado inactivo «Todos los países» (accent-dim
-                    // 14 % + texto azul) nunca se ve. `.plain` deja mandar al
-                    // estilo propio.
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(viewModel.activeCountry == "all" ? localeService.t("Todos los países", "All countries") : "\(localeService.t("País", "Country")): \(AccessibilityCountryNames.name(for: viewModel.activeCountry) ?? viewModel.activeCountry)")
-                    .accessibilityHint("Pulsa dos veces para filtrar por país")
-                    .accessibilityIdentifier(AccessibilityID.countryPicker)
-                    .accessibilityInputLabels(["País", "Filtrar país", "Selector de país"])
+            // En iOS 26 el ToolbarItem en .topBarLeading envuelve su contenido en
+            // una cápsula de Liquid Glass con tinte de acento propio que PISA el
+            // `.background`/`.foregroundStyle` del label — de ahí que el botón
+            // «País» inactivo saliera azul sólido en vez de accent-dim, aunque
+            // `.buttonStyle(.plain)` sí desactive el estilo de botón. La cápsula
+            // la pinta el propio TOOLBAR ITEM, no el botón, así que `.plain` no
+            // basta: hay que ocultar su fondo compartido con
+            // `.sharedBackgroundVisibility(.hidden)` (iOS 26+) para que manden las
+            // cápsulas propias del año/país.
+            if #available(iOS 26, *) {
+                ToolbarItem(placement: .topBarLeading) {
+                    seasonFiltersContent
+                }
+                .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    seasonFiltersContent
                 }
             }
             // Toggle Temporada→Mes (solo dentro de la pestaña Calendario; las
@@ -393,6 +334,70 @@ struct SeasonView: View {
             }
         }
         .accessibilityIdentifier("season_race_list")
+    }
+
+    /// Cápsulas de Año + País del toolbar (topBarLeading). Extraído para poder
+    /// aplicar `.sharedBackgroundVisibility(.hidden)` (iOS 26+) al ToolbarItem
+    /// sin duplicar el contenido en cada rama de disponibilidad.
+    @ViewBuilder
+    private var seasonFiltersContent: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
+                    ForEach(viewModel.availableYears, id: \.self) { year in
+                        Text(String(year)).tag(year)
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                    Text(String(viewModel.year))
+                }
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Año \(viewModel.year)")
+            .accessibilityHint("Pulsa dos veces para cambiar de año")
+            .accessibilityIdentifier(AccessibilityID.yearPicker)
+            .accessibilityInputLabels(["Año", "Cambiar año", "Selector de año"])
+
+            Menu {
+                Picker(localeService.t("País", "Country"), selection: $viewModel.activeCountry) {
+                    Text(localeService.t("Todos los países", "All countries")).tag("all")
+                    ForEach(viewModel.availableCountries, id: \.code) { country in
+                        Text(country.label).tag(country.code)
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "globe")
+                    Text(viewModel.activeCountry == "all" ? localeService.t("País", "Country") : viewModel.activeCountry.uppercased())
+                }
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                // Idéntico al selector de año «2026» de al lado: fondo azul
+                // sólido + contenido blanco, SIN estado condicional. El aspecto
+                // "accent-dim con texto azul" para el estado inactivo hacía que
+                // en claro el texto+icono salieran del mismo color que el fondo
+                // (invisibles) y en oscuro discordaran con el pill de al lado.
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(viewModel.activeCountry == "all" ? localeService.t("Todos los países", "All countries") : "\(localeService.t("País", "Country")): \(AccessibilityCountryNames.name(for: viewModel.activeCountry) ?? viewModel.activeCountry)")
+            .accessibilityHint("Pulsa dos veces para filtrar por país")
+            .accessibilityIdentifier(AccessibilityID.countryPicker)
+            .accessibilityInputLabels(["País", "Filtrar país", "Selector de país"])
+        }
     }
 
     /// Agrupa las carreras de la página "Todos" por mes calendario, ordenadas.

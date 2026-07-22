@@ -12,6 +12,7 @@ final class TransfersLogicTests: XCTestCase {
         status: String = "confirmed",
         from: String? = nil,
         to: String? = nil,
+        toName: String? = nil,
         contractUntil: Int? = nil,
         announcedAt: String? = "2026-07-10",
         createdAt: String? = nil,
@@ -19,16 +20,16 @@ final class TransfersLogicTests: XCTestCase {
     ) -> RiderTransfer {
         RiderTransfer(
             id: id, season: 2027, riderId: riderId, riderGender: "male",
-            fromTeamId: from, fromTeamName: nil, toTeamId: to, toTeamName: nil,
+            fromTeamId: from, fromTeamName: nil, toTeamId: to, toTeamName: toName,
             type: type, status: status, contractUntil: contractUntil,
             announcedAt: announcedAt, dateVisible: dateVisible, createdAt: createdAt
         )
     }
 
-    private func rider(_ id: String, last: String, contractUntil: Int? = nil) -> TransferRider {
+    private func rider(_ id: String, last: String, contractUntil: Int? = nil, currentTeamId: String? = "team_a") -> TransferRider {
         TransferRider(
             id: id, firstName: "Test", lastName: last, nationality: "es",
-            currentTeamId: "team_a", contractUntil: contractUntil
+            currentTeamId: currentTeamId, contractUntil: contractUntil
         )
     }
 
@@ -40,6 +41,34 @@ final class TransfersLogicTests: XCTestCase {
             transfer(id: "t2", riderId: "r2", status: "rumor", to: "team_b"),
         ])
         XCTAssertEqual(feed.map(\.id), ["t1"])
+    }
+
+    func test_feedShowsOnlyRealSignings() {
+        // Solo fichajes reales (transfer con destino conocido). Fuera:
+        // renovaciones, retiradas y fines de contrato sin destino (to='?').
+        let feed = TransfersLogic.confirmedFeed([
+            transfer(id: "sign", riderId: "r1", type: "transfer", to: "team_b"),
+            transfer(id: "renew", riderId: "r2", type: "renewal", to: "team_a"),
+            transfer(id: "retire", riderId: "r3", type: "retirement", from: "team_a"),
+            transfer(id: "end", riderId: "r4", type: "transfer", from: "team_a", toName: "?"),
+        ])
+        XCTAssertEqual(feed.map(\.id), ["sign"])
+    }
+
+    func test_limitedFeedStopsAtMaxDays() {
+        // 6 fechas distintas (1 fichaje cada una) → se cortan a 5.
+        let feed = (1...6).map { transfer(id: "t\($0)", riderId: "r\($0)", to: "team_b", announcedAt: "2026-07-0\($0)") }
+            .sorted { ($0.announcedAt ?? "") > ($1.announcedAt ?? "") }
+        let out = TransfersLogic.limitedFeed(feed)
+        XCTAssertEqual(Set(out.map { $0.announcedAt }).count, 5)
+        XCTAssertEqual(out.count, 5)
+    }
+
+    func test_limitedFeedStopsAtMaxItems() {
+        // 10 fichajes en 2 fechas → se cortan a 8 items.
+        let feed = (1...10).map { transfer(id: "t\($0)", riderId: "r\($0)", to: "team_b", announcedAt: $0 <= 5 ? "2026-07-02" : "2026-07-01") }
+        let out = TransfersLogic.limitedFeed(feed)
+        XCTAssertEqual(out.count, 8)
     }
 
     func test_feedSortsReverseChronological() {
@@ -124,6 +153,106 @@ final class TransfersLogicTests: XCTestCase {
         let detail = TransfersLogic.teamDetail(transfers: moves, roster: roster, teamId: "team_a")
         XCTAssertEqual(detail.staying.map(\.rider.id), ["r2"])
         XCTAssertEqual(detail.departures.map(\.id), ["t1"])
+    }
+
+    func test_departuresSortedByDestinationCategoryThenNameThenRetirement() {
+        // WT → PT → resto → retirada; alfabético por nombre de destino.
+        let moves = [
+            transfer(id: "retire", riderId: "r0", type: "retirement", from: "team_a"),
+            transfer(id: "toPt", riderId: "r1", type: "transfer", from: "team_a", to: "pt1"),
+            transfer(id: "toWtB", riderId: "r2", type: "transfer", from: "team_a", to: "wtB"),
+            transfer(id: "toWtA", riderId: "r3", type: "transfer", from: "team_a", to: "wtA"),
+            transfer(id: "toCt", riderId: "r4", type: "transfer", from: "team_a", to: "ct1"),
+        ]
+        let cats = ["wtA": "WT", "wtB": "WT", "pt1": "PT", "ct1": "CT"]
+        let names = ["wtA": "Alpha", "wtB": "Bravo", "pt1": "PtTeam", "ct1": "CtTeam"]
+        let detail = TransfersLogic.teamDetail(
+            transfers: moves, roster: [], teamId: "team_a",
+            categoryByTeamId: cats, teamNameById: names
+        )
+        XCTAssertEqual(detail.departures.map(\.id), ["toWtA", "toWtB", "toPt", "toCt", "retire"])
+    }
+
+    func test_arrivalsSortedAlphabeticallyByLastName() {
+        let riders = [
+            "r1": TransferRider(id: "r1", firstName: "A", lastName: "Zeta", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r2": TransferRider(id: "r2", firstName: "B", lastName: "Alfa", nationality: nil, currentTeamId: nil, contractUntil: nil),
+        ]
+        let moves = [
+            transfer(id: "t1", riderId: "r1", type: "transfer", to: "team_a"),
+            transfer(id: "t2", riderId: "r2", type: "transfer", to: "team_a"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [], teamId: "team_a", ridersById: riders)
+        XCTAssertEqual(detail.arrivals.map(\.id), ["t2", "t1"])
+    }
+
+    func test_arrivalsConfirmedBeforeRumors() {
+        // Confirmados primero, rumores después; apellido dentro de cada grupo.
+        let riders = [
+            "r1": TransferRider(id: "r1", firstName: "A", lastName: "Zeta", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r2": TransferRider(id: "r2", firstName: "B", lastName: "Alfa", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r3": TransferRider(id: "r3", firstName: "C", lastName: "Beta", nationality: nil, currentTeamId: nil, contractUntil: nil),
+        ]
+        let moves = [
+            transfer(id: "rumZeta", riderId: "r1", type: "transfer", status: "rumor", to: "team_a"),
+            transfer(id: "confAlfa", riderId: "r2", type: "transfer", status: "confirmed", to: "team_a"),
+            transfer(id: "confBeta", riderId: "r3", type: "transfer", status: "confirmed", to: "team_a"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [], teamId: "team_a", ridersById: riders)
+        XCTAssertEqual(detail.arrivals.map(\.id), ["confAlfa", "confBeta", "rumZeta"])
+    }
+
+    func test_contractEndsSortedAlphabeticallyByLastName() {
+        let riders = [
+            "r1": TransferRider(id: "r1", firstName: "A", lastName: "Zeta", nationality: nil, currentTeamId: nil, contractUntil: nil),
+            "r2": TransferRider(id: "r2", firstName: "B", lastName: "Alfa", nationality: nil, currentTeamId: nil, contractUntil: nil),
+        ]
+        let moves = [
+            transfer(id: "t1", riderId: "r1", type: "transfer", from: "team_a", toName: "?"),
+            transfer(id: "t2", riderId: "r2", type: "transfer", from: "team_a", toName: "?"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [], teamId: "team_a", ridersById: riders)
+        XCTAssertEqual(detail.contractEnds.map(\.id), ["t2", "t1"])
+    }
+
+    func test_contractEndSeparatesFromDepartures() {
+        // Fin de contrato sin destino (transfer to='?') → "Terminan contrato".
+        // Un fichaje con destino y una retirada → "Se marchan".
+        let roster = [rider("r1", last: "Fin"), rider("r2", last: "Ficha"), rider("r3", last: "Retira")]
+        let moves = [
+            transfer(id: "end", riderId: "r1", type: "transfer", from: "team_a", toName: "?"),
+            transfer(id: "sign", riderId: "r2", type: "transfer", from: "team_a", to: "team_b"),
+            transfer(id: "retire", riderId: "r3", type: "retirement", from: "team_a"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: roster, teamId: "team_a")
+        XCTAssertEqual(detail.contractEnds.map(\.id), ["end"])
+        XCTAssertEqual(Set(detail.departures.map(\.id)), ["sign", "retire"])
+        XCTAssertTrue(detail.staying.isEmpty)
+    }
+
+    func test_stayingSortedByContractYearDescending() {
+        // 2030 → 2029 → 2028 → sin año (nil) al final; alfabético dentro de año.
+        let roster = [
+            rider("a", last: "Amid", contractUntil: 2028),
+            rider("b", last: "Blank", contractUntil: nil),
+            rider("c", last: "Ceil", contractUntil: 2030),
+            rider("d", last: "Deep", contractUntil: 2029),
+            rider("e", last: "Early", contractUntil: 2028),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: [], roster: roster, teamId: "team_a")
+        XCTAssertEqual(detail.staying.map(\.rider.id), ["c", "d", "a", "e", "b"])
+    }
+
+    func test_stayingOnlyIncludesRidersFrom2026Roster() {
+        // Continúan = solo quien YA estaba en el equipo (currentTeamId=team_a).
+        // Un fichaje de fuera está en el roster 2027 pero su currentTeamId es
+        // otro equipo → NO continúa (va a "Llegan").
+        let roster = [
+            rider("stay", last: "Local", currentTeamId: "team_a"),
+            rider("newbie", last: "Fichaje", currentTeamId: "team_x"),
+        ]
+        let detail = TransfersLogic.teamDetail(transfers: [], roster: roster, teamId: "team_a")
+        XCTAssertEqual(detail.staying.map(\.rider.id), ["stay"])
     }
 
     func test_rumoredDepartureAlsoRemovesFromStayingAndFlagsRumor() {

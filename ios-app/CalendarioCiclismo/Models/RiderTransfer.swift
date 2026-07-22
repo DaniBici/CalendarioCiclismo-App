@@ -90,4 +90,11 @@ struct TransferRider: Codable, Identifiable, Hashable {
     var fullName: String {
         "\(firstName ?? "") \(lastName ?? "")".trimmingCharacters(in: .whitespaces)
     }
+
+    /// Copia con el contrato sobreescrito (el de la afiliación 2027 manda sobre
+    /// el de la ficha en la vista de equipo del mercado).
+    func withContractUntil(_ year: Int?) -> TransferRider {
+        TransferRider(id: id, firstName: firstName, lastName: lastName,
+                      nationality: nationality, currentTeamId: currentTeamId, contractUntil: year)
+    }
 }

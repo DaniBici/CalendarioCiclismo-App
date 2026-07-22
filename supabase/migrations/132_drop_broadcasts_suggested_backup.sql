@@ -3,14 +3,13 @@
 --  (cuarta tanda; continúa el trabajo de las migraciones 098, 111 y 126)
 -- ═══════════════════════════════════════════════════════════════════
 --
---  La 127 destruyó el sugeridor de broadcasts de coursedujour (tools/scrape-cdj
---  + scrape-cdj.yml + la Edge Function trigger-scrape-cdj) y, con él, la tabla
---  `broadcasts_suggested` que su cron había estado llenando hasta la víspera.
+--  La 127 retiró una utilidad de importación de broadcasts y, con ella, la tabla
+--  `broadcasts_suggested` que había estado llenando hasta la víspera.
 --  Como manda el protocolo, se guardó un snapshot antes del DROP:
 --
 --  | tabla                                  | filas | contenido                  |
 --  |----------------------------------------|-------|----------------------------|
---  | broadcasts_suggested_bak_drop_20260717 |  360  | sugerencias de coursedujour |
+--  | broadcasts_suggested_bak_drop_20260717 |  360  | sugerencias de broadcasts  |
 --
 --  Ese backup nació —como todos los de esta serie— con RLS DESACTIVADA y 0
 --  políticas, así que `anon` (la clave publishable embebida en js/config.js,
@@ -18,8 +17,8 @@
 --  Supabase lo marcan CRITICAL: "RLS Disabled in Public". La propia 127 lo
 --  dejó anotado como efímero, a retirar.
 --
---  El productor está destruido y el consumidor también: estas 360 filas son
---  sugerencias de una fuente que ya no se scrapea y que nunca se van a
+--  El productor está retirado y el consumidor también: estas 360 filas son
+--  sugerencias de una fuente que ya no se importa y que nunca se van a
 --  reprocesar. No hay nada que rescatar.
 --
 --  VERIFICADO ANTES DE BORRAR (protocolo de la 111):

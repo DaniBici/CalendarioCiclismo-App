@@ -215,6 +215,23 @@ export function _toSeconds(txt) {
   if (p.some(Number.isNaN)) return null;
   return p.reduce((a, n) => a * 60 + n, 0);
 }
+// Tiempo en NOTACIÓN DE PRENSA de la UCI → segundos (o null). Formato:
+// "3h 00'02\"" (H h M'SS"), "20'52\"" (M'SS"), "42\"" (SS"). Es una variante del
+// ResultValue que la UCI empezó a publicar en algunas carreras (Memorial
+// Trochanowski 2026, comp 77761): en vez del clásico "ganador=3:00:02, resto=+gap",
+// manda el TIEMPO ABSOLUTO de CADA corredor ya formateado con h/'/". _toSeconds no
+// lo parsea (no hay ':') → quedaría todo como timeText sin gaps ni m.t.
+export function _pressToSeconds(txt) {
+  if (!txt) return null;
+  const s0 = String(txt);
+  // Exige al menos UN marcador de unidad (h/'/") → un entero suelto "12" NO cuela.
+  if (!/[h'"]/.test(s0)) return null;
+  const m = /^\s*(?:(\d+)\s*h\s*)?(?:(\d+)\s*')?\s*(\d+)\s*"?\s*$/.exec(s0);
+  if (!m) return null;
+  const h = m[1] ? Number(m[1]) : 0, mm = m[2] ? Number(m[2]) : 0, s = Number(m[3]);
+  if ([h, mm, s].some(Number.isNaN)) return null;
+  return h * 3600 + mm * 60 + s;
+}
 // Post-proceso por clasificación por tiempo: la UCI a veces manda los gaps SIN
 // '+' en formato HH:MM:SS ("00:00:01" = +1s), que normalizeRow tomó como timeText.
 // Señal segura: en una etapa por tiempo, un rank>1 NUNCA puede tener un tiempo
@@ -277,6 +294,36 @@ export function fixInvertedAbsoluteGaps(rows, isTeamEvent) {
     if (abs == null) return r;
     // No completó la distancia → abandono (misma forma que un DNF de la UCI).
     if (abs < winnerSec) return { ...r, rank: null, rankText: 'DNF', irm: 'DNF', timeText: null, gapText: null };
+    return { ...r, timeText: null, gapText: _secsToGap(abs - winnerSec) };
+  });
+}
+
+// Post-proceso por clasificación por tiempo: la variante de la UCI en la que el
+// ResultValue de CADA corredor es su TIEMPO ABSOLUTO en NOTACIÓN DE PRENSA
+// ("3h 00'02\""), no el clásico "ganador=absoluto, resto=+gap". parseResultValue lo
+// dejó como timeText en todas las filas → sin gaps ni m.t. (todos con el mismo
+// tiempo). Caso real: Memorial Andrzej Trochanowski 2026 (comp 77761), donde el
+// grupo compacto de 119 quedó con "3h 00'02\"" idéntico. Señal SEGURA (no la
+// confunde con una crono, donde cada uno tiene su tiempo real): el ganador (rank 1)
+// y TODOS los rank>1 clasificados traen timeText en este formato de prensa. Se deja
+// al ganador su timeText y al resto se le calcula el gap real; el que empata con el
+// ganador queda a +0" → la web/apps lo pintan como m.t./s.t.
+export function fixPressFormattedAbsolute(rows, isTeamEvent) {
+  if (isTeamEvent) return rows;
+  const winner = rows.find((r) => r.rank === 1 && !r.irm);
+  const winnerSec = _pressToSeconds(winner && winner.timeText);
+  if (winnerSec == null) return rows;
+  // Todos los clasificados tras el ganador deben venir en notación de prensa (si
+  // alguno trae ':' o un gap explícito, no es esta variante → no tocar nada).
+  const rest = rows.filter((r) => r.rank != null && r !== winner && !r.irm);
+  if (!rest.length || rest.some((r) => r.gapText || _pressToSeconds(r.timeText) == null)) return rows;
+  return rows.map((r) => {
+    if (r === winner || r.rank == null || r.irm) return r;   // ganador y abandonos intactos
+    const abs = _pressToSeconds(r.timeText);
+    if (abs == null) return r;
+    // abs < ganador es imposible en una prueba por tiempo (no puede acabar antes que
+    // el 1º) → dato corrupto: lo dejamos como está en vez de inventar un gap negativo.
+    if (abs < winnerSec) return r;
     return { ...r, timeText: null, gapText: _secsToGap(abs - winnerSec) };
   });
 }
@@ -391,7 +438,7 @@ async function main() {
         disciplineId: DISCIPLINE, eventId: ev.EventId,
         take: 300, skip: 0, page: 1, pageSize: 300,
       });
-      const rows = fixInvertedAbsoluteGaps(fixDisguisedGaps(
+      const rows = fixPressFormattedAbsolute(fixInvertedAbsoluteGaps(fixDisguisedGaps(
         ((resRes.json && resRes.json.data) || []).map(normalizeRow)
           // (saneo 2026-06-11) etapa cancelada: la UCI publica UNA fila-marcador
           // "Race Cancelled" que acababa enlazada a una ficha fantasma
@@ -399,7 +446,7 @@ async function main() {
           // una clasificación que quede vacía no se muestra (rowCount 0).
           .filter((r) => !/^race\s+cancelled/i.test(r.riderDisplay || '')),
         !!ev.IsTeamEvent,
-      ), !!ev.IsTeamEvent);
+      ), !!ev.IsTeamEvent), !!ev.IsTeamEvent);
       classifications.push({
         eventId: ev.EventId,
         classKind, scope,

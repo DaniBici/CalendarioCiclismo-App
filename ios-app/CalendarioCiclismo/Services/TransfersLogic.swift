@@ -71,16 +71,47 @@ enum TransfersLogic {
         return prev[season.teamId]
     }
 
-    /// Feed público: solo confirmados CON fecha visible, cronológico inverso.
-    /// `dateVisible=false` es un flag de publicación en el feed, no una fecha
+    /// Marcador de "baja sin destino conocido" en el texto libre de destino.
+    static let unknownDest = "?"
+
+    /// Un FICHAJE REAL: corredor que cambia de equipo (`transfer` con destino
+    /// conocido). Las renovaciones, retiradas y fines de contrato sin destino
+    /// (`transfer` con `toTeamName='?'`) NO son fichajes → fuera del feed.
+    static func isRealSigning(_ x: RiderTransfer) -> Bool {
+        x.type == "transfer" && (x.toTeamId != nil || (x.toTeamName != nil && x.toTeamName != unknownDest))
+    }
+
+    /// Feed público: solo FICHAJES confirmados CON fecha visible, cronológico
+    /// inverso. `dateVisible=false` es un flag de publicación, no una fecha
     /// ausente: el movimiento sigue contando en el detalle de equipo.
     static func confirmedFeed(_ transfers: [RiderTransfer]) -> [RiderTransfer] {
-        transfers.filter { $0.status == "confirmed" && $0.dateVisible }
+        transfers.filter { $0.status == "confirmed" && $0.dateVisible && isRealSigning($0) }
             .sorted {
                 let a = ($0.announcedAt ?? "", $0.createdAt ?? "")
                 let b = ($1.announcedAt ?? "", $1.createdAt ?? "")
                 return a > b
             }
+    }
+
+    /// Corte del feed "Últimas confirmaciones": hasta `maxDays` fechas distintas
+    /// O `maxItems` fichajes, lo que se alcance antes (el feed viene ordenado
+    /// cronológico inverso). No hay "cargar más": el mercado completo se ve por
+    /// equipo.
+    static let feedMaxDays = 5
+    static let feedMaxItems = 8
+    static func limitedFeed(_ feed: [RiderTransfer]) -> [RiderTransfer] {
+        var out: [RiderTransfer] = []
+        var lastDay: String? = nil
+        var daysShown = 0
+        for x in feed {
+            let day = x.announcedAt ?? ""
+            let newDay = day != lastDay
+            if newDay && daysShown >= feedMaxDays { break }
+            if out.count >= feedMaxItems { break }
+            if newDay { lastDay = day; daysShown += 1 }
+            out.append(x)
+        }
+        return out
     }
 
     /// Agrupa el feed por día de anuncio conservando el orden de entrada.
@@ -123,23 +154,75 @@ enum TransfersLogic {
     struct TeamDetail {
         let staying: [StayingRow]
         let doubtful: [DoubtRow]
+        let contractEnds: [RiderTransfer]
         let arrivals: [RiderTransfer]
         let departures: [RiderTransfer]
     }
 
-    /// Deriva las secciones del detalle de equipo. `roster` = plantilla actual
-    /// (riders con currentTeamId = equipo). Las retiradas cuentan como salida
-    /// (bloque "se marchan", sin destino). Orden de secciones en pantalla:
-    /// continúan → en duda → se marchan → llegan.
+    /// Un "fin de contrato sin destino": acaba contrato sin equipo conocido
+    /// (`transfer` con `toTeamName='?'` y sin `toTeamId`) → sección "Terminan
+    /// contrato", no "Se marchan".
+    static func isContractEnd(_ x: RiderTransfer) -> Bool {
+        x.type == "transfer" && x.toTeamId == nil && x.toTeamName == unknownDest
+    }
+
+    /// Deriva las secciones del detalle de equipo. `roster` = plantilla 2027
+    /// MATERIALIZADA (rider_team_affiliations year=market), con el contractUntil
+    /// de la afiliación. Los cambios de equipo ya no tienen afiliación aquí (no
+    /// entran en el roster); las dudas SÍ (siguen afiliadas) y se separan a su
+    /// bucket. Orden de secciones: continúan → en duda → terminan contrato →
+    /// llegan → se marchan.
     static func teamDetail(
         transfers: [RiderTransfer],
         roster: [TransferRider],
-        teamId: String
+        teamId: String,
+        ridersById: [String: TransferRider] = [:],
+        categoryByTeamId: [String: String] = [:],
+        teamNameById: [String: String] = [:]
     ) -> TeamDetail {
+        // Llegan (fichajes): primero los CONFIRMADOS, luego los rumores; dentro
+        // de cada grupo, alfabético por apellido.
+        func arrivalName(_ x: RiderTransfer) -> String {
+            let r = ridersById[x.riderId]
+            return "\(r?.lastName ?? "") \(r?.firstName ?? "")".lowercased()
+        }
+        func arrivalKey(_ x: RiderTransfer) -> (Int, String) {
+            (x.status == "rumor" ? 1 : 0, arrivalName(x))
+        }
         let arrivals = transfers.filter { $0.type == "transfer" && $0.toTeamId == teamId }
-        let departures = transfers.filter {
+            .sorted { a, b in
+                let ka = arrivalKey(a), kb = arrivalKey(b)
+                if ka.0 != kb.0 { return ka.0 < kb.0 }
+                return ka.1 < kb.1
+            }
+        let allDepartures = transfers.filter {
             ($0.type == "transfer" || $0.type == "retirement") && $0.fromTeamId == teamId
         }
+        // Fin de contrato sin destino → su propia sección (alfabético por
+        // apellido); el resto (fichaje con destino o retirada) se marcha.
+        func riderKey(_ x: RiderTransfer) -> String {
+            let r = ridersById[x.riderId]
+            return "\(r?.lastName ?? "") \(r?.firstName ?? "")".lowercased()
+        }
+        let contractEnds = allDepartures.filter { isContractEnd($0) }
+            .sorted { riderKey($0) < riderKey($1) }
+        // Se marchan: por categoría del destino (WT→WWT→PT→PRW→resto), luego
+        // alfabético por nombre del equipo; los retiros al final.
+        let catRank = ["WT": 0, "WWT": 1, "PT": 2, "PRW": 3]
+        func depKey(_ x: RiderTransfer) -> (Int, Int, String) {
+            if x.type == "retirement" { return (1, 99, "") }
+            let cat = x.toTeamId.flatMap { categoryByTeamId[$0] }
+            let rank = cat.flatMap { catRank[$0] } ?? 90
+            let name = x.toTeamId.flatMap { teamNameById[$0] } ?? (x.toTeamName ?? "")
+            return (0, rank, name.lowercased())
+        }
+        let departures = allDepartures.filter { !isContractEnd($0) }
+            .sorted { a, b in
+                let ka = depKey(a), kb = depKey(b)
+                if ka.0 != kb.0 { return ka.0 < kb.0 }
+                if ka.1 != kb.1 { return ka.1 < kb.1 }
+                return ka.2 < kb.2
+            }
         // Renovación más reciente por corredor (transfers llega en orden desc).
         // Las EN DUDA van a su propio bucket: no anotan contrato ni "continúan".
         var renewalsByRider: [String: RiderTransfer] = [:]
@@ -152,12 +235,14 @@ enum TransfersLogic {
             }
         }
 
-        let gone = Set(departures.map(\.riderId))
-        let staying = roster.filter { !gone.contains($0.id) && doubtsByRider[$0.id] == nil }
-            .sorted {
-                "\($0.lastName ?? "") \($0.firstName ?? "")".lowercased()
-                    < "\($1.lastName ?? "") \($1.firstName ?? "")".lowercased()
-            }
+        // "Continúan" = solo quien YA estaba en el equipo en la temporada en
+        // curso (currentTeamId = equipo). Un fichaje de fuera también tiene
+        // afiliación al año del mercado, pero su currentTeamId es otro equipo →
+        // va a "Llegan", no aquí.
+        // "gone" = toda salida (fichaje, retirada Y fin de contrato): nadie de
+        // ellos continúa.
+        let gone = Set(allDepartures.map(\.riderId))
+        let staying = roster.filter { $0.currentTeamId == teamId && !gone.contains($0.id) && doubtsByRider[$0.id] == nil }
             .map { rider -> StayingRow in
                 let renewal = renewalsByRider[rider.id]
                 return StayingRow(
@@ -165,6 +250,16 @@ enum TransfersLogic {
                     contractUntil: renewal?.contractUntil ?? rider.contractUntil,
                     isRumor: renewal?.status == "rumor"
                 )
+            }
+            // Por año de contrato DESC (2030 → … → sin año al final), alfabético
+            // como desempate.
+            .sorted { a, b in
+                if a.contractUntil != b.contractUntil {
+                    return (a.contractUntil ?? 0) > (b.contractUntil ?? 0)
+                }
+                let ka = "\(a.rider.lastName ?? "") \(a.rider.firstName ?? "")".lowercased()
+                let kb = "\(b.rider.lastName ?? "") \(b.rider.firstName ?? "")".lowercased()
+                return ka < kb
             }
 
         // En duda: la ficha de la plantilla manda; si el corredor ya no está en
@@ -181,7 +276,7 @@ enum TransfersLogic {
                 return ka.lowercased() < kb.lowercased()
             }
 
-        return TeamDetail(staying: staying, doubtful: doubtful, arrivals: arrivals, departures: departures)
+        return TeamDetail(staying: staying, doubtful: doubtful, contractEnds: contractEnds, arrivals: arrivals, departures: departures)
     }
 
     /// Nombre a mostrar de un equipo referenciado (catálogo > texto libre > fallback).

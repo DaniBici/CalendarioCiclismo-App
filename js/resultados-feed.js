@@ -1,13 +1,9 @@
 // ─────────────────────────────────────────────────────────────────
 //  ÚLTIMOS RESULTADOS — motor compartido de filas de resultados
 //
-//  Dos consumidores:
-//   · renderResultsFeed(content) — el índice /resultados/ · /en/results/
-//     (lo monta resultados.js cuando la URL no trae carrera; import diferido):
-//     cronología inversa agrupada por fecha + "Cargar más" de 14 en 14 días.
-//   · renderDayResults(container, dateKey) — el modo RESULTADOS de la home
-//     (toggle del chip-trofeo, 2026-06-11): las filas de UN día donde
-//     normalmente van las cards de la agenda.
+//  Consumidor: renderResultsFeed(content), el índice /resultados/ y
+//  /en/results/ (lo monta resultados.js cuando la URL no trae carrera):
+//  cronología inversa agrupada por fecha + "Cargar más" de 14 en 14 días.
 //
 //  Reglas de las filas (espec Dani 2026-06-11):
 //   · Etapas de vueltas y pruebas de un día (estas SIN etiqueta) + las
@@ -407,60 +403,6 @@ function entryRowHtml(e, isEn, locale) {
         ${subHtml ? `<span class="feed-row__sub">${subHtml}</span>` : ''}</span>
       <span class="feed-row__extbtns">${ext(e.extUrlA, 'FC')}${ext(e.extUrlB, 'fuente externa')}</span>
     </div>`;
-}
-
-// ── Modo RESULTADOS de la home: las filas de UN día (toggle del chip) ──
-// Sustituye a las cards de la agenda en #raceList; el selector de días sigue
-// navegando fechas. Sin cabecera de fecha (el día activo ya está en la barra).
-// opts (desde la home): { catPredicate, sort } — los MISMOS filtros/orden de la
-// barra de agenda. catPredicate(race)→bool filtra por categoría UCI; sort puede
-// ser 'category' (orden canónico del feed, ya aplicado por fetchEntries) o
-// 'finishtime' (hora de meta estimada de la jornada). 'tvtime' no aplica aquí
-// (sin broadcasts) y la home ya lo degrada a 'category' antes de llamar.
-export async function renderDayResults(container, dateKey, opts = {}) {
-  const { catPredicate, sort = 'category' } = opts;
-  const _isEn = getLang() === 'en';
-  const locale = _isEn ? 'en-GB' : 'es-ES';
-  let entries = await fetchEntries(dateKey, dateKey, _isEn);
-
-  // Filtro de categoría (mismo predicado que la agenda).
-  if (typeof catPredicate === 'function') {
-    entries = entries.filter(e => catPredicate(e.race));
-  }
-
-  // Orden por hora de meta: con hora primero (asc), sin hora al final; las
-  // entradas de la MISMA carrera-día se mantienen juntas (general final pegada
-  // a su etapa) reusando el orden canónico como desempate.
-  if (sort === 'finishtime') {
-    const finishSec = e => (e.rd?.estimatedFinishTimeUtc != null
-      ? (tsSeconds(e.rd.estimatedFinishTimeUtc) ?? null) : null);
-    const byRaceDay = new Map();
-    entries.forEach(e => {
-      const f = finishSec(e);
-      if (f == null) return;
-      const k = `${e.date}#${e.race.id}`;
-      const prev = byRaceDay.get(k);
-      if (prev == null || f < prev) byRaceDay.set(k, f);
-    });
-    entries = [...entries].sort((a, b) => {
-      const fa = byRaceDay.get(`${a.date}#${a.race.id}`);
-      const fb = byRaceDay.get(`${b.date}#${b.race.id}`);
-      const na = fa == null, nb = fb == null;
-      if (na !== nb) return na ? 1 : -1;       // sin hora al final
-      if (!na && fa !== fb) return fa - fb;     // ambas con hora → asc
-      return cmpEntries(a, b);                  // desempate canónico
-    });
-  }
-
-  if (!entries.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state__icon">${TROPHY_SVG}</div>
-        <div class="empty-state__text">${_isEn ? 'No results for this day' : 'No hay resultados para este día'}</div>
-      </div>`;
-    return;
-  }
-  container.innerHTML = `<div class="feed-day feed-day--home">${entries.map(e => entryRowHtml(e, _isEn, locale)).join('')}</div>`;
 }
 
 // ── Índice /resultados/ · /en/results/ ─────────────────────────────

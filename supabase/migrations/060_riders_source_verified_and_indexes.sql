@@ -13,8 +13,7 @@ ALTER TABLE public.riders_women
 
 -- Los riders ya existentes vienen de una importación previa, no son
 -- creaciones manuales: corregimos su source. Las altas futuras quedarán con
--- el default 'manual' o lo que asigne el flujo correspondiente
--- (startlist_auto, external_import, secondary_import, ...).
+-- el default 'manual' o lo que asigne el flujo correspondiente.
 UPDATE public.riders_men   SET source = 'external_import' WHERE source = 'manual';
 UPDATE public.riders_women SET source = 'external_import' WHERE source = 'manual';
 

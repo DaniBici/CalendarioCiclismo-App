@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.Locale
 
 /**
@@ -18,6 +19,7 @@ import java.util.Locale
  * ("+2.500 m") mientras el resto del contenido iba en inglés.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
 class RaceDayFormattingTest {
 
     private fun raceDayWithGain(gain: Int?) = RaceDay(

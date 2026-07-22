@@ -14,6 +14,10 @@ struct TransfersTeamView: View {
     @State private var isLoading = true
     @State private var error: String?
     @State private var localeService = LocaleService.shared
+    // Push por valor al equipo de un movimiento (Llegan → equipo de origen;
+    // Se marchan → equipo destino). Esta vista es una hoja empujada por
+    // TransfersView, que NO declara este destino → lo declara ella misma.
+    @State private var linkedTeamRoute: TransfersTeamRoute?
 
     var body: some View {
         Group {
@@ -29,6 +33,9 @@ struct TransfersTeamView: View {
         }
         .navigationTitle(season?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $linkedTeamRoute) { route in
+            TransfersTeamView(teamId: route.teamId)
+        }
         .task { await load() }
         .onAppear {
             AnalyticsService.shared.logScreenView("transfers_team")
@@ -43,10 +50,18 @@ struct TransfersTeamView: View {
                 throw URLError(.resourceUnavailable)
             }
             let gender = teamSeason.gender ?? TransfersLogic.divisionGender(teamSeason.category)
-            let roster = try await SupabaseService.shared.ridersByCurrentTeam(teamId: teamId, gender: gender)
+            let roster = try await SupabaseService.shared.ridersByAffiliation(
+                teamId: teamId, season: TransfersLogic.marketSeason, gender: gender)
             season = teamSeason
             data = market
-            detail = TransfersLogic.teamDetail(transfers: market.transfers, roster: roster, teamId: teamId)
+            // Categoría del equipo de destino (para ordenar "se marchan").
+            var categoryByTeamId: [String: String] = [:]
+            for s in market.seasons { if let c = s.category { categoryByTeamId[s.teamId] = c } }
+            detail = TransfersLogic.teamDetail(
+                transfers: market.transfers, roster: roster, teamId: teamId,
+                ridersById: market.ridersById, categoryByTeamId: categoryByTeamId,
+                teamNameById: market.teamNameById
+            )
             error = nil
         } catch {
             self.error = localeService.t(
@@ -98,11 +113,12 @@ struct TransfersTeamView: View {
                     )
                 }
 
+                // Cada sección solo se muestra si tiene contenido (una categoría
+                // vacía se oculta por completo, título incluido).
+
                 // ── Continúan ──────────────────────────────────────
-                sectionTitle(localeService.t("Continúan", "Staying"))
-                if detail.staying.isEmpty {
-                    emptyText(localeService.t("Sin corredores en la plantilla actual.", "No riders on the current roster."))
-                } else {
+                if !detail.staying.isEmpty {
+                    sectionTitle(localeService.t("Continúan", "Staying"))
                     CCCard {
                         VStack(spacing: 0) {
                             ForEach(Array(detail.staying.enumerated()), id: \.element.id) { index, row in
@@ -120,15 +136,13 @@ struct TransfersTeamView: View {
                 }
 
                 // ── En duda ────────────────────────────────────────
-                // Renovaciones sin despejar: ni continúan, ni salen, ni entran.
-                sectionTitle(localeService.t("En duda", "Undecided"))
-                if detail.doubtful.isEmpty {
-                    emptyText(localeService.t("Sin corredores en duda por ahora.", "No undecided riders yet."))
-                } else {
+                if !detail.doubtful.isEmpty {
+                    sectionTitle(localeService.t("En duda", "Undecided"))
                     CCCard {
                         VStack(spacing: 0) {
                             ForEach(Array(detail.doubtful.enumerated()), id: \.element.id) { index, row in
                                 if index > 0 { Divider().opacity(0.5) }
+                                // Sin badge "Duda": ya están bajo la sección "En duda".
                                 personRow(
                                     nationality: row.rider?.nationality,
                                     name: {
@@ -137,28 +151,50 @@ struct TransfersTeamView: View {
                                     }(),
                                     detail: nil,
                                     contractUntil: row.contractUntil,
-                                    isRumor: false,
-                                    isDoubt: true
+                                    isRumor: false
                                 )
                             }
                         }
                     }
                 }
 
-                // ── Se marchan ─────────────────────────────────────
-                sectionTitle(localeService.t("Se marchan", "Departures"))
-                if detail.departures.isEmpty {
-                    emptyText(localeService.t("Sin salidas anunciadas por ahora.", "No departures announced yet."))
-                } else {
-                    movementCard(moves: detail.departures, data: data, showOrigin: false, unknownTeam: unknownTeam)
+                // ── Terminan contrato ──────────────────────────────
+                // Acaban su contrato sin equipo conocido (sin destino).
+                if !detail.contractEnds.isEmpty {
+                    sectionTitle(localeService.t("Terminan contrato", "Contract ending"))
+                    CCCard {
+                        VStack(spacing: 0) {
+                            ForEach(Array(detail.contractEnds.enumerated()), id: \.element.id) { index, move in
+                                if index > 0 { Divider().opacity(0.5) }
+                                let rider = data.ridersById[move.riderId]
+                                personRow(
+                                    nationality: rider?.nationality,
+                                    name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
+                                    detail: nil,
+                                    contractUntil: nil,
+                                    isRumor: move.status == "rumor"
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // ── Llegan ─────────────────────────────────────────
-                sectionTitle(localeService.t("Llegan", "Arrivals"))
-                if detail.arrivals.isEmpty {
-                    emptyText(localeService.t("Sin llegadas anunciadas por ahora.", "No arrivals announced yet."))
-                } else {
+                if !detail.arrivals.isEmpty {
+                    sectionTitle(localeService.t("Llegan", "Arrivals"))
                     movementCard(moves: detail.arrivals, data: data, showOrigin: true, unknownTeam: unknownTeam)
+                }
+
+                // ── Se marchan ─────────────────────────────────────
+                if !detail.departures.isEmpty {
+                    sectionTitle(localeService.t("Se marchan", "Departures"))
+                    movementCard(moves: detail.departures, data: data, showOrigin: false, unknownTeam: unknownTeam)
+                }
+
+                // Equipo sin ningún movimiento anunciado: aviso único.
+                if detail.staying.isEmpty && detail.doubtful.isEmpty && detail.contractEnds.isEmpty
+                    && detail.arrivals.isEmpty && detail.departures.isEmpty {
+                    emptyText(localeService.t("Sin movimientos anunciados por ahora.", "No moves announced yet."))
                 }
             }
             .padding(.horizontal, 16)
@@ -190,7 +226,9 @@ struct TransfersTeamView: View {
         showOrigin: Bool,
         unknownTeam: String
     ) -> some View {
-        CCCard {
+        // Equipos con ficha en el mercado (destino enlazable de un nombre).
+        let marketTeamIds = Set(data.seasons.map(\.teamId))
+        return CCCard {
             VStack(spacing: 0) {
                 ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
                     if index > 0 { Divider().opacity(0.5) }
@@ -203,18 +241,24 @@ struct TransfersTeamView: View {
                                 side: .from, namesPrev: data.teamNamePrev)
                         }
                         if move.type == "retirement" {
-                            return localeService.t("se retira", "retires")
+                            return localeService.t("Se retira", "Retires")
                         }
                         return TransfersLogic.teamLabel(
                             teamId: move.toTeamId, freeText: move.toTeamName,
                             names: data.teamNameById, unknownLabel: unknownTeam)
                     }()
+                    // Llega → enlaza al equipo del que VENÍA (fromTeamId); se marcha
+                    // → al equipo AL QUE VA (toTeamId). Solo si ese equipo tiene
+                    // ficha en el mercado (una retirada no tiene destino).
+                    let candidate = showOrigin ? move.fromTeamId : move.toTeamId
+                    let linkTeamId = candidate.flatMap { marketTeamIds.contains($0) ? $0 : nil }
                     personRow(
                         nationality: rider?.nationality,
                         name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
                         detail: detailText,
                         contractUntil: showOrigin ? move.contractUntil : nil,
-                        isRumor: move.status == "rumor"
+                        isRumor: move.status == "rumor",
+                        linkTeamId: linkTeamId
                     )
                 }
             }
@@ -241,33 +285,82 @@ struct TransfersTeamView: View {
     }
 
     /// Fila de persona: bandera + nombre + detalle + contrato + badge Rumor/Duda.
+    /// El detalle (equipo de origen/destino) va INLINE a la derecha del nombre,
+    /// atenuado y separado por "·" — misma estética que la web (`personRowHtml`),
+    /// no como subtítulo debajo. Si se pasa `linkTeamId`, la FILA ENTERA es
+    /// tocable y navega a la ficha de ese equipo (no solo el nombre).
     private func personRow(
         nationality: String?,
         name: String,
         detail: String?,
         contractUntil: Int?,
         isRumor: Bool,
-        isDoubt: Bool = false
+        isDoubt: Bool = false,
+        linkTeamId: String? = nil
     ) -> some View {
-        let untilText = contractUntil.map { localeService.t("hasta \(String($0))", "until \(String($0))") }
-        let sub = [detail, untilText].compactMap { $0 }.joined(separator: " · ")
-        return HStack(spacing: 8) {
+        // El año de contrato como BADGE al final de la fila, junto al de
+        // rumor/duda (solo el año, sin "hasta").
+        let row = HStack(spacing: 8) {
             CountryFlag(countryCode: nationality, width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if !sub.isEmpty {
-                    Text(sub)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
+            // Corredor + equipo trunca con "…" a una línea (misma fórmula que
+            // las cards de Hoy): sin doble altura, y los badges quedan fijos a
+            // la derecha. El realce de "clicable" es la FILA entera (Button más
+            // abajo), no el nombre → nombre en el color normal, sin accent.
+            Text(personLine(name: name, detail: detail))
+                .font(.footnote)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            if let year = contractUntil { YearBadge(year: year) }
             if isDoubt { DoubtBadge() } else if isRumor { RumorBadge() }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
+
+        return Group {
+            if let linkTeamId {
+                // Fila entera enlazada al equipo del movimiento (no hay ficha
+                // pública de corredor). `contentShape` hace tocable todo el
+                // ancho, incluidos los huecos entre elementos.
+                Button {
+                    Haptics.play(.navigation)
+                    linkedTeamRoute = TransfersTeamRoute(teamId: linkTeamId)
+                } label: {
+                    row.contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                row
+            }
+        }
+    }
+
+    /// Nombre (medium) + "· equipo" atenuado inline — espejo del divisor de la web.
+    private func personLine(name: String, detail: String?) -> AttributedString {
+        var line = AttributedString(name)
+        line.font = .footnote.weight(.medium)
+        guard let detail, !detail.isEmpty else { return line }
+        var tail = AttributedString(" · \(detail)")
+        tail.font = .footnote
+        tail.foregroundColor = .secondary
+        return line + tail
+    }
+}
+
+/// Badge neutro del año de fin de contrato — espejo del `.tr-contract` de la web.
+/// El año centinela 9999 (contrato vitalicio) se pinta como ∞.
+struct YearBadge: View {
+    let year: Int
+    var body: some View {
+        Text(year == 9999 ? "∞" : String(year))
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.secondary.opacity(0.14))
+            )
     }
 }
 

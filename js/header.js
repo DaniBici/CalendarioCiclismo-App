@@ -7,7 +7,7 @@
 //
 //  Timing (clave): se carga como <script type="module"> → se ejecuta tras
 //  el parse del documento pero ANTES de DOMContentLoaded. Por eso el cableado
-//  de theme.js (theme toggle, hamburguesa, dropdown, labels mes/año) y de
+//  de theme.js (theme toggle) y de
 //  lang-switch.js, que se enganchan en DOMContentLoaded, encuentran el header
 //  ya inyectado. El único cableado inmediato del repo es el botón "Apps"
 //  (apps-modal.js corre como script clásico al pie y enlaza #navAppsBtn al
@@ -30,6 +30,16 @@ const LOGO_SVG =
 const SEARCH_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>';
 
+const PRIMARY_ICONS = {
+  // Mismo vector que la pestaña Hoy de Android: Icons.Filled.CalendarToday.
+  today: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 16H5V9h14v11ZM7 11h5v5H7Z"/></svg>',
+  results: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+  transfers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  about: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg>',
+};
+
 // Buscador ARCHIVADO (2026-07-17): el código de /buscar.html + js/buscar.js se
 // conserva y la página sigue respondiendo por URL directa, pero no se ofrece
 // desde ninguna superficie. Ponerlo a true revive lupa + entrada del menú.
@@ -44,10 +54,10 @@ const STRINGS = {
     openHref: '/abierto.html', openText: 'Datos abiertos',
     searchHref: '/buscar.html', searchTitle: 'Buscar',
     themeTitle: 'Cambiar tema',
-    menuAria: 'Menú',
     viewsAria: 'Vistas',
-    today:  { href: '/index.html',    text: 'Inicio' },
+    today:  { href: '/index.html',    text: 'Hoy' },
     results:{ href: '/resultados/',   text: 'Resultados' },
+    transfers:{ href: '/fichajes/',   text: 'Fichajes' },
     calendar:{ href: '/calendario.html', text: 'Calendario' },
   },
   en: {
@@ -58,10 +68,10 @@ const STRINGS = {
     openHref: '/en/open/', openText: 'Open Data',
     searchHref: '/en/search/', searchTitle: 'Search',
     themeTitle: 'Change theme',
-    menuAria: 'Menu',
     viewsAria: 'Views',
     today:  { href: '/en/',           text: 'Home' },
     results:{ href: '/en/results/',   text: 'Results' },
+    transfers:{ href: '/en/transfers/', text: 'Transfers' },
     calendar:{ href: '/en/calendar/', text: 'Calendar' },
   },
 };
@@ -80,6 +90,7 @@ function detectActive() {
       p.includes('/temporada') || p.includes('/en/season')) return 'calendar';
   // El feed y las páginas de carrera de resultados comparten sección.
   if (p.startsWith('/resultados') || p.startsWith('/en/results')) return 'results';
+  if (p.startsWith('/fichajes') || p.startsWith('/en/transfers')) return 'transfers';
   if (p === '/' || p === '/index.html' || p === '/en/' || p === '/en' || p === '/en/index.html') return 'today';
   return null;
 }
@@ -99,30 +110,37 @@ function buildHeader(el) {
     '<div class="site-header__inner">' +
       backBtn +
       `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text">Calendario Ciclismo</span></a>` +
-      // Cluster de utilidades, SIEMPRE visible (clave en móvil): buscar (desktop) ·
-      // Apps · idioma (slider, lo inyecta lang-switch.js) · tema · menú.
+      // Cluster de utilidades, SIEMPRE visible: buscar (desktop) · Apps ·
+      // idioma (slider, lo inyecta lang-switch.js) · tema.
       '<div class="header-actions">' +
         (SEARCH_ENABLED
           ? `<a href="${s.searchHref}" class="nav-search-link" title="${s.searchTitle}">${SEARCH_SVG}</a>`
           : '') +
         '<button class="nav-apps-btn" id="navAppsBtn">Apps</button>' +
         `<button class="theme-toggle" title="${s.themeTitle}"></button>` +
-        `<button class="nav-burger" id="navBurger" aria-label="${s.menuAria}" aria-expanded="false"><span></span><span></span><span></span></button>` +
       '</div>' +
-      // Menú (dropdown en desktop / drawer en móvil): vistas de uso bajo + secciones.
-      // Calendario (fusión Mes+Temporada, como en las apps 3.1) vive aquí,
-      // no compite en la barra. El día es la home (logo).
-      `<nav class="site-nav" id="siteNav" aria-label="${s.menuAria}">` +
-        `<a href="${s.today.href}"${act('today')}>${s.today.text}</a>` +
-        `<a href="${s.results.href}"${act('results')}>${s.results.text}</a>` +
-        `<a href="${s.calendar.href}"${act('calendar')}>${s.calendar.text}</a>` +
-        (SEARCH_ENABLED
-          ? `<a href="${s.searchHref}" class="nav-menu-search">${s.searchTitle}</a>`
-          : '') +
-        `<a href="${s.aboutHref}">${s.aboutText}</a>` +
-        `<a href="${s.openHref}">${s.openText}</a>` +
-      '</nav>' +
     '</div>';
+
+  const primaryItems = ['today', 'results', 'transfers', 'calendar'];
+  const primaryNav = `<nav class="primary-nav" aria-label="${s.viewsAria}"><div class="primary-nav__inner">` +
+    primaryItems.map(key => {
+      const item = s[key];
+      return `<a class="primary-nav__main" href="${item.href}"${act(key)}><span class="primary-nav__icon">${PRIMARY_ICONS[key]}</span><span>${item.text}</span></a>`;
+    }).join('') +
+    '<span class="primary-nav__divider" aria-hidden="true"></span>' +
+    `<a class="primary-nav__secondary" href="${s.aboutHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.about}</span><span>${s.aboutText}</span></a>` +
+    `<a class="primary-nav__secondary" href="${s.openHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.open}</span><span>${s.openText}</span></a>` +
+    `</div><button class="primary-nav__more" type="button" aria-label="${lang === 'en' ? 'Show more sections' : 'Mostrar más secciones'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></nav>`;
+  el.insertAdjacentHTML('afterend', primaryNav);
+
+  const moreButton = document.querySelector('.primary-nav__more');
+  const primaryInner = document.querySelector('.primary-nav__inner');
+  moreButton?.addEventListener('click', () => {
+    if (!primaryInner) return;
+    const atEnd = primaryInner.scrollLeft + primaryInner.clientWidth >= primaryInner.scrollWidth - 2;
+    if (atEnd) primaryInner.scrollTo({ left: 0, behavior: 'smooth' });
+    else primaryInner.scrollBy({ left: Math.round(primaryInner.clientWidth * 0.75), behavior: 'smooth' });
+  });
 
   // Botón "Apps": apps-modal.js (script clásico al pie) ya corrió y dejó
   // window.openAppsModal, pero no pudo enlazar el botón (aún no existía).
@@ -131,6 +149,41 @@ function buildHeader(el) {
     appsBtn.addEventListener('click', window.openAppsModal);
   }
 }
+
+// API para que una página controle el botón "← Volver" del header EN RUNTIME,
+// en su posición (a la izquierda del logo). El CSS .site-header__inner:has(.back-btn)
+// reajusta el layout solo según esté o no el botón. Usos:
+//   ccHeaderBack({ href })    → enlace (recarga/navega). P. ej. resultados → feed.
+//   ccHeaderBack({ onClick }) → botón que ejecuta JS sin navegar (vuelve a una
+//                               vista interna, como la ficha de equipo de Fichajes).
+//   ccHeaderBack(null)        → oculta el botón.
+// Pensada para páginas SPA que cambian de vista sin recargar; el header se
+// construye una vez, así que este control es la vía para un "volver" dinámico.
+window.ccHeaderBack = function ccHeaderBack(cfg) {
+  const header = document.getElementById('siteHeader');
+  const inner = header && header.querySelector('.site-header__inner');
+  if (!inner) return;
+  const lang = header.dataset.lang || detectLang();
+  const s = STRINGS[lang] || STRINGS.es;
+  const existing = inner.querySelector('#backBtn');
+  if (existing) existing.remove();
+  if (!cfg) return;
+  const label = cfg.label || s.backLabel;
+  let node;
+  if (cfg.onClick) {
+    node = document.createElement('button');
+    node.type = 'button';
+    node.addEventListener('click', cfg.onClick);
+  } else {
+    node = document.createElement('a');
+    node.href = cfg.href || s.home;
+  }
+  node.className = 'back-btn';
+  node.id = 'backBtn';
+  node.setAttribute('aria-label', label);
+  node.textContent = '←';
+  inner.insertBefore(node, inner.firstChild);
+};
 
 const _el = document.getElementById('siteHeader');
 if (_el) buildHeader(_el);

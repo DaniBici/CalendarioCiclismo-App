@@ -115,6 +115,19 @@ enum DateFormatting {
         formatDateLong(dateKey, locale: contentLocale)
     }
 
+    /// Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO
+    /// ("Martes 24 de junio" / "Tuesday 24 June"). Para el feed del mercado de
+    /// fichajes. Paridad con web (`dayHeading`) y Android.
+    static func formatDateWeekdayNoYear(_ dateKey: String) -> String {
+        guard let date = date(from: dateKey) else { return dateKey }
+        let f = DateFormatter()
+        f.locale = contentLocale
+        let isEs = contentLocale.language.languageCode?.identifier == "es"
+        f.dateFormat = isEs ? "EEEE d 'de' MMMM" : "EEEE d MMMM"
+        let str = f.string(from: date)
+        return str.prefix(1).uppercased() + str.dropFirst()
+    }
+
     private static func formatDateLong(_ dateKey: String, locale: Locale) -> String {
         guard let date = date(from: dateKey) else { return dateKey }
         let f = DateFormatter()

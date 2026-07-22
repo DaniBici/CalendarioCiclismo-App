@@ -126,11 +126,11 @@ export async function initCintillo() {
       const href = _isEn ? '/en/transfers/' : '/fichajes/';
       const name = _isEn
         ? (h.customTitleEn || h.customTitle || 'Transfer market')
-        : (h.customTitle || 'Mercado de fichajes');
+        : (h.customTitle || 'Mercado de Fichajes');
       const detail = _isEn ? (h.customDetailEn || h.customDetail || '') : (h.customDetail || '');
       const iconSvg = h.customLogo
         ? null
-        : `<svg class="giro-countdown__logo" viewBox="-5 -5 34 34" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+        : `<svg class="giro-countdown__logo" viewBox="0 0 24 24" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7H4"/><polyline points="8 3 4 7 8 11"/><path d="M4 17h16"/><polyline points="16 13 20 17 16 21"/></svg>`;
       slides.push(_buildGcSlide({
         href,
         iconSvg,

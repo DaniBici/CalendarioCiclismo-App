@@ -12,7 +12,7 @@
  *      gender,teamId,teamName,teamCategory} (las fichas sin fecha, exportadas de la BD).
  *   2. Mapea cada teamName BD → uciId contra uci-teams.json (--uci-teams) por token-set de
  *      nombre, con gating de género (WTT/PRT/CTM = male; WTW/PRW/CTW = female). Reusa la
- *      caché de la Fase 1 (team-<uciId>.json, rider-<id>.json) en --cache-dir; scrapea con
+ *      caché de la Fase 1 (team-<uciId>.json, rider-<id>.json) en --cache-dir; lee con
  *      Playwright solo lo que falte.
  *   3. Por equipo: roster UCI → para cada objetivo, casa por token-set del nombre contra el
  *      roster (linkText "NombreAPELLIDOPAÍS"); si casa, lee el DOB de la ficha UCI.
@@ -89,7 +89,7 @@ function mapTeam(teamName, gender) {
   return bestScore >= 0.5 ? { uciId: best.uciId, uciName: best.teamName, score: +bestScore.toFixed(2) } : null;
 }
 
-// ── Scrape roster (SSR /team-details/<id>) con caché ──
+// ── Lectura del roster (SSR /team-details/<id>) con caché ──
 async function getRoster(page, uciId) {
   const cf = join(CACHE_DIR, `team-${uciId}.json`);
   if (existsSync(cf)) return JSON.parse(readFileSync(cf, 'utf8'));
@@ -108,7 +108,7 @@ async function getRoster(page, uciId) {
   return roster;
 }
 
-// ── Scrape DOB (SSR /rider-details/<id>) con caché ──
+// ── Lectura del DOB (SSR /rider-details/<id>) con caché ──
 async function getDob(page, riderId) {
   const cf = join(CACHE_DIR, `rider-${riderId}.json`);
   if (existsSync(cf)) return JSON.parse(readFileSync(cf, 'utf8'));

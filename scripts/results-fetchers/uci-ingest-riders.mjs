@@ -23,7 +23,7 @@
  * REQUISITO DURO: una alta NUEVA exige fecha de nacimiento. Sin DOB → se OMITE (se reporta).
  *
  * Caché: cada roster de equipo y cada DOB se cachean en disco (--cache-dir) → re-ejecutar es
- * instantáneo y no re-scrapea. La fuente da given/family ya separados, así que no hay parser
+ * instantáneo y no vuelve a leer la fuente. La fuente da given/family ya separados, así que no hay parser
  * frágil de "APELLIDO Nombre".
  *
  * Uso (desde la raíz del repo):

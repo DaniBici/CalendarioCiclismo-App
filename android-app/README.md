@@ -7,7 +7,7 @@ App Android nativa (Kotlin + Jetpack Compose + Material 3) para [calendariocicli
 - Android Studio Ladybug (2024.2.1) o superior
 - JDK 17
 - Gradle 8.10+ (incluido vía `gradle-wrapper`)
-- `minSdk` 26 (Android 8.0), `targetSdk` 35 (Android 15)
+- `minSdk` 26 (Android 8.0), `targetSdk` 36 (Android 16)
 
 ## Setup
 

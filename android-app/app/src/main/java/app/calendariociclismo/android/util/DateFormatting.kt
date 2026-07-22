@@ -97,6 +97,17 @@ object DateFormatting {
     fun formatDateLongContent(dateKey: String): String =
         formatDateLongIn(dateKey, contentLocale)
 
+    /** Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO
+     *  ("Martes 24 de junio" / "Tuesday 24 June"). Para el feed del mercado de
+     *  fichajes; paridad con web (`dayHeading`) e iOS. */
+    fun formatDateWeekdayNoYear(dateKey: String): String {
+        val date = parseDateKey(dateKey) ?: return dateKey
+        val isEs = contentLocale.language == "es"
+        val pattern = if (isEs) "EEEE d 'de' MMMM" else "EEEE d MMMM"
+        val f = SimpleDateFormat(pattern, contentLocale)
+        return f.format(date).replaceFirstChar { it.uppercase(contentLocale) }
+    }
+
     /** "7 jun" / "7 Jun" — día y mes cortos en el idioma del CONTENIDO, sin
      *  punto de abreviatura (espejo de `shortDate` en js/corredor.js: fechas de
      *  las líneas de etapa y cabeceras de bloque de la ficha de corredor). */

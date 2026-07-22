@@ -332,10 +332,11 @@ final class SupabaseService {
     }
 
     /// Elimina permanentemente el registro de push del dispositivo (derecho de supresión).
+    /// Vía RPC SECURITY DEFINER: anon no tiene acceso directo a push_subscriptions
+    /// (migración 125). Ver también set_push_subscription_v3 para el registro.
     func deletePushToken(_ token: String) async throws {
-        try await client.from("push_subscriptions")
-            .delete()
-            .eq("deviceToken", value: token)
+        try await client
+            .rpc("delete_push_subscription", params: ["p_token": token])
             .execute()
     }
 

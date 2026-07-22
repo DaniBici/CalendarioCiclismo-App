@@ -534,18 +534,22 @@
     <string name="today_highlight_dismiss">Cerrar destacado</string>
 
     <!-- Fichajes (mercado 2027, apps 4.0) -->
-    <string name="transfers_heading">Mercado de fichajes %1$d</string>
+    <string name="transfers_heading">Mercado de Fichajes %1$d</string>
     <string name="transfers_feed_title">Últimas confirmaciones</string>
     <string name="transfers_feed_empty">Todavía no hay movimientos confirmados.</string>
     <string name="transfers_teams_title">Equipos %1$d</string>
     <string name="transfers_teams_empty">Sin equipos en esta división.</string>
     <string name="transfers_renews_with">renueva con</string>
     <string name="transfers_retires">se retira</string>
-    <string name="transfers_until">hasta %1$d</string>
+    <string name="transfers_retired">Se retira</string>
+    <string name="transfers_until">%1$d</string>
     <string name="transfers_rumor">Rumor</string>
     <string name="transfers_doubt">Duda</string>
     <string name="transfers_doubtful">En duda</string>
     <string name="transfers_doubtful_empty">Sin corredores en duda por ahora.</string>
+    <string name="transfers_contract_ends">Terminan contrato</string>
+    <string name="transfers_contract_ends_empty">Sin finales de contrato anunciados por ahora.</string>
+    <string name="transfers_team_empty">Sin movimientos anunciados por ahora.</string>
     <string name="transfers_team_doubt">Continuidad en duda</string>
     <string name="transfers_team_doubt_notice">La continuidad del equipo en %1$d no está confirmada.</string>
     <string name="transfers_staying">Continúan</string>

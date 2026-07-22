@@ -608,10 +608,14 @@ async function init() {
   const detailLine = [isOneDay ? '' : stageLabel, ttLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
 
   const resultsLabel = _isEn ? 'Results' : 'Resultados';
-  // Migas al índice de últimos resultados (el bare /resultados/ · /en/results/).
+  // "Volver a todos los resultados" vive en el botón ← del header (apunta al
+  // feed /resultados/ · /en/results/), no en el cuerpo de la página.
   const feedHref = _isEn ? `${enBase()}/results/` : '/resultados/';
   const feedLabel = _isEn ? 'All results' : 'Todos los resultados';
-  let html = `<div class="res-back"><a class="res-back__link" href="${feedHref}">← ${feedLabel}</a></div>`;
+  if (typeof window.ccHeaderBack === 'function') {
+    window.ccHeaderBack({ href: feedHref, label: feedLabel });
+  }
+  let html = '';
   // País efectivo: la jornada puede transcurrir en un país distinto al de la
   // carrera (p. ej. una etapa del Tour que sale de Italia) → prevalece el de la
   // jornada. Mismo criterio de ocultar bandera que buildRaceHero.

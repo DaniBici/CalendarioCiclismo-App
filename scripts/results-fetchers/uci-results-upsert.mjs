@@ -79,6 +79,12 @@
  *               más de N min (reloj = race_uci_links.lastSyncedAt). Para Tissot, que
  *               llega parcial y se corrige en la 1ª hora tras meta → re-vuelca lo
  *               reciente, omite lo asentado. Sin este flag, omite cualquier existente.
+ *   --only-stage N  Procesa SOLO la etapa cuyo stageNumber == N (prólogo = 0). El resto
+ *               de etapas del JSON se descartan del plan (ni purga, ni cabecera, ni filas).
+ *               Lo usa el volcado manual "Volcar esta etapa" del panel: el fetcher siempre
+ *               trae la carrera entera, pero solo queremos re-escribir la etapa elegida
+ *               (no las 15 anteriores del Tour). La pseudo-etapa "Final Classification"
+ *               (stageNumber null) NO entra con este filtro salvo que N sea su número.
  */
 'use strict';
 
@@ -103,7 +109,7 @@ const STATUS = getArg('status') || 'ok';
 // race_uci_links.source en el upsert del link. Sin el flag, el source NO se toca
 // (INSERT usa el default 'uci'; UPDATE lo conserva). 'pdf' = volcado manual desde
 // PDF (skill cc-resultados-pdf) → el cron salta la carrera. 'sportstiming'/'manual_timing'
-// = volcado local (scraping/JSON). 'raceresult' = API JSON pública de my.raceresult.com
+// = volcado local (lectura de HTML/JSON). 'raceresult' = API JSON pública de my.raceresult.com
 // (raceresult-results-fetch.mjs), AUTOMÁTICA en el cron (migración 108). 'sts' = .clax
 // XML público de stsport.fr/Wiclax (sts-results-fetch.mjs), AUTOMÁTICA (migración 109).
 const SOURCE = getArg('source');
@@ -151,6 +157,13 @@ const APPLY = hasFlag('apply');
 const SKIP_EXISTING = hasFlag('skip-existing');
 const SKIP_EXISTING_AFTER_MIN = (() => {
   const v = getArg('skip-existing-after-min');
+  return v == null ? null : parseInt(v, 10);
+})();
+// --only-stage N: restringe el plan a la etapa stageNumber==N (ver doc arriba). null =
+// sin restricción (comportamiento normal: todas las etapas del JSON). El volcado manual
+// por etapa del panel lo pasa para que re-escribir la etapa 16 no re-vuelque la 1-15.
+const ONLY_STAGE = (() => {
+  const v = getArg('only-stage');
   return v == null ? null : parseInt(v, 10);
 })();
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
@@ -341,6 +354,10 @@ ON CONFLICT ("raceId") DO UPDATE SET
 
   for (const st of stages) {
     const stageNumber = n(st.stageNumber);     // null (Final Classification) o 0 (prólogo) o N
+    // --only-stage: descartar toda etapa que no sea la pedida (comparación estricta;
+    // stageNumber null nunca casa un N numérico → la Final Classification se excluye
+    // salvo que N sea explícitamente su número). Descartada = ni purga ni insert.
+    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
     const isFinal = !!st.isFinalClassification;
     const uciRaceId = n(st.uciRaceId);
     const dateKey = s(st.dateKey);

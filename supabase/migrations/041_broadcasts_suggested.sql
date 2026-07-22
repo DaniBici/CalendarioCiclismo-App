@@ -1,10 +1,10 @@
--- broadcasts_suggested: sugerencias de broadcasts extraídas de fuentes externas
--- (course du jour por ahora) pendientes de revisión humana antes de promoverse
--- a la tabla `broadcasts` real.
+-- broadcasts_suggested: sugerencias de broadcasts pendientes de revisión humana
+-- antes de promoverse a la tabla `broadcasts` real.
 --
--- El workflow scrape-cdj corre a diario y rellena esta tabla con sugerencias
--- nuevas. El editor humano las revisa en el panel y las acepta o rechaza.
--- Solo las aceptadas se copian a `broadcasts` con sus campos finales.
+-- Una utilidad de importación rellena esta tabla con sugerencias nuevas. El
+-- editor humano las revisa en el panel y las acepta o rechaza. Solo las
+-- aceptadas se copian a `broadcasts` con sus campos finales.
+-- (Tabla y utilidad retiradas después; ver migración 127.)
 
 CREATE TABLE IF NOT EXISTS broadcasts_suggested (
   id              TEXT PRIMARY KEY,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS broadcasts_suggested (
   country         TEXT,
   "localStartTime" TEXT,            -- HH:MM tal como aparece en la fuente (opcional)
   "isFree"        BOOLEAN NOT NULL DEFAULT false,
-  source          TEXT NOT NULL DEFAULT 'coursedujour',
+  source          TEXT NOT NULL DEFAULT 'import',
   "sourceUrl"     TEXT,             -- URL de la página de la fuente para verificar
   "sourceRaceName" TEXT,            -- nombre que la fuente da a la carrera (para debug del matching)
   "sourceCountryIso" TEXT,          -- código ISO original antes de mapear al grupo (debug)
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS broadcasts_suggested (
 );
 
 -- Evitar duplicados de la misma fuente para el mismo race_day + canal + país.
--- Si el scraper ve el mismo broadcaster dos veces (ej: re-ejecución del cron),
+-- Si la importación ve el mismo broadcaster dos veces (ej: re-ejecución),
 -- el segundo INSERT debe ser idempotente.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcasts_suggested_unique
   ON broadcasts_suggested ("raceDayId", source, channel, country);

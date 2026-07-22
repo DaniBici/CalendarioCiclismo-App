@@ -29,7 +29,7 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * Envoltorio fino sobre [BillingClient] de Google Play Billing Library 7.x.
+ * Envoltorio fino sobre [BillingClient] de Google Play Billing Library 8.x.
  *
  * Responsabilidades:
  *  - Mantener una conexión persistente con el servicio de billing y reconectar

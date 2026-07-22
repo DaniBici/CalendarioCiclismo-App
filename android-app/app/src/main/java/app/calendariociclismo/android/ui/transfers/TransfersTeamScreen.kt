@@ -1,6 +1,7 @@
 package app.calendariociclismo.android.ui.transfers
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -45,6 +50,7 @@ import app.calendariociclismo.android.data.model.RiderTransfer
 import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.util.TransfersLogic
 
 private sealed class TeamState {
@@ -81,7 +87,17 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
             val roster = app.repository.transfersRoster(teamId, gender)
             // Hidratar también las fichas de llegadas/salidas que no estén ya
             // (loadTransfersMarket ya trae todas las de los movimientos).
-            Triple(season, data, TransfersLogic.teamDetail(data.transfers, roster, teamId))
+            // Categoría del equipo de destino (para ordenar "se marchan").
+            val categoryByTeamId = data.seasons.mapNotNull { s -> s.category?.let { s.teamId to it } }.toMap()
+            Triple(
+                season, data,
+                TransfersLogic.teamDetail(
+                    data.transfers, roster, teamId,
+                    ridersById = data.ridersById,
+                    categoryByTeamId = categoryByTeamId,
+                    teamNameById = data.teamNameById,
+                ),
+            )
         }.onSuccess { (season, data, detail) ->
             state = TeamState.Ready(season, data, detail)
         }.onFailure { error ->
@@ -123,6 +139,11 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
                 data = current.data,
                 detail = current.detail,
                 padding = padding,
+                // Llega → equipo del que VENÍA; se marcha → equipo AL QUE VA.
+                // No hay ficha pública de corredor → el nombre enlaza al equipo.
+                onLinkTeam = { linkedTeamId ->
+                    navController.navigate(Routes.transfersTeam(linkedTeamId))
+                },
             )
         }
     }
@@ -134,6 +155,7 @@ private fun TeamContent(
     data: TransfersLogic.MarketData,
     detail: TransfersLogic.TeamDetail,
     padding: PaddingValues,
+    onLinkTeam: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
@@ -179,11 +201,12 @@ private fun TeamContent(
             }
         }
 
+        // Cada sección solo se muestra si tiene contenido (una categoría vacía se
+        // oculta por completo, título incluido).
+
         // ── Continúan ──────────────────────────────────────────────
-        item(key = "staying_title") { TeamSectionTitle(stringResource(R.string.transfers_staying)) }
-        if (detail.staying.isEmpty()) {
-            item(key = "staying_empty") { TeamEmptyText(stringResource(R.string.transfers_staying_empty)) }
-        } else {
+        if (detail.staying.isNotEmpty()) {
+            item(key = "staying_title") { TeamSectionTitle(stringResource(R.string.transfers_staying)) }
             item(key = "staying_card") {
                 CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
                     Column {
@@ -207,10 +230,8 @@ private fun TeamContent(
 
         // ── En duda ────────────────────────────────────────────────
         // Renovaciones sin despejar: ni continúan, ni salen, ni entran.
-        item(key = "doubtful_title") { TeamSectionTitle(stringResource(R.string.transfers_doubtful)) }
-        if (detail.doubtful.isEmpty()) {
-            item(key = "doubtful_empty") { TeamEmptyText(stringResource(R.string.transfers_doubtful_empty)) }
-        } else {
+        if (detail.doubtful.isNotEmpty()) {
+            item(key = "doubtful_title") { TeamSectionTitle(stringResource(R.string.transfers_doubtful)) }
             item(key = "doubtful_card") {
                 CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
                     Column {
@@ -219,13 +240,13 @@ private fun TeamContent(
                                 thickness = 0.5.dp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                             )
+                            // Sin badge "Duda": ya están bajo la sección "En duda".
                             PersonRow(
                                 nationality = row.rider?.nationality,
                                 name = row.rider?.fullName?.ifBlank { row.riderId } ?: row.riderId,
                                 detail = null,
                                 contractUntil = row.contractUntil,
                                 isRumor = false,
-                                isDoubt = true,
                             )
                         }
                     }
@@ -233,24 +254,53 @@ private fun TeamContent(
             }
         }
 
-        // ── Se marchan ─────────────────────────────────────────────
-        item(key = "departures_title") { TeamSectionTitle(stringResource(R.string.transfers_departures)) }
-        if (detail.departures.isEmpty()) {
-            item(key = "departures_empty") { TeamEmptyText(stringResource(R.string.transfers_departures_empty)) }
-        } else {
-            item(key = "departures_card") {
-                MovementCard(moves = detail.departures, data = data, showOrigin = false)
+        // ── Terminan contrato ──────────────────────────────────────
+        // Acaban su contrato sin equipo conocido (sin destino).
+        if (detail.contractEnds.isNotEmpty()) {
+            item(key = "contract_ends_title") { TeamSectionTitle(stringResource(R.string.transfers_contract_ends)) }
+            item(key = "contract_ends_card") {
+                CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
+                    Column {
+                        detail.contractEnds.forEachIndexed { i, t ->
+                            if (i > 0) HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            )
+                            val rider = data.ridersById[t.riderId]
+                            PersonRow(
+                                nationality = rider?.nationality,
+                                name = rider?.fullName?.ifBlank { t.riderId } ?: t.riderId,
+                                detail = null,
+                                contractUntil = null,
+                                isRumor = t.status == "rumor",
+                            )
+                        }
+                    }
+                }
             }
         }
 
         // ── Llegan ─────────────────────────────────────────────────
-        item(key = "arrivals_title") { TeamSectionTitle(stringResource(R.string.transfers_arrivals)) }
-        if (detail.arrivals.isEmpty()) {
-            item(key = "arrivals_empty") { TeamEmptyText(stringResource(R.string.transfers_arrivals_empty)) }
-        } else {
+        if (detail.arrivals.isNotEmpty()) {
+            item(key = "arrivals_title") { TeamSectionTitle(stringResource(R.string.transfers_arrivals)) }
             item(key = "arrivals_card") {
-                MovementCard(moves = detail.arrivals, data = data, showOrigin = true)
+                MovementCard(moves = detail.arrivals, data = data, showOrigin = true, onLinkTeam = onLinkTeam)
             }
+        }
+
+        // ── Se marchan ─────────────────────────────────────────────
+        if (detail.departures.isNotEmpty()) {
+            item(key = "departures_title") { TeamSectionTitle(stringResource(R.string.transfers_departures)) }
+            item(key = "departures_card") {
+                MovementCard(moves = detail.departures, data = data, showOrigin = false, onLinkTeam = onLinkTeam)
+            }
+        }
+
+        // Equipo sin ningún movimiento anunciado: aviso único.
+        if (detail.staying.isEmpty() && detail.doubtful.isEmpty() && detail.contractEnds.isEmpty() &&
+            detail.arrivals.isEmpty() && detail.departures.isEmpty()
+        ) {
+            item(key = "team_empty") { TeamEmptyText(stringResource(R.string.transfers_team_empty)) }
         }
         item(key = "bottom_spacer") { Spacer(Modifier.height(24.dp)) }
     }
@@ -284,9 +334,12 @@ private fun MovementCard(
     moves: List<RiderTransfer>,
     data: TransfersLogic.MarketData,
     showOrigin: Boolean,
+    onLinkTeam: (String) -> Unit,
 ) {
     val unknownTeam = stringResource(R.string.transfers_unknown_team)
-    val retires = stringResource(R.string.transfers_retires)
+    val retires = stringResource(R.string.transfers_retired)
+    // Equipos con ficha en el mercado (destino enlazable de un nombre).
+    val marketTeamIds = remember(data.seasons) { data.seasons.map { it.teamId }.toHashSet() }
     CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
         Column {
             moves.forEachIndexed { i, t ->
@@ -300,19 +353,32 @@ private fun MovementCard(
                     t.type == "retirement" -> retires
                     else -> TransfersLogic.teamLabel(t.toTeamId, t.toTeamName, data.teamNameById, unknownTeam)
                 }
+                // Llega → enlaza al equipo del que VENÍA (fromTeamId); se marcha →
+                // al equipo AL QUE VA (toTeamId). Solo si ese equipo tiene ficha en
+                // el mercado (una retirada no tiene destino).
+                val candidate = if (showOrigin) t.fromTeamId else t.toTeamId
+                val linkTeamId = candidate?.takeIf { it in marketTeamIds }
                 PersonRow(
                     nationality = rider?.nationality,
                     name = rider?.fullName?.ifBlank { t.riderId } ?: t.riderId,
                     detail = detailText,
                     contractUntil = if (showOrigin) t.contractUntil else null,
                     isRumor = t.status == "rumor",
+                    linkTeamId = linkTeamId,
+                    onLinkTeam = onLinkTeam,
                 )
             }
         }
     }
 }
 
-/** Fila de persona: bandera + nombre + detalle + contrato + badge Rumor/Duda. */
+/**
+ * Fila de persona: bandera + nombre + detalle + contrato + badge Rumor/Duda.
+ * El detalle (equipo de origen/destino) va INLINE a la derecha del nombre,
+ * atenuado y separado por "·" — misma estética que la web (`personRowHtml`),
+ * no como subtítulo debajo. Si se pasa `linkTeamId`, la FILA ENTERA es clicable
+ * y navega a la ficha de ese equipo (no solo el nombre).
+ */
 @Composable
 private fun PersonRow(
     nationality: String?,
@@ -321,30 +387,61 @@ private fun PersonRow(
     contractUntil: Int?,
     isRumor: Boolean,
     isDoubt: Boolean = false,
+    linkTeamId: String? = null,
+    onLinkTeam: (String) -> Unit = {},
 ) {
-    val untilText = contractUntil?.let { stringResource(R.string.transfers_until, it) }
+    val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val personLine = buildAnnotatedString {
+        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(name) }
+        if (!detail.isNullOrEmpty()) {
+            withStyle(SpanStyle(color = dimColor)) { append(" · $detail") }
+        }
+    }
+    val base = Modifier.fillMaxWidth()
+    val rowModifier = if (linkTeamId != null) {
+        base.clickable { onLinkTeam(linkTeamId) }
+    } else {
+        base
+    }.padding(horizontal = 12.dp, vertical = 8.dp)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+        modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        CountryFlag(countryCode = nationality, height = 12.dp)
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            val sub = listOfNotNull(detail, untilText).joinToString(" · ")
-            if (sub.isNotEmpty()) {
-                Text(
-                    text = sub,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        CountryFlag(countryCode = nationality, height = 11.dp)
+        // Corredor + equipo trunca con "…" a una línea (misma fórmula que las
+        // cards de Hoy): sin doble altura, y los badges quedan fijos a la derecha.
+        // El realce de "clicable" es la FILA entera (`.clickable` en el Row), no
+        // el color del nombre → nombre en Medium, sin accent.
+        Text(
+            text = personLine,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        // El año de contrato como BADGE junto al de rumor/duda (solo el año).
+        if (contractUntil != null) YearBadge(contractUntil)
         if (isDoubt) DoubtBadge() else if (isRumor) RumorBadge()
+    }
+}
+
+/** Badge neutro del año de fin de contrato — espejo del `.tr-contract` de la web. */
+@Composable
+private fun YearBadge(year: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            // Año centinela 9999 (contrato vitalicio) → ∞.
+            text = if (year == 9999) "∞" else stringResource(R.string.transfers_until, year),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -2,11 +2,9 @@
 --
 -- Retira la tabla `broadcasts_suggested` (migraciones 041 + 042).
 --
--- Contexto: la tabla la alimentaba SOLO el sugeridor automático de broadcasts
--- de coursedujour (workflow `scrape-cdj.yml` + Edge Function `trigger-scrape-cdj`
--- + `tools/scrape-cdj`), retirado el 2026-07-17 junto con el resto del scraping
--- de terceros. Ningún cliente vivo la LEE (ni panel, ni web, ni apps): solo el
--- scraper la escribía. Sin el scraper, es una tabla huérfana.
+-- Contexto: la tabla la alimentaba SOLO una utilidad de importación de
+-- broadcasts, retirada el 2026-07-17. Ningún cliente vivo la LEE (ni panel, ni
+-- web, ni apps): solo esa utilidad la escribía. Sin ella, es una tabla huérfana.
 --
 -- Protocolo pre-DROP verificado (patrón de las migraciones 098/111/126):
 --   0 FKs entrantes · 0 vistas/matviews dependientes · 0 funciones que la nombren

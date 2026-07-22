@@ -23,7 +23,7 @@
 | Plataforma | Archivo | Patrón |
 |---|---|---|
 | iOS | `Services/PremiumService.swift` (`@MainActor @Observable`) | StoreKit 2: `Product.purchase()`, `AppStore.sync()`, `Transaction.currentEntitlements`, `Transaction.updates`. `isSubscribed` persiste en `UserDefaults["premium_subscribed"]`. |
-| Android | `data/premium/PremiumService.kt` + `data/premium/BillingManager.kt` | Google Play Billing 7.x. `BillingManager` gestiona conexión con backoff exponencial, `queryProductDetails`/`queryPurchasesAsync`, `launchBillingFlow`. `isSubscribed` es `StateFlow<Boolean>` desde DataStore. |
+| Android | `data/premium/PremiumService.kt` + `data/premium/BillingManager.kt` | Google Play Billing 8.x. `BillingManager` gestiona conexión con backoff exponencial, `queryProductDetails`/`queryPurchasesAsync`, `launchBillingFlow`. `isSubscribed` es `StateFlow<Boolean>` desde DataStore. |
 
 ## API contractual (idéntica en ambas plataformas)
 

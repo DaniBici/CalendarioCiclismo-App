@@ -7,6 +7,7 @@
 
 /* ── Variables (modo oscuro por defecto) ──────────────────────── */
 :root {
+  --primary-nav-h: 42px;
   --bg:            #111318;
   --bg-card:       #1c1e24;
   --bg-card-hover: #24262d;
@@ -347,41 +348,82 @@ img { display: block; max-width: 100%; }
 }
 .lang-btn--active { color: #fff; }
 
-/* ── Menú del header (dropdown desktop / drawer móvil) ──────────── */
-.site-nav {
-  display: none;
-  position: absolute;
+/* ── Navegación global — tabs de las apps adaptados a web ─────── */
+.primary-nav {
+  position: sticky;
   top: calc(56px + env(safe-area-inset-top));
-  /* Cae JUNTO a la hamburguesa: el contenido del header (.site-header__inner)
-     está centrado a 860px, así que en pantallas anchas el borde derecho del
-     menú se alinea con el de ese bloque — (100% − 860px) / 2 — y no con el
-     del viewport (1.5rem), donde quedaba descolgado lejos de la ☰. */
-  right: max(1.5rem, calc((100% - 860px) / 2));
-  min-width: 184px;
-  flex-direction: column;
+  z-index: 99;
   background: var(--bg-header);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.28);
-  padding: 0.4rem;
-  z-index: 200;
+  border-bottom: 1px solid var(--border);
 }
-.site-nav.open { display: flex; }
-.site-nav a {
+.primary-nav__inner {
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.primary-nav a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0.55rem 1rem 0.48rem;
+  color: var(--text-muted);
   font-family: var(--font-display);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 500;
-  color: var(--header-text);
-  padding: 0.6rem 0.75rem;
-  border-radius: 7px;
   white-space: nowrap;
-  transition: background var(--transition), color var(--transition);
+  transition: color var(--transition), background var(--transition);
 }
-.site-nav a:hover { background: rgba(128,128,128,0.12); color: var(--header-text); }
-.site-nav a.active { color: var(--accent); }
-/* Buscar en el menú: solo móvil (en desktop hay lupa inline) */
-@media (min-width: 601px) { .site-nav .nav-menu-search { display: none; } }
+.primary-nav a:hover { color: var(--header-text); background: rgba(128,128,128,0.08); }
+.primary-nav a.active { color: var(--accent-text); }
+.primary-nav a.active::after {
+  content: '';
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0;
+  left: 0.8rem;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: currentColor;
+}
+.primary-nav__icon { display: block; width: 16px; height: 16px; }
+.primary-nav__icon svg { display: block; width: 100%; height: 100%; }
+.primary-nav__divider {
+  width: 1px;
+  height: 18px;
+  margin: auto 0.3rem;
+  background: var(--border);
+}
+.primary-nav__secondary { font-size: 0.8rem !important; }
+.primary-nav__more { display: none; }
+
+@media (min-width: 601px) {
+  .primary-nav a.primary-nav__secondary {
+    font-size: 0.78rem !important;
+    opacity: 0.72;
+  }
+  .primary-nav a.primary-nav__secondary:hover { opacity: 1; }
+}
+
+/* En tablet estrecha compactamos el submenú para que las seis secciones
+   completas conserven su alineación centrada. */
+@media (min-width: 601px) and (max-width: 760px) {
+  .primary-nav__inner { padding-right: 0.5rem; padding-left: 0.5rem; }
+  .primary-nav a {
+    gap: 0.25rem;
+    padding-right: 0.3rem;
+    padding-left: 0.3rem;
+    font-size: 0.78rem;
+  }
+  .primary-nav__secondary { font-size: 0.74rem !important; }
+  .primary-nav__divider { margin-right: 0.2rem; margin-left: 0.2rem; }
+}
 
 /* ── Cintillo "Hoy" — tarjeta editorial (carrusel, estilo apps) ────
    Lengua visual de las apps: tarjeta redondeada sobre superficie
@@ -391,7 +433,7 @@ img { display: block; max-width: 100%; }
    cards se vean a través de los márgenes/esquinas de la tarjeta. */
 .giro-countdown {
   position: sticky;
-  top: calc(56px + env(safe-area-inset-top));
+  top: calc(56px + var(--primary-nav-h) + env(safe-area-inset-top));
   z-index: 95;
   background: var(--bg);
   padding: 8px 1.5rem 10px;
@@ -569,7 +611,7 @@ img { display: block; max-width: 100%; }
    cards se vean a través del hueco del título. */
 .hoy-sticky {
   position: sticky;
-  top: calc(56px + var(--giro-h, 0px));
+  top: calc(56px + var(--primary-nav-h) + var(--giro-h, 0px));
   z-index: 90;
   background: var(--bg);
 }
@@ -2105,6 +2147,10 @@ h2.jornada-section__title {
   white-space: nowrap;
 }
 .back-btn:hover { opacity: 1; }
+/* El .back-btn insertado en runtime por ccHeaderBack() puede ser un <button>
+   (Fichajes: vuelve a la lista sin recargar) además del <a> estático; iguala su
+   apariencia al enlace neutralizando los estilos de UA del botón. */
+button.back-btn { background: none; font: inherit; cursor: pointer; }
 
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 600px) {
@@ -2469,48 +2515,87 @@ h2.jornada-section__title {
   box-sizing: border-box;
 }
 
-/* ── Hamburguesa (móvil) ──────────────────────────────────────── */
-
-/* ── Hamburguesa (menú) — siempre visible ─────────────────────── */
-.nav-burger {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.22rem;
-  flex-shrink: 0;
-}
-.nav-burger span {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: var(--header-text);
-  border-radius: 2px;
-  transition: transform 0.22s ease, opacity 0.22s ease, background 0.18s ease;
-  transform-origin: center;
-}
-.nav-burger:hover span { background: var(--header-text); }
-.nav-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-.nav-burger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-.nav-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
 @media (max-width: 600px) {
-  /* Logo solo iconos; la lupa inline se va al menú; menú a casi ancho completo */
+  :root { --primary-nav-h: 0px; }
+  /* Logo solo iconos; la lupa inline se oculta en móvil. */
   .site-logo__text { display: none; }
   .header-actions .nav-search-link { display: none; }
-  .site-nav {
-    left: 0.75rem;
-    right: 0.75rem;
-    min-width: 0;
-  }
-  .site-nav a { padding: 0.85rem 0.9rem; font-size: 1rem; }
-}
 
-/* Botón de cierre del menú (lo crea theme.js) — no se usa con el dropdown */
-.nav-close-btn { display: none; }
+  /* En móvil se convierte en la barra inferior de las apps. */
+  body { padding-bottom: calc(65px + env(safe-area-inset-bottom)); }
+  .primary-nav {
+    position: fixed;
+    inset: auto 0 0;
+    top: auto;
+    z-index: 150;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+  }
+  .primary-nav__inner {
+    width: 100%;
+    padding: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .primary-nav__inner::-webkit-scrollbar { display: none; }
+  .primary-nav a {
+    flex-direction: column;
+    gap: 0.12rem;
+    min-height: 64px;
+    padding: 0.45rem 0.15rem 0.35rem;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    scroll-snap-align: start;
+  }
+  /* Los cuatro destinos principales llenan la barra. La flecha circular sobre
+     el borde derecho comunica que tras ellos hay más secciones. */
+  .primary-nav a.primary-nav__main { flex: 0 0 25%; }
+  .primary-nav__icon { width: 21px; height: 21px; }
+  .primary-nav a.primary-nav__secondary {
+    flex: 0 0 auto;
+    padding-right: 0.85rem;
+    padding-left: 0.85rem;
+    font-size: 0.7rem !important;
+  }
+  .primary-nav__divider {
+    display: block;
+    flex: 0 0 1px;
+    margin: auto 0.2rem;
+  }
+  .primary-nav__more {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    border: 1px solid var(--border-light);
+    border-radius: 50%;
+    background: var(--bg-header);
+    color: var(--text-muted);
+    cursor: pointer;
+    transform: translateY(-50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.16);
+  }
+  .primary-nav__more:hover { color: var(--accent-text); background: var(--accent-dim); }
+  .primary-nav__more svg { width: 16px; height: 16px; }
+  .primary-nav a.active::after {
+    top: 0;
+    right: 22%;
+    bottom: auto;
+    left: 22%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+  }
+}
 
 /* ── Footer ───────────────────────────────────────────────────── */
 .site-footer {
@@ -2579,7 +2664,7 @@ h2.jornada-section__title {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 56px;
+  top: calc(56px + var(--primary-nav-h));
   z-index: 50;
 }
 .temporada-filters__inner {
@@ -3820,7 +3905,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 /* Barra de filtros en orden de salida */
 .so-filters {
   position: sticky;
-  top: 56px;
+  top: calc(56px + var(--primary-nav-h));
   z-index: 50;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
@@ -3872,7 +3957,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 /* Selector de etapa — botones circulares pequeños, sticky bajo el header. */
 .res-stages {
   position: sticky;
-  top: 56px;
+  top: calc(56px + var(--primary-nav-h));
   z-index: 51;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -3914,7 +3999,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
    .res-stages / .so-filters (contenedor full-bleed + inner centrado). */
 .res-tabs-bar {
   position: sticky;
-  top: 56px;
+  top: calc(56px + var(--primary-nav-h));
   z-index: 50;
   background: var(--bg);
 }
@@ -3928,7 +4013,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   gap: 0.6rem;
 }
 /* Con selector de etapas encima, el carril se ancla bajo él (no bajo el header). */
-.res-stages + .res-tabs-bar { top: calc(56px + 3rem); }
+.res-stages + .res-tabs-bar { top: calc(56px + var(--primary-nav-h) + 3rem); }
 /* Envoltura de las pestañas: posiciona el chevron de overflow sobre el borde
    derecho sin que reste sitio al área scrolleable. */
 .res-tabs__scroll {
@@ -4088,64 +4173,6 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 
 /* ══ Feed "Últimos resultados" (2026-06-11) ══ */
 
-/* Migas "← Todos los resultados" sobre la cabecera de /resultados/<carrera>/ */
-.res-back {
-  max-width: 860px;
-  margin: 0.65rem auto 0;
-  padding: 0 1.5rem;
-}
-.res-back__link {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.res-back__link:hover {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* Chip-trofeo → /resultados/ en la franja del selector de días (home) */
-.date-results-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.32rem;
-  padding: 0.32rem 0.65rem;
-  margin-left: 0.25rem;
-  border: none;
-  cursor: pointer;
-  border-radius: var(--radius-pill);
-  background: var(--accent-dim);
-  color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 600;
-  font-family: var(--font-display);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background var(--transition);
-}
-.date-results-chip:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-/* Filtros de la agenda ocultos en modo resultados (no aplican a las filas). */
-.agenda-filters--hidden {
-  display: none !important;
-}
-@media (max-width: 600px) {
-  /* En móvil el chip pierde la etiqueta → el trofeo debe ser VISTOSO por sí
-     solo: fondo sólido de acento, icono más grande (espec Dani 2026-06-11). */
-  .date-results-chip__label { display: none; }
-  .date-results-chip {
-    padding: 0.42rem 0.55rem;
-    background: var(--accent);
-    color: #fff;
-    font-size: 1.05rem;
-  }
-  .date-results-chip:hover {
-    background: var(--accent);
-  }
-}
-
 /* ── Feed /resultados/ (índice de últimos resultados) ─────────────── */
 .feed-hero {
   max-width: 860px;
@@ -4162,51 +4189,6 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   max-width: 860px;
   margin: 0 auto;
   padding: 0 1.5rem;
-}
-/* Variante del modo Resultados de la home (#raceList): el contenedor ya pone
-   ancho y padding → sin los del feed. Debe ir DESPUÉS de .feed-day (misma
-   especificidad: gana la última). OJO `margin: 0`: el `margin: 0 auto` base,
-   en un flex column, CANCELA el stretch y dejaba el bloque al ancho del
-   contenido (filas estrechas); margin 0 + width 100% = ancho de las cards. */
-.feed-day--home {
-  max-width: none;
-  padding: 0;
-  margin: 0;
-  width: 100%;
-}
-/* Vista Hoy en modo Resultados: MISMOS tamaños que las cards del calendario
-   (espec Dani 2026-06-11) — nombre 0.95rem display-500, línea de datos
-   0.8rem, bandera a 1.5rem (el img de countryFlag escala por em), badges de
-   tipo a tamaño estándar y el padding de card. El índice /resultados/
-   conserva su densidad compacta (lista larga). */
-.feed-day--home .feed-row {
-  padding: 1rem 1.25rem;
-  gap: 1rem;
-}
-.feed-day--home .feed-row__race {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-.feed-day--home .feed-row__sub {
-  font-size: 0.8rem;
-  margin-top: 0.15rem;
-}
-.feed-day--home .feed-row__winner {
-  font-size: 0.8rem;
-  margin-top: 0.15rem;
-}
-/* Bandera: suelta (sin logo) al 1.5rem como .race-card__flag; bajo el logo,
-   a tamaño normal como en la card (el img de countryFlag escala por em). */
-.feed-day--home .feed-row__flag {
-  font-size: 1.5rem;
-}
-.feed-day--home .feed-row__logo .feed-row__flag {
-  font-size: 1rem;
-}
-.feed-day--home .feed-row__badges .badge {
-  font-size: 0.68rem;
-  padding: 0.18rem 0.5rem;
 }
 .feed-day__hdr {
   font-family: var(--font-display);

@@ -218,7 +218,7 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 0.4rem;
 }
 
-.field input:not([type="checkbox"]),
+.field input:not([type="checkbox"]):not([type="radio"]),
 .field select,
 .field textarea {
   width: 100%;
@@ -233,10 +233,24 @@ a { color: inherit; text-decoration: none; }
   outline: none;
   -webkit-appearance: none;
 }
-.field input:not([type="checkbox"]):focus,
+.field input:not([type="checkbox"]):not([type="radio"]):focus,
 .field select:focus,
 .field textarea:focus { border-color: var(--border-focus); }
 .field textarea { resize: vertical; min-height: 80px; }
+
+/* Radios dentro de un `.field` (p. ej. el Estado del editor de movimiento):
+   nativos, no el input full-width con appearance:none de la regla de arriba,
+   que los aplastaba a cajas grises y sin glifo (por tanto impulsables). */
+.field input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  -webkit-appearance: radio;
+  appearance: radio;
+  accent-color: var(--accent);
+}
 
 /* Radios del editor del cintillo — escapan del estilo global de `.field input`
    porque allí los inputs son full-width con padding/appearance:none. */
@@ -1445,7 +1459,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
   .editor-content { padding: 1rem 0.75rem; max-width: 100%; box-sizing: border-box; }
 
   /* Evitar auto-zoom de iOS Safari (umbral: font-size < 16px) */
-  .field input:not([type="checkbox"]),
+  .field input:not([type="checkbox"]):not([type="radio"]),
   .field select,
   .field textarea,
   .races-search,

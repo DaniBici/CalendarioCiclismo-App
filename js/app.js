@@ -162,9 +162,6 @@ let today = toDateKey(new Date());
 function todayKeyNow() { return toDateKey(new Date()); }
 let currentDateKey = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : today;
 
-// Vista de la home: 'agenda' (cards de carreras) | 'results' (resultados del
-// día en el mismo hueco, conmutado por el chip de la barra de días).
-let _homeView = 'agenda';
 function buildDateBar() {
   const bar = document.getElementById('dateBar');
 
@@ -248,26 +245,6 @@ function buildDateBar() {
   });
   rightSection.appendChild(nextBtn);
 
-  // Chip-trofeo: TOGGLE de la vista del día (decisión 2026-06-11). En modo
-  // agenda muestra el trofeo "Resultados" → conmuta a los resultados del día
-  // (donde van las cards); en modo resultados muestra el calendario
-  // "Calendario" → vuelta a la agenda. El selector de días navega en ambos.
-  // Etiqueta visible en desktop, solo icono en móvil (.date-results-chip__label).
-  const TROPHY_CHIP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
-  const CALENDAR_CHIP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-  const inResults = _homeView === 'results';
-  const resultsChip = document.createElement('button');
-  resultsChip.type = 'button';
-  resultsChip.className = 'date-results-chip' + (inResults ? ' date-results-chip--active' : '');
-  resultsChip.title = inResults ? t('results.chipBack') : t('results.feedTitle');
-  resultsChip.innerHTML = (inResults ? CALENDAR_CHIP_SVG : TROPHY_CHIP_SVG)
-    + `<span class="date-results-chip__label">${inResults ? t('results.chipBack') : t('results.chip')}</span>`;
-  resultsChip.addEventListener('click', () => {
-    _homeView = _homeView === 'results' ? 'agenda' : 'results';
-    loadDay(currentDateKey);
-  });
-  rightSection.appendChild(resultsChip);
-
   bar.appendChild(rightSection);
 
   // Centrar el día activo en el scroll
@@ -307,39 +284,6 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
 
   // Actualizar document.title ya, sin esperar a Firestore
   updateSeoDay(dateKey, []);
-
-  // ── Modo RESULTADOS (toggle del chip): los resultados del día sustituyen a
-  // las cards de la agenda. Los MISMOS filtros de categoría y el dropdown de
-  // orden de la agenda aplican aquí (decisión 2026-06-11). «Hora TV» no tiene
-  // fuente de datos en el feed (las etapas ya terminaron, no se cargan
-  // broadcasts) → se oculta esa opción en modo resultados (ver buildAgendaSortVisibility).
-  // El módulo del feed se carga en diferido (la home en modo agenda no lo paga).
-  document.getElementById('agendaFilters')?.classList.remove('agenda-filters--hidden');
-  syncAgendaSortVisibility();
-  if (_homeView === 'results') {
-    list.innerHTML = `<div class="loading">${t('loading.data')}</div>`;
-    try {
-      // Auto-curación de caché mixta tras un deploy (Pages cachea los JS 10
-      // min): si el navegador sirvió un resultados-feed.js ANTIGUO sin el
-      // export, se re-importa salt(e)ando la caché HTTP con un query fresco.
-      let mod = await import('./resultados-feed.js');
-      if (!mod.renderDayResults) mod = await import(`./resultados-feed.js?v=${Date.now()}`);
-      // En resultados nunca ordenamos por TV (sin datos) → cae a categoría.
-      const sort = _agendaSort === 'tvtime' ? 'category' : _agendaSort;
-      await mod.renderDayResults(list, dateKey, {
-        catPredicate: race => matchesCategoryFilter(race, _agendaCat),
-        sort,
-      });
-      if (window.gtag) gtag('event', 'page_view', {
-        page_location: `${location.origin}${location.pathname}?view=resultados&date=${dateKey}`,
-        page_title: (getLang() === 'en' ? 'Day results — ' : 'Resultados del día — ') + 'Calendario Ciclismo',
-      });
-    } catch (err) {
-      console.error('[resultados] modo resultados del día falló:', err);
-      list.innerHTML = `<div class="startlist-empty">${getLang() === 'en' ? 'Could not load results.' : 'No se pudieron cargar los resultados.'}</div>`;
-    }
-    return;
-  }
 
   // ── Modo Campeonatos: la vista Hoy NO se transforma y las carreras de
   // Campeonatos Nacionales (uciCategory='CN') se muestran como cualquier otra
@@ -1376,24 +1320,6 @@ function initAgendaFilters() {
   if (sortSel) sortSel.addEventListener('change', () => onSortChange(sortSel.value));
   if (sortSelMobile) sortSelMobile.addEventListener('change', () => onSortChange(sortSelMobile.value));
 
-  syncAgendaSortVisibility();
-}
-
-// En modo resultados no hay datos de TV → se oculta la opción «Hora TV» del
-// dropdown de orden y, si estaba seleccionada, el <select> muestra «Cat. UCI»
-// (sin tocar _agendaSort: al volver a la agenda se restaura su elección). En
-// modo agenda se reexpone la opción y se resincroniza el valor visible.
-// Idempotente (se llama en cada loadDay).
-function syncAgendaSortVisibility() {
-  const inResults = _homeView === 'results';
-  const visibleVal = (inResults && _agendaSort === 'tvtime') ? 'category' : _agendaSort;
-  [document.getElementById('agendaSortSelect'),
-   document.getElementById('agendaSortSelectMobile')].forEach(sel => {
-    if (!sel) return;
-    const tvOpt = sel.querySelector('option[value="tvtime"]');
-    if (tvOpt) tvOpt.hidden = inResults;
-    sel.value = visibleVal;
-  });
 }
 
 // ── Helpers de ordenación ─────────────────────────────────────────
@@ -1746,7 +1672,7 @@ initI18n().then(() => {
 function _maybeAdvanceToNewLocalDay() {
   const nowKey = todayKeyNow();
   if (nowKey === today) return;            // sigue siendo el mismo día local
-  const wasOnToday = currentDateKey === today && _homeView === 'agenda';
+  const wasOnToday = currentDateKey === today;
   today = nowKey;                          // actualizar la referencia de "hoy"
   if (!wasOnToday) { buildDateBar(); return; } // respetar navegación manual
   currentDateKey = today;
@@ -1758,4 +1684,3 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', _maybeAdvanceToNewLocalDay);
 setInterval(_maybeAdvanceToNewLocalDay, 60_000);
-

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fixInvertedAbsoluteGaps, fixDisguisedGaps, _toSeconds }
+import { fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, _toSeconds, _pressToSeconds }
   from '../../scripts/results-fetchers/uci-results-fetch.mjs';
 
 // Filas en la forma que produce normalizeRow (solo los campos que tocan estas funciones).
@@ -88,5 +88,60 @@ describe('_toSeconds', () => {
     expect(_toSeconds('4:42')).toBe(282);
     expect(_toSeconds('5')).toBe(5);
     expect(_toSeconds(null)).toBeNull();
+  });
+});
+
+describe('_pressToSeconds — notación de prensa de la UCI', () => {
+  it('parsea "H h M\'SS\\"", "M\'SS\\"" y "SS\\""', () => {
+    expect(_pressToSeconds("3h 00'02\"")).toBe(3 * 3600 + 2);
+    expect(_pressToSeconds("3h 01'56\"")).toBe(3 * 3600 + 116);
+    expect(_pressToSeconds("20'52\"")).toBe(20 * 60 + 52);
+    expect(_pressToSeconds("42\"")).toBe(42);
+    expect(_pressToSeconds(null)).toBeNull();
+  });
+  it('NO parsea un entero suelto ni el formato con ":"', () => {
+    expect(_pressToSeconds('12')).toBeNull();       // sin h ni ' → no es tiempo de prensa
+    expect(_pressToSeconds('3:00:02')).toBeNull();  // formato clásico → lo maneja _toSeconds
+  });
+});
+
+describe('fixPressFormattedAbsolute — tiempos absolutos en notación de prensa (comp 77761)', () => {
+  const pRow = (rank, timeText, extra = {}) => ({
+    rank, rankText: rank == null ? 'DNF' : String(rank), irm: null, timeText, gapText: null, ...extra,
+  });
+  it('Memorial Trochanowski 2026: gaps reales y +0 (m.t.) para el grupo del ganador', () => {
+    const rows = [
+      pRow(1, "3h 00'02\""),   // ganador
+      pRow(2, "3h 00'02\""),   // mismo tiempo → +0
+      pRow(3, "3h 00'02\""),   // mismo tiempo → +0
+      pRow(120, "3h 01'56\""), // +1'54"
+      pRow(138, "3h 04'32\""), // +4'30"
+    ];
+    const out = fixPressFormattedAbsolute(rows, false);
+    expect(out[0].timeText).toBe("3h 00'02\"");  // ganador conserva su tiempo
+    expect(out[0].gapText).toBeNull();
+    expect(out[1]).toMatchObject({ timeText: null, gapText: '+0:00' });
+    expect(out[2]).toMatchObject({ timeText: null, gapText: '+0:00' });
+    expect(out[3].gapText).toBe('+1:54');
+    expect(out[4].gapText).toBe('+4:30');
+  });
+  it('deja intactos los abandonos que la UCI ya marcó', () => {
+    const dnf = { rank: null, rankText: 'DNF', irm: 'DNF', timeText: null, gapText: null };
+    const rows = [pRow(1, "3h 00'02\""), pRow(2, "3h 00'02\""), dnf];
+    const out = fixPressFormattedAbsolute(rows, false);
+    expect(out[2]).toEqual(dnf);
+  });
+  it('NO toca el formato clásico (ganador absoluto con ":" + gaps con "+")', () => {
+    const rows = [
+      { rank: 1, rankText: '1', irm: null, timeText: '3:00:02', gapText: null },
+      { rank: 2, rankText: '2', irm: null, timeText: null, gapText: '+5' },
+    ];
+    expect(fixPressFormattedAbsolute(rows, false)).toEqual(rows);
+  });
+  it('NO toca clasificaciones por equipos ni si falta el tiempo del ganador', () => {
+    const teamRows = [pRow(1, "3h 00'02\""), pRow(2, "3h 01'56\"")];
+    expect(fixPressFormattedAbsolute(teamRows, true)).toEqual(teamRows);
+    const noWinner = [pRow(1, null), pRow(2, "3h 01'56\"")];
+    expect(fixPressFormattedAbsolute(noWinner, false)).toEqual(noWinner);
   });
 });

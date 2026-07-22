@@ -13,9 +13,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
 class RaceLogicTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()

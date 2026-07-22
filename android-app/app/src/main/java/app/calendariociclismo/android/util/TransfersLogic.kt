@@ -72,17 +72,50 @@ object TransfersLogic {
     fun badgeSeason(season: TeamSeason, prev: Map<String, TeamSeason>): TeamSeason? =
         if (season.badgeVisible) season else prev[season.teamId]
 
+    /** Marcador de "baja sin destino conocido" en el texto libre de destino. */
+    const val UNKNOWN_DEST = "?"
+
     /**
-     * Feed público: solo confirmados CON fecha visible, cronológico inverso.
-     * `dateVisible=false` es un flag de publicación en el feed, no una fecha
+     * Un FICHAJE REAL: corredor que cambia de equipo (`transfer` con destino
+     * conocido). Las renovaciones, retiradas y fines de contrato sin destino
+     * (`transfer` con `toTeamName='?'`) NO son fichajes → fuera del feed.
+     */
+    fun isRealSigning(x: RiderTransfer): Boolean =
+        x.type == "transfer" && (x.toTeamId != null || (x.toTeamName != null && x.toTeamName != UNKNOWN_DEST))
+
+    /**
+     * Feed público: solo FICHAJES confirmados CON fecha visible, cronológico
+     * inverso. `dateVisible=false` es un flag de publicación, no una fecha
      * ausente: el movimiento sigue contando en el detalle de equipo.
      */
     fun confirmedFeed(transfers: List<RiderTransfer>): List<RiderTransfer> =
-        transfers.filter { it.status == "confirmed" && it.dateVisible }
+        transfers.filter { it.status == "confirmed" && it.dateVisible && isRealSigning(it) }
             .sortedWith(
                 compareByDescending<RiderTransfer> { it.announcedAt ?: "" }
                     .thenByDescending { it.createdAt ?: "" }
             )
+
+    /**
+     * Corte del feed "Últimas confirmaciones": hasta [FEED_MAX_DAYS] fechas
+     * distintas O [FEED_MAX_ITEMS] fichajes, lo que se alcance antes (el feed
+     * viene en orden cronológico inverso). No hay "cargar más".
+     */
+    const val FEED_MAX_DAYS = 5
+    const val FEED_MAX_ITEMS = 8
+    fun limitedFeed(feed: List<RiderTransfer>): List<RiderTransfer> {
+        val out = ArrayList<RiderTransfer>()
+        var lastDay: String? = null
+        var daysShown = 0
+        for (x in feed) {
+            val day = x.announcedAt ?: ""
+            val newDay = day != lastDay
+            if (newDay && daysShown >= FEED_MAX_DAYS) break
+            if (out.size >= FEED_MAX_ITEMS) break
+            if (newDay) { lastDay = day; daysShown++ }
+            out.add(x)
+        }
+        return out
+    }
 
     /** Agrupa el feed por día de anuncio conservando el orden de entrada. */
     fun groupByDay(feed: List<RiderTransfer>): List<Pair<String, List<RiderTransfer>>> {
@@ -122,25 +155,61 @@ object TransfersLogic {
     data class TeamDetail(
         val staying: List<StayingRow>,
         val doubtful: List<DoubtRow>,
+        val contractEnds: List<RiderTransfer>,
         val arrivals: List<RiderTransfer>,
         val departures: List<RiderTransfer>,
     )
 
     /**
-     * Deriva las secciones del detalle de equipo. [roster] = plantilla actual
-     * (riders con currentTeamId = equipo). Las retiradas cuentan como salida
-     * (bloque "se marchan", sin destino). Orden de secciones en pantalla:
-     * continúan → en duda → se marchan → llegan.
+     * Un "fin de contrato sin destino": acaba contrato sin equipo conocido
+     * (`transfer` con `toTeamName='?'` y sin `toTeamId`) → sección "Terminan
+     * contrato", no "Se marchan".
+     */
+    fun isContractEnd(x: RiderTransfer): Boolean =
+        x.type == "transfer" && x.toTeamId == null && x.toTeamName == UNKNOWN_DEST
+
+    /**
+     * Deriva las secciones del detalle de equipo. [roster] = plantilla 2027
+     * MATERIALIZADA (rider_team_affiliations year=market), con el contractUntil
+     * de la afiliación. Los cambios de equipo ya no tienen afiliación aquí (no
+     * entran en el roster); las dudas SÍ (siguen afiliadas) y se separan a su
+     * bucket. Orden de secciones: continúan → en duda → se marchan → llegan.
      */
     fun teamDetail(
         transfers: List<RiderTransfer>,
         roster: List<RiderProfile>,
         teamId: String,
+        ridersById: Map<String, RiderProfile> = emptyMap(),
+        categoryByTeamId: Map<String, String> = emptyMap(),
+        teamNameById: Map<String, String> = emptyMap(),
     ): TeamDetail {
+        // Fin de contrato / llegadas → alfabético por apellido.
+        fun riderKey(x: RiderTransfer): String {
+            val r = ridersById[x.riderId]
+            return "${r?.lastName.orEmpty()} ${r?.firstName.orEmpty()}".lowercase()
+        }
+        // Llegan (fichajes): primero los CONFIRMADOS, luego los rumores; dentro
+        // de cada grupo, alfabético por apellido.
         val arrivals = transfers.filter { it.type == "transfer" && it.toTeamId == teamId }
-        val departures = transfers.filter {
+            .sortedWith(compareBy({ if (it.status == "rumor") 1 else 0 }, { riderKey(it) }))
+        val allDepartures = transfers.filter {
             (it.type == "transfer" || it.type == "retirement") && it.fromTeamId == teamId
         }
+        // Fin de contrato sin destino → su propia sección (alfabético por
+        // apellido); el resto (fichaje con destino o retirada) se marcha.
+        val contractEnds = allDepartures.filter { isContractEnd(it) }
+            .sortedBy { riderKey(it) }
+        // Se marchan: por categoría del destino (WT→WWT→PT→PRW→resto), luego
+        // alfabético por nombre del equipo; los retiros al final.
+        val catRank = mapOf("WT" to 0, "WWT" to 1, "PT" to 2, "PRW" to 3)
+        fun depName(x: RiderTransfer): String =
+            (x.toTeamId?.let { teamNameById[it] } ?: x.toTeamName.orEmpty()).lowercase()
+        fun depRetire(x: RiderTransfer): Int = if (x.type == "retirement") 1 else 0
+        fun depCat(x: RiderTransfer): Int =
+            if (x.type == "retirement") 99
+            else x.toTeamId?.let { categoryByTeamId[it] }?.let { catRank[it] } ?: 90
+        val departures = allDepartures.filter { !isContractEnd(it) }
+            .sortedWith(compareBy({ depRetire(it) }, { depCat(it) }, { depName(it) }))
         // Renovación más reciente por corredor (transfers llega en orden desc).
         // Las EN DUDA van a su propio bucket: no anotan contrato ni "continúan".
         val renewalsByRider = HashMap<String, RiderTransfer>()
@@ -151,9 +220,13 @@ object TransfersLogic {
                 bucket.putIfAbsent(it.riderId, it)
             }
 
-        val gone = departures.map { it.riderId }.toSet()
-        val staying = roster.filter { it.id !in gone && it.id !in doubtsByRider }
-            .sortedBy { "${it.lastName.orEmpty()} ${it.firstName.orEmpty()}".lowercase() }
+        // "Continúan" = solo quien YA estaba en el equipo en la temporada en
+        // curso (currentTeamId = equipo). Un fichaje de fuera también tiene
+        // afiliación al año del mercado, pero su currentTeamId es otro equipo →
+        // va a "Llegan", no aquí.
+        // "gone" = toda salida (fichaje, retirada Y fin de contrato): nadie continúa.
+        val gone = allDepartures.map { it.riderId }.toSet()
+        val staying = roster.filter { it.currentTeamId == teamId && it.id !in gone && it.id !in doubtsByRider }
             .map { r ->
                 val renewal = renewalsByRider[r.id]
                 StayingRow(
@@ -162,6 +235,12 @@ object TransfersLogic {
                     isRumor = renewal?.status == "rumor",
                 )
             }
+            // Por año de contrato DESC (2030 → … → sin año al final), alfabético
+            // como desempate.
+            .sortedWith(
+                compareByDescending<StayingRow> { it.contractUntil ?: 0 }
+                    .thenBy { "${it.rider.lastName.orEmpty()} ${it.rider.firstName.orEmpty()}".lowercase() }
+            )
 
         // En duda: la ficha de la plantilla manda; si el corredor ya no está en
         // ella, se pinta con lo que haya (nombre del movimiento en la UI).
@@ -174,7 +253,7 @@ object TransfersLogic {
                 if (r != null) "${r.lastName.orEmpty()} ${r.firstName.orEmpty()}".lowercase() else it.riderId.lowercase()
             }
 
-        return TeamDetail(staying = staying, doubtful = doubtful, arrivals = arrivals, departures = departures)
+        return TeamDetail(staying = staying, doubtful = doubtful, contractEnds = contractEnds, arrivals = arrivals, departures = departures)
     }
 
     /**

@@ -284,9 +284,9 @@ class CalendarRepository(
         TransfersLogic.MarketData(transfers, seasons, ridersById, names, namesPrev, prevByTeamId)
     }
 
-    /** Plantilla actual de un equipo para "continúan" (detalle de Fichajes). */
+    /** Plantilla 2027 materializada de un equipo (detalle de Fichajes). */
     suspend fun transfersRoster(teamId: String, gender: String?): List<RiderProfile> =
-        api.ridersByCurrentTeam(teamId, gender)
+        api.ridersByAffiliation(teamId, TransfersLogic.MARKET_SEASON, gender)
 
     /**
      * Carga la rejilla del Modo Campeonatos: carreras CN del rango → primera

@@ -2,7 +2,7 @@
 -- ---------------------------------------------------------------------------
 -- sportstiming.dk es el cronometrador danés (Copenhagen Sprint, UCI WT/WWT y
 -- otras carreras nórdicas). NO tiene API JSON: la clasificación de meta se
--- scrapea del HTML por query param (?cat=) — patrón calcado de tissot/matsport,
+-- lee del HTML por query param (?cat=) — patrón calcado de tissot/matsport,
 -- pero el volcado se ejecuta EN LOCAL (sin GitHub Actions):
 --   scripts/results-fetchers/sportstiming-results-fetch.mjs  (fetcher)
 --   scripts/results-fetchers/uci-results-upsert.mjs --apply   (mismo upsert)

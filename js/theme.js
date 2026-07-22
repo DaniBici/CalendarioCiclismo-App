@@ -80,55 +80,6 @@
   });
 })();
 
-// ── Hamburguesa ────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const burger = document.getElementById('navBurger');
-  const nav    = document.getElementById('siteNav');
-  if (!burger || !nav) return;
-
-  // Botón de cierre visible dentro del menú desplegable
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'nav-close-btn';
-  closeBtn.setAttribute('aria-label', 'Cerrar menú');
-  closeBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cerrar';
-  nav.appendChild(closeBtn);
-
-  function closeMenu() {
-    nav.classList.remove('open');
-    burger.classList.remove('open');
-    burger.setAttribute('aria-expanded', false);
-  }
-
-  closeBtn.addEventListener('click', closeMenu);
-
-  burger.addEventListener('click', () => {
-    const isOpen = nav.classList.toggle('open');
-    burger.classList.toggle('open', isOpen);
-    burger.setAttribute('aria-expanded', isOpen);
-  });
-
-  // Cerrar al hacer click en un enlace
-  nav.querySelectorAll('a').forEach(a => {
-    a.addEventListener('click', () => {
-      nav.classList.remove('open');
-      burger.classList.remove('open');
-      burger.setAttribute('aria-expanded', false);
-    });
-  });
-
-  // Cerrar al hacer click fuera
-  document.addEventListener('click', e => {
-    if (!burger.contains(e.target) && !nav.contains(e.target)) {
-      nav.classList.remove('open');
-      burger.classList.remove('open');
-      burger.setAttribute('aria-expanded', false);
-    }
-  });
-});
-
-// (Los labels dinámicos #navMesLabel/#navTemporadaLabel se retiraron al
-//  fusionar Mes y Temporada en la entrada fija "Calendario" del menú.)
-
 // ── Hover bandera regional → bandera nacional ──────────────────
 (function () {
   const FLAG_BASE = 'https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/';

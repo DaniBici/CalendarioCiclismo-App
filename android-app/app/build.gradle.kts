@@ -29,7 +29,7 @@ fun secret(key: String, default: String = ""): String =
 
 android {
     namespace = "app.calendariociclismo.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         // applicationId idéntico al package registrado en Firebase (el que
@@ -37,8 +37,8 @@ android {
         // Kotlin (línea arriba) coincide a propósito para que todo encaje.
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 359
+        targetSdk = 36
+        versionCode = 382
         versionName = "4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

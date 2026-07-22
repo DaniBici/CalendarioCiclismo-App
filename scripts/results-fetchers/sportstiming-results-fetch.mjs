@@ -12,7 +12,7 @@
  * uci-results-cron.mjs — PERO esta carrera se vuelca EN LOCAL (sin GitHub
  * Actions): este fetcher + uci-results-upsert.mjs --apply, a mano o en bucle.
  *
- * FUENTE (sin API JSON; scraping HTML estable por query param):
+ * FUENTE (sin API JSON; lectura del HTML estable por query param):
  *   GET /event/{eventId}/results?cat={catLabel}
  *   - {catLabel} selecciona la carrera dentro del evento ("Elite Women (13. June)"
  *     / "Elite Men (14. June)"): un evento sportstiming agrupa varias carreras.

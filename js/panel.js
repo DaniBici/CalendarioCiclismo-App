@@ -4583,7 +4583,7 @@ function _ruOriginHtml(link) {
       <button type="button" class="btn btn--ghost ru-detect" style="font-size:0.72rem;padding:0.3rem 0.7rem">Cambiar enlace</button>
       <button type="button" class="btn btn--ghost ru-unlink" style="font-size:0.72rem;padding:0.3rem 0.7rem;color:#e55">Desenlazar</button>
       <button type="button" class="btn btn--primary ru-run-cron" style="font-size:0.72rem;padding:0.3rem 0.7rem"
-        title="Vuelca SOLO esta carrera, ignorando fecha/ventana — trae todas las etapas que la UCI tenga publicadas, también las de días anteriores">▶ Volcar esta carrera</button>
+        title="Re-vuelca la carrera ENTERA: todas las etapas que la fuente tenga publicadas (también las de días anteriores), ignorando fecha/ventana. En carreras largas es lento y re-escribe etapas ya asentadas — para actualizar una sola, usa «Volcar esta etapa».">▶ Volcar esta carrera</button>
     </div>
   </div>`;
 }
@@ -4643,10 +4643,20 @@ function _ruRenderSection(body, rd, race, link, stages) {
       <div class="ru-class-list">${finals.map(_ruClassRowHtml).join('')}</div>`;
   }
 
+  // "Volcar esta etapa" (migración 134): dispara el cron para re-escribir SOLO la
+  // clasificación de ESTA jornada, sin re-volcar el resto de la carrera. Solo con
+  // fuente automática (las manuales —pdf/sportstiming/manual_timing— no tienen fetcher: su
+  // volcado es a mano) y con stageNumber conocido (una carrera de un día se vuelca con
+  // "Volcar esta carrera", que ya es barato). stageNumber 0 (prólogo) es válido → `!= null`.
+  const AUTO_SYNC = link && !['pdf', 'sportstiming', 'manual_timing'].includes(link.source);
+  const canDumpStage = AUTO_SYNC && rd.stageNumber != null;
+
   // Crear una clasificación A MANO (pruebas sin fuente automática, o un tipo que el
   // cron no trajo). La fila se inserta SIN bloquear → placeholder que la fuente
   // oficial PISA si llega (mismo modelo que el volcado PDF). Ver _ruCreateClass.
-  html += `<div class="u-row" style="margin-top:0.7rem">
+  html += `<div class="u-row" style="margin-top:0.7rem;gap:0.5rem;flex-wrap:wrap">
+    ${canDumpStage ? `<button type="button" class="btn btn--primary ru-run-cron-stage" style="font-size:0.74rem;padding:0.3rem 0.7rem"
+      title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">▶ Volcar esta etapa</button>` : ''}
     <button type="button" class="btn btn--ghost ru-new" style="font-size:0.74rem;padding:0.3rem 0.7rem"
       title="Crea una clasificación vacía para teclear sus resultados a mano. Se crea como placeholder: si luego la UCI/PDF publica esa misma clasificación, su volcado la sustituye.">＋ Nueva clasificación</button>
   </div>`;
@@ -4659,6 +4669,7 @@ function _ruRenderSection(body, rd, race, link, stages) {
   body.querySelectorAll('.ru-detect').forEach(b => b.addEventListener('click', () => _ruOpenDetect(rd, race)));
   body.querySelectorAll('.ru-unlink').forEach(b => b.addEventListener('click', () => _ruUnlinkFromDay(rd, race)));
   body.querySelectorAll('.ru-run-cron').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId)));
+  body.querySelectorAll('.ru-run-cron-stage').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId, rd.stageNumber)));
   body.querySelectorAll('.ru-lock-toggle').forEach(b => b.addEventListener('click', () => {
     const s = stById.get(b.dataset.id);
     if (s) _ruToggleLock(s, rd, race);
@@ -5346,46 +5357,146 @@ function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
   setTimeout(() => input.focus(), 0);
 }
 
+// ── Combobox de equipos reutilizable (con chapa) ────────────────────────────
+// Reemplaza al <select> nativo, que no admite SVG dentro de las opciones. Muestra
+// la chapa (buildTeamBadgeSvg) + nombre + etiqueta «Ed. especial» de cada equipo,
+// con búsqueda por texto y navegación por teclado (↑/↓/Enter/Esc). Recibe la lista
+// YA filtrada (por sexo, etc.) y devuelve el equipo elegido por callback.
+//
+// opts = {
+//   title,                // encabezado del modal
+//   teams,                // array de equipos candidatos (ya filtrado)
+//   currentId,            // id preseleccionado (o '')
+//   suggestionId,         // id a resaltar como sugerencia (opcional)
+//   allowNone,            // muestra opción «— Ninguno —» (default true)
+//   validate,             // (team) => {ok, reason}; bloquea al confirmar (opcional)
+//   onPick,               // (teamIdOrEmpty) => void
+// }
+function _openTeamCombo(opts) {
+  const { title = 'Asignar equipo', teams = [], currentId = '',
+          suggestionId = '', allowNone = true, validate, onPick } = opts;
+  const sorted = [...teams].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const overlay = document.createElement('div');
+  overlay.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;width:min(92vw,440px);display:flex;flex-direction:column;gap:0.7rem">
+      <div style="font-family:var(--font-display);font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.03em">${esc(title)}</div>
+      <input type="text" class="tc-search" placeholder="Buscar equipo…" autocomplete="off"
+        style="padding:0.45rem 0.55rem;font-size:0.85rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+      <div class="tc-list" role="listbox" tabindex="-1"
+        style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:0.2rem;border:1px solid var(--border);border-radius:6px;padding:0.3rem;background:var(--bg)"></div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end">
+        <button class="btn btn--ghost tc-cancel">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const listEl = overlay.querySelector('.tc-list');
+  const searchEl = overlay.querySelector('.tc-search');
+  const close = () => { document.removeEventListener('keydown', onDocKey, true); overlay.remove(); };
+
+  // Filas candidatas (incluye «Ninguno» como pseudo-fila con id '').
+  const rows = [];
+  if (allowNone) rows.push({ id: '', name: '— Ninguno —', _none: true });
+  sorted.forEach(t => rows.push(t));
+
+  let filtered = rows.slice();
+  let active = -1; // índice sobre `filtered`
+
+  const rowHtml = (t, idx, isActive) => {
+    const selected = t.id === currentId;
+    const isSug = t.id && t.id === suggestionId;
+    const badge = t._none ? '' : `<span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 20 })}</span>`;
+    const special = t.specialEdition
+      ? '<span style="font-size:0.66rem;color:var(--text-dim);white-space:nowrap;margin-left:auto">Ed. especial</span>' : '';
+    const sug = isSug ? '<span style="font-size:0.62rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-left:0.35rem">sugerido</span>' : '';
+    const border = isActive ? 'var(--accent)' : (selected ? '#22c55e' : 'var(--border)');
+    return `<div class="tc-item" data-idx="${idx}" data-id="${esc(t.id)}" role="option" aria-selected="${selected}"
+        style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.5rem;border:1px solid ${border};border-radius:5px;cursor:pointer;font-size:0.82rem;color:var(--text);${t._none ? 'font-style:italic;color:var(--text-dim)' : ''}">
+        ${badge}<span style="${t._none ? '' : 'font-weight:600'}">${esc(t.name)}</span>${sug}${special}
+      </div>`;
+  };
+
+  const render = () => {
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin equipos que coincidan.</div>';
+      return;
+    }
+    listEl.innerHTML = filtered.map((t, i) => rowHtml(t, i, i === active)).join('');
+    const act = listEl.querySelector(`.tc-item[data-idx="${active}"]`);
+    if (act) act.scrollIntoView({ block: 'nearest' });
+  };
+
+  const pick = (t) => {
+    if (t && !t._none && validate) {
+      const v = validate(t);
+      if (!v.ok) { alertDialog(v.reason, { title: '⚠️ No permitido' }); return; }
+    }
+    onPick?.(t ? t.id : '');
+    close();
+  };
+
+  const applyFilter = () => {
+    const q = normalizeTeamName(searchEl.value.trim());
+    filtered = !q ? rows.slice() : rows.filter(t => t._none || normalizeTeamName(t.name || '').includes(q));
+    // Activo por defecto: la selección/sugerencia actual si sigue visible; si no,
+    // el PRIMER equipo real (nunca «Ninguno», para que Enter tras buscar no borre
+    // la asignación); y solo si no hay equipos reales, se cae a «Ninguno».
+    active = filtered.findIndex(t => t.id && (t.id === currentId || t.id === suggestionId));
+    if (active < 0) active = filtered.findIndex(t => !t._none);
+    if (active < 0) active = filtered.length ? 0 : -1;
+    render();
+  };
+
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.tc-item');
+    if (!item) return;
+    pick(filtered[Number(item.dataset.idx)]);
+  });
+  searchEl.addEventListener('input', applyFilter);
+  overlay.querySelector('.tc-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const onDocKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (filtered.length) { active = (active + 1) % filtered.length; render(); } return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); if (filtered.length) { active = (active - 1 + filtered.length) % filtered.length; render(); } return; }
+    if (e.key === 'Enter')     { e.preventDefault(); if (active >= 0 && filtered[active]) pick(filtered[active]); return; }
+  };
+  document.addEventListener('keydown', onDocKey, true);
+
+  applyFilter();
+  setTimeout(() => searchEl.focus(), 0);
+}
+
 // ── Picker de equipo para una fila de la clasificación (override manual) ──
-// Selector simple sobre los equipos globales. Valida specialEdition contra la
-// carrera de la jornada (mismo guard que inscritos). Guarda en tr.dataset.teamId.
+// Combobox con chapas sobre los equipos globales. Valida specialEdition y sexo
+// contra la carrera de la jornada (mismo guard que inscritos). Guarda en tr.dataset.teamId.
 function _ruOpenTeamPicker(tr, race, onPicked) {
   if (!_teamsCache || _teamsCache.length === 0) {
     alertDialog('No hay equipos globales. Crea equipos en la pestaña Equipos primero.');
     return;
   }
   const current = tr.dataset.teamId || '';
-  const sorted = [..._teamsCache].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const options = sorted.map(t => `<option value="${esc(t.id)}" ${t.id === current ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
-  const picker = document.createElement('div');
-  picker.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999';
-  picker.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;min-width:320px;max-width:420px;display:flex;flex-direction:column;gap:0.75rem">
-      <div style="font-family:var(--font-display);font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.03em">Equipo (override)</div>
-      <select id="ruTeamSelect" style="padding:0.45rem;font-size:0.85rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
-        <option value="">— Ninguno —</option>
-        ${options}
-      </select>
-      <div style="display:flex;gap:0.5rem;justify-content:flex-end">
-        <button class="btn btn--ghost" id="ruTeamCancel">Cancelar</button>
-        <button class="btn btn--primary" id="ruTeamOk">Asignar</button>
-      </div>
-    </div>`;
-  document.body.appendChild(picker);
-  const close = () => picker.remove();
-  picker.addEventListener('click', e => { if (e.target === picker) close(); });
-  picker.querySelector('#ruTeamCancel').addEventListener('click', close);
-  picker.querySelector('#ruTeamSelect').value = current;
-  picker.querySelector('#ruTeamOk').addEventListener('click', () => {
-    const val = picker.querySelector('#ruTeamSelect').value;
-    if (val) {
-      const chosen = (_teamsCache || []).find(t => t.id === val);
-      const v = _validateSpecialEditionForRace(chosen, race);
-      if (!v.ok) { alertDialog(v.reason, { title: '⚠️ No permitido' }); return; }
-    }
-    tr.dataset.teamId = val || '';
-    onPicked?.(tr);
-    close();
+  // Candidatos filtrados por sexo de la carrera (excluye el sexo opuesto); se
+  // incluye igualmente el equipo ya asignado aunque sea del sexo opuesto (dato
+  // heredado) para poder verlo y corregirlo.
+  const genderTeams = _teamsFilteredByGender(_teamsCache, race && race.gender);
+  if (current && !genderTeams.some(t => t.id === current)) {
+    const cur = _teamsCache.find(t => t.id === current);
+    if (cur) genderTeams.push(cur);
+  }
+  _openTeamCombo({
+    title: 'Equipo (override)',
+    teams: genderTeams,
+    currentId: current,
+    validate: (team) => {
+      const v = _validateSpecialEditionForRace(team, race);
+      if (!v.ok) return v;
+      return _validateGenderMismatch(team, race && race.gender);
+    },
+    onPick: (val) => { tr.dataset.teamId = val || ''; onPicked?.(tr); },
   });
 }
 
@@ -5434,7 +5545,7 @@ async function setupUciView() {
 }
 
 // Botón de volcado a mano del cron de resultados (RPC admin_trigger_uci_results_workflow,
-// migraciones 088/099). La RPC solo ENCOLA el workflow_dispatch (pg_net es asíncrono):
+// migraciones 088/099/134). La RPC solo ENCOLA el workflow_dispatch (pg_net es asíncrono):
 // aquí se confirma el encolado; el run tarda ~1-3 min en verse reflejado en la web.
 //   · Sin raceId → "▶ Volcar hoy ahora" (vista global): ignore_window=true,
 //     procesa TODO lo que tenga etapa HOY sin esperar la ventana de meta (087).
@@ -5442,15 +5553,25 @@ async function setupUciView() {
 //     vuelca SOLO esa carrera ignorando fecha/ventana → trae TODAS las etapas que
 //     la UCI tenga publicadas, también las de días anteriores (caso Tour de Beauce:
 //     resultados de ayer que "hoy" no recogía). Migración 099.
-async function _uciRunCronNow(btn, raceId = null) {
-  const msg = raceId
-    ? '¿Volcar ahora los resultados de esta carrera? Trae todas las etapas publicadas por su fuente (también las de días anteriores), respetando las clasificaciones bloqueadas manualmente; tarda 1-3 min en regenerarse.'
+//   · Con raceId + stageNumber → "▶ Volcar esta etapa" (migración 134): re-escribe
+//     SOLO esa etapa (stage_number → --stage → --only-stage en el upsert). El fetcher
+//     sigue trayendo la carrera entera, pero no se re-vuelcan las demás etapas: en una
+//     grande (Tour, 21 etapas) tocar la etapa 16 ya no re-escribe la 1-15. stageNumber
+//     puede ser 0 (prólogo) → se comprueba con `!= null`, NO por truthiness.
+async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
+  const oneStage = raceId && stageNumber != null;
+  const msg = oneStage
+    ? `¿Volcar ahora SOLO esta etapa (${stageNumber === 0 ? 'prólogo' : 'etapa ' + stageNumber})? Re-escribe únicamente su clasificación (no las demás etapas de la carrera), respetando las bloqueadas manualmente; tarda 1-3 min en regenerarse.`
+    : raceId
+    ? '¿Re-volcar la carrera ENTERA? Re-escribe TODAS las etapas publicadas por su fuente (también las de días anteriores), respetando las clasificaciones bloqueadas manualmente. En carreras largas es lento — si solo quieres actualizar una etapa, usa «Volcar esta etapa». Tarda 1-3 min en regenerarse.'
     : '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en regenerarse.';
   const ok = await confirmDialog(msg);
   if (!ok) return;
   btn.disabled = true;
   try {
-    const { error } = raceId
+    const { error } = oneStage
+      ? await supabase.rpc('admin_trigger_uci_results_workflow', { p_race_id: raceId, p_stage: stageNumber })
+      : raceId
       ? await supabase.rpc('admin_trigger_uci_results_workflow', { p_race_id: raceId })
       : await supabase.rpc('admin_trigger_uci_results_workflow');
     if (error) throw error;
@@ -8215,9 +8336,45 @@ function _slRefreshAllEnrichUI() {
   document.querySelectorAll('#startlistEditorContent .sl-edit-team').forEach(row => _slUpdateRowEnrichUI(row));
 }
 
+// ── Gate por sexo (equipo ↔ carrera) ────────────────────────────────────────
+// Filtra la lista de equipos candidatos por el sexo de la carrera: excluye SOLO
+// los equipos del sexo OPUESTO. Los del mismo sexo y los que aún no tienen sexo
+// asignado (gender null) se mantienen. Si la carrera no tiene sexo (raceGender
+// null), no se filtra nada. Esto evita que una startlist femenina se
+// automatchee/asigne a un equipo masculino homónimo (y viceversa), error que
+// "Women/Femmes" como stopword hace probable en findMatchingTeam.
+function _teamsFilteredByGender(teams, raceGender) {
+  if (!raceGender) return [...teams];
+  return teams.filter(t => !t.gender || t.gender === raceGender);
+}
+
+// Devuelve { ok:true } o { ok:false, reason } si el equipo elegido es del sexo
+// OPUESTO al de la carrera. Un equipo sin sexo asignado (o carrera sin sexo) se permite.
+function _validateGenderMismatch(team, raceGender) {
+  if (!team || !team.gender || !raceGender || team.gender === raceGender) return { ok: true };
+  const label = s => (s === 'female' ? 'femenina/o' : s === 'male' ? 'masculina/o' : s);
+  return {
+    ok: false,
+    reason: `«${team.name}» es un equipo ${label(team.gender)} y esta carrera es ${label(raceGender)}. Asigna el equipo del sexo correcto.`,
+  };
+}
+
+// Sexo de la carrera del editor de inscritos en curso ('male'|'female'|null).
+function _slEditingRaceGender() {
+  const race = allRaces.find(r => r.id === _editingRaceId);
+  return (race && race.gender) || null;
+}
+// Atajos ligados a la carrera en edición (editor de inscritos).
+function _slGenderFilteredTeams(teams) {
+  return _teamsFilteredByGender(teams, _slEditingRaceGender());
+}
+function _validateGenderForRace(team) {
+  return _validateGenderMismatch(team, _slEditingRaceGender());
+}
+
 function _slAutoMatchAll() {
   if (!_teamsCache || _teamsCache.length === 0) return;
-  const availableTeams = _teamsCache.filter(t => !t.specialEdition);
+  const availableTeams = _slGenderFilteredTeams(_teamsCache.filter(t => !t.specialEdition));
   document.querySelectorAll('#startlistEditorContent .sl-edit-team').forEach(row => {
     if (row.dataset.teamId) return;
     const name = row.querySelector('.sl-team-name').value.trim();
@@ -8277,42 +8434,29 @@ function _slOpenTeamPicker(rowEl) {
   }
   const current = rowEl.dataset.teamId || '';
   const currentName = rowEl.querySelector('.sl-team-name').value.trim();
-  const suggestion = findMatchingTeam(currentName, _teamsCache);
-  const sorted = [..._teamsCache].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const options = sorted.map(t => `<option value="${esc(t.id)}" ${t.id === current ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
-  const picker = document.createElement('div');
-  picker.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999';
-  picker.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;min-width:320px;max-width:420px;display:flex;flex-direction:column;gap:0.75rem">
-      <div style="font-family:var(--font-display);font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.03em">Asignar equipo</div>
-      ${suggestion ? `<div class="u-fs-sm u-c-dim">Sugerencia: <strong>${esc(suggestion.name)}</strong></div>` : ''}
-      <select id="slPickerSelect" style="padding:0.45rem;font-size:0.85rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
-        <option value="">— Ninguno —</option>
-        ${options}
-      </select>
-      <div style="display:flex;gap:0.5rem;justify-content:flex-end">
-        <button class="btn btn--ghost" id="slPickerCancel">Cancelar</button>
-        <button class="btn btn--primary" id="slPickerOk">Asignar</button>
-      </div>
-    </div>`;
-  document.body.appendChild(picker);
-  const close = () => picker.remove();
-  picker.addEventListener('click', e => { if (e.target === picker) close(); });
-  document.getElementById('slPickerCancel').addEventListener('click', close);
-  document.getElementById('slPickerSelect').value = current || (suggestion?.id || '');
-  document.getElementById('slPickerOk').addEventListener('click', () => {
-    const val = document.getElementById('slPickerSelect').value;
-    // Validación bloqueante: un maillot specialEdition solo puede asignarse a una
-    // carrera dentro de su vigencia (carrera concreta o rango de fechas).
-    if (val) {
-      const chosen = (_teamsCache || []).find(t => t.id === val);
-      const race = allRaces.find(r => r.id === _editingRaceId);
-      const v = _validateSpecialEditionForRace(chosen, race);
-      if (!v.ok) { alertDialog(v.reason, { title: '⚠️ No permitido' }); return; }
-    }
-    rowEl.dataset.teamId = val || '';
-    _slUpdateRowEnrichUI(rowEl);
-    close();
+  // Candidatos filtrados por sexo de la carrera (excluye el sexo opuesto).
+  const genderTeams = _slGenderFilteredTeams(_teamsCache);
+  // Si la fila ya tenía asignado un equipo del sexo opuesto (dato heredado),
+  // lo incluimos igualmente para que se vea seleccionado y se pueda corregir.
+  if (current && !genderTeams.some(t => t.id === current)) {
+    const cur = _teamsCache.find(t => t.id === current);
+    if (cur) genderTeams.push(cur);
+  }
+  // La sugerencia se calcula sobre candidatos NO specialEdition (las ediciones
+  // especiales nunca se automatchean).
+  const suggestion = findMatchingTeam(currentName, genderTeams.filter(t => !t.specialEdition));
+  const race = allRaces.find(r => r.id === _editingRaceId);
+  _openTeamCombo({
+    title: 'Asignar equipo',
+    teams: genderTeams,
+    currentId: current,
+    suggestionId: suggestion?.id || '',
+    validate: (team) => {
+      const v = _validateSpecialEditionForRace(team, race);
+      if (!v.ok) return v;
+      return _validateGenderForRace(team);
+    },
+    onPick: (val) => { rowEl.dataset.teamId = val || ''; _slUpdateRowEnrichUI(rowEl); },
   });
 }
 
@@ -8506,7 +8650,7 @@ window.openStartlistEditor = async function(raceId) {
     if (!_editingRaceEnriched) return;
     const row = ev.target.closest('.sl-edit-team');
     if (row.dataset.teamId) return; // no pisar asignación manual
-    const availableTeams = _teamsCache.filter(t => !t.specialEdition);
+    const availableTeams = _slGenderFilteredTeams(_teamsCache.filter(t => !t.specialEdition));
     const match = findMatchingTeam(ev.target.value.trim(), availableTeams);
     if (match) {
       row.dataset.teamId = match.id;
@@ -9662,9 +9806,13 @@ async function loadTeamRoster(teamId) {
       });
     });
 
-    rows.sort((a, b) =>
-      `${a.rider.lastName} ${a.rider.firstName}`.localeCompare(`${b.rider.lastName} ${b.rider.firstName}`, 'es', { sensitivity: 'base' })
-    );
+    // La ficha puede faltar (afiliación huérfana: p. ej. justo tras fusionar un
+    // duplicado, su afiliación queda apuntando a un id ya borrado) → null-guard
+    // en el orden; esas filas se pintan degradadas en renderTeamRoster.
+    const sortKey = (row) => row.rider
+      ? `${row.rider.lastName || ''} ${row.rider.firstName || ''}`
+      : `￿${row.riderId}`;   // huérfanas al final
+    rows.sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'es', { sensitivity: 'base' }));
     _rosterRows = rows;
     renderTeamRoster();
   } catch (err) {
@@ -10265,6 +10413,11 @@ let _onRiderSavedOnce = null;
 // Cerrar propio ni título — los aporta el drawer; el cierre del backdrop también).
 function riderEditorBodyHtml() {
   return `
+    <div class="field" id="re-gender-row" style="display:none;margin-bottom:0.75rem">
+      <label>Sexo</label>
+      ${genderToggleHtml({ idMale: 're-gender-male', idFemale: 're-gender-female', labels: { male: 'Masculino', female: 'Femenino' } })}
+      <span class="u-fs-sm u-c-dim" style="display:block;margin-top:0.25rem">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
       <div class="field">
         <label>Nombre</label>
@@ -10326,6 +10479,11 @@ function wireRiderEditor() {
     const code = e.target.value.trim().toLowerCase();
     document.getElementById('re-nationality-flag').innerHTML = _slRiderFlagPreview(code);
   });
+  // Selector de sexo (solo visible al CREAR): decide la tabla riders_men/women.
+  wireGenderToggle('re-gender-male', 're-gender-female', (g) => {
+    _ridersGender = g;
+    setGenderToggleActive('re-gender-male', 're-gender-female', g);
+  });
 }
 
 // Rellena el desplegable de equipo del editor con TODOS los equipos (puede haber
@@ -10360,6 +10518,13 @@ function openRiderEditor(riderId) {
   document.getElementById('deleteRiderBtn').style.display = rider ? '' : 'none';
   document.getElementById('mergeRiderBtn').style.display  = rider ? '' : 'none';
   document.getElementById('riderSaveStatus').textContent  = '';
+
+  // Selector de sexo: solo al CREAR una ficha (al editar, el género lo fija la
+  // tabla de la que vino y NO se cambia aquí). Refleja _ridersGender, que el
+  // llamador ya prefijó (p. ej. por el equipo de origen del movimiento).
+  const genderRow = document.getElementById('re-gender-row');
+  if (genderRow) genderRow.style.display = rider ? 'none' : '';
+  if (!rider) setGenderToggleActive('re-gender-male', 're-gender-female', _ridersGender);
 
   // Rellenar el desplegable de equipos ANTES de fijar re-teamId.value (necesita
   // que exista la <option> correspondiente).
@@ -12832,16 +12997,16 @@ async function setupFichajesView() {
       if (el) el.addEventListener(event, handler);
       else console.warn(`[setupFichajesView] #${id} no existe en el DOM — listener omitido (¿app.html cacheado?)`);
     };
-    bind('addTransferBtn', 'click', () => openTransferEditor(null));
+    // La vista es equipo-céntrica (espejo del front): división → equipo →
+    // editor de temporada 2027. La lista plana de TODOS los movimientos queda
+    // como herramienta de auditoría en un drawer aparte.
     bind('newTeam27Btn', 'click', openTeamEditorForMarket);
-    bind('transfersStatusFilter', 'change', renderTransfersList);
-    bind('transfersSearch', 'input', renderTransfersList);
+    bind('allTransfersBtn', 'click', openAllTransfersDrawer);
     const seasonEl = document.getElementById('fichajesSeason');
     if (seasonEl) seasonEl.textContent = `· temporada ${MARKET_SEASON}`;
   }
   await fetchTeams();
   await loadTransfers();
-  renderTransfersList();
   renderMarketTeams();
 }
 
@@ -12904,14 +13069,15 @@ function renderMarketTeams() {
         </span>
         ${s.continuityDoubt ? chip('Duda', '#8b5cf6') : ''}
         ${badgeChip}
-        <button class="btn btn--ghost market-team-edit" style="padding:0.2rem 0.5rem;font-size:0.72rem">Editar ${MARKET_SEASON}</button>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-dim);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
   }).join('');
 
   list.querySelectorAll('.market-team-row').forEach(row => {
-    const open = () => openTeamEditorForSeason(row.dataset.team);
-    row.querySelector('.market-team-edit')?.addEventListener('click', (e) => { e.stopPropagation(); open(); });
-    row.addEventListener('click', open);
+    // Tocar un equipo abre su EDITOR DE TEMPORADA 2027 (situación de cada
+    // corredor + incorporaciones), no el editor de identidad — ese vive dentro,
+    // en un botón de la cabecera del drawer.
+    row.addEventListener('click', () => openTeamSituationEditor(row.dataset.team));
   });
 }
 
@@ -12945,6 +13111,627 @@ async function openTeamEditorForMarket() {
   _newTeamMarketBorn = true;
   const status = document.getElementById('teamSaveStatus');
   if (status) status.textContent = `Equipo nuevo para el mercado ${MARKET_SEASON}: guarda la identidad (nombre + categoría) y rellena después el panel «Temporada ${MARKET_SEASON}».`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EDITOR DE TEMPORADA 2027 POR EQUIPO (situación de cada corredor)
+// ══════════════════════════════════════════════════════════════════
+//
+// Espejo del front /fichajes/: se entra en un equipo y se decide la situación
+// 2027 de cada corredor de su plantilla 2026. Cuatro estados, que se traducen
+// a DB así (T = el equipo abierto):
+//
+//   Continúa (+año / "sin año") → afiliación 2027 (teamId=T, contractUntil) y
+//       se BORRA cualquier rider_transfers de T para ese corredor. La
+//       plantilla 2027 se MATERIALIZA aquí (el front la lee de las afiliaciones).
+//   Duda (+año opcional)       → rider_transfers renewal+doubt (toTeamId=T) +
+//       afiliación 2027 (sigue "formando parte", pero el front lo saca de
+//       "continúan" a "en duda").
+//   Cambio (+equipo +año)      → rider_transfers transfer (from=T, to=nuevo) y
+//       se BORRA la afiliación 2027 a T (ya no continúa aquí).
+//   Fin de contrato            → se BORRA la afiliación 2027 a T. Con "retirada"
+//       marcada → rider_transfers retirement (from=T); sin ella → transfer con
+//       destino DESCONOCIDO (from=T, toTeamName='?') = baja sin destino.
+//
+// El género del corredor decide la tabla riders_* y el año va como smallint.
+
+let _tseTeamId       = null;   // equipo abierto
+let _tseSituations   = new Map();   // riderId → { rider, state, year, yearUnknown, newTeamId, retired, initial }
+let _tseIncoming     = [];     // transfers type=transfer con toTeamId = este equipo
+let _tseGender       = null;   // género del equipo (para el picker de destino)
+
+const TSE_STATES = [
+  { key: 'stay',   label: 'Continúa',        color: 'var(--accent)' },
+  { key: 'doubt',  label: 'Duda',            color: '#8b5cf6' },
+  { key: 'change', label: 'Cambio',          color: '#f59e0b' },
+  { key: 'end',    label: 'Fin de contrato', color: '#ef4444' },
+];
+
+function _tseNewId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Marcador de "baja sin destino conocido" en el texto libre de destino.
+const TSE_UNKNOWN_DEST = '?';
+// Contrato VITALICIO: año centinela (dateTo = 9999-12-31) → sin fecha de fin
+// declarada; ordena el primero de "continúan" y se pinta ∞ en vez de año.
+const TSE_LIFETIME_YEAR = 9999;
+
+/**
+ * Carga plantilla 2026 + afiliaciones 2027 + movimientos del equipo y abre el
+ * drawer con la situación de cada corredor.
+ */
+async function openTeamSituationEditor(teamId) {
+  await fetchTeams();
+  _tseTeamId = teamId;
+  const season = _marketSeasons.find(s => s.teamId === teamId);
+  const teamCat = season?.category || (_teamsCache || []).find(t => t.id === teamId)?.category || null;
+  _tseGender = season?.gender
+    || (_teamsCache || []).find(t => t.id === teamId)?.gender
+    || ({ WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' })[teamCat]
+    || null;
+
+  const teamName = season?.name || (_teamsCache || []).find(t => t.id === teamId)?.name || teamId;
+
+  openDrawer({
+    title: `${teamName} · Temporada ${MARKET_SEASON}`,
+    level: 1,
+    wide: true,
+    render: (body) => {
+      body.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:1rem 0">Cargando plantilla…</div>`;
+    },
+  });
+
+  try {
+    const [roster, affiliations] = await Promise.all([
+      _tseFetchRoster(teamId, _tseGender),
+      _tseFetchAffiliations(teamId),
+    ]);
+    // Movimientos ya cargados en _transfersCache (loadTransfers). Origen (from=T)
+    // decide continua/cambio/fin; destino (to=T, transfer) son las incorporaciones.
+    const affByRider = new Map(affiliations.map(a => [a.riderId, a]));
+    const outByRider = new Map();   // salidas registradas de T (transfer/retirement from=T)
+    _transfersCache.forEach(t => {
+      if ((t.type === 'transfer' || t.type === 'retirement') && t.fromTeamId === teamId) {
+        outByRider.set(t.riderId, t);
+      }
+    });
+    const doubtByRider = new Map(); // renovaciones en duda con este equipo
+    _transfersCache.forEach(t => {
+      if (t.type === 'renewal' && t.status === 'doubt' && t.toTeamId === teamId) doubtByRider.set(t.riderId, t);
+    });
+
+    // Estado inicial por corredor de la plantilla 2026.
+    _tseSituations = new Map();
+    roster.forEach(r => {
+      const out = outByRider.get(r.id);
+      const doubt = doubtByRider.get(r.id);
+      const aff = affByRider.get(r.id);
+      let state = 'undecided', year = null, yearUnknown = false, newTeamId = null, retired = false;
+      let rumor = false, announcedAt = _localDateKey(), lifetime = false;
+      if (out) {
+        if (out.type === 'retirement') { state = 'end'; retired = true; }
+        else if (out.toTeamName === TSE_UNKNOWN_DEST && !out.toTeamId) { state = 'end'; retired = false; }
+        else {
+          state = 'change'; newTeamId = out.toTeamId || null; year = out.contractUntil || null;
+          rumor = out.status === 'rumor';
+          announcedAt = out.announcedAt || _localDateKey();
+        }
+      } else if (doubt) {
+        state = 'doubt'; year = doubt.contractUntil || null;
+      } else if (aff) {
+        const affYear = _affYear(aff.dateTo);
+        state = 'stay';
+        if (affYear === TSE_LIFETIME_YEAR) { lifetime = true; year = null; yearUnknown = false; }
+        else { year = affYear; yearUnknown = affYear == null; }
+      }
+      const init = { state, year, yearUnknown, lifetime, newTeamId, retired, rumor, announcedAt };
+      _tseSituations.set(r.id, { rider: r, ...init, initial: { ...init } });
+    });
+
+    // Incorporaciones: transfers hacia T desde otros equipos (los que llegan).
+    _tseIncoming = _transfersCache.filter(t => t.type === 'transfer' && t.toTeamId === teamId);
+
+    _tseRenderEditor(body_of(1), { teamId, teamName, teamCat });
+  } catch (err) {
+    console.error('[openTeamSituationEditor]', err);
+    const b = body_of(1);
+    if (b) b.innerHTML = `<div style="color:var(--red);font-size:0.9rem;padding:1rem 0">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
+  }
+}
+
+// Devuelve el body del drawer de un nivel sin exponer internals de drawer.js.
+function body_of(level) {
+  return document.getElementById(level === 2 ? 'ccDrawer2Body' : 'ccDrawer1Body');
+}
+
+async function _tseFetchRoster(teamId, gender) {
+  const cols = 'id, firstName, lastName, nationality, currentTeamId, contractUntil';
+  const tables = gender === 'male' ? ['riders_men']
+    : gender === 'female' ? ['riders_women']
+    : ['riders_men', 'riders_women'];
+  const results = await Promise.all(tables.map(tb =>
+    supabase.from(tb).select(cols).eq('currentTeamId', teamId).then(r => (r.data || []).map(x => ({ ...x, gender: tb === 'riders_men' ? 'male' : 'female' })))
+  ));
+  return results.flat().sort((a, b) =>
+    `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
+}
+
+async function _tseFetchAffiliations(teamId) {
+  const { data, error } = await supabase.from('rider_team_affiliations')
+    .select('id, riderId, riderGender, teamId, year, dateFrom, dateTo')
+    .eq('year', MARKET_SEASON)
+    .eq('teamId', teamId);
+  if (error) throw error;
+  return data || [];
+}
+
+// El contrato se guarda como FECHAS en la afiliación: fin = 31-dic del año
+// marcado (decisión Dani), inicio = 1-ene de la temporada del mercado. La UI y
+// el front trabajan con el AÑO; estas dos funciones convierten.
+function _affYear(dateTo) {
+  if (!dateTo) return null;
+  const y = parseInt(String(dateTo).slice(0, 4), 10);
+  return isNaN(y) ? null : y;
+}
+function _affDateTo(year) { return year ? `${year}-12-31` : null; }
+const _AFF_DATE_FROM = `${MARKET_SEASON}-01-01`;
+
+function _tseRenderEditor(body, { teamName, teamCat }) {
+  if (!body) return;
+  const rows = [..._tseSituations.values()];
+  const staying = rows.filter(s => s.state === 'stay').length;
+
+  body.innerHTML = `
+    <div class="u-stack" style="gap:1rem">
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:1rem;font-weight:700">${esc(teamName)}</div>
+          <div class="u-fs-xs u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
+        </div>
+        <button class="btn btn--ghost" id="tse-edit-identity" style="padding:0.3rem 0.7rem;font-size:0.75rem" title="Renombre de sponsor, chapa 2027, continuidad en duda…">Editar identidad 2027</button>
+      </div>
+
+      <div class="u-stack u-stack--xs">
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Plantilla 2026 → situación ${MARKET_SEASON}</div>
+          <div class="u-grow u-hr-line"></div>
+          <span class="u-fs-sm u-c-dim" id="tse-roster-count">${rows.length} corredor${rows.length === 1 ? '' : 'es'}</span>
+        </div>
+        <div class="u-fs-sm u-c-dim">Marca la situación de cada corredor. <strong style="color:var(--accent)">Continúa</strong> lo incluye en la plantilla ${MARKET_SEASON}; el resto lo saca. Los que dejes sin marcar NO entran en ${MARKET_SEASON}.</div>
+        <div id="tse-roster" class="u-stack u-stack--xs" style="margin-top:0.35rem"></div>
+      </div>
+
+      <div class="u-stack u-stack--xs">
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Incorporaciones ${MARKET_SEASON}</div>
+          <div class="u-grow u-hr-line"></div>
+          <button class="btn btn--ghost" id="tse-new-signing" style="padding:0.2rem 0.6rem;font-size:0.74rem;color:var(--accent)">+ Nueva incorporación</button>
+        </div>
+        <div id="tse-incoming" class="u-stack u-stack--xs"></div>
+      </div>
+    </div>
+    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1.25rem;position:sticky;bottom:0;background:var(--bg-card);padding:0.75rem 0;border-top:1px solid var(--border)">
+      <button class="btn btn--primary" id="tse-save">Guardar equipo</button>
+      <span class="u-fs-md u-c-dim" id="tse-save-status"></span>
+    </div>
+  `;
+
+  _tseRenderRoster();
+  _tseRenderIncoming();
+
+  document.getElementById('tse-edit-identity')?.addEventListener('click', () => openTeamEditorForSeason(_tseTeamId));
+  document.getElementById('tse-new-signing')?.addEventListener('click', _tseOpenNewSigning);
+  document.getElementById('tse-save')?.addEventListener('click', _tseSaveTeam);
+}
+
+// Un año de contrato entre 2026 y 2040, o null.
+function _tseParseYear(v) {
+  const n = parseInt(String(v || '').trim(), 10);
+  if (isNaN(n) || n < 2026 || n > 2040) return null;
+  return n;
+}
+
+function _tseRenderRoster() {
+  const box = document.getElementById('tse-roster');
+  if (!box) return;
+  const rows = [..._tseSituations.values()];
+  if (rows.length === 0) {
+    box.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.5rem 0">Este equipo no tiene plantilla 2026 (sin corredores con currentTeamId aquí).</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(s => {
+    const r = s.rider;
+    const seg = TSE_STATES.map(st => {
+      const active = s.state === st.key;
+      return `<button type="button" class="tse-seg-btn" data-rider="${esc(r.id)}" data-state="${st.key}"
+        style="padding:0.22rem 0.5rem;font-size:0.72rem;font-weight:600;border:1px solid ${active ? st.color : 'var(--border)'};border-radius:5px;cursor:pointer;
+        background:${active ? st.color + '22' : 'transparent'};color:${active ? st.color : 'var(--text-muted)'};white-space:nowrap">${st.label}</button>`;
+    }).join('');
+    return `
+      <div class="tse-rider-row" data-rider="${esc(r.id)}" style="display:flex;flex-direction:column;gap:0.4rem;padding:0.55rem 0.65rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px">
+        <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap">
+          <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(r.nationality || '')}</span>
+          <span style="flex:1;min-width:9rem;font-size:0.85rem"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+            <span class="u-c-dim u-fs-070">${r.gender === 'female' ? '♀' : '♂'}</span></span>
+          <div style="display:flex;gap:0.3rem;flex-wrap:wrap">${seg}</div>
+        </div>
+        <div class="tse-rider-extra" data-rider="${esc(r.id)}"></div>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('.tse-seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = _tseSituations.get(btn.dataset.rider);
+      if (!s) return;
+      // Toggle-off: volver a "sin decidir" si se re-pulsa el estado activo.
+      s.state = (s.state === btn.dataset.state) ? 'undecided' : btn.dataset.state;
+      _tseRenderRoster();
+      _tseUpdateStayCount();
+    });
+  });
+  [..._tseSituations.values()].forEach(s => _tseRenderRiderExtra(s));
+  _tseUpdateStayCount();
+}
+
+function _tseUpdateStayCount() {
+  // (contador informativo, opcional — dejado por si se quiere mostrar)
+}
+
+// Campos contextuales bajo cada corredor según su estado.
+function _tseRenderRiderExtra(s) {
+  const wrap = document.querySelector(`.tse-rider-extra[data-rider="${CSS.escape(s.rider.id)}"]`);
+  if (!wrap) return;
+  const yearInput = (disabled) => `<input type="number" class="tse-year" data-rider="${esc(s.rider.id)}" min="2026" max="2040" placeholder="año contrato"
+      value="${s.year || ''}" ${disabled ? 'disabled' : ''} style="width:8rem;padding:0.25rem 0.45rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)${disabled ? ';opacity:0.5' : ''}">`;
+  const chk = (cls, checked, label) => `<label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer">
+      <input type="checkbox" class="${cls}" data-rider="${esc(s.rider.id)}" ${checked ? 'checked' : ''}><span>${label}</span></label>`;
+
+  let html = '';
+  if (s.state === 'stay') {
+    // Vitalicio deshabilita el año y el "sin año" (contrato sin fecha de fin).
+    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+      ${yearInput(s.yearUnknown || s.lifetime)}
+      ${chk('tse-yearunknown', s.yearUnknown, 'No se sabe el año')}
+      ${chk('tse-lifetime', s.lifetime, 'Vitalicio ∞')}
+    </div>`;
+  } else if (s.state === 'doubt') {
+    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+      ${yearInput(false)}
+      <span class="u-fs-sm u-c-dim">Duda de renovación: sigue en plantilla ${MARKET_SEASON} pero sin confirmar.</span>
+    </div>`;
+  } else if (s.state === 'change') {
+    // El destino de un fichaje es la temporada del MERCADO → nombre/categoría de
+    // team_seasons[2027] (con el que va a correr), con fallback al catálogo para
+    // equipos sin fila 2027.
+    const seasonById = new Map((_marketSeasons || []).map(x => [x.teamId, x]));
+    const teams = (_teamsCache || [])
+      .filter(t => !t.specialEdition && t.id !== _tseTeamId && (!s.rider.gender || !t.gender || t.gender === s.rider.gender))
+      .map(t => {
+        const s27 = seasonById.get(t.id);
+        return { id: t.id, name: (s27?.name || _trTeamNameById.get(t.id) || t.name), category: (s27?.category || t.category) };
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    // Fecha de confirmación (announcedAt): solo aplica a un fichaje CONFIRMADO
+    // (ordena y agrupa el feed). Un rumor no sale en el feed → sin fecha.
+    const dateRow = s.rumor ? '' : `<label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem">
+        <span class="u-c-dim">Confirmado el</span>
+        <input type="date" class="tse-announced" data-rider="${esc(s.rider.id)}" value="${esc(s.announcedAt || _localDateKey())}"
+          style="padding:0.22rem 0.4rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+      </label>`;
+    html = `<div style="display:flex;flex-direction:column;gap:0.5rem;padding-left:2.05rem">
+      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        <select class="tse-newteam" data-rider="${esc(s.rider.id)}" style="flex:1;min-width:11rem;padding:0.25rem 0.4rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+          <option value="">— Equipo de destino —</option>
+          ${teams.map(t => `<option value="${esc(t.id)}"${t.id === s.newTeamId ? ' selected' : ''}>${esc(t.name)}${t.category ? ` (${esc(t.category)})` : ''}</option>`).join('')}
+        </select>
+        ${yearInput(false)}
+      </div>
+      <div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap">
+        ${chk('tse-rumor', s.rumor, 'Rumor (aún sin confirmar)')}
+        ${dateRow}
+      </div>
+    </div>`;
+  } else if (s.state === 'end') {
+    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+      ${chk('tse-retired', s.retired, 'Se retira')}
+      <span class="u-fs-sm u-c-dim">${s.retired ? 'Cuelga la bici.' : 'Acaba contrato sin equipo conocido (baja sin destino).'}</span>
+    </div>`;
+  }
+  wrap.innerHTML = html;
+
+  wrap.querySelector('.tse-year')?.addEventListener('input', (e) => { s.year = _tseParseYear(e.target.value); });
+  wrap.querySelector('.tse-yearunknown')?.addEventListener('change', (e) => {
+    s.yearUnknown = e.target.checked;
+    if (s.yearUnknown) { s.year = null; s.lifetime = false; }
+    _tseRenderRiderExtra(s);
+  });
+  wrap.querySelector('.tse-lifetime')?.addEventListener('change', (e) => {
+    s.lifetime = e.target.checked;
+    if (s.lifetime) { s.year = null; s.yearUnknown = false; }
+    _tseRenderRiderExtra(s);
+  });
+  wrap.querySelector('.tse-newteam')?.addEventListener('change', (e) => { s.newTeamId = e.target.value || null; });
+  wrap.querySelector('.tse-retired')?.addEventListener('change', (e) => { s.retired = e.target.checked; _tseRenderRiderExtra(s); });
+  wrap.querySelector('.tse-rumor')?.addEventListener('change', (e) => { s.rumor = e.target.checked; _tseRenderRiderExtra(s); });
+  wrap.querySelector('.tse-announced')?.addEventListener('change', (e) => { s.announcedAt = e.target.value || _localDateKey(); });
+}
+
+function _tseRenderIncoming() {
+  const box = document.getElementById('tse-incoming');
+  if (!box) return;
+  if (_tseIncoming.length === 0) {
+    box.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.35rem 0">Sin incorporaciones registradas hacia este equipo.</div>`;
+    return;
+  }
+  box.innerHTML = _tseIncoming.map(t => {
+    const r = t.rider;
+    const name = r ? `${r.lastName}, ${r.firstName}` : t.riderId;
+    const from = _trTeamLabel(t.fromTeamId, t.fromTeamName, 'from');
+    const isRumor = t.status === 'rumor';
+    return `<div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;padding:0.45rem 0.65rem;background:var(--bg-card);border:1px solid ${isRumor ? '#f59e0b' : 'var(--border)'};border-radius:6px">
+      <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
+      <span style="flex:1;min-width:9rem;font-size:0.85rem"><strong>${esc(name)}</strong>
+        <span class="u-c-dim" style="font-size:0.72rem">· ${esc(from)}</span></span>
+      ${t.contractUntil ? `<span class="u-fs-xs u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
+      ${isRumor ? `<span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;padding:0.1rem 0.35rem;border-radius:4px;background:rgba(245,158,11,0.15);color:#f59e0b">Rumor</span>` : ''}
+      <button class="btn btn--ghost tse-incoming-edit" data-id="${esc(t.id)}" style="padding:0.15rem 0.45rem;font-size:0.7rem">Editar</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.tse-incoming-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = _transfersCache.find(x => x.id === btn.dataset.id);
+      if (t) openTransferEditor(t);
+    });
+  });
+}
+
+/**
+ * "Nueva incorporación": busca/crea una ficha y la asocia a ESTE equipo desde
+ * 2027 → transfer (from = equipo actual del corredor, to = T) + afiliación 2027.
+ * Reutiliza el editor de movimiento estándar pero con el destino prefijado a T.
+ */
+function _tseOpenNewSigning() {
+  // Reusa el editor de movimiento estándar (drawer nivel 1) con el destino
+  // prefijado a ESTE equipo; el editor de ficha nueva se apila en nivel 2 sin
+  // colisión (el team-editor de nivel 1 se ha reemplazado por el movimiento).
+  // Al guardar: además del transfer, se materializa la afiliación 2027 hacia T,
+  // y se vuelve al editor de equipo.
+  // La afiliación 2027 del destino la sincroniza saveTransfer (solo si el
+  // fichaje es confirmado); aquí basta con recargar y volver al equipo.
+  const teamId = _tseTeamId;
+  openTransferEditor(null, { presetToTeamId: teamId, onSaved: async () => {
+    await loadTransfers();
+    await openTeamSituationEditor(teamId);
+  } });
+}
+
+// ── Escritura de afiliaciones 2027 (materialización de plantilla) ──────
+// Un corredor solo puede tener UNA afiliación por año → la clave lógica es
+// (riderId, year). Al continuar en T se borra cualquier afiliación 2027 previa
+// (a otro equipo) y se inserta/actualiza la de T. `year` = año de fin de
+// contrato (UI); se guarda como dateTo = 31-dic de ese año (dateFrom = 1-ene
+// de la temporada del mercado). year null = contrato sin definir → dateTo NULL.
+async function _upsertAffiliation2027(riderId, gender, teamId, year) {
+  const { data: existing, error: selErr } = await supabase.from('rider_team_affiliations')
+    .select('id, teamId')
+    .eq('riderId', riderId)
+    .eq('year', MARKET_SEASON);
+  if (selErr) throw selErr;
+  const rows = existing || [];
+  const mine = rows.find(a => a.teamId === teamId);
+  // Borrar afiliaciones 2027 a OTROS equipos (el corredor cambió de casa).
+  const others = rows.filter(a => a.teamId !== teamId).map(a => a.id);
+  if (others.length) {
+    const { error } = await supabase.from('rider_team_affiliations').delete().in('id', others);
+    if (error) throw error;
+  }
+  const dateTo = _affDateTo(year);
+  const now = new Date().toISOString();
+  if (mine) {
+    const { error } = await supabase.from('rider_team_affiliations')
+      .update({ dateFrom: _AFF_DATE_FROM, dateTo, updatedAt: now })
+      .eq('id', mine.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('rider_team_affiliations').insert({
+      id: _tseNewId('aff'),
+      riderId, riderGender: gender, teamId, year: MARKET_SEASON,
+      dateFrom: _AFF_DATE_FROM, dateTo, source: 'manual', verified: true,
+    });
+    if (error) throw error;
+  }
+}
+
+async function _deleteAffiliation2027(riderId, teamId) {
+  const { error } = await supabase.from('rider_team_affiliations')
+    .delete()
+    .eq('riderId', riderId)
+    .eq('year', MARKET_SEASON)
+    .eq('teamId', teamId);
+  if (error) throw error;
+}
+
+// Sincroniza la afiliación 2027 de destino de un FICHAJE (type='transfer' con
+// equipo del catálogo): un fichaje CONFIRMADO materializa la afiliación al
+// destino (entra en la plantilla 2027); un rumor NO (no es un hecho → solo sale
+// en "Llegan · Rumor"). Al confirmar un rumor de llegada se crea; al degradar a
+// rumor se borra. Solo actúa sobre fichajes al catálogo; el resto (renovación,
+// retirada, destino texto libre) no toca afiliaciones aquí.
+async function _syncSigningAffiliation(t) {
+  if (!t || t.type !== 'transfer' || !t.toTeamId) return;
+  if (t.status === 'confirmed') {
+    await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
+  } else {
+    await _deleteAffiliation2027(t.riderId, t.toTeamId);
+  }
+}
+
+// Borra las filas rider_transfers de T (from=T, o renewal+doubt to=T) de un
+// corredor: se usa al cambiar su estado (p. ej. de "cambio"/"duda" a "continúa").
+async function _tseClearRiderTransfersForTeam(riderId, teamId) {
+  const ids = _transfersCache.filter(t =>
+    t.riderId === riderId && (
+      ((t.type === 'transfer' || t.type === 'retirement') && t.fromTeamId === teamId) ||
+      (t.type === 'renewal' && t.toTeamId === teamId)
+    )).map(t => t.id);
+  if (!ids.length) return;
+  const { error } = await supabase.from('rider_transfers').delete().in('id', ids);
+  if (error) throw error;
+}
+
+// Un corredor debe tener UN SOLO movimiento vigente en el mercado (decisión Dani,
+// 2026-07-20). Al guardar un movimiento desde el editor independiente, se borran
+// TODOS los demás de ese corredor en la temporada (salvo el que se está guardando):
+// arregla el caso "fin de contrato huérfano + cambio a otro equipo" (el saliente
+// seguía mostrándolo como fin de contrato) y evita dos movimientos coexistentes,
+// incluso al mismo equipo. Se limpian también sus afiliaciones 2027 (la del
+// movimiento guardado la vuelve a poner _syncSigningAffiliation / _tseSaveTeam).
+async function _clearOtherTransfersForRider(riderId, keepId) {
+  const ids = (_transfersCache || [])
+    .filter(t => t.riderId === riderId && t.season === MARKET_SEASON && t.id !== keepId)
+    .map(t => t.id);
+  if (!ids.length) return;
+  const { error } = await supabase.from('rider_transfers').delete().in('id', ids);
+  if (error) throw error;
+}
+
+/**
+ * Aplica en lote la situación de cada corredor que cambió respecto al estado
+ * inicial. Cada estado se traduce a afiliación 2027 + rider_transfers según la
+ * tabla del encabezado.
+ */
+async function _tseSaveTeam() {
+  const status = document.getElementById('tse-save-status');
+  const teamId = _tseTeamId;
+
+  // Validación previa: cambio sin destino / año fuera de rango se avisan.
+  for (const s of _tseSituations.values()) {
+    if (s.state === 'change' && !s.newTeamId) {
+      if (status) { status.style.color = 'var(--red)'; status.textContent = `${s.rider.lastName}: elige el equipo de destino del cambio.`; }
+      return;
+    }
+  }
+
+  if (status) { status.style.color = 'var(--text-dim)'; status.textContent = 'Guardando…'; }
+  try {
+    for (const s of _tseSituations.values()) {
+      const r = s.rider;
+      // Nada que hacer si no cambió respecto al estado inicial.
+      if (_tseSameSituation(s, s.initial)) continue;
+
+      // Todo estado (menos "sin decidir") reescribe desde cero: limpiar las
+      // filas de transfers de T de ese corredor y decidir la afiliación.
+      await _tseClearRiderTransfersForTeam(r.id, teamId);
+
+      if (s.state === 'stay') {
+        // Vitalicio → año centinela 9999; "sin año" → null; si no, el año.
+        const year = s.lifetime ? TSE_LIFETIME_YEAR : (s.yearUnknown ? null : s.year);
+        await _upsertAffiliation2027(r.id, r.gender, teamId, year);
+        // Sync opcional del año a la ficha (no el centinela ni el desconocido).
+        if (year && year !== TSE_LIFETIME_YEAR) await _syncTransferContractToRider({ status: 'confirmed', type: 'renewal', contractUntil: year, riderGender: r.gender, riderId: r.id });
+      } else if (s.state === 'doubt') {
+        // Duda: sigue afiliado a T, + rider_transfers renewal+doubt.
+        await _upsertAffiliation2027(r.id, r.gender, teamId, s.year || null);
+        await supabase.from('rider_transfers').insert({
+          id: _tseNewId('tr'),
+          season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
+          toTeamId: teamId, type: 'renewal', status: 'doubt',
+          contractUntil: s.year || null, announcedAt: _localDateKey(), dateVisible: true,
+        });
+      } else if (s.state === 'change') {
+        await _deleteAffiliation2027(r.id, teamId);
+        // Un rumor no sale en el feed → su fecha de anuncio es HOY (irrelevante);
+        // un cambio confirmado lleva la fecha de confirmación que marcó el editor.
+        await supabase.from('rider_transfers').insert({
+          id: _tseNewId('tr'),
+          season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
+          fromTeamId: teamId, toTeamId: s.newTeamId, type: 'transfer',
+          status: s.rumor ? 'rumor' : 'confirmed',
+          contractUntil: s.year || null,
+          announcedAt: (s.rumor ? _localDateKey() : (s.announcedAt || _localDateKey())),
+          dateVisible: true,
+        });
+      } else if (s.state === 'end') {
+        await _deleteAffiliation2027(r.id, teamId);
+        if (s.retired) {
+          await supabase.from('rider_transfers').insert({
+            id: _tseNewId('tr'),
+            season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
+            fromTeamId: teamId, type: 'retirement', status: 'confirmed',
+            announcedAt: _localDateKey(), dateVisible: true,
+          });
+        } else {
+          // Baja sin destino conocido: transfer con destino '?'.
+          await supabase.from('rider_transfers').insert({
+            id: _tseNewId('tr'),
+            season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
+            fromTeamId: teamId, toTeamName: TSE_UNKNOWN_DEST, type: 'transfer', status: 'confirmed',
+            announcedAt: _localDateKey(), dateVisible: true,
+          });
+        }
+      } else {
+        // 'undecided': ya se limpiaron sus transfers de T arriba; también quitar
+        // su afiliación 2027 a T (deja de formar parte hasta que se decida).
+        await _deleteAffiliation2027(r.id, teamId);
+      }
+    }
+
+    showToast('Equipo guardado', 'success', 2500);
+    closeDrawer(1);
+    await loadTransfers();
+    renderMarketTeams();
+  } catch (err) {
+    console.error('[_tseSaveTeam]', err);
+    if (status) { status.style.color = 'var(--red)'; status.textContent = 'Error: ' + (err.message || err); }
+  }
+}
+
+function _tseSameSituation(a, b) {
+  if (a.state !== b.state) return false;
+  const yearA = a.state === 'stay' && a.yearUnknown ? null : a.year;
+  const yearB = b.state === 'stay' && b.yearUnknown ? null : b.year;
+  if ((yearA || null) !== (yearB || null)) return false;
+  if (a.state === 'stay' && a.yearUnknown !== b.yearUnknown) return false;
+  if (a.state === 'stay' && !!a.lifetime !== !!b.lifetime) return false;
+  if (a.state === 'change') {
+    if ((a.newTeamId || null) !== (b.newTeamId || null)) return false;
+    if (!!a.rumor !== !!b.rumor) return false;
+    // La fecha de confirmación solo importa si NO es rumor.
+    if (!a.rumor && (a.announcedAt || null) !== (b.announcedAt || null)) return false;
+  }
+  if (a.state === 'end' && a.retired !== b.retired) return false;
+  return true;
+}
+
+// ── Drawer de auditoría: TODOS los movimientos (lista plana, filtros) ──
+function openAllTransfersDrawer() {
+  openDrawer({
+    title: `Todos los movimientos · ${MARKET_SEASON}`,
+    level: 1,
+    wide: true,
+    render: (body) => {
+      body.innerHTML = `
+        <div class="u-row" style="gap:0.6rem;flex-wrap:wrap;margin-bottom:0.75rem">
+          <input type="search" id="transfersSearch" placeholder="Buscar corredor o equipo…" style="flex:1;min-width:12rem;padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+          <select id="transfersStatusFilter" style="padding:0.4rem 0.5rem;font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+            <option value="all">Todos</option>
+            <option value="confirmed">Confirmados</option>
+            <option value="rumor">Rumores</option>
+            <option value="doubt">Dudas</option>
+            <option value="hidden">Fecha oculta</option>
+          </select>
+          <button class="btn btn--primary" id="addTransferBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo movimiento</button>
+          <span class="u-fs-sm u-c-dim" id="transfersCount" style="align-self:center"></span>
+        </div>
+        <div class="u-stack u-stack--xs" id="transfersList"><div class="u-fs-085 u-c-dim">Cargando…</div></div>
+      `;
+      document.getElementById('addTransferBtn').addEventListener('click', () => openTransferEditor(null));
+      document.getElementById('transfersStatusFilter').addEventListener('change', renderTransfersList);
+      document.getElementById('transfersSearch').addEventListener('input', renderTransfersList);
+      renderTransfersList();
+    },
+  });
 }
 
 async function loadTransfers() {
@@ -13052,9 +13839,13 @@ function renderTransfersList() {
     const isDoubt = t.status === 'doubt';
     const dateHidden = t.dateVisible === false;
     const dateBit = t.announcedAt ? `${t.announcedAt.slice(8, 10)}/${t.announcedAt.slice(5, 7)}/${t.announcedAt.slice(2, 4)}` : '';
-    const typeLabel = TRANSFER_TYPE_LABELS[t.type] || t.type;
+    // Una DUDA no es una renovación: es "duda de si sigue o se va". Se etiqueta
+    // como Duda y su texto es neutro ("en duda · <equipo>"), no "renueva con".
+    const typeLabel = isDoubt ? 'Duda' : (TRANSFER_TYPE_LABELS[t.type] || t.type);
     let movement;
-    if (t.type === 'renewal') {
+    if (isDoubt) {
+      movement = `en duda <span class="u-c-dim">·</span> <strong>${esc(_trTeamLabel(t.toTeamId, t.toTeamName))}</strong>`;
+    } else if (t.type === 'renewal') {
       movement = `renueva con <strong>${esc(_trTeamLabel(t.toTeamId, t.toTeamName))}</strong>`;
     } else if (t.type === 'retirement') {
       movement = `se retira <span class="u-c-dim">(${esc(_trTeamLabel(t.fromTeamId, t.fromTeamName, 'from'))})</span>`;
@@ -13106,7 +13897,13 @@ async function confirmTransferQuick(t) {
       .update({ status: 'confirmed', announcedAt: _localDateKey(), dateVisible: true, updatedAt: new Date().toISOString() })
       .eq('id', t.id);
     if (error) throw error;
+    // Un corredor = un solo movimiento: al confirmar, el resto de sus movimientos
+    // de la temporada sobran (p. ej. un fin de contrato huérfano tras confirmar un
+    // rumor de fichaje). Antes de sincronizar la afiliación del destino.
+    await _clearOtherTransfersForRider(t.riderId, t.id);
     await _syncTransferContractToRider({ ...t, status: 'confirmed' });
+    // Confirmar un fichaje lo mete en la plantilla 2027 (materializa la afiliación).
+    await _syncSigningAffiliation({ ...t, status: 'confirmed' });
     showToast('Movimiento confirmado', 'success', 2500);
     await loadTransfers();
     renderTransfersList();
@@ -13407,8 +14204,14 @@ function _trClearRiderSelection() {
   if (sel) sel.style.display = 'none';
 }
 
-function openTransferEditor(t) {
+// opts = { presetToTeamId, onSaved } — usado por "Nueva incorporación" del
+// editor de equipo: prefija el destino y ejecuta un hook al guardar (para
+// materializar la afiliación 2027 y volver al equipo).
+let _transferEditorOpts = null;
+
+function openTransferEditor(t, opts = null) {
   _editingTransferId = t?.id || null;
+  _transferEditorOpts = opts;
 
   openDrawer({
     title: t ? 'Editar movimiento' : 'Nuevo movimiento',
@@ -13417,6 +14220,7 @@ function openTransferEditor(t) {
       body.innerHTML = transferEditorBodyHtml();
       wireTransferEditor();
     },
+    onClose: () => { _transferEditorOpts = null; },
   });
 
   document.getElementById('transferSaveStatus').textContent = '';
@@ -13439,9 +14243,11 @@ function openTransferEditor(t) {
   const statusRadio = document.querySelector(`input[name="tr-status"][value="${status}"]`);
   if (statusRadio) statusRadio.checked = true;
 
-  // Equipos (los selects ya están poblados si hay corredor; repoblar con valor)
+  // Equipos (los selects ya están poblados si hay corredor; repoblar con valor).
+  // presetToTeamId (Nueva incorporación) prefija el destino al equipo abierto.
+  const presetTo = opts?.presetToTeamId || t?.toTeamId || '';
   _trPopulateTeamSelect('tr-fromTeamId', t?.fromTeamId || _trSelectedRider?.currentTeamId || '');
-  _trPopulateTeamSelect('tr-toTeamId', t?.toTeamId || '');
+  _trPopulateTeamSelect('tr-toTeamId', presetTo);
   document.getElementById('tr-fromTeamName').value = t?.fromTeamName || '';
   document.getElementById('tr-toTeamName').value   = t?.toTeamName   || '';
 
@@ -13506,6 +14312,7 @@ async function saveTransfer() {
 
   status.textContent = 'Guardando…';
   try {
+    let savedId = _editingTransferId;
     if (_editingTransferId) {
       const { error } = await supabase.from('rider_transfers').update(payload).eq('id', _editingTransferId);
       if (error) throw error;
@@ -13514,13 +14321,30 @@ async function saveTransfer() {
       const { error } = await supabase.from('rider_transfers').insert({ id, ...payload });
       if (error) throw error;
       _editingTransferId = id;
+      savedId = id;
     }
+    // Un corredor = un solo movimiento: borrar cualquier otro suyo de la temporada
+    // (deja huérfano un fin de contrato al fichar por otro equipo, o duplicados al
+    // mismo destino). Antes de sincronizar afiliaciones para no repisar la buena.
+    await _clearOtherTransfersForRider(payload.riderId, savedId);
     await _syncTransferContractToRider(payload);
+    // Mantener la plantilla 2027 coherente: un fichaje confirmado al catálogo
+    // materializa su afiliación al destino; un rumor la quita (no es plantilla).
+    await _syncSigningAffiliation(payload);
+    const onSaved = _transferEditorOpts?.onSaved;
     showToast('Movimiento guardado', 'success', 2500);
+    _transferEditorOpts = null;
     closeDrawer(1);
     _editingTransferId = null;
-    await loadTransfers();
-    renderTransfersList();
+    if (onSaved) {
+      // Hook de "Nueva incorporación": vuelve al editor de equipo (la afiliación
+      // ya la sincronizó _syncSigningAffiliation arriba).
+      await onSaved({ id: savedId, ...payload });
+    } else {
+      await loadTransfers();
+      renderTransfersList();
+      renderMarketTeams();
+    }
   } catch (err) {
     console.error('[saveTransfer]', err);
     status.style.color = 'var(--red)';
@@ -13532,8 +14356,14 @@ async function deleteTransfer() {
   if (!_editingTransferId) return;
   if (!await confirmDialog('¿Eliminar este movimiento del mercado?', { danger: true })) return;
   try {
+    // Si el movimiento era un fichaje confirmado, su afiliación 2027 de destino
+    // se creó al confirmarlo → limpiarla al borrar (deja de estar en la plantilla).
+    const del = (_transfersCache || []).find(x => x.id === _editingTransferId);
     const { error } = await supabase.from('rider_transfers').delete().eq('id', _editingTransferId);
     if (error) throw error;
+    if (del && del.type === 'transfer' && del.status === 'confirmed' && del.toTeamId) {
+      await _deleteAffiliation2027(del.riderId, del.toTeamId);
+    }
     showToast('Movimiento eliminado', 'success', 2500);
     closeDrawer(1);
     _editingTransferId = null;
@@ -13718,7 +14548,7 @@ function highlightEditorBodyHtml() {
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startlist"><span>Inscritos (startlist)</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startOrder"><span>Orden de salida</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="championships"><span>Modo Campeonatos — web abre la página; apps, la pantalla nativa</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="transfers"><span>Mercado de fichajes — web abre /fichajes/; apps, la pantalla nativa</span></label>
+        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="transfers"><span>Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="custom"><span>Personalizado (solo web) — URL, título y logo libres</span></label>
       </div>
       <div id="hl-target-warning" style="display:none;color:var(--red);font-size:0.78rem;margin-top:0.4rem"></div>
@@ -14018,7 +14848,7 @@ function renderHighlightsList() {
     } else if (h.targetType === 'championships') {
       lhs = h.customTitle || 'Campeonatos Nacionales';
     } else if (h.targetType === 'transfers') {
-      lhs = h.customTitle || 'Mercado de fichajes';
+      lhs = h.customTitle || 'Mercado de Fichajes';
     } else {
       // Fila identifica el destacado por la carrera real, no por el customTitle
       // (que es lo que se ve en el cintillo en sí, no en el panel).

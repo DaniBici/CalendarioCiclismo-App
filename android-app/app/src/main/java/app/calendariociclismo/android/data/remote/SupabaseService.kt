@@ -287,24 +287,42 @@ class SupabaseService {
             order("createdAt", Order.DESCENDING)
         }.decodeList()
 
+    @Serializable
+    private data class AffiliationRow(
+        val riderId: String,
+        val riderGender: String? = null,
+        val dateTo: String? = null,
+    )
+
     /**
-     * Plantilla actual de un equipo (riders con `currentTeamId` = equipo) para
-     * la sección "continúan" del detalle de Fichajes. El género del equipo
-     * decide la tabla; sin género conocido se consultan ambas.
+     * Plantilla 2027 MATERIALIZADA de un equipo (rider_team_affiliations
+     * year=season) para la sección "continúan" del detalle de Fichajes. El panel
+     * la puebla al marcar "continúa"/"duda"/incorporación; un equipo sin
+     * afiliaciones sale vacío. El `contractUntil` efectivo viene de la afiliación.
      */
-    suspend fun ridersByCurrentTeam(teamId: String, gender: String?): List<RiderProfile> {
-        val cols = Columns.list("id", "firstName", "lastName", "nationality", "currentTeamId", "contractUntil")
-        val tables = when (gender) {
-            "male" -> listOf("riders_men")
-            "female" -> listOf("riders_women")
-            else -> listOf("riders_men", "riders_women")
-        }
-        val out = ArrayList<RiderProfile>()
-        for (table in tables) {
-            val rows: List<RiderProfile> = client.from(table).select(cols) {
-                filter { eq("currentTeamId", teamId) }
+    suspend fun ridersByAffiliation(teamId: String, season: Int, gender: String?): List<RiderProfile> {
+        val affs: List<AffiliationRow> = client.from("rider_team_affiliations")
+            .select(Columns.list("riderId", "riderGender", "dateTo")) {
+                filter { eq("year", season); eq("teamId", teamId) }
             }.decodeList()
-            out += rows
+        if (affs.isEmpty()) return emptyList()
+
+        // El contrato = año de dateTo (31-dic del año de fin), no riders_*.contractUntil.
+        fun affYear(d: String?): Int? = d?.take(4)?.toIntOrNull()
+        val cols = Columns.list("id", "firstName", "lastName", "nationality", "currentTeamId", "contractUntil")
+        val contractByRider = affs.associate { it.riderId to affYear(it.dateTo) }
+        val byTable = mapOf(
+            "riders_men" to affs.filter { (it.riderGender ?: gender) == "male" }.map { it.riderId },
+            "riders_women" to affs.filter { (it.riderGender ?: gender) == "female" }.map { it.riderId },
+        )
+        val out = ArrayList<RiderProfile>()
+        for ((table, ids) in byTable) {
+            if (ids.isEmpty()) continue
+            val rows: List<RiderProfile> = client.from(table).select(cols) {
+                filter { isIn("id", ids) }
+            }.decodeList()
+            // El contrato lo manda la afiliación (no riders_*.contractUntil).
+            out += rows.map { it.copy(contractUntil = contractByRider[it.id]) }
         }
         return out
     }
@@ -595,11 +613,16 @@ class SupabaseService {
         client.postgrest.rpc("set_push_subscription_v3", params)
     }
 
-    /** Elimina permanentemente el registro de push (derecho de supresión). */
+    /**
+     * Elimina permanentemente el registro de push (derecho de supresión).
+     * Vía RPC SECURITY DEFINER: anon no tiene acceso directo a push_subscriptions
+     * (migración 125). Ver también set_push_subscription_v3 para el registro.
+     */
     suspend fun deletePushToken(token: String) {
-        client.from("push_subscriptions").delete {
-            filter { eq("deviceToken", token) }
-        }
+        client.postgrest.rpc(
+            "delete_push_subscription",
+            buildJsonObject { put("p_token", JsonPrimitive(token)) },
+        )
     }
 
     // ─────────── Helpers compuestos ───────────

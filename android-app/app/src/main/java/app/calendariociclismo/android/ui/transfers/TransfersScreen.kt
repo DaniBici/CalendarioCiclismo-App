@@ -18,10 +18,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +94,12 @@ fun TransfersScreen(navController: NavController) {
     var isRefreshing by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
 
+    // Se llega a Fichajes por la pestaña principal (sin nada detrás en el back
+    // stack → sin flecha) o desde el cintillo de Hoy (apilado sobre Hoy → con
+    // flecha), ya que en ese caso la barra inferior se oculta y no habría otra
+    // forma de volver. Espejo de la salida condicional del cintillo en iOS.
+    val showBackArrow = navController.previousBackStackEntry != null
+
     LaunchedEffect(Unit) { app.analytics.logScreenView("transfers") }
 
     suspend fun reload() {
@@ -119,6 +129,16 @@ fun TransfersScreen(navController: NavController) {
                         text = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON),
                         style = MaterialTheme.typography.titleMedium,
                     )
+                },
+                navigationIcon = {
+                    if (showBackArrow) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back),
+                            )
+                        }
+                    }
                 },
             )
         },
@@ -159,52 +179,59 @@ private fun MarketContent(
     onDivisionSelect: (String) -> Unit,
     onTeamTap: (String) -> Unit,
 ) {
-    val feed = remember(data) { TransfersLogic.confirmedFeed(data.transfers) }
+    val feed = remember(data) { TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(data.transfers)) }
     val feedByDay = remember(feed) { TransfersLogic.groupByDay(feed) }
     val teams = remember(data, activeDivision) {
         TransfersLogic.divisionTeams(data.seasons, activeDivision)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    // Doble panel: "Últimas confirmaciones" (arriba, ~38%) y equipos (abajo,
+    // ~62%), cada uno con su propio scroll → ambos siempre visibles.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        // ── Feed de confirmaciones ─────────────────────────────────
-        item(key = "feed_title") {
-            SectionTitle(stringResource(R.string.transfers_feed_title))
-        }
-        if (feed.isEmpty()) {
-            item(key = "feed_empty") {
-                Text(
-                    text = stringResource(R.string.transfers_feed_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-            }
-        } else {
-            feedByDay.forEach { (day, moves) ->
-                item(key = "day_$day") {
-                    Text(
-                        text = DateFormatting.formatDateLongContent(day),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
-                    )
-                }
-                items(moves.size, key = { i -> "move_${moves[i].id}" }) { i ->
-                    TransferFeedRow(transfer = moves[i], data = data)
-                    Spacer(Modifier.height(6.dp))
+        // ── Panel 1: feed de confirmaciones ────────────────────────
+        Column(modifier = Modifier.weight(0.38f)) {
+            // Primer título: pegado al top bar → sin el top de 18dp (que sí
+            // separa el título de "equipos" del feed de arriba).
+            SectionTitle(stringResource(R.string.transfers_feed_title), topPadding = 4.dp)
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                if (feed.isEmpty()) {
+                    item(key = "feed_empty") {
+                        Text(
+                            text = stringResource(R.string.transfers_feed_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                    }
+                } else {
+                    feedByDay.forEach { (day, moves) ->
+                        item(key = "day_$day") {
+                            Text(
+                                text = DateFormatting.formatDateWeekdayNoYear(day),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(moves.size, key = { i -> "move_${moves[i].id}" }) { i ->
+                            TransferFeedRow(transfer = moves[i], data = data)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
                 }
             }
         }
 
-        // ── Divisiones + equipos ───────────────────────────────────
-        item(key = "teams_title") {
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+
+        // ── Panel 2: divisiones + equipos ──────────────────────────
+        Column(modifier = Modifier.weight(0.62f)) {
             SectionTitle(stringResource(R.string.transfers_teams_title, TransfersLogic.MARKET_SEASON))
-        }
-        item(key = "division_chips") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TransfersLogic.DIVISIONS.forEach { div ->
                     DivisionChip(
@@ -214,44 +241,50 @@ private fun MarketContent(
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
-        }
-        if (teams.isEmpty()) {
-            item(key = "teams_empty") {
-                Text(
-                    text = stringResource(R.string.transfers_teams_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                if (teams.isEmpty()) {
+                    item(key = "teams_empty") {
+                        Text(
+                            text = stringResource(R.string.transfers_teams_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(teams.size, key = { i -> "team_${teams[i].teamId}" }) { i ->
+                        val season = teams[i]
+                        TeamRow(
+                            season = season,
+                            prev = data.prevSeasonsByTeamId,
+                            onTap = { onTeamTap(season.teamId) },
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+                item(key = "bottom_spacer") { Spacer(Modifier.height(12.dp)) }
             }
-        } else {
-            items(teams.size, key = { i -> "team_${teams[i].teamId}" }) { i ->
-                val season = teams[i]
-                TeamRow(
-                    season = season,
-                    prev = data.prevSeasonsByTeamId,
-                    onTap = { onTeamTap(season.teamId) },
-                )
-                Spacer(Modifier.height(6.dp))
-            }
         }
-        item(key = "bottom_spacer") { Spacer(Modifier.height(24.dp)) }
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+private fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp = 18.dp) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.8.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        modifier = Modifier.padding(top = topPadding, bottom = 8.dp),
     )
 }
 
-/** Píldora de división — mismo lenguaje que los chips de mes (activo = relleno accent-dim + texto accent). */
+/**
+ * Píldora de división — mismo tamaño que los filtros de categoría de la vista
+ * Hoy (`CategoryChip`): labelMedium + padding 12/6 + esquina 50%. Activo =
+ * relleno accent-dim + texto accent.
+ */
 @Composable
 private fun DivisionChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
@@ -260,19 +293,19 @@ private fun DivisionChip(label: String, selected: Boolean, onClick: () -> Unit) 
             .clip(RoundedCornerShape(50))
             .background(if (selected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 7.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
-/** Fila del feed: bandera + "Corredor  Origen → Destino" + "hasta YYYY". */
+/** Fila del feed: bandera + "Corredor  → Destino" + "hasta YYYY". */
 @Composable
 fun TransferFeedRow(transfer: RiderTransfer, data: TransfersLogic.MarketData) {
     // Strings hoisted: buildAnnotatedString no admite llamadas @Composable.
@@ -281,50 +314,66 @@ fun TransferFeedRow(transfer: RiderTransfer, data: TransfersLogic.MarketData) {
     val retires = stringResource(R.string.transfers_retires)
     val untilText = transfer.contractUntil?.let { stringResource(R.string.transfers_until, it) }
     val rider = data.ridersById[transfer.riderId]
+    val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
     val moveText = buildAnnotatedString {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
             append(rider?.fullName?.ifBlank { transfer.riderId } ?: transfer.riderId)
         }
-        append("  ")
         when (transfer.type) {
             "renewal" -> {
+                // Un divisor atenuado separa el nombre del texto "renueva con …"
+                // (que no empieza con flecha).
+                withStyle(SpanStyle(color = dimColor)) { append("  ·  ") }
                 append(renewsWith)
                 append(" ")
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                    append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
-                }
+                append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
             }
             "retirement" -> {
+                withStyle(SpanStyle(color = dimColor)) { append("  ·  ") }
                 append(retires)
                 append(" (")
                 append(TransfersLogic.teamLabel(transfer.fromTeamId, transfer.fromTeamName, data.teamNameById, unknownTeam, TransfersLogic.TeamSide.FROM, data.teamNamePrev))
                 append(")")
             }
             else -> {
-                append(TransfersLogic.teamLabel(transfer.fromTeamId, transfer.fromTeamName, data.teamNameById, unknownTeam, TransfersLogic.TeamSide.FROM, data.teamNamePrev))
-                append(" → ")
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                    append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
-                }
+                // Por falta de espacio en el feed móvil solo se muestra el equipo
+                // de DESTINO (a dónde va), no el de origen. La flecha ya separa el
+                // nombre del destino → sin divisor "·". El destino NO va en negrita:
+                // el nombre del corredor ya lo está. Decisión Dani 2026-07-20.
+                withStyle(SpanStyle(color = dimColor)) { append("  →  ") }
+                append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
             }
         }
     }
     CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CountryFlag(countryCode = rider?.nationality, height = 12.dp)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = moveText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (untilText != null) {
+            CountryFlag(countryCode = rider?.nationality, height = 11.dp)
+            // Corredor + movimiento trunca con "…" a una línea (misma fórmula
+            // que las cards de Hoy): sin doble altura, y el badge de año queda
+            // fijo a la derecha.
+            Text(
+                text = moveText,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            // El año de contrato como BADGE (solo el año, sin "hasta").
+            if (untilText != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
                     Text(
                         text = untilText,
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -341,7 +390,7 @@ private fun TeamRow(season: TeamSeason, prev: Map<String, TeamSeason>, onTap: ()
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onTap)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -349,11 +398,13 @@ private fun TeamRow(season: TeamSeason, prev: Map<String, TeamSeason>, onTap: ()
             // vacío gastaría el hueco igual.
             val badge = TransfersLogic.badgeSeason(season, prev)
             if (badge != null) {
-                SeasonBadge(season = badge, size = 26)
+                SeasonBadge(season = badge, size = 24)
             }
             Text(
                 text = season.name.orEmpty(),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             // Continuidad del equipo sin confirmar (mig. 123): sigue listado,

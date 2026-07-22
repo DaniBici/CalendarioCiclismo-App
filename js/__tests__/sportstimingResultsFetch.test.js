@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { irmOf, normAbsTime, normGap, parseRows, decodeEntities, stripTags, dateFromCat, fnv1a }
   from '../../scripts/results-fetchers/sportstiming-results-fetch.mjs';
 
-// Fuente: sportstiming.dk (cronometrador DANÉS). Sin API JSON: se scrapea el HTML
+// Fuente: sportstiming.dk (cronometrador DANÉS). Sin API JSON: se lee el HTML
 // server-side. Contrato verificado contra la Copenhagen Sprint (edición 2025,
 // /event/16511; femenina 2026 volcada en vivo desde /event/18776).
 // Contrato completo en scripts/results-fetchers/SPORTSTIMING-API.md.
@@ -100,7 +100,7 @@ describe('normGap — Efter#1 → gapText', () => {
   });
 });
 
-describe('decodeEntities / stripTags — el HTML viene crudo del scraping', () => {
+describe('decodeEntities / stripTags — el HTML viene crudo de la fuente', () => {
   it('decodifica las entidades numéricas y con nombre', () => {
     // Los nombres nórdicos llegan escapados (&#248; = ø) → sin decodificar, el
     // display quedaría con basura HTML.

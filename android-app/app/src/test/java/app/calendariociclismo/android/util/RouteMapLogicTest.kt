@@ -4,6 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Tests de la lógica pura del mapa del recorrido. Espejo 1:1 de
@@ -16,6 +17,7 @@ import org.robolectric.RobolectricTestRunner
  * entera bajo el runner por simplicidad.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
 class RouteMapLogicTest {
 
     // ── haversineKm ────────────────────────────────────────────────

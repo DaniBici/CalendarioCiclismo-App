@@ -534,18 +534,22 @@
     <string name="today_highlight_dismiss">Dismiss highlight</string>
 
     <!-- Transfers (2027 market, apps 4.0) -->
-    <string name="transfers_heading">%1$d transfer market</string>
+    <string name="transfers_heading">%1$d Transfer Market</string>
     <string name="transfers_feed_title">Latest confirmations</string>
     <string name="transfers_feed_empty">No confirmed moves yet.</string>
-    <string name="transfers_teams_title">%1$d teams</string>
+    <string name="transfers_teams_title">%1$d Teams</string>
     <string name="transfers_teams_empty">No teams in this division.</string>
     <string name="transfers_renews_with">renews with</string>
     <string name="transfers_retires">retires</string>
-    <string name="transfers_until">until %1$d</string>
+    <string name="transfers_retired">Retires</string>
+    <string name="transfers_until">%1$d</string>
     <string name="transfers_rumor">Rumor</string>
     <string name="transfers_doubt">Undecided</string>
     <string name="transfers_doubtful">Undecided</string>
     <string name="transfers_doubtful_empty">No undecided riders yet.</string>
+    <string name="transfers_contract_ends">Contract ending</string>
+    <string name="transfers_contract_ends_empty">No contract endings announced yet.</string>
+    <string name="transfers_team_empty">No moves announced yet.</string>
     <string name="transfers_team_doubt">Future in doubt</string>
     <string name="transfers_team_doubt_notice">The team\'s participation in %1$d is not confirmed.</string>
     <string name="transfers_staying">Staying</string>

@@ -65,7 +65,7 @@ struct TodayHighlightView: Identifiable {
         if let t = highlight.localizedTitle, !t.isEmpty { return t }
         if let race { return race.localizedName }
         if isChampionships { return ChampionshipsConfig.title }
-        if isTransfers { return LocaleService.t("Mercado de fichajes", "Transfer market") }
+        if isTransfers { return LocaleService.t("Mercado de Fichajes", "Transfer market") }
         return ""
     }
 
