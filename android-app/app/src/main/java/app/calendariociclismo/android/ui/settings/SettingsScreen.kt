@@ -244,7 +244,7 @@ fun SettingsScreen(navController: NavController) {
                         TextButton(
                             onClick = {
                                 haptic(Haptics.Event.Success)
-                                app.offlineManager.runSyncNow()
+                                app.offlineManager.runSyncNow(force = true)
                             },
                             modifier = Modifier.padding(horizontal = 6.dp),
                         ) {

@@ -1108,7 +1108,9 @@ async function init() {
       // sin dorsal) → se casa por NOMBRE contra los equipos canónicos de la
       // startlist (mismo patrón que orden-salida) para chapa + nombre bonito +
       // enlace. Individual: override manual → equipo de la startlist → href por nombre.
-      const rowTeamObj = isTeams ? findMatchingTeam(r.riderDisplay || '', raceTeams) : (ovrTeam ? ovrTeam.teamObj : null);
+      const rowTeamObj = isTeams
+        ? ((overrideTeam(r.teamId) || {}).teamObj || findMatchingTeam(r.riderDisplay || '', raceTeams))
+        : (ovrTeam ? ovrTeam.teamObj : null);
       const teamHref = isTeams
         ? teamLinkUrl(rowTeamObj)
         : ((ovrTeam && ovrTeam.teamHref) || (fromSl && fromSl.teamHref) || (fromRider && fromRider.teamHref) || teamHrefByName(teamName));

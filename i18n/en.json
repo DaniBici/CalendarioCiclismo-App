@@ -7,6 +7,7 @@
     "search": "Search",
     "themeToggle": "Change theme",
     "subscribe": "Subscribe",
+    "icalCalendar": "iCal calendar",
     "privacy": "Privacy"
   },
   "cal": {
@@ -264,7 +265,7 @@
   "seo": {
     "siteName": "Calendario Ciclismo",
     "defaultTitle": "Calendario Ciclismo App",
-    "defaultDesc": "All professional cycling races with schedule, route, profile and how to watch on TV and streaming."
+    "defaultDesc": "Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez."
   },
   "locale": {
     "code": "en-GB",
@@ -336,6 +337,9 @@
     "unknownTeam": "To be confirmed",
     "loading": "Loading transfer market",
     "loadError": "Could not load the transfer market.",
-    "sourcesLink": "Where does this data come from?"
+    "infoLabel": "Transfer information",
+    "infoModalTitle": "Transfer sources",
+    "close": "Close",
+    "infoText": "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson and Bram Vandecapelle (Het Laatste Nieuws) for their reporting."
   }
 }

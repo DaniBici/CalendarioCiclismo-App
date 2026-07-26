@@ -29,6 +29,7 @@ import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -82,158 +84,40 @@ fun PlaceholderModal(item: PlaceholderItem, onDismiss: () -> Unit) {
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 8.dp,
-    ) {
-        Column {
-            // ── Cabecera ────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (!race.hideFlag) {
-                            CountryFlag(countryCode = race.countryCode)
-                        }
-                        Text(
-                            text = race.localizedName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (rd != null && rd.stageLabel.isNotEmpty()) {
-                            Text(
-                                text = rd.stageLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        val dateText = if (rd != null) {
-                            DateFormatting.formatDateLong(rd.dateKey)
-                        } else {
-                            DateFormatting.formatDateRange(race.startDate, race.endDate)
-                        }
-                        if (dateText.isNotEmpty()) {
-                            Text(
-                                text = dateText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.action_close),
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // ── Cuerpo ───────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                if (!item.websiteUrl.isNullOrEmpty()) {
-                    Button(
-                        onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, item.websiteUrl.toUri()).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                )
-                            }
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Language,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.stage_doc_web_official))
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.outlinedButtonColors(),
-                ) {
-                    Text(stringResource(R.string.action_close))
-                }
-            }
-        }
+    val dateText = if (rd != null) {
+        DateFormatting.formatDateLong(rd.dateKey)
+    } else {
+        DateFormatting.formatDateRange(race.startDate, race.endDate)
     }
+    val detail = listOfNotNull(rd?.stageLabel?.takeIf { it.isNotEmpty() }, dateText.takeIf { it.isNotEmpty() })
+        .joinToString(" · ")
+    val websiteUrl = item.websiteUrl
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(race.localizedName) },
+        text = { Text(if (detail.isEmpty()) message else "$detail\n\n$message") },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+        dismissButton = {
+            if (!websiteUrl.isNullOrEmpty()) {
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, websiteUrl.toUri()))
+                    }
+                }) {
+                    Text(stringResource(R.string.stage_doc_web_official))
+                }
+            }
+        },
+    )
 }
 
 /**
- * Overlay que muestra un [PlaceholderModal] centrado sobre el contenido.
- * Colocar como último hijo de un [Box] que cubra toda la pantalla.
+ * Invoca el diálogo nativo de Material cuando hay un placeholder seleccionado.
  */
 @Composable
 fun PlaceholderModalOverlay(item: PlaceholderItem?, onDismiss: () -> Unit) {
-    val closeDialogCd = stringResource(R.string.placeholder_close_dialog_cd)
-    AnimatedVisibility(
-        visible = item != null,
-        enter = fadeIn(),
-        exit = fadeOut(),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
-                .semantics {
-                    contentDescription = closeDialogCd
-                    role = Role.Button
-                }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
-    }
-    AnimatedVisibility(
-        visible = item != null,
-        enter = fadeIn() + scaleIn(initialScale = 0.95f),
-        exit = fadeOut() + scaleOut(targetScale = 0.95f),
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            item?.let { PlaceholderModal(item = it, onDismiss = onDismiss) }
-        }
-    }
+    item?.let { PlaceholderModal(item = it, onDismiss = onDismiss) }
 }

@@ -6,23 +6,97 @@ struct LoadingView: View {
     var branded: Bool = false
 
     var body: some View {
-        VStack(spacing: branded ? 16 : 12) {
+        Group {
             if branded {
-                BrandedLogoView()
+                // En los cargadores de pantalla completa el perfil replica el
+                // comportamiento de la web: ocupa todo el ancho y descansa en
+                // el borde inferior, en lugar de quedar centrado con el texto.
+                VStack(spacing: 0) {
+                    // Bloques independientes: la identidad se centra en el
+                    // espacio disponible y el perfil ocupa su propia franja
+                    // inferior, sin poder pasar por detrás de ella.
+                    VStack(spacing: 0) {
+                        BrandedLogoView()
+                            .padding(.bottom, 12)
+                        Text(message)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        PulsingDotsView()
+                            .padding(.top, 10)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    AnimatedRouteProfile()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 150)
+                }
             } else {
-                ProgressView()
-                    .controlSize(.regular)
-            }
-            Text(message)
-                .font(branded ? .subheadline.weight(.semibold) : .subheadline)
-                .foregroundStyle(branded ? .primary : .secondary)
-            if branded {
-                PulsingDotsView()
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.regular)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message)
+    }
+}
+
+/// Perfil de carga compartido por los estados de espera y el splash propio.
+/// No representa una carrera concreta y se genera localmente, sin red.
+struct AnimatedRouteProfile: View {
+    var lineColor: Color = .accentColor
+    var fillColor: Color? = nil
+    var riderColor: Color? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let points: [CGPoint] = [
+        CGPoint(x: 0, y: 0.78), CGPoint(x: 0.06, y: 0.74), CGPoint(x: 0.14, y: 0.66),
+        CGPoint(x: 0.22, y: 0.72), CGPoint(x: 0.31, y: 0.48), CGPoint(x: 0.40, y: 0.36),
+        CGPoint(x: 0.48, y: 0.58), CGPoint(x: 0.58, y: 0.70), CGPoint(x: 0.66, y: 0.44),
+        CGPoint(x: 0.74, y: 0.24), CGPoint(x: 0.81, y: 0.38), CGPoint(x: 0.88, y: 0.20),
+        CGPoint(x: 0.94, y: 0.46), CGPoint(x: 1, y: 0.34),
+    ]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: reduceMotion)) { context in
+            let cycle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.6)
+            let progress = reduceMotion ? 1.0 : cycle / 2.6
+            Canvas { graphics, size in
+                let scaled = points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
+                guard let first = scaled.first else { return }
+                var profile = Path()
+                profile.move(to: first)
+                for point in scaled.dropFirst() { profile.addLine(to: point) }
+
+                var fill = profile
+                fill.addLine(to: CGPoint(x: size.width, y: size.height))
+                fill.addLine(to: CGPoint(x: 0, y: size.height))
+                fill.closeSubpath()
+                graphics.fill(fill, with: .color(fillColor ?? lineColor.opacity(0.12)))
+
+                graphics.clip(to: Path(CGRect(x: 0, y: 0, width: size.width * progress, height: size.height)))
+                graphics.stroke(profile, with: .color(lineColor), lineWidth: 3)
+
+                guard !reduceMotion else { return }
+                let rider = point(at: progress, in: scaled)
+                graphics.fill(Path(ellipseIn: CGRect(x: rider.x - 6, y: rider.y - 6, width: 12, height: 12)), with: .color(riderColor ?? lineColor))
+                graphics.fill(Path(ellipseIn: CGRect(x: rider.x - 2, y: rider.y - 2, width: 4, height: 4)), with: .color(.white.opacity(0.92)))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func point(at progress: Double, in points: [CGPoint]) -> CGPoint {
+        let x = max(0, min(1, progress)) * (points.last?.x ?? 0)
+        let end = max(1, points.firstIndex(where: { $0.x >= x }) ?? points.count - 1)
+        let start = points[end - 1]
+        let finish = points[end]
+        let fraction = max(0, min(1, (x - start.x) / (finish.x - start.x)))
+        return CGPoint(x: x, y: start.y + (finish.y - start.y) * fraction)
     }
 }
 

@@ -31,7 +31,10 @@ struct TransfersTeamView: View {
                 content(season: season, data: data, detail: detail)
             }
         }
-        .navigationTitle(season?.name ?? "")
+        .navigationTitle(localeService.t(
+            "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
+            "\(String(TransfersLogic.marketSeason)) Transfer Market"
+        ))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $linkedTeamRoute) { route in
             TransfersTeamView(teamId: route.teamId)
@@ -267,17 +270,11 @@ struct TransfersTeamView: View {
 
     /// Aviso de continuidad del equipo en duda — espejo de `.tr-team-notice`.
     private func teamDoubtNotice(_ text: String) -> some View {
-        HStack(spacing: 0) {
-            // Barra lateral de acento (equivalente al border-left de la web).
-            Rectangle()
-                .fill(Color.transfersDoubt)
-                .frame(width: 3)
-            Text(text)
-                .font(.footnote)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-            Spacer(minLength: 0)
-        }
+        Text(text)
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .fixedSize(horizontal: false, vertical: true)
         .background(Color.transfersDoubt.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: 8))

@@ -511,6 +511,7 @@
     <string name="results_also_on">Also on</string>
 
     <!-- "Latest results" feed (Results tab, apps 3.1) -->
+    <string name="results_feed_heading">Latest Results</string>
     <string name="results_feed_load_more">Load more results</string>
     <string name="results_feed_empty">No results</string>
     <string name="results_feed_gc_final">Final GC</string>
@@ -560,4 +561,7 @@
     <string name="transfers_departures_empty">No departures announced yet.</string>
     <string name="transfers_unknown_team">To be confirmed</string>
     <string name="transfers_error">Could not load the transfer market.</string>
+    <string name="transfers_info_label">Transfer information</string>
+    <string name="transfers_info_title">Transfer market</string>
+    <string name="transfers_info_text">Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson and Bram Vandecapelle (Het Laatste Nieuws) for their reporting.</string>
 </resources>

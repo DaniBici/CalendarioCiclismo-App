@@ -1,142 +1,52 @@
 import SwiftUI
 
-/// Modal para carreras sin información extra (no clickables / placeholders).
-/// Equivalente a `#ph-banner` del website.
-struct PlaceholderModal: View {
-    let race: Race
-    let raceDay: RaceDay?
-    let onDismiss: () -> Void
-    var websiteUrl: String? = nil
-
-    @Environment(\.openURL) private var openURL
-
-    private var message: String {
-        if let rd = raceDay, rd.isCancelledDay {
-            return "Etapa cancelada"
-        }
-        let todayStr = DateFormatting.todayKey()
-        let dateKey = raceDay?.dateKey ?? race.startDate ?? ""
-        if todayStr < dateKey {
-            return "Por ahora sin información extra"
-        }
-        return "Sin información extra"
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        if race.hideFlag != true {
-                            CountryFlag(countryCode: race.countryCode)
-                        }
-                        Text(race.localizedName)
-                            .font(.headline)
-                            .lineLimit(2)
-                    }
-
-                    HStack(spacing: 6) {
-                        if let rd = raceDay, !rd.stageLabel.isEmpty {
-                            Text(rd.stageLabel)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let rd = raceDay {
-                            Text(DateFormatting.formatDateLong(rd.dateKey))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(DateFormatting.formatDateRange(start: race.startDate, end: race.endDate))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                Spacer()
-
-                Button {
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityLabel("Cerrar")
-            }
-            .padding()
-
-            Divider()
-
-            // Body
-            VStack(spacing: 16) {
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 16)
-
-                if let urlStr = websiteUrl, let url = URL(string: urlStr) {
-                    Button {
-                        openURL(url)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "globe")
-                            Text(LocaleService.t("Web oficial", "Official website"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                    }
-                    .accessibilityLabel(LocaleService.t("Web oficial", "Official website"))
-                }
-
-                Button("Cerrar") {
-                    onDismiss()
-                }
-                .buttonStyle(.bordered)
-                .padding(.bottom, 16)
-            }
-            .padding(.horizontal)
-        }
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.3), radius: 24, y: 12)
-        .padding(.horizontal, 24)
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-    }
-}
-
-/// Wrapper that shows a PlaceholderModal as an overlay.
+/// Alerta nativa centrada para carreras sin información extra.
 struct PlaceholderModalOverlay: ViewModifier {
     @Binding var item: PlaceholderModalItem?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     func body(content: Content) -> some View {
         content
-            .overlay {
+            .alert(dialogTitle, isPresented: Binding(
+                get: { item != nil },
+                set: { if !$0 { item = nil } }
+            )) {
                 if let item {
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                        .onTapGesture { self.item = nil }
-                        .accessibilityHidden(true)
-
-                    PlaceholderModal(
-                        race: item.race,
-                        raceDay: item.raceDay,
-                        onDismiss: { self.item = nil },
-                        websiteUrl: item.websiteUrl
-                    )
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.95)))
+                    if let urlString = item.websiteUrl, let url = URL(string: urlString) {
+                        Button(LocaleService.t("Web oficial", "Official website")) { openURL(url) }
+                    }
+                    Button(LocaleService.t("Cerrar", "Close"), role: .cancel) {}
                 }
+            } message: {
+                if let item { Text(dialogMessage(for: item)) }
             }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: item != nil)
+    }
+
+    private var dialogTitle: String { item?.race.localizedName ?? "" }
+
+    private func dialogMessage(for item: PlaceholderModalItem) -> String {
+        let race = item.race
+        let rd = item.raceDay
+        let detail: String
+        if let rd, !rd.stageLabel.isEmpty {
+            detail = "\(rd.stageLabel) · \(DateFormatting.formatDateLong(rd.dateKey))"
+        } else if let rd {
+            detail = DateFormatting.formatDateLong(rd.dateKey)
+        } else {
+            detail = DateFormatting.formatDateRange(start: race.startDate, end: race.endDate)
+        }
+        let message: String
+        if rd?.isCancelledDay == true {
+            message = "Etapa cancelada"
+        } else if race.isCancelled {
+            message = "Carrera cancelada"
+        } else {
+            let dateKey = rd?.dateKey ?? race.startDate ?? ""
+            message = DateFormatting.todayKey() < dateKey
+                ? "Por ahora sin información extra"
+                : "Sin información extra"
+        }
+        return detail.isEmpty ? message : "\(detail)\n\n\(message)"
     }
 }
 

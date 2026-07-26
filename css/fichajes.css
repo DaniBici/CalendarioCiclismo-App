@@ -11,11 +11,76 @@
   box-sizing: border-box;
 }
 
+.tr-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  position: relative;
+  width: fit-content;
+}
+
 .tr-heading {
   font-family: var(--font-display);
   font-size: 1.45rem;
   font-weight: 700;
   margin: 0.75rem 0 0.5rem;
+}
+
+.tr-info-button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid var(--text-muted);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font: 700 0.78rem/1 var(--font-body);
+  cursor: pointer;
+}
+.tr-info-button:hover, .tr-info-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tr-info-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: calc(100% + 0.55rem);
+  right: auto;
+  transform: none;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.45rem;
+  background: var(--bg-card, var(--bg));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+}
+@media (min-width: 769px) {
+  .tr-heading-row:hover .tr-info-tooltip,
+  .tr-heading-row:focus-within .tr-info-tooltip { display: block; }
+}
+@media (max-width: 768px) {
+  .tr-info-tooltip { display: none !important; }
+}
+
+.tr-info-modal__body {
+  padding: 1.15rem 1.5rem 1.5rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.tr-info-modal__body p { margin: 0; }
+@media (max-width: 480px) {
+  .tr-info-modal__body { padding: 1rem 1.1rem 1.25rem; }
 }
 
 .tr-section-title {
@@ -78,17 +143,16 @@
 
 /* FILA de corredor enlazada a la ficha de un equipo (Llegan → equipo de origen;
    Se marchan → equipo destino). Toda la fila es el <a>: hereda el color del
-   texto (el nombre no cambia de color), pero señala que es clicable con el
-   cursor y un realce sutil del borde/fondo al pasar por encima. */
+   texto (el nombre no cambia de color) y adopta exactamente el hover de las
+   tarjetas de equipo de esta pantalla. */
 .tr-row--link {
   cursor: pointer;
   color: inherit;
   text-decoration: none;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: background 0.15s ease;
 }
 .tr-row--link:hover {
-  border-color: var(--accent);
-  background: var(--accent-dim);
+  background: var(--bg-card-hover);
 }
 
 /* En el feed: el nombre del corredor va en negrita y la flecha (→) lo separa
@@ -146,7 +210,6 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   padding: 0.55rem 0.75rem;
   border-radius: 8px;
   background: rgba(139, 92, 246, 0.1);
-  border-left: 3px solid #8b5cf6;
   color: var(--text);
   font-size: 0.82rem;
   line-height: 1.4;
@@ -204,19 +267,6 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 @media (max-width: 560px) {
   .tr-team-grid { grid-template-columns: 1fr; }
 }
-
-/* Enlace tenue a la página de fuentes ("Cómo se hace"), bajo la lista de
-   equipos. Discreto a propósito: color atenuado, sin recuadro. */
-.tr-sources-link {
-  display: block;
-  text-align: center;
-  margin-top: 0.9rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--transition);
-}
-.tr-sources-link:hover { color: var(--accent); }
 
 /* ── Doble scroll en MÓVIL (home del mercado) ──────────────────────
    Las "Últimas confirmaciones" y la lista de equipos quedan siempre a la

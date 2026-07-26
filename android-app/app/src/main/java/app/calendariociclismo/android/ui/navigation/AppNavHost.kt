@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -140,7 +140,8 @@ fun AppNavHost(navController: NavHostController) {
             composable(Routes.TODAY) { TodayScreen(navController) }
             composable(Routes.RESULTS_FEED) { ResultsFeedScreen(navController) }
             composable(Routes.CALENDAR) { CalendarScreen(navController) }
-            composable(Routes.TRANSFERS) { TransfersScreen(navController) }
+            composable(Routes.TRANSFERS) { TransfersScreen(navController, showBackArrow = false) }
+            composable(Routes.TRANSFERS_HIGHLIGHT) { TransfersScreen(navController, showBackArrow = true) }
             composable(Routes.SETTINGS) { SettingsScreen(navController) }
 
             composable(
@@ -261,7 +262,7 @@ private data class TabItem(val route: String, val labelRes: Int, val icon: Image
 private val tabs = listOf(
     TabItem(Routes.TODAY, R.string.tab_today, Icons.Filled.CalendarToday),
     TabItem(Routes.RESULTS_FEED, R.string.tab_results, Icons.Filled.EmojiEvents),
-    TabItem(Routes.TRANSFERS, R.string.tab_transfers, Icons.AutoMirrored.Filled.CompareArrows),
+    TabItem(Routes.TRANSFERS, R.string.tab_transfers, Icons.Filled.SyncAlt),
     TabItem(Routes.CALENDAR, R.string.tab_calendar, Icons.Filled.CalendarMonth),
     TabItem(Routes.SETTINGS, R.string.tab_settings, Icons.Filled.Settings),
 )

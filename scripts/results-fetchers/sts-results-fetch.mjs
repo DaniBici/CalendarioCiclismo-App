@@ -46,8 +46,12 @@
  * NORMALIZACIÓN (→ formato BD / web, igual que raceresult/matsport):
  *   tiempo absoluto "04h31'03" → "4:31:03" · "00h15'28,34" → "0:15:28" (sin centésimas).
  *   gap "+0'04"/"+0:04" → "+0:04" · "+1'02,00" → "+1:02" · "+16:49" → "+16:49"
- *       · "+1h00'15" → "+1:00:15" · "+ N tour" (lapped) → null (sin gap numérico;
- *         se emite el tiempo absoluto en resultValue). "-" (líder) → null.
+ *       · "+1h00'15" → "+1:00:15" · "-" (líder) → null.
+ *   ⚠ "+ N tour"/"+ N tours" (DOBLADO): Wiclax le da tiempo absoluto, pero de una
+ *       distancia MENOR → NO comparable con el ganador. Se emite con IRM **OTL**
+ *       (fuera de control), no como clasificado: con su tiempo dentro, la web
+ *       activa `gapsDisguised` (una fila rank>1 con timeText < ganador) y pinta el
+ *       absoluto de TODAS las filas como gap. Ver parseResultRows.
  *   puntos "28" → "28".  IRM: Abandon→DNF · "Non partant"/NP→DNS · "Hors délai"/HD→OTL
  *       · "Disqualifié"/DSQ/EX→DSQ (códigos de js/uci-irm.js).
  *
@@ -288,8 +292,23 @@ export function parseResultRows(blockXml, riderByBib) {
     // tiempos absolutos en vez de m.t.). `tr="4"` ya venía junto a t="Abandon";
     // `tr="1"` sin t/g es el mismo caso (corredor cortado). Verificado: GP Torres
     // Vedras 2026 E1, dorsal 174 (RIBEIRO Afonso).
+    // DOBLADO ("+ 1 tour" / "+ 2 tours"): Wiclax SÍ le da tiempo absoluto, pero es el
+    // tiempo de una distancia MENOR (ds/to menores que los del ganador) → NO es
+    // comparable con el del vencedor. Clasificarlo con ese tiempo envenena la
+    // clasificación ENTERA en la web: js/resultados.js activa `gapsDisguised` en
+    // cuanto UNA fila rank>1 tiene timeText < ganador (el doblado, que rodó menos),
+    // y entonces pinta el tiempo absoluto de TODAS las filas como si fuera un gap
+    // ("+3:24:19"). Verificado en La Périgord Ladies 2026: 33 dobladas de 106 filas
+    // → las 107 filas salían con gaps de ~3 h. Un doblado no completó la distancia
+    // del ganador → se emite con IRM **OTL** ("FC", fuera de control): es lo que de
+    // hecho le pasa al doblado en un circuito (se le retira por quedar fuera de
+    // plazo), y a diferencia de DNF no afirma que abandonara — terminó, pero a
+    // vuelta(s). Como todo IRM, no consume puesto → el rank posicional del resto
+    // no se descuadra, y su tiempo no comparable queda fuera de la derivación.
+    const lapped = /tour|lap/i.test(clean(a.g) || '');
     const trMarked = a.tr != null && String(a.tr) !== '0';
-    const irm = irmOf(a.t) || (trMarked && !abs && !normGap(a.g) ? 'DNF' : null);
+    const irm = irmOf(a.t) || (lapped ? 'OTL' : null)
+      || (trMarked && !abs && !normGap(a.g) ? 'DNF' : null);
     if (irm) {
       rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null,
         teamName: who.teamName || null, resultValue: null, timeText: null, gapText: null,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.components.AnimatedRouteProfile
 import kotlinx.coroutines.delay
 
 /**
@@ -111,6 +113,18 @@ fun SplashOverlay(
             .background(BrandBlue),
         contentAlignment = Alignment.Center,
     ) {
+        // El perfil arranca tras el primer frame nativo: conserva el logo del
+        // splash del sistema y prolonga su identidad dentro de Compose.
+        AnimatedRouteProfile(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(230.dp),
+            lineColor = Color.White,
+            fillColor = Color.White.copy(alpha = 0.15f),
+            riderColor = Color.White,
+        )
+
         // Icono centrado (mismo foreground que el adaptive icon).
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),

@@ -2,7 +2,7 @@
 //  Cookie Consent Banner + Modal de gestión
 //  - Banner en primera visita: auto-cierre en 10s (acepta).
 //  - Rueda ⚙ "Elegiré más tarde": cierra sin guardar elección.
-//  - Link "Gestión de cookies" tras el footer → modal para cambiar.
+//  - Botón "Gestión de cookies" en el footer → modal para cambiar.
 // ─────────────────────────────────────────────────────────────────
 
 (function () {
@@ -125,15 +125,23 @@
     }
 
     // ════════════════════════════════════════════════════════════
-    //  2. LINK "Gestión de cookies" tras el footer
+    //  2. BOTÓN "Gestión de cookies" en el footer
     // ════════════════════════════════════════════════════════════
     var footer = document.querySelector('.site-footer');
     if (footer) {
-      var linkBar = document.createElement('div');
-      linkBar.className = 'cookie-manage-bar';
-      linkBar.innerHTML = '<a href="#" class="cookie-manage-link" id="cookieManageLink">' +
-        gearSVG + ' ' + (_isEN ? 'Cookie settings' : 'Gesti\u00f3n de cookies') + '</a>';
-      footer.insertAdjacentElement('afterend', linkBar);
+      var actions = footer.querySelector('.site-footer__actions');
+      if (!actions) {
+        actions = document.createElement('p');
+        actions.className = 'site-footer__actions';
+        footer.appendChild(actions);
+      }
+      var manageButton = document.createElement('button');
+      manageButton.className = 'footer-link footer-link--icon footer-link--cookies';
+      manageButton.id = 'cookieManageLink';
+      manageButton.type = 'button';
+      manageButton.setAttribute('aria-haspopup', 'dialog');
+      manageButton.innerHTML = gearSVG + '<span>' + (_isEN ? 'Cookie settings' : 'Gesti\u00f3n de cookies') + '</span>';
+      actions.appendChild(manageButton);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -181,8 +189,7 @@
       }
     }
 
-    document.getElementById('cookieManageLink').addEventListener('click', function (e) {
-      e.preventDefault();
+    document.getElementById('cookieManageLink').addEventListener('click', function () {
       openModal();
     });
 

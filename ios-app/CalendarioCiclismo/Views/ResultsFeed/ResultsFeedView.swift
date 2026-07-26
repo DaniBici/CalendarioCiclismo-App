@@ -35,7 +35,7 @@ struct ResultsFeedView: View {
                 feedList
             }
         }
-        .navigationTitle(localeService.t("Resultados", "Results"))
+        .navigationTitle(localeService.t("Últimos Resultados", "Latest Results"))
         .navigationBarTitleDisplayMode(.inline)
         // Push por valor a la pantalla de resultados in-house (data-driven,
         // como en Hoy — NUNCA por destino, corrompe el NavigationStack).

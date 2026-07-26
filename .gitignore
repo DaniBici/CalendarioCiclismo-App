@@ -51,8 +51,10 @@ android-app/*.keystore
 
 # ── iOS (ios-app/) ───────────────────────────────────────────────
 ios-app/build/
+ios-app/build-*/
 ios-app/DerivedData/
 ios-app/.build/
+ios-app/.swiftpm/
 # xcuserdata = estado personal del IDE (ficheros abiertos, cursor, orden de
 # schemes) y lleva el nombre de usuario en la ruta. Se ignora a CUALQUIER
 # profundidad: los patrones `*.xcworkspace/xcuserdata/` y
@@ -86,9 +88,17 @@ js/config.js
 scripts/results-fetchers/*_run/**/*.json
 scripts/results-fetchers/*_run/**/*.sql
 scripts/results-fetchers/*_run/**/*.log
+scripts/**/*_run/**/*.json
+scripts/**/*_run/**/*.sql
+scripts/**/*_run/**/*.log
+scripts/**/*_run/**/*.sig
 # El match-report.json TENÍA aquí una excepción para versionarlo (el panel lo leía por
 # ruta relativa). Desde 2026-07-19 va al bucket privado `uci-reports` de Storage
 # (migración 133) y lo suben los crons → vuelve a estar ignorado como el resto.
+
+# Herramienta local generada para preparar capturas de las stores. El árbol
+# actual solo contiene dependencias y salida compilada de Next.js, no fuentes.
+app-store-screenshots/
 
 # ── Logos de carreras (obras de terceros — NO redistribuir) ──────
 # Se empaquetan en las apps como fallback offline, pero no se versionan:

@@ -40,11 +40,17 @@
   display: flex;
   gap: 0.3rem;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
   flex: 1;
   min-width: 0;
+  cursor: grab;
+  user-select: none;
 }
 .cal-month-chips::-webkit-scrollbar { display: none; }
+.cal-month-chips--dragging { cursor: grabbing; }
 
 /* Chips de mes = mismas píldoras que el selector de días de Hoy (.date-pill):
    sin borde, fondo transparente, activo/hover en --accent-dim. */
@@ -59,6 +65,7 @@
   padding: 0.3rem 0.65rem;
   cursor: pointer;
   white-space: nowrap;
+  flex: 0 0 auto;
   transition: background var(--transition), color var(--transition);
 }
 .cal-month-chip:hover { background: var(--accent-dim); }

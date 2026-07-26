@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,6 +70,7 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
 import app.calendariociclismo.android.ui.components.RaceLogo
@@ -433,10 +433,7 @@ fun SeasonScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (allRaces.isEmpty()) {
-                            val loadingCd = stringResource(R.string.loading)
-                            CircularProgressIndicator(
-                                modifier = Modifier.semantics { contentDescription = loadingCd },
-                            )
+                            RouteLoadingView(message = stringResource(R.string.loading))
                         } else {
                             Text(
                                 text = stringResource(R.string.season_empty_no_races),

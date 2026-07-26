@@ -521,9 +521,7 @@ function updateSeoDay(dateKey, raceDays) {
   // Valores evergreen — espejo exacto del HTML estático (`index.html` / `en/index.html`).
   // Se reescriben explícitamente por si una navegación previa en la misma sesión los tocó.
   const title = 'Calendario Ciclismo App';
-  const description = isEn
-    ? 'All professional cycling races with schedule, route, profile and how to watch on TV and streaming.'
-    : 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
+  const description = 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
 
   document.title = title;
   setMeta('description', description);

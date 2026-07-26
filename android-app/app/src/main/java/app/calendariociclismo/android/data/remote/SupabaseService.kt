@@ -25,6 +25,7 @@ import app.calendariociclismo.android.data.model.UciRank1Row
 import app.calendariociclismo.android.data.model.applyingElevation
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
+import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
@@ -33,6 +34,8 @@ import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.rpc
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
@@ -49,12 +52,23 @@ import kotlinx.serialization.json.buildJsonObject
  * `startlist_teams`, `startlist_riders`, `challenge_groups`,
  * `push_subscriptions`).
  */
+@OptIn(SupabaseInternal::class)
 class SupabaseService {
 
     private val client = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
     ) {
+        httpConfig {
+            defaultRequest {
+                headers.remove(HttpHeaders.UserAgent)
+                headers.append(
+                    HttpHeaders.UserAgent,
+                    "CalendarioCiclismo-Android/${BuildConfig.VERSION_NAME} " +
+                        "(${BuildConfig.VERSION_CODE})",
+                )
+            }
+        }
         install(Postgrest)
     }
 

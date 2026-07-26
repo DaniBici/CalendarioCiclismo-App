@@ -20,7 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -46,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -57,6 +60,7 @@ import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.startlist.TeamBadgeComposable
@@ -84,7 +88,7 @@ private sealed class MarketState {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransfersScreen(navController: NavController) {
+fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
     val app = rememberApp()
     val haptic = rememberHaptics()
     val unknownError = stringResource(R.string.transfers_error)
@@ -92,13 +96,8 @@ fun TransfersScreen(navController: NavController) {
     var state by remember { mutableStateOf<MarketState>(MarketState.Loading) }
     var activeDivision by rememberSaveable { mutableStateOf(TransfersLogic.DIVISIONS.first()) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var showTransfersInfo by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
-
-    // Se llega a Fichajes por la pestaña principal (sin nada detrás en el back
-    // stack → sin flecha) o desde el cintillo de Hoy (apilado sobre Hoy → con
-    // flecha), ya que en ese caso la barra inferior se oculta y no habría otra
-    // forma de volver. Espejo de la salida condicional del cintillo en iOS.
-    val showBackArrow = navController.previousBackStackEntry != null
 
     LaunchedEffect(Unit) { app.analytics.logScreenView("transfers") }
 
@@ -140,6 +139,17 @@ fun TransfersScreen(navController: NavController) {
                         }
                     }
                 },
+                actions = {
+                    IconButton(onClick = {
+                        haptic(Haptics.Event.Selection)
+                        showTransfersInfo = true
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = stringResource(R.string.transfers_info_label),
+                        )
+                    }
+                },
             )
         },
     ) { padding ->
@@ -150,9 +160,9 @@ fun TransfersScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             when (val current = state) {
-                is MarketState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                is MarketState.Loading -> RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                )
                 is MarketState.Error -> Text(
                     text = current.message,
                     modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -169,6 +179,19 @@ fun TransfersScreen(navController: NavController) {
                 )
             }
         }
+    }
+
+    if (showTransfersInfo) {
+        AlertDialog(
+            onDismissRequest = { showTransfersInfo = false },
+            title = { Text(stringResource(R.string.transfers_info_title)) },
+            text = { Text(stringResource(R.string.transfers_info_text)) },
+            confirmButton = {
+                TextButton(onClick = { showTransfersInfo = false }) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+        )
     }
 }
 
@@ -219,7 +242,11 @@ private fun MarketContent(
                             )
                         }
                         items(moves.size, key = { i -> "move_${moves[i].id}" }) { i ->
-                            TransferFeedRow(transfer = moves[i], data = data)
+                            TransferFeedRow(
+                                transfer = moves[i],
+                                data = data,
+                                onLinkTeam = onTeamTap,
+                            )
                             Spacer(Modifier.height(6.dp))
                         }
                     }
@@ -307,7 +334,11 @@ private fun DivisionChip(label: String, selected: Boolean, onClick: () -> Unit) 
 
 /** Fila del feed: bandera + "Corredor  → Destino" + "hasta YYYY". */
 @Composable
-fun TransferFeedRow(transfer: RiderTransfer, data: TransfersLogic.MarketData) {
+fun TransferFeedRow(
+    transfer: RiderTransfer,
+    data: TransfersLogic.MarketData,
+    onLinkTeam: (String) -> Unit,
+) {
     // Strings hoisted: buildAnnotatedString no admite llamadas @Composable.
     val unknownTeam = stringResource(R.string.transfers_unknown_team)
     val renewsWith = stringResource(R.string.transfers_renews_with)
@@ -315,6 +346,10 @@ fun TransferFeedRow(transfer: RiderTransfer, data: TransfersLogic.MarketData) {
     val untilText = transfer.contractUntil?.let { stringResource(R.string.transfers_until, it) }
     val rider = data.ridersById[transfer.riderId]
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // El feed contiene solo fichajes reales: enlaza al equipo de DESTINO si
+    // ese equipo tiene ficha en el mercado 2027.
+    val marketTeamIds = remember(data.seasons) { data.seasons.map { it.teamId }.toHashSet() }
+    val linkTeamId = transfer.toTeamId?.takeIf { it in marketTeamIds }
     val moveText = buildAnnotatedString {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
             append(rider?.fullName?.ifBlank { transfer.riderId } ?: transfer.riderId)
@@ -340,12 +375,22 @@ fun TransferFeedRow(transfer: RiderTransfer, data: TransfersLogic.MarketData) {
                 // de DESTINO (a dónde va), no el de origen. La flecha ya separa el
                 // nombre del destino → sin divisor "·". El destino NO va en negrita:
                 // el nombre del corredor ya lo está. Decisión Dani 2026-07-20.
-                withStyle(SpanStyle(color = dimColor)) { append("  →  ") }
+                withStyle(
+                    SpanStyle(
+                        color = dimColor,
+                        baselineShift = BaselineShift(0.12f),
+                    ),
+                ) { append("  →  ") }
                 append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))
             }
         }
     }
-    CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
+    CCCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (linkTeamId != null) Modifier.clickable { onLinkTeam(linkTeamId) } else Modifier),
+        cornerRadius = 12,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

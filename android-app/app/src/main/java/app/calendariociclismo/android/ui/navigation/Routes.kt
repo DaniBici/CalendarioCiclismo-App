@@ -16,6 +16,8 @@ object Routes {
     // Mercado de fichajes 2027 (apps 4.0) — 3ª pestaña; sustituye a Buscar
     // (archivado en archive/buscador-apps-2026/).
     const val TRANSFERS = "transfers"
+    // Entrada desde el cintillo de Hoy: no es una pestaña, conserva el retorno.
+    const val TRANSFERS_HIGHLIGHT = "transfers_highlight"
     const val SETTINGS = "settings"
 
     const val RACE = "race/{raceId}"

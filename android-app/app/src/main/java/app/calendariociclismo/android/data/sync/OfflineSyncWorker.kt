@@ -20,7 +20,11 @@ class OfflineSyncWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as? CalendarioCiclismoApp
             ?: return Result.failure()
-        val result = app.offlineManager.performSync()
+        // Un reintento de WorkManager nunca conserva el bypass manual: si la
+        // primera pasada falló, el cooldown persistente corta el bucle.
+        val force = inputData.getBoolean(OfflineManager.KEY_FORCE_SYNC, false) &&
+            runAttemptCount == 0
+        val result = app.offlineManager.performSync(force = force)
         return if (result.isSuccess) Result.success() else Result.retry()
     }
 }

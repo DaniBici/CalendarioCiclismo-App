@@ -31,6 +31,10 @@ final class TodayViewModel {
     /// el item.id en el .id() de cada card, garantiza que SwiftUI destruya y
     /// recree las vistas en lugar de reutilizar instancias con datos obsoletos.
     var refreshToken: Int = 0
+    /// Identifica la última carga solicitada. Las respuestas de peticiones
+    /// anteriores no deben poder repintar un día que el usuario ya abandonó ni
+    /// apagar el indicador de una recarga más reciente.
+    private var loadGeneration = 0
 
     enum SortMode: String, CaseIterable {
         case category = "category"
@@ -146,12 +150,29 @@ final class TodayViewModel {
         goToDate(nowKey)
     }
 
-    func loadDay() async {
-        isLoading = true
-        items = []
-        isFromCache = false
-        cacheAgeLabel = nil
-        nextDayWithRaces = nil
+    /// Recarga el día ya visible sin sustituir su contenido por una pantalla de
+    /// carga. Es la semántica del pull-to-refresh y de los refrescos silenciosos
+    /// al volver a primer plano: el indicador nativo acompaña a las cards, no
+    /// las reemplaza.
+    func refreshDay() async {
+        await loadDay(preservingContent: true)
+    }
+
+    /// Carga un día. Al navegar sí se limpia el contenido anterior; al refrescar
+    /// el mismo día se conserva hasta que llegue una respuesta nueva.
+    func loadDay(preservingContent: Bool = false) async {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        let capturedKey = dateKey
+        let retainsContent = preservingContent && !items.isEmpty
+
+        isLoading = !retainsContent
+        if !retainsContent {
+            items = []
+            isFromCache = false
+            cacheAgeLabel = nil
+            nextDayWithRaces = nil
+        }
         error = nil
         hasLoaded = true
         isUncachedOffline = false
@@ -161,13 +182,12 @@ final class TodayViewModel {
         // a otra fecha mientras esperamos la red o la caché, los tasks concurrentes
         // de fechas anteriores devolverían datos obsoletos que sobreescriben el
         // estado de la fecha actual — el guard al final de cada await los descarta.
-        let capturedKey = dateKey
         let cache = CacheManager.shared
         let cacheKey = CacheManager.dayKey(dateKey)
 
         // 1. Intentar cargar desde caché para mostrar datos mientras llega la red
-        if let cached: DayData = await cache.load(DayData.self, forKey: cacheKey) {
-            guard dateKey == capturedKey else { return }
+        if !retainsContent, let cached: DayData = await cache.load(DayData.self, forKey: cacheKey) {
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
             items = cached.raceDays
             isFromCache = true
             cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
@@ -177,7 +197,7 @@ final class TodayViewModel {
         // 2. Intentar actualizar desde red
         do {
             let data = try await SupabaseService.shared.loadDayComplete(dateKey: dateKey)
-            guard dateKey == capturedKey else { return }
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
             items = data.raceDays
             isFromCache = false
             cacheAgeLabel = nil
@@ -189,9 +209,11 @@ final class TodayViewModel {
             if allRaces.isEmpty {
                 let yearKey = CacheManager.yearRacesKey(year)
                 if let cachedRaces: [Race] = await cache.load([Race].self, forKey: yearKey) {
+                    guard dateKey == capturedKey, generation == loadGeneration else { return }
                     allRaces = cachedRaces
                 }
                 allRaces = try await SupabaseService.shared.racesByYear(year)
+                guard dateKey == capturedKey, generation == loadGeneration else { return }
                 await cache.save(allRaces, forKey: yearKey)
             }
 
@@ -280,6 +302,7 @@ final class TodayViewModel {
             // NO sabemos si hay conexión — no hay motivo para mostrar el banner
             // "Sin conexión". Reseteamos el estado para que el banner no se quede
             // pegado al volver a esta vista.
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
             if Task.isCancelled {
                 isFromCache = false
                 isLoading = false
@@ -288,7 +311,6 @@ final class TodayViewModel {
             }
             // Si ya teníamos datos de caché, no sobreescribir con error.
             // Descartar si el usuario navegó a otra fecha mientras esperábamos red.
-            guard dateKey == capturedKey else { return }
             if items.isEmpty {
                 isUncachedOffline = true
             }

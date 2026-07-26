@@ -235,11 +235,18 @@ function feedRowHtml(x) {
     move = `<span class="tr-arrow">→</span>
       ${esc(teamLabel(x.toTeamId, x.toTeamName))}`;
   }
-  return `<div class="tr-row">
+  const inner = `
     <span class="tr-row__flag">${flag}</span>
     <span class="tr-row__body"><span class="tr-name">${name}</span><span class="tr-move">${move}</span></span>
-    ${contractBit(x.contractUntil)}
-  </div>`;
+    ${contractBit(x.contractUntil)}`;
+  // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
+  // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
+  // la fila conserva el aspecto no enlazado.
+  if (x.toTeamId && _seasonsByTeamId.has(x.toTeamId)) {
+    const href = `?team=${esc(_teamIdToSlug.get(x.toTeamId) || x.toTeamId)}`;
+    return `<a class="tr-row tr-row--link" href="${href}" data-team="${esc(x.toTeamId)}">${inner}</a>`;
+  }
+  return `<div class="tr-row">${inner}</div>`;
 }
 
 function renderFeed() {
@@ -696,8 +703,13 @@ async function init() {
     _activeDiv = qs.get('div').toUpperCase();
   }
 
+  const transfersInfo = t('transfers.infoText');
   content.innerHTML = `
-    <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
+    <div class="tr-heading-row">
+      <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
+      <button class="tr-info-button" type="button" aria-label="${esc(t('transfers.infoLabel'))}" aria-describedby="trInfoTooltip" aria-expanded="false">i</button>
+      <span class="tr-info-tooltip" id="trInfoTooltip" role="tooltip">${esc(transfersInfo)}</span>
+    </div>
     <div id="trHome">
       <section class="tr-home-feed">
         <h2 class="tr-section-title">${esc(t('transfers.feedTitle'))}</h2>
@@ -707,11 +719,49 @@ async function init() {
         <h2 class="tr-section-title">${esc(t('transfers.teamsTitle', { season: SEASON }))}</h2>
         <div class="tr-div-btns" id="trDivBtns"></div>
         <div class="tr-home-scroll tr-team-grid" id="trTeamGrid"></div>
-        <a class="tr-sources-link" href="${getLang() === 'en' ? '/en/open/' : '/abierto.html'}">${esc(t('transfers.sourcesLink'))}</a>
       </section>
     </div>
     <div id="trTeamView" hidden></div>`;
   content.hidden = false;
+
+  const infoButton = content.querySelector('.tr-info-button');
+  let infoModal = null;
+  const closeInfoModal = () => {
+    if (!infoModal) return;
+    infoModal.classList.remove('rd-modal--open');
+    document.body.style.overflow = '';
+    infoButton?.focus();
+  };
+  const openInfoModal = () => {
+    if (!infoModal) {
+      infoModal = document.createElement('div');
+      infoModal.className = 'rd-modal-overlay';
+      infoModal.innerHTML = `
+        <div class="rd-modal tr-info-modal" role="dialog" aria-modal="true" aria-labelledby="trInfoModalTitle">
+          <div class="rd-modal__bar">
+            <div class="rd-modal__header-text"><span class="rd-modal__race-name" id="trInfoModalTitle"></span></div>
+            <button class="rd-modal__close" type="button" aria-label="${esc(t('transfers.close'))}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="rd-modal__body tr-info-modal__body"><p></p></div>
+        </div>`;
+      infoModal.querySelector('#trInfoModalTitle').textContent = t('transfers.infoModalTitle');
+      infoModal.querySelector('.tr-info-modal__body p').textContent = transfersInfo;
+      infoModal.addEventListener('click', (event) => { if (event.target === infoModal) closeInfoModal(); });
+      infoModal.querySelector('.rd-modal__close').addEventListener('click', closeInfoModal);
+      document.body.appendChild(infoModal);
+    }
+    infoModal.classList.add('rd-modal--open');
+    document.body.style.overflow = 'hidden';
+    infoModal.querySelector('.rd-modal__close').focus();
+  };
+  infoButton?.addEventListener('click', () => {
+    if (window.matchMedia('(max-width: 768px)').matches) openInfoModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && infoModal?.classList.contains('rd-modal--open')) closeInfoModal();
+  });
 
   // Clic en fila de corredor enlazada (Llegan → equipo de origen; Se marchan →
   // equipo destino): navegación interna a ese equipo, sin recarga. Delegado UNA
@@ -722,6 +772,17 @@ async function init() {
     const link = e.target.closest('.tr-row--link[data-team]');
     if (!link) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; // abrir en pestaña nueva
+    e.preventDefault();
+    openTeam(link.dataset.team);
+  });
+
+  // El feed también lleva a la ficha del equipo de DESTINO del fichaje. Usa la
+  // misma navegación interna que las filas de la ficha de equipo, conservando
+  // el href real para accesibilidad y para abrir el destino en otra pestaña.
+  $('trFeed').addEventListener('click', (e) => {
+    const link = e.target.closest('.tr-row--link[data-team]');
+    if (!link) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
     e.preventDefault();
     openTeam(link.dataset.team);
   });

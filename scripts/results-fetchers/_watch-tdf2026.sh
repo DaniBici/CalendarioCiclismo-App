@@ -11,7 +11,7 @@
 #
 # Termina imprimiendo una línea:
 #   STATE STAGE=<n> STAGE_FIN=<n> TOP50=<0|1> POINTS_ROWS=<n> POINTS_WIN=<name>
-#         CHANGED=<0|1> FINAL_GC=<n>
+#         CHANGED=<0|1> FINAL_GC=<n> FETCH=<OK|ERROR>
 # FINAL_GC se queda a 0 durante todo el Tour (Tissot mantiene status=Live hasta
 # la E21) → NO es señal de cierre diario. Ver el runbook.
 set -uo pipefail
@@ -27,7 +27,16 @@ UPSERT=scripts/results-fetchers/uci-results-upsert.mjs
 
 mkdir -p "$OUT"
 
-node "$FETCH" --competition "$COMP" --competition-id "$COMPID" --stage "$STAGE" --out "$OUT" >/dev/null 2>&1
+FETCH_LOG="$(mktemp "${TMPDIR:-/tmp}/tdf-watch-fetch.XXXXXX")"
+trap 'rm -f "$FETCH_LOG"' EXIT
+node "$FETCH" --competition "$COMP" --competition-id "$COMPID" --stage "$STAGE" --out "$OUT" >"$FETCH_LOG" 2>&1
+fetch_rc=$?
+if [ "$fetch_rc" -ne 0 ]; then
+  echo ">>> [$(date -u +%H:%M:%S)] FETCH FAILED rc=$fetch_rc — no se interpreta como etapa sin publicar." >&2
+  sed 's/^/    /' "$FETCH_LOG" >&2
+  echo "STATE STAGE=$STAGE STAGE_FIN=0 TOP50=0 POINTS_ROWS=0 POINTS_WIN=- CHANGED=0 FINAL_GC=0 FETCH=ERROR"
+  exit "$fetch_rc"
+fi
 
 # Lee el JSON y calcula el estado. STAGE_FIN = prefijo CONTIGUO de finishers con
 # puesto (regla: puesto hasta el primer hueco; ver feedback_live_results_prefix_and_times).
@@ -75,4 +84,4 @@ else
   echo "[$(date -u +%H:%M:%S)] sin cambios (finishers=$STAGE_FIN)."
 fi
 
-echo "STATE STAGE=$STAGE STAGE_FIN=${STAGE_FIN:-0} TOP50=$TOP50 POINTS_ROWS=${POINTS_ROWS:-0} POINTS_WIN=${POINTS_WIN:--} CHANGED=$CHANGED FINAL_GC=${FINAL_GC:-0}"
+echo "STATE STAGE=$STAGE STAGE_FIN=${STAGE_FIN:-0} TOP50=$TOP50 POINTS_ROWS=${POINTS_ROWS:-0} POINTS_WIN=${POINTS_WIN:--} CHANGED=$CHANGED FINAL_GC=${FINAL_GC:-0} FETCH=OK"

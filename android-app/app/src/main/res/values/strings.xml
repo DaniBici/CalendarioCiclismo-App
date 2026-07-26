@@ -511,6 +511,7 @@
     <string name="results_also_on">También en</string>
 
     <!-- Feed "Últimos resultados" (pestaña Resultados, apps 3.1) -->
+    <string name="results_feed_heading">Últimos Resultados</string>
     <string name="results_feed_load_more">Cargar más resultados</string>
     <string name="results_feed_empty">No hay resultados</string>
     <string name="results_feed_gc_final">General final</string>
@@ -560,4 +561,7 @@
     <string name="transfers_departures_empty">Sin salidas anunciadas por ahora.</string>
     <string name="transfers_unknown_team">Por confirmar</string>
     <string name="transfers_error">No se pudo cargar el mercado de fichajes.</string>
+    <string name="transfers_info_label">Información sobre los fichajes</string>
+    <string name="transfers_info_title">Mercado de fichajes</string>
+    <string name="transfers_info_text">La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).</string>
 </resources>

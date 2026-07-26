@@ -11,6 +11,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import app.calendariociclismo.android.data.model.Asset
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.prefs.AppPreferences
@@ -62,7 +63,7 @@ class OfflineManager(
     suspend fun enable() {
         prefs.setOfflineEnabled(true)
         schedulePeriodic()
-        runSyncNow()
+        runSyncNow(force = true)
     }
 
     suspend fun disable() {
@@ -99,8 +100,11 @@ class OfflineManager(
         return ym == current || ym == next
     }
 
-    /** Lanza un sync one-shot (usado por el botón "Actualizar ahora"). */
-    fun runSyncNow() {
+    /**
+     * Lanza un sync one-shot. [force] solo se usa para acciones explícitas del
+     * usuario; los arranques y reintentos automáticos respetan el cooldown.
+     */
+    fun runSyncNow(force: Boolean = false) {
         val req = OneTimeWorkRequestBuilder<OfflineSyncWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -108,10 +112,14 @@ class OfflineManager(
                     .build()
             )
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setInputData(workDataOf(KEY_FORCE_SYNC to force))
             .build()
         WorkManager.getInstance(appContext).enqueueUniqueWork(
             WORK_ONESHOT,
-            ExistingWorkPolicy.REPLACE,
+            // Los disparos automáticos no reinician un trabajo activo. Una
+            // acción explícita sí sustituye una cola/backoff pendiente para
+            // que «Actualizar ahora» nunca quede absorbido por KEEP.
+            oneShotPolicy(force),
             req,
         )
     }
@@ -144,11 +152,25 @@ class OfflineManager(
      * Protegida por mutex para evitar ejecuciones concurrentes si el usuario
      * dispara un one-shot mientras el periódico está corriendo.
      */
-    suspend fun performSync(): Result<Unit> = syncMutex.withLock {
+    suspend fun performSync(force: Boolean = false): Result<Unit> = syncMutex.withLock {
         if (!prefs.snapshotOfflineEnabled()) {
             Log.i(TAG, "Offline deshabilitado, saltando sync")
             return@withLock Result.success(Unit)
         }
+
+        val attemptEpoch = System.currentTimeMillis() / 1000
+        val lastAttemptEpoch = prefs.snapshotLastOfflineSyncAttemptEpoch()
+        if (!force && OfflineSyncThrottle.shouldSkip(attemptEpoch, lastAttemptEpoch)) {
+            Log.i(
+                TAG,
+                "Sync automática omitida por cooldown " +
+                    "(último intento hace ${attemptEpoch - lastAttemptEpoch}s)",
+            )
+            return@withLock Result.success(Unit)
+        }
+        // Persistir antes de la primera petición: también protege si Android
+        // mata el proceso durante la descarga.
+        prefs.setLastOfflineSyncAttemptEpoch(attemptEpoch)
 
         _state.value = _state.value.copy(isSyncing = true, progress = 0f, lastError = null)
         // 14 días + 2 meses + 1 temporada + 1 descarga R2 + 1 descarga imágenes +
@@ -308,6 +330,10 @@ class OfflineManager(
     companion object {
         const val WORK_PERIODIC = "offline_sync_periodic"
         const val WORK_ONESHOT = "offline_sync_oneshot"
+        const val KEY_FORCE_SYNC = "force_sync"
+
+        internal fun oneShotPolicy(force: Boolean): ExistingWorkPolicy =
+            if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
 
         /**
          * Versión del esquema de caché offline. Se incrementa cuando añadimos

@@ -25,6 +25,7 @@ Flag `PREMIUM_TEST_BUILD`:
 - **Script pre-build:** `ios-app/ci_scripts/ci_pre_xcodebuild.sh`. Xcode Cloud lo ejecuta automáticamente.
 - El formato xcconfig trata `//` como comentario; el script escapa con `$()` para que `https://…` sobreviva.
 - **Archivos `.swift` nuevos:** Xcode Cloud compila del `.pbxproj` commiteado (no regenera con XcodeGen). Al añadir un `.swift` nuevo hay que registrarlo en el `.pbxproj` — corriendo `./setup.sh` (XcodeGen) y commiteando el resultado, o añadiendo a mano sus 4 entradas (PBXBuildFile + PBXFileReference + grupo + fase Sources) para los targets correspondientes.
+- **Contador efectivo (2026-07-24):** Xcode Cloud ha emitido la build **1208** para el último push. Antes de la próxima entrega iOS, tomar 1208 como referencia y asignar un `CURRENT_PROJECT_VERSION` superior (1209 o más), aunque el número del proyecto sea inferior.
 
 ### Script post-build — reporte de errores en GitHub
 

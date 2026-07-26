@@ -39,6 +39,7 @@ class AppPreferences(private val context: Context) {
         val LANGUAGE_ANNOUNCEMENT_DONE = booleanPreferencesKey("language_announcement_done")
         val LAST_SYNC_EPOCH = longPreferencesKey("last_sync_epoch")
         val LAST_SYNC_RESULT = stringPreferencesKey("last_sync_result")
+        val LAST_OFFLINE_SYNC_ATTEMPT_EPOCH = longPreferencesKey("last_offline_sync_attempt_epoch")
         val OFFLINE_CACHE_SCHEMA_VERSION = intPreferencesKey("offline_cache_schema_version")
         val ANALYTICS_ENABLED = booleanPreferencesKey("analytics_enabled")
         val ANALYTICS_ONBOARDING_DONE = booleanPreferencesKey("analytics_onboarding_done")
@@ -133,6 +134,15 @@ class AppPreferences(private val context: Context) {
             it[Keys.LAST_SYNC_EPOCH] = epochSeconds
             it[Keys.LAST_SYNC_RESULT] = result
         }
+    }
+
+    // Se registra antes de tocar la red para que el cooldown sobreviva a
+    // reinicios del proceso y a reintentos de WorkManager.
+    val lastOfflineSyncAttemptEpoch: Flow<Long> = data.map {
+        it[Keys.LAST_OFFLINE_SYNC_ATTEMPT_EPOCH] ?: 0L
+    }
+    suspend fun setLastOfflineSyncAttemptEpoch(value: Long) {
+        context.dataStore.edit { it[Keys.LAST_OFFLINE_SYNC_ATTEMPT_EPOCH] = value }
     }
 
     // ─── Esquema de caché offline ───
@@ -309,4 +319,5 @@ class AppPreferences(private val context: Context) {
     suspend fun snapshotCategoryFilter(): Constants.CategoryFilter = categoryFilter.first()
     suspend fun snapshotThemePreference(): ThemePreference = themePreference.first()
     suspend fun snapshotOfflineCacheSchemaVersion(): Int = offlineCacheSchemaVersion.first()
+    suspend fun snapshotLastOfflineSyncAttemptEpoch(): Long = lastOfflineSyncAttemptEpoch.first()
 }

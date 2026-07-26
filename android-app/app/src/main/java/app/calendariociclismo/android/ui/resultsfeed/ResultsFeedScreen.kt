@@ -53,6 +53,7 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RaceLogo
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.StageTypeBadge
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
@@ -143,7 +144,7 @@ fun ResultsFeedScreen(navController: NavController) {
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.tab_results),
+                        text = stringResource(R.string.results_feed_heading),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 },
@@ -159,11 +160,7 @@ fun ResultsFeedScreen(navController: NavController) {
             when (val current = state) {
                 is FeedState.Loading -> {
                     val loadingCd = stringResource(R.string.loading)
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.semantics { contentDescription = loadingCd },
-                        )
-                    }
+                    RouteLoadingView(message = loadingCd)
                 }
                 is FeedState.Error -> Text(
                     text = current.message,

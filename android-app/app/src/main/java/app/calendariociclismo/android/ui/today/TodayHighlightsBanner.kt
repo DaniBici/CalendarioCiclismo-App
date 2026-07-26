@@ -11,9 +11,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,7 +86,7 @@ fun TodayHighlightsBanner(navController: NavController) {
                     item.highlight.targetType == "championships" ->
                         navController.navigate(Routes.CHAMPIONSHIPS)
                     item.highlight.targetType == "transfers" ->
-                        navController.navigate(Routes.TRANSFERS)
+                        navController.navigate(Routes.TRANSFERS_HIGHLIGHT)
                 }
             },
             onDismiss = {
@@ -323,7 +323,7 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, o
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.AutoMirrored.Filled.CompareArrows,
+                    Icons.Filled.SyncAlt,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(26.dp),

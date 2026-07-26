@@ -108,6 +108,7 @@ import androidx.navigation.NavController
 import android.content.Intent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.net.toUri
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.ads.AdBanner
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
@@ -367,7 +368,9 @@ fun TodayScreen(navController: NavController) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     when {
-                        state.isLoading && data == null -> CenteredSpinner()
+                        state.isLoading && data == null -> RouteLoadingView(
+                            message = stringResource(R.string.loading),
+                        )
                         state.error != null && data == null -> CenteredText(state.error?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.startlist_error_unknown))
                         data == null || data.raceDays.isEmpty() -> EmptyState(
                             nextRaceDate = state.nextRaceDate,
@@ -1215,19 +1218,6 @@ private fun buildSubtitle(day: EnrichedRaceDay, isFinalStage: Boolean = false): 
 }
 
 // ─── Estados auxiliares ────────────────────────────────────────────
-
-@Composable
-private fun CenteredSpinner() {
-    val loadingCd = stringResource(R.string.loading)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loadingCd })
-    }
-}
 
 @Composable
 private fun CenteredText(text: String) {

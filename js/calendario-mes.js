@@ -379,11 +379,48 @@ function buildBar() {
   chips.innerHTML = MESES_SHORT.map((m, i) =>
     `<button class="cal-month-chip" data-month="${i}">${m}</button>`).join('');
   chips.addEventListener('click', e => {
+    if (chips.dataset.dragged === 'true') {
+      delete chips.dataset.dragged;
+      return;
+    }
     const btn = e.target.closest('.cal-month-chip');
     if (!btn) return;
     viewMonth = Number(btn.dataset.month);
     renderMes();
   });
+  // En escritorio la barra de scroll está oculta: permitir arrastrar los meses
+  // con el ratón, manteniendo el clic normal para seleccionar un mes.
+  let pointerStartX = 0;
+  let pointerStartScroll = 0;
+  let isDragging = false;
+  chips.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    pointerStartX = e.clientX;
+    pointerStartScroll = chips.scrollLeft;
+    isDragging = false;
+    chips.setPointerCapture(e.pointerId);
+  });
+  chips.addEventListener('pointermove', e => {
+    if (!chips.hasPointerCapture(e.pointerId)) return;
+    const distance = e.clientX - pointerStartX;
+    if (!isDragging && Math.abs(distance) < 4) return;
+    isDragging = true;
+    chips.classList.add('cal-month-chips--dragging');
+    chips.scrollLeft = pointerStartScroll - distance;
+  });
+  const stopDragging = e => {
+    if (!chips.hasPointerCapture(e.pointerId)) return;
+    chips.releasePointerCapture(e.pointerId);
+    chips.classList.remove('cal-month-chips--dragging');
+    if (isDragging) {
+      chips.dataset.dragged = 'true';
+      // El click sintético posterior al arrastre se ignora; si no se genera,
+      // se limpia antes de la siguiente interacción.
+      setTimeout(() => delete chips.dataset.dragged, 0);
+    }
+  };
+  chips.addEventListener('pointerup', stopDragging);
+  chips.addEventListener('pointercancel', stopDragging);
 
   // Selector de año
   const yearSel = document.getElementById('mesYear');

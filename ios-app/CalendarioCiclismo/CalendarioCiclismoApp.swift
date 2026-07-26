@@ -193,6 +193,20 @@ private struct SplashView: View {
             Color("LaunchScreenBackground")
                 .ignoresSafeArea()
 
+            // Ocupa todo el splash para que el perfil quede anclado al borde
+            // inferior, como en la animación web (no centrado bajo el logo).
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                AnimatedRouteProfile(
+                    lineColor: .white,
+                    fillColor: .white.opacity(0.15),
+                    riderColor: .white
+                )
+                .frame(height: 230)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
+
             // Logo al centro exacto del ZStack = misma posición que UILaunchScreen.
             // No usamos GeometryReader para no interferir con GeometryReaders de
             // vistas subyacentes (DateBarView) que dependen de su tamaño correcto

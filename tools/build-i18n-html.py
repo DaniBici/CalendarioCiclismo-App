@@ -286,49 +286,14 @@ def apply_translations(html: str) -> str:
     return html
 
 def patch_seo_meta(html: str) -> str:
-    """Reemplaza title, description y og/twitter tags con valores EN del diccionario."""
-    en_title = t("seo.defaultTitle")
-    en_desc  = t("seo.defaultDesc")
-    en_site  = t("seo.siteName")
-    if en_title:
-        html = re.sub(r'<title>[^<]*</title>', f'<title>{en_title}</title>', html)
-        html = re.sub(r'(og:title" content=")[^"]*(")', rf'\g<1>{en_title}\g<2>', html)
-        html = re.sub(r'(twitter:title" content=")[^"]*(")', rf'\g<1>{en_title}\g<2>', html)
-    if en_desc:
-        html = re.sub(r'(name="description" content=")[^"]*(")', rf'\g<1>{en_desc}\g<2>', html)
-        html = re.sub(r'(og:description" content=")[^"]*(")', rf'\g<1>{en_desc}\g<2>', html)
-        html = re.sub(r'(twitter:description" content=")[^"]*(")', rf'\g<1>{en_desc}\g<2>', html)
-    if en_site:
-        html = re.sub(r'(og:site_name" content=")[^"]*(")', rf'\g<1>{en_site}\g<2>', html)
-    return html
+    """Conserva el SEO castellano del HTML maestro.
 
-# ── Metatags específicos EN para páginas con contenido propio ────
-PAGE_SEO_EN = {
-    "about.html": {
-        "title": "About Me — Calendario Ciclismo",
-        "description": "Calendario Ciclismo is a project by Dani Sánchez, a cycling communications professional with two decades of experience, former Movistar Team and digital editor at Eurosport Spain.",
-        "og_title": "About Me — Calendario Ciclismo",
-        "og_description": "Calendario Ciclismo is a project by Dani Sánchez, a cycling communications professional with two decades of experience, former Movistar Team and digital editor at Eurosport Spain.",
-        "twitter_title": "About Me — Calendario Ciclismo",
-        "twitter_description": "Calendario Ciclismo is a project by Dani Sánchez, former Movistar Team and digital editor at Eurosport Spain.",
-    },
-    "privacidad.html": {
-        "title": "Privacy Policy — Calendario Ciclismo",
-        "description": "Privacy policy of Calendario Ciclismo. Information on personal data processing, user rights and cookie usage.",
-        "og_title": "Privacy Policy — Calendario Ciclismo",
-        "og_description": "Privacy policy of Calendario Ciclismo. Information on personal data processing, user rights and cookie usage.",
-        "twitter_title": "Privacy Policy — Calendario Ciclismo",
-        "twitter_description": "Privacy policy of Calendario Ciclismo. Information on personal data processing and user rights.",
-    },
-    "betaandroid.html": {
-        "title": "Android Beta — Calendario Ciclismo",
-        "description": "Join the open beta of the Calendario Ciclismo Android app: professional cycling calendar with schedules, TV, routes and notifications on your Android device.",
-        "og_title": "Android Beta — Calendario Ciclismo",
-        "og_description": "Join the open beta of the Calendario Ciclismo Android app: professional cycling calendar with schedules, TV, routes and notifications on your Android device.",
-        "twitter_title": "Android Beta — Calendario Ciclismo",
-        "twitter_description": "Join the open beta of the Calendario Ciclismo Android app: schedules, TV, routes and notifications on your Android device.",
-    },
-}
+    Decisión de producto: las URL /en/ traducen la interfaz, pero title,
+    description, OG, Twitter y JSON-LD se sirven en castellano. Nunca usar el
+    diccionario EN para reescribir estos campos: el artifact de Pages se
+    regenera en cada despliegue y esa sustitución reintroduciría SEO inglés.
+    """
+    return html
 
 # ── Sustituciones de texto JS inline por página ──────────────────
 PAGE_JS_EN = {
@@ -341,19 +306,6 @@ def patch_js_strings(html: str, src_rel: str) -> str:
     """Sustituye strings JS hardcodeados en el HTML de páginas específicas."""
     for old, new in PAGE_JS_EN.get(src_rel, []):
         html = html.replace(old, new)
-    return html
-
-def patch_page_seo_meta(html: str, src_rel: str) -> str:
-    """Aplica metatags específicos EN para páginas con contenido propio."""
-    seo = PAGE_SEO_EN.get(src_rel)
-    if not seo:
-        return html
-    html = re.sub(r'<title>[^<]*</title>', f'<title>{seo["title"]}</title>', html)
-    html = re.sub(r'(og:title" content=")[^"]*(")', rf'\g<1>{seo["og_title"]}\g<2>', html)
-    html = re.sub(r'(twitter:title" content=")[^"]*(")', rf'\g<1>{seo["twitter_title"]}\g<2>', html)
-    html = re.sub(r'(name="description" content=")[^"]*(")', rf'\g<1>{seo["description"]}\g<2>', html)
-    html = re.sub(r'(og:description" content=")[^"]*(")', rf'\g<1>{seo["og_description"]}\g<2>', html)
-    html = re.sub(r'(twitter:description" content=")[^"]*(")', rf'\g<1>{seo["twitter_description"]}\g<2>', html)
     return html
 
 def patch_main_block(html: str, src_rel: str) -> str:
@@ -412,19 +364,7 @@ def patch_hrefs(html: str) -> str:
     # nombre en su locale EN (values-en/strings.xml app_name), así que la web
     # EN servida en /en/ lo mantiene por coherencia.
     html = html.replace('href="/privacy/">Privacidad<', 'href="/privacy/">Privacy<')
-    # JSON-LD de betaandroid: nombre y descripciones de la app
-    html = html.replace(
-        '"name": "App Android — Calendario Ciclismo en Google Play"',
-        '"name": "Calendario Ciclismo Android app on Google Play"'
-    )
-    html = html.replace(
-        '"description": "La app de Calendario Ciclismo ya está disponible en Google Play."',
-        '"description": "Calendario Ciclismo is now available on Google Play."'
-    )
-    html = html.replace(
-        '"description": "App de Calendario Ciclismo para Android: calendario de ciclismo en ruta con horarios, TV, recorridos y notificaciones."',
-        '"description": "Calendario Ciclismo for Android: professional cycling calendar with schedules, TV, routes and notifications."'
-    )
+    # El JSON-LD es SEO: se conserva en castellano como el resto del <head>.
     html = html.replace('Ideado y editado por', 'Created and edited by')
     html = html.replace("aria-label=\"Menú\"", 'aria-label="Menu"')
     html = html.replace('aria-label="Ordenar carreras"', 'aria-label="Sort races"')
@@ -464,7 +404,6 @@ def build_page(src_rel: str, out_dir: str) -> None:
     html = patch_lang(html)
     html = patch_locale(html)
     html = patch_seo_meta(html)
-    html = patch_page_seo_meta(html, src_rel)
     html = patch_main_block(html, src_rel)
     html = patch_js_strings(html, src_rel)
     html = apply_translations(html)

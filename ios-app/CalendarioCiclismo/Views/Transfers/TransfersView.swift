@@ -21,6 +21,7 @@ struct TransfersView: View {
     @State private var error: String?
     @State private var activeDivision = TransfersLogic.divisions[0]
     @State private var teamRoute: TransfersTeamRoute?
+    @State private var isShowingInfo = false
     @State private var localeService = LocaleService.shared
 
     var body: some View {
@@ -43,6 +44,25 @@ struct TransfersView: View {
             "\(String(TransfersLogic.marketSeason)) Transfer Market"
         ))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Haptics.play(.selection)
+                    isShowingInfo = true
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .accessibilityLabel(localeService.t("Información sobre los fichajes", "Transfer information"))
+            }
+        }
+        .alert(localeService.t("Mercado de fichajes", "Transfer market"), isPresented: $isShowingInfo) {
+            Button(localeService.t("Cerrar", "Close"), role: .cancel) {}
+        } message: {
+            Text(localeService.t(
+                "La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).",
+                "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson and Bram Vandecapelle (Het Laatste Nieuws) for their reporting."
+            ))
+        }
         .navigationDestination(item: $teamRoute) { route in
             TransfersTeamView(teamId: route.teamId)
         }
@@ -96,7 +116,10 @@ struct TransfersView: View {
                                         .foregroundStyle(.secondary)
                                         .padding(.top, 8)
                                     ForEach(group.moves) { move in
-                                        TransferFeedRowView(transfer: move, data: data)
+                                        TransferFeedRowView(transfer: move, data: data) { teamId in
+                                            Haptics.play(.navigation)
+                                            teamRoute = TransfersTeamRoute(teamId: teamId)
+                                        }
                                     }
                                 }
                             }
@@ -225,13 +248,29 @@ struct TransfersView: View {
 struct TransferFeedRowView: View {
     let transfer: RiderTransfer
     let data: TransfersLogic.MarketData
+    let onLinkTeam: (String) -> Void
 
     private var localeService: LocaleService { LocaleService.shared }
 
     var body: some View {
+        if let teamId = linkTeamId {
+            Button { onLinkTeam(teamId) } label: { rowCard }
+                .buttonStyle(.plain)
+        } else {
+            rowCard
+        }
+    }
+
+    private var linkTeamId: String? {
+        guard let teamId = transfer.toTeamId,
+              data.seasons.contains(where: { $0.teamId == teamId }) else { return nil }
+        return teamId
+    }
+
+    private var rowCard: some View {
         let unknownTeam = localeService.t("Por confirmar", "To be confirmed")
         let rider = data.ridersById[transfer.riderId]
-        CCCard {
+        return CCCard {
             HStack(spacing: 8) {
                 CountryFlag(countryCode: rider?.nationality, width: 15)
                 // Corredor + movimiento trunca con "…" a una línea (misma

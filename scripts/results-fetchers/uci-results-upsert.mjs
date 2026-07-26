@@ -508,13 +508,13 @@ WHERE race_uci_stages."lockedAt" IS NULL`,
           note: null,
           text: `INSERT INTO public.race_uci_results
   ("stageRef","raceId","eventId",rank,"rankText",bib,"riderDisplay",
-   "globalRiderId","resultValue","timeText","gapText",points,irm,"sortOrder")
-SELECT $1,$2,$3,$4,$5,$6,$7,NULL,$8,$9,$10,$11,$12,$13
+   "globalRiderId","teamId","resultValue","timeText","gapText",points,irm,"sortOrder")
+SELECT $1,$2,$3,$4,$5,$6,$7,NULL,$8,$9,$10,$11,$12,$13,$14
 WHERE ${notLocked}
   AND EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=$1)`,
           params: [
             stageRef, RACE_ID, eventId, rank, s(r.rankText), s(r.bib), s(r.riderDisplay),
-            s(r.resultValue), s(r.timeText), s(r.gapText), nInt(r.points), s(r.irm), sortOrder,
+            s(r.teamId), s(r.resultValue), s(r.timeText), s(r.gapText), nInt(r.points), s(r.irm), sortOrder,
           ],
         });
       });

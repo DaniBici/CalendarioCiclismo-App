@@ -71,7 +71,10 @@ struct ResultsView: View {
         Group {
             switch state {
             case .loading:
-                LoadingView()
+                LoadingView(
+                    message: LocaleService.t("Cargando clasificaciones...", "Loading classifications..."),
+                    branded: true
+                )
             case .error(let message):
                 ErrorView(message: message) {
                     Task { await load(resetSelection: true) }

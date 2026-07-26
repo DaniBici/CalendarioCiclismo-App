@@ -102,7 +102,7 @@ struct TodayView: View {
                 guard isOnline else { return }
                 let needsReload = viewModel.isFromCache || viewModel.isUncachedOffline || viewModel.error != nil
                 guard needsReload, !viewModel.isLoading else { return }
-                Task { await viewModel.loadDay() }
+                Task { await viewModel.refreshDay() }
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
@@ -112,7 +112,7 @@ struct TodayView: View {
                 guard !viewModel.isLoading else { return }
                 let stale = viewModel.lastNetworkLoadAt.map { Date().timeIntervalSince($0) > 300 } ?? true
                 guard stale else { return }
-                Task { await viewModel.loadDay() }
+                Task { await viewModel.refreshDay() }
             }
             .allowsHitTesting(!isAnimatingNavigation)
     }
@@ -166,7 +166,7 @@ struct TodayView: View {
                     // sin avanzar nunca.
                     viewModel.advanceIfNewLocalDay()
                     guard viewModel.isToday, !viewModel.isLoading else { continue }
-                    await viewModel.loadDay()
+                    await viewModel.refreshDay()
                 }
             }
             .task(id: viewModel.dateKey) {
@@ -174,7 +174,7 @@ struct TodayView: View {
                     try? await Task.sleep(for: .seconds(300))
                     guard !Task.isCancelled else { break }
                     guard !viewModel.isLoading else { continue }
-                    await viewModel.loadDay()
+                    await viewModel.refreshDay()
                 }
             }
             // Mapa de jornadas visibles con resultados in-house (clave para
@@ -426,9 +426,8 @@ struct TodayView: View {
                 ScrollView {
                     raceScrollContent
                 }
-                .id(viewModel.refreshToken)
                 .refreshable {
-                    await viewModel.loadDay()
+                    await viewModel.refreshDay()
                     Haptics.play(.success)
                 }
             }

@@ -59,7 +59,7 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .navigationTitle(localeService.t("Ajustes", "Settings"))
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings_view")
         // Paywall "sin anuncios": se presenta cuando algún CTA llama a
         // `presentPaywall(...)` (fila de la sección o canjeo de código).
@@ -1476,6 +1476,7 @@ struct SettingsView: View {
     }
 }
 
+
 // MARK: - Calendar Feed List (extracted from SubscribeView)
 
 /// Los 6 calendarios iCal disponibles para suscripción.
@@ -1593,4 +1594,3 @@ private struct FeedCard: View {
         .accessibilityInputLabels(["\(LocaleService.t("Suscribirse a", "Subscribe to")) \(feed.label)", feed.label, "\(LocaleService.t("Calendario", "Calendar")) \(feed.label)"])
     }
 }
-

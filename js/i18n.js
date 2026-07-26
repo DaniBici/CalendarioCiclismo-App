@@ -11,7 +11,7 @@ const LOCALES = {
     nav: {
       today: 'Hoy', month: 'Mes', apps: 'Apps', about: 'Sobre',
       search: 'Buscar', themeToggle: 'Cambiar tema',
-      subscribe: 'Suscribirse', privacy: 'Privacidad',
+      subscribe: 'Suscribirse', icalCalendar: 'Calendario iCal', privacy: 'Privacidad',
     },
     cal: {
       noRaces: 'Sin carreras',
@@ -47,7 +47,10 @@ const LOCALES = {
       unknownTeam: 'Por confirmar',
       loading: 'Cargando Mercado de Fichajes',
       loadError: 'No se pudo cargar el mercado de fichajes.',
-      sourcesLink: '¿De dónde salen estos datos?',
+      infoLabel: 'Información sobre los fichajes',
+      infoModalTitle: 'Fuentes de Fichajes',
+      close: 'Cerrar',
+      infoText: 'La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).',
     },
     stage: {
       prologue: 'Prólogo', prologueShort: 'Pról', stage: 'Etapa', stageShort: 'E',

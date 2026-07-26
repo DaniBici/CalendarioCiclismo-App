@@ -277,6 +277,8 @@ async function main() {
   const stageList = [...(comp.stages || [])].sort((a, b) => Number(a.stage) - Number(b.stage));
   if (!stageList.length) log('⚠️  0 etapas en Matsport');
   const lastStageNumber = stageList.length ? Number(stageList[stageList.length - 1].stage) : null;
+  // Una sola etapa = carrera de un día (clásica) → resultado único, sin complementarias.
+  const isOneDay = stageList.length === 1;
 
   const stages = [];
   let lastOveralls = null;       // generales de la última etapa procesada (para la pseudo-final)
@@ -307,6 +309,35 @@ async function main() {
     // día E_última" ≈ "general final"). Se conservan para clonarlas en la final
     // (overallsOfStage) pero NO se añaden al bloque de la etapa. La clasificación
     // de ETAPA (ITE→stage) y las secundarias */stage sí se emiten normalmente.
+    // CARRERA DE UN DÍA (clásica): Matsport la modela como una competición de UNA
+    // etapa, pero una clásica NO tiene etapas ni clasificaciones complementarias —
+    // tiene UN resultado y punto. Convención del catálogo (verificada contra las
+    // one_day ya volcadas): stageNumber NULL + classKind 'gc' + scope 'stage'.
+    // Las ITG/IPG/IMG/IJG que Matsport publique aquí son metas volantes y premios
+    // de montaña de la propia carrera, NO clasificaciones publicables (espíritu
+    // de la whitelist 092) → se DESCARTAN.
+    if (isOneDay) {
+      const ite = byType.get('ITE');
+      const rows = mapRows(ite.rankings, TYPE_MAP.ITE, riderByBib, teamByNumber);
+      const spec = { ...TYPE_MAP.ITE, classKind: 'gc', scope: 'stage', eventName: 'General Classification' };
+      const cl = buildClassification(FINAL_SLOT, spec, rows);
+      const dropped = [...byType.keys()].filter((t) => t !== 'ITE');
+      stages.push({
+        uciRaceId: synthRaceId(FINAL_SLOT),
+        stageNumber: null,
+        stageName: 'Final Classification',
+        isFinalClassification: true,
+        dateKey: clean(st.date).slice(0, 10) || clean(comp.endDate) || null,
+        raceType: null,
+        startLocation: null,
+        classificationCount: 1,
+        classifications: [cl],
+      });
+      log(`    UN DÍA → stage/gc ${String(rows.length).padStart(3)} filas (event ${cl.eventId})`
+        + (dropped.length ? `  · descartadas complementarias: ${dropped.join(',')}` : ''));
+      continue;
+    }
+
     const isLastStage = stageNumber === lastStageNumber;
     for (const [type, rt] of byType) {
       const spec = TYPE_MAP[type];

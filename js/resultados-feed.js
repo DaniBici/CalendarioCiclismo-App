@@ -445,7 +445,7 @@ export function renderResultsFeed(content) {
     // ── Render ────────────────────────────────────────────────────
     let html = `
       <div class="feed-hero">
-        <h1 class="feed-hero__title">${_isEn ? 'Latest results' : 'Últimos resultados'}</h1>
+        <h1 class="feed-hero__title">${_isEn ? 'Latest Results' : 'Últimos Resultados'}</h1>
       </div>`;
 
     if (!entries.length) {

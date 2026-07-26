@@ -213,12 +213,29 @@ describe('parseResultRows — casos límite', () => {
 // pintarse con tiempos absolutos en vez de m.t./+gap. De ahí que ninguna fila sin
 // tiempo de meta pueda salir clasificada, por muy tentador que sea rellenarla.
 describe('parseResultRows — NINGUNA fila clasificada sin timeText (deriveGaps)', () => {
-  it('el doblado sin gap numérico (g="+ 1 tour") sale DNF, no clasificado', () => {
+  it('el doblado sin gap numérico (g="+ 1 tour") NO se clasifica: sale OTL', () => {
     // El caso que se colaba: normGap('+ 1 tour') → null por diseño, así que la fila
     // entraba con rank y resultValue/timeText nulos → deriveGaps muerto en la etapa.
-    // El guard `tr` no lo cubre: esta fila no trae tr.
+    // El guard `tr` no lo cubre: esta fila no trae tr. Sale con IRM OTL (fuera de
+    // control), que es lo que le pasa al doblado, en vez de DNF (no abandonó).
     const [row] = parseResultRows(`<R d="16" g="+ 1 tour" />`, riderByBib);
-    expect(row).toMatchObject({ rank: null, rankText: 'DNF', irm: 'DNF', timeText: null });
+    expect(row).toMatchObject({ rank: null, rankText: 'OTL', irm: 'OTL', timeText: null });
+  });
+
+  it('el doblado CON tiempo absoluto tampoco se clasifica (envenena gapsDisguised)', () => {
+    // Regresión de La Périgord Ladies 2026: Wiclax SÍ da tiempo al doblado, pero de
+    // una distancia menor → menor que el del ganador. Si entra clasificado, la web
+    // activa `gapsDisguised` (una fila rank>1 con timeText < ganador) y pinta el
+    // absoluto de TODAS las filas como gap ("+3:24:19"). Debe salir OTL.
+    const rows = parseResultRows(
+      `<R d="44" t="03h15'06" g="-" /><R d="16" t="03h02'30" g="+ 2 tours" />`,
+      riderByBib,
+    );
+    expect(rows[1]).toMatchObject({ rank: null, irm: 'OTL' });
+    const clasificadas = rows.filter((r) => r.rank != null && !r.irm);
+    const winner = clasificadas[0];
+    // Ninguna clasificada por debajo del ganador → deriveGaps sigue vivo.
+    expect(clasificadas.every((r) => r.timeText >= winner.timeText)).toBe(true);
   });
 
   it('tampoco se clasifica cayendo al gap del .clax como resultValue', () => {

@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,6 +49,7 @@ import app.calendariociclismo.android.data.model.RiderTransfer
 import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.util.TransfersLogic
 
@@ -105,7 +105,7 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
         }
     }
 
-    val title = (state as? TeamState.Ready)?.season?.name.orEmpty()
+    val title = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON)
 
     Scaffold(
         topBar = {
@@ -120,10 +120,10 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
         },
     ) { padding ->
         when (val current = state) {
-            is TeamState.Loading -> Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+            is TeamState.Loading -> RouteLoadingView(
+                message = stringResource(R.string.loading),
+                modifier = Modifier.padding(padding),
+            )
             is TeamState.Error -> Box(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
@@ -491,26 +491,14 @@ private fun DoubtBadge() {
 /** Aviso de continuidad del equipo en duda — espejo de `.tr-team-notice`. */
 @Composable
 private fun TeamDoubtNotice(text: String) {
-    Row(
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(TRANSFERS_DOUBT_COLOR.copy(alpha = 0.10f))
-            .padding(start = 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Barra lateral de acento (equivalente al border-left de la web).
-        Box(
-            Modifier
-                .width(3.dp)
-                .height(38.dp)
-                .background(TRANSFERS_DOUBT_COLOR)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-        )
-    }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    )
 }

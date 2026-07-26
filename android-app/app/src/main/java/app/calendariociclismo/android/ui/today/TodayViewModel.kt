@@ -56,6 +56,9 @@ class TodayViewModel(
         else State()
     )
     val state: StateFlow<State> = _state.asStateFlow()
+    /** La carga más reciente gana: evita que una respuesta lenta de otro día
+     * sobrescriba la jornada que el usuario ya ha seleccionado. */
+    private var loadGeneration = 0
 
     init {
         // Observar el pin del usuario. Se guarda aparte; solo se refleja en
@@ -161,6 +164,7 @@ class TodayViewModel(
 
     private fun load(force: Boolean = false) {
         val key = _state.value.dateKey
+        val generation = ++loadGeneration
         _state.value = _state.value.copy(
             isLoading = true,
             isRefreshing = force,
@@ -171,11 +175,16 @@ class TodayViewModel(
             if (!force) {
                 runCatching { repo.cachedDayData(key) }
                     .getOrNull()
-                    ?.let { _state.value = _state.value.copy(data = it) }
+                    ?.let {
+                        if (generation == loadGeneration && _state.value.dateKey == key) {
+                            _state.value = _state.value.copy(data = it)
+                        }
+                    }
             }
             // 2. Refresh remoto de jornadas del día
             runCatching { repo.refreshDay(key) }
                 .onFailure { t ->
+                    if (generation != loadGeneration || _state.value.dateKey != key) return@launch
                     // Cadena vacía como sentinel: mantiene la rama de error en la
                     // pantalla activa para que muestre el fallback localizado
                     // (`R.string.startlist_error_unknown`) en lugar del estado vacío.
@@ -196,6 +205,7 @@ class TodayViewModel(
             }
             // 4. Releer caché (ahora completa) y añadir placeholders
             val fresh = runCatching { repo.cachedDayData(key) }.getOrNull()
+            if (generation != loadGeneration || _state.value.dateKey != key) return@launch
             val withPlaceholders = if (fresh != null && year != null) {
                 addPlaceholders(fresh, key, year)
             } else fresh

@@ -500,6 +500,8 @@ img { display: block; max-width: 100%; }
 }
 /* Slot vacío (slide sin logo): reserva el espacio pero sin caja visible */
 .giro-countdown__logo:empty { background: none; }
+/* Fichajes: las flechas se muestran sin la pastilla translúcida del logo. */
+.giro-countdown__logo--transfers { background: none; }
 /* Icono inline (bandera de meta de Campeonatos): se tiñe con --accent dentro de
    una caja con el fondo accent-dim, igual que el icono de las apps. El propio
    dibujo ya trae márgenes internos, así que basta un padding ligero. */
@@ -2617,7 +2619,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 .site-footer a:hover {
   color: var(--text);
 }
-/* Suscribirse · Alertas — bajo el copyright, sin trazo, color del copyright */
+/* Acciones del footer: bajo el copyright, con la misma estética de píldora. */
 .site-footer p.site-footer__actions {
   margin-top: 1rem;
   display: flex;
@@ -2640,8 +2642,15 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   transition: background var(--transition), color var(--transition);
 }
 .footer-link:hover { background: var(--accent-dim); color: var(--text); }
-/* Cada enlace va enmarcado: el separador sobra */
-.footer-link__sep { display: none; }
+.footer-link--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.footer-link--icon svg {
+  width: 13px;
+  height: 13px;
+}
 
 /* ── Theme toggle SVG ─────────────────────────────────────────── */
 .theme-toggle {
@@ -3314,30 +3323,6 @@ html.cc-android-banner-pending body::before {
 }
 
 /* ── Link "Gestión de cookies" tras el footer ────────────────── */
-.cookie-manage-bar {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0.75rem 1.5rem 1.5rem;
-  text-align: center;
-}
-.cookie-manage-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  /* --text-dim (#9aa0a6 / #5a5d6a) no llega a 4.5:1; --text-muted sí (AA). */
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--transition);
-}
-.cookie-manage-link:hover {
-  color: var(--text);
-}
-.cookie-manage-link svg {
-  width: 14px;
-  height: 14px;
-}
 
 /* ── Modal gestión de cookies ────────────────────────────────── */
 .cookie-modal {

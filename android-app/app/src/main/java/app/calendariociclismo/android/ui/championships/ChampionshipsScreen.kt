@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.outlined.SportsScore
 import androidx.compose.material.icons.outlined.Tv
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +58,7 @@ import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.prefs.RegionPreference
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.ChampionshipsConfig
@@ -125,7 +125,10 @@ private fun ChampionshipsGrid(
     Box(modifier = modifier) {
         when {
             state.isLoading && state.countries.isEmpty() ->
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                    modifier = Modifier.fillMaxSize(),
+                )
 
             !state.error.isNullOrEmpty() && state.countries.isEmpty() ->
                 Text(

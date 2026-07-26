@@ -18,6 +18,7 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.UciResultsData
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.stage.StageInfoHeaderCard
 import app.calendariociclismo.android.util.LocaleHolder
@@ -102,9 +103,9 @@ fun ResultsScreen(
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val current = state) {
-                is ResultsState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                is ResultsState.Loading -> RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                )
                 is ResultsState.Error -> Text(
                     current.message,
                     modifier = Modifier.align(Alignment.Center).padding(24.dp),

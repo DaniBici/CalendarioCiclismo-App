@@ -130,7 +130,7 @@ export async function initCintillo() {
       const detail = _isEn ? (h.customDetailEn || h.customDetail || '') : (h.customDetail || '');
       const iconSvg = h.customLogo
         ? null
-        : `<svg class="giro-countdown__logo" viewBox="0 0 24 24" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7H4"/><polyline points="8 3 4 7 8 11"/><path d="M4 17h16"/><polyline points="16 13 20 17 16 21"/></svg>`;
+        : `<svg class="giro-countdown__logo giro-countdown__logo--transfers" viewBox="0 0 24 24" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7H4"/><polyline points="8 3 4 7 8 11"/><path d="M4 17h16"/><polyline points="16 13 20 17 16 21"/></svg>`;
       slides.push(_buildGcSlide({
         href,
         iconSvg,
