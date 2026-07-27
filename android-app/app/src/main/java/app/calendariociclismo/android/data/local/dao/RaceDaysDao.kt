@@ -46,6 +46,10 @@ interface RaceDaysDao {
     @Query("DELETE FROM race_days WHERE dateKey BETWEEN :from AND :to AND id NOT IN (:keepIds)")
     suspend fun deleteByDateRangeNotIn(from: String, to: String, keepIds: List<String>): Int
 
+    /** Borra las jornadas de una carrera que ya no devuelve el backend. */
+    @Query("DELETE FROM race_days WHERE raceId = :raceId AND id NOT IN (:keepIds)")
+    suspend fun deleteByRaceNotIn(raceId: String, keepIds: List<String>): Int
+
     @Query("DELETE FROM race_days WHERE dateKey < :olderThan")
     suspend fun deleteOlderThanDateKey(olderThan: String): Int
 

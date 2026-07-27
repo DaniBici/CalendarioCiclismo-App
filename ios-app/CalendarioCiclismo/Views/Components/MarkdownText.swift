@@ -1,97 +1,51 @@
 import SwiftUI
 
-/// Renderiza texto Markdown básico (negrita, cursiva, subrayado) usando AttributedString.
-/// Procesa párrafo a párrafo para evitar fallos cuando las marcas `**` cruzan saltos de línea.
+/// Renderiza Markdown sin mover cierres malformados a texto adyacente.
 struct MarkdownText: View {
     let source: String
+    init(_ source: String) { self.source = source }
 
-    init(_ source: String) {
-        self.source = source
+    private static func append(_ text: String, intent: InlinePresentationIntent? = nil, underline: Bool = false, to result: inout AttributedString) {
+        var piece = AttributedString(text)
+        if let intent { piece.inlinePresentationIntent = intent }
+        if underline { piece.underlineStyle = .single }
+        result.append(piece)
     }
 
-    /// Normaliza marcas `**` mal colocadas recortando espacios internos en cada par `**…**`.
-    /// Ejemplos:
-    ///   `**texto **siguiente`  → `**texto** siguiente`
-    ///   `palabra** texto**`    → `palabra **texto**`
-    ///   `** texto **`          → `**texto**`
-    private static func normalizeMarkdown(_ text: String) -> String {
-        guard let regex = try? NSRegularExpression(
-            pattern: #"\*\*((?:(?!\*\*)[\s\S])+?)\*\*"#
-        ) else { return text }
-
-        let nsText = text as NSString
-        let matches = regex.matches(
-            in: text,
-            range: NSRange(location: 0, length: nsText.length)
-        )
-
-        var result = text
-
-        for match in matches.reversed() {
-            let fullRange = match.range
-            let contentRange = match.range(at: 1)
-            let content = nsText.substring(with: contentRange)
-            let trimmed = content.trimmingCharacters(in: .whitespaces)
-
-            guard !trimmed.isEmpty, trimmed != content else { continue }
-
-            var replacement = "**\(trimmed)**"
-
-            // Si había espacio al inicio del contenido, preservar separación de palabras
-            if content.first?.isWhitespace == true, fullRange.location > 0 {
-                let before = nsText.substring(
-                    with: NSRange(location: fullRange.location - 1, length: 1)
-                )
-                if before.rangeOfCharacter(from: .whitespacesAndNewlines) == nil {
-                    replacement = " " + replacement
-                }
+    private static func parseInline(_ source: String) -> AttributedString {
+        var result = AttributedString()
+        var index = source.startIndex
+        while index < source.endIndex {
+            let tail = source[index...]
+            let marker: String
+            let intent: InlinePresentationIntent?
+            let underline: Bool
+            if tail.hasPrefix("**") { marker = "**"; intent = .stronglyEmphasized; underline = false }
+            else if tail.hasPrefix("__") { marker = "__"; intent = nil; underline = true }
+            else if tail.hasPrefix("*") { marker = "*"; intent = .emphasized; underline = false }
+            else if tail.hasPrefix("_") { marker = "_"; intent = .emphasized; underline = false }
+            else { let next = source.index(after: index); append(String(source[index..<next]), to: &result); index = next; continue }
+            let contentStart = source.index(index, offsetBy: marker.count)
+            guard let close = source.range(of: marker, range: contentStart..<source.endIndex)?.lowerBound else {
+                append(marker, to: &result); index = contentStart; continue
             }
-
-            // Si había espacio al final del contenido, preservar separación de palabras
-            let afterPos = fullRange.location + fullRange.length
-            if content.last?.isWhitespace == true, afterPos < nsText.length {
-                let after = nsText.substring(
-                    with: NSRange(location: afterPos, length: 1)
-                )
-                if after.rangeOfCharacter(from: .whitespacesAndNewlines) == nil {
-                    replacement += " "
-                }
-            }
-
-            result = (result as NSString).replacingCharacters(in: fullRange, with: replacement)
+            append(String(source[contentStart..<close]), intent: intent, underline: underline, to: &result)
+            index = source.index(close, offsetBy: marker.count)
         }
-
         return result
     }
 
     private var attributedString: AttributedString {
-        let paragraphs = source.components(separatedBy: "\n\n")
         var result = AttributedString()
-
-        for (index, paragraph) in paragraphs.enumerated() {
+        var appended = false
+        for paragraph in source.components(separatedBy: "\n\n") {
             let trimmed = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-
-            let normalized = Self.normalizeMarkdown(trimmed)
-
-            if let parsed = try? AttributedString(
-                markdown: normalized,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            ) {
-                result.append(parsed)
-            } else {
-                result.append(AttributedString(trimmed))
-            }
-
-            if index < paragraphs.count - 1 {
-                result.append(AttributedString("\n\n"))
-            }
+            if appended { result.append(AttributedString("\n\n")) }
+            result.append(Self.parseInline(trimmed))
+            appended = true
         }
-
         return result
     }
-
-    var body: some View {
-        Text(attributedString)
-    }
+    var body: some View { Text(attributedString) }
 }

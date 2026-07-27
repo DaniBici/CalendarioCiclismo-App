@@ -1560,6 +1560,16 @@ h2.jornada-section__title {
   margin: 0;
   flex: 1;
 }
+.jornada-section__title-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+}
+.jornada-section__title-badge h2.jornada-section__title {
+  flex: 0;
+}
 .tv-filter-btn {
   display: inline-flex;
   align-items: center;

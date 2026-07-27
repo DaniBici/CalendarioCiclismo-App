@@ -109,7 +109,8 @@ const LOCALES = {
       startOrder: 'Orden Salida', roadbook: 'Rutómetro', profile: 'Perfil',
       profileOfficial: 'Perfil oficial', profileInteractive: 'Perfil interactivo',
       ports: 'Puertos', pave: 'Pavé', sterrato: 'Sterrato', ribinou: 'Ribinou',
-      map: 'Mapa', live_text: 'Live texto', general: 'General',
+      map: 'Mapa', mapOfficial: 'Mapa oficial', mapInteractive: 'Mapa interactivo',
+      live_text: 'Live texto', general: 'General',
     },
     months: {
       short: ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'],

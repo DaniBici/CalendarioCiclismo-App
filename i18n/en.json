@@ -132,6 +132,8 @@
     "sterrato": "Sterrato",
     "ribinou": "Ribinou",
     "map": "Map",
+    "mapOfficial": "Official map",
+    "mapInteractive": "Interactive map",
     "live_text": "Live text",
     "general": "General"
   },

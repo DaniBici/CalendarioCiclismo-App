@@ -247,6 +247,10 @@ struct StageDetailView: View {
                         descriptionSection(rd)
                         bonusesNotesSection(rd)
                     }
+                    // La revisión cambia solo después de una respuesta remota
+                    // completa: fuerza a reconstruir la descripción y el resto
+                    // de secciones cuando haya altas, bajas o vaciados.
+                    .id(viewModel.refreshToken)
                     .padding()
                 }
                 .refreshable {
@@ -638,11 +642,19 @@ struct StageDetailView: View {
             return LocaleService.t("Retransmisión", "Broadcast")
         }()
 
-        if !visibleBroadcasts.isEmpty {
+        if !visibleBroadcasts.isEmpty || (!isRevive && rd.tvStatus == "pending") {
             VStack(alignment: .leading, spacing: 8) {
-                Text(sectionTitle)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
+                HStack(spacing: 6) {
+                    Text(sectionTitle)
+                        .font(.headline)
+                        .accessibilityAddTraits(.isHeader)
+
+                    // Mismo chip de Hoy. En Jornada se mantiene visible incluso
+                    // si ya hay un canal provisional o Live texto.
+                    if !isRevive && rd.tvStatus == "pending" {
+                        TVBadge(tvStatus: "pending", broadcasts: [])
+                    }
+                }
 
                 ForEach(visibleBroadcasts) { broadcast in
                     BroadcastRowView(broadcast: broadcast, isRevive: isRevive) { url in
@@ -677,15 +689,14 @@ struct StageDetailView: View {
     @ViewBuilder
     private var documentationChips: some View {
         let hasGPXProfile = viewModel.raceDay?.hasElevationProfile == true
-        // Mapa interactivo nativo: prioridad GPX (espejo de la web y del perfil
-        // SVG). Si la jornada tiene `routeGpxUrl`, el chip "Mapa" abre el mapa
-        // nativo y el asset estático de tipo "map" se oculta (no dos botones).
         let hasRouteMap = viewModel.raceDay?.routeGpxUrl?.isEmpty == false
         // Cuando existen AMBOS (perfil interactivo GPX + asset estático) se
         // ofrecen los dos chips: "Perfil interactivo" (nativo) + "Perfil oficial"
         // (asset). Con uno solo, la etiqueta es simplemente "Perfil".
         let hasStaticProfile = viewModel.assets.contains(where: { $0.type == "profile" })
         let bothProfiles = hasGPXProfile && hasStaticProfile
+        let hasStaticMap = viewModel.assets.contains(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
+        let bothMaps = hasRouteMap && hasStaticMap
         // Dividimos los assets en dos grupos respecto al índice de "profile"
         // en assetOrder para que el chip web SVG aparezca siempre después
         // del rutómetro y antes (o junto) al asset estático de perfil.
@@ -709,9 +720,9 @@ struct StageDetailView: View {
             //    que el orden sea Rutómetro → oficial → interactivo → Mapa), así
             //    que también se excluye de aquí.
             if a.type == "profile" && hasGPXProfile { return false }
-            // Si hay GPX de mapa, el asset estático de tipo "map" no se muestra
-            // (el chip nativo "Mapa" lo sustituye — prioridad GPX).
-            if a.type == "map" && hasRouteMap { return false }
+            // Con mapa interactivo y oficial, el oficial se renderiza aparte,
+            // justo antes del interactivo, como sucede con los perfiles.
+            if a.type == "map" && bothMaps { return false }
             return idx >= profileIdx
         }
         // Asset estático de perfil que se muestra como "Perfil oficial" cuando
@@ -719,7 +730,10 @@ struct StageDetailView: View {
         let officialProfileAsset: Asset? = bothProfiles
             ? viewModel.sortedAssets.first(where: { $0.type == "profile" && !($0.url ?? "").isEmpty })
             : nil
-        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile {
+        let officialMapAsset: Asset? = bothMaps
+            ? viewModel.sortedAssets.first(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
+            : nil
+        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile || hasRouteMap {
             Divider()
             FlowLayout(spacing: 8) {
                 // Web oficial — siempre primero si existe
@@ -863,13 +877,38 @@ struct StageDetailView: View {
                     .accessibilityHint(LocaleService.t("Abre el perfil interactivo de la etapa", "Opens the interactive stage profile"))
                 }
 
-                // Mapa interactivo nativo — prioridad GPX. Abre la vista MapKit
-                // del recorrido; sustituye al asset estático "map" cuando hay GPX.
+                // Mapa oficial — cuando también existe mapa interactivo, va primero.
+                if let asset = officialMapAsset, let urlStr = asset.url, let url = URL(string: urlStr) {
+                    Button {
+                        tapAsset(asset, remote: url)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "map")
+                            Text(LocaleService.t("Mapa oficial", "Official map"))
+                        }
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                    .accessibilityLabel(LocaleService.t("Ver mapa oficial", "View official map"))
+                    .accessibilityHint(asset.isDownloadableR2
+                                       ? "Se abrirá en la app"
+                                       : "Se abrirá en el navegador")
+                }
+
+                // Mapa interactivo nativo. Con el oficial, se etiqueta como
+                // "Mapa interactivo" y queda inmediatamente después.
                 if hasRouteMap, let rd = viewModel.raceDay {
                     NavigationLink(destination: RouteMapView(raceDay: rd, race: viewModel.race)) {
                         HStack(spacing: 4) {
                             Image(systemName: "map")
-                            Text(LocaleService.t("Mapa", "Map"))
+                            Text(bothMaps
+                                 ? LocaleService.t("Mapa interactivo", "Interactive map")
+                                 : LocaleService.t("Mapa", "Map"))
                         }
                         .font(.caption)
                         .fontWeight(.semibold)

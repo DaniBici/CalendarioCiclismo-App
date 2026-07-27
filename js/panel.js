@@ -2311,7 +2311,8 @@ function markdownToHtml(md) {
   const escHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline  = s => s
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+    .replace(/__(.+?)__/g,         '<u>$1</u>')
+    .replace(/\*(.+?)\*/g,       '<em>$1</em>')
     .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
 
   const lines = md.split('\n');
@@ -2345,6 +2346,8 @@ function htmlToMarkdown(html) {
   const div = document.createElement('div');
   div.innerHTML = html;
 
+  function markdownWrap(marker, value) { const a=value.match(/^[\s\u00A0]+/)?.[0]||'', z=value.match(/[\s\u00A0]+$/)?.[0]||'', c=value.slice(a.length,value.length-z.length); return c ? `${a}${marker}${c}${marker}${z}` : value; }
+
   function walk(nodes) {
     let out = '';
     for (const n of nodes) {
@@ -2353,12 +2356,13 @@ function htmlToMarkdown(html) {
       const tag   = n.tagName.toLowerCase();
       const inner = walk(n.childNodes);
       switch (tag) {
-        case 'strong': case 'b': out += `**${inner}**`; break;
-        case 'em':     case 'i': out += `*${inner}*`;   break;
+        case 'strong': case 'b': out += markdownWrap('**', inner); break;
+        case 'em':     case 'i': out += markdownWrap('*', inner);   break;
+        case 'u':                  out += markdownWrap('__', inner); break;
         case 'a':      out += `[${inner}](${n.getAttribute('href') || ''})`; break;
         case 'h2':     out += `\n## ${inner}\n`; break;
         case 'h3':     out += `\n### ${inner}\n`; break;
-        case 'p':      out += inner.replace(/[\u00A0\s]/g, '') === '' ? '\n' : `${inner}\n`; break;
+        case 'p':      out += inner.replace(/[\u00A0\s]/g, '') === '' ? '\n\n' : `${inner}\n\n`; break;
         case 'br':     out += '\n'; break;
         case 'hr':     out += '\n---\n'; break;
         case 'ul': case 'ol': out += walk(n.childNodes); break;
@@ -2413,30 +2417,15 @@ function initMdToolbar(toolbarId, textareaId, wysiwygId) {
   wysiwyg.innerHTML = markdownToHtml(hidden.value);
 
   // Sincronizar WYSIWYG → markdown oculto en cada cambio
-  wysiwyg.addEventListener('input', () => {
-    hidden.value = htmlToMarkdown(wysiwyg.innerHTML);
-  });
+  wysiwyg.addEventListener('input', syncMarkdown);
 
   // Fallback: sincronizar al perder el foco (cubre casos donde input no dispara,
   // e.g. corrección ortográfica del SO, drag-and-drop, o IME composition)
-  wysiwyg.addEventListener('blur', () => {
-    hidden.value = htmlToMarkdown(wysiwyg.innerHTML);
-  });
+  wysiwyg.addEventListener('blur', syncMarkdown);
 
-  // Aplicar formato usando execCommand (deprecated pero soportado en todos los navegadores)
-  function applyFormat(action) {
-    wysiwyg.focus();
-    switch (action) {
-      case 'bold':       document.execCommand('bold');   break;
-      case 'italic':     document.execCommand('italic'); break;
-      case 'h2':         document.execCommand('formatBlock', false, 'h2'); break;
-      case 'h3':         document.execCommand('formatBlock', false, 'h3'); break;
-      case 'ul':         document.execCommand('insertUnorderedList');       break;
-      case 'blockquote': document.execCommand('formatBlock', false, 'blockquote'); break;
-      case 'hr':         document.execCommand('insertHTML', false, '<hr>'); break;
-    }
-    hidden.value = htmlToMarkdown(wysiwyg.innerHTML);
-  }
+  function syncMarkdown() { hidden.value = htmlToMarkdown(wysiwyg.innerHTML); }
+  function applyInlineFormat(tag) { const sel=window.getSelection(), r=sel?.rangeCount?sel.getRangeAt(0):null; if(!r||r.collapsed||!wysiwyg.contains(r.commonAncestorContainer)) return false; const w=document.createElement(tag); try { r.surroundContents(w); } catch (_) { const c=r.extractContents(); w.append(c); r.insertNode(w); } sel.removeAllRanges(); const n=document.createRange(); n.selectNodeContents(w); sel.addRange(n); return true; }
+  function applyFormat(action) { wysiwyg.focus(); const tags={bold:'strong',italic:'em',underline:'u'}; if(tags[action]) { if(applyInlineFormat(tags[action])) syncMarkdown(); return; } switch(action) { case 'h2': document.execCommand('formatBlock',false,'h2'); break; case 'h3': document.execCommand('formatBlock',false,'h3'); break; case 'ul': document.execCommand('insertUnorderedList'); break; case 'blockquote': document.execCommand('formatBlock',false,'blockquote'); break; case 'hr': document.execCommand('insertHTML',false,'<hr>'); break; } syncMarkdown(); }
 
   // Listeners de la toolbar
   toolbar.querySelectorAll('.md-toolbar__btn').forEach(btn => {
@@ -2462,7 +2451,7 @@ function initMdToolbar(toolbarId, textareaId, wysiwygId) {
     }
 
     if (!mod) return;
-    const map = { b: 'bold', i: 'italic' };
+    const map = { b: 'bold', i: 'italic', u: 'underline' };
     const action = map[e.key];
     if (!action) return;
     e.preventDefault();

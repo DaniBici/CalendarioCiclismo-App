@@ -415,9 +415,17 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
     const toggleBtn = hasHiddenBroadcasts && !hasReviveBroadcast
       ? `<button class="tv-filter-btn" data-tv-filter="mine">${t('tv.filterAll')}</button>`
       : '';
+    // Reutiliza el chip naranja de Hoy, también cuando hay un canal provisional.
+    // En Jornada no lo sustituye el Live texto: ambos datos son complementarios.
+    const pendingBadge = !hasReviveBroadcast && _tvStatus === 'pending'
+      ? `<span class="badge badge--pend"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> ${t('tv.status.pending')}</span>`
+      : '';
     html += `<div class="jornada-section">
       <div class="jornada-section__title-row">
-        <h2 class="jornada-section__title">${tvSectionTitle}</h2>
+        <div class="jornada-section__title-badge">
+          <h2 class="jornada-section__title">${tvSectionTitle}</h2>
+          ${pendingBadge}
+        </div>
         ${toggleBtn}
       </div>`;
 

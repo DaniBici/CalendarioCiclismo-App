@@ -11,6 +11,10 @@ final class StageDetailViewModel {
     var siblings: [RaceDay] = []
     var isLoading = false
     var error: String?
+    /// Se incrementa tras sustituir una respuesta remota completa. La vista lo
+    /// usa para reconstruir las secciones que pudieran conservar subviews
+    /// asociadas al contenido anterior.
+    var refreshToken = 0
 
     /// Derivado de `races.startlistImportedAt`. Evita un roundtrip extra a
     /// `startlist_teams`, por lo que el botón de "Inscritos" aparece sin retraso.
@@ -164,8 +168,12 @@ final class StageDetailViewModel {
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
             }
 
+            // Sustituir la instantánea completa. Las colecciones vienen de
+            // consultas nuevas a Supabase, así que se propagan también altas,
+            // bajas y campos vaciados en el backend.
             raceDay = rd
             error = nil
+            refreshToken &+= 1
         } catch {
             // Silenciamos el fallo: mantenemos los datos visibles anteriores.
         }

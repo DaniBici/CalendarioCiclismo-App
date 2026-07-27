@@ -1033,9 +1033,9 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
 
     const isMobile = (typeof window !== 'undefined' && window.innerWidth < 768);
 
-    function assetBtnHtml(a) {
+    function assetBtnHtml(a, labelKey = a.type) {
       const url = a.url || a.filePath;
-      const label = _actLabel(a.type);
+      const label = _actLabel(labelKey);
       if (a.type === 'startOrder') {
         return `<a class="asset-btn" href="${startOrderUrl(rd)}">${label}</a>`;
       }
@@ -1044,7 +1044,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
         return `<a class="asset-btn" href="${url}" target="_blank" rel="noopener">${label}</a>`;
       }
       const safeUrl = url.replace(/'/g, "\\'");
-      const safeTxt = _actText(a.type).replace(/'/g, "\\'");
+      const safeTxt = _actText(labelKey).replace(/'/g, "\\'");
       return `<button class="asset-btn" onclick="openAssetModal('${safeUrl}','${safeTxt}')">${label}</button>`;
     }
 
@@ -1146,6 +1146,10 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     }
 
     const mapAsset = sortedAssets.find(a => a.type === 'map');
+    // Igual que con perfiles: si conviven el archivo oficial y el trazado GPX,
+    // se ofrecen ambos, oficial primero e interactivo después.
+    const bothMaps = !!(rd.routeGpxUrl && mapAsset);
+    const dynMapKey = bothMaps ? 'mapInteractive' : 'map';
     // Sin asset estático de perfil pero con dinámico → inyectar el slot 'profile'.
     let workingAssets = (dynProfileUrl && !profileAsset)
       ? [...sortedAssets, { type: 'profile' }].sort(
@@ -1163,7 +1167,10 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
         // y después el INTERACTIVO — siempre tras el rutómetro y antes del mapa.
         if (a.type === 'profile') return bothProfiles ? `${officialProfileHtml}${profileHtml}` : profileHtml;
         if (a.type === 'ports')   return hasProfile ? portsHtml : profileHtml;
-        if (a.type === 'map' && dynMapUrl) return `<a class="asset-btn" href="${dynMapUrl}">${_actLabel('map')}</a>`;
+        if (a.type === 'map' && dynMapUrl) {
+          const interactive = `<a class="asset-btn" href="${dynMapUrl}">${_actLabel(dynMapKey)}</a>`;
+          return bothMaps ? `${assetBtnHtml(a, 'mapOfficial')}${interactive}` : interactive;
+        }
         return assetBtnHtml(a);
       })
       .filter(Boolean);

@@ -317,7 +317,10 @@ async function main() {
   // NULL, isFinalClassification=true, scope='stage') para que el feed/pestaña "F"
   // muestren la general de la carrera, no "la del día". No sustituye al gc/stage
   // colgado de la última etapa numerada (ambas conviven, igual que las demás fuentes).
-  if (lastStage && TOTAL_STAGES != null && lastStage.stageNumber === TOTAL_STAGES && ONLY_STAGE == null) {
+  // También al pedir explícitamente la última etapa: es el caso operativo de
+  // re-fetch puntual tras meta. Limitar a una etapa anterior nunca puede crear
+  // una final porque `lastStage.stageNumber` no alcanza `TOTAL_STAGES`.
+  if (lastStage && TOTAL_STAGES != null && lastStage.stageNumber === TOTAL_STAGES) {
     const finalClassifications = [];
     if (generalRows && generalRows.length)
       finalClassifications.push(buildClassification(FINAL_SLOT, 'gc', 'stage', 'General Classification', generalRows));

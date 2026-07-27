@@ -141,6 +141,8 @@
     <string name="stage_doc_profile_official">Perfil oficial</string>
     <string name="stage_doc_profile_interactive">Perfil interactivo</string>
     <string name="stage_doc_map">Mapa</string>
+    <string name="stage_doc_map_official">Mapa oficial</string>
+    <string name="stage_doc_map_interactive">Mapa interactivo</string>
     <string name="stage_doc_sterrato">Sterrato</string>
     <string name="stage_doc_ribinou">Ribinou</string>
     <string name="stage_doc_add_to_calendar">Añadir al calendario</string>

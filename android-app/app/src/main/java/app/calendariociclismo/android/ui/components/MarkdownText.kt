@@ -53,7 +53,7 @@ fun buildMarkdownAnnotatedString(source: String): AnnotatedString {
         paragraphs.forEachIndexed { index, paragraph ->
             val trimmed = paragraph.trim()
             if (trimmed.isEmpty()) return@forEachIndexed
-            append(parseInline(normalizeMarkdown(trimmed)))
+            append(parseInline(trimmed))
             if (index < paragraphs.lastIndex) append("\n\n")
         }
     }

@@ -99,6 +99,7 @@ import app.calendariociclismo.android.ui.ads.AdBanner
 import app.calendariociclismo.android.ui.components.MarkdownText
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.StageTypeBadge
+import app.calendariociclismo.android.ui.components.TVBadge
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.Constants
@@ -1090,16 +1091,15 @@ private fun StageHeaderCard(
     // los dos chips: "Perfil interactivo" (nativo) + "Perfil oficial" (asset).
     // Con uno solo, la etiqueta es simplemente "Perfil".
     val bothProfiles = hasGpxProfile && hasProfile
+    val hasRouteMap = !rd.routeGpxUrl.isNullOrEmpty()
+    val hasStaticMap = assets.any { it.type == "map" && !it.url.isNullOrEmpty() }
+    val bothMaps = hasRouteMap && hasStaticMap
     val isSterrato = rd.primaryType == "sterrato"
     val isFrance = race?.countryCode?.uppercase() == "FR"
     val hasICalSubscribe = !rd.slug.isNullOrEmpty() && !rd.isRestDay && !rd.isCancelledDay
     val isPushEnabled by app.preferences.pushEnabled.collectAsState(initial = false)
     val followedStageIds by app.preferences.followedStageIds.collectAsState(initial = emptySet())
     val showNotifChip = isPushEnabled && !rd.isRestDay && !rd.isCancelledDay
-    // Mapa interactivo nativo: prioridad GPX (espejo de la web y del perfil SVG).
-    // Si la jornada tiene routeGpxUrl, el chip "Mapa" abre el mapa nativo y el
-    // asset estático "map" se oculta (un solo botón).
-    val hasRouteMap = !rd.routeGpxUrl.isNullOrEmpty()
     val hasDocs = hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip
     // Dividimos los assets respecto al índice de "profile" en ASSET_ORDER para
     // que el chip SVG web aparezca siempre después del rutómetro.
@@ -1107,6 +1107,8 @@ private fun StageHeaderCard(
     val assetsBeforeProfile = assets.filter { a ->
         Constants.ASSET_ORDER.indexOf(a.type ?: "").let { i -> if (i < 0) Int.MAX_VALUE else i } < profileOrderIdx
     }
+    // Asset estático de mapa = "Mapa oficial" cuando coexisten ambos.
+    val officialMapAsset = if (bothMaps) assets.firstOrNull { it.type == "map" && !it.url.isNullOrEmpty() } else null
     // Asset estático de perfil = "Perfil oficial" cuando coexisten ambos.
     // Se renderiza APARTE, justo tras el rutómetro y ANTES del interactivo
     // (orden: Rutómetro → oficial → interactivo → Mapa), por eso se excluye
@@ -1117,9 +1119,9 @@ private fun StageHeaderCard(
         // perfil SVG web: si solo está el interactivo se oculta; si están ambos,
         // el oficial se renderiza aparte (arriba).
         if (a.type == "profile" && hasGpxProfile) return@filter false
-        // Si hay GPX de mapa, el asset estático de tipo "map" no se muestra
-        // (el chip nativo "Mapa" lo sustituye — prioridad GPX).
-        if (a.type == "map" && hasRouteMap) return@filter false
+        // Con mapa interactivo y oficial, el oficial se renderiza aparte
+        // inmediatamente antes del interactivo, como sucede con perfiles.
+        if (a.type == "map" && bothMaps) return@filter false
         Constants.ASSET_ORDER.indexOf(a.type ?: "").let { i -> if (i < 0) Int.MAX_VALUE else i } >= profileOrderIdx
     }
 
@@ -1211,12 +1213,24 @@ private fun StageHeaderCard(
                         )
                     }
 
-                    // Mapa del recorrido nativo — prioridad GPX. Sustituye al
-                    // asset estático "map" cuando hay GPX (ver filtro arriba).
+                    // Mapa oficial — cuando también existe el interactivo, va primero.
+                    officialMapAsset?.let { asset ->
+                        AssetChip(
+                            icon = Icons.Filled.Map,
+                            label = stringResource(R.string.stage_doc_map_official),
+                            onClick = { onAssetTap(asset) },
+                        )
+                    }
+
+                    // Mapa del recorrido nativo. Con ambos recursos, se etiqueta
+                    // como interactivo y queda inmediatamente después del oficial.
                     if (hasRouteMap) {
                         AssetChip(
                             icon = Icons.Filled.Map,
-                            label = stringResource(R.string.stage_doc_map),
+                            label = stringResource(
+                                if (bothMaps) R.string.stage_doc_map_interactive
+                                else R.string.stage_doc_map
+                            ),
                             onClick = { navController.navigate(Routes.routeMap(rd.id)) },
                         )
                     }
@@ -1814,7 +1828,17 @@ private fun BroadcastSection(
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            SectionTitle(title)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SectionTitle(title)
+                // Mismo chip de Hoy. En Jornada se mantiene visible aunque ya
+                // exista un canal provisional o Live texto.
+                if (!hasReviveBroadcast && raceDay.tvStatus == "pending") {
+                    TVBadge(tvStatus = "pending", broadcasts = emptyList())
+                }
+            }
             Spacer(Modifier.height(4.dp))
             visibleBroadcasts.forEach { b ->
                 val url = b.url?.takeIf { it.isNotEmpty() }

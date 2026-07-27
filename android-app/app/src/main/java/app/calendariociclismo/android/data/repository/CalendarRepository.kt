@@ -192,17 +192,28 @@ class CalendarRepository(
         raceDaysDao.deleteByDateRangeNotIn(from, to, days.map { it.id })
     }
 
-    /** Descarga una carrera completa con etapas, broadcasts y assets. */
+    /**
+     * Descarga y sustituye la instantánea completa de una carrera. Es el camino
+     * de pull-to-refresh en Jornada: vuelve a leer todos los campos de etapas,
+     * carrera, emisiones y assets, y propaga inclusiones y eliminaciones.
+     */
     suspend fun refreshRaceComplete(raceId: String): Pair<Race, List<EnrichedRaceDay>> {
         val now = clock()
+        // Capturamos el conjunto previo antes de consultar para borrar también
+        // los hijos de una jornada eliminada en el backend.
+        val previousDayIds = raceDaysDao.getByRace(raceId).map { it.id }
         val (race, days) = api.loadRaceComplete(raceId)
+        val dayIds = days.map { it.raceDay.id }
+
         racesDao.upsertAll(listOf(RaceEntity.from(race, now)))
         raceDaysDao.upsertAll(days.map { RaceDayEntity.from(it.raceDay, now) })
+        raceDaysDao.deleteByRaceNotIn(raceId, dayIds)
 
-        val dayIds = days.map { it.raceDay.id }
-        // Borrar datos previos para evitar duplicados si los IDs cambiaron en el backend
-        broadcastsDao.deleteByRaceDayIds(dayIds)
-        assetsDao.deleteByRaceDayIds(dayIds)
+        // Reemplazar las colecciones hijas, no solo actualizarlas: una emisión
+        // o un asset eliminado también desaparece de Room y de la UI.
+        val affectedDayIds = (previousDayIds + dayIds).distinct()
+        broadcastsDao.deleteByRaceDayIds(affectedDayIds)
+        assetsDao.deleteByRaceDayIds(affectedDayIds)
 
         val allBroadcasts = days.flatMap { it.broadcasts }
         val allAssets = days.flatMap { it.assets }

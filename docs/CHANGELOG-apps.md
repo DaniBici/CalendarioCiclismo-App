@@ -6,6 +6,14 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`405` / `4.0.5` = JORNADAS: cuando hay archivo de mapa oficial y mapa interactivo GPX, muestra ambos chips en ese orden, igual que los perfiles.**
+
+**`404` / `4.0.5` = corrección de versión de marketing antes de publicar: sustituye la 4.0.4 preparada por la primera versión pública de este cambio.**
+
+**`403` / `4.0.4` = JORNADAS: el detalle muestra el chip naranja «Sin confirmar» cuando `tvStatus = pending`, incluso si ya existe un canal provisional o Live texto. Reutiliza el lenguaje visual de Hoy.**
+
+**`402` / `4.0.4` = JORNADAS: pull-to-refresh sustituye la instantánea completa de la carrera (jornadas, descripción editorial, carrera, emisiones y assets) y propaga altas, bajas y vaciados del backend sin conservar elementos obsoletos en Room.**
+
 **`401` / `4.0.3` = OFFLINE: «Actualizar ahora» puede sustituir un one-shot automático pendiente o en backoff, evitando que `KEEP` absorba la petición explícita; los disparos automáticos conservan `KEEP` y el cooldown de 30 minutos. Sin cambio de versión de marketing.**
 
 **`400` / `4.0.3` = OFFLINE + SUPABASE: la sincronización automática deja de reemplazar trabajos activos y aplica un cooldown persistente de 30 minutos a reintentos anómalos, incluso tras reiniciar el proceso; «Actualizar ahora» conserva el refresco manual. Las peticiones de Android incluyen versión y build en el User-Agent para poder atribuir futuros picos de API.**
@@ -50,6 +58,14 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1213` / `MARKETING_VERSION 4.0.5` = JORNADAS: cuando hay archivo de mapa oficial y mapa interactivo GPX, muestra ambos chips en ese orden, igual que los perfiles.**
+
+**`1212` / `MARKETING_VERSION 4.0.5` = corrección de versión de marketing antes de publicar: sustituye la 4.0.4 preparada por la primera versión pública de este cambio.**
+
+**`1211` / `MARKETING_VERSION 4.0.4` = JORNADAS: el detalle muestra el chip naranja «Sin confirmar» cuando `tvStatus = pending`, incluso si ya existe un canal provisional o Live texto. Reutiliza el componente de Hoy.**
+
+**`1210` / `MARKETING_VERSION 4.0.4` = JORNADAS: tras el pull-to-refresh, iOS sustituye la respuesta remota completa y reconstruye las secciones derivadas (incluida la descripción editorial), para reflejar cambios, inclusiones, eliminaciones y campos vaciados sin conservar contenido anterior. Espejo Android `402`.**
 
 **`1209` / `MARKETING_VERSION 4.0.3` = CARGA DE MARCA: el bloque central (iconos, rótulo y puntos) y el perfil inferior pasan a ocupar franjas independientes, evitando cualquier solapamiento. Sin `.swift` nuevos → NO requiere `./setup.sh`.**
 
