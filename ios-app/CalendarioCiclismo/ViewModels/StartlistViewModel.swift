@@ -10,12 +10,8 @@ final class StartlistViewModel {
     /// Corredores fuera de carrera, por globalRiderId. Vacío si no hay
     /// resultados in-house. (Tachado de abandonos — port de inscritos.js.)
     var ridersOut: [String: RiderOut] = [:]
-    /// La carrera tiene resultados in-house (la lista se mantiene sola → no se
-    /// muestra el aviso "no se actualiza").
-    var hasUciResults = false
-
     var title: String {
-        race?.localizedName ?? LocaleService.t("Inscritos", "Startlist")
+        race?.localizedName ?? LocaleService.t("Dorsales", "Startlist")
     }
 
     var isProvisional: Bool {
@@ -67,11 +63,9 @@ final class StartlistViewModel {
     /// Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
     /// los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
     /// js/inscritos.js vía Android (loadStartlistData). Cualquier fallo de red →
-    /// comportamiento clásico (sin tachados, con aviso no-spoilers).
+    /// comportamiento clásico (sin tachados).
     private func loadRiderOuts(raceId: String) async {
-        let (outs, hasUci) = (try? await SupabaseService.shared.loadRiderOuts(raceId: raceId)) ?? ([:], false)
-        ridersOut = outs
-        hasUciResults = hasUci
+        ridersOut = (try? await SupabaseService.shared.loadRiderOuts(raceId: raceId)) ?? [:]
     }
 
     private func fetchTeams(raceId: String, race: Race, service: SupabaseService) async throws -> [StartlistTeamWithRiders] {

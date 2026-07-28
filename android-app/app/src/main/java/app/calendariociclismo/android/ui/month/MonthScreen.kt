@@ -175,7 +175,7 @@ fun MonthScreen(
     // Available years for picker
     val availableYears = remember {
         val current = LocalDate.now().year
-        (2026..maxOf(2026, current)).reversed().toList()
+        (2026..maxOf(2026, current + 1)).reversed().toList()
     }
 
     // Pager: 12 pages (one per month), starting at current month

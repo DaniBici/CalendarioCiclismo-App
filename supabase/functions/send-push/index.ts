@@ -1196,6 +1196,20 @@ interface ScheduledRow {
 }
 
 async function handleProcessScheduled(adminClient: SupabaseClient): Promise<Response> {
+  const madridHour = Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Madrid',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date()));
+
+  if (madridHour < 8 || madridHour >= 22) {
+    console.log(`[send-push][cron] Fuera de la franja 08:00–22:00 Europe/Madrid (${madridHour}:xx); no se procesan notificaciones`);
+    return new Response(JSON.stringify({ ok: true, processed: 0, skipped: 'outside_delivery_window' }), {
+      status: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
   console.log('[send-push][cron] ── Procesando notificaciones programadas ──');
   const now = new Date().toISOString();
 

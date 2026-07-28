@@ -150,7 +150,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
         return st != "manual"
     }
 
-    /// Recorrido localizado: "Ciudad A – Ciudad B".
+    /// Recorrido localizado: "Ciudad A > Ciudad B".
     var routeDescription: String? {
         let start = LocaleService.isEnglish
             ? (startLocationEn?.isEmpty == false ? startLocationEn : startLocation)
@@ -160,7 +160,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
             : finishLocation
         let s = (start?.isEmpty == false) ? start : nil
         let f = (finish?.isEmpty == false) ? finish : nil
-        if let s, let f { return s == f ? s : "\(s) – \(f)" }
+        if let s, let f { return s == f ? s : "\(s) > \(f)" }
         if let s { return s }
         if let f { return f }
         return nil

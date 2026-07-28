@@ -15,6 +15,7 @@ enum DeepLinkDestination: Hashable {
 struct ContentView: View {
     @State private var selectedTab = 0
     @State private var navigationPath = NavigationPath()
+    @State private var transfersTeamId: String?
     @State private var manager = NotificationManager.shared
     @State private var localeService = LocaleService.shared
 
@@ -60,7 +61,7 @@ struct ContentView: View {
             // pasa a value 3 — el tabMap de NotificationManager va en sincronía.
             Tab(localeService.t("Fichajes", "Transfers"), systemImage: "arrow.left.arrow.right", value: 2) {
                 NavigationStack {
-                    TransfersView()
+                    TransfersView(deepLinkedTeamId: $transfersTeamId)
                 }
             }
             .accessibilityIdentifier(AccessibilityID.tabTransfers)
@@ -137,6 +138,15 @@ struct ContentView: View {
             navigationPath = NavigationPath()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 navigationPath.append(DeepLinkDestination.routeMap(raceDayId))
+            }
+        case .team(let teamId):
+            navigationPath = NavigationPath()
+            selectedTab = 2
+            // La pila del Mercado pertenece a su propio NavigationStack. Se
+            // entrega el ID en el siguiente ciclo para que la pestaña exista
+            // antes de empujar su destino.
+            DispatchQueue.main.async {
+                transfersTeamId = teamId
             }
         }
     }

@@ -1,5 +1,6 @@
 import SwiftUI
 import QuickLook
+import UIKit
 
 /// Clasificación del motivo por el que un enlace no puede abrirse sin red,
 /// o por el que un pull-to-refresh no puede completarse.
@@ -206,6 +207,7 @@ struct StageDetailView: View {
     @State private var quickLookURL: URL?
     @State private var offlineAlert: OfflineAccessAlert?
     @State private var guideExpanded = false
+    @State private var actionStripAtEnd = false
     /// Resultados in-house: ¿esta jornada los tiene? y el stageNumber al que
     /// navega "Ver clasificaciones". Diferido y no bloqueante (sin red → false →
     /// no aparece el CTA, sin regresión). Maneja las carreras de un día
@@ -708,7 +710,14 @@ struct StageDetailView: View {
             ? viewModel.sortedAssets.filter { $0.type != "live_text" }
             : viewModel.sortedAssets
         let profileIdx = Constants.assetOrder.firstIndex(of: "profile") ?? Constants.assetOrder.count
+        // El Libro de Ruta pertenece a toda la competición y, igual que en la
+        // web, ocupa la posición fija entre la web oficial y los dorsales.
+        // Se extrae del resto para no heredarlo en la posición anterior.
+        let technicalGuideAsset = allAssets.first {
+            $0.type == "technicalGuide" && !($0.url ?? "").isEmpty
+        }
         let assetsBeforeProfile = allAssets.filter { a in
+            a.type != "technicalGuide" &&
             (Constants.assetOrder.firstIndex(of: a.type ?? "") ?? Constants.assetOrder.count) < profileIdx
         }
         let assetsFromProfile = allAssets.filter { a in
@@ -733,68 +742,62 @@ struct StageDetailView: View {
         let officialMapAsset: Asset? = bothMaps
             ? viewModel.sortedAssets.first(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
             : nil
+        let actionCount = allAssets.count
+            + (viewModel.race?.websiteUrl == nil ? 0 : 1)
+            + (viewModel.hasStartlist ? 1 : 0)
+            + (hasGPXProfile ? 1 : 0)
+            + (hasRouteMap ? 1 : 0)
+            + (icalSubscribeURL == nil ? 0 : 1)
         if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile || hasRouteMap {
             Divider()
-            FlowLayout(spacing: 8) {
+            ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                FixedActionStripLayout {
                 // Web oficial — siempre primero si existe
                 if let websiteStr = viewModel.race?.websiteUrl,
                    let websiteURL = URL(string: websiteStr) {
                     Button { tapExternal(url: websiteURL) } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "globe")
-                            Text(LocaleService.t("Web oficial", "Official website"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "globe", label: LocaleService.t("Web oficial", "Official website"))
                     }
                     .accessibilityLabel(LocaleService.t("Web oficial", "Official website"))
                     .accessibilityHint(LocaleService.t("Se abrirá en el navegador", "Will open in browser"))
                 }
+                // Libro de Ruta: fijo tras la web oficial, antes de Dorsales.
+                if let asset = technicalGuideAsset,
+                   let urlStr = asset.url,
+                   let url = URL(string: urlStr) {
+                    let displayLabel = Constants.assetTexts["technicalGuide"] ?? asset.typeLabel
+                    Button {
+                        tapAsset(asset, remote: url)
+                    } label: {
+                        ActionStripTile(icon: assetIcon(for: "technicalGuide"), label: displayLabel)
+                    }
+                    .accessibilityLabel("Ver \(displayLabel)")
+                    .accessibilityHint(asset.isDownloadableR2
+                                       ? "Se abrirá en la app"
+                                       : "Se abrirá en el navegador")
+                }
 
-                // Inscritos siempre segundo
+                // Dorsales van tras el Libro de Ruta cuando está disponible.
                 if viewModel.hasStartlist, let race = viewModel.race {
                     let provisional = race.startlistProvisional == true
                     let startlistLabel = provisional
-                        ? LocaleService.t("Lista provisional", "Provisional startlist")
-                        : LocaleService.t(race.isFemale ? "Inscritas" : "Inscritos", "Startlist")
+                        ? LocaleService.t("Lista provisional", "Provisional Startlist")
+                        : LocaleService.t("Dorsales", "Startlist")
                     NavigationLink(destination: StartlistView(raceId: race.id)) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "person.2")
-                            Text(startlistLabel)
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "person.2", label: startlistLabel)
                     }
-                    .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View provisional list") : LocaleService.t("Ver \(race.isFemale ? "inscritas" : "inscritos")", "View entrants"))
+                    .accessibilityLabel(provisional ? LocaleService.t("Ver lista provisional", "View Provisional Startlist") : LocaleService.t("Ver dorsales", "View Startlist"))
                 }
 
-                // Assets antes de la posición de "profile" (startOrder, roadbook)
+                // Otros assets antes de la posición de "profile" (orden de
+                // salida, rutómetro); el Libro de Ruta ya se ha renderizado.
                 ForEach(assetsBeforeProfile) { asset in
                     // Caso especial: el asset startOrder ahora abre la vista nativa
                     // de orden de salida en vez de la web.
                     if asset.type == "startOrder", let rdId = viewModel.raceDay?.id {
                         NavigationLink(destination: StartOrderView(raceDayId: rdId)) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "timer")
-                                Text(LocaleService.t("Orden de salida", "Start order"))
-                            }
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            ActionStripTile(icon: "timer", label: LocaleService.t("Orden de salida", "Start order"))
                         }
                         .accessibilityLabel(LocaleService.t("Ver orden de salida", "View start order"))
                     } else if let urlStr = asset.url, let url = URL(string: urlStr) {
@@ -810,17 +813,7 @@ struct StageDetailView: View {
                         Button {
                             tapAsset(asset, remote: url)
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: displayIcon)
-                                Text(displayLabel)
-                            }
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            ActionStripTile(icon: displayIcon, label: displayLabel)
                         }
                         .accessibilityLabel("Ver \(displayLabel)")
                         .accessibilityHint(asset.isDownloadableR2
@@ -835,17 +828,7 @@ struct StageDetailView: View {
                     Button {
                         tapAsset(asset, remote: url)
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chart.line.uptrend.xyaxis")
-                            Text(LocaleService.t("Perfil oficial", "Official profile"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: LocaleService.t("Perfil", "Profile"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver perfil oficial", "View official profile"))
                     .accessibilityHint(asset.isDownloadableR2
@@ -859,19 +842,9 @@ struct StageDetailView: View {
                 // solo "Perfil".
                 if hasGPXProfile, let rd = viewModel.raceDay {
                     NavigationLink(destination: ElevationProfileView(raceDay: rd, race: viewModel.race)) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chart.line.uptrend.xyaxis")
-                            Text(bothProfiles
-                                 ? LocaleService.t("Perfil interactivo", "Interactive profile")
-                                 : LocaleService.t("Perfil", "Profile"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: bothProfiles
+                                        ? LocaleService.t("Perfil + Datos", "Profile + Data")
+                                        : LocaleService.t("Perfil", "Profile"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver perfil de altimetría", "View elevation profile"))
                     .accessibilityHint(LocaleService.t("Abre el perfil interactivo de la etapa", "Opens the interactive stage profile"))
@@ -882,17 +855,7 @@ struct StageDetailView: View {
                     Button {
                         tapAsset(asset, remote: url)
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "map")
-                            Text(LocaleService.t("Mapa oficial", "Official map"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "map", label: LocaleService.t("Mapa", "Map"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver mapa oficial", "View official map"))
                     .accessibilityHint(asset.isDownloadableR2
@@ -904,19 +867,9 @@ struct StageDetailView: View {
                 // "Mapa interactivo" y queda inmediatamente después.
                 if hasRouteMap, let rd = viewModel.raceDay {
                     NavigationLink(destination: RouteMapView(raceDay: rd, race: viewModel.race)) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "map")
-                            Text(bothMaps
-                                 ? LocaleService.t("Mapa interactivo", "Interactive map")
-                                 : LocaleService.t("Mapa", "Map"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(icon: "map", label: bothMaps
+                                        ? LocaleService.t("Mapa 3D", "3D Map")
+                                        : LocaleService.t("Mapa", "Map"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver mapa del recorrido", "View route map"))
                     .accessibilityHint(LocaleService.t("Abre el mapa interactivo de la etapa", "Opens the interactive stage map"))
@@ -938,17 +891,7 @@ struct StageDetailView: View {
                         Button {
                             tapAsset(asset, remote: url)
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: displayIcon)
-                                Text(displayLabel)
-                            }
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            ActionStripTile(icon: displayIcon, label: displayLabel)
                         }
                         .accessibilityLabel("Ver \(displayLabel)")
                         .accessibilityHint(asset.isDownloadableR2
@@ -957,9 +900,9 @@ struct StageDetailView: View {
                     }
                 }
 
-                // Notificaciones push — solo si push activo y la jornada no es descanso/cancelada
-                if manager.isSubscribed,
-                   viewModel.raceDay?.isRestDay != true,
+                // La acción también sirve de entrada a las notificaciones: no
+                // se oculta antes de que el usuario conceda los permisos.
+                if viewModel.raceDay?.isRestDay != true,
                    viewModel.raceDay?.isCancelledDay != true {
                     StageNotificationChip(raceDayId: raceDayId)
                 }
@@ -970,28 +913,170 @@ struct StageDetailView: View {
                         UIApplication.shared.open(icalURL)
                         Haptics.play(.primaryAction)
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "calendar.badge.plus")
-                            Text(LocaleService.t("Añadir al calendario", "Add to calendar"))
-                        }
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.white)
-                        .foregroundStyle(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ActionStripTile(
+                            icon: "calendar.badge.plus",
+                            label: LocaleService.t("Añadir al calendario", "Add to calendar")
+                        )
                     }
                     .accessibilityLabel(LocaleService.t("Añadir al calendario", "Add to calendar"))
                     .accessibilityHint(LocaleService.t("Añade esta jornada a tu aplicación de calendario", "Adds this day to your calendar app"))
                 }
+                Color.clear.frame(width: 1, height: 60).id("stage-actions-end")
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 2)
+                .background(HorizontalScrollBounceDisabler())
             }
+            .id("stage-actions-start")
             .frame(maxWidth: .infinity, alignment: .leading)
             // Unos pocos píxeles extra por encima del FlowLayout para que los
             // chips respiren respecto al divider y no queden pegados al
             // bloque de datos de la etapa.
             .padding(.top, 4)
             .accessibilityIdentifier(AccessibilityID.assetSection)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 1
+            } action: { _, canMoveForward in
+                actionStripAtEnd = !canMoveForward
+            }
+            .overlay(alignment: .leading) {
+                if actionCount > 4 && actionStripAtEnd {
+                    ZStack(alignment: .leading) {
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: AppTheme.cardBackground, location: 0),
+                                .init(color: AppTheme.cardBackground, location: 0.3),
+                                .init(color: .clear, location: 1),
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: 24, height: 60)
+
+                        Button {
+                            withAnimation { proxy.scrollTo("stage-actions-start", anchor: .leading) }
+                            actionStripAtEnd = false
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(width: 28, height: 28)
+                                .background(AppTheme.cardBackground.opacity(0.96), in: Circle())
+                                .overlay { Circle().stroke(Color.accentColor.opacity(0.14), lineWidth: 1) }
+                        }
+                        .frame(width: 40, height: 60, alignment: .leading)
+                        .foregroundStyle(Color.accentColor)
+                        .buttonStyle(.plain)
+                    }
+                    .frame(width: 40, height: 60, alignment: .leading)
+                }
+            }
+            .overlay(alignment: .trailing) {
+                if actionCount > 4 && !actionStripAtEnd {
+                    ZStack(alignment: .trailing) {
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: AppTheme.cardBackground, location: 0.7),
+                                .init(color: AppTheme.cardBackground, location: 1),
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: 24, height: 60)
+
+                        Button {
+                            withAnimation { proxy.scrollTo("stage-actions-end", anchor: .trailing) }
+                            actionStripAtEnd = true
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(width: 28, height: 28)
+                                .background(AppTheme.cardBackground.opacity(0.96), in: Circle())
+                                .overlay { Circle().stroke(Color.accentColor.opacity(0.14), lineWidth: 1) }
+                        }
+                        .frame(width: 40, height: 60, alignment: .trailing)
+                        .foregroundStyle(Color.accentColor)
+                        .buttonStyle(.plain)
+                    }
+                    .frame(width: 40, height: 60, alignment: .trailing)
+                }
+            }
+            }
+        }
+    }
+
+    /// Conserva las acciones en una sola tira desplazable: todos los hijos
+    /// reciben la misma celda, incluso cuando su etiqueta es más larga.
+    private struct FixedActionStripLayout: Layout {
+        let itemWidth: CGFloat = 100
+
+        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+            let height = subviews.map { $0.sizeThatFits(.init(width: itemWidth, height: nil)).height }.max() ?? 0
+            return CGSize(width: itemWidth * CGFloat(subviews.count), height: max(52, height))
+        }
+
+        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            var x = bounds.minX
+            for subview in subviews {
+                subview.place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                              proposal: .init(width: itemWidth, height: bounds.height))
+                x += itemWidth
+            }
+        }
+    }
+
+    /// SwiftUI no expone un comportamiento «sin rebote» para una tira que sí
+    /// desborda horizontalmente. Este marcador localiza solo su UIScrollView
+    /// contenedor y evita que el gesto sobrepase los extremos.
+    private struct HorizontalScrollBounceDisabler: UIViewRepresentable {
+        func makeUIView(context: Context) -> BounceDisablerView { BounceDisablerView() }
+
+        func updateUIView(_ uiView: BounceDisablerView, context: Context) {
+            uiView.disableAncestorBounceIfNeeded()
+        }
+
+        final class BounceDisablerView: UIView {
+            private weak var scrollView: UIScrollView?
+            private var originalBounces: Bool?
+            private var originalAlwaysBounceHorizontal: Bool?
+
+            override func didMoveToSuperview() {
+                super.didMoveToSuperview()
+                disableAncestorBounceIfNeeded()
+            }
+
+            func disableAncestorBounceIfNeeded() {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    var view = self.superview
+                    while let current = view {
+                        if let scrollView = current as? UIScrollView {
+                            guard self.scrollView !== scrollView else { return }
+                            self.restoreBounce()
+                            self.scrollView = scrollView
+                            self.originalBounces = scrollView.bounces
+                            self.originalAlwaysBounceHorizontal = scrollView.alwaysBounceHorizontal
+                            scrollView.bounces = false
+                            scrollView.alwaysBounceHorizontal = false
+                            return
+                        }
+                        view = current.superview
+                    }
+                }
+            }
+
+            deinit { restoreBounce() }
+
+            private func restoreBounce() {
+                guard let scrollView else { return }
+                if let originalBounces { scrollView.bounces = originalBounces }
+                if let originalAlwaysBounceHorizontal {
+                    scrollView.alwaysBounceHorizontal = originalAlwaysBounceHorizontal
+                }
+                self.scrollView = nil
+                originalBounces = nil
+                originalAlwaysBounceHorizontal = nil
+            }
         }
     }
 
@@ -1443,6 +1528,39 @@ struct FlowLayout: Layout {
     }
 }
 
+// MARK: - Action strip
+
+/// Celda de documentación agrupada, inspirada en los controles compactos de
+/// iOS: superficie clara continua, separador tenue, símbolo arriba y título
+/// truncado en una sola línea.
+struct ActionStripTile: View {
+    let icon: String
+    let label: String
+    var tint: Color = .accentColor
+    var showsTrailingSeparator = true
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.subheadline)
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .foregroundStyle(tint)
+        .frame(width: 100, height: 60)
+        .background(tint.opacity(0.09))
+        .overlay(alignment: .trailing) {
+            if showsTrailingSeparator {
+                Rectangle()
+                    .fill(tint.opacity(0.18))
+                    .frame(width: 1)
+            }
+        }
+    }
+}
+
 // MARK: - StageNotificationChip
 
 /// Chip de notificaciones por jornada. Visible a todos los usuarios:
@@ -1459,20 +1577,9 @@ private struct StageNotificationChip: View {
         Button {
             handleTap()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: isFollowing ? "bell.fill" : "bell")
-                Text(LocaleService.t("Notificaciones", "Notifications"))
-            }
-            .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(isFollowing ? Color.accentColor : Color.accentColor.opacity(0.15))
-            .foregroundStyle(isFollowing ? .white : Color.accentColor)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-            .overlay(
-                RoundedRectangle(cornerRadius: 3)
-                    .stroke(Color.accentColor.opacity(isFollowing ? 0 : 0.5), lineWidth: 1)
+            ActionStripTile(
+                icon: isFollowing ? "bell.fill" : "bell",
+                label: LocaleService.t("Notificaciones", "Notifications")
             )
         }
         .accessibilityLabel(LocaleService.t("Notificaciones de esta jornada", "Stage notifications"))

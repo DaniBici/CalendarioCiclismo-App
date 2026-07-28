@@ -55,6 +55,16 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(feed.map(\.id), ["sign"])
     }
 
+    func test_renewalFeedShowsOnlyConfirmedVisibleRenewals() {
+        let feed = TransfersLogic.renewalFeed([
+            transfer(id: "renew", riderId: "r1", type: "renewal", to: "team_a"),
+            transfer(id: "sign", riderId: "r2", type: "transfer", to: "team_b"),
+            transfer(id: "rumor", riderId: "r3", type: "renewal", status: "rumor", to: "team_a"),
+            transfer(id: "hidden", riderId: "r4", type: "renewal", to: "team_a", dateVisible: false),
+        ])
+        XCTAssertEqual(feed.map(\.id), ["renew"])
+    }
+
     func test_limitedFeedStopsAtMaxDays() {
         // 6 fechas distintas (1 fichaje cada una) → se cortan a 5.
         let feed = (1...6).map { transfer(id: "t\($0)", riderId: "r\($0)", to: "team_b", announcedAt: "2026-07-0\($0)") }

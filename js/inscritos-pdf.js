@@ -258,7 +258,7 @@ export async function generateStartlistPDF(opts) {
   doc.text(enc(raceName.toUpperCase()), textX, y + 5);
 
   // Subtitle — strip HTML tags and leading label (works for both ES and EN)
-  const subtitleClean = heroSubline.replace(/<[^>]+>/g, '').replace(/^(Inscritos|Inscritas|Lista provisional|Startlist|Provisional startlist)\s*·\s*/, '');
+  const subtitleClean = heroSubline.replace(/<[^>]+>/g, '').replace(/^(Dorsales|Lista provisional|Startlist|Provisional Startlist)\s*·\s*/, '');
   doc.setFont(fontFamily, 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(muted);

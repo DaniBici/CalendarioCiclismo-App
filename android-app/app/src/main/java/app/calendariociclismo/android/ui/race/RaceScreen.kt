@@ -19,14 +19,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Intent
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -69,6 +70,7 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.prefs.RaceFollowMode
 import app.calendariociclismo.android.ui.ads.AdBanner
 import app.calendariociclismo.android.ui.components.AssetChip
+import app.calendariociclismo.android.ui.components.AssetActionStrip
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -178,6 +180,7 @@ fun RaceScreen(raceId: String, navController: NavController) {
                     Box(modifier = Modifier.padding(bottom = 6.dp)) {
                         RaceDocumentationChips(
                             race = s.race,
+                            days = s.days,
                             navController = navController,
                         )
                     }
@@ -371,13 +374,13 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
 @Composable
 private fun RaceDocumentationChips(
     race: Race,
+    days: List<EnrichedRaceDay>,
     navController: NavController,
 ) {
     val context = LocalContext.current
     val app = rememberApp()
     val scope = rememberCoroutineScope()
 
-    val isPushEnabled by app.preferences.pushEnabled.collectAsState(initial = false)
     val raceFollowMode by app.preferences.raceFollowMode.collectAsState(initial = RaceFollowMode.FOLLOW_ALL)
     val followedRaceIds by app.preferences.followedRaceIds.collectAsState(initial = emptySet())
 
@@ -385,18 +388,16 @@ private fun RaceDocumentationChips(
     var showModeAlert by remember { mutableStateOf(false) }
 
     val hasWebsite = !race.websiteUrl.isNullOrEmpty()
+    val technicalGuide = days.asSequence().flatMap { it.assets.asSequence() }
+        .firstOrNull { it.type == "technicalGuide" && !it.url.isNullOrEmpty() }
     val hasStartlist = race.startlistImportedAt != null
-    val showNotifications = isPushEnabled
+    // La acción de seguimiento es también la puerta de entrada a las
+    // notificaciones, por lo que no se oculta antes de conceder permisos.
+    val showNotifications = true
 
-    if (!hasWebsite && !hasStartlist && !showNotifications) return
+    if (!hasWebsite && technicalGuide == null && !hasStartlist && !showNotifications) return
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    AssetActionStrip {
         if (hasWebsite) {
             AssetChip(
                 icon = Icons.Outlined.Language,
@@ -407,6 +408,20 @@ private fun RaceDocumentationChips(
                             Intent(Intent.ACTION_VIEW, race.websiteUrl!!.toUri())
                                 .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                         )
+                    }
+                },
+            )
+        }
+        technicalGuide?.let { guide ->
+            AssetChip(
+                icon = Icons.Filled.Description,
+                label = stringResource(R.string.asset_technical_guide),
+                onClick = {
+                    runCatching {
+                        CustomTabsIntent.Builder()
+                            .setShowTitle(true)
+                            .build()
+                            .launchUrl(context, guide.url!!.toUri())
                     }
                 },
             )
@@ -468,8 +483,8 @@ private fun RaceDocumentationChips(
 
 /**
  * Chip de notificaciones de la carrera. Estilo idéntico a [AssetChip] y a
- * `StageNotificationChip` (StageScreen): fondo `primary.alpha(0.1)` / `primary`
- * cuando se sigue, esquinas a 3dp, icono 14dp, texto `labelMedium` Medium.
+ * `StageNotificationChip` (StageScreen): misma celda azul tenue, icono 14dp y
+ * texto de una línea con truncado.
  *
  * Antes usaba `AssistChip` (Material3), que tenía altura, radio de esquina y
  * colores distintos a los chips contiguos ("Web oficial", "Inscritos") y
@@ -478,38 +493,18 @@ private fun RaceDocumentationChips(
 @Composable
 private fun RaceNotificationChip(isFollowing: Boolean, onClick: () -> Unit) {
     val haptic = rememberHaptics()
-    val primary = MaterialTheme.colorScheme.primary
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
     val label = stringResource(R.string.race_notifications)
     val icon = if (isFollowing) Icons.Filled.Notifications else Icons.Outlined.NotificationsNone
 
-    Row(
-        modifier = Modifier
-            .background(
-                if (isFollowing) primary else primary.copy(alpha = 0.1f),
-                RoundedCornerShape(3),
-            )
-            .clickable(role = Role.Button, onClickLabel = label) {
-                haptic(Haptics.Event.Selection)
-                onClick()
-            }
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isFollowing) onPrimary else primary,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = if (isFollowing) onPrimary else primary,
-        )
-    }
+    AssetChip(
+        icon = icon,
+        label = label,
+        onClick = {
+            haptic(Haptics.Event.Selection)
+            onClick()
+        },
+        showTrailingSeparator = false,
+    )
 }
 
 @Composable

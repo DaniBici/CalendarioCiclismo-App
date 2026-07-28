@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.transfers
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
@@ -44,11 +48,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -75,6 +81,19 @@ private sealed class MarketState {
     data class Error(val message: String) : MarketState()
 }
 
+private data class TransferSource(val name: String, val outlet: String, val url: String)
+
+// Mismas cuentas acreditadas en /abierto.html.
+private val transferSources = listOf(
+    TransferSource("Nacho Labarga", "MARCA", "https://x.com/nacholabarga"),
+    TransferSource("Dani Miranda", "AS", "https://x.com/danimiranda9"),
+    TransferSource("Ciro Scognamiglio", "La Gazzetta dello Sport", "https://x.com/cirogazzetta"),
+    TransferSource("Youri IJnsen", "WielerFlits", "https://x.com/Youri_IJnsen"),
+    TransferSource("James Odvart", "DirectVelo", "https://x.com/OdvartJames"),
+    TransferSource("Daniel Benson", "", "https://x.com/dnlbenson"),
+    TransferSource("Bram Vandecapelle", "Het Laatste Nieuws", "https://x.com/bvdecape"),
+)
+
 /**
  * Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
  * /fichajes/ web (`js/fichajes.js`): feed cronológico inverso de
@@ -95,6 +114,7 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
 
     var state by remember { mutableStateOf<MarketState>(MarketState.Loading) }
     var activeDivision by rememberSaveable { mutableStateOf(TransfersLogic.DIVISIONS.first()) }
+    var activeFeed by rememberSaveable { mutableStateOf(TransfersFeed.Signings) }
     var isRefreshing by remember { mutableStateOf(false) }
     var showTransfersInfo by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
@@ -171,7 +191,9 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
                 is MarketState.Ready -> MarketContent(
                     data = current.data,
                     activeDivision = activeDivision,
+                    activeFeed = activeFeed,
                     onDivisionSelect = { activeDivision = it },
+                    onFeedSelect = { activeFeed = it },
                     onTeamTap = { teamId ->
                         haptic(Haptics.Event.Navigation)
                         navController.navigate(Routes.transfersTeam(teamId))
@@ -182,27 +204,61 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
     }
 
     if (showTransfersInfo) {
-        AlertDialog(
-            onDismissRequest = { showTransfersInfo = false },
-            title = { Text(stringResource(R.string.transfers_info_title)) },
-            text = { Text(stringResource(R.string.transfers_info_text)) },
-            confirmButton = {
-                TextButton(onClick = { showTransfersInfo = false }) {
-                    Text(stringResource(R.string.action_close))
-                }
-            },
-        )
+        TransfersInfoDialog(onDismiss = { showTransfersInfo = false })
     }
+}
+
+@Composable
+private fun TransfersInfoDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.transfers_info_title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.transfers_info_text))
+                Spacer(Modifier.height(12.dp))
+                transferSources.forEach { source ->
+                    Row {
+                        Text(
+                            text = source.name,
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(source.url)))
+                            },
+                        )
+                        if (source.outlet.isNotEmpty()) {
+                            Text(" (${source.outlet})")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
 }
 
 @Composable
 private fun MarketContent(
     data: TransfersLogic.MarketData,
     activeDivision: String,
+    activeFeed: TransfersFeed,
     onDivisionSelect: (String) -> Unit,
+    onFeedSelect: (TransfersFeed) -> Unit,
     onTeamTap: (String) -> Unit,
 ) {
-    val feed = remember(data) { TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(data.transfers)) }
+    val feed = remember(data, activeFeed) {
+        val moves = when (activeFeed) {
+            TransfersFeed.Signings -> TransfersLogic.confirmedFeed(data.transfers)
+            TransfersFeed.Renewals -> TransfersLogic.renewalFeed(data.transfers)
+        }
+        TransfersLogic.limitedFeed(moves)
+    }
     val feedByDay = remember(feed) { TransfersLogic.groupByDay(feed) }
     val teams = remember(data, activeDivision) {
         TransfersLogic.divisionTeams(data.seasons, activeDivision)
@@ -220,6 +276,15 @@ private fun MarketContent(
             // Primer título: pegado al top bar → sin el top de 18dp (que sí
             // separa el título de "equipos" del feed de arriba).
             SectionTitle(stringResource(R.string.transfers_feed_title), topPadding = 4.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FeedChip(stringResource(R.string.transfers_feed_signings), activeFeed == TransfersFeed.Signings) {
+                    onFeedSelect(TransfersFeed.Signings)
+                }
+                FeedChip(stringResource(R.string.transfers_feed_renewals), activeFeed == TransfersFeed.Renewals) {
+                    onFeedSelect(TransfersFeed.Renewals)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 if (feed.isEmpty()) {
                     item(key = "feed_empty") {
@@ -295,6 +360,8 @@ private fun MarketContent(
     }
 }
 
+private enum class TransfersFeed { Signings, Renewals }
+
 @Composable
 private fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp = 18.dp) {
     Text(
@@ -332,6 +399,10 @@ private fun DivisionChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
+@Composable
+private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) =
+    DivisionChip(label, selected, onClick)
+
 /** Fila del feed: bandera + "Corredor  → Destino" + "hasta YYYY". */
 @Composable
 fun TransferFeedRow(
@@ -356,9 +427,8 @@ fun TransferFeedRow(
         }
         when (transfer.type) {
             "renewal" -> {
-                // Un divisor atenuado separa el nombre del texto "renueva con …"
-                // (que no empieza con flecha).
-                withStyle(SpanStyle(color = dimColor)) { append("  ·  ") }
+                // Al no haber flecha, se separa explícitamente del nombre.
+                append(" ")
                 append(renewsWith)
                 append(" ")
                 append(TransfersLogic.teamLabel(transfer.toTeamId, transfer.toTeamName, data.teamNameById, unknownTeam))

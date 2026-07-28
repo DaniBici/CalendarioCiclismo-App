@@ -157,14 +157,14 @@ data class RaceDay(
         get() = localizedFinishLocation?.takeUnless { it.isEmpty() }
             ?: localizedStartLocation?.takeUnless { it.isEmpty() }
 
-    /** Recorrido: "Ciudad A – Ciudad B" o el nombre único si solo hay uno. */
+    /** Recorrido: "Ciudad A > Ciudad B" o el nombre único si solo hay uno. */
     val routeDescription: String?
         get() {
             val start = localizedStartLocation?.takeUnless { it.isEmpty() }
             val finish = localizedFinishLocation?.takeUnless { it.isEmpty() }
             return when {
                 start != null && finish != null ->
-                    if (start == finish) start else "$start – $finish"
+                    if (start == finish) start else "$start > $finish"
                 start != null -> start
                 finish != null -> finish
                 else -> null

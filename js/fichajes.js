@@ -41,6 +41,18 @@ const DIVISIONS = ['WT', 'WWT', 'PT', 'PRW'];
 const FEED_MAX_DAYS = 5;
 const FEED_MAX_ITEMS = 8;
 
+// Periodistas acreditados en /abierto.html. Se mantienen aquí para que los
+// enlaces del aviso de fuentes sean interactivos también en el modal web.
+const TRANSFER_SOURCES = [
+  { name: 'Nacho Labarga', outlet: 'MARCA', url: 'https://x.com/nacholabarga' },
+  { name: 'Dani Miranda', outlet: 'AS', url: 'https://x.com/danimiranda9' },
+  { name: 'Ciro Scognamiglio', outlet: 'La Gazzetta dello Sport', url: 'https://x.com/cirogazzetta' },
+  { name: 'Youri IJnsen', outlet: 'WielerFlits', url: 'https://x.com/Youri_IJnsen' },
+  { name: 'James Odvart', outlet: 'DirectVelo', url: 'https://x.com/OdvartJames' },
+  { name: 'Daniel Benson', outlet: '', url: 'https://x.com/dnlbenson' },
+  { name: 'Bram Vandecapelle', outlet: 'Het Laatste Nieuws', url: 'https://x.com/bvdecape' },
+];
+
 // Género de la tabla riders_* por división (para la plantilla "continúan").
 const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
 
@@ -58,6 +70,7 @@ let _teamNameById = new Map();      // teamId → nombre 2027 (destino)
 let _prevColorsByTeamId = new Map();
 let _transfers = [];                // rider_transfers 2027 + .rider hidratado
 let _activeDiv = 'WT';
+let _activeFeed = 'signings';
 let _rosterCache = new Map();       // teamId → [{ ...ficha }]
 let _slugToTeamId = new Map();      // slug del nombre 2027 → teamId (URL)
 let _teamIdToSlug = new Map();      // teamId → slug
@@ -219,6 +232,10 @@ function confirmedFeed() {
   return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x));
 }
 
+function renewalFeed() {
+  return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false && x.type === 'renewal');
+}
+
 function feedRowHtml(x) {
   const flag = x.rider?.nationality ? countryFlag(x.rider.nationality) : '';
   const name = `<strong>${esc(riderName(x.rider) || x.riderId)}</strong>`;
@@ -237,7 +254,7 @@ function feedRowHtml(x) {
   }
   const inner = `
     <span class="tr-row__flag">${flag}</span>
-    <span class="tr-row__body"><span class="tr-name">${name}</span><span class="tr-move">${move}</span></span>
+    <span class="tr-row__body"><span class="tr-name">${name}</span> <span class="tr-move">${move}</span></span>
     ${contractBit(x.contractUntil)}`;
   // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
   // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
@@ -252,7 +269,7 @@ function feedRowHtml(x) {
 function renderFeed() {
   const box = $('trFeed');
   if (!box) return;
-  const feed = confirmedFeed();
+  const feed = _activeFeed === 'renewals' ? renewalFeed() : confirmedFeed();
   if (feed.length === 0) {
     box.innerHTML = `<div class="tr-empty">${esc(t('transfers.feedEmpty'))}</div>`;
     return;
@@ -704,15 +721,19 @@ async function init() {
   }
 
   const transfersInfo = t('transfers.infoText');
+  const transfersSources = TRANSFER_SOURCES.map(({ name, outlet, url }) => `
+    <li><a href="${url}" target="_blank" rel="noopener">${esc(name)}</a>${outlet ? ` <span>(${esc(outlet)})</span>` : ''}</li>
+  `).join('');
   content.innerHTML = `
     <div class="tr-heading-row">
       <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
       <button class="tr-info-button" type="button" aria-label="${esc(t('transfers.infoLabel'))}" aria-describedby="trInfoTooltip" aria-expanded="false">i</button>
-      <span class="tr-info-tooltip" id="trInfoTooltip" role="tooltip">${esc(transfersInfo)}</span>
+      <div class="tr-info-tooltip" id="trInfoTooltip" role="tooltip">${esc(transfersInfo)}<ul class="tr-info-sources">${transfersSources}</ul></div>
     </div>
     <div id="trHome">
       <section class="tr-home-feed">
         <h2 class="tr-section-title">${esc(t('transfers.feedTitle'))}</h2>
+        <div class="tr-div-btns" id="trFeedBtns"></div>
         <div class="tr-home-scroll" id="trFeed"></div>
       </section>
       <section class="tr-home-teams">
@@ -723,6 +744,23 @@ async function init() {
     </div>
     <div id="trTeamView" hidden></div>`;
   content.hidden = false;
+
+  const feedBtns = $('trFeedBtns');
+  const renderFeedButtons = () => {
+    if (!feedBtns) return;
+    feedBtns.innerHTML = [
+      ['signings', t('transfers.feedSignings')],
+      ['renewals', t('transfers.feedRenewals')],
+    ].map(([value, label]) =>
+      `<button class="tr-div-btn${value === _activeFeed ? ' tr-div-btn--active' : ''}" data-feed="${value}">${esc(label)}</button>`
+    ).join('');
+    feedBtns.querySelectorAll('[data-feed]').forEach(button => button.addEventListener('click', () => {
+      _activeFeed = button.dataset.feed;
+      renderFeedButtons();
+      renderFeed();
+    }));
+  };
+  renderFeedButtons();
 
   const infoButton = content.querySelector('.tr-info-button');
   let infoModal = null;
@@ -744,10 +782,11 @@ async function init() {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div class="rd-modal__body tr-info-modal__body"><p></p></div>
+          <div class="rd-modal__body tr-info-modal__body"><p></p><ul class="tr-info-sources"></ul></div>
         </div>`;
       infoModal.querySelector('#trInfoModalTitle').textContent = t('transfers.infoModalTitle');
       infoModal.querySelector('.tr-info-modal__body p').textContent = transfersInfo;
+      infoModal.querySelector('.tr-info-sources').innerHTML = transfersSources;
       infoModal.addEventListener('click', (event) => { if (event.target === infoModal) closeInfoModal(); });
       infoModal.querySelector('.rd-modal__close').addEventListener('click', closeInfoModal);
       document.body.appendChild(infoModal);

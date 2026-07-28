@@ -69,17 +69,17 @@ enum Constants {
 
     static var assetTexts: [String: String] {
         LocaleService.isEnglish ? [
-            "startOrder": "Start order", "roadbook": "Timetable", "profile": "Profile",
+            "technicalGuide": "Technical Guide", "startOrder": "Start order", "roadbook": "Timetable", "profile": "Profile",
             "ports": "Climbs", "pave": "Pavé", "sterrato": "Sterrato",
             "ribinou": "Ribinou", "map": "Map", "live_text": "Live text",
         ] : [
-            "startOrder": "Orden Salida", "roadbook": "Rutómetro", "profile": "Perfil",
+            "technicalGuide": "Libro de Ruta", "startOrder": "Orden Salida", "roadbook": "Rutómetro", "profile": "Perfil",
             "ports": "Puertos", "pave": "Pavé", "sterrato": "Sterrato",
             "ribinou": "Ribinou", "map": "Mapa", "live_text": "Live texto",
         ]
     }
 
-    static let assetOrder = ["startOrder", "roadbook", "profile", "ports", "map", "live_text"]
+    static let assetOrder = ["technicalGuide", "startOrder", "roadbook", "profile", "ports", "map", "live_text"]
 
     // MARK: - Países europeos
 

@@ -771,7 +771,7 @@ function buildCard(rd) {
   );
   const stage  = stageLabel(rd.stageNumber, rd._stageSuffix, _isFinalStage);
   const route  = rd.startLocation
-    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} › ${rdLocation(rd, 'finishLocation')}`) : '';
+    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} > ${rdLocation(rd, 'finishLocation')}`) : '';
   const _isEn  = getLang() === 'en';
   const km     = rd.distanceKm ? `${_isEn ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')}${_isEn ? 'km' : ' km'}` : '';
   const _elevGain = rd.elevationProfile?.elevationGain;
@@ -793,7 +793,7 @@ function buildCard(rd) {
   const kmPart      = km    ? `<span class="race-card__km">${km}</span>` : '';
   const elevPart    = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
   const typeBadges  = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode) : '';
-  // La ruta (salida › llegada) se oculta en móvil (≤600px, CSS) para no quedar como
+  // La ruta (salida > llegada) se oculta en móvil (≤600px, CSS) para no quedar como
   // muñón ("Brus…") ni dejar dos · seguidos cuando el ancho la colapsa. Para que al
   // ocultarla desaparezca también su separador, el · adyacente viaja DENTRO del wrap:
   // el líder si hay una parte antes (etapa), si no el de cola (hacia km). En desktop el

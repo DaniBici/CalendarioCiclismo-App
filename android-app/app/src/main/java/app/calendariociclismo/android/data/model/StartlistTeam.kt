@@ -57,7 +57,4 @@ data class StartlistData(
     /** Corredores fuera de carrera, por globalRiderId. Vacío si no hay
      *  resultados in-house. */
     val ridersOut: Map<String, RiderOut> = emptyMap(),
-    /** La carrera tiene resultados in-house (la lista se mantiene sola → no se
-     *  muestra el aviso "no se actualiza"). */
-    val hasUciResults: Boolean = false,
 )

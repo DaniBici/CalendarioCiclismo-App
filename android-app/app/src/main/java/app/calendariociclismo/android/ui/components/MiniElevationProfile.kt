@@ -56,12 +56,10 @@ private fun waypointColor(type: String): Color = when (type) {
  * Renderiza la silueta de altimetría más indicadores circulares sobre la
  * curva: summits (rojo) + waypoints (sprint, bonif., split, pavé, sterrato).
  *
- * Escala Y **adaptativa** (paridad con `js/elevation-profile.js`
- * → `buildElevationSparkline`): `padding = clamp(300 - range·0.1, 100..300)`,
- * `yMin = max(0, minAlt - padding)`, `yMax = maxAlt + padding`. Distinta de
- * la escala fija del perfil grande (1100m mínimo) para que las etapas de
- * media montaña / cotas / final en alto aprovechen toda la altura del Canvas
- * en lugar de quedar aplastadas contra el suelo.
+ * Escala Y idéntica a `js/elevation-profile.js` → `buildElevationSparkline`:
+ * `padding = max(100, 300 - range·0.1)`, `yMin = max(0, minAlt - padding)`,
+ * `yMax = maxAlt + padding`. Esta referencia común evita exagerar el relieve
+ * en las apps frente a la web.
  *
  * Sin etiquetas, sin grid, sin interactividad.
  */
@@ -74,13 +72,8 @@ fun MiniElevationProfile(
     summits: List<ProfileSummit> = emptyList(),
     waypoints: List<ProfileWaypoint> = emptyList(),
     /**
-     * Tipo primario de la etapa. Decide la fórmula de escala Y:
-     * - `"flat"`/null/desconocido → escala fija con suelo 0 y techo 1100m
-     *   (igual que la web); pequeñas variaciones quedan aplastadas, que es
-     *   lo correcto para llanas.
-     * - resto (cobbles, cotas, rolling, medium_mountain, etc.) → escala
-     *   adaptativa con `yMin = minAlt` para que el relieve real ocupe el
-     *   alto disponible.
+     * Tipo primario de la etapa. Se conserva por compatibilidad de llamadas;
+     * la escala vertical es común para todos los tipos, igual que en la web.
      */
     primaryType: String? = null,
     /**
@@ -152,26 +145,11 @@ fun MiniElevationProfile(
             ?: pts.minOf { it.alt.toDouble() })
         val maxAlt = (profile.maxElevation?.toDouble()
             ?: pts.maxOf { it.alt.toDouble() })
-        // Escala condicional por tipo:
-        // - Llanas (flat / null / desconocido): escala fija de la web
-        //   (suelo 0, techo 1100m). Aplasta pequeñas variaciones — es lo
-        //   correcto para llanas donde unas pocas decenas de metros NO
-        //   deben dramatizarse.
-        // - Resto (cobbles, cotas, rolling, medium_mountain, etc.):
-        //   adaptativa con yMin = minAlt para que el relieve real
-        //   ocupe la altura visible del canvas.
-        val useFlatScale = primaryType == "flat" || primaryType.isNullOrEmpty()
-        val yMin: Double
-        val yMax: Double
-        if (useFlatScale) {
-            yMin = max(0.0, minAlt - 150.0)
-            yMax = max(1100.0, maxAlt + 200.0)
-        } else {
-            val range = max(1.0, maxAlt - minAlt)
-            val paddingTop = max(50.0, range * 0.15)
-            yMin = minAlt
-            yMax = maxAlt + paddingTop
-        }
+        // Misma escala que el miniperfil web, para todos los tipos de etapa.
+        val range = maxAlt - minAlt
+        val padding = max(100.0, 300.0 - range * 0.1)
+        val yMin = max(0.0, minAlt - padding)
+        val yMax = maxAlt + padding
         val yRange = max(yMax - yMin, 1.0)
 
         fun project(km: Double, alt: Double): Offset {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,6 +94,7 @@ import app.calendariociclismo.android.data.model.Broadcast
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.components.AssetChip
+import app.calendariociclismo.android.ui.components.AssetActionStrip
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -476,13 +479,8 @@ private suspend fun loadStageData(
             .getByRaceDay(stageId).map { it.toModel() },
         app.preferences.snapshotRegionPreference().allowedBroadcastGroups,
     ).sortedBy { it.sortOrder }
-    val assets = app.database.assetsDao()
+    val stageAssets = app.database.assetsDao()
         .getByRaceDay(stageId).map { it.toModel() }
-        .distinctBy { it.type }
-        .sortedBy { asset ->
-            val idx = Constants.ASSET_ORDER.indexOf(asset.type.orEmpty())
-            if (idx < 0) Int.MAX_VALUE else idx
-        }
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     val hasStartlist = race?.startlistImportedAt != null
@@ -491,6 +489,14 @@ private suspend fun loadStageData(
         RaceLogic.annotateDoubleSectors(allDays)
         allDays.toList()
     } ?: emptyList()
+    val technicalGuide = app.repository.cachedAssetsForRaceDays(siblings.map { it.id })
+        .firstOrNull { it.type == "technicalGuide" }
+    val assets = (listOfNotNull(technicalGuide) + stageAssets.filter { it.type != "technicalGuide" })
+        .distinctBy { it.type }
+        .sortedBy { asset ->
+            val idx = Constants.ASSET_ORDER.indexOf(asset.type.orEmpty())
+            if (idx < 0) Int.MAX_VALUE else idx
+        }
     return StageData(
         raceDay = latest,
         race = race,
@@ -1097,15 +1103,23 @@ private fun StageHeaderCard(
     val isSterrato = rd.primaryType == "sterrato"
     val isFrance = race?.countryCode?.uppercase() == "FR"
     val hasICalSubscribe = !rd.slug.isNullOrEmpty() && !rd.isRestDay && !rd.isCancelledDay
-    val isPushEnabled by app.preferences.pushEnabled.collectAsState(initial = false)
     val followedStageIds by app.preferences.followedStageIds.collectAsState(initial = emptySet())
-    val showNotifChip = isPushEnabled && !rd.isRestDay && !rd.isCancelledDay
+    // El control debe seguir visible aunque el usuario todavía no haya activado
+    // los permisos: es el punto de entrada para personalizar esta jornada.
+    val showNotifChip = !rd.isRestDay && !rd.isCancelledDay
     val hasDocs = hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip
     // Dividimos los assets respecto al índice de "profile" en ASSET_ORDER para
     // que el chip SVG web aparezca siempre después del rutómetro.
     val profileOrderIdx = Constants.ASSET_ORDER.indexOf("profile").let { if (it < 0) Constants.ASSET_ORDER.size else it }
+    // El Libro de Ruta es común a toda la competición y mantiene una posición
+    // fija: web oficial → Libro de Ruta → dorsales. Lo apartamos del grupo
+    // genérico para que no vuelva a aparecer en su posición histórica.
+    val technicalGuideAsset = assets.firstOrNull {
+        it.type == "technicalGuide" && !it.url.isNullOrEmpty()
+    }
     val assetsBeforeProfile = assets.filter { a ->
-        Constants.ASSET_ORDER.indexOf(a.type ?: "").let { i -> if (i < 0) Int.MAX_VALUE else i } < profileOrderIdx
+        a.type != "technicalGuide" &&
+            Constants.ASSET_ORDER.indexOf(a.type ?: "").let { i -> if (i < 0) Int.MAX_VALUE else i } < profileOrderIdx
     }
     // Asset estático de mapa = "Mapa oficial" cuando coexisten ambos.
     val officialMapAsset = if (bothMaps) assets.firstOrNull { it.type == "map" && !it.url.isNullOrEmpty() } else null
@@ -1141,16 +1155,21 @@ private fun StageHeaderCard(
             // bloque de etapa.
             if (hasDocs) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
+                AssetActionStrip {
                     val websiteUrl = race?.websiteUrl
                     if (!websiteUrl.isNullOrEmpty()) {
                         AssetChip(
                             icon = Icons.Outlined.Language,
                             label = stringResource(R.string.stage_doc_web_official),
                             onClick = { onExternalLinkTap(websiteUrl) },
+                        )
+                    }
+
+                    technicalGuideAsset?.let { asset ->
+                        AssetChip(
+                            icon = assetIcon(asset.type),
+                            label = asset.typeLabel(context),
+                            onClick = { onAssetTap(asset) },
                         )
                     }
 
@@ -1167,7 +1186,8 @@ private fun StageHeaderCard(
                         )
                     }
 
-                    // Assets antes de "profile" (startOrder, roadbook)
+                    // Resto de assets antes de "profile" (orden de salida,
+                    // rutómetro). El Libro de Ruta ya ocupa su posición fija.
                     assetsBeforeProfile.forEach { asset ->
                         // El asset startOrder ahora abre la vista nativa
                         if (asset.type == "startOrder") {
@@ -1277,18 +1297,13 @@ private fun StageNotificationChip(
 ) {
     val scope = rememberCoroutineScope()
     val haptic = rememberHaptics()
-    val primary = MaterialTheme.colorScheme.primary
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
     val label = stringResource(R.string.race_notifications)
     val icon = if (isFollowing) Icons.Filled.Notifications else Icons.Outlined.NotificationsNone
 
-    Row(
-        modifier = Modifier
-            .background(
-                if (isFollowing) primary else primary.copy(alpha = 0.1f),
-                RoundedCornerShape(3),
-            )
-            .clickable(role = Role.Button, onClickLabel = label) {
+    AssetChip(
+        icon = icon,
+        label = label,
+        onClick = {
                 // Notificaciones enriquecidas liberadas al plan gratuito: sin paywall.
                 haptic(Haptics.Event.Selection)
                 scope.launch {
@@ -1297,24 +1312,8 @@ private fun StageNotificationChip(
                     app.preferences.setFollowedStageIds(current)
                     app.pushManager.syncCategories()
                 }
-            }
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isFollowing) onPrimary else primary,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = if (isFollowing) onPrimary else primary,
-        )
-    }
+        },
+    )
 }
 
 // ─── Horario ──────────────────────────────────────────────────────
@@ -1904,30 +1903,11 @@ private fun BroadcastSection(
 @Composable
 private fun ICalChip(onClick: () -> Unit) {
     val label = stringResource(R.string.stage_doc_add_to_calendar)
-    Row(
-        modifier = Modifier
-            .background(androidx.compose.ui.graphics.Color.White, RoundedCornerShape(3))
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.CalendarMonth,
-            contentDescription = null,
-            tint = androidx.compose.ui.graphics.Color.Black,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = androidx.compose.ui.graphics.Color.Black,
-        )
-    }
+    AssetChip(icon = Icons.Outlined.CalendarMonth, label = label, onClick = onClick)
 }
 
 private fun assetIcon(type: String?): ImageVector = when (type) {
+    "technicalGuide" -> Icons.AutoMirrored.Outlined.InsertDriveFile
     "startOrder" -> Icons.Filled.Timer
     "profile" -> Icons.AutoMirrored.Filled.ShowChart
     "map" -> Icons.Filled.Map

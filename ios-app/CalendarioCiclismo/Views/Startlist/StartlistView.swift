@@ -40,13 +40,6 @@ struct StartlistView: View {
                                 StartlistDisclaimerView(type: .provisional)
                             }
 
-                            // Con resultados in-house la lista se mantiene sola
-                            // (tacha abandonos) → no se muestra el aviso "no se
-                            // actualiza". Igual que inscritos.js y Android.
-                            if viewModel.race?.raceFormat != "one_day" && !viewModel.hasUciResults {
-                                StartlistDisclaimerView(type: .noSpoilers)
-                            }
-
                             if viewModel.teamsList.isEmpty && !viewModel.isLoading {
                                 Text(LocaleService.t("No hay inscritos registrados", "No startlist available for this race"))
                                     .font(.subheadline)
@@ -192,7 +185,6 @@ struct StartlistHeaderView: View {
 
 enum DisclaimerType {
     case provisional
-    case noSpoilers
 }
 
 struct StartlistDisclaimerView: View {
@@ -225,9 +217,7 @@ struct StartlistDisclaimerView: View {
     private var title: String {
         switch type {
         case .provisional:
-            return LocaleService.t("Lista provisional", "Provisional startlist")
-        case .noSpoilers:
-            return ""
+            return LocaleService.t("Lista provisional", "Provisional Startlist")
         }
     }
 
@@ -238,11 +228,6 @@ struct StartlistDisclaimerView: View {
                 "No se considera definitiva hasta la reunión de directores. Esta indicación desaparecerá cuando sea oficial.",
                 "Not considered final until the team managers' meeting. This notice will disappear once it is official."
             )
-        case .noSpoilers:
-            return LocaleService.t(
-                "Lista al inicio de la competición. No se actualiza después de las etapas (no spoilers).",
-                "Startlist at the beginning of the race. Not updated after each stage (no spoilers)."
-            )
         }
     }
 
@@ -250,8 +235,6 @@ struct StartlistDisclaimerView: View {
         switch type {
         case .provisional:
             return Color.accentColor.opacity(0.1)
-        case .noSpoilers:
-            return Color.orange.opacity(0.1)
         }
     }
 }

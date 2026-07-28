@@ -83,7 +83,7 @@ Panel → r2-upload (Edge Function) → Cloudflare R2
 ### Push notification
 
 ```
-Panel / GitHub Actions (scheduled-push.yml)
+Panel / Supabase pg_cron
     └── send-push (Edge Function)
             ├── APNs → iOS (NotificationServiceExtension)
             ├── FCM → Android (CCFirebaseMessagingService)
@@ -126,7 +126,7 @@ calendario-ciclismo/
 |---|---|---|
 | `SUPABASE_URL` | Web, iOS, Android, GHA | iOS: `Config/Supabase.xcconfig` · Android: `secrets.properties` · GHA: GitHub Secrets |
 | `SUPABASE_ANON_KEY` | Web, iOS, Android, GHA | Mismos que arriba |
-| `SUPABASE_SERVICE_ROLE_KEY` | GHA (scheduled-push.yml) | GitHub Secrets |
+| `CRON_SECRET` | GitHub Actions (ejecución manual de `scheduled-push.yml`) | GitHub Secrets + secretos de la Edge Function |
 | Keystore Android + passwords | Build local (Mac dev) | `~/Library/CloudStorage/GoogleDrive-<cuenta-google>/Mi unidad/Claves y ENVs/CalendarioCiclismo.jks` (Google Drive for Desktop, sincronizado) + `android-app/secrets.properties` (`.gitignore`) |
 | `google-services.json` Android | Build local (Mac dev) | `~/Library/CloudStorage/GoogleDrive-<cuenta-google>/Mi unidad/Claves y ENVs/google-services.json` (Google Drive, `.gitignore` en repo) |
 | `GOOGLE_SERVICE_INFO_PLIST_B64` | Xcode Cloud | App Store Connect env vars |

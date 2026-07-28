@@ -140,11 +140,11 @@ struct RaceCardView: View {
         if let onShowStartlist {
             let label: String = {
                 if race?.startlistProvisional == true {
-                    return LocaleService.t("Lista provisional", "Provisional list")
+                    return LocaleService.t("Lista provisional", "Provisional Startlist")
                 } else if race?.isFemale == true {
-                    return LocaleService.t("Inscritas", "Startlist")
+                    return LocaleService.t("Dorsales", "Startlist")
                 } else {
-                    return LocaleService.t("Inscritos", "Startlist")
+                    return LocaleService.t("Dorsales", "Startlist")
                 }
             }()
             Button {

@@ -6,7 +6,7 @@
 import { supabase, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
          extractYouTubeId, TYPE_LABELS, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
-         raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, raceName, rdLocation,
+         raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
          filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels }
          from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
@@ -739,16 +739,19 @@ function updateSeoJornada(rd, race) {
     const rutaStr = sameOrOne
       ? `con salida y meta en ${startLoc}`
       : `con salida en ${startLoc} y meta en ${finishLoc}`;
-    const kmStr = km ? `, sobre ${Number(km).toLocaleString('es-ES')} km ` : ' ';
+    const fechaStr = fechaLarga ? ` (${fechaLarga})` : '';
+    const recorridoStr = km
+      ? `cubre ${Number(km).toLocaleString('es-ES')} km${rutaStr ? ` ${rutaStr}` : ''}`
+      : rutaStr ? `se disputa ${rutaStr}` : 'se disputa';
     if (isOneDay) {
-      description = `${artCap} ${raceNameWithOrig} se disputa el ${fechaLarga}${kmStr}${rutaStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `${artCap} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     } else if (stageNum === 0) {
       const deArt = art === 'el' ? 'del' : 'de la';
-      description = `El prólogo ${deArt} ${raceNameWithOrig} se disputa el ${fechaLarga}${kmStr}${rutaStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `El prólogo ${deArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     } else {
       const deArt = art === 'el' ? 'del' : 'de la';
       const ordinal = stageNum !== null ? ordinalEtapa(stageNum) : '';
-      description = `La ${ordinal} etapa ${deArt} ${raceNameWithOrig} se disputa el ${fechaLarga}${kmStr}${rutaStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
+      description = `La ${ordinal} etapa ${deArt} ${raceNameWithOrig}${fechaStr} ${recorridoStr}. Consulta recorrido, horarios y cómo ver por TV y online streaming.`;
     }
   }
 
@@ -1326,6 +1329,7 @@ async function init() {
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     const hasStartlist = !!race.startlistImportedAt;
+    const technicalGuide = race.id ? await loadRaceTechnicalGuide(race.id) : null;
 
     // Ordenar etapas hermanas
     let siblings = [];
@@ -1349,7 +1353,7 @@ async function init() {
       }
     }
 
-    render(rd, race, broadcasts, assets, siblings, hasStartlist, allBroadcasts, inhouseStages);
+    render(rd, race, broadcasts, withRaceTechnicalGuide(assets, technicalGuide), siblings, hasStartlist, allBroadcasts, inhouseStages);
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
     setupEditBtn(id);
     setupIcalModal(rd, race);

@@ -69,6 +69,19 @@ class TransfersLogicTest {
     }
 
     @Test
+    fun renewalFeedShowsOnlyConfirmedVisibleRenewals() {
+        val feed = TransfersLogic.renewalFeed(
+            listOf(
+                transfer("renew", "r1", type = "renewal", to = "team_a"),
+                transfer("sign", "r2", type = "transfer", to = "team_b"),
+                transfer("rumor", "r3", type = "renewal", status = "rumor", to = "team_a"),
+                transfer("hidden", "r4", type = "renewal", to = "team_a", dateVisible = false),
+            )
+        )
+        assertEquals(listOf("renew"), feed.map { it.id })
+    }
+
+    @Test
     fun limitedFeedStopsAtMaxDays() {
         // 6 fechas distintas (1 fichaje cada una) → se cortan a 5.
         val feed = (1..6).map { transfer("t$it", "r$it", to = "team_b", announcedAt = "2026-07-0$it") }

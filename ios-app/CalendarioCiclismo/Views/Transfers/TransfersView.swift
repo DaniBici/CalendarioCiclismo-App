@@ -7,6 +7,8 @@ struct TransfersTeamRoute: Hashable, Identifiable {
     var id: String { teamId }
 }
 
+private enum TransfersFeed { case signings, renewals }
+
 /// Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
 /// /fichajes/ web (`js/fichajes.js`) y de `TransfersScreen` (Android): feed
 /// cronológico inverso de CONFIRMACIONES + botones de división (WT·WWT·PT·PRW)
@@ -16,10 +18,12 @@ struct TransfersTeamRoute: Hashable, Identifiable {
 /// Solo-online (sin caché), como resultados/inscritos. La lógica pura vive en
 /// `TransfersLogic` (testeada); aquí solo carga + render.
 struct TransfersView: View {
+    @Binding var deepLinkedTeamId: String?
     @State private var data: TransfersLogic.MarketData?
     @State private var isLoading = true
     @State private var error: String?
     @State private var activeDivision = TransfersLogic.divisions[0]
+    @State private var activeFeed = TransfersFeed.signings
     @State private var teamRoute: TransfersTeamRoute?
     @State private var isShowingInfo = false
     @State private var localeService = LocaleService.shared
@@ -55,21 +59,25 @@ struct TransfersView: View {
                 .accessibilityLabel(localeService.t("Información sobre los fichajes", "Transfer information"))
             }
         }
-        .alert(localeService.t("Mercado de fichajes", "Transfer market"), isPresented: $isShowingInfo) {
-            Button(localeService.t("Cerrar", "Close"), role: .cancel) {}
-        } message: {
-            Text(localeService.t(
-                "La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).",
-                "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson and Bram Vandecapelle (Het Laatste Nieuws) for their reporting."
-            ))
+        .sheet(isPresented: $isShowingInfo) {
+            TransfersInfoSheet(localeService: localeService)
+                .presentationDetents([.medium, .large])
         }
         .navigationDestination(item: $teamRoute) { route in
             TransfersTeamView(teamId: route.teamId)
         }
         .task { await load() }
+        .onAppear { openDeepLinkedTeamIfNeeded() }
+        .onChange(of: deepLinkedTeamId) { _, _ in openDeepLinkedTeamIfNeeded() }
         .onAppear {
             AnalyticsService.shared.logScreenView("transfers")
         }
+    }
+
+    private func openDeepLinkedTeamIfNeeded() {
+        guard let teamId = deepLinkedTeamId else { return }
+        deepLinkedTeamId = nil
+        teamRoute = TransfersTeamRoute(teamId: teamId)
     }
 
     private func load() async {
@@ -91,7 +99,10 @@ struct TransfersView: View {
     // MARK: - Lista principal
 
     private func marketList(_ data: TransfersLogic.MarketData) -> some View {
-        let feed = TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(data.transfers))
+        let baseFeed = activeFeed == .signings
+            ? TransfersLogic.confirmedFeed(data.transfers)
+            : TransfersLogic.renewalFeed(data.transfers)
+        let feed = TransfersLogic.limitedFeed(baseFeed)
         let feedByDay = TransfersLogic.groupByDay(feed)
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)
 
@@ -104,6 +115,17 @@ struct TransfersView: View {
                     // Primer título: pegado a la barra de navegación → menos top
                     // que el de "Equipos" (que sí separa del feed de arriba).
                     sectionTitle(localeService.t("Últimas confirmaciones", "Latest confirmations"), topPadding: 4)
+                    HStack(spacing: 8) {
+                        feedChip(
+                            localeService.t("Fichajes", "Signings"),
+                            selected: activeFeed == .signings
+                        ) { activeFeed = .signings }
+                        feedChip(
+                            localeService.t("Renovaciones", "Renewals"),
+                            selected: activeFeed == .renewals
+                        ) { activeFeed = .renewals }
+                    }
+                    .padding(.bottom, 8)
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             if feed.isEmpty {
@@ -186,11 +208,24 @@ struct TransfersView: View {
     /// relleno accent-dim + texto accent.
     private func divisionChip(_ division: String) -> some View {
         let selected = division == activeDivision
-        return Button {
+        return marketChip(division, selected: selected) {
             Haptics.play(.selection)
             activeDivision = division
+        }
+    }
+
+    private func feedChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        marketChip(label, selected: selected) {
+            Haptics.play(.selection)
+            action()
+        }
+    }
+
+    private func marketChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
         } label: {
-            Text(division)
+            Text(label)
                 .font(.caption)
                 .fontWeight(selected ? .semibold : .regular)
                 .foregroundStyle(selected ? Color.accentColor : Color.secondary)
@@ -239,6 +274,49 @@ struct TransfersView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct TransfersInfoSheet: View {
+    let localeService: LocaleService
+
+    private let sources = [
+        ("Nacho Labarga", "MARCA", "https://x.com/nacholabarga"),
+        ("Dani Miranda", "AS", "https://x.com/danimiranda9"),
+        ("Ciro Scognamiglio", "La Gazzetta dello Sport", "https://x.com/cirogazzetta"),
+        ("Youri IJnsen", "WielerFlits", "https://x.com/Youri_IJnsen"),
+        ("James Odvart", "DirectVelo", "https://x.com/OdvartJames"),
+        ("Daniel Benson", "", "https://x.com/dnlbenson"),
+        ("Bram Vandecapelle", "Het Laatste Nieuws", "https://x.com/bvdecape"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(localeService.t(
+                        "La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de:",
+                        "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:"
+                    ))
+
+                    ForEach(sources, id: \.0) { source in
+                        let (name, outlet, url) = source
+                        HStack(spacing: 0) {
+                            Link(name, destination: URL(string: url)!)
+                                .fontWeight(.semibold)
+                            if !outlet.isEmpty {
+                                Text(" (\(outlet))")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+            }
+            .navigationTitle(localeService.t("Fuentes de Fichajes", "Transfer sources"))
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
@@ -302,7 +380,8 @@ struct TransferFeedRowView: View {
         }
         switch transfer.type {
         case "renewal":
-            appendSeparator()
+            // La renovación no lleva flecha: separar siempre el nombre del texto.
+            out += AttributedString(" ")
             out += AttributedString(localeService.t("renueva con", "renews with") + " ")
             out += AttributedString(TransfersLogic.teamLabel(
                 teamId: transfer.toTeamId, freeText: transfer.toTeamName,

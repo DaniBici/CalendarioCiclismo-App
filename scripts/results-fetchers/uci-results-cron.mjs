@@ -133,6 +133,10 @@ const ONE_RACE = getArg('race-id');
 const ONE_STAGE = (ONE_RACE && getArg('stage') != null) ? parseInt(getArg('stage'), 10) : null;
 const DRY = hasFlag('dry-run');
 const IGNORE_WINDOW = hasFlag('ignore-window');
+// Selección por las ventanas configuradas en el panel. El pg_cron solo despierta
+// este runner si existe al menos una candidata; las carreras enlazadas sin regla
+// activa no entran nunca.
+const CONFIGURED = hasFlag('configured');
 // No re-volcar clasificaciones ya presentes (ver uci-results-upsert --skip-existing).
 // Activo por defecto en el volcado AUTOMÁTICO del día (scope=today, sin --race-id ni
 // --ignore-window): la UCI publica completo y definitivo, así que re-volcar las etapas
@@ -220,6 +224,37 @@ async function main() {
          FROM race_uci_links l JOIN races r ON r.id = l."raceId"
          WHERE l."raceId" = $1`, [ONE_RACE]);
       targets = rows;
+    } else if (CONFIGURED) {
+      const { rows } = await client.query(
+        `SELECT DISTINCT ON (l."raceId")
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", r.gender, r.year,
+                d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
+                (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
+                d."stageNumber" AS "liveStage",
+                (SELECT max(x."stageNumber") FROM race_days x WHERE x."raceId" = r.id) AS "totalStages",
+                (SELECT min(x."stageNumber") FROM race_days x WHERE x."raceId" = r.id AND x."isRestDay" = false) AS "minStage"
+         FROM race_uci_links l
+         JOIN races r ON r.id = l."raceId"
+         JOIN race_days d ON d."raceId" = l."raceId"
+         WHERE d."estimatedFinishTimeUtc" IS NOT NULL
+           AND COALESCE(d."resultsAutoSyncEnabled", l."autoSyncEnabled")
+           AND l."source" NOT IN ('pdf', 'sportstiming', 'manual_timing')
+           AND now() >= d."estimatedFinishTimeUtc"
+             + COALESCE(d."resultsSyncStartOffsetMinutes", l."syncStartOffsetMinutes") * interval '1 minute'
+           AND now() <= d."estimatedFinishTimeUtc"
+             + COALESCE(d."resultsSyncStopOffsetMinutes", l."syncStopOffsetMinutes") * interval '1 minute'
+           AND (d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
+             - COALESCE(d."resultsSyncIntervalMinutes", l."syncIntervalMinutes") * interval '1 minute')
+         ORDER BY l."raceId", d."estimatedFinishTimeUtc" DESC
+         LIMIT $1`, [LIMIT]);
+      targets = rows;
+      // Registrar el intento ANTES del fetch evita que el tick de cada minuto
+      // encole el mismo trabajo mientras el runner sigue arrancando.
+      if (targets.length) {
+        await client.query(
+          `UPDATE race_days SET "resultsLastAutoSyncAt" = now(), "resultsAutoSyncQueuedAt" = NULL
+           WHERE id = ANY($1::text[])`, [targets.map(t => t.scheduleRaceDayId)]);
+      }
     } else {
       // Predicados de selección por scope (sobre race_days; "hoy" = la fecha real,
       // NO la navegada). El upsert es idempotente → re-procesar el día reescribe
@@ -296,6 +331,7 @@ async function main() {
   }
 
   const scopeLabel = ONE_RACE ? 'race-id'
+    : CONFIGURED ? 'configured'
     : SCOPE === 'today' ? (IGNORE_WINDOW ? 'today (todo el día, --ignore-window)' : 'today (ventana de meta 15min–3h)')
     : SCOPE;
   log(`Scope: ${scopeLabel} · Carreras a procesar: ${targets.length}` + (DRY ? ' (DRY-RUN)' : ''));
@@ -411,7 +447,8 @@ async function main() {
     const upArgs = ['--in', jsonPath, '--race-id', t.raceId, '--gender', t.gender, '--apply'];
     // Volcado dirigido a UNA etapa (--stage con --race-id): el upsert descarta el resto
     // de etapas del JSON. Solo aquí; el cron automático (sin --race-id) nunca lo pasa.
-    if (ONE_STAGE != null) upArgs.push('--only-stage', String(ONE_STAGE));
+    const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
+    if (targetStage != null) upArgs.push('--only-stage', String(targetStage));
     // CN: persistir el MISMO uciRaceId en el link (sin esto el upsert lo resetea a 0 y
     // choca con el índice único (competitionId, disciplineId, uciRaceId)).
     if (uciRaceId) upArgs.push('--uci-race-id', String(uciRaceId));

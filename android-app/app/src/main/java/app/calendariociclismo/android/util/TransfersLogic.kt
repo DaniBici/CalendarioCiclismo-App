@@ -95,6 +95,14 @@ object TransfersLogic {
                     .thenByDescending { it.createdAt ?: "" }
             )
 
+    /** Feed público de renovaciones confirmadas con fecha visible. */
+    fun renewalFeed(transfers: List<RiderTransfer>): List<RiderTransfer> =
+        transfers.filter { it.status == "confirmed" && it.dateVisible && it.type == "renewal" }
+            .sortedWith(
+                compareByDescending<RiderTransfer> { it.announcedAt ?: "" }
+                    .thenByDescending { it.createdAt ?: "" }
+            )
+
     /**
      * Corte del feed "Últimas confirmaciones": hasta [FEED_MAX_DAYS] fechas
      * distintas O [FEED_MAX_ITEMS] fichajes, lo que se alcance antes (el feed

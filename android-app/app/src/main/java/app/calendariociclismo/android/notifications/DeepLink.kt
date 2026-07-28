@@ -16,6 +16,7 @@ sealed class DeepLink {
     data class Startlist(val id: String) : DeepLink()
     data class StartOrder(val id: String) : DeepLink()
     data class Profile(val id: String) : DeepLink()
+    data class Team(val id: String) : DeepLink()
 
     // Variantes por SLUG: las produce SOLO el App Link HTTPS de la web
     // (`/competicion/<slug>/`, `/jornada/<slug>/`), donde el último segmento
@@ -66,6 +67,11 @@ sealed class DeepLink {
                 if (id.isEmpty() || !VALID_ID_REGEX.matches(id)) return null
                 return Profile(id)
             }
+            if (value.startsWith("team/")) {
+                val id = value.removePrefix("team/")
+                if (id.isEmpty() || !VALID_ID_REGEX.matches(id)) return null
+                return Team(id)
+            }
             if (value in TAB_NAMES) return Tab(value)
             return null
         }
@@ -78,6 +84,7 @@ sealed class DeepLink {
          *   - `calendariociclismo://startlist/{id}`  → `Startlist(id)`
          *   - `calendariociclismo://startOrder/{id}` → `StartOrder(id)`
          *   - `calendariociclismo://perfil/{id}`     → `Profile(id)`
+         *   - `calendariociclismo://team/{id}`       → `Team(id)`
          *   - `calendariociclismo://tab/{name}`      → `Tab(name)`
          *   - `calendariociclismo://{tabName}`       → `Tab(tabName)` (forma corta)
          *
@@ -92,7 +99,7 @@ sealed class DeepLink {
             val firstSegment = uri.pathSegments.firstOrNull().orEmpty()
 
             return when (host) {
-                "race", "stage", "startlist", "startOrder", "perfil" -> {
+                "race", "stage", "startlist", "startOrder", "perfil", "team" -> {
                     if (firstSegment.isEmpty()) null
                     else parse("$host/$firstSegment")
                 }

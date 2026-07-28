@@ -949,29 +949,26 @@ for rd in racedays:
     ruta_str = (f"con salida y meta en {start_loc}" if same_or_one and start_loc
                 else f"con salida en {start_loc} y meta en {finish_loc}" if finish_loc
                 else "")
-    # Tramo «, sobre N km» (sin espacio final: la fecha va al final de frase).
-    km_str = f", sobre {str(km).replace('.', ',')} km" if km else ""
-    art = articulo(race_name)
-    # Fecha al final de frase, día de la semana en mayúscula:
-    # «sábado 18 de julio de 2026» → «Sábado 18 de julio de 2026».
+    # Fecha entre paréntesis tras el nombre; conserva minúscula el día de semana.
+    fecha_parentesis = f" ({fecha_larga})" if fecha_larga else ""
     fecha_cap = (fecha_larga[0].upper() + fecha_larga[1:]) if fecha_larga else ""
-    fecha_suffix = f" {fecha_cap}." if fecha_cap else ""
-    # Cola de cuerpo+ruta: «, sobre 183 km con salida en Pau y meta en Luchon»
-    cuerpo = km_str + (f" {ruta_str}" if ruta_str else "")
+    art = articulo(race_name)
+    cuerpo = (f"cubre {str(km).replace('.', ',')} km" + (f" {ruta_str}" if ruta_str else "")
+              if km else f"se disputa {ruta_str}" if ruta_str else "se disputa")
 
     if is_rest:
         description = (f"Jornada de descanso de {art} {race_name_with_orig} {race_year}"
                        f"{' — ' + fecha_cap if fecha_cap else ''}.")
     elif is_one_day:
         art_cap = art[0].upper() + art[1:]
-        description = (f"{art_cap} {race_name_with_orig}{cuerpo}. "
-                       f"Consulta recorrido, horarios y cómo ver por TV y online streaming.{fecha_suffix}")
+        description = (f"{art_cap} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
+                       f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
     else:
         ord_str = ordinal_etapa(int(stage_num)) if stage_num is not None else ""
         prefix_art = "El" if ord_str == "prólogo" else "La"
         deArt = "del" if art == "el" else "de la"
-        description = (f"{prefix_art} {ord_str} {deArt} {race_name_with_orig}{cuerpo}. "
-                       f"Consulta recorrido, horarios y cómo ver por TV y online streaming.{fecha_suffix}")
+        description = (f"{prefix_art} {ord_str} {deArt} {race_name_with_orig}{fecha_parentesis} {cuerpo}. "
+                       f"Consulta recorrido, horarios y cómo ver por TV y online streaming.")
 
     og_title = f"{race_name} {race_year}" if is_one_day else title.replace(" — Calendario Ciclismo App", "")
     og_image = og_image_url(race.get("logoUrl"), og_title)
@@ -1105,7 +1102,7 @@ for race in races:
 
     is_female = race.get("gender") == "female"
     provisional = bool(race.get("startlistProvisional"))
-    inscritos_label = "Lista provisional" if provisional else ("Inscritas" if is_female else "Inscritos")
+    inscritos_label = "Lista provisional" if provisional else "Dorsales"
     provisional_note = " (provisional, sujeta a cambios)" if provisional else ""
 
     race_id = race.get("id")

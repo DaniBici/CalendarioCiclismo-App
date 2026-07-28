@@ -84,6 +84,7 @@ object Constants {
 
     val ASSET_LABEL_RES: Map<String, Int> = mapOf(
         "startOrder" to R.string.asset_start_order,
+        "technicalGuide" to R.string.asset_technical_guide,
         "roadbook" to R.string.asset_roadbook,
         "profile" to R.string.asset_profile,
         "ports" to R.string.asset_ports,
@@ -97,7 +98,7 @@ object Constants {
         return context.getString(res)
     }
 
-    val ASSET_ORDER: List<String> = listOf("startOrder", "roadbook", "profile", "ports", "map", "live_text")
+    val ASSET_ORDER: List<String> = listOf("technicalGuide", "startOrder", "roadbook", "profile", "ports", "map", "live_text")
 
     // ── Países ────────────────────────────────────────────────────
 

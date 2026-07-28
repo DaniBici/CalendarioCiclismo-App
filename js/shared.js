@@ -12,6 +12,7 @@ export { supabase };
 
 // ── Caché de documentos de races ─────────────────────────────────
 const _raceCache = new Map();
+const _technicalGuideCache = new Map();
 
 export function setCachedRace(id, data) { _raceCache.set(id, data); }
 
@@ -19,6 +20,31 @@ export function bulkCacheRaces(raceMap) {
   for (const [id, data] of Object.entries(raceMap)) {
     _raceCache.set(id, data);
   }
+}
+
+// La guía técnica pertenece a toda la competición. `assets` conserva la FK a
+// una jornada por compatibilidad, pero se reutiliza en cada etapa sin duplicar
+// filas ni ficheros.
+export async function loadRaceTechnicalGuide(raceId) {
+  if (!raceId) return null;
+  if (_technicalGuideCache.has(raceId)) return _technicalGuideCache.get(raceId);
+  const pending = (async () => {
+    const { data: days, error: daysError } = await supabase
+      .from('race_days').select('id,dateKey').eq('raceId', raceId).order('dateKey');
+    if (daysError || !days?.length) return null;
+    const order = new Map(days.map((day, index) => [day.id, index]));
+    const { data: guides, error } = await supabase
+      .from('assets').select('*').in('raceDayId', days.map(day => day.id)).eq('type', 'technicalGuide');
+    if (error || !guides?.length) return null;
+    return [...guides].sort((a, b) => (order.get(a.raceDayId) ?? Infinity) - (order.get(b.raceDayId) ?? Infinity))[0];
+  })();
+  _technicalGuideCache.set(raceId, pending);
+  return pending;
+}
+
+export function withRaceTechnicalGuide(assets = [], technicalGuide = null) {
+  const withoutGuide = assets.filter(asset => asset.type !== 'technicalGuide');
+  return technicalGuide ? [technicalGuide, ...withoutGuide] : withoutGuide;
 }
 
 // ── Constantes ───────────────────────────────────────────────────
@@ -924,6 +950,7 @@ const _ACT_SVGS = {
   race:       '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>',
   startOrder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/></svg>',
   roadbook:   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+  technicalGuide: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
   profile:    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>',
   profileOfficial:    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>',
   profileInteractive: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>',
@@ -934,7 +961,10 @@ const _ACT_SVGS = {
   map:        '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.645v12.21a1 1 0 0 1-.553.894l-4 2a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.355V7.145a1 1 0 0 1 .553-.894l4-2a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15M9 3.236v15"/></svg>',
   live_text:  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>',
 };
-const _actLabel = (key) => `${_ACT_SVGS[key] || ''}${t(`assets.${key}`) || key}`;
+// Las dos variantes de mapa comparten el mismo pictograma, como los perfiles.
+_ACT_SVGS.mapOfficial = _ACT_SVGS.map;
+_ACT_SVGS.mapInteractive = _ACT_SVGS.map;
+const _actLabel = (key) => `${_ACT_SVGS[key] || ''}<span class="asset-btn__label">${t(`assets.${key}`) || key}</span>`;
 const _actText  = (key) => t(`assets.${key}`) || key;
 
 // startlistUrl ya está definida arriba en este archivo (devuelve la URL de
@@ -968,12 +998,12 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   const isJornada = view === 'jornada';
   // Salvedad de inscritos en vueltas por etapas: sin botones de recorrido.
   // navOnly (Resultados): nunca botones de recorrido.
-  const showRouteButtons = !navOnly && (view !== 'inscritos' || isOneDay);
+  const showRouteButtons = !navOnly && (view !== 'inscritos' || isOneDay || assets.some(asset => asset.type === 'technicalGuide'));
 
   // ── Web oficial — siempre primero si existe ──
   let websiteBtn = '';
   if (race?.websiteUrl) {
-    websiteBtn = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}${t('stage.websiteLabel')}</a>`;
+    websiteBtn = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener">${_ACT_SVGS.website}<span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
   }
 
   // ── "Ir a la carrera" / "Ir a la etapa" (solo fuera de la jornada) ──
@@ -988,15 +1018,15 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     if (isOneDay) {
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
       const href = jornadaUrl(rd?.id ? rd : { id: race?.id, slug: race?.slug, slugEn: race?.slugEn, dateKey: rd?.dateKey });
-      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.race}${label}</a>`;
+      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
     } else if (isStageView && rd?.id) {
       // Vuelta por etapas, vista de etapa → jornada de esta etapa.
       const label = isEn ? 'Go to the stage' : 'Ir a la etapa';
-      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.race}${label}</a>`;
+      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
     } else if (race?.id) {
       // Vuelta por etapas, vista de carrera (inscritos) → competición.
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
-      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.race}${label}</a>`;
+      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
     }
   }
 
@@ -1006,7 +1036,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const startlistLabel = race.startlistProvisional
       ? t('startlist.provisional')
       : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
-    startlistBtn = `<a class="asset-btn" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}${startlistLabel}</a>`;
+    startlistBtn = `<a class="asset-btn" href="${_startlistHref(race)}">${_ACT_SVGS.startlist}<span class="asset-btn__label">${startlistLabel}</span></a>`;
   }
 
   // ── Botones de recorrido (assets de la jornada) ──
@@ -1017,6 +1047,9 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     // filtra aquí: si además hay perfil dinámico (GPX), se necesita para el
     // botón "Perfil oficial" (dynProfileUrl más abajo ya suprime el dinámico).
     let validAssets = (assets || []).filter(a => a.url || a.filePath);
+    // En inscritos de una vuelta, solo sobrevive el documento común de la
+    // competición: el resto pertenece a una etapa concreta.
+    if (view === 'inscritos' && !isOneDay) validAssets = validAssets.filter(a => a.type === 'technicalGuide');
     if (view === 'startOrder') validAssets = validAssets.filter(a => a.type !== 'startOrder');
     if (view === 'mapa')       validAssets = validAssets.filter(a => a.type !== 'map');
     // Jornada cancelada: no hay carrera que seguir en directo → fuera el Live
@@ -1027,7 +1060,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     if (view !== 'startOrder' && rd.startOrderImportedAt && !validAssets.some(a => a.type === 'startOrder')) {
       validAssets.push({ type: 'startOrder', sourceType: 'external' });
     }
-    const assetOrder = ['startOrder', 'roadbook', 'profile', 'ports', 'map', 'live_text'];
+    const assetOrder = ['technicalGuide', 'startOrder', 'roadbook', 'profile', 'ports', 'map', 'live_text'];
     const sortedAssets = [...validAssets].sort((a, b) =>
       assetOrder.indexOf(a.type) - assetOrder.indexOf(b.type));
 
@@ -1176,10 +1209,51 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
       .filter(Boolean);
   }
 
-  const all = `${websiteBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
+  // La guía técnica es el único documento de carrera que se adelanta a la
+  // navegación y a los demás assets: inmediatamente después de la web oficial.
+  const hasTechnicalGuide = (assets || []).some(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
+  const technicalGuideBtn = hasTechnicalGuide ? (routeBtns.shift() || '') : '';
+  const all = `${websiteBtn}${technicalGuideBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
   if (!all) return '';
   const styleAttr = style ? ` style="${style}"` : '';
-  return `<div class="asset-links"${styleAttr}>${all}</div>`;
+  const nextLabel = isEn ? 'More actions' : 'Más acciones';
+  return `<div class="asset-links-wrap"><div class="asset-links"${styleAttr}>${all}</div><button class="date-week-arrow asset-links__prev" type="button" aria-label="${isEn ? 'Previous actions' : 'Acciones anteriores'}" hidden onclick="this.previousElementSibling.scrollTo({left:0,behavior:'smooth'})">‹</button><button class="date-week-arrow asset-links__next" type="button" aria-label="${nextLabel}" hidden onclick="this.previousElementSibling.previousElementSibling.scrollTo({left:this.previousElementSibling.previousElementSibling.scrollWidth,behavior:'smooth'})">›</button></div>`;
+}
+
+// La flecha solo se enseña cuando quedan acciones fuera del área visible. La
+// instalación es delegada porque las filas se insertan después de cargar datos.
+function _syncAssetLinksNext(wrapper) {
+  const rail = wrapper.querySelector('.asset-links');
+  const prev = wrapper.querySelector('.asset-links__prev');
+  const next = wrapper.querySelector('.asset-links__next');
+  if (!rail || !prev || !next) return;
+  prev.hidden = rail.scrollLeft <= 1;
+  next.hidden = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 1;
+}
+
+function _installAssetLinksNext(wrapper) {
+  if (wrapper.dataset.assetLinksNextReady) return;
+  wrapper.dataset.assetLinksNextReady = 'true';
+  const rail = wrapper.querySelector('.asset-links');
+  if (!rail) return;
+  const sync = () => _syncAssetLinksNext(wrapper);
+  rail.addEventListener('scroll', sync, { passive: true });
+  new ResizeObserver(sync).observe(rail);
+  requestAnimationFrame(sync);
+}
+
+if (typeof document !== 'undefined') {
+  const installAssetLinksNext = root => {
+    if (root.matches?.('.asset-links-wrap')) _installAssetLinksNext(root);
+    root.querySelectorAll?.('.asset-links-wrap').forEach(_installAssetLinksNext);
+  };
+  installAssetLinksNext(document);
+  new MutationObserver(records => {
+    records.forEach(record => record.addedNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) installAssetLinksNext(node);
+    }));
+  }).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', () => document.querySelectorAll('.asset-links-wrap').forEach(_syncAssetLinksNext), { passive: true });
 }
 
 // ── Detecta si el nombre de la carrera ya implica género femenino ─
@@ -1397,4 +1471,3 @@ export function closeAssetModal() {
   }, 250);
 }
 window.closeAssetModal = closeAssetModal;
-

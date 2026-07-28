@@ -394,6 +394,10 @@ function buildBar() {
   let pointerStartScroll = 0;
   let isDragging = false;
   chips.addEventListener('pointerdown', e => {
+    // En táctil el propio ScrollView horizontal del navegador ya gestiona el
+    // arrastre. Capturar el puntero aquí convertía el mínimo temblor del dedo
+    // en un drag y anulaba el clic de los meses.
+    if (e.pointerType !== 'mouse') return;
     if (e.button !== 0) return;
     pointerStartX = e.clientX;
     pointerStartScroll = chips.scrollLeft;
@@ -425,7 +429,7 @@ function buildBar() {
   // Selector de año
   const yearSel = document.getElementById('mesYear');
   const years = [];
-  for (let y = Math.max(MIN_YEAR, today.getFullYear()); y >= MIN_YEAR; y--) years.push(y);
+  for (let y = Math.max(MIN_YEAR, today.getFullYear() + 1); y >= MIN_YEAR; y--) years.push(y);
   if (!years.includes(viewYear)) years.unshift(viewYear);
   yearSel.innerHTML = years.map(y => `<option value="${y}"${y === viewYear ? ' selected' : ''}>${y}</option>`).join('');
   yearSel.addEventListener('change', () => {

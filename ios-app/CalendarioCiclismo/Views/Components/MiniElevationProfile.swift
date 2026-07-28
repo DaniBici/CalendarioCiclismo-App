@@ -6,12 +6,10 @@ import SwiftUI
 /// (summits + waypoints de tipo sprint, bonificación, punto intermedio,
 /// pavé y sterrato) sobre la curva.
 ///
-/// Escala Y **adaptativa** (paridad con `buildElevationSparkline` de la web):
-/// `padding = clamp(300 - range·0.1, 100..300)`, `yMin = max(0, minAlt - padding)`,
-/// `yMax = maxAlt + padding`. Distinta de la escala fija del perfil grande
-/// (`max(1100, maxAlt+200)`) para que las etapas de media montaña / cotas /
-/// final en alto / sinuosas aprovechen toda la altura del Canvas en lugar de
-/// quedar aplastadas contra el suelo.
+/// Escala Y idéntica a `buildElevationSparkline` de la web:
+/// `padding = max(100, 300 - range·0.1)`, `yMin = max(0, minAlt - padding)`,
+/// `yMax = maxAlt + padding`. Esta referencia común evita que las apps
+/// exageren el relieve en comparación con la web.
 ///
 /// La silueta usa toda la altura del Canvas (padding mínimo de 1pt arriba y
 /// abajo). Los indicadores se clampan dentro del Canvas para no cortarse
@@ -28,13 +26,8 @@ struct MiniElevationProfile: View {
     var tint: Color = .accentColor
     /// Altura del Canvas. La anchura se adapta al contenedor.
     var height: CGFloat = 26
-    /// Tipo primario de la etapa. Decide la fórmula de escala Y:
-    /// - `"flat"`/nil/desconocido → escala fija con suelo 0 y techo 1100m
-    ///   (igual que la web); pequeñas variaciones quedan aplastadas, que es
-    ///   lo correcto para llanas.
-    /// - resto (cobbles, cotas, rolling, medium_mountain, etc.) → escala
-    ///   adaptativa con `yMin = minAlt` para que el relieve real ocupe el
-    ///   alto disponible.
+    /// Tipo primario de la etapa. Se conserva por compatibilidad de llamadas;
+    /// la escala vertical es común para todos los tipos, igual que en la web.
     var primaryType: String? = nil
     /// Hora de salida (neutralizada). Junto con `endTime` activa el relleno
     /// temporal: la silueta se pinta gris y se tiñe de izquierda a derecha según
@@ -106,26 +99,11 @@ struct MiniElevationProfile: View {
                 ?? (profile.points.map { Double($0.alt) }.min() ?? 0)
             let maxAlt = profile.maxElevation.map(Double.init)
                 ?? (profile.points.map { Double($0.alt) }.max() ?? 1000)
-            // Escala condicional por tipo:
-            // - Llanas (flat / nil / desconocido): escala fija de la web
-            //   (suelo 0, techo 1100m). Aplasta pequeñas variaciones — es lo
-            //   correcto para llanas donde unas pocas decenas de metros NO
-            //   deben dramatizarse.
-            // - Resto (cobbles, cotas, rolling, medium_mountain, etc.):
-            //   adaptativa con yMin = minAlt para que el relieve real
-            //   ocupe la altura visible del canvas.
-            let useFlatScale = primaryType == "flat" || (primaryType ?? "").isEmpty
-            let yMin: Double
-            let yMax: Double
-            if useFlatScale {
-                yMin = max(0, minAlt - 150)
-                yMax = max(1100, maxAlt + 200)
-            } else {
-                let range = max(1, maxAlt - minAlt)
-                let paddingTop = max(50, range * 0.15)
-                yMin = minAlt
-                yMax = maxAlt + paddingTop
-            }
+            // Misma escala que el miniperfil web, para todos los tipos de etapa.
+            let range = maxAlt - minAlt
+            let padding = max(100, 300 - range * 0.1)
+            let yMin = max(0, minAlt - padding)
+            let yMax = maxAlt + padding
             let yRange = max(yMax - yMin, 1)
 
             func project(km: Double, alt: Double) -> CGPoint {

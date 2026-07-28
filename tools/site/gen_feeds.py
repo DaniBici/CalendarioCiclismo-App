@@ -427,6 +427,12 @@ def fetch_races_en(year, key):
 
 def build_vevent_en(race, dtstamp, day=None):
     """VEVENT con SUMMARY en inglés usando nameEn cuando existe."""
+    # Las carreras anunciadas sin fecha (p. ej. mientras la UCI confirma una
+    # edición) deben seguir en el calendario web, pero no pueden convertirse en
+    # un VEVENT: DTSTART es obligatorio y un DTEND vacío invalida todo el feed.
+    if not (day and day.get("dateKey")) and not race.get("startDate"):
+        return None
+
     name_en = race.get("nameEn") or race.get("name", "")
     year = str(race.get("startDate", ""))[:4]
     year_str = f" {year}" if year else ""
@@ -525,11 +531,13 @@ for year in years:
             if race.get("raceFormat") == "stage_race" and days:
                 for d in days:
                     ev = build_vevent_en(race, dtstamp, d)
-                    vevents_en.extend(ev)
+                    if ev:
+                        vevents_en.extend(ev)
             else:
                 day = days[0] if len(days) == 1 else None
                 ev = build_vevent_en(race, dtstamp, day)
-                vevents_en.extend(ev)
+                if ev:
+                    vevents_en.extend(ev)
 
         calname_en = EN_CALNAMES.get(key, "Cycling {year}").replace("{year}", str(year))
         cal_lines_en = [
@@ -601,6 +609,8 @@ for year in years:
             continue
 
         ev = build_vevent_en(race, dtstamp, day)
+        if not ev:
+            continue
 
         name_en = race.get("nameEn") or race.get("name", "")
         ev_year = str(race.get("startDate", ""))[:4]

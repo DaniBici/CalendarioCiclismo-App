@@ -533,12 +533,12 @@ extension SupabaseService {
     /// ABD vía `isAbandonIrm`) en una clasificación de ETAPA (`classKind='stage'`, NO
     /// la "Stage General" que es el GC del día). Un código de ruido como 'LAP' (doblada)
     /// NO tacha — la UCI lo cuelga a veces de corredores en carrera, incluida la propia
-    /// ganadora (ver UciResultsLogic). Devuelve (mapa, hasUciResults). Port de
-    /// inscritos.js L228–256 vía CalendarRepository.loadRiderOuts (Android).
-    func loadRiderOuts(raceId: String) async throws -> ([String: RiderOut], Bool) {
+    /// ganadora (ver UciResultsLogic). Port de inscritos.js L228–256 vía
+    /// CalendarRepository.loadRiderOuts (Android).
+    func loadRiderOuts(raceId: String) async throws -> [String: RiderOut] {
         let stages = try await raceUciStages(raceId: raceId)
             .filter { $0.classKind == "stage" && $0.rowCount > 0 }
-        guard !stages.isEmpty else { return ([:], false) }
+        guard !stages.isEmpty else { return [:] }
 
         let stageNumById = Dictionary(uniqueKeysWithValues: stages.map { ($0.id, $0.stageNumber) })
         let rows = try await raceUciResultsForStages(stageRefs: stages.map(\.id))
@@ -555,6 +555,6 @@ extension SupabaseService {
                 out[gid] = RiderOut(irm: irm, stageNumber: sn)
             }
         }
-        return (out, true)
+        return out
     }
 }

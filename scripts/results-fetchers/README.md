@@ -1,12 +1,9 @@
 # results-fetchers
 
 Motor de volcado de resultados. **Código en producción**: lo invocan los workflows
-`uci-results-today.yml`, `uci-results-backlog.yml`, `uci-link-discover.yml` y
-`uci-link-evening.yml`. El `match-report.json` que generan lo suben esos dos
-últimos al bucket privado `uci-reports` de Storage (migración 133) con
-`upload-match-report.mjs`, y el panel lo lee de ahí en runtime — ya NO se
-commitea al repo (hasta 2026-07-19 sí, y el panel recibía un 404 porque
-`build-site.yml` excluye `scripts/` del sitio desplegado).
+`uci-results-today.yml` y `uci-results-backlog.yml`. Los enlaces de DataRide se
+introducen manualmente desde la jornada: el matcher automático y sus informes ya
+no forman parte del circuito de producción.
 
 Antes se llamaba `catalog-continental/`, nombre heredado de la tarea puntual con la
 que nació el directorio. Se renombró en la preparación del repo público (2026-07-18)
@@ -16,7 +13,7 @@ costarnos un borrado accidental.
 ## Qué va aquí
 
 Solo código que **corre en producción**: los fetchers por fuente, el cron, el upsert
-y el enlazado carrera↔competición UCI.
+y las utilidades de fuentes de resultados.
 
 ## Qué NO va aquí
 

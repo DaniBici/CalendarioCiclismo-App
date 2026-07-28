@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 data class Asset(
     val id: String,
     val raceDayId: String,
-    val type: String? = null,        // startOrder, roadbook, profile, ports, map, live_text
+    val type: String? = null,        // technicalGuide, startOrder, roadbook, profile, ports, map, live_text
     val sourceType: String? = null,  // external
     val url: String? = null,
 ) {
@@ -30,7 +30,7 @@ data class Asset(
         get() {
             val u = url?.takeIf { it.isNotEmpty() } ?: return false
             val host = runCatching { Uri.parse(u).host }.getOrNull() ?: return false
-            return host.equals(R2_HOST, ignoreCase = true)
+            return host.equals(R2_HOST, ignoreCase = true) && type != "technicalGuide"
         }
 
     /**

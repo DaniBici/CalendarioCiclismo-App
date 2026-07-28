@@ -40,7 +40,7 @@ final class MonthViewModel {
     /// Años disponibles para el selector.
     var availableYears: [Int] {
         let current = Calendar.current.component(.year, from: Date())
-        return Array((2026...max(2026, current)).reversed())
+        return Array((2026...max(2026, current + 1)).reversed())
     }
 
     /// Título para un mes específico: "Abril de 2026".

@@ -7,7 +7,7 @@
 
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
-         buildRaceHero, buildStageNav, buildActionButtons, enBase,
+         buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
          seoLongDate, articuloNombre, startFinishLabels } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { indicatorBadgeSVG, buildElevationProfileSVG } from './elevation-profile.js';
@@ -79,6 +79,7 @@ async function loadMap(idOrSlug) {
       .eq('id', rd.raceId).maybeSingle();
     race = r;
   }
+  const technicalGuide = race?.id ? await loadRaceTechnicalGuide(race.id) : null;
 
   const { data: pfAssets } = await supabase.from('assets').select('*').eq('raceDayId', rd.id);
 
@@ -108,7 +109,7 @@ async function loadMap(idOrSlug) {
     backBtn.setAttribute('aria-label', t('profile.backToStage'));
   }
 
-  render(rd, race, siblings, jornadaHref, pfAssets || []);
+  render(rd, race, siblings, jornadaHref, withRaceTechnicalGuide(pfAssets || [], technicalGuide));
 }
 
 // ── Render ────────────────────────────────────────────────────────

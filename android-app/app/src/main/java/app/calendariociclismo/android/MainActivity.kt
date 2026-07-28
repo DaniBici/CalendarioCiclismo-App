@@ -361,6 +361,7 @@ class MainActivity : ComponentActivity() {
             is DeepLink.Startlist -> navController.navigate(Routes.startlist(link.id))
             is DeepLink.StartOrder -> navController.navigate(Routes.startOrder(link.id))
             is DeepLink.Profile -> navController.navigate(Routes.elevationProfile(link.id))
+            is DeepLink.Team -> navController.navigate(Routes.transfersTeam(link.id))
             is DeepLink.Tab -> {
                 // Las antiguas pestañas Mes/Temporada viven ahora dentro de
                 // Calendario: el link fija primero la subvista (DataStore) y

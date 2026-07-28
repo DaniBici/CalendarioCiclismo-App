@@ -54,7 +54,7 @@ function _buildHighlightAutoDetail(h, rd, isEn) {
     return `<strong>${fmtDate(rd.date)}</strong>`;
   }
   // Destino tipo startlist: sin jornada concreta
-  return isEn ? '<strong>Startlist</strong>' : '<strong>Inscritos</strong>';
+  return isEn ? '<strong>Startlist</strong>' : '<strong>Dorsales</strong>';
 }
 
 export async function initCintillo() {

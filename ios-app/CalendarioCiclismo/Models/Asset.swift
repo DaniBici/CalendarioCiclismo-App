@@ -4,7 +4,7 @@ import Foundation
 struct Asset: Codable, Identifiable, Hashable {
     let id: String
     let raceDayId: String
-    let type: String?        // startOrder, roadbook, profile, ports, map, live_text
+    let type: String?        // technicalGuide, startOrder, roadbook, profile, ports, map, live_text
     let sourceType: String?  // external
     let url: String?
 
@@ -29,7 +29,7 @@ struct Asset: Codable, Identifiable, Hashable {
         guard let urlStr = url,
               !urlStr.isEmpty,
               let host = URL(string: urlStr)?.host else { return false }
-        return host.lowercased() == Asset.r2Host
+        return host.lowercased() == Asset.r2Host && type != "technicalGuide"
     }
 
     /// Extensión del fichero (PDF, PNG, JPG…). Por defecto `pdf` si la URL no

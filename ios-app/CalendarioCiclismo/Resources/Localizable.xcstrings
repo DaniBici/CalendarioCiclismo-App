@@ -1133,24 +1133,13 @@
         }
       }
     },
-    "Inscritas" : {
+    "Dorsales" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Riders"
-          }
-        }
-      }
-    },
-    "Inscritos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Riders"
+            "value" : "Startlist"
           }
         }
       }
@@ -1225,7 +1214,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Provisional list"
+            "value" : "Provisional Startlist"
           }
         }
       }

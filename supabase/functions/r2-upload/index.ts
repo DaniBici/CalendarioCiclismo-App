@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -114,6 +115,28 @@ Deno.serve(async (req: Request) => {
   const host = R2_ENDPOINT.replace('https://', '');
 
   const action = req.headers.get('x-action') || 'upload';
+
+  // Las guías técnicas pueden medir hasta 100 MB. No deben atravesar esta Edge
+  // Function (que tendría que bufferizarlas): se entrega una URL PUT de R2 de
+  // vida corta, limitada a la clave y Content-Type solicitados.
+  if (req.method === 'POST' && action === 'sign-upload') {
+    const rawFilename = req.headers.get('x-filename');
+    const filename = rawFilename ? decodeURIComponent(rawFilename) : null;
+    const contentType = req.headers.get('content-type') || 'application/octet-stream';
+    if (!filename || !filename.startsWith('races/') || !/\/technicalGuide(?:-\d+)?\.pdf$/i.test(filename)) {
+      return jsonRes({ error: 'Solo se pueden firmar guías técnicas PDF canónicas' }, 400);
+    }
+    if (contentType !== 'application/pdf') {
+      return jsonRes({ error: 'La guía técnica debe ser un PDF' }, 400);
+    }
+    const url = new URL(`${R2_ENDPOINT}/${R2_BUCKET}/${filename}`);
+    url.searchParams.set('X-Amz-Expires', '900');
+    const r2 = new AwsClient({ accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY });
+    const signed = await r2.sign(new Request(url, {
+      method: 'PUT', headers: { 'Content-Type': contentType },
+    }), { aws: { signQuery: true, region: 'auto', service: 's3' } });
+    return jsonRes({ url: signed.url }, 200);
+  }
 
   // ── UPLOAD (POST) ──────────────────────────────────────────────
   if (req.method === 'POST' && action === 'upload') {

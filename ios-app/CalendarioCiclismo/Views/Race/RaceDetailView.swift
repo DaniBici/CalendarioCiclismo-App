@@ -226,22 +226,29 @@ struct RaceDetailView: View {
     private func raceDocumentationSection(race: Race) -> some View {
         let hasWebsite = race.websiteUrl != nil
         let hasStartlist = race.startlistImportedAt != nil
-        let showNotifications = manager.isSubscribed
-        if hasWebsite || hasStartlist || showNotifications {
+        let technicalGuide = viewModel.days.lazy.flatMap(\.assets)
+            .first { $0.type == "technicalGuide" && !($0.url ?? "").isEmpty }
+        // Debe permanecer disponible antes de activar permisos, igual que en
+        // la ficha de jornada y en Android.
+        let showNotifications = true
+        if hasWebsite || technicalGuide != nil || hasStartlist || showNotifications {
             Divider()
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(spacing: 0) {
                     if let urlStr = race.websiteUrl, let url = URL(string: urlStr) {
                         raceDocChip(icon: "globe", label: LocaleService.t("Sitio web", "Website")) {
                             safariURL = url
                         }
                     }
+                    if let guide = technicalGuide, let urlStr = guide.url, let url = URL(string: urlStr) {
+                        raceDocChip(icon: "doc.text", label: guide.typeLabel) { safariURL = url }
+                    }
                     if hasStartlist {
                         let startlistLabel: String = {
                             if race.startlistProvisional == true {
-                                return LocaleService.t("Lista provisional", "Provisional list")
+                                return LocaleService.t("Lista provisional", "Provisional Startlist")
                             }
-                            return LocaleService.t(race.isFemale ? "Inscritas" : "Inscritos", "Startlist")
+                            return LocaleService.t("Dorsales", "Startlist")
                         }()
                         raceDocChip(
                             icon: "person.2",
@@ -263,17 +270,7 @@ struct RaceDetailView: View {
 
     private func raceDocChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                Text(label)
-            }
-            .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.accentColor)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            ActionStripTile(icon: icon, label: label)
         }
         .accessibilityLabel(label)
     }
@@ -297,20 +294,10 @@ private struct RaceNotificationChip: View {
         Button {
             handleTap()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: isFollowing ? "bell.fill" : "bell")
-                Text(LocaleService.t("Notificaciones", "Notifications"))
-            }
-            .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(isFollowing ? Color.accentColor : Color.accentColor.opacity(0.15))
-            .foregroundStyle(isFollowing ? .white : Color.accentColor)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-            .overlay(
-                RoundedRectangle(cornerRadius: 3)
-                    .stroke(Color.accentColor.opacity(isFollowing ? 0 : 0.5), lineWidth: 1)
+            ActionStripTile(
+                icon: isFollowing ? "bell.fill" : "bell",
+                label: LocaleService.t("Notificaciones", "Notifications"),
+                showsTrailingSeparator: false
             )
         }
         .accessibilityLabel(LocaleService.t("Notificaciones de esta carrera", "Race notifications"))

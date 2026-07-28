@@ -122,7 +122,7 @@ window._temporadaCat = activeCat;
 
   // Poblar selector de años (rango fijo para evitar consulta extra)
   const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1].filter(y => y >= 2026).sort((a, b) => b - a);
+  const years = [currentYear + 1, currentYear, currentYear - 1].filter(y => y >= 2026).sort((a, b) => b - a);
   if (!years.includes(activeYear)) years.unshift(activeYear);
   years.sort((a, b) => b - a);
   const yearSel = document.getElementById('filterYear');

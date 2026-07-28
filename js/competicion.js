@@ -255,11 +255,22 @@ async function init() {
     // Lista de etapas
     html += `<div style="max-width:860px;padding:1rem 1.5rem 3rem">`;
 
-    // Web oficial + Inscritos
+    // Web oficial + Libro de Ruta + Inscritos. La guía se guarda una vez en
+    // assets de cualquier etapa y se resuelve aquí a nivel de competición.
     const hasStartlistC = !!race.startlistImportedAt;
     let websiteBtnHtmlC = '';
     if (race.websiteUrl) {
       websiteBtnHtmlC = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ${t('stage.websiteLabel')}</a>`;
+    }
+    const technicalGuideC = days.flatMap(day => day._assets || [])
+      .find(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
+    let technicalGuideBtnHtmlC = '';
+    if (technicalGuideC) {
+      const guideUrl = technicalGuideC.url || technicalGuideC.filePath;
+      const safeGuideUrl = guideUrl.replace(/'/g, "\\'");
+      const guideLabel = t('assets.technicalGuide');
+      const safeGuideLabel = guideLabel.replace(/'/g, "\\'");
+      technicalGuideBtnHtmlC = `<button class="asset-btn" type="button" onclick="openAssetModal('${safeGuideUrl}','${safeGuideLabel}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg> ${guideLabel}</button>`;
     }
     let startlistBtnHtmlC = '';
     if (hasStartlistC) {
@@ -269,8 +280,8 @@ async function init() {
       const startlistLabelC = race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'));
       startlistBtnHtmlC = `<a class="asset-btn" href="${inscritosHrefC}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg> ${startlistLabelC}</a>`;
     }
-    if (websiteBtnHtmlC || startlistBtnHtmlC) {
-      html += `<div class="asset-links" style="margin-bottom:0.85rem">${websiteBtnHtmlC}${startlistBtnHtmlC}</div>`;
+    if (websiteBtnHtmlC || technicalGuideBtnHtmlC || startlistBtnHtmlC) {
+      html += `<div class="asset-links" style="margin-bottom:0.85rem">${websiteBtnHtmlC}${technicalGuideBtnHtmlC}${startlistBtnHtmlC}</div>`;
       html += `<hr style="border:none;border-top:1px solid var(--border);margin:0 0 0.85rem">`;
     }
 

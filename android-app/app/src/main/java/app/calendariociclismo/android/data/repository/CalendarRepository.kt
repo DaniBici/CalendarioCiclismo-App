@@ -388,11 +388,11 @@ class CalendarRepository(
         // Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
         // los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
         // js/inscritos.js. Cualquier fallo de red → comportamiento clásico.
-        val (ridersOut, hasUciResults) = runCatching { loadRiderOuts(raceId) }
-            .getOrDefault(emptyMap<String, RiderOut>() to false)
+        val ridersOut = runCatching { loadRiderOuts(raceId) }
+            .getOrDefault(emptyMap())
 
         return StartlistData(
-            race, teams, riders, globalTeams, ridersOut, hasUciResults,
+            race, teams, riders, globalTeams, ridersOut,
         )
     }
 
@@ -402,13 +402,12 @@ class CalendarRepository(
      * ABD vía `isAbandonIrm`) en una clasificación de ETAPA (`classKind='stage'`, NO
      * la "Stage General" que es el GC del día). Un código de ruido como 'LAP' (doblada)
      * NO tacha — la UCI lo cuelga a veces de corredores en carrera, incluida la propia
-     * ganadora (ver UciResultsLogic). Devuelve (mapa, hasUciResults). Port de
-     * inscritos.js L228–256.
+     * ganadora (ver UciResultsLogic). Port de inscritos.js L228–256.
      */
-    private suspend fun loadRiderOuts(raceId: String): Pair<Map<String, RiderOut>, Boolean> {
+    private suspend fun loadRiderOuts(raceId: String): Map<String, RiderOut> {
         val stages = api.raceUciStages(raceId)
             .filter { it.classKind == "stage" && it.rowCount > 0 }
-        if (stages.isEmpty()) return emptyMap<String, RiderOut>() to false
+        if (stages.isEmpty()) return emptyMap()
 
         val stageNumById = stages.associate { it.id to it.stageNumber }
         val rows = api.raceUciResultsForStages(stages.map { it.id })
@@ -426,7 +425,7 @@ class CalendarRepository(
                 out[gid] = RiderOut(irm = row.irm!!, stageNumber = sn)
             }
         }
-        return out to true
+        return out
     }
 
     // ─────────── Start Order ───────────

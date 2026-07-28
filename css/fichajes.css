@@ -79,6 +79,21 @@
   line-height: 1.55;
 }
 .tr-info-modal__body p { margin: 0; }
+.tr-info-sources {
+  display: block;
+  margin: 0.55rem 0 0;
+  padding-left: 1.1rem;
+}
+.tr-info-sources li + li { margin-top: 0.22rem; }
+.tr-info-sources a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+.tr-info-tooltip .tr-info-sources {
+  margin-top: 0.4rem;
+  padding-left: 0.9rem;
+}
 @media (max-width: 480px) {
   .tr-info-modal__body { padding: 1rem 1.1rem 1.25rem; }
 }
@@ -92,6 +107,10 @@
   color: var(--text-muted);
   margin: 1.75rem 0 0.6rem;
 }
+
+/* El primer bloque empieza justo después de la cabecera del Mercado: no
+   necesita el respiro que separa entre sí las secciones posteriores. */
+.tr-home-feed > .tr-section-title { margin-top: 0.85rem; }
 
 .tr-empty {
   color: var(--text-dim);
@@ -298,6 +317,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   /* El título de sección y los botones de división quedan fijos arriba de su
      panel; solo scrollea la lista. */
   body.tr-home-locked #trHome .tr-section-title { margin: 0.5rem 0 0.5rem; flex-shrink: 0; }
+  body.tr-home-locked .tr-home-feed > .tr-section-title { margin-top: 0.15rem; }
   body.tr-home-locked #trHome .tr-div-btns { flex-shrink: 0; }
   body.tr-home-locked .tr-home-scroll {
     flex: 1 1 0;

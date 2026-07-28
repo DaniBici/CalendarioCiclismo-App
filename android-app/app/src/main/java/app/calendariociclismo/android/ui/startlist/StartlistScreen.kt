@@ -197,14 +197,6 @@ private fun StartlistContent(
                 }
             }
 
-            // Con resultados in-house la lista se mantiene sola (tacha abandonos)
-            // → no se muestra el aviso "no se actualiza". Igual que inscritos.js.
-            if (data.race.raceFormat != "one_day" && !data.hasUciResults) {
-                item {
-                    NoSpoilersDisclaimerCard()
-                }
-            }
-
             if (data.teams.isEmpty()) {
                 item {
                     Text(
@@ -354,30 +346,6 @@ private fun ProvisionalDisclaimerCard() {
                 stringResource(R.string.startlist_disclaimer_provisional_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-private fun NoSpoilersDisclaimerCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFEAA0)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                stringResource(R.string.startlist_disclaimer_no_spoilers),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF6F4E37)
             )
         }
     }
@@ -555,4 +523,3 @@ private fun StartlistRiderRow(
         }
     }
 }
-

@@ -260,6 +260,21 @@ async function r2PutObject(filename, fileBuffer, contentType) {
   return res;
 }
 
+// Las guías técnicas grandes van directamente al endpoint S3 de R2 mediante
+// una URL PUT temporal. La Edge Function solo firma: no recibe el PDF.
+async function r2PutTechnicalGuide(filename, file, contentType) {
+  const auth = await getAuthHeaders();
+  const signRes = await fetch(R2_UPLOAD_FN, {
+    method: 'POST',
+    headers: { ...auth, 'Content-Type': contentType, 'x-action': 'sign-upload', 'x-filename': encodeURIComponent(filename) },
+  });
+  if (!signRes.ok) throw new Error(`No se pudo preparar la subida (${signRes.status})`);
+  const { url } = await signRes.json();
+  const putRes = await fetch(url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
+  if (!putRes.ok) throw new Error(`R2 ${putRes.status}`);
+  return putRes;
+}
+
 async function r2ListObjects() {
   const auth = await getAuthHeaders();
   const res = await fetch(R2_UPLOAD_FN, {
@@ -267,6 +282,46 @@ async function r2ListObjects() {
   });
   const data = await res.json();
   return data.files || [];
+}
+
+// ── Claves canónicas de assets de jornada ────────────────────────
+// No usar el nombre que trae el archivo ni una marca temporal: ambos hacen que
+// una misma carrera termine con rutas imposibles de descubrir. La edición vive
+// en el segmento de año y el tipo es el nombre estable del objeto.
+function stableRaceAssetSlug(slug, year) {
+  const suffix = `-${year}`;
+  return slug?.endsWith(suffix) ? slug.slice(0, -suffix.length) : (slug || 'race');
+}
+
+function stageAssetDirectory(stageNumber, raceDaySlug = '') {
+  if (stageNumber === null || stageNumber === undefined || stageNumber === '') return '';
+  // Jornadas partidas: el slug canónico acaba en etapa-3a / stage-3a. El
+  // sufijo evita que 3 y 3a compartan objeto sin imponer convenciones nuevas.
+  const match = String(raceDaySlug).match(new RegExp(`(?:etapa|stage)-${stageNumber}([a-z]+)$`, 'i'));
+  const suffix = match ? match[1].toLowerCase() : '';
+  return `stage-${stageNumber}${suffix}/`;
+}
+
+function canonicalStageAssetKey({ raceSlug, year, stageNumber, raceDaySlug, type, ext }) {
+  if (!raceSlug || !year || !['technicalGuide', 'roadbook', 'profile', 'ports', 'map'].includes(type)) {
+    throw new Error('No se puede construir la ruta canónica de este asset.');
+  }
+  // La guía técnica es única para toda la carrera, nunca para una etapa.
+  const stageDir = type === 'technicalGuide' ? '' : stageAssetDirectory(stageNumber, raceDaySlug);
+  return `races/${stableRaceAssetSlug(raceSlug, year)}/${year}/${stageDir}${type}.${ext}`;
+}
+
+function nextCanonicalStageAssetKey(context, currentUrl = '') {
+  const baseKey = canonicalStageAssetKey(context);
+  // Reemplazar un documento no pisa su URL cacheada: conserva la carpeta y el
+  // tipo, incrementando únicamente la revisión (`profile-2.png`, etc.).
+  const currentName = String(currentUrl).split('/').pop()?.split('?')[0] || '';
+  const match = currentName.match(new RegExp(`^${context.type}-(\\d+)\\.${context.ext}$`, 'i'));
+  return match
+    ? baseKey.replace(`.${context.ext}`, `-${Number(match[1]) + 1}.${context.ext}`)
+    : currentName === `${context.type}.${context.ext}`
+      ? baseKey.replace(`.${context.ext}`, `-2.${context.ext}`)
+      : baseKey;
 }
 
 // ── Slug utils ────────────────────────────────────────────────────
@@ -345,6 +400,22 @@ let currentRaceDayId    = null;
 let allRaces            = [];
 let currentDayRaceIds   = new Set(); // raceIds que ya tienen jornada en currentDateKey
 let _editorCache = null; // { rd, broadcasts, assets } | null — evita releer Firestore tras guardar
+let _raceDaySaveInFlight = false;
+
+function setRaceDaySaveInFlight(inFlight) {
+  _raceDaySaveInFlight = inFlight;
+  document.querySelectorAll('#ed-draft, #ed-publish').forEach(btn => {
+    btn.disabled = inFlight;
+    btn.setAttribute('aria-busy', String(inFlight));
+    if (inFlight) {
+      btn.dataset.idleText = btn.textContent;
+      btn.textContent = 'Guardando…';
+    } else if (btn.dataset.idleText) {
+      btn.textContent = btn.dataset.idleText;
+      delete btn.dataset.idleText;
+    }
+  });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────
 function formatTimeLocal(ts) {
@@ -721,6 +792,7 @@ async function openEditor(raceDayId, cachedData = null) {
 // Tipos de documento soportados en la sección Documentación.
 // El icono se inyecta como SVG inline para no depender de assets externos.
 const ASSET_TYPE_LABELS = {
+  technicalGuide: 'Libro de Ruta',
   roadbook: 'Rutómetro',
   profile: 'Perfil',
   ports: 'Puertos',
@@ -729,6 +801,7 @@ const ASSET_TYPE_LABELS = {
   live_text: 'Live texto',
 };
 const ASSET_TYPE_ICONS = {
+  technicalGuide: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
   roadbook: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
   profile: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>',
   ports: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="M8 3 4 7l4 4"/><path d="m16 3 4 4-4 4"/><line x1="4" y1="7" x2="20" y2="7"/><path d="M8 17 4 21l4 4"/><path d="m16 17 4 4-4 4"/><line x1="4" y1="21" x2="20" y2="21"/></svg>',
@@ -736,7 +809,7 @@ const ASSET_TYPE_ICONS = {
   startOrder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/></svg>',
   live_text: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>',
 };
-const ASSET_DOC_TYPES_ALL = ['roadbook', 'profile', 'ports', 'map', 'startOrder', 'live_text'];
+const ASSET_DOC_TYPES_ALL = ['technicalGuide', 'roadbook', 'profile', 'ports', 'map', 'startOrder', 'live_text'];
 
 function buildAssetRowHtml(type, asset = null) {
   const isLive = type === 'live_text';
@@ -1376,7 +1449,7 @@ function renderEditor(rd, race, broadcasts, assets) {
       </div>
       <div class="editor-topbar__actions">
         <a class="btn btn--ghost" href="${publicUrl}" target="_blank" rel="noopener">Ver ↗</a>
-        <button class="btn btn--ghost" id="ed-startlist" data-race-id="${rd.raceId}">Inscritos</button>
+        <button class="btn btn--ghost" id="ed-startlist" data-race-id="${rd.raceId}">Dorsales</button>
         <button class="btn btn--danger" id="ed-delete">Borrar</button>
         <button class="btn btn--ghost" id="ed-duplicate">Duplicar</button>
         <button class="btn btn--ghost" id="ed-draft">Borrador</button>
@@ -1774,7 +1847,6 @@ function renderEditor(rd, race, broadcasts, assets) {
           <div id="ed-map-summary" style="${rd.routeGpxUrl ? '' : 'display:none'};font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem">
             ${rd.routeGpxUrl ? 'Mapa activo · GPX en Storage' : ''}
           </div>
-          <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 0.5rem">Sube el GPX del recorrido (mismo archivo del perfil). Se guarda crudo en R2 y activa la página <code>/mapa/</code>. Los puertos y localidades del perfil se sitúan sobre el mapa por su kilómetro.</p>
           <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
             <button class="btn btn--ghost" id="ed-map-btn">${rd.routeGpxUrl ? 'Reemplazar GPX del mapa' : 'Subir GPX del mapa'}</button>
             ${rd.routeGpxUrl ? `<button class="btn btn--ghost" id="ed-map-del" style="font-size:0.8rem;color:var(--red)">Quitar mapa</button>` : ''}
@@ -1791,16 +1863,17 @@ function renderEditor(rd, race, broadcasts, assets) {
         </div>
         <div class="editor-section__body">
           <div class="ann-row ann-row--header" aria-hidden="true">
-            <span class="u-w-time u-fs-xs u-c-muted">km cima</span>
-            <span class="u-w-time u-fs-xs u-c-muted">alt (m)</span>
-            <span style="flex:1;font-size:0.72rem;color:var(--text-muted)">Nombre</span>
-            <span style="width:3.5rem;font-size:0.72rem;color:var(--text-muted)">Cat.</span>
-            <span class="u-w-time u-fs-xs u-c-muted">Etiq.</span>
-            <span class="u-w-time u-fs-xs u-c-muted">km inicio</span>
-            <span style="width:5.5em;font-size:0.72rem;color:var(--text-muted)">hora pie</span>
-            <span style="width:5.5em;font-size:0.72rem;color:var(--text-muted)">hora cima</span>
-            <span style="flex:0 0 7rem;font-size:0.72rem;color:var(--text-muted)">long. · %</span>
-            <span style="width:2rem"></span>
+            <span class="ann-km">km cima</span>
+            <span class="ann-alt">alt (m)</span>
+            <span class="ann-name--wide">Nombre</span>
+            <span class="ann-cat">Cat.</span>
+            <span class="ann-side">Etiq.</span>
+            <span class="ann-start">km inicio</span>
+            <span class="ann-foot-time">hora pie</span>
+            <span class="ann-time">hora cima</span>
+            <span class="ann-detect-placeholder"></span>
+            <span class="ann-stats">long. · %</span>
+            <span class="ann-del-placeholder"></span>
           </div>
           <div id="summitsList">${(rd.profileSummits || []).map(summitRowHTML).join('')}</div>
           <button class="btn btn--ghost" id="addSummitBtn" style="margin-top:0.5rem;font-size:0.82rem">+ Añadir puerto</button>
@@ -1827,9 +1900,8 @@ function renderEditor(rd, race, broadcasts, assets) {
 
       <!-- Resultados UCI in-house (pestaña Resultados) -->
       <div class="editor-section" data-tab="resultados">
-        <div class="editor-section__header u-between u-gap-sm">
-          <span class="editor-section__title">Clasificaciones UCI</span>
-          <span class="u-field-hint">el cron vuelca cada 30 min las carreras del día · 🔒 = no se sobreescribe</span>
+        <div class="editor-section__header">
+          <span class="editor-section__title">Clasificaciones</span>
         </div>
         <div class="editor-section__body" id="ruSectionBody">
           <div style="color:var(--text-muted);font-size:0.8rem">Cargando clasificaciones…</div>
@@ -1860,13 +1932,12 @@ function renderEditor(rd, race, broadcasts, assets) {
         const fcSearchQ   = encodeURIComponent((race.name || '') + (year ? ' ' + year : ''));
         const pcsSearchUrl = `https://www.google.com/search?q=site:fuente externa.com+${fcSearchQ}`;
 
-        // Sección avanzada: IDs de resultados externos (externos). Raramente se
+        // Enlaces automáticos a resultados externos. Raramente se
         // tocan → colapsada por defecto vía <details> para despejar el form.
         const hasIds = extId != null || (extSlug && extSlug !== '');
         return `<details class="editor-section editor-section--advanced" data-tab="resultados" ${hasIds ? 'open' : ''}>
           <summary class="editor-section__header editor-advanced__summary">
-            <span class="editor-section__title">Resultados (avanzado)</span>
-            <span class="editor-advanced__hint">IDs fuentes externas</span>
+            <span class="editor-section__title">Enlaces automáticos</span>
           </summary>
           <div class="editor-section__body">
             <div class="field-row field-row--2">
@@ -1900,6 +1971,10 @@ function renderEditor(rd, race, broadcasts, assets) {
   // Guardar referencia al raceId actual
   area.dataset.raceId = rd.raceId || '';
   area.dataset.rdId   = rd.id;
+  area.dataset.raceSlug = race.slug || '';
+  area.dataset.raceYear = race.year || '';
+  area.dataset.stageNumber = rd.stageNumber ?? '';
+  area.dataset.raceDaySlug = rd.slug || '';
 
   // Título del drawer (cabecera fija): nombre de la carrera + etapa
   const _drawerTitle = document.getElementById('ccDrawer1Title');
@@ -2691,6 +2766,9 @@ function bindAllRemoveBroadcasts() {
 
 // ── Guardar jornada ───────────────────────────────────────────────
 async function saveRaceDay(status) {
+  if (_raceDaySaveInFlight) return;
+  setRaceDaySaveInFlight(true);
+
   const area    = document.getElementById('editorArea');
   const rdId    = area.dataset.rdId;
   const raceId  = area.dataset.raceId;
@@ -2706,6 +2784,7 @@ async function saveRaceDay(status) {
     el.textContent = slugErr;
     el.style.display = 'block';
     document.getElementById('ed-slug').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setRaceDaySaveInFlight(false);
     return;
   }
 
@@ -2718,6 +2797,7 @@ async function saveRaceDay(status) {
     const missing = Object.entries(required).filter(([,v]) => !v).map(([k]) => k);
     if (missing.length) {
       showToast('Faltan campos obligatorios: ' + missing.join(', '));
+      setRaceDaySaveInFlight(false);
       return;
     }
   }
@@ -2832,6 +2912,7 @@ async function saveRaceDay(status) {
     );
     if (outOfRange) {
       showToast(`km ${outOfRange.km} fuera de rango [0, ${_maxKm}] (tolerancia ±${_kmTolerance})`);
+      setRaceDaySaveInFlight(false);
       return;
     }
     const startOutOfRange = profileSummits.find(
@@ -2839,6 +2920,7 @@ async function saveRaceDay(status) {
     );
     if (startOutOfRange) {
       showToast(`km inicio ${startOutOfRange.startKm} fuera de rango [0, ${_maxKm}] (tolerancia ±${_kmTolerance})`);
+      setRaceDaySaveInFlight(false);
       return;
     }
   }
@@ -2984,13 +3066,36 @@ async function saveRaceDay(status) {
       });
       hasAssets = true;
     }
-    if (newAssets.length) {
-      const { error: insAsErr } = await supabase.from('assets').insert(newAssets);
+    // Los assets son únicos por jornada y tipo. Al guardar el editor, conservar
+    // la fila existente de cada tipo evita que el trigger anti-duplicados choque
+    // con la estrategia anterior de INSERT antes de DELETE. Sin esto, el
+    // broadcast sí se insertaba, pero el guardado completo acababa mostrando un
+    // error de asset al llegar aquí.
+    const oldAssetByType = new Map((oldAssets || []).map(asset => [asset.type, asset]));
+    const retainedAssetIds = new Set();
+    const assetsToInsert = [];
+    for (const asset of newAssets) {
+      const oldAsset = oldAssetByType.get(asset.type);
+      if (!oldAsset) {
+        assetsToInsert.push(asset);
+        continue;
+      }
+      const { error: upAsErr } = await supabase
+        .from('assets')
+        .update({ sourceType: asset.sourceType, url: asset.url })
+        .eq('id', oldAsset.id);
+      if (upAsErr) throw upAsErr;
+      retainedAssetIds.add(oldAsset.id);
+    }
+    if (assetsToInsert.length) {
+      const { error: insAsErr } = await supabase.from('assets').insert(assetsToInsert);
       if (insAsErr) throw insAsErr;
     }
-    const oldAsIds = (oldAssets || []).map(a => a.id);
-    if (oldAsIds.length) {
-      const { error: delAsErr } = await supabase.from('assets').delete().in('id', oldAsIds);
+    const obsoleteAssetIds = (oldAssets || [])
+      .filter(asset => !retainedAssetIds.has(asset.id))
+      .map(asset => asset.id);
+    if (obsoleteAssetIds.length) {
+      const { error: delAsErr } = await supabase.from('assets').delete().in('id', obsoleteAssetIds);
       if (delAsErr) throw delAsErr;
     }
     // Denormalizar hasAssets en el documento raíz
@@ -3067,6 +3172,8 @@ async function saveRaceDay(status) {
   } catch (err) {
     console.error(err);
     showToast('Error al guardar: ' + err.message);
+  } finally {
+    setRaceDaySaveInFlight(false);
   }
 }
 
@@ -3564,8 +3671,10 @@ async function saveNewRace() {
   if (!validateChampionshipName(uci, name, null, errDiv)) return;
 
   const newRaceId = crypto.randomUUID();
+  const newSeriesId = crypto.randomUUID();
   const data = {
     id:          newRaceId,
+    raceSeriesId: newSeriesId,
     name,
     abbrev:      document.getElementById('nr-abbrev').value.trim().toUpperCase() || null,
     uciCategory: document.getElementById('nr-uci').value,
@@ -3584,8 +3693,17 @@ async function saveNewRace() {
   };
 
   try {
+    const { error: seriesErr } = await supabase.from('race_series').insert({
+      id: newSeriesId,
+      canonicalName: name,
+      gender,
+    });
+    if (seriesErr) throw seriesErr;
     const { error: insertErr } = await supabase.from('races').insert(data);
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      await supabase.from('race_series').delete().eq('id', newSeriesId);
+      throw insertErr;
+    }
     const newRace = { ...data };
     upsertRaceLocal(newRace);
     closeNewRaceModal();
@@ -3653,7 +3771,7 @@ function initTabs() {
   window.addEventListener('hashchange', () => switchTab(tabFromHash(), { updateHash: false }));
 }
 
-const VALID_TABS = new Set(['agenda', 'startlists', 'teams', 'analytics', 'races', 'notifications', 'highlights', 'fichajes', 'uci']);
+const VALID_TABS = new Set(['agenda', 'startlists', 'teams', 'analytics', 'races', 'notifications', 'highlights', 'fichajes']);
 
 function tabFromHash() {
   const hash = location.hash.slice(1);
@@ -3675,7 +3793,6 @@ function switchTab(tab, { updateHash = true } = {}) {
   const isNotifications = tab === 'notifications';
   const isHighlights    = tab === 'highlights';
   const isFichajes      = tab === 'fichajes';
-  const isUci           = tab === 'uci';
   document.querySelector('.panel-body').style.display                  = isAgenda        ? 'flex' : 'none';
   document.getElementById('racesView').style.display                   = isRaces         ? 'flex' : 'none';
   document.getElementById('racesView').style.flexDirection             = 'column';
@@ -3686,7 +3803,6 @@ function switchTab(tab, { updateHash = true } = {}) {
   document.getElementById('highlightsView').style.display              = isHighlights    ? 'flex' : 'none';
   const fichajesView = document.getElementById('fichajesView');
   if (fichajesView) fichajesView.style.display                         = isFichajes      ? 'flex' : 'none';
-  document.getElementById('uciView').style.display                     = isUci           ? 'flex' : 'none';
   // La vista Carreras tiene dos subvistas (Carreras / Challenges) con toggle
   // propio; al entrar se renderiza la subvista activa.
   if (isRaces)         applyRacesSubview(_racesSubview);
@@ -3696,7 +3812,6 @@ function switchTab(tab, { updateHash = true } = {}) {
   if (isNotifications) setupNotificationsView();
   if (isHighlights)    setupHighlightsView();
   if (isFichajes)      setupFichajesView();
-  if (isUci)           setupUciView();
   if (updateHash) history.pushState(null, '', '#' + tab);
 }
 
@@ -4016,10 +4131,10 @@ function raceEditorBodyHtml() {
     <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap">
       <div class="u-row" style="gap:0.5rem">
         <button class="btn btn--danger" id="er-deleteBtn">Borrar carrera</button>
-        <button class="btn btn--ghost" id="er-editStartlistBtn" style="font-size:0.75rem">Editar inscritos</button>
+        <button class="btn btn--ghost" id="er-editStartlistBtn" style="font-size:0.75rem">Editar dorsales</button>
       </div>
       <div class="u-row" style="gap:0.5rem">
-        <button class="btn btn--ghost" id="er-duplicateBtn">Duplicar</button>
+        <button class="btn btn--ghost" id="er-duplicateBtn">Crear edición</button>
         <button class="btn btn--primary" id="editRaceSaveBtn">Guardar cambios</button>
       </div>
     </div>
@@ -4223,13 +4338,19 @@ async function _loadUciLink(raceId) {
 
 const _UCI_SEASON = { 2026: 464, 2025: 444, 2024: 432, 2023: 414, 2022: 159, 2021: 150 };
 
-// Abre/refresca el panel de candidatos UCI bajo el campo.
+// Abre el enlace manual bajo el campo. La búsqueda se hace directamente en
+// DataRide; se eliminó el matcher automático por su baja fiabilidad.
 async function openUciLinkPanel() {
   const raceId = document.getElementById('er-id').value;
   const panel  = document.getElementById('er-uciPanel');
   if (!raceId || !panel) return;
   panel.style.display = 'block';
-  panel.innerHTML = '<span style="color:var(--text-muted)">Cargando candidatos UCI…</span>';
+  panel.innerHTML = `<div class="u-row" style="gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <a class="btn btn--ghost" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener" style="font-size:0.7rem;padding:0 0.6rem">Últimos resultados de DataRide ↗</a>
+    <button type="button" class="btn btn--primary u-uci-save-manual" style="font-size:0.7rem;padding:0 0.6rem">Guardar el ID del campo</button>
+  </div>`;
+  _wireUciPanel(raceId);
+  return;
 
   let rec = null;
   try {
@@ -4535,14 +4656,15 @@ async function setupUciResultsSection(rd, race) {
   }
 }
 
-// Cabecera "Origen UCI": estado del enlace + acciones (detectar/cambiar/desenlazar).
-function _ruOriginHtml(link) {
+// Cabecera de fuente: el enlace se decide a mano en DataRide; no hay matcher.
+function _ruOriginHtml(rd, race, link) {
   if (!link) {
     return `<div class="ru-origin">
-      <div class="ru-origin__state">Esta carrera <strong>no está enlazada</strong> a ninguna competición UCI —
+      <div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> —
         sin enlace no hay resultados in-house.</div>
       <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-        <button type="button" class="btn btn--primary ru-detect" style="font-size:0.72rem;padding:0.3rem 0.7rem">Detectar automáticamente</button>
+        <a class="btn btn--ghost" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener" style="font-size:0.72rem;padding:0.3rem 0.7rem">Últimos resultados de DataRide ↗</a>
+        <button type="button" class="btn btn--primary ru-manual-link" style="font-size:0.72rem;padding:0.3rem 0.7rem">Enlazar fuente</button>
       </div>
     </div>`;
   }
@@ -4555,9 +4677,18 @@ function _ruOriginHtml(link) {
   const manualWarn = UCI_MANUAL_SOURCES.has(src)
     ? `<div class="ru-origin__warn" style="color:#e0a400;font-size:0.72rem;margin-top:0.3rem">
         ⚠ Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
-        Para que el cron la recoja, enlázala a una competición de UCI DataRide con «${link.competitionId ? 'Cambiar enlace' : 'Detectar automáticamente'}».
+        Sus resultados se mantienen manualmente; no se puede programar un volcado automático para esta fuente.
       </div>`
     : '';
+  const isOneDay = race?.raceFormat === 'one_day';
+  const canDumpStage = !UCI_MANUAL_SOURCES.has(src) && rd.stageNumber != null;
+  const dumpButton = isOneDay
+    ? `<button type="button" class="btn btn--primary ru-run-cron" style="font-size:0.72rem;padding:0.3rem 0.7rem"
+        title="Re-vuelca esta carrera, respetando las clasificaciones bloqueadas manualmente.">▶ Volcar esta carrera</button>`
+    : (canDumpStage
+        ? `<button type="button" class="btn btn--primary ru-run-cron-stage" style="font-size:0.72rem;padding:0.3rem 0.7rem"
+            title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">▶ Volcar esta etapa</button>`
+        : '');
   return `<div class="ru-origin">
     <div class="ru-origin__state">
       Origen: ${_uciCompLink(link.competitionId)}${evTag}
@@ -4569,10 +4700,9 @@ function _ruOriginHtml(link) {
     ${manualWarn}
     ${link.syncError ? `<div style="color:#e55;font-size:0.72rem;margin-top:0.25rem">${esc(link.syncError)}</div>` : ''}
     <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-      <button type="button" class="btn btn--ghost ru-detect" style="font-size:0.72rem;padding:0.3rem 0.7rem">Cambiar enlace</button>
+      <button type="button" class="btn btn--ghost ru-manual-link" style="font-size:0.72rem;padding:0.3rem 0.7rem">Cambiar enlace</button>
       <button type="button" class="btn btn--ghost ru-unlink" style="font-size:0.72rem;padding:0.3rem 0.7rem;color:#e55">Desenlazar</button>
-      <button type="button" class="btn btn--primary ru-run-cron" style="font-size:0.72rem;padding:0.3rem 0.7rem"
-        title="Re-vuelca la carrera ENTERA: todas las etapas que la fuente tenga publicadas (también las de días anteriores), ignorando fecha/ventana. En carreras largas es lento y re-escribe etapas ya asentadas — para actualizar una sola, usa «Volcar esta etapa».">▶ Volcar esta carrera</button>
+      ${dumpButton}
     </div>
   </div>`;
 }
@@ -4590,6 +4720,72 @@ function _ruClassRowHtml(st) {
     <button type="button" class="btn btn--ghost ru-lock-toggle" data-id="${esc(st.id)}" style="font-size:0.68rem;padding:0 0.55rem">${locked ? 'Desbloquear' : 'Bloquear'}</button>
     <button type="button" class="btn btn--ghost ru-edit" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>
   </div>`;
+}
+
+function _ruSyncPolicyHtml(rd, link) {
+  if (!link || UCI_MANUAL_SOURCES.has(link.source || 'uci')) return '';
+  const dayOverride = rd.resultsAutoSyncEnabled != null;
+  const enabled = dayOverride ? rd.resultsAutoSyncEnabled : link.autoSyncEnabled;
+  const startOffset = dayOverride && rd.resultsSyncStartOffsetMinutes != null
+    ? rd.resultsSyncStartOffsetMinutes : (link.syncStartOffsetMinutes ?? -15);
+  const interval = dayOverride && rd.resultsSyncIntervalMinutes != null
+    ? rd.resultsSyncIntervalMinutes : (link.syncIntervalMinutes ?? 30);
+  const stopOffset = dayOverride && rd.resultsSyncStopOffsetMinutes != null
+    ? rd.resultsSyncStopOffsetMinutes : (link.syncStopOffsetMinutes ?? 180);
+  const stageLabel = rd.stageNumber == null ? 'esta carrera' : `esta etapa (${rd.stageNumber === 0 ? 'prólogo' : 'etapa ' + rd.stageNumber})`;
+  return `<details class="ru-sync-policy" style="margin-top:0.65rem">
+    <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted)">Programación automática ${enabled ? '· activa' : '· desactivada'}</summary>
+    <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
+      <p style="margin:0 0 0.5rem;color:var(--text-muted)">Solo se crea un runner dentro de esta ventana y con una fuente enlazada. Si está desactivada, no consume CI.</p>
+      <div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
+        <label><input type="radio" name="ru-sync-scope" value="race" ${dayOverride ? '' : 'checked'}> Regla global de carrera</label>
+        <label><input type="radio" name="ru-sync-scope" value="day" ${dayOverride ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
+      </div>
+      <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;margin-top:0.5rem;align-items:end">
+        <label> <span class="u-c-dim">Inicio antes de meta</span><input id="ru-sync-before" type="number" min="0" max="1440" value="${Math.max(0, -startOffset)}" style="width:4.5rem"> min</label>
+        <label> <span class="u-c-dim">Cadencia</span><input id="ru-sync-interval" type="number" min="1" max="240" value="${interval}" style="width:4.5rem"> min</label>
+        <label> <span class="u-c-dim">Parar después de meta</span><input id="ru-sync-after" type="number" min="0" max="2880" value="${Math.max(0, stopOffset)}" style="width:4.5rem"> min</label>
+        <label style="white-space:nowrap"><input id="ru-sync-enabled" type="checkbox" ${enabled ? 'checked' : ''}> Activar</label>
+        <button type="button" class="btn btn--primary ru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar programación</button>
+      </div>
+    </div>
+  </details>`;
+}
+
+async function _ruSaveSyncPolicy(btn, rd, race) {
+  const scope = document.querySelector('input[name="ru-sync-scope"]:checked')?.value || 'race';
+  const before = Number(document.getElementById('ru-sync-before')?.value);
+  const interval = Number(document.getElementById('ru-sync-interval')?.value);
+  const after = Number(document.getElementById('ru-sync-after')?.value);
+  if (!Number.isInteger(before) || before < 0 || !Number.isInteger(interval) || interval < 1 || !Number.isInteger(after) || after < 0) {
+    alertDialog('Revisa los minutos: inicio y fin no pueden ser negativos, y la cadencia mínima es 1 minuto.');
+    return;
+  }
+  btn.disabled = true;
+  const patch = {
+    "resultsAutoSyncEnabled": document.getElementById('ru-sync-enabled').checked,
+    "resultsSyncStartOffsetMinutes": -before,
+    "resultsSyncIntervalMinutes": interval,
+    "resultsSyncStopOffsetMinutes": after,
+  };
+  try {
+    const req = scope === 'day'
+      ? supabase.from('race_days').update(patch).eq('id', rd.id)
+      : supabase.from('race_uci_links').update({
+          autoSyncEnabled: patch.resultsAutoSyncEnabled,
+          syncStartOffsetMinutes: patch.resultsSyncStartOffsetMinutes,
+          syncIntervalMinutes: patch.resultsSyncIntervalMinutes,
+          syncStopOffsetMinutes: patch.resultsSyncStopOffsetMinutes,
+          updatedAt: new Date().toISOString(),
+        }).eq('raceId', rd.raceId);
+    const { error } = await req;
+    if (error) throw error;
+    showToast(scope === 'day' ? 'Programación de etapa guardada.' : 'Programación global guardada.', 'success');
+    setupUciResultsSection(rd, race);
+  } catch (err) {
+    alertDialog(`No se pudo guardar la programación: ${err.message || err}`, { title: 'Error' });
+    btn.disabled = false;
+  }
 }
 
 function _ruRenderSection(body, rd, race, link, stages) {
@@ -4611,15 +4807,13 @@ function _ruRenderSection(body, rd, race, link, stages) {
   mine.sort((a, b) => ord(a) - ord(b));
   finals.sort((a, b) => ord(a) - ord(b));
 
-  let html = _ruOriginHtml(link);
+  let html = _ruOriginHtml(rd, race, link);
   html += `<div id="ruDetectPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>`;
+  html += _ruSyncPolicyHtml(rd, link);
 
   // Las clasificaciones ya volcadas se muestran SIEMPRE (aunque la carrera se haya
   // desenlazado después: sin link el cron no refresca, pero los datos siguen ahí).
-  if (link && !mine.length && !finals.length) {
-    html += `<div class="ru-empty">Aún no hay clasificaciones volcadas para esta jornada.
-      El cron de resultados las traerá en su próxima pasada (cada 30 min si la carrera corre hoy).</div>`;
-  }
+  if (link && !mine.length && !finals.length) html += `<div class="ru-empty">Aún no hay clasificaciones volcadas para esta jornada.</div>`;
   if (mine.length) html += `<div class="ru-class-list">${mine.map(_ruClassRowHtml).join('')}</div>`;
   if (finals.length) {
     // En carreras de un día (p. ej. los Campeonatos Nacionales, una ficha por prueba) la
@@ -4632,20 +4826,10 @@ function _ruRenderSection(body, rd, race, link, stages) {
       <div class="ru-class-list">${finals.map(_ruClassRowHtml).join('')}</div>`;
   }
 
-  // "Volcar esta etapa" (migración 134): dispara el cron para re-escribir SOLO la
-  // clasificación de ESTA jornada, sin re-volcar el resto de la carrera. Solo con
-  // fuente automática (las manuales —pdf/sportstiming/manual_timing— no tienen fetcher: su
-  // volcado es a mano) y con stageNumber conocido (una carrera de un día se vuelca con
-  // "Volcar esta carrera", que ya es barato). stageNumber 0 (prólogo) es válido → `!= null`.
-  const AUTO_SYNC = link && !['pdf', 'sportstiming', 'manual_timing'].includes(link.source);
-  const canDumpStage = AUTO_SYNC && rd.stageNumber != null;
-
   // Crear una clasificación A MANO (pruebas sin fuente automática, o un tipo que el
   // cron no trajo). La fila se inserta SIN bloquear → placeholder que la fuente
   // oficial PISA si llega (mismo modelo que el volcado PDF). Ver _ruCreateClass.
   html += `<div class="u-row" style="margin-top:0.7rem;gap:0.5rem;flex-wrap:wrap">
-    ${canDumpStage ? `<button type="button" class="btn btn--primary ru-run-cron-stage" style="font-size:0.74rem;padding:0.3rem 0.7rem"
-      title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">▶ Volcar esta etapa</button>` : ''}
     <button type="button" class="btn btn--ghost ru-new" style="font-size:0.74rem;padding:0.3rem 0.7rem"
       title="Crea una clasificación vacía para teclear sus resultados a mano. Se crea como placeholder: si luego la UCI/PDF publica esa misma clasificación, su volcado la sustituye.">＋ Nueva clasificación</button>
   </div>`;
@@ -4655,7 +4839,8 @@ function _ruRenderSection(body, rd, race, link, stages) {
   // Cableado por render (el DOM se recrea en cada apertura).
   const stById = new Map(stages.map(s => [s.id, s]));
   body.querySelectorAll('.ru-new').forEach(b => b.addEventListener('click', () => _ruNewClass(rd, race, stages)));
-  body.querySelectorAll('.ru-detect').forEach(b => b.addEventListener('click', () => _ruOpenDetect(rd, race)));
+  body.querySelectorAll('.ru-manual-link').forEach(b => b.addEventListener('click', () => _ruOpenManualLink(rd, race)));
+  body.querySelectorAll('.ru-sync-save').forEach(b => b.addEventListener('click', () => _ruSaveSyncPolicy(b, rd, race)));
   body.querySelectorAll('.ru-unlink').forEach(b => b.addEventListener('click', () => _ruUnlinkFromDay(rd, race)));
   body.querySelectorAll('.ru-run-cron').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId)));
   body.querySelectorAll('.ru-run-cron-stage').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId, rd.stageNumber)));
@@ -4669,9 +4854,30 @@ function _ruRenderSection(body, rd, race, link, stages) {
   }));
 }
 
-// Auto-detección de la referencia: mismo reporte estático del matcher que usa el
-// editor de carrera (_loadUciReport); reutiliza _uciCandidateRow para los candidatos.
+// Enlace manual: DataRide no ofrece una búsqueda usable desde el navegador del panel,
+// así que se abre en otra pestaña y se guarda aquí el ID comprobado por la persona.
+function _ruOpenManualLink(rd, race) {
+  const panel = document.getElementById('ruDetectPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `<div class="u-row" style="gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <input type="number" id="ruManualComp" placeholder="competitionId" min="1" style="width:9.5rem">
+    <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" style="width:11rem"
+      title="Solo para Campeonatos Nacionales: race.Id de DataRide de la prueba dentro de la competición. Vacío = competición entera.">
+    <button type="button" class="btn btn--primary ru-manual-save" style="font-size:0.7rem;padding:0 0.6rem">Guardar enlace</button>
+  </div>`;
+  panel.querySelector('.ru-manual-save').addEventListener('click', () => {
+    const comp = parseInt(document.getElementById('ruManualComp').value, 10);
+    if (!comp) { alertDialog('Introduce un competitionId numérico.', { title: 'Falta el ID' }); return; }
+    const event = parseInt(document.getElementById('ruManualUciRaceId').value, 10) || 0;
+    _ruSaveLink(rd, race, comp, event);
+  });
+}
+
+// Compatibilidad temporal con enlaces profundos antiguos: ya no propone candidatos.
 async function _ruOpenDetect(rd, race) {
+  _ruOpenManualLink(rd, race);
+  return;
   const panel = document.getElementById('ruDetectPanel');
   if (!panel) return;
   panel.style.display = 'block';
@@ -5940,9 +6146,72 @@ async function duplicateRace() {
   try {
     const { data: raceData } = await supabase.from('races').select('*').eq('id', id).single();
     if (!raceData) return;
-    const { id: _origId, ...raceFields } = raceData;
+    const sourceYear = Number(raceData.year) || new Date().getFullYear();
+    const rawYear = window.prompt('Año de la nueva edición', String(sourceYear + 1));
+    if (rawYear == null) return;
+    const targetYear = Number.parseInt(rawYear, 10);
+    if (!Number.isInteger(targetYear) || targetYear < 2000 || targetYear > 2099) {
+      throw new Error('Año de edición inválido.');
+    }
+
+    let seriesId = raceData.raceSeriesId;
+    if (!seriesId) {
+      // Compatibilidad con carreras que aún no se hayan asociado durante el
+      // backfill de la migración: nunca creamos una edición huérfana.
+      seriesId = crypto.randomUUID();
+      const { error: seriesErr } = await supabase.from('race_series').insert({
+        id: seriesId,
+        canonicalName: raceData.name,
+        gender: raceData.gender || null,
+      });
+      if (seriesErr) throw seriesErr;
+      const { error: sourceErr } = await supabase.from('races')
+        .update({ raceSeriesId: seriesId }).eq('id', id);
+      if (sourceErr) throw sourceErr;
+      upsertRaceLocal({ ...raceData, raceSeriesId: seriesId });
+    }
+
+    const { data: existing, error: existingErr } = await supabase.from('races')
+      .select('id')
+      .eq('raceSeriesId', seriesId)
+      .eq('year', targetYear)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing) throw new Error(`La serie ya tiene una edición en ${targetYear}.`);
+
+    const baseSlug = raceData.slug?.replace(new RegExp(`-${sourceYear}$`), '') || toSlug(raceData.name);
+    const baseSlugEn = raceData.slugEn?.replace(new RegExp(`-${sourceYear}$`), '') || null;
     const newRaceId = crypto.randomUUID();
-    const data = { ...raceFields, id: newRaceId, name: raceFields.name + ' (copia)', createdAt: new Date().toISOString() };
+    // Solo se heredan los datos estables de la prueba. Fechas, jornadas,
+    // documentación, inscritos y resultados pertenecen a cada edición.
+    const data = {
+      id: newRaceId,
+      raceSeriesId: seriesId,
+      name: raceData.name,
+      originalName: raceData.originalName || null,
+      nameEn: raceData.nameEn || null,
+      abbrev: raceData.abbrev || null,
+      uciCategory: raceData.uciCategory || null,
+      gender: raceData.gender || null,
+      raceFormat: raceData.raceFormat || null,
+      countryCode: raceData.countryCode || null,
+      colorHex: raceData.colorHex || null,
+      logoUrl: raceData.logoUrl || null,
+      websiteUrl: raceData.websiteUrl || null,
+      extId: raceData.extId || null,
+      extSlug: raceData.extSlug || null,
+      hideFlag: raceData.hideFlag || false,
+      isGrandTour: raceData.isGrandTour || false,
+      isNoClickable: raceData.isNoClickable || false,
+      isCancelled: false,
+      year: targetYear,
+      startDate: null,
+      endDate: null,
+      slug: `${baseSlug}-${targetYear}`.slice(0, 80),
+      slugEn: baseSlugEn ? `${baseSlugEn}-${targetYear}`.slice(0, 80) : null,
+      translations: raceData.translations || {},
+      createdAt: new Date().toISOString(),
+    };
     const { error: dupErr } = await supabase.from('races').insert(data);
     if (dupErr) throw dupErr;
     const newRace = { ...data };
@@ -5951,7 +6220,7 @@ async function duplicateRace() {
     renderRacesView();
     openEditRaceModal(newRace);
   } catch (err) {
-    document.getElementById('editRaceError').textContent = 'Error al duplicar.';
+    document.getElementById('editRaceError').textContent = err.message || 'Error al crear la edición.';
     document.getElementById('editRaceError').style.display = 'block';
   }
 }
@@ -6024,7 +6293,8 @@ let _racesYear = new Date().getFullYear();
 async function inlineUpload(file, targetInput, tipo) {
   const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
   if (!allowed.includes(file.type)) { showToast('Formato no permitido. Solo JPG, PNG, WebP o PDF.'); return; }
-  if (file.size > 10 * 1024 * 1024) { showToast('El archivo supera los 10 MB.'); return; }
+  const maxBytes = tipo === 'technicalGuide' ? 150 * 1024 * 1024 : 10 * 1024 * 1024;
+  if (file.size > maxBytes) { showToast(`El archivo supera los ${tipo === 'technicalGuide' ? '150' : '10'} MB.`); return; }
 
   const btn = targetInput.parentElement.querySelector('.inline-upload-btn');
   const origText = btn ? btn.textContent : '';
@@ -6049,13 +6319,26 @@ async function inlineUpload(file, targetInput, tipo) {
     uploadMime = file.type;
   }
 
-  const fileSlug = tipo === 'roadbook' ? 'timetable' : tipo;
-  const filename = `${Date.now()}-${fileSlug}.${uploadExt}`;
+  const editorArea = document.getElementById('editorArea');
+  let filename;
+  if (['technicalGuide', 'roadbook', 'profile', 'ports', 'map'].includes(tipo)) {
+    filename = nextCanonicalStageAssetKey({
+      raceSlug: editorArea?.dataset.raceSlug,
+      year: editorArea?.dataset.raceYear,
+      stageNumber: editorArea?.dataset.stageNumber === '' ? null : Number(editorArea?.dataset.stageNumber),
+      raceDaySlug: editorArea?.dataset.raceDaySlug,
+      type: tipo,
+      ext: uploadExt,
+    }, targetInput.value);
+  } else {
+    filename = `${Date.now()}-${tipo}.${uploadExt}`;
+  }
   const publicUrl = `${R2_PUBLIC_BASE}/${filename}`;
 
   try {
-    const buf = await uploadBlob.arrayBuffer();
-    const res = await r2PutObject(filename, buf, uploadMime);
+    const res = tipo === 'technicalGuide'
+      ? await r2PutTechnicalGuide(filename, uploadBlob, uploadMime)
+      : await r2PutObject(filename, await uploadBlob.arrayBuffer(), uploadMime);
     if (!res.ok) throw new Error(`R2 ${res.status}`);
     targetInput.value = publicUrl;
     targetInput.dispatchEvent(new Event('input'));
@@ -8487,7 +8770,7 @@ window.openStartlistEditor = async function(raceId) {
   // El editor vive ahora en el drawer (paradigma único). Se monta su cuerpo y
   // sus listeners; el resto de la función pobla #startlistEditorContent igual.
   openDrawer({
-    title: race ? `Inscritos — ${race.name}` : `Inscritos — ${raceId}`,
+    title: race ? `Dorsales — ${race.name}` : `Dorsales — ${raceId}`,
     level: 1,
     render: (body) => {
       body.innerHTML = startlistEditorBodyHtml();
@@ -11606,6 +11889,14 @@ function getComposedDeepLink() {
     const raceId = document.getElementById('push-deepLinkStartlist').value;
     return raceId ? `startlist/${raceId}` : '';
   }
+  // Mercado de Fichajes: el tab no necesita identificador; una ficha de
+  // equipo usa el ID canónico de team_seasons (no su nombre, que puede cambiar
+  // con el patrocinador de una temporada a otra).
+  if (type === 'transfers') return 'transfers';
+  if (type === 'team') {
+    const teamId = document.getElementById('push-deepLinkTeam').value;
+    return teamId ? `team/${teamId}` : '';
+  }
   return '';
 }
 
@@ -11614,10 +11905,11 @@ function deepLinkDisplayLabel(dl) {
   if (!dl) return '';
   if (dl.startsWith('race/'))       return `Competición`;
   if (dl.startsWith('stage/'))      return `Jornada`;
-  if (dl.startsWith('startlist/'))  return `Inscritos`;
+  if (dl.startsWith('startlist/'))  return `Dorsales`;
   if (dl.startsWith('startOrder/')) return `Orden de salida`;
   if (dl.startsWith('perfil/'))     return `Perfil de etapa`;
-  const tabLabels = { today: 'Hoy', month: 'Mes', season: 'Temporada', search: 'Buscar', subscribe: 'Suscripción', notifications: 'Avisos' };
+  if (dl.startsWith('team/'))       return `Equipo (Mercado de Fichajes)`;
+  const tabLabels = { today: 'Hoy', month: 'Mes', season: 'Temporada', search: 'Buscar', subscribe: 'Suscripción', notifications: 'Avisos', transfers: 'Mercado de Fichajes' };
   return tabLabels[dl] || dl;
 }
 
@@ -11681,6 +11973,9 @@ async function setupNotificationsView() {
   const raceSelect  = document.getElementById('push-deepLinkRace');
   const stageSelect = document.getElementById('push-deepLinkStage');
   const raceSearch  = document.getElementById('push-raceSearch');
+  const teamSelect  = document.getElementById('push-deepLinkTeam');
+  const teamSearch  = document.getElementById('push-teamSearch');
+  let pushMarketTeams = [];
 
   function populatePushRaceList(query) {
     const q = (query || '').toLowerCase();
@@ -11693,6 +11988,30 @@ async function setupNotificationsView() {
     ).join('');
   }
 
+  async function populatePushTeamList(query = '') {
+    const q = query.toLowerCase();
+    // El destino solo es válido para equipos publicados en el Mercado de la
+    // temporada activa, exactamente el mismo conjunto que cargan las apps.
+    if (pushMarketTeams.length === 0) {
+      teamSelect.innerHTML = '<option value="">Cargando equipos…</option>';
+      const { data, error } = await supabase.from('team_seasons')
+        .select('teamId,name,category')
+        .eq('year', MARKET_SEASON)
+        .order('name');
+      if (error) {
+        teamSelect.innerHTML = `<option value="">Error: ${esc(error.message)}</option>`;
+        return;
+      }
+      pushMarketTeams = data || [];
+    }
+    const teams = q
+      ? pushMarketTeams.filter(team => team.name?.toLowerCase().includes(q))
+      : pushMarketTeams;
+    teamSelect.innerHTML = teams.length
+      ? teams.map(team => `<option value="${esc(team.teamId)}">${esc(team.name || team.teamId)}${team.category ? ` — ${esc(team.category)}` : ''}</option>`).join('')
+      : '<option value="">No hay equipos que coincidan</option>';
+  }
+
   // Tipos que necesitan elegir una jornada concreta (competición → jornada).
   const STAGE_LIKE = ['stage', 'perfil', 'startOrder'];
   typeSelect.addEventListener('change', () => {
@@ -11702,8 +12021,10 @@ async function setupNotificationsView() {
     raceSel.style.display  = (t === 'race' || stageLike) ? '' : 'none';
     stageSel.style.display = stageLike ? '' : 'none';
     document.getElementById('push-startlistSelector').style.display = t === 'startlist' ? '' : 'none';
+    document.getElementById('push-teamSelector').style.display = t === 'team' ? '' : 'none';
     if (t === 'race' || stageLike) populatePushRaceList('');
     if (t === 'startlist') populatePushStartlistRaceList('');
+    if (t === 'team') populatePushTeamList();
     // Resetear el selector de jornada al cambiar de tipo stage-like.
     if (stageLike) {
       stageSelect.innerHTML = '<option value="">Selecciona primero una competición</option>';
@@ -11765,6 +12086,7 @@ async function setupNotificationsView() {
   document.getElementById('push-startlistSearch')?.addEventListener('input', (e) => {
     populatePushStartlistRaceList(e.target.value);
   });
+  teamSearch?.addEventListener('input', () => populatePushTeamList(teamSearch.value));
 
   // Botón de upload para imagen (reutilizar R2)
   const imageWrap = document.getElementById('push-image-wrap');
@@ -11913,6 +12235,7 @@ function _clearPushForm() {
   document.getElementById('push-raceSelector').style.display = 'none';
   document.getElementById('push-stageSelector').style.display = 'none';
   document.getElementById('push-startlistSelector').style.display = 'none';
+  document.getElementById('push-teamSelector').style.display = 'none';
   document.getElementById('pushPreviewTitle').textContent = 'Título de la notificación';
   document.getElementById('pushPreviewSubtitle').style.display = 'none';
   document.getElementById('pushPreviewImage').style.display = 'none';
@@ -14534,7 +14857,7 @@ function highlightEditorBodyHtml() {
       <div class="hl-target-options" style="display:flex;flex-direction:column;gap:0.5rem">
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="raceDay" checked><span>Jornada (detalle de la etapa)</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="race"><span>Competición (vista general de la carrera)</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startlist"><span>Inscritos (startlist)</span></label>
+        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startlist"><span>Dorsales (startlist)</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startOrder"><span>Orden de salida</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="championships"><span>Modo Campeonatos — web abre la página; apps, la pantalla nativa</span></label>
         <label class="hl-target-option"><input type="radio" name="hl-targetType" value="transfers"><span>Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa</span></label>
@@ -14821,7 +15144,7 @@ function renderHighlightsList() {
   const TARGET_LABELS = {
     raceDay:       'Jornada',
     race:          'Competición',
-    startlist:     'Inscritos',
+    startlist:     'Dorsales',
     startOrder:    'Orden de salida',
     custom:        'Personalizado',
     championships: 'Campeonatos',
@@ -14960,4 +15283,3 @@ function _wireHighlightReorder(container) {
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE VERSIONES (PRs mergeados desde GitHub)
 // ═════════════════════════════════════════════════════════════════
-

@@ -34,9 +34,9 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <span class="rail-item__label">Métricas</span>
         </button>
-        <button class="rail-item" id="tab-startlists" data-tab="startlists" title="Inscritos">
+        <button class="rail-item" id="tab-startlists" data-tab="startlists" title="Dorsales">
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-          <span class="rail-item__label">Inscritos</span>
+          <span class="rail-item__label">Dorsales</span>
         </button>
         <button class="rail-item" id="tab-notifications" data-tab="notifications" title="Notificaciones">
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -60,10 +60,6 @@
         <button class="rail-item" id="tab-races" data-tab="races" title="Carreras">
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
           <span class="rail-item__label">Carreras</span>
-        </button>
-        <button class="rail-item" id="tab-uci" data-tab="uci" title="Resultados UCI">
-          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          <span class="rail-item__label">Resultados UCI</span>
         </button>
       </div>
 
@@ -279,7 +275,7 @@
       <div class="panel-section-divider">
         <div class="panel-view-row">
           <div class="panel-view-title">
-            Inscritos
+            Dorsales
           </div>
         </div>
       </div>
@@ -379,12 +375,6 @@
       </div>
     </div><!-- /fichajesView -->
 
-    <!-- Vista "Resultados UCI" (oculta por defecto) — revisión en lote de los
-         enlaces carrera↔competición UCI que el matcher dejó sin resolver
-         (colisiones masc/fem + ambiguas). El contenido (cabecera + lista) lo
-         monta setupUciView() en js/panel.js. -->
-    <div id="uciView" style="display:none;flex:1;overflow-y:auto;flex-direction:column"></div><!-- /uciView -->
-
     <!-- Modal "Posibles duplicados" (oculto por defecto; se abre desde Equipos) -->
     <!-- El escáner de duplicados ("Posibles duplicados") vive ahora en el
          drawer ancho. Lo monta openDuplicateScanner() → dupScanBodyHtml();
@@ -471,9 +461,11 @@
               <option value="tab">Pestaña de la app</option>
               <option value="race">Competición</option>
               <option value="stage">Jornada / Etapa</option>
-              <option value="startlist">Inscritos</option>
+              <option value="startlist">Dorsales</option>
               <option value="perfil">Perfil de etapa</option>
               <option value="startOrder">Orden de salida</option>
+              <option value="transfers">Mercado de Fichajes</option>
+              <option value="team">Equipo (Mercado de Fichajes)</option>
             </select>
           </div>
           <div id="push-tabSelector" class="field" style="display:none">
@@ -502,11 +494,20 @@
             </select>
           </div>
           <div id="push-startlistSelector" class="field" style="display:none">
-            <label>Competición (para inscritos)</label>
+            <label>Competición (para dorsales)</label>
             <div class="u-row">
               <input class="u-grow" type="text" id="push-startlistSearch" placeholder="Buscar competición…">
             </div>
             <select id="push-deepLinkStartlist" size="6" style="margin-top:0.5rem;width:100%;font-size:0.82rem">
+            </select>
+          </div>
+          <div id="push-teamSelector" class="field" style="display:none">
+            <label>Equipo (Mercado de Fichajes)</label>
+            <div class="u-row">
+              <input class="u-grow" type="text" id="push-teamSearch" placeholder="Buscar equipo…">
+            </div>
+            <select id="push-deepLinkTeam" size="6" style="margin-top:0.5rem;width:100%;font-size:0.82rem">
+              <option value="">Cargando equipos…</option>
             </select>
           </div>
 

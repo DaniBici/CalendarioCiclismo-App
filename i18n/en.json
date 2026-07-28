@@ -45,7 +45,7 @@
     "websiteLabel": "Website",
     "startlistLabel": "Startlist",
     "startlistLabelFemale": "Startlist",
-    "startlistProvisional": "Provisional startlist",
+    "startlistProvisional": "Provisional Startlist",
     "watch": "Watch",
     "noStages": "No stages published yet",
     "noRaces": "No races published yet",
@@ -123,17 +123,18 @@
   },
   "assets": {
     "startOrder": "Start order",
+    "technicalGuide": "Technical Guide",
     "roadbook": "Timetable",
     "profile": "Profile",
-    "profileOfficial": "Official profile",
-    "profileInteractive": "Interactive profile",
+    "profileOfficial": "Profile",
+    "profileInteractive": "Profile + Data",
     "ports": "Climbs",
     "pave": "Pavé",
     "sterrato": "Sterrato",
     "ribinou": "Ribinou",
     "map": "Map",
-    "mapOfficial": "Official map",
-    "mapInteractive": "Interactive map",
+    "mapOfficial": "Map",
+    "mapInteractive": "3D Map",
     "live_text": "Live text",
     "general": "General"
   },
@@ -184,7 +185,7 @@
     "empty": "No startlist available for this race",
     "label": "Startlist",
     "labelFemale": "Startlist",
-    "provisional": "Provisional startlist",
+    "provisional": "Provisional Startlist",
     "provisionalNote": " (provisional, subject to change)",
     "downloadPdf": "Download PDF",
     "generatingPdf": "Generating…",
@@ -312,6 +313,8 @@
     "title": "Transfers",
     "heading": "{season} Transfer Market",
     "feedTitle": "Latest confirmations",
+    "feedSignings": "Signings",
+    "feedRenewals": "Renewals",
     "feedEmpty": "No confirmed moves yet.",
     "loadMore": "Load more",
     "renews": "renews with",
@@ -342,6 +345,6 @@
     "infoLabel": "Transfer information",
     "infoModalTitle": "Transfer sources",
     "close": "Close",
-    "infoText": "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson and Bram Vandecapelle (Het Laatste Nieuws) for their reporting."
+    "infoText": "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:"
   }
 }

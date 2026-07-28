@@ -93,6 +93,16 @@ enum TransfersLogic {
             }
     }
 
+    /// Feed público de renovaciones confirmadas con fecha visible.
+    static func renewalFeed(_ transfers: [RiderTransfer]) -> [RiderTransfer] {
+        transfers.filter { $0.status == "confirmed" && $0.dateVisible && $0.type == "renewal" }
+            .sorted {
+                let a = ($0.announcedAt ?? "", $0.createdAt ?? "")
+                let b = ($1.announcedAt ?? "", $1.createdAt ?? "")
+                return a > b
+            }
+    }
+
     /// Corte del feed "Últimas confirmaciones": hasta `maxDays` fechas distintas
     /// O `maxItems` fichajes, lo que se alcance antes (el feed viene ordenado
     /// cronológico inverso). No hay "cargar más": el mercado completo se ve por

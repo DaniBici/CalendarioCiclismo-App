@@ -37,7 +37,7 @@ final class SeasonViewModel {
     /// Años disponibles para el selector.
     var availableYears: [Int] {
         let current = Calendar.current.component(.year, from: Date())
-        return Array((2026...max(2026, current)).reversed())
+        return Array((2026...max(2026, current + 1)).reversed())
     }
 
     /// Países únicos en las carreras cargadas (para el selector), normalizados (como en web).

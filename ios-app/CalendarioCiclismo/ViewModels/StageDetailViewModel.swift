@@ -79,7 +79,11 @@ final class StageDetailViewModel {
                     b,
                     allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
                 )
-                assets = a
+                // Se guarda una sola guía técnica por competición, pero se
+                // expone en cada jornada sin duplicar su fila ni su PDF.
+                let allAssets = try await service.assets(byRaceDayIds: siblings.map(\.id))
+                let technicalGuide = allAssets.first { $0.type == "technicalGuide" }
+                assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays
                 // Guardar siblings para cargas futuras sin flash
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))

@@ -20,6 +20,8 @@ const LOCALES = {
       title: 'Fichajes',
       heading: 'Mercado de Fichajes {season}',
       feedTitle: 'Últimas confirmaciones',
+      feedSignings: 'Fichajes',
+      feedRenewals: 'Renovaciones',
       feedEmpty: 'Todavía no hay movimientos confirmados.',
       loadMore: 'Cargar más',
       renews: 'renueva con',
@@ -50,7 +52,7 @@ const LOCALES = {
       infoLabel: 'Información sobre los fichajes',
       infoModalTitle: 'Fuentes de Fichajes',
       close: 'Cerrar',
-      infoText: 'La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).',
+      infoText: 'La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de:',
     },
     stage: {
       prologue: 'Prólogo', prologueShort: 'Pról', stage: 'Etapa', stageShort: 'E',
@@ -71,7 +73,7 @@ const LOCALES = {
       previousResults: 'Así está la carrera',
       descriptionRace: 'Descripción de la carrera', descriptionStage: 'Descripción de la etapa',
       bonuses: 'Bonificaciones', notes: 'Notas',
-      websiteLabel: 'Web oficial', startlistLabel: 'Inscritos', startlistLabelFemale: 'Inscritas', startlistProvisional: 'Lista provisional',
+      websiteLabel: 'Web oficial', startlistLabel: 'Dorsales', startlistLabelFemale: 'Dorsales', startlistProvisional: 'Lista provisional',
       stagesCount_one: '{n} etapa', stagesCount_other: '{n} etapas',
       racesCount_one: '{n} carrera', racesCount_other: '{n} carreras',
       addToCalendar: 'Añadir al calendario', reportChanges: 'Reportar cambios',
@@ -106,10 +108,10 @@ const LOCALES = {
       status: { pending: 'Sin confirmar', none: 'Sin TV', unavailable_es: 'No TV España' },
     },
     assets: {
-      startOrder: 'Orden Salida', roadbook: 'Rutómetro', profile: 'Perfil',
-      profileOfficial: 'Perfil oficial', profileInteractive: 'Perfil interactivo',
+      startOrder: 'Orden Salida', technicalGuide: 'Libro de Ruta', roadbook: 'Rutómetro', profile: 'Perfil',
+      profileOfficial: 'Perfil', profileInteractive: 'Perfil + Datos',
       ports: 'Puertos', pave: 'Pavé', sterrato: 'Sterrato', ribinou: 'Ribinou',
-      map: 'Mapa', mapOfficial: 'Mapa oficial', mapInteractive: 'Mapa interactivo',
+      map: 'Mapa', mapOfficial: 'Mapa', mapInteractive: 'Mapa 3D',
       live_text: 'Live texto', general: 'General',
     },
     months: {
@@ -132,7 +134,7 @@ const LOCALES = {
     startlist: {
       loading: 'Cargando inscritos', notFound: 'No se encontró la carrera solicitada.',
       empty: 'No hay lista de inscritos disponible para esta carrera.',
-      label: 'Inscritos', labelFemale: 'Inscritas', provisional: 'Lista provisional',
+      label: 'Dorsales', labelFemale: 'Dorsales', provisional: 'Lista provisional',
       provisionalNote: ' (provisional, sujeta a cambios)',
       downloadPdf: 'Descargar PDF', generatingPdf: 'Generando…',
       // Motivo de abandono en el tooltip del corredor (lista con resultados in-house).

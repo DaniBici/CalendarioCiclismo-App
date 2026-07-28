@@ -5,7 +5,7 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
          buildTeamBadgeSvg, raceName as getRaceName, enBase,
-         seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons,
+         seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          isIndividualPlaceholderTeam } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
@@ -273,14 +273,11 @@ async function init() {
   // resultado de ETAPA (classKind='stage'); la "Stage General Classification"
   // es el GC acumulado, no sirve para detectar abandonos. Cruce por
   // globalRiderId (lo expone startlist_riders_resolved). En vivo desde cliente:
-  // refleja el último volcado del cron sin paso de build. `hasUciResults`
-  // también decide si se oculta el aviso de "no se actualiza" (más abajo).
+  // refleja el último volcado del cron sin paso de build.
   // stageRows y outRowsRes ya se cargaron en la fase B (arriba). Aquí solo se
   // procesan en memoria — sin round-trips adicionales.
-  let hasUciResults = false;
   const riderOutMap = new Map();   // globalRiderId → { irm, stageNumber }
   if (stageRows.length > 0) {
-    hasUciResults = true;
     const stageNumById = new Map(stageRows.map(s => [s.id, s.stageNumber]));
     const outRows = outRowsRes.data;
     // Por corredor, quedarse con la fila de mayor stageNumber (null = -1, va
@@ -470,7 +467,7 @@ async function init() {
     race,
     rd: oneDayRd || { id: race.id, slug: race.slug, slugEn: race.slugEn },
     view: 'inscritos',
-    assets: oneDayAssets,
+    assets: withRaceTechnicalGuide(oneDayAssets, await loadRaceTechnicalGuide(race.id)),
     hasStartlist: false,
     style: 'max-width:860px;padding:0 1.5rem;margin:0.85rem auto',
   });
@@ -502,18 +499,9 @@ async function init() {
       const notes = [];
       if (race.startlistProvisional) {
         const provText = getLang() === 'en'
-          ? '<strong>Provisional startlist</strong>; not considered final until the team managers meeting. This notice will disappear once it is official.'
+          ? '<strong>Provisional Startlist</strong>; not considered final until the team managers meeting. This notice will disappear once it is official.'
           : '<strong>Lista provisional</strong>; no se considera definitiva hasta la reunión de directores. Esta indicación desaparecerá cuando sea oficial.';
         notes.push(`<span class="startlist-disclaimer startlist-disclaimer--provisional">${provText}</span>`);
-      }
-      // Aviso "no se actualiza" SOLO en carreras por etapas SIN resultados
-      // in-house. Cuando hay resultados in-house (hasUciResults) la lista se
-      // mantiene sola tachando los abandonos → no se muestra ningún aviso.
-      if (!hasUciResults && race.raceFormat !== 'one_day') {
-        const noSpoilText = getLang() === 'en'
-          ? 'Startlist at the start of the race. Not updated after stages (<strong>no spoilers</strong>).'
-          : 'Lista al inicio de la competición. No se actualiza después de las etapas (<strong>no spoilers</strong>).';
-        notes.push(`<span class="startlist-disclaimer">${noSpoilText}</span>`);
       }
       return notes.length
         ? `<div class="startlist-toolbar">${notes.join('')}</div>`
@@ -595,7 +583,7 @@ async function init() {
     btn.id        = 'editInscritosBtn';
     btn.className = 'edit-jornada-btn';
     btn.href      = '/panel/app.html?startlist=' + encodeURIComponent(raceId);
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar inscritos';
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar dorsales';
     const hero = content.querySelector('.race-header');
     if (hero) hero.appendChild(btn);
     else document.body.appendChild(btn);

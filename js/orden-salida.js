@@ -5,7 +5,7 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, startOrderUrl,
-         findMatchingTeam, buildRaceHeader, buildActionButtons, buildTeamBadgeSvg } from './shared.js';
+         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, buildTeamBadgeSvg } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
 
 const STAGE_TYPE_LABELS = {
@@ -247,7 +247,7 @@ async function init() {
     stats: `${entries.length} ${ridersLabel}`,
     action: viewStageAction,
   }) + buildActionButtons({
-    race, rd, view: 'startOrder', assets: soAssets || [],
+    race, rd, view: 'startOrder', assets: withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id)),
     hasStartlist: !!race.startlistImportedAt,
     style: 'max-width:860px;padding:0 1.5rem;margin:0.85rem auto',
   }) + `

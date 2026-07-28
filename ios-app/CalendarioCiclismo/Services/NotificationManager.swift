@@ -41,11 +41,12 @@ final class NotificationManager: NSObject {
         case startOrder(String) // raceDayId → orden de salida
         case profile(String)    // raceDayId → perfil de elevación de la jornada
         case routeMap(String)   // raceDayId → mapa del recorrido de la jornada
+        case team(String)       // teamId → ficha del equipo en Mercado de Fichajes
 
         /// Parsea un string de deep link recibido de la notificación.
         static func parse(_ value: String) -> DeepLink? {
             // Formato: "race/{id}", "stage/{id}", "startlist/{id}",
-            // "startOrder/{id}", "perfil/{id}" o nombre de pestaña.
+            // "startOrder/{id}", "perfil/{id}", "team/{id}" o nombre de pestaña.
             if value.hasPrefix("race/") {
                 let id = String(value.dropFirst(5))
                 return id.isEmpty ? nil : .race(id)
@@ -73,6 +74,10 @@ final class NotificationManager: NSObject {
                 let id = String(value.dropFirst(5))
                 return id.isEmpty ? nil : .routeMap(id)
             }
+            if value.hasPrefix("team/") {
+                let id = String(value.dropFirst(5))
+                return id.isEmpty ? nil : .team(id)
+            }
             // Pestañas (apps 4.0): Hoy(0) · Resultados(1) · Fichajes(2) ·
             // Calendario(3). "month" y "season" apuntan ambas al tab Calendario
             // fusionado; "search" (pushes antiguos, tab retirado) cae a Hoy.
@@ -95,6 +100,7 @@ final class NotificationManager: NSObject {
         ///   - `calendariociclismo://startOrder/{id}` → `.startOrder(id)`
         ///   - `calendariociclismo://perfil/{id}`     → `.profile(id)`
         ///   - `calendariociclismo://mapa/{id}`       → `.routeMap(id)`
+        ///   - `calendariociclismo://team/{id}`       → `.team(id)`
         ///   - `calendariociclismo://tab/{name}`      → `.tab(index)`
         ///   - `calendariociclismo://{tabName}`       → `.tab(index)` (forma corta)
         ///
@@ -108,7 +114,7 @@ final class NotificationManager: NSObject {
             let extraSegments = url.pathComponents.filter { $0 != "/" }
 
             if host == "race" || host == "stage" || host == "startlist"
-                || host == "startOrder" || host == "perfil" || host == "mapa" {
+                || host == "startOrder" || host == "perfil" || host == "mapa" || host == "team" {
                 guard let id = extraSegments.first, !id.isEmpty else { return nil }
                 return parse("\(host)/\(id)")
             }

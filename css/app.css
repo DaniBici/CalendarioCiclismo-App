@@ -1715,7 +1715,7 @@ h2.jornada-section__title {
   font-weight: 700;
   color: var(--text);
   line-height: 1.1;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.28rem;
   text-align: center;
 }
 .route-block__km--empty {
@@ -1727,6 +1727,7 @@ h2.jornada-section__title {
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
+  margin-bottom: 0.22rem;
   text-align: center;
 }
 .route-block__type {
@@ -1768,29 +1769,30 @@ h2.jornada-section__title {
 }
 .route-grid__block--guide .route-grid__body { flex: 1 1 auto; }
 
-/* Botón "Ver horarios de paso" (espejo del acceso inline de las apps):
-   pill de acento suave, icono de reloj + chevron, anclado al pie del bloque. */
+/* Acceso a la guía: enlace secundario, icono de reloj + chevron, anclado al
+   pie del bloque. Debe quedar por debajo de los horarios, que son el dato
+   principal de esta columna. */
 .route-grid__guide-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4em;
+  gap: 0.32em;
   align-self: center;
   margin-top: 0.6rem;
-  padding: 0.34rem 0.7rem 0.34rem 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--accent, #1a5ca8) 28%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent, #1a5ca8) 10%, transparent);
-  color: var(--accent, #1a5ca8);
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--text-muted);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+  transition: background var(--transition), color var(--transition), transform var(--transition);
 }
 .route-grid__guide-btn:hover {
-  background: color-mix(in srgb, var(--accent, #1a5ca8) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent, #1a5ca8) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #1a5ca8) 8%, transparent);
+  color: var(--accent, #1a5ca8);
 }
 .route-grid__guide-btn:active { transform: translateY(0.5px); }
 .route-grid__guide-btn:focus-visible {
@@ -1980,26 +1982,65 @@ h2.jornada-section__title {
 
 .asset-links {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
 }
+.asset-links::-webkit-scrollbar { display: none; }
+.asset-links-wrap { position: relative; }
+.asset-links__prev,
+.asset-links__next {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: inline-flex;
+  width: 2.15rem;
+  height: 100%;
+  padding: 0;
+  background: linear-gradient(90deg, transparent, var(--bg-card) 34%);
+  color: var(--text-muted);
+}
+.asset-links__prev { left: 0; right: auto; background: linear-gradient(90deg, var(--bg-card) 66%, transparent); }
+.asset-links__prev[hidden],
+.asset-links__next[hidden] { display: none; }
 .asset-btn {
   display: inline-flex;
+  flex: 0 0 104px;
+  min-height: 56px;
+  flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.42rem 0.9rem;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0.42rem 0.5rem;
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: 0;
+  border-right: 1px solid var(--border);
   font-family: var(--font-display);
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-muted);
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
   cursor: pointer;
+  overflow: hidden;
   transition: background var(--transition), color var(--transition);
+  text-align: center;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.12;
 }
+.asset-btn__label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-btn:last-child { border-right: none; }
 .asset-btn:hover { color: var(--text); background: var(--accent-dim); }
 
 /* ── Botones de resultados externos (fuentes externas) ─────── */
@@ -2543,6 +2584,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--border);
     border-bottom: 0;
+    background: #fff;
   }
   .primary-nav__inner {
     width: 100%;
@@ -2562,41 +2604,35 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     font-size: 0.68rem;
     line-height: 1.1;
     scroll-snap-align: start;
+    background: #fff;
+    border-right: 1px solid var(--border);
   }
-  /* Los cuatro destinos principales llenan la barra. La flecha circular sobre
-     el borde derecho comunica que tras ellos hay más secciones. */
-  .primary-nav a.primary-nav__main { flex: 0 0 25%; }
+  /* Los seis destinos son celdas equivalentes de una sola tira. */
+  .primary-nav a.primary-nav__main,
+  .primary-nav a.primary-nav__secondary { flex: 0 0 25%; }
   .primary-nav__icon { width: 21px; height: 21px; }
-  .primary-nav a.primary-nav__secondary {
-    flex: 0 0 auto;
-    padding-right: 0.85rem;
-    padding-left: 0.85rem;
-    font-size: 0.7rem !important;
-  }
-  .primary-nav__divider {
-    display: block;
-    flex: 0 0 1px;
-    margin: auto 0.2rem;
-  }
+  .primary-nav__divider { display: none; }
+  .primary-nav__prev,
   .primary-nav__more {
     position: absolute;
-    top: 50%;
-    right: 5px;
+    top: 0;
+    right: 0;
     z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 25px;
-    height: 25px;
+    width: 2.15rem;
+    height: 100%;
     padding: 0;
-    border: 1px solid var(--border-light);
-    border-radius: 50%;
-    background: var(--bg-header);
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(90deg, transparent, #fff 34%);
     color: var(--text-muted);
     cursor: pointer;
-    transform: translateY(-50%);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.16);
   }
+  .primary-nav__prev { left: 0; right: auto; background: linear-gradient(90deg, #fff 66%, transparent); }
+  .primary-nav__prev[hidden],
+  .primary-nav__more[hidden] { display: none; }
   .primary-nav__more:hover { color: var(--accent-text); background: var(--accent-dim); }
   .primary-nav__more svg { width: 16px; height: 16px; }
   .primary-nav a.active::after {

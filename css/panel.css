@@ -810,7 +810,12 @@ html.dark  .date-nav__input { color-scheme: dark; }
 
 /* Sección avanzada colapsable (<details>): la cabecera es el <summary>,
    con caret de disclosure y una pista a la derecha. */
-.editor-section--advanced > summary { cursor: pointer; list-style: none; gap: 0.5rem; }
+.editor-section--advanced > summary {
+  cursor: pointer;
+  list-style: none;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
 .editor-section--advanced > summary::-webkit-details-marker { display: none; }
 .editor-advanced__summary::before {
   content: '▸';
@@ -1037,6 +1042,33 @@ html.dark  .date-nav__input { color-scheme: dark; }
   color: var(--text-muted);
   text-align: right;
   white-space: nowrap;
+}
+
+/* Puertos — en escritorio las cabeceras comparten exactamente la rejilla de
+   sus campos. Con el antiguo flex, los huecos de los botones ⌖/✕ desplazaban
+   "long. · %" y cada encabezado acababa sobre la columna equivocada. */
+@media (min-width: 641px) {
+  .editor-section__body:has(#summitsList) .ann-row--header,
+  #summitsList .ann-row {
+    display: grid;
+    grid-template-columns: 4.5rem 4.5rem minmax(6rem, 1fr) 3.5rem 4.5rem 4.5rem 5.5em 5.5em 2rem 6.5rem 2rem;
+    column-gap: 0.4rem;
+    align-items: center;
+  }
+  #summitsList .ann-row > * { min-width: 0; }
+  #summitsList .ann-row .ann-km,
+  #summitsList .ann-row .ann-alt,
+  #summitsList .ann-row .ann-name--wide,
+  #summitsList .ann-row .ann-cat,
+  #summitsList .ann-row .ann-side,
+  #summitsList .ann-row .ann-start,
+  #summitsList .ann-row .ann-foot-time,
+  #summitsList .ann-row .ann-time,
+  #summitsList .ann-row .ann-stats,
+  #summitsList .ann-row .ann-detect-btn,
+  #summitsList .ann-row .ann-del-btn { width: auto; }
+  #summitsList .ann-row .ann-detect-btn,
+  #summitsList .ann-row .ann-del-btn { padding-inline: 0; }
 }
 
 /* ── Summit rows — 2-row grid on mobile ──────────────────────── */
@@ -2340,27 +2372,29 @@ html.dark .ga-platform-card[data-platform="android"] .ga-platform-card__lbl { co
   cursor: pointer;
   user-select: none;
 }
-/* punto/swatch de color circular clicable (3×) */
-/* El swatch de color escapa del estilo global `.field input` (width:100% +
-   padding + appearance:none lo aplastaban a una fina línea) — de ahí el
-   selector reforzado y el reset de appearance/padding/width. */
-.field input.u-color-dot,
-.u-color-dot {
+/* Muestra de color fija: evita que Safari estire el input nativo. */
+.field input[type="color"].u-color-dot,
+input[type="color"].u-color-dot {
   -webkit-appearance: none;
   appearance: none;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid #444;
-  border-radius: 50%;
+  box-sizing: border-box;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
   cursor: pointer;
-  background: none;
-  flex-shrink: 0;
+  background: var(--bg-input);
+  flex: 0 0 32px;
   overflow: hidden;
 }
 .u-color-dot::-webkit-color-swatch-wrapper { padding: 0; }
-.u-color-dot::-webkit-color-swatch { border: none; border-radius: 50%; }
-.u-color-dot::-moz-color-swatch { border: none; border-radius: 50%; }
+.u-color-dot::-webkit-color-swatch { border: none; border-radius: 2px; }
+.u-color-dot::-moz-color-swatch { border: none; border-radius: 2px; }
 
 /* — Texto — */
 .u-dim            { color: var(--text-dim); font-weight: 400; } /* 14× */

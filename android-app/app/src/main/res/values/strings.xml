@@ -64,7 +64,7 @@
     <string name="today_results_title_with_stage">Resultados · %1$s</string>
     <string name="today_results_cd">Resultados</string>
     <string name="today_revive_cd">Revive</string>
-    <string name="today_startlist_badge">Inscritos</string>
+    <string name="today_startlist_badge">Dorsales</string>
     <string name="today_prev_day_cd">Día anterior</string>
     <string name="today_next_day_cd">Día siguiente</string>
     <string name="today_refresh_cd">Actualizar</string>
@@ -135,14 +135,14 @@
     <string name="stage_label_route_unknown">Jornada no encontrada</string>
     <string name="stage_doc_web_official">Web oficial</string>
     <string name="stage_doc_startlist_provisional">Lista provisional</string>
-    <string name="stage_doc_startlist_female">Inscritas</string>
-    <string name="stage_doc_startlist_male">Inscritos</string>
+    <string name="stage_doc_startlist_female">Dorsales</string>
+    <string name="stage_doc_startlist_male">Dorsales</string>
     <string name="stage_doc_profile">Perfil</string>
-    <string name="stage_doc_profile_official">Perfil oficial</string>
-    <string name="stage_doc_profile_interactive">Perfil interactivo</string>
+    <string name="stage_doc_profile_official">Perfil</string>
+    <string name="stage_doc_profile_interactive">Perfil + Datos</string>
     <string name="stage_doc_map">Mapa</string>
-    <string name="stage_doc_map_official">Mapa oficial</string>
-    <string name="stage_doc_map_interactive">Mapa interactivo</string>
+    <string name="stage_doc_map_official">Mapa</string>
+    <string name="stage_doc_map_interactive">Mapa 3D</string>
     <string name="stage_doc_sterrato">Sterrato</string>
     <string name="stage_doc_ribinou">Ribinou</string>
     <string name="stage_doc_add_to_calendar">Añadir al calendario</string>
@@ -181,7 +181,6 @@
     <string name="startlist_label_riders_female">Corredoras</string>
     <string name="startlist_disclaimer_provisional_title">Lista provisional</string>
     <string name="startlist_disclaimer_provisional_body">No se considera definitiva hasta la reunión de directores. Esta indicación desaparecerá cuando sea oficial.</string>
-    <string name="startlist_disclaimer_no_spoilers">Lista al inicio de la competición. No se actualiza después de las etapas (no spoilers).</string>
     <string name="startlist_team_confirmed_cd">Confirmado</string>
     <string name="startlist_team_pending_cd">Pendiente</string>
 
@@ -431,6 +430,7 @@
     <!-- Tipos de asset -->
     <string name="asset_start_order">Orden Salida</string>
     <string name="asset_roadbook">Rutómetro</string>
+    <string name="asset_technical_guide">Libro de Ruta</string>
     <string name="asset_profile">Perfil</string>
     <string name="asset_ports">Puertos</string>
     <string name="asset_pave">Pavé</string>
@@ -448,8 +448,8 @@
     <string name="settings_race_follow_title">Carreras</string>
 
     <!-- Suscripciones a carreras (notificaciones) -->
-    <string name="race_startlist">Inscritos</string>
-    <string name="race_startlist_female">Inscritas</string>
+    <string name="race_startlist">Dorsales</string>
+    <string name="race_startlist_female">Dorsales</string>
     <string name="race_notifications">Notificaciones</string>
     <string name="race_notifications_mode_title">Modo de notificaciones</string>
     <string name="race_notifications_mode_body">Ahora recibes notificaciones de todas las carreras. ¿Quieres cambiar a recibir solo de esta?</string>
@@ -539,6 +539,8 @@
     <!-- Fichajes (mercado 2027, apps 4.0) -->
     <string name="transfers_heading">Mercado de Fichajes %1$d</string>
     <string name="transfers_feed_title">Últimas confirmaciones</string>
+    <string name="transfers_feed_signings">Fichajes</string>
+    <string name="transfers_feed_renewals">Renovaciones</string>
     <string name="transfers_feed_empty">Todavía no hay movimientos confirmados.</string>
     <string name="transfers_teams_title">Equipos %1$d</string>
     <string name="transfers_teams_empty">Sin equipos en esta división.</string>
@@ -565,5 +567,5 @@
     <string name="transfers_error">No se pudo cargar el mercado de fichajes.</string>
     <string name="transfers_info_label">Información sobre los fichajes</string>
     <string name="transfers_info_title">Mercado de fichajes</string>
-    <string name="transfers_info_text">La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de Nacho Labarga (MARCA), Dani Miranda (AS), Ciro Scognamiglio (La Gazzetta dello Sport), Youri IJnsen (WielerFlits), James Odvart (DirectVelo), Daniel Benson y Bram Vandecapelle (Het Laatste Nieuws).</string>
+    <string name="transfers_info_text">La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de:</string>
 </resources>

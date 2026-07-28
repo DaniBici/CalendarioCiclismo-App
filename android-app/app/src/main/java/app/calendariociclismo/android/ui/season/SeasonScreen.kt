@@ -193,8 +193,12 @@ fun SeasonScreen(
     val availableYears = remember(allRaces) {
         val currentYear = LocalDate.now().year
         val fromData = allRaces.mapNotNull { it.year }.toSet()
-        ((currentYear - 1)..(currentYear + 1)).toList()
+        // Calendario solo ofrece la temporada actual y las futuras. Los datos
+        // offline pueden conservar años anteriores, pero no deben reaparecer
+        // en este selector.
+        (currentYear..(currentYear + 1)).toList()
             .union(fromData)
+            .filter { it >= currentYear }
             .sortedDescending()
     }
     data class CountryEntry(val code: String, val label: String, val name: String)

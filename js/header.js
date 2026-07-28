@@ -130,17 +130,28 @@ function buildHeader(el) {
     '<span class="primary-nav__divider" aria-hidden="true"></span>' +
     `<a class="primary-nav__secondary" href="${s.aboutHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.about}</span><span>${s.aboutText}</span></a>` +
     `<a class="primary-nav__secondary" href="${s.openHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.open}</span><span>${s.openText}</span></a>` +
-    `</div><button class="primary-nav__more" type="button" aria-label="${lang === 'en' ? 'Show more sections' : 'Mostrar más secciones'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></nav>`;
+    `</div><button class="primary-nav__prev" type="button" aria-label="${lang === 'en' ? 'Show previous sections' : 'Mostrar secciones anteriores'}" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button class="primary-nav__more" type="button" aria-label="${lang === 'en' ? 'Show more sections' : 'Mostrar más secciones'}" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></nav>`;
   el.insertAdjacentHTML('afterend', primaryNav);
 
   const moreButton = document.querySelector('.primary-nav__more');
+  const prevButton = document.querySelector('.primary-nav__prev');
   const primaryInner = document.querySelector('.primary-nav__inner');
+  const syncMoreButton = () => {
+    if (!moreButton || !prevButton || !primaryInner) return;
+    prevButton.hidden = primaryInner.scrollLeft <= 1;
+    moreButton.hidden = primaryInner.scrollLeft + primaryInner.clientWidth >= primaryInner.scrollWidth - 2;
+  };
   moreButton?.addEventListener('click', () => {
     if (!primaryInner) return;
-    const atEnd = primaryInner.scrollLeft + primaryInner.clientWidth >= primaryInner.scrollWidth - 2;
-    if (atEnd) primaryInner.scrollTo({ left: 0, behavior: 'smooth' });
-    else primaryInner.scrollBy({ left: Math.round(primaryInner.clientWidth * 0.75), behavior: 'smooth' });
+    primaryInner.scrollTo({ left: primaryInner.scrollWidth, behavior: 'smooth' });
   });
+  prevButton?.addEventListener('click', () => {
+    if (!primaryInner) return;
+    primaryInner.scrollTo({ left: 0, behavior: 'smooth' });
+  });
+  primaryInner?.addEventListener('scroll', syncMoreButton, { passive: true });
+  window.addEventListener('resize', syncMoreButton, { passive: true });
+  requestAnimationFrame(syncMoreButton);
 
   // Botón "Apps": apps-modal.js (script clásico al pie) ya corrió y dejó
   // window.openAppsModal, pero no pudo enlazar el botón (aún no existía).

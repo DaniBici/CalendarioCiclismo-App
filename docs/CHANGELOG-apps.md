@@ -6,6 +6,42 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`423` / `4.1` = ORDEN DEL LIBRO DE RUTA: en Jornada, el Libro de Ruta común a la competición se muestra tras la web oficial y antes de Dorsales, igual que en Competición y web. Espejo iOS `1230`.**
+
+**`422` / `4.1` = FLECHAS CIRCULARES: las flechas de acciones pasan a un control circular de borde, con fundido de solo 24 dp y área táctil conservada. Espejo iOS `1229`.**
+
+**`421` / `4.1` = FLECHAS AÚN MÁS COMPACTAS: la navegación lateral de acciones se estrecha a 40 dp y el fundido ocupa menos espacio. Espejo iOS `1228`.**
+
+**`420` / `4.1` = FLECHAS MÁS DISCRETAS: la navegación de acciones se ancla más al borde y sus fundidos laterales se reducen. Espejo iOS `1227`.**
+
+**`419` / `4.1` = CALENDARIO SIN 2025: Temporada deja de ofrecer años anteriores en el selector; conserva el actual y los futuros publicados.**
+
+**`418` / `4.1` = LIBRO DE RUTA INTERNO: en Competición, el Libro de Ruta se abre con el navegador interno; Notificaciones ya no deja un separador al final de la tira.**
+
+**`417` / `4.1` = FLECHAS DE ACCIONES: las flechas de la tira horizontal llevan directamente al inicio o al final, por lo que desaparecen en un solo toque al alcanzar cada extremo.**
+
+**`416` / `4.1` = NOTIFICACIONES SIEMPRE ACCESIBLES: el control para seguir una jornada o competición se muestra aunque aún no se hayan concedido permisos de notificación. Espejo iOS `1225`.**
+
+**`415` / `4.1` = ACCIONES ARMÓNICAS: las acciones de jornada y competición adoptan las celdas azul tenue de iOS, icono y texto de una línea, separadores y fundidos laterales a toda altura; también Notificaciones y Añadir al calendario. Paridad visual con iOS `1223`.**
+
+**`414` / `4.1` = TEMPORADA 2027: Mes permite escoger el año siguiente antes del 1 de enero, para consultar e introducir el calendario ya publicado. Espejo iOS `1224`.**
+
+**`413` / `4.1` = NOTIFICACIONES + FICHAJES: el panel puede enviar al Mercado de Fichajes o a la ficha de un equipo de su temporada; Android e iOS resuelven los destinos `transfers` y `team/{teamId}`. Espejo iOS `1223`.**
+
+**`412` / `4.1` = RETORNO DE ACCIONES: Android añade la flecha izquierda al avanzar; iOS adopta flechas bidireccionales para tiras largas. Espejo iOS `1220`.**
+
+**`411` / `4.1` = AVANCE DE ACCIONES: las tiras horizontales de documentación muestran una flecha de avance solo cuando existen acciones fuera del área visible; al tocarla desplazan suavemente el contenido y desaparecen al final.**
+
+**`410` / `4.1` = ACCIONES AGRUPADAS: la documentación de jornadas y competición adopta celdas compactas de ancho fijo, icono superior, etiqueta a una línea y separadores; iOS conserva el desplazamiento horizontal nativo conforme a sus pautas. Las duplicidades pasan a «Perfil + Datos»/«Profile + Data» y «Mapa 3D»/«3D Map». Espejo iOS `1218`.**
+
+**`409` / `4.1` = LIBRO DE RUTA + ACCIONES: nuevo asset de competición «Libro de Ruta»/«Technical Guide», accesible desde cualquier etapa y Competición; las acciones pasan a una tira horizontal de ancho fijo para evitar acumulaciones de filas. Las guías grandes no entran en la descarga automática sin conexión. Espejo iOS `1217`.**
+
+**`408` / `4.0.7` = DORSALES: los badges y botones de la lista de salida pasan de «Inscritos/Inscritas» a «Dorsales» en Android, web e iOS; «Lista provisional» se conserva en castellano y pasa a «Provisional Startlist» en inglés. Espejo iOS `1216`.**
+
+**`407` / `4.0.6` = FICHAJES: el aviso de fuentes enlaza en cada plataforma los nombres de los siete periodistas acreditados a sus cuentas de X, como en Datos abiertos. Espejo web + iOS `1215`. Sin cambio de versión de marketing.**
+
+**`406` / `4.0.6` = INSCRITOS: se retira el aviso «Lista al inicio de la competición. No se actualiza después de las etapas (no spoilers)». Las listas ya reflejan los abandonos mediante los resultados propios. Espejo web + iOS `1214`. Sin AAB a propósito.**
+
 **`405` / `4.0.5` = JORNADAS: cuando hay archivo de mapa oficial y mapa interactivo GPX, muestra ambos chips en ese orden, igual que los perfiles.**
 
 **`404` / `4.0.5` = corrección de versión de marketing antes de publicar: sustituye la 4.0.4 preparada por la primera versión pública de este cambio.**
@@ -58,6 +94,34 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1234` / `MARKETING_VERSION 4.1` = ORDEN DEL LIBRO DE RUTA: Jornada extrae la guía técnica de la lista genérica para situarla, sin duplicados, tras la web oficial y antes de Dorsales. Competición ya respetaba este orden. Espejo Android `423`.**
+
+**`1229` / `MARKETING_VERSION 4.1` = FLECHAS CIRCULARES: las flechas de acciones pasan a un control circular de borde, con fundido de solo 24 pt y área táctil conservada. Espejo Android `422`.**
+
+**`1228` / `MARKETING_VERSION 4.1` = FLECHAS AÚN MÁS COMPACTAS: la navegación lateral de acciones se estrecha a 40 pt y el fundido ocupa menos espacio. Espejo Android `421`.**
+
+**`1227` / `MARKETING_VERSION 4.1` = FLECHAS MÁS DISCRETAS: la navegación de acciones se ancla más al borde y sus fundidos laterales se reducen. Espejo Android `420`.**
+
+**`1226` / `MARKETING_VERSION 4.1` = FLECHA IZQUIERDA CON FUNDIDO: el regreso de la tira de acciones usa un degradado explícito a toda altura, con el fondo de tarjeta opaco en el borde y sin rebote más allá del final. En Competición, Notificaciones no deja un separador final.**
+
+**`1225` / `MARKETING_VERSION 4.1` = NOTIFICACIONES SIEMPRE ACCESIBLES: el control para seguir una jornada o competición se muestra aunque aún no se hayan concedido permisos de notificación. Espejo Android `416`.**
+
+**`1224` / `MARKETING_VERSION 4.1` = TEMPORADA 2027: Mes y Temporada permiten escoger el año siguiente antes del 1 de enero, para consultar e introducir el calendario ya publicado. Espejo Android `414`.**
+
+**`1223` / `MARKETING_VERSION 4.1` = NOTIFICACIONES + FICHAJES: el panel puede enviar al Mercado de Fichajes o a la ficha de un equipo de su temporada; Android e iOS resuelven los destinos `transfers` y `team/{teamId}`. Espejo Android `413`.**
+
+**`1222` / `MARKETING_VERSION 4.1` = FLECHAS CON DEGRADADO: la ocultación de acciones bajo las flechas adopta el fundido lateral de la web.**
+
+**`1221` / `MARKETING_VERSION 4.1` = FLECHAS DE ACCIONES: las bandas de navegación lateral son opacas para ocultar por completo las celdas que quedan detrás.**
+
+**`1219` / `MARKETING_VERSION 4.1` = ACCIONES ARMONIZADAS: las celdas de documentación usan el mismo tinte de marca suave y separadores, incluidas Notificaciones y Añadir al calendario.**
+
+**`1216` / `MARKETING_VERSION 4.0.7` = DORSALES: los badges y botones de la lista de salida pasan de «Inscritos/Inscritas» a «Dorsales» en iOS, web y Android; «Lista provisional» se conserva en castellano y pasa a «Provisional Startlist» en inglés. Espejo Android `408`.**
+
+**`1215` / `MARKETING_VERSION 4.0.6` = FICHAJES: el aviso de fuentes presenta enlaces pulsables, en los nombres de los siete periodistas acreditados, a sus cuentas de X de Datos abiertos. Espejo web + Android `407`. Sin cambio de versión de marketing.**
+
+**`1214` / `MARKETING_VERSION 4.0.6` = INSCRITOS: se retira el aviso de «no spoilers»; las listas ya reflejan los abandonos mediante los resultados propios. Espejo web + Android `406`. Sin AAB a propósito.**
 
 **`1213` / `MARKETING_VERSION 4.0.5` = JORNADAS: cuando hay archivo de mapa oficial y mapa interactivo GPX, muestra ambos chips en ese orden, igual que los perfiles.**
 

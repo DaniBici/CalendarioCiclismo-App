@@ -104,7 +104,7 @@ El panel permite programar una notificación para que se envíe automáticamente
 
 1. Admin rellena el formulario, activa "Programar para más tarde" y elige fecha/hora local.
 2. Panel hace POST a `send-push` con `{ ..., scheduledAt: "<ISO UTC>" }` → edge function guarda en `scheduled_push_notifications` (status `pending`) y retorna inmediatamente.
-3. GitHub Actions (`scheduled-push.yml`) corre cada 5 minutos, hace POST con `{ processScheduled: true }` + `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`.
+3. Supabase `pg_cron` invoca `send-push` cada 5 minutos. La Edge Function solo reclama y entrega las pendientes entre las 08:00 y las 22:00 de España peninsular (`Europe/Madrid`), por lo que aplica correctamente CET/CEST; fuera de la franja las deja pendientes para la mañana siguiente.
 4. La edge function actualiza atómicamente las `pending` con `scheduledAt <= now()` a `processing`, las envía una a una (reutilizando `doSend()`), e inserta cada envío en `push_notifications` (historial).
 5. La sección "Programadas" del panel muestra estado en tiempo real (pending / failed / cancelled).
 
@@ -114,11 +114,12 @@ El panel permite programar una notificación para que se envíe automáticamente
 |---|---|
 | `supabase/migrations/032_scheduled_push_notifications.sql` | Tabla `scheduled_push_notifications` + RLS + índice parcial |
 | `supabase/functions/send-push/index.ts` | Tres modos: inmediato / `scheduledAt` / `processScheduled` |
-| `.github/workflows/scheduled-push.yml` | Cron `*/5 * * * *` — invoca `processScheduled` con service role key |
+| `supabase/migrations/036_pg_cron_scheduled_push.sql` | Crea el job `pg_cron` que invoca `processScheduled` cada 5 min |
+| `.github/workflows/scheduled-push.yml` | Ejecución manual de diagnóstico de `processScheduled` con `CRON_SECRET` |
 | `panel/app.html` | Toggle "Programar para más tarde" + campo datetime-local + sección "Programadas" |
 | `js/panel.js` | `loadScheduledNotifications()`, `cancelScheduledNotification()`, lógica en `sendPushNotification()` |
 
-**Secret de GitHub necesario:** `SUPABASE_SERVICE_ROLE_KEY` (Settings → Secrets → Actions del repo).
+**Secret de GitHub necesario:** `CRON_SECRET` (Settings → Secrets → Actions del repo).
 
 **Cancelación:** El panel hace `UPDATE status='cancelled' WHERE status='pending'` — si el cron ya lo reclamó (`processing`) no se puede cancelar.
 
