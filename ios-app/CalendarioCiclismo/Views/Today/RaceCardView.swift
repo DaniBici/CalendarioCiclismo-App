@@ -76,7 +76,7 @@ struct RaceCardView: View {
     /// `premium.featuresUnlocked` (siempre visible), no por la suscripción.
     private var showsMiniProfile: Bool {
         guard premium.featuresUnlocked else { return false }
-        guard !rd.isRestDay, !rd.isCancelledDay, !isFinishedMode else { return false }
+        guard !rd.isRestDay, !rd.isCancelledDay else { return false }
         guard let pts = rd.elevationProfile?.points, pts.count >= 2 else { return false }
         return true
     }
@@ -130,7 +130,8 @@ struct RaceCardView: View {
             primaryType: rd.primaryType,
             startTime: rd.neutralStartTimeUtc.flatMap(DateFormatting.parseISO),
             endTime: rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
-            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt"
+            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt",
+            forceCompleted: isFinishedMode
         )
     }
 

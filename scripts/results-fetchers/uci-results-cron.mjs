@@ -445,10 +445,17 @@ async function main() {
     if (totalRows === 0) { log('  ∅ la fuente aún no publica filas → se deja pending (sin upsert)'); return { status: 'empty', didWrite: false }; }
 
     const upArgs = ['--in', jsonPath, '--race-id', t.raceId, '--gender', t.gender, '--apply'];
-    // Volcado dirigido a UNA etapa (--stage con --race-id): el upsert descarta el resto
-    // de etapas del JSON. Solo aquí; el cron automático (sin --race-id) nunca lo pasa.
+    // Volcado acotado a UNA etapa: el manual usa --stage con --race-id; el automático
+    // configurado trae scheduledStage. En la ÚLTIMA etapa automática se conserva además
+    // la pseudo-etapa Final Classification (stageNumber NULL), porque nace en el mismo
+    // fetch. Sin --include-final el filtro de etapa la descartaría silenciosamente.
     const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
-    if (targetStage != null) upArgs.push('--only-stage', String(targetStage));
+    if (targetStage != null) {
+      upArgs.push('--only-stage', String(targetStage));
+      const isAutomaticFinalStage = !ONE_RACE && t.totalStages != null
+        && Number(targetStage) === Number(t.totalStages);
+      if (isAutomaticFinalStage) upArgs.push('--include-final');
+    }
     // CN: persistir el MISMO uciRaceId en el link (sin esto el upsert lo resetea a 0 y
     // choca con el índice único (competitionId, disciplineId, uciRaceId)).
     if (uciRaceId) upArgs.push('--uci-race-id', String(uciRaceId));

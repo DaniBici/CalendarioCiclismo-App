@@ -125,6 +125,7 @@ struct TransfersView: View {
                             selected: activeFeed == .renewals
                         ) { activeFeed = .renewals }
                     }
+                    .padding(.top, 6)
                     .padding(.bottom, 8)
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 8) {
@@ -351,16 +352,18 @@ struct TransferFeedRowView: View {
         return CCCard {
             HStack(spacing: 8) {
                 CountryFlag(countryCode: rider?.nationality, width: 15)
-                // Corredor + movimiento trunca con "…" a una línea (misma
-                // fórmula que las cards de Hoy): sin doble altura, y el badge de
-                // año queda fijo a la derecha.
+                // Corredor + movimiento trunca con "…" a una línea; el año de
+                // contrato (o el marcador de mitad de temporada) queda fijo a la derecha.
                 Text(moveText(rider: rider, unknownTeam: unknownTeam))
                     .font(.footnote)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 4)
-                // El año de contrato como BADGE (solo el año, sin "hasta").
-                if let until = transfer.contractUntil { YearBadge(year: until) }
+                if transfer.midSeason {
+                    MidSeasonBadge()
+                } else if let contractUntil = transfer.contractUntil {
+                    YearBadge(year: contractUntil)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

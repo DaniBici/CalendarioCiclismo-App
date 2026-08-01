@@ -29,6 +29,8 @@ struct RiderTransfer: Codable, Identifiable, Hashable {
     /// false → fuera del feed de últimos, pero cuenta en el detalle de equipo
     /// (mig. 123). Default true = el comportamiento previo a la columna.
     let dateVisible: Bool
+    /// Fichaje efectivo durante la temporada en curso (mig. 136).
+    let midSeason: Bool
     let createdAt: String?
 
     // Init propio: `dateVisible` cae a `true` si la clave no viene (columna
@@ -49,6 +51,7 @@ struct RiderTransfer: Codable, Identifiable, Hashable {
         contractUntil = try c.decodeIfPresent(Int.self, forKey: .contractUntil)
         announcedAt = try c.decodeIfPresent(String.self, forKey: .announcedAt)
         dateVisible = try c.decodeIfPresent(Bool.self, forKey: .dateVisible) ?? true
+        midSeason = try c.decodeIfPresent(Bool.self, forKey: .midSeason) ?? false
         createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
     }
 
@@ -58,7 +61,8 @@ struct RiderTransfer: Codable, Identifiable, Hashable {
         fromTeamId: String? = nil, fromTeamName: String? = nil,
         toTeamId: String? = nil, toTeamName: String? = nil,
         type: String, status: String, contractUntil: Int? = nil,
-        announcedAt: String? = nil, dateVisible: Bool = true, createdAt: String? = nil
+        announcedAt: String? = nil, dateVisible: Bool = true, midSeason: Bool = false,
+        createdAt: String? = nil
     ) {
         self.id = id
         self.season = season
@@ -73,6 +77,7 @@ struct RiderTransfer: Codable, Identifiable, Hashable {
         self.contractUntil = contractUntil
         self.announcedAt = announcedAt
         self.dateVisible = dateVisible
+        self.midSeason = midSeason
         self.createdAt = createdAt
     }
 }

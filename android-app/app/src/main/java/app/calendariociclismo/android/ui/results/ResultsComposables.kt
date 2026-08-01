@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.results
 
+import java.math.BigDecimal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -109,7 +110,7 @@ internal fun ResultsStageSelector(
     LaunchedEffect(activeKey, stageKeys) {
         snapshotFlow { listState.layoutInfo.viewportSize.width }.first { it > 0 }
         val viewportWidth = listState.layoutInfo.viewportSize.width
-        val itemHalfWidthPx = with(density) { 18.dp.roundToPx() }
+        val itemHalfWidthPx = with(density) { 16.dp.roundToPx() }
         listState.animateScrollToItem(
             index = activeIndex,
             scrollOffset = -(viewportWidth / 2 - itemHalfWidthPx),
@@ -118,7 +119,7 @@ internal fun ResultsStageSelector(
     LazyRow(
         state = listState,
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         items(stageKeys, key = { it }) { key ->
             // 'final'→F · '0'→P · '3'/'3A' → el número con su sufijo de sector.
@@ -148,7 +149,7 @@ internal fun ResultsClassTabsBar(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         val hasTabs = stages.size > 1
         if (hasTabs) {
@@ -162,7 +163,7 @@ internal fun ResultsClassTabsBar(
             Box(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.horizontalScroll(scrollState),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     stages.forEach { st ->
                         ResultsPill(
@@ -214,7 +215,7 @@ internal fun ResultsClassTabsBar(
                         .clip(RoundedCornerShape(50))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { expanded = true }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
@@ -261,7 +262,7 @@ private fun ResultsPill(label: String, selected: Boolean, onClick: () -> Unit) {
             .background(bg)
             .semantics { role = Role.Button; this.selected = selected }
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
 
@@ -385,10 +386,17 @@ internal fun ResultsTable(
     val valueHeader =
         if (isPts) stringResource(R.string.results_col_points) else stringResource(R.string.results_col_time)
     val sameTimeLabel = stringResource(R.string.results_same_time)
+    // El slot UCI nace solo cuando haya al menos un dato. Al filtrar por equipo
+    // se mantiene estable porque el contrato pertenece a la clasificación completa.
+    val showUciPoints = vms.any { it.uciPoints != null }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         CarriedStandingsNotice(stage)
-        ResultsTableHeader(showTeam = !isTeams, valueHeader = valueHeader)
+        ResultsTableHeader(
+            showTeam = !isTeams,
+            showUciPoints = showUciPoints,
+            valueHeader = valueHeader,
+        )
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         // m.t. dinámico: el 1º visible de cada grupo de gap muestra su gap real;
         // los siguientes con el mismo gap → m.t. (igual que applyTeamFilter web).
@@ -410,6 +418,7 @@ internal fun ResultsTable(
             ResultsRow(
                 vm = vm,
                 showTeam = !isTeams,
+                showUciPoints = showUciPoints,
                 displayKind = displayKind,
                 displayValue = displayValue,
             )
@@ -494,18 +503,23 @@ private fun CarriedStandingsNotice(stage: RaceUciStage) {
 }
 
 @Composable
-private fun ResultsTableHeader(showTeam: Boolean, valueHeader: String) {
+private fun ResultsTableHeader(
+    showTeam: Boolean,
+    showUciPoints: Boolean,
+    valueHeader: String,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HeaderCell("#", Modifier.width(34.dp))
+        HeaderCell("#", Modifier.width(32.dp))
         HeaderCell(
             stringResource(if (showTeam) R.string.results_col_rider else R.string.results_col_team),
             Modifier.weight(1f),
         )
-        HeaderCell(valueHeader, Modifier.width(76.dp), end = true)
+        if (showUciPoints) HeaderCell("UCI", Modifier.width(44.dp), end = true)
+        HeaderCell(valueHeader, Modifier.width(70.dp), end = true)
     }
 }
 
@@ -525,16 +539,17 @@ private fun HeaderCell(text: String, modifier: Modifier, end: Boolean = false) {
 private fun ResultsRow(
     vm: UciResultsLogic.ResultRowVM,
     showTeam: Boolean,
+    showUciPoints: Boolean,
     displayKind: UciResultsLogic.ValueKind,
     displayValue: String,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // # / IRM
-        Box(modifier = Modifier.width(34.dp), contentAlignment = Alignment.CenterStart) {
+        Box(modifier = Modifier.width(32.dp), contentAlignment = Alignment.CenterStart) {
             if (vm.rank != null) {
                 Text(
                     vm.rank.toString(),
@@ -554,11 +569,11 @@ private fun ResultsRow(
 
         // Corredor (bandera + nombre [+ equipo como subtítulo]) o equipo.
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode, height = 13.dp)
                 // Chapa: en filas de corredor, la de su equipo; en la pestaña
                 // Equipos, la del equipo casado por nombre (null si no casó).
-                if (vm.team != null) TeamBadgeComposable(vm.team, size = 16)
+                if (vm.team != null) TeamBadgeComposable(vm.team, size = 14)
                 Text(
                     vm.riderName.ifEmpty { "—" },
                     fontSize = 14.sp,
@@ -573,8 +588,8 @@ private fun ResultsRow(
             if (showTeam && vm.teamName.isNotEmpty()) {
                 Text(
                     vm.teamName,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -582,9 +597,23 @@ private fun ResultsRow(
             }
         }
 
-        // Valor (tiempo accent / gap gris / m.t. / Pts / vacío).
-        ResultValueCell(displayKind, displayValue, Modifier.width(76.dp))
+        // Jerarquía compartida: puesto · identidad · [UCI] · resultado.
+        if (showUciPoints) UciPointsCell(vm.uciPoints, Modifier.width(44.dp))
+        ResultValueCell(displayKind, displayValue, Modifier.width(70.dp))
     }
+}
+
+@Composable
+private fun UciPointsCell(points: Double?, modifier: Modifier) {
+    Text(
+        points?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty(),
+        modifier = modifier,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -620,15 +649,17 @@ private fun ResultsTttTable(
     val expanded = remember(rows) { mutableStateMapOf<Int, Boolean>() }
     val teamHeader = stringResource(R.string.results_col_team)
     val timeHeader = stringResource(R.string.results_col_time)
+    val showUciPoints = rows.any { it.uciPoints != null }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            HeaderCell("#", Modifier.width(34.dp))
+            HeaderCell("#", Modifier.width(32.dp))
             HeaderCell(teamHeader, Modifier.weight(1f))
-            HeaderCell(timeHeader, Modifier.width(76.dp), end = true)
+            if (showUciPoints) HeaderCell("UCI", Modifier.width(44.dp), end = true)
+            HeaderCell(timeHeader, Modifier.width(70.dp), end = true)
         }
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
@@ -639,13 +670,13 @@ private fun ResultsTttTable(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded[i] = !isOpen }
-                    .padding(horizontal = 4.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     team.rank?.toString() ?: "–",
-                    modifier = Modifier.width(34.dp),
+                    modifier = Modifier.width(32.dp),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -653,9 +684,9 @@ private fun ResultsTttTable(
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    if (team.team != null) TeamBadgeComposable(team.team, size = 16)
+                    if (team.team != null) TeamBadgeComposable(team.team, size = 14)
                     Text(
                         team.teamName.ifEmpty { "—" },
                         fontSize = 14.sp,
@@ -666,6 +697,7 @@ private fun ResultsTttTable(
                     )
                     Text(if (isOpen) "▴" else "▾", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                if (showUciPoints) UciPointsCell(team.uciPoints, Modifier.width(44.dp))
                 val (color, weight) = when {
                     team.rank == 1 && team.teamTimeText != null -> MaterialTheme.colorScheme.primary to FontWeight.Bold
                     else -> MaterialTheme.colorScheme.onSurfaceVariant to FontWeight.Normal
@@ -677,7 +709,7 @@ private fun ResultsTttTable(
                 }
                 Text(
                     value,
-                    modifier = Modifier.width(76.dp),
+                    modifier = Modifier.width(70.dp),
                     fontSize = 13.sp,
                     fontWeight = weight,
                     color = color,
@@ -692,11 +724,11 @@ private fun ResultsTttTable(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
-                            .padding(start = 42.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .padding(start = 38.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (rider.countryCode.isNotEmpty()) CountryFlag(countryCode = rider.countryCode)
+                        if (rider.countryCode.isNotEmpty()) CountryFlag(countryCode = rider.countryCode, height = 13.dp)
                         Text(
                             rider.name.ifEmpty { "—" },
                             modifier = Modifier.weight(1f),
@@ -708,9 +740,10 @@ private fun ResultsTttTable(
                         val indiv = if (!rider.irm.isNullOrEmpty()) {
                             UciResultsLogic.irmLabel(rider.irm, isEn)
                         } else rider.timeText.orEmpty()
+                        if (showUciPoints) UciPointsCell(rider.uciPoints, Modifier.width(44.dp))
                         Text(
                             indiv,
-                            modifier = Modifier.width(76.dp),
+                            modifier = Modifier.width(70.dp),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.End,

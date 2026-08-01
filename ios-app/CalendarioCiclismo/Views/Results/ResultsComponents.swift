@@ -46,7 +46,7 @@ struct ResultsStageSelector: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     ForEach(stageKeys, id: \.self) { key in
                         // "final"→F · "0"→P · "3"/"3A" → el número con su sufijo de sector.
                         let label: String = {
@@ -92,7 +92,7 @@ struct ResultsClassTabsBar: View {
     @State private var canScrollRight = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if stages.count > 1 {
                 // Las pestañas scrollean en horizontal y, con muchas clasificaciones,
                 // las de la derecha quedan ocultas tras el filtro de equipos. Un
@@ -101,7 +101,7 @@ struct ResultsClassTabsBar: View {
                 // la fila hasta el final.
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             ForEach(stages) { st in
                                 ResultsPill(
                                     label: resultsClassLabel(st.classKind),
@@ -159,8 +159,8 @@ struct ResultsClassTabsBar: View {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .semibold))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
                     .background(Color(.tertiarySystemBackground))
                     .foregroundStyle(Color(.secondaryLabel))
                     .clipShape(Capsule())
@@ -182,8 +182,8 @@ private struct ResultsPill: View {
             Text(label)
                 .font(.caption)
                 .fontWeight(selected ? .semibold : .regular)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
                 .background(selected ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
                 .foregroundStyle(selected ? Color.accentColor : Color(.secondaryLabel))
                 .clipShape(Capsule())
@@ -383,14 +383,22 @@ struct ResultsTableView: View {
             ? LocaleService.t("Pts", "Pts")
             : LocaleService.t("Tiempo", "Time")
         let display = displayRows(visible)
+        // El slot UCI nace solo cuando haya al menos un dato y permanece estable
+        // al filtrar por equipo porque pertenece a la clasificación completa.
+        let showUciPoints = vms.contains { $0.uciPoints != nil }
 
         VStack(spacing: 0) {
-            ResultsTableHeaderRow(showTeam: !isTeams, valueHeader: valueHeader)
+            ResultsTableHeaderRow(
+                showTeam: !isTeams,
+                showUciPoints: showUciPoints,
+                valueHeader: valueHeader
+            )
             Divider().opacity(0.4)
             ForEach(display.indices, id: \.self) { i in
                 let entry = display[i]
                 ResultsRowView(
-                    vm: entry.vm, showTeam: !isTeams, displayKind: entry.kind,
+                    vm: entry.vm, showTeam: !isTeams, showUciPoints: showUciPoints,
+                    displayKind: entry.kind,
                     displayValue: entry.value
                 )
                 Divider().opacity(0.4)
@@ -421,21 +429,26 @@ struct ResultsTableView: View {
 
 private struct ResultsTableHeaderRow: View {
     let showTeam: Bool
+    let showUciPoints: Bool
     let valueHeader: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ResultsHeaderCell(text: "#")
-                .frame(width: 34, alignment: .leading)
+                .frame(width: 32, alignment: .leading)
             ResultsHeaderCell(text: showTeam
                 ? LocaleService.t("Corredor", "Rider")
                 : LocaleService.t("Equipo", "Team"))
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if showUciPoints {
+                ResultsHeaderCell(text: "UCI")
+                    .frame(width: 44, alignment: .trailing)
+            }
             ResultsHeaderCell(text: valueHeader)
-                .frame(width: 76, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
         }
         .padding(.horizontal, 4)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 }
 
@@ -452,6 +465,7 @@ private struct ResultsHeaderCell: View {
 private struct ResultsRowView: View {
     let vm: UciResultsLogic.ResultRowVM
     let showTeam: Bool
+    let showUciPoints: Bool
     let displayKind: UciResultsLogic.ValueKind
     let displayValue: String
 
@@ -460,7 +474,7 @@ private struct ResultsRowView: View {
     }
 
     private var rowContent: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             // # / IRM
             Group {
                 if let rank = vm.rank {
@@ -473,18 +487,18 @@ private struct ResultsRowView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 34, alignment: .leading)
+            .frame(width: 32, alignment: .leading)
 
             // Corredor (bandera + chapa + nombre [+ equipo como subtítulo]) o equipo.
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     if !vm.countryCode.isEmpty {
-                        CountryFlag(countryCode: vm.countryCode)
+                        CountryFlag(countryCode: vm.countryCode, width: 17.33)
                     }
                     // Chapa: en filas de corredor, la de su equipo; en la pestaña
                     // Equipos, la del equipo casado por nombre (nil si no casó).
                     if let team = vm.team {
-                        TeamBadgeView(team: team, size: 16)
+                        TeamBadgeView(team: team, size: 14)
                     }
                     Text(vm.riderName.isEmpty ? "—" : vm.riderName)
                         .font(.system(size: 14, weight: .semibold))
@@ -494,19 +508,34 @@ private struct ResultsRowView: View {
                 // Equipo como subtítulo (en filas de corredor; oculto en pestaña Equipos).
                 if showTeam, !vm.teamName.isEmpty {
                     Text(vm.teamName)
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Valor (tiempo accent / gap gris / m.t. / Pts / vacío).
+            // Jerarquía compartida: puesto · identidad · [UCI] · resultado.
+            if showUciPoints {
+                ResultsUciPointsCell(points: vm.uciPoints)
+                    .frame(width: 44, alignment: .trailing)
+            }
             ResultsValueCell(kind: displayKind, value: displayValue)
-                .frame(width: 76, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
         }
         .padding(.horizontal, 4)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct ResultsUciPointsCell: View {
+    let points: Double?
+
+    var body: some View {
+        Text(points?.formatted(.number.precision(.fractionLength(0...2))) ?? "")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 }
 
@@ -544,18 +573,23 @@ private struct ResultsTttTable: View {
     var body: some View {
         let teams = UciResultsLogic.collapseTtt(rows: rows, byDorsal: byDorsal, isEn: isEn, byRider: byRider, byTeamOverride: byTeamOverride)
         let winnerSecs = UciResultsLogic.tttWinnerSecs(teams)
+        let showUciPoints = rows.contains { $0.uciPoints != nil }
 
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ResultsHeaderCell(text: "#")
-                    .frame(width: 34, alignment: .leading)
+                    .frame(width: 32, alignment: .leading)
                 ResultsHeaderCell(text: LocaleService.t("Equipo", "Team"))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if showUciPoints {
+                    ResultsHeaderCell(text: "UCI")
+                        .frame(width: 44, alignment: .trailing)
+                }
                 ResultsHeaderCell(text: LocaleService.t("Tiempo", "Time"))
-                    .frame(width: 76, alignment: .trailing)
+                    .frame(width: 70, alignment: .trailing)
             }
             .padding(.horizontal, 4)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             Divider().opacity(0.4)
 
             ForEach(teams.indices, id: \.self) { i in
@@ -566,15 +600,15 @@ private struct ResultsTttTable: View {
                 Button {
                     if isOpen { expanded.remove(i) } else { expanded.insert(i) }
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Text(team.rank.map(String.init) ?? "–")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.primary)
-                            .frame(width: 34, alignment: .leading)
+                            .frame(width: 32, alignment: .leading)
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             if let t = team.team {
-                                TeamBadgeView(team: t, size: 16)
+                                TeamBadgeView(team: t, size: 14)
                             }
                             Text(team.teamName.isEmpty ? "—" : team.teamName)
                                 .font(.system(size: 14, weight: .semibold))
@@ -586,6 +620,10 @@ private struct ResultsTttTable: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                        if showUciPoints {
+                            ResultsUciPointsCell(points: team.uciPoints)
+                                .frame(width: 44, alignment: .trailing)
+                        }
                         let isWinner = team.rank == 1 && team.teamTimeText != nil
                         let value: String = {
                             if team.rank == nil { return "" }
@@ -597,10 +635,10 @@ private struct ResultsTttTable: View {
                             .font(.system(size: 13, weight: isWinner ? .bold : .regular))
                             .foregroundStyle(isWinner ? Color.accentColor : Color.secondary)
                             .lineLimit(1)
-                            .frame(width: 76, alignment: .trailing)
+                            .frame(width: 70, alignment: .trailing)
                     }
                     .padding(.horizontal, 4)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 7)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -608,7 +646,7 @@ private struct ResultsTttTable: View {
                 // Sub-filas de corredores (al desplegar).
                 if isOpen {
                     ForEach(Array(team.riders.enumerated()), id: \.offset) { _, rider in
-                        tttRiderRow(rider)
+                        tttRiderRow(rider, showUciPoints: showUciPoints)
                     }
                 }
                 Divider().opacity(0.4)
@@ -617,10 +655,13 @@ private struct ResultsTttTable: View {
     }
 
     /// Sub-fila de un corredor de la CRE (bandera + nombre + tiempo/IRM).
-    private func tttRiderRow(_ rider: UciResultsLogic.TttRiderRow) -> some View {
-        HStack(spacing: 6) {
+    private func tttRiderRow(
+        _ rider: UciResultsLogic.TttRiderRow,
+        showUciPoints: Bool
+    ) -> some View {
+        HStack(spacing: 4) {
             if !rider.countryCode.isEmpty {
-                CountryFlag(countryCode: rider.countryCode)
+                CountryFlag(countryCode: rider.countryCode, width: 17.33)
             }
             Text(rider.name.isEmpty ? "—" : rider.name)
                 .font(.system(size: 13))
@@ -633,15 +674,19 @@ private struct ResultsTttTable: View {
                 }
                 return rider.timeText ?? ""
             }()
+            if showUciPoints {
+                ResultsUciPointsCell(points: rider.uciPoints)
+                    .frame(width: 44, alignment: .trailing)
+            }
             Text(indiv)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(width: 76, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
         }
-        .padding(.leading, 42)
+        .padding(.leading, 38)
         .padding(.trailing, 4)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(Color(.secondarySystemBackground).opacity(0.6))
     }
 }

@@ -55,6 +55,17 @@ final class DateFormattingTests: XCTestCase {
         XCTAssertTrue(result.contains("julio"))
     }
 
+    func test_formatUciRankingUpdated_usesSamePatternInSpanishAndEnglish() {
+        XCTAssertEqual(
+            "Actualizado: martes, 28 de julio de 2026",
+            DateFormatting.formatUciRankingUpdated("2026-07-28", isEnglish: false)
+        )
+        XCTAssertEqual(
+            "Updated: Tuesday, 28 July 2026",
+            DateFormatting.formatUciRankingUpdated("2026-07-28", isEnglish: true)
+        )
+    }
+
     // MARK: - formatDateRange
 
     func test_formatDateRange_emptyForNilStart() {

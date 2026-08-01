@@ -6,6 +6,34 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`438` / `4.2.1` = FICHAJES:** Corrección del año de contrato en Últimas confirmaciones de los fichajes hacia la próxima temporada. Espejo web + iOS.**
+
+**`437` / `4.2.1` = FICHAJES DE PRÓXIMA TEMPORADA:** Últimas confirmaciones prioriza los movimientos hacia la próxima temporada y deja después los de años más lejanos, también cuando llegan en el mismo lote. Vuelve a mostrar el año de contrato de los fichajes hacia la próxima temporada; los de mitad de temporada conservan su distintivo propio. Espejo web + iOS.**
+
+**`436` / `4.2.1` = FICHAJES MID-SEASON: BADGE Y MERCADO:** el distintivo azul de los fichajes de mitad de temporada adopta las mayúsculas y el espaciado del badge Rumor. Estos movimientos se mantienen en Últimas confirmaciones, pero no se interpretan como llegada ni salida del mercado siguiente: la continuidad o fin de contrato queda determinada únicamente por el contrato real que se cargue. Corregido además el espacio doble antes de la flecha del feed web. Espejo web + iOS `1245`.**
+
+**`435` / `4.2.1` = FICHAJES MID-SEASON + HORA DE TV:** el feed de Últimas confirmaciones identifica con un badge azul «M. Temporada» / «Mid-Season» los movimientos efectivos durante el curso y ya no muestra ahí el año de contrato. En Hoy, las emisiones confirmadas con hora (que no son íntegras) muestran solo la hora, igual que la web. Espejo web + iOS `1244`.**
+
+**`434` / `4.2` = LEYENDA UCI POR MODALIDAD:** el color azul del cajón de información identifica únicamente a los WorldTeams en el ránking masculino y únicamente a los Women's WorldTeams en el femenino, sin citar la categoría contraria. Espejo web + iOS `1243`.**
+
+**`433` / `4.2` = FECHA CANÓNICA DEL RÁNKING UCI:** la actualización comparte en las tres plataformas una presentación con dos puntos, día de la semana y fecha larga, adaptada al idioma («Actualizado: martes, 28 de julio de 2026» / «Updated: Tuesday, 28 July 2026»), también dentro de la información ampliada. Espejo web + iOS `1242`.**
+
+**`432` / `4.2` = RESULTADOS SIN SEPARADOR:** desaparece la línea horizontal entre los botones «Últimos Resultados» / «Ránking UCI» y el contenido de la vista activa; se conservan los separadores internos de las clasificaciones. Espejo iOS `1241`.**
+
+**`431` / `4.2` = INVITACIONES UCI COMPLETAS:** los tres mejores ProTeams aclaran tanto en su explicación como en la leyenda que la invitación obligatoria abarca todo el WorldTour —Grandes Vueltas incluidas— y también todas las pruebas ProSeries. La indicación femenina permanece limitada al Women's WorldTour. Espejo web + iOS `1240`.**
+
+**`430` / `4.2` = RÁNKING UCI COMPACTO:** la fecha de actualización y el botón de información comparten una línea dentro de la vista; desaparece el botón aislado de la barra superior. Las tarjetas se convierten en filas continuas y más densas, los ProTeams fuera del top-30 usan fondo rojo completo y los puntos se redondean a enteros para permanecer siempre en una sola línea. Espejo web + iOS `1239`.**
+
+**`429` / `4.2` = RÁNKING UCI DE EQUIPOS:** Resultados incorpora los botones «Últimos Resultados» y «Ránking UCI». La nueva vista consume una única instantánea semanal sobrescribible de DataRide, enlazada al catálogo canónico de equipos, y permite alternar entre los ránkings masculino y femenino. WorldTeams/WWT usan el azul de las categorías WorldTour; los tres mejores ProTeams masculinos y los dos mejores Women’s ProTeams señalan las invitaciones obligatorias al WorldTour, los ProTeams masculinos cuarto y quinto las invitaciones a ProSeries y los ProTeams fuera del top-30 llevan una franja roja. El botón de información muestra la fecha UCI, la fuente y el carácter provisional de las invitaciones; tocar una fila explica su consecuencia reglamentaria. Espejo web + iOS `1238`.**
+
+**`428` / `4.1.2` = PUNTOS UCI EN RESULTADOS:** cada clasificación muestra automáticamente la columna «UCI» cuando su categoría concede puntos según el reglamento 2026. Admite etapas, lideratos provisionales, generales finales, puntos/montaña de grandes vueltas, las cinco bandas WorldTour por nombre, campeonatos y CRE; conserva centésimas en repartos por equipo o ex-aequo. Espejo web + iOS `1237`.**
+
+**`427` / `4.1.2` = CLASIFICACIONES COMPACTAS + PREPARACIÓN UCI:** Resultados adopta el lenguaje compacto de la web en el selector de etapas, las pestañas y las filas individuales/CRE, conservando el autocentrado horizontal. El contrato de datos y la tabla dejan preparado un slot opcional «UCI» antes de Tiempo/Pts; mientras ninguna fila traiga `uciPoints`, la columna no se crea ni ocupa espacio. Espejo iOS `1237`.**
+
+**`426` / `4.1.1` = PREPARACIÓN DE RELEASE:** nueva build de Android 4.1.1.
+
+**`424` / `4.1.1` = MINIPERFILES POST-CARRERA Y RESPIRACIÓN EN FICHAJES:** los miniperfiles de Hoy y Competición permanecen visibles al entrar en Resultados/Revive y se completan al 100%, también en CRI/CRE; los botones y el resto del modo terminado no cambian. En Mercado de Fichajes se separan 6 dp el título «Últimas confirmaciones» y las cápsulas Fichajes/Renovaciones. Espejo iOS `1236`.
+
 **`423` / `4.1` = ORDEN DEL LIBRO DE RUTA: en Jornada, el Libro de Ruta común a la competición se muestra tras la web oficial y antes de Dorsales, igual que en Competición y web. Espejo iOS `1230`.**
 
 **`422` / `4.1` = FLECHAS CIRCULARES: las flechas de acciones pasan a un control circular de borde, con fundido de solo 24 dp y área táctil conservada. Espejo iOS `1229`.**
@@ -94,6 +122,24 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1243` / `MARKETING_VERSION 4.2` = LEYENDA UCI POR MODALIDAD:** el color azul del cajón de información identifica únicamente a los WorldTeams en el ránking masculino y únicamente a los Women's WorldTeams en el femenino, sin citar la categoría contraria. Espejo web + Android `434`.**
+
+**`1242` / `MARKETING_VERSION 4.2` = FECHA CANÓNICA DEL RÁNKING UCI:** la actualización comparte en las tres plataformas una presentación con dos puntos, día de la semana y fecha larga, adaptada al idioma («Actualizado: martes, 28 de julio de 2026» / «Updated: Tuesday, 28 July 2026»), también dentro de la información ampliada. Espejo web + Android `433`.**
+
+**`1241` / `MARKETING_VERSION 4.2` = RESULTADOS SIN SEPARADOR:** desaparece la línea horizontal entre los botones «Últimos Resultados» / «Ránking UCI» y el contenido de la vista activa; se conservan los separadores internos de las clasificaciones. Espejo Android `432`.**
+
+**`1240` / `MARKETING_VERSION 4.2` = INVITACIONES UCI COMPLETAS:** los tres mejores ProTeams aclaran tanto en su explicación como en la leyenda que la invitación obligatoria abarca todo el WorldTour —Grandes Vueltas incluidas— y también todas las pruebas ProSeries. La indicación femenina permanece limitada al Women's WorldTour. Espejo web + Android `431`.**
+
+**`1239` / `MARKETING_VERSION 4.2` = RÁNKING UCI COMPACTO:** la fecha de actualización y el botón de información comparten una línea dentro de la vista; desaparece el botón aislado de la barra superior. Las tarjetas se convierten en filas continuas y más densas, los ProTeams fuera del top-30 usan fondo rojo completo y los puntos se redondean a enteros para permanecer siempre en una sola línea. Espejo web + Android `430`.**
+
+**`1238` / `MARKETING_VERSION 4.2` = RÁNKING UCI DE EQUIPOS:** Resultados incorpora los botones «Últimos Resultados» y «Ránking UCI». La nueva vista consume una única instantánea semanal sobrescribible de DataRide, enlazada al catálogo canónico de equipos, y permite alternar entre los ránkings masculino y femenino. WorldTeams/WWT usan el azul de las categorías WorldTour; los tres mejores ProTeams masculinos y los dos mejores Women’s ProTeams señalan las invitaciones obligatorias al WorldTour, los ProTeams masculinos cuarto y quinto las invitaciones a ProSeries y los ProTeams fuera del top-30 llevan una franja roja. El botón de información muestra la fecha UCI, la fuente y el carácter provisional de las invitaciones; tocar una fila explica su consecuencia reglamentaria. Espejo web + Android `429`.**
+
+**`1237` / `MARKETING_VERSION 4.1.2` = CLASIFICACIONES COMPACTAS + PUNTOS UCI:** Resultados adopta el lenguaje compacto de la web en el selector de etapas, las pestañas y las filas individuales/CRE, conservando el autocentrado horizontal. La columna opcional «UCI» muestra los puntos reglamentarios —incluidas las centésimas de CRE y ex-aequo— sin reservar espacio en clasificaciones que no puntúan. Espejo web + Android `428`.**
+
+**`1236` / `MARKETING_VERSION 4.1.1` = MINIPERFILES POST-CARRERA Y RESPIRACIÓN EN FICHAJES:** los miniperfiles de Hoy y Competición se mantienen al mostrar Resultados/Revive, con el relleno completado al 100% (incluidas CRI/CRE); los iconos y el resto del modo terminado se mantienen. Mercado de Fichajes gana 6 pt entre «Últimas confirmaciones» y Fichajes/Renovaciones. Espejo Android `424`.**
+
+**`1235` / `MARKETING_VERSION 4.1` = TIRA DE ACCIONES: corrige el recorrido sobrante tras el último botón (el marcador invisible ya no ocupa una celda), mide por separado ambos bordes para ocultar cada flecha al alcanzarlo y recupera el desplazamiento nativo fluido con `HStack`.**
 
 **`1234` / `MARKETING_VERSION 4.1` = ORDEN DEL LIBRO DE RUTA: Jornada extrae la guía técnica de la lista genérica para situarla, sin duplicados, tras la web oficial y antes de Dorsales. Competición ya respetaba este orden. Espejo Android `423`.**
 

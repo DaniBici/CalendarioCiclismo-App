@@ -115,6 +115,21 @@ enum DateFormatting {
         formatDateLong(dateKey, locale: contentLocale)
     }
 
+    /// Fecha canónica del ránking UCI, completa y con el mismo patrón por idioma.
+    static func formatUciRankingUpdated(
+        _ dateKey: String,
+        isEnglish: Bool = LocaleService.shouldShowEnglishContent
+    ) -> String {
+        let prefix = isEnglish ? "Updated" : "Actualizado"
+        guard let date = date(from: dateKey) else { return "\(prefix): \(dateKey)" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: isEnglish ? "en_GB" : "es_ES")
+        f.dateFormat = isEnglish
+            ? "EEEE, d MMMM yyyy"
+            : "EEEE, d 'de' MMMM 'de' yyyy"
+        return "\(prefix): \(f.string(from: date))"
+    }
+
     /// Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO
     /// ("Martes 24 de junio" / "Tuesday 24 June"). Para el feed del mercado de
     /// fichajes. Paridad con web (`dayHeading`) y Android.

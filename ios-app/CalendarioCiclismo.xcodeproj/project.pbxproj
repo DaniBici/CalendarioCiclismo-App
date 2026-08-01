@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		BD20205050505050505050B0 /* BundledLogos in Resources */ = {isa = PBXBuildFile; fileRef = 93837CB00E1F4440028F25CF /* BundledLogos */; };
 		03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3651F965C3ADE08DD8868D /* UciResult.swift */; };
 		063D89A631EACB963C91DF96 /* FollowedRacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D3962AC7A3D12B5D18111 /* FollowedRacesView.swift */; };
 		07492AB7F89E89B4D8DF30C6 /* ChampionshipsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9C3A664AD224C48C4196E9 /* ChampionshipsConfig.swift */; };
@@ -17,6 +16,7 @@
 		15848FCC905206B910112440 /* StartOrderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C8E6AA25033D6DBC2DC40C /* StartOrderViewModel.swift */; };
 		1AB0E49910E4AA0114AFA6C0 /* RaceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6AC123A990B0C9E6BCF37F /* RaceLogicTests.swift */; };
 		1BA369ACE1E2544F1967C46D /* SupabaseService+UciResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468893C68879486E9A3D9859 /* SupabaseService+UciResults.swift */; };
+		1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */; };
 		1D96090FF66C9A5585A2F95F /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7D54CAC2FEF1421580D17C33 /* FirebaseAnalytics */; };
 		1E2D019C46203E886E6E3E7C /* FlagRenderAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E785AA0ACD6B894B4244B044 /* FlagRenderAuditTests.swift */; };
 		254B8B7BE4832DB34FF86FDB /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4461E2F63974BDE7CA989245 /* ElevationProfileView.swift */; };
@@ -74,6 +74,7 @@
 		87923D3C206B400316DC05EF /* RouteMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D9C7A2775B18372B4A6D309 /* RouteMapView.swift */; };
 		885FF19017FEF27A971CE6C1 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CFC3A064B481CFBD974E40 /* MarkdownText.swift */; };
 		8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */; };
+		8B0B2B5E24E758AC81E3DFAF /* UciTeamRankingLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C034C44A8BF5AE421240FA5C /* UciTeamRankingLogicTests.swift */; };
 		92DFE13B12A339F837758268 /* LocaleServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEE9E16A073346D055C32B4 /* LocaleServiceTests.swift */; };
 		97CE02822015EDA09BD3FBC7 /* TodayHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA357FBE0F960823BC0EB19 /* TodayHighlight.swift */; };
 		9848EE160C33576A783036AC /* ResultsFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF019505A2CAFB9F41393E6C /* ResultsFeedView.swift */; };
@@ -104,6 +105,7 @@
 		C6AA1F13AD2E3F5D4C267FF6 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33B7CECF50AB095079F8724 /* PaywallView.swift */; };
 		C7E8F2510598F720EFA3F5FD /* RaceLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5811508CAE536EB9B4C6EB /* RaceLogo.swift */; };
 		CE796463544EBABAC59E226C /* TVBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF4A2A4A4205FF96FF5489B /* TVBadge.swift */; };
+		D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */ = {isa = PBXBuildFile; fileRef = B270A77DFF32A6444C93BA91 /* BundledLogos */; };
 		D0E28E42F6CD6235825ECC1E /* RaceDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */; };
 		D18EB5528F090BA272F5C9D8 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789AECB6839EDBC9A838EFAF /* AnalyticsService.swift */; };
 		D1A322FBD968C708496FE95B /* AccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE82A26A86F42D70CF769777 /* AccessibilityTests.swift */; };
@@ -175,7 +177,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		93837CB00E1F4440028F25CF /* BundledLogos */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BundledLogos; sourceTree = "<group>"; };
 		02A51405DE542C58C527923A /* UciResultsLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResultsLogicTests.swift; sourceTree = "<group>"; };
 		0336EA81D15ADA7B2C343ADF /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		05EF6EAE65F6B30257021A0E /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
@@ -257,6 +258,7 @@
 		9E3651F965C3ADE08DD8868D /* UciResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResult.swift; sourceTree = "<group>"; };
 		A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDay.swift; sourceTree = "<group>"; };
 		A1D1A8FF79CF07970E1703D7 /* SimplifiedGuideTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedGuideTests.swift; sourceTree = "<group>"; };
+		A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciTeamRanking.swift; sourceTree = "<group>"; };
 		A499F40F11439DF8DC717581 /* StageDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageDetailView.swift; sourceTree = "<group>"; };
 		A986943DE31FB8737566D72F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AAFC5B864E18FCEB8237FBBE /* Supabase.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Supabase.xcconfig; sourceTree = "<group>"; };
@@ -267,6 +269,7 @@
 		ADE31A37494F3E9D1BE1B22A /* StageRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageRowView.swift; sourceTree = "<group>"; };
 		AE82A26A86F42D70CF769777 /* AccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityTests.swift; sourceTree = "<group>"; };
 		B01263F19C6BD474F6A332EB /* TransfersTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersTeamView.swift; sourceTree = "<group>"; };
+		B270A77DFF32A6444C93BA91 /* BundledLogos */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BundledLogos; path = CalendarioCiclismo/BundledLogos; sourceTree = SOURCE_ROOT; };
 		B72C6EE34E7E857B3E11B5DE /* NotificationServiceExtensionDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotificationServiceExtensionDebug.entitlements; sourceTree = "<group>"; };
 		BB5A757FF80BEB3AE007249C /* Race.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Race.swift; sourceTree = "<group>"; };
 		BC572EA9623AC82543357E70 /* ProfileDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileDestinationView.swift; sourceTree = "<group>"; };
@@ -275,6 +278,7 @@
 		BD84B47D334A4D70AF77EDA2 /* TodayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewModel.swift; sourceTree = "<group>"; };
 		BD984740158A331D289F46E1 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		BDFDA2062D4A19B449D8E0E2 /* ChampionshipsConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionshipsConfigTests.swift; sourceTree = "<group>"; };
+		C034C44A8BF5AE421240FA5C /* UciTeamRankingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciTeamRankingLogicTests.swift; sourceTree = "<group>"; };
 		C0811885F83B6EABBFD87270 /* FollowedStagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowedStagesView.swift; sourceTree = "<group>"; };
 		C15916F5EE82A196760F85BD /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
 		C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersLogicTests.swift; sourceTree = "<group>"; };
@@ -379,6 +383,7 @@
 		1CA5DFE428E14DE1A1745AAD = {
 			isa = PBXGroup;
 			children = (
+				B270A77DFF32A6444C93BA91 /* BundledLogos */,
 				C0C5386E2072977C86819908 /* CalendarioCiclismo */,
 				78D98989A472DECAAB067D1C /* CalendarioCiclismoWidget */,
 				226764A1427626F79A1EC35E /* Config */,
@@ -510,6 +515,7 @@
 				A1D1A8FF79CF07970E1703D7 /* SimplifiedGuideTests.swift */,
 				C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */,
 				02A51405DE542C58C527923A /* UciResultsLogicTests.swift */,
+				C034C44A8BF5AE421240FA5C /* UciTeamRankingLogicTests.swift */,
 			);
 			name = Tests;
 			path = CalendarioCiclismo/Tests;
@@ -532,6 +538,7 @@
 				DAECCCB7643871D151DCE7F2 /* TeamSeason.swift */,
 				2DA357FBE0F960823BC0EB19 /* TodayHighlight.swift */,
 				9E3651F965C3ADE08DD8868D /* UciResult.swift */,
+				A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -649,7 +656,6 @@
 				0336EA81D15ADA7B2C343ADF /* GoogleService-Info.plist */,
 				FF920167552786CBD7B72FBA /* Info.plist */,
 				A986943DE31FB8737566D72F /* PrivacyInfo.xcprivacy */,
-				93837CB00E1F4440028F25CF /* BundledLogos */,
 				64043D7906B1439AE4D54654 /* Models */,
 				C2E1331165E98CDA66C8ED8F /* Resources */,
 				A0F108DC9491C474EEE70907 /* Services */,
@@ -812,6 +818,7 @@
 			knownRegions = (
 				Base,
 				en,
+				es,
 			);
 			mainGroup = 1CA5DFE428E14DE1A1745AAD;
 			minimizedProjectReferenceProxies = 1;
@@ -839,8 +846,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BD20205050505050505050B0 /* BundledLogos in Resources */,
 				9D42A07BD375321F1871B5E9 /* Assets.xcassets in Resources */,
+				D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */,
 				DAE065EAF9E2782551CC9E31 /* GoogleService-Info.plist in Resources */,
 				EB2B97B64D8293C336EC7F5C /* Localizable.xcstrings in Resources */,
 				B8F703B4A91C93B29B2B4D12 /* PrivacyInfo.xcprivacy in Resources */,
@@ -894,6 +901,7 @@
 				A2E87701565BBDD3B3FDF2ED /* SimplifiedGuideTests.swift in Sources */,
 				8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */,
 				D5D04507A64E6366C9D6ECE7 /* UciResultsLogicTests.swift in Sources */,
+				8B0B2B5E24E758AC81E3DFAF /* UciTeamRankingLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -997,6 +1005,7 @@
 				FBBFFA7FF879DF8D3BD2925C /* TransfersView.swift in Sources */,
 				03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */,
 				82221FBFFF6BE60914DB5839 /* UciResultsLogic.swift in Sources */,
+				1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1056,7 +1065,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-                CURRENT_PROJECT_VERSION = 1234;
+				CURRENT_PROJECT_VERSION = 1245;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1075,7 +1084,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 4.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1122,7 +1131,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-                CURRENT_PROJECT_VERSION = 1234;
+				CURRENT_PROJECT_VERSION = 1245;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1135,7 +1144,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 4.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1194,7 +1203,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-                CURRENT_PROJECT_VERSION = 1234;
+				CURRENT_PROJECT_VERSION = 1245;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1203,7 +1212,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 4.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1225,7 +1234,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-                CURRENT_PROJECT_VERSION = 1234;
+				CURRENT_PROJECT_VERSION = 1245;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1234,7 +1243,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 4.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

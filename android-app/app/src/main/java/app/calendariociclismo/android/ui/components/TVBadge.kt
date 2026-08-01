@@ -278,7 +278,8 @@ private fun buildLabel(
                 return stringResource(R.string.tv_badge_full)
             }
         }
-        first.startTimeLocal?.let { return stringResource(R.string.tv_badge_tv_with_time, it) }
+        // La web muestra solo la hora: mantener la misma etiqueta en las apps.
+        first.startTimeLocal?.let { return it }
     }
     if (broadcasts.isNotEmpty()) return stringResource(R.string.tv_badge_tv)
     // TV confirmada pero toda fuera de la región del usuario → sin badge.

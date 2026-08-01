@@ -22,6 +22,7 @@ import app.calendariociclismo.android.data.model.TodayHighlight
 import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.data.model.UciRank1Row
+import app.calendariociclismo.android.data.model.UciTeamRankingRow
 import app.calendariociclismo.android.data.model.applyingElevation
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
@@ -269,6 +270,18 @@ class SupabaseService {
     suspend fun teamSeasons(year: Int): List<TeamSeason> =
         client.from("team_seasons").select {
             filter { eq("year", year) }
+        }.decodeList()
+
+    /** Instantánea semanal de DataRide compartida por web, iOS y Android. */
+    suspend fun uciTeamRankings(): List<UciTeamRankingRow> =
+        client.from("uci_team_rankings").select(
+            columns = Columns.raw(
+                "gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName," +
+                    "displayName,teamCode,countryCode,points,rankingDate,sourceUrl"
+            )
+        ) {
+            order("gender", Order.ASCENDING)
+            order("rank", Order.ASCENDING)
         }.decodeList()
 
     /**

@@ -92,6 +92,9 @@ object TransfersLogic {
         transfers.filter { it.status == "confirmed" && it.dateVisible && isRealSigning(it) }
             .sortedWith(
                 compareByDescending<RiderTransfer> { it.announcedAt ?: "" }
+                    // En una misma fecha, primero el mercado de la próxima temporada
+                    // y después los fichajes efectivos de mitad de temporada.
+                    .thenBy { if (it.midSeason) 1 else 0 }
                     .thenByDescending { it.createdAt ?: "" }
             )
 
@@ -191,6 +194,9 @@ object TransfersLogic {
         categoryByTeamId: Map<String, String> = emptyMap(),
         teamNameById: Map<String, String> = emptyMap(),
     ): TeamDetail {
+        // Los fichajes efectivos durante la temporada se muestran en el feed,
+        // pero no forman parte del mercado de la plantilla siguiente.
+        val marketTransfers = transfers.filter { !it.midSeason }
         // Fin de contrato / llegadas → alfabético por apellido.
         fun riderKey(x: RiderTransfer): String {
             val r = ridersById[x.riderId]
@@ -198,9 +204,9 @@ object TransfersLogic {
         }
         // Llegan (fichajes): primero los CONFIRMADOS, luego los rumores; dentro
         // de cada grupo, alfabético por apellido.
-        val arrivals = transfers.filter { it.type == "transfer" && it.toTeamId == teamId }
+        val arrivals = marketTransfers.filter { it.type == "transfer" && it.toTeamId == teamId }
             .sortedWith(compareBy({ if (it.status == "rumor") 1 else 0 }, { riderKey(it) }))
-        val allDepartures = transfers.filter {
+        val allDepartures = marketTransfers.filter {
             (it.type == "transfer" || it.type == "retirement") && it.fromTeamId == teamId
         }
         // Fin de contrato sin destino → su propia sección (alfabético por
@@ -222,7 +228,7 @@ object TransfersLogic {
         // Las EN DUDA van a su propio bucket: no anotan contrato ni "continúan".
         val renewalsByRider = HashMap<String, RiderTransfer>()
         val doubtsByRider = HashMap<String, RiderTransfer>()
-        transfers.filter { it.type == "renewal" && it.toTeamId == teamId }
+        marketTransfers.filter { it.type == "renewal" && it.toTeamId == teamId }
             .forEach {
                 val bucket = if (it.status == "doubt") doubtsByRider else renewalsByRider
                 bucket.putIfAbsent(it.riderId, it)

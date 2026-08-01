@@ -767,8 +767,8 @@ function updateSeoJornada(rd, race) {
 
   const kwParts = [
     BASE_KW,
-    raceName,
-    raceYear ? `${raceName} ${raceYear}` : '',
+    raceNameStr,
+    raceYear ? `${raceNameStr} ${raceYear}` : '',
     origName,
     ...ciudadesUnicas,
     ...extraTipo,
@@ -832,33 +832,36 @@ function updateSeoJornada(rd, race) {
   const isCancelled = rd.isCancelledDay || race.isCancelled;
   const locationName = sameOrOne ? (startLoc || null)
                                  : (startLoc && finishLoc ? `${startLoc} → ${finishLoc}` : (startLoc || finishLoc || null));
-  const jsonLd = {
+  const locationCountry = String(rd.countryCode || race.countryCode || '').toUpperCase() || null;
+  const eventStatus = isCancelled
+    ? 'https://schema.org/EventCancelled'
+    : 'https://schema.org/EventScheduled';
+  // Google exige nombre, fecha y ubicación para que SportsEvent sea elegible.
+  // Si falta alguno, retiramos solo el bloque de evento; breadcrumbs y SEO
+  // visible permanecen intactos.
+  const jsonLd = raceNameStr && rd.dateKey && locationName && locationCountry ? {
     '@context': 'https://schema.org',
     '@type': 'SportsEvent',
     'name': title.replace(` — ${t('seo.siteName')}`, ''),
     'url': canonicalUrl,
     'description': description,
     'sport': 'Ciclismo en ruta',
-    'eventStatus': isCancelled ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
+    'eventStatus': eventStatus,
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
     'organizer': {
       '@type': 'Organization',
       'name': t('seo.siteName'),
       'url': origin
     }
-  };
-  if (rd.dateKey) { jsonLd.startDate = rd.dateKey; jsonLd.endDate = rd.dateKey; }
-  if (ogImage) jsonLd.image = ogImage;
-  if (locationName) jsonLd.location = { '@type': 'Place', 'name': locationName };
-  if (!isOneDay && race.slug) {
-    const superEvent = {
-      '@type': 'SportsEvent',
-      'name': `${raceName}${raceYear ? ' ' + raceYear : ''}`,
-      'url': `${origin}/competicion/${encodeURIComponent(race.slug)}/`,
+  } : null;
+  if (jsonLd) { jsonLd.startDate = rd.dateKey; jsonLd.endDate = rd.dateKey; }
+  if (jsonLd && ogImage) jsonLd.image = ogImage;
+  if (jsonLd) {
+    jsonLd.location = { '@type': 'Place', 'name': locationName };
+    jsonLd.location.address = {
+      '@type': 'PostalAddress',
+      'addressCountry': locationCountry,
     };
-    if (race.startDate) superEvent.startDate = race.startDate;
-    if (race.endDate)   superEvent.endDate   = race.endDate;
-    jsonLd.superEvent = superEvent;
   }
   setJsonLd('jsonld-main', jsonLd);
 
@@ -871,16 +874,16 @@ function updateSeoJornada(rd, race) {
   }
   if (!isOneDay && race.slug) {
     crumbs.push({ '@type': 'ListItem', 'position': pos++,
-                  'name': `${raceName}${raceYear ? ' ' + raceYear : ''}`,
+                  'name': `${raceNameStr}${raceYear ? ' ' + raceYear : ''}`,
                   'item': `${origin}/competicion/${encodeURIComponent(race.slug)}/` });
   }
   let finalCrumbName;
   if (isOneDay) {
-    finalCrumbName = `${raceName}${raceYear ? ' ' + raceYear : ''}`;
+    finalCrumbName = `${raceNameStr}${raceYear ? ' ' + raceYear : ''}`;
   } else {
     const stageLabelStr = stageNum !== null && stageNum !== undefined ? stageLabel(stageNum, rd._stageSuffix) : '';
     const route = sameOrOne ? startLoc : (startLoc && finishLoc ? `${startLoc} › ${finishLoc}` : '');
-    finalCrumbName = [stageLabelStr, route].filter(Boolean).join(': ') || (raceName || 'Jornada');
+    finalCrumbName = [stageLabelStr, route].filter(Boolean).join(': ') || (raceNameStr || 'Jornada');
   }
   crumbs.push({ '@type': 'ListItem', 'position': pos, 'name': finalCrumbName });
   setJsonLd('jsonld-breadcrumbs', {
@@ -894,6 +897,10 @@ function setJsonLd(id, obj) {
   // EN: conservar el JSON-LD en castellano del HTML estático (SEO en español).
   if (getLang() === 'en') return;
   let el = document.getElementById(id);
+  if (!obj) {
+    if (el) el.remove();
+    return;
+  }
   if (!el) {
     el = document.createElement('script');
     el.id = id;

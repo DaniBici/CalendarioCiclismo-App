@@ -387,6 +387,7 @@ object UciResultsLogic {
         val name: String,
         val countryCode: String,
         val timeText: String?,
+        val uciPoints: Double?,
         val irm: String?,
     )
 
@@ -395,6 +396,8 @@ object UciResultsLogic {
         val teamName: String,
         val team: Team?,
         val teamTimeText: String?,
+        /** Puntos UCI de la fila líder del equipo; null hasta que lleguen datos. */
+        val uciPoints: Double?,
         /** Tiempo del equipo en segundos (centésimas truncadas al comparar). */
         val teamSecs: Double?,
         val riders: List<TttRiderRow>,
@@ -461,6 +464,7 @@ object UciResultsLogic {
                     ?: lead.riderDisplay.orEmpty(),
                 team = overrideTeam ?: fromSl?.team,
                 teamTimeText = g.lead?.timeText,
+                uciPoints = g.lead?.uciPoints,
                 teamSecs = g.lead?.let { tttToSeconds(it.timeText) },
                 riders = g.riders.map { r ->
                     val fs = r.dorsalInt?.let { byDorsal[it] }
@@ -472,6 +476,7 @@ object UciResultsLogic {
                         name = rider?.name?.takeIf { it.isNotEmpty() } ?: r.riderDisplay.orEmpty(),
                         countryCode = rider?.countryCode.orEmpty(),
                         timeText = r.timeText,
+                        uciPoints = r.uciPoints,
                         irm = r.irm,
                     )
                 },
@@ -551,6 +556,8 @@ object UciResultsLogic {
         val countryCode: String,
         val teamName: String,
         val team: Team?,
+        /** Columna opcional entre identidad y resultado; null no reserva espacio. */
+        val uciPoints: Double?,
         val valueKind: ValueKind,
         /** Valor a pintar (tiempo del ganador, gap, puntos, o crudo). */
         val valueText: String,
@@ -785,6 +792,7 @@ object UciResultsLogic {
                 countryCode = cc,
                 teamName = teamName,
                 team = if (isTeams) matchedTeam else (overrideTeam ?: resolved?.team),
+                uciPoints = r.uciPoints,
                 valueKind = kind,
                 valueText = value,
                 rowGap = rowGap,

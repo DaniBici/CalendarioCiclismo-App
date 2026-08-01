@@ -948,6 +948,7 @@ const _ACT_SVGS = {
   website:    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   startlist:  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>',
   race:       '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>',
+  cursor:     '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07 4 4z"/><path d="m13.17 13.17 4.66 4.66"/></svg>',
   startOrder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/></svg>',
   roadbook:   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
   technicalGuide: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
@@ -1014,19 +1015,20 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // - Prueba de un día (cualquier vista): "Ir a la carrera" → su jornada única.
   let raceBtn = '';
   if (!isJornada) {
+    const raceIcon = view === 'inscritos' ? _ACT_SVGS.cursor : _ACT_SVGS.race;
     const isStageView = view === 'startOrder' || view === 'perfil' || view === 'resultados' || view === 'mapa';
     if (isOneDay) {
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
       const href = jornadaUrl(rd?.id ? rd : { id: race?.id, slug: race?.slug, slugEn: race?.slugEn, dateKey: rd?.dateKey });
-      raceBtn = `<a class="asset-btn" href="${href}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = `<a class="asset-btn" href="${href}">${raceIcon}<span class="asset-btn__label">${label}</span></a>`;
     } else if (isStageView && rd?.id) {
       // Vuelta por etapas, vista de etapa → jornada de esta etapa.
       const label = isEn ? 'Go to the stage' : 'Ir a la etapa';
-      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = `<a class="asset-btn" href="${jornadaUrl(rd)}">${_ACT_SVGS.cursor}<span class="asset-btn__label">${label}</span></a>`;
     } else if (race?.id) {
       // Vuelta por etapas, vista de carrera (inscritos) → competición.
       const label = isEn ? 'Go to the race' : 'Ir a la carrera';
-      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${_ACT_SVGS.race}<span class="asset-btn__label">${label}</span></a>`;
+      raceBtn = `<a class="asset-btn" href="${raceUrl(race)}">${raceIcon}<span class="asset-btn__label">${label}</span></a>`;
     }
   }
 
@@ -1231,15 +1233,37 @@ function _syncAssetLinksNext(wrapper) {
   next.hidden = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 1;
 }
 
+// Algunas vistas insertan la tira directamente en un <main> de ancho completo
+// y centran solo `.asset-links` con max-width (inscritos, orden de salida,
+// resultados). Las flechas son hijas del wrapper, así que `left/right: 0` las
+// llevaba a los bordes de la pantalla. Calculamos los insets contra la caja real
+// de la tira para que el componente funcione igual dentro y fuera de una card.
+function _positionAssetLinksArrows(wrapper) {
+  const rail = wrapper.querySelector('.asset-links');
+  const prev = wrapper.querySelector('.asset-links__prev');
+  const next = wrapper.querySelector('.asset-links__next');
+  if (!rail || !prev || !next) return;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const railRect = rail.getBoundingClientRect();
+  prev.style.left = `${Math.max(0, railRect.left - wrapperRect.left)}px`;
+  next.style.right = `${Math.max(0, wrapperRect.right - railRect.right)}px`;
+}
+
 function _installAssetLinksNext(wrapper) {
   if (wrapper.dataset.assetLinksNextReady) return;
   wrapper.dataset.assetLinksNextReady = 'true';
   const rail = wrapper.querySelector('.asset-links');
   if (!rail) return;
   const sync = () => _syncAssetLinksNext(wrapper);
+  const positionAndSync = () => {
+    _positionAssetLinksArrows(wrapper);
+    sync();
+  };
   rail.addEventListener('scroll', sync, { passive: true });
-  new ResizeObserver(sync).observe(rail);
-  requestAnimationFrame(sync);
+  const resizeObserver = new ResizeObserver(positionAndSync);
+  resizeObserver.observe(wrapper);
+  resizeObserver.observe(rail);
+  requestAnimationFrame(positionAndSync);
 }
 
 if (typeof document !== 'undefined') {
@@ -1253,7 +1277,10 @@ if (typeof document !== 'undefined') {
       if (node.nodeType === Node.ELEMENT_NODE) installAssetLinksNext(node);
     }));
   }).observe(document.body, { childList: true, subtree: true });
-  window.addEventListener('resize', () => document.querySelectorAll('.asset-links-wrap').forEach(_syncAssetLinksNext), { passive: true });
+  window.addEventListener('resize', () => document.querySelectorAll('.asset-links-wrap').forEach(wrapper => {
+    _positionAssetLinksArrows(wrapper);
+    _syncAssetLinksNext(wrapper);
+  }), { passive: true });
 }
 
 // ── Detecta si el nombre de la carrera ya implica género femenino ─

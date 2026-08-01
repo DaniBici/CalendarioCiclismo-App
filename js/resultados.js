@@ -32,6 +32,25 @@ const CLASS_LABELS = {
   youth:  { es: 'Jóvenes',  en: 'Youth' },
   teams:  { es: 'Equipos',  en: 'Teams' },
 };
+// Columna derivada de puntos UCI. Solo nace si la clasificación concede alguno;
+// queda justo antes de Tiempo/Pts: puesto · identidad · [equipo] · [UCI] · resultado.
+function hasUciPoints(rows) {
+  return rows.some((row) => row?.uciPoints != null);
+}
+function formatUciPoints(value) {
+  if (value == null || value === '') return '';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+function uciPointsHeaderHtml(show) {
+  return show ? '<th class="so-th res-th--uci">UCI</th>' : '';
+}
+function uciPointsCellHtml(show, row) {
+  if (!show) return '';
+  const value = row?.uciPoints;
+  return `<td class="so-td res-td--uci">${esc(formatUciPoints(value))}</td>`;
+}
 // Marcadores especiales (no clasificados, DNF/DNS/OTL/DSQ): IRM_LABELS vive en
 // uci-irm.js (fuente única, compartida con el tachado de inscritos). Se muestran
 // SOLO en la columna de puesto (#), con la etiqueta corta localizada.
@@ -640,7 +659,7 @@ async function init() {
 
   // ── Selector de ETAPA (si hay más de una con datos) ────────────────
   if (stageKeys.length > 1) {
-    html += `<div class="res-stages" id="resStages"><div class="res-stages__inner">`;
+    html += `<div class="res-stages" id="resStages"><div class="res-stages__inner" id="resStagesInner">`;
     for (const k of stageKeys) {
       const { stageNumber: num, suffix: sfx } = parseResultStageKey(k);
       const seg2 = stageSlugSegment(num, _isEn, sfx);
@@ -651,7 +670,7 @@ async function init() {
         : (_isEn ? 'Final classification' : 'Clasificación final');
       // Cápsula: P (prólogo), F (final) o el número con su sufijo de sector (3A).
       const cap = num === 0 ? 'P' : (num != null ? `${num}${sfx}` : 'F');
-      html += `<a class="res-stage-btn${isActive ? ' res-stage-btn--active' : ''}" href="${href}" title="${esc(aria)}">${esc(cap)}</a>`;
+      html += `<a class="res-stage-btn${isActive ? ' res-stage-btn--active' : ''}" href="${href}" title="${esc(aria)}"${isActive ? ' aria-current="page" data-active="true"' : ''}>${esc(cap)}</a>`;
     }
     html += `</div></div>`;
   }
@@ -692,6 +711,21 @@ async function init() {
   html += `<div class="res-table-wrap" id="resTableWrap"></div>`;
 
   content.innerHTML = html;
+
+  // El selector de etapas ocupa siempre una sola línea. En vueltas largas la
+  // etapa activa puede quedar lejos del inicio: centrarla al montar y al cambiar
+  // de ancho evita que el usuario tenga que buscarla (mismo patrón que las apps).
+  const stagesInner = document.getElementById('resStagesInner');
+  const centerActiveStage = () => {
+    const active = stagesInner?.querySelector('[data-active="true"]');
+    if (!stagesInner || !active || stagesInner.scrollWidth <= stagesInner.clientWidth + 1) return;
+    const left = active.offsetLeft - (stagesInner.clientWidth - active.offsetWidth) / 2;
+    stagesInner.scrollTo({ left: Math.max(0, left), behavior: 'auto' });
+  };
+  if (stagesInner) {
+    requestAnimationFrame(centerActiveStage);
+    window.addEventListener('resize', centerActiveStage);
+  }
 
   // ── Render de una clasificación concreta (filas por stageRef) ──────
   const tableWrap = document.getElementById('resTableWrap');
@@ -787,12 +821,14 @@ async function init() {
         teamName: (ovr && ovr.teamName) || (fromSl && fromSl.teamName) || lead?.teamName || lead?.riderDisplay || '',
         teamObj: (ovr && ovr.teamObj) || (fromSl && fromSl.teamObj) || null,
         teamHref: (ovr && ovr.teamHref) || (fromSl && fromSl.teamHref) || null,
+        uciPoints: lead?.uciPoints ?? null,
         teamSecs: g.lead ? tttToSeconds(g.lead.timeText) : null,
         teamTimeText: g.lead ? g.lead.timeText : null,
         riders: g.riders,
       };
     });
     const winnerSecs = teamRows.find(tr => tr.rank === 1 && tr.teamSecs != null)?.teamSecs ?? null;
+    const showUciPoints = hasUciPoints(teamRows);
 
     const teamHdr = _isEn ? 'Team' : 'Equipo';
     const timeHdr = _isEn ? 'Time' : 'Tiempo';
@@ -800,6 +836,7 @@ async function init() {
       <thead><tr>
         <th class="so-th res-th--rank">#</th>
         <th class="so-th res-th--rider">${teamHdr}</th>
+        ${uciPointsHeaderHtml(showUciPoints)}
         <th class="so-th res-th--result">${timeHdr}</th>
       </tr></thead><tbody>`;
 
@@ -822,6 +859,7 @@ async function init() {
       t += `<tr class="so-row res-team-row" data-ttt-group="${i}" tabindex="0" role="button" aria-expanded="false">
         <td class="so-td res-td--rank">${rankCell}</td>
         <td class="so-td res-td--rider"><span class="res-ttt-team">${teamBadge}<span class="res-ttt-team-name">${nameInner}</span><span class="res-ttt-caret" aria-hidden="true">▾</span></span></td>
+        ${uciPointsCellHtml(showUciPoints, tr)}
         <td class="so-td res-td--result">${resultCell}</td>
       </tr>`;
       // Sub-filas de corredores (ocultas por defecto): bandera + nombre + tiempo individual.
@@ -836,10 +874,11 @@ async function init() {
           ? dnfBadge(r.irm)
           : (r.timeText ? `<span class="res-gap">${esc(r.timeText)}</span>` : '');
         // (El tooltip/enlace de ficha de las sub-filas CRE se retiró; nombre plano.)
-        const nmInner = esc(nm);
+        const nmInner = `<span class="res-rider-name">${esc(nm)}</span>`;
         t += `<tr class="so-row res-ttt-rider" data-ttt-member="${i}" hidden>
           <td class="so-td res-td--rank"></td>
           <td class="so-td res-td--rider res-ttt-rider-cell">${flag}<span class="res-rider-main">${nmInner}</span></td>
+          ${uciPointsCellHtml(showUciPoints, r)}
           <td class="so-td res-td--result">${indiv}</td>
         </tr>`;
       });
@@ -899,7 +938,7 @@ async function init() {
     tableWrap.innerHTML = `<div class="loading">${_isEn ? 'Loading' : 'Cargando'}</div>`;
     const { data: rows } = await supabase
       .from('race_uci_results')
-      .select('rank, rankText, bib, riderDisplay, globalRiderId, teamId, resultValue, timeText, gapText, points, irm, sortOrder')
+      .select('rank, rankText, bib, riderDisplay, globalRiderId, teamId, resultValue, timeText, gapText, points, uciPoints, irm, sortOrder')
       .eq('stageRef', stageRow.id)
       .order('sortOrder', { ascending: true });
 
@@ -972,6 +1011,7 @@ async function init() {
       : (/^\d+$/.test(String(r.resultValue ?? '')) ? Number(r.resultValue)
         : (/^\d+$/.test(String(r.timeText ?? '')) ? Number(r.timeText) : null));
     const valueHeader = isPtsClass ? 'Pts' : (_isEn ? 'Time' : 'Tiempo');
+    const showUciPoints = hasUciPoints(rows);
     // Clasificaciones por tiempo (etapa/general/jóvenes): "mismo tiempo" → m.t./s.t.
     const isTimeClass = !isPtsClass && !isTeams;
     const sameTimeLabel = _isEn ? 's.t.' : 'm.t.';
@@ -1051,6 +1091,7 @@ async function init() {
         <th class="so-th res-th--rank">#</th>
         <th class="so-th res-th--rider">${isTeams ? (_isEn ? 'Team' : 'Equipo') : (_isEn ? 'Rider' : 'Corredor')}</th>
         ${isTeams ? '' : `<th class="so-th res-th--team">${_isEn ? 'Team' : 'Equipo'}</th>`}
+        ${uciPointsHeaderHtml(showUciPoints)}
         <th class="so-th res-th--result">${esc(valueHeader)}</th>
       </tr></thead><tbody>`;
 
@@ -1221,6 +1262,7 @@ async function init() {
         t += `<tr class="so-row">
           <td class="so-td res-td--rank">${rankCell}</td>
           <td class="so-td res-td--rider">${teamCell}</td>
+          ${uciPointsCellHtml(showUciPoints, r)}
           <td class="so-td res-td--result">${resultCell}</td>
         </tr>`;
       } else {
@@ -1229,8 +1271,10 @@ async function init() {
         // texto plano. El equipo enlaza en su propia columna.
         const riderHref = (fromSl && fromSl.riderHref) || (fromRider && fromRider.riderHref) || null;
         const nameLink = (riderHref && riderName)
-          ? `<a class="so-link" href="${esc(riderHref)}">${esc(riderName)}</a>`
-          : (esc(riderName) || '<span style="opacity:0.45">—</span>');
+          ? `<a class="so-link res-rider-name" href="${esc(riderHref)}">${esc(riderName)}</a>`
+          : (riderName
+            ? `<span class="res-rider-name">${esc(riderName)}</span>`
+            : '<span class="res-rider-name" style="opacity:0.45">—</span>');
         // Subtítulo de equipo (solo visible en móvil, donde la columna Equipo se oculta).
         const teamSub = teamName
           ? `<span class="res-rider-team">${esc(teamName)}</span>`
@@ -1254,6 +1298,7 @@ async function init() {
           <td class="so-td res-td--rank">${rankCell}</td>
           <td class="so-td res-td--rider">${riderCell}</td>
           <td class="so-td res-td--team">${teamCell}</td>
+          ${uciPointsCellHtml(showUciPoints, r)}
           <td class="so-td res-td--result">${resultCell}</td>
         </tr>`;
       }
@@ -1271,11 +1316,14 @@ async function init() {
       if (!isTeams && teamsInClass.size >= 2) {
         const sorted = [...teamsInClass].sort((a, b) => a.localeCompare(b, _isEn ? 'en' : 'es'));
         if (_teamFilter && !teamsInClass.has(_teamFilter)) _teamFilter = '';   // el equipo no está aquí
-        const allLbl = _isEn ? 'All teams' : 'Todos los equipos';
+        const allTeamsLbl = _isEn ? 'All teams' : 'Todos los equipos';
+        const allLbl = window.matchMedia('(max-width: 640px)').matches
+          ? (_isEn ? 'All' : 'Todos')
+          : allTeamsLbl;
         const opts = [`<option value="">${esc(allLbl)}</option>`]
           .concat(sorted.map((tn) => `<option value="${esc(tn)}"${tn === _teamFilter ? ' selected' : ''}>${esc(tn)}</option>`))
           .join('');
-        slot.innerHTML = `<select class="res-teamfilter__select" id="resTeamFilter" aria-label="${esc(allLbl)}">${opts}</select>`;
+        slot.innerHTML = `<select class="res-teamfilter__select" id="resTeamFilter" aria-label="${esc(allTeamsLbl)}" title="${esc(allTeamsLbl)}">${opts}</select>`;
         const sel = slot.querySelector('#resTeamFilter');
         sel.addEventListener('change', () => { _teamFilter = sel.value; applyTeamFilter(); });
       } else {

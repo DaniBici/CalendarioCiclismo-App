@@ -19,6 +19,7 @@ class UciResultsLogicTest {
         timeText: String? = null,
         gapText: String? = null,
         points: Int? = null,
+        uciPoints: Double? = null,
         resultValue: String? = null,
         irm: String? = null,
         riderDisplay: String? = null,
@@ -29,9 +30,33 @@ class UciResultsLogicTest {
         stageRef = "s", raceId = "r", rank = rank, rankText = null, bib = bib,
         riderDisplay = riderDisplay, globalRiderId = globalRiderId, teamId = teamId,
         resultValue = resultValue,
-        timeText = timeText, gapText = gapText, points = points, irm = irm,
+        timeText = timeText, gapText = gapText, points = points, uciPoints = uciPoints, irm = irm,
         sortOrder = sortOrder,
     )
+
+    @Test
+    fun `los puntos UCI se propagan sin mezclarse con los puntos de la clasificacion`() {
+        val individual = UciResultsLogic.buildIndividualRows(
+            rows = listOf(row(rank = 1, points = 50, uciPoints = 125.0)),
+            classKind = "points",
+            isTeams = false,
+            byDorsal = emptyMap(),
+            isEn = false,
+        ).single()
+        assertEquals("50", individual.valueText)
+        assertEquals(125.0, individual.uciPoints)
+
+        val ttt = UciResultsLogic.collapseTtt(
+            rows = listOf(
+                row(rank = 1, bib = "1", timeText = "20:00", uciPoints = 12.5),
+                row(bib = "2", timeText = "20:10", uciPoints = 12.5),
+            ),
+            byDorsal = emptyMap(),
+            isEn = false,
+        ).single()
+        assertEquals(12.5, ttt.uciPoints)
+        assertEquals(listOf(12.5, 12.5), ttt.riders.map { it.uciPoints })
+    }
 
     // Helper: equipo canónico con lo mínimo (chapa irrelevante para la lógica).
     private fun team(id: String, name: String, aliases: String? = null) = Team(

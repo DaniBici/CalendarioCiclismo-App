@@ -377,6 +377,7 @@ enum UciResultsLogic {
         let name: String
         let countryCode: String
         let timeText: String?
+        let uciPoints: Double?
         let irm: String?
     }
 
@@ -385,6 +386,8 @@ enum UciResultsLogic {
         let teamName: String
         let team: Team?
         let teamTimeText: String?
+        /// Puntos UCI de la fila líder del equipo; nil hasta que lleguen datos.
+        let uciPoints: Double?
         /// Tiempo del equipo en segundos (centésimas truncadas al comparar).
         let teamSecs: Double?
         let riders: [TttRiderRow]
@@ -463,6 +466,7 @@ enum UciResultsLogic {
                     ?? (slTeamName.isEmpty ? (lead.riderDisplay ?? "") : slTeamName),
                 team: overrideTeam ?? fromSl?.team,
                 teamTimeText: g.lead?.timeText,
+                uciPoints: g.lead?.uciPoints,
                 teamSecs: g.lead.flatMap { tttToSeconds($0.timeText) },
                 riders: g.riders.map { r in
                     let fs = r.dorsalInt.flatMap { byDorsal[$0] }
@@ -475,6 +479,7 @@ enum UciResultsLogic {
                         name: fsName.isEmpty ? (r.riderDisplay ?? "") : fsName,
                         countryCode: rider?.countryCode ?? "",
                         timeText: r.timeText,
+                        uciPoints: r.uciPoints,
                         irm: r.irm
                     )
                 }
@@ -563,6 +568,8 @@ enum UciResultsLogic {
         let countryCode: String
         let teamName: String
         let team: Team?
+        /// Columna opcional entre identidad y resultado; nil no reserva espacio.
+        let uciPoints: Double?
         let valueKind: ValueKind
         /// Valor a pintar (tiempo del ganador, gap, puntos, o crudo).
         let valueText: String
@@ -802,6 +809,7 @@ enum UciResultsLogic {
                 countryCode: cc,
                 teamName: teamName,
                 team: isTeams ? matchedTeam : (overrideTeam ?? resolved?.team),
+                uciPoints: r.uciPoints,
                 valueKind: kind,
                 valueText: value,
                 rowGap: rowGap

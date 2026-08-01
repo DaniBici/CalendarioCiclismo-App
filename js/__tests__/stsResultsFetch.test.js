@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   irmOf, absTime, normGap, deriveCode, fnv1a,
-  parseResultRows, parseAnnexeRows, attrs, firstBlock, allStages, rushBody,
+  parseResultRows, parseTttResultRows, parseAnnexeRows, attrs, firstBlock, allStages, rushBody,
 } from '../../scripts/results-fetchers/sts-results-fetch.mjs';
 
 // Formatos verificados contra La Route d'Occitanie 2025 y 2026 (primera carrera
@@ -158,6 +158,47 @@ describe('parseResultRows — el rank es POSICIONAL (no hay atributo de puesto)'
       riderByBib,
     );
     expect(rows.map((r) => r.rank)).toEqual([1, null, 2]);
+  });
+});
+
+describe('parseTttResultRows — CRE Wiclax agrupada por equipo', () => {
+  const tttRiders = new Map([
+    [11, { display: 'UNO A', teamName: 'EQUIPO A' }],
+    [12, { display: 'DOS A', teamName: 'EQUIPO A' }],
+    [21, { display: 'UNO B', teamName: 'EQUIPO B' }],
+    [22, { display: 'DOS B', teamName: 'EQUIPO B' }],
+    [13, { display: 'TRES A', teamName: 'EQUIPO A' }],
+  ]);
+
+  it('deja puesto y tiempo solo al primer corredor de cada equipo', () => {
+    const rows = parseTttResultRows(
+      `<R d="11" t="00h20'00" /><R d="12" t="00h20'00" g="-" />`
+      + `<R d="21" t="00h21'00" g="+1:00" /><R d="22" t="00h21'00" g="+1:00" />`,
+      tttRiders,
+    );
+    expect(rows.map((r) => r.rank)).toEqual([1, null, 2, null]);
+    expect(rows[0]).toMatchObject({ timeText: '0:20:00', resultValue: '0:20:00' });
+    expect(rows[1]).toMatchObject({ timeText: null, resultValue: null });
+    expect(rows[2]).toMatchObject({ timeText: '0:21:00', resultValue: '0:21:00' });
+  });
+
+  it('un corredor descolgado que reaparece después no crea otro equipo', () => {
+    const rows = parseTttResultRows(
+      `<R d="11" t="00h20'00" /><R d="21" t="00h21'00" />`
+      + `<R d="13" t="00h25'00" g="+5:00" />`,
+      tttRiders,
+    );
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, null]);
+    expect(rows[2]).toMatchObject({ teamName: 'EQUIPO A', timeText: null, resultValue: null });
+  });
+
+  it('los IRM se conservan y no consumen puesto de equipo', () => {
+    const rows = parseTttResultRows(
+      `<R d="12" t="Abandon" tr="4" /><R d="11" t="00h20'00" /><R d="21" t="00h21'00" />`,
+      tttRiders,
+    );
+    expect(rows.map((r) => r.rank)).toEqual([null, 1, 2]);
+    expect(rows[0]).toMatchObject({ irm: 'DNF', rankText: 'DNF' });
   });
 });
 

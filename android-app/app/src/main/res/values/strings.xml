@@ -513,7 +513,28 @@
     <string name="results_also_on">También en</string>
 
     <!-- Feed "Últimos resultados" (pestaña Resultados, apps 3.1) -->
-    <string name="results_feed_heading">Últimos Resultados</string>
+    <string name="results_feed_heading">Resultados</string>
+    <string name="results_feed_latest">Últimos Resultados</string>
+    <string name="uci_ranking_tab">Ránking UCI</string>
+    <string name="uci_ranking_loading">Cargando ránking UCI…</string>
+    <string name="uci_ranking_error">No se pudo cargar el ránking UCI.</string>
+    <string name="uci_ranking_empty">La UCI todavía no ha publicado esta clasificación.</string>
+    <string name="uci_ranking_men">Masculino</string>
+    <string name="uci_ranking_women">Femenino</string>
+    <string name="uci_ranking_team">Equipo</string>
+    <string name="uci_ranking_points">Puntos</string>
+    <string name="uci_ranking_info_label">Fuente y reglas del ránking UCI</string>
+    <string name="uci_ranking_info_title">Sobre el Ránking UCI</string>
+    <string name="uci_ranking_updated">%1$s. DataRide publica normalmente un nuevo ránking cada martes.</string>
+    <string name="uci_ranking_projection">Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.</string>
+    <string name="uci_ranking_legend_worldteams">WorldTeams</string>
+    <string name="uci_ranking_legend_womens_worldteams">Women\'s WorldTeams</string>
+    <string name="uci_ranking_legend_worldtour">Invitaciones obligatorias a todo el WorldTour y ProSeries</string>
+    <string name="uci_ranking_legend_womens_worldtour">Invitaciones obligatorias al Women\'s WorldTour</string>
+    <string name="uci_ranking_legend_proseries">Invitaciones obligatorias a ProSeries</string>
+    <string name="uci_ranking_legend_top30">ProTeams fuera del top-30: fondo rojo</string>
+    <string name="uci_ranking_source">Abrir fuente UCI DataRide</string>
+    <string name="uci_ranking_regulations">Abrir Reglamento UCI · art. 2.1.007bis</string>
     <string name="results_feed_load_more">Cargar más resultados</string>
     <string name="results_feed_empty">No hay resultados</string>
     <string name="results_feed_gc_final">General final</string>
@@ -540,6 +561,7 @@
     <string name="transfers_heading">Mercado de Fichajes %1$d</string>
     <string name="transfers_feed_title">Últimas confirmaciones</string>
     <string name="transfers_feed_signings">Fichajes</string>
+    <string name="transfers_mid_season">M. TEMPORADA</string>
     <string name="transfers_feed_renewals">Renovaciones</string>
     <string name="transfers_feed_empty">Todavía no hay movimientos confirmados.</string>
     <string name="transfers_teams_title">Equipos %1$d</string>

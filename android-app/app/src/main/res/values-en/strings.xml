@@ -513,7 +513,28 @@
     <string name="results_also_on">Also on</string>
 
     <!-- "Latest results" feed (Results tab, apps 3.1) -->
-    <string name="results_feed_heading">Latest Results</string>
+    <string name="results_feed_heading">Results</string>
+    <string name="results_feed_latest">Latest Results</string>
+    <string name="uci_ranking_tab">UCI Ranking</string>
+    <string name="uci_ranking_loading">Loading UCI ranking…</string>
+    <string name="uci_ranking_error">The UCI ranking could not be loaded.</string>
+    <string name="uci_ranking_empty">The UCI has not published this ranking yet.</string>
+    <string name="uci_ranking_men">Men</string>
+    <string name="uci_ranking_women">Women</string>
+    <string name="uci_ranking_team">Team</string>
+    <string name="uci_ranking_points">Points</string>
+    <string name="uci_ranking_info_label">UCI ranking source and rules</string>
+    <string name="uci_ranking_info_title">About the UCI Ranking</string>
+    <string name="uci_ranking_updated">%1$s. DataRide normally publishes a new ranking every Tuesday.</string>
+    <string name="uci_ranking_projection">The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season.</string>
+    <string name="uci_ranking_legend_worldteams">WorldTeams</string>
+    <string name="uci_ranking_legend_womens_worldteams">Women\'s WorldTeams</string>
+    <string name="uci_ranking_legend_worldtour">Mandatory WorldTour and ProSeries invitations</string>
+    <string name="uci_ranking_legend_womens_worldtour">Mandatory Women\'s WorldTour invitations</string>
+    <string name="uci_ranking_legend_proseries">Mandatory ProSeries invitations</string>
+    <string name="uci_ranking_legend_top30">ProTeams outside the top 30: red background</string>
+    <string name="uci_ranking_source">Open UCI DataRide source</string>
+    <string name="uci_ranking_regulations">Open UCI Regulations · art. 2.1.007bis</string>
     <string name="results_feed_load_more">Load more results</string>
     <string name="results_feed_empty">No results</string>
     <string name="results_feed_gc_final">Final GC</string>
@@ -540,6 +561,7 @@
     <string name="transfers_heading">%1$d Transfer Market</string>
     <string name="transfers_feed_title">Latest confirmations</string>
     <string name="transfers_feed_signings">Signings</string>
+    <string name="transfers_mid_season">MID-SEASON</string>
     <string name="transfers_feed_renewals">Renewals</string>
     <string name="transfers_feed_empty">No confirmed moves yet.</string>
     <string name="transfers_teams_title">%1$d Teams</string>

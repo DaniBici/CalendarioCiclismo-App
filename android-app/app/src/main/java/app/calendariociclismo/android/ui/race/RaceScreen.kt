@@ -522,14 +522,14 @@ private fun StageRow(
     // jornada de DESCANSO queda inerte: no tiene ficha que abrir.
     val isInteractive = !rd.isRestDay
     // Modo terminado: hay resultados o revive. Igual que en "Hoy" (y la web),
-    // oculta el mini-perfil y cambia el accesorio derecho (chevron → iconos).
+    // cambia el accesorio derecho (chevron → iconos) y completa el miniperfil.
     val isFinishedMode = onShowResults != null || onRevive != null
 
     val app = rememberApp()
     // Mini-perfil liberado al plan gratuito: visible siempre (featuresUnlocked).
     val featuresUnlocked = app.premium.featuresUnlocked
     val tint = colorFromHex(race?.colorHex, fallback = MaterialTheme.colorScheme.outlineVariant)
-    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay && !isFinishedMode &&
+    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay &&
         rd.elevationProfile?.points?.let { it.size >= 2 } == true
 
     // Tarjeta canónica (CCCard) por etapa — paridad con el cintillo "Hoy" y la
@@ -706,6 +706,7 @@ private fun StageRow(
                     startTimeMs = rd.neutralStartTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
+                    forceCompleted = isFinishedMode,
                 )
             }
         }

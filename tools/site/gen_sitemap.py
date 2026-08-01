@@ -89,6 +89,16 @@ def safe_lastmod(*candidates):
         return today_d.isoformat()
     return max(vals).isoformat()
 
+def result_lastmod(result_updates, result_day, race):
+    """Fecha real más reciente del contenido de una página de resultados."""
+    return safe_lastmod(
+        *(result_updates or []),
+        (result_day or {}).get("updatedAt"),
+        (result_day or {}).get("dateKey"),
+        (race or {}).get("endDate"),
+        (race or {}).get("startDate"),
+    )
+
 def norm_txt(s):
     s = unicodedata.normalize("NFKD", (s or "")).encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
@@ -255,11 +265,17 @@ for rd in so_racedays:
 res_count = 0
 res_en_count = 0
 _rmap_res = {r["id"]: r for r in races}
-res_stages = supabase_get("race_uci_stages?select=raceId,stageNumber&keepForWeb=eq.true")
+res_stages = supabase_get("race_uci_stages?select=raceId,stageNumber,updatedAt&keepForWeb=eq.true")
 _res_real_by_race = {}
+_res_updated_by_key = {}
 for st in (res_stages or []):
-    _res_real_by_race.setdefault(st.get("raceId"), set()).add(st.get("stageNumber"))
+    _rid = st.get("raceId")
+    _sn = st.get("stageNumber")
+    _res_real_by_race.setdefault(_rid, set()).add(_sn)
+    if st.get("updatedAt"):
+        _res_updated_by_key.setdefault((_rid, _sn), []).append(st["updatedAt"])
 _res_days_by_race = {}
+_res_day_by_key = {}
 for rd in racedays:
     rid = rd.get("raceId")
     # El descanso no tiene página de resultados. La CANCELADA sí: desde
@@ -273,6 +289,7 @@ for rd in racedays:
     if rf != "one_day" and sn is None:
         continue
     _res_days_by_race.setdefault(rid, set()).add(sn)
+    _res_day_by_key[(rid, sn)] = rd
 _res_by_race = {
     rid: _res_real_by_race.get(rid, set()) | _res_days_by_race.get(rid, set())
     for rid in set(_res_real_by_race) | set(_res_days_by_race)
@@ -281,18 +298,23 @@ def _res_seg(n, en=False):
     if n == 0: return "prologue" if en else "prologo"
     if n is not None: return f"stage-{n}" if en else f"etapa-{n}"
     return ""
-for rid, stage_set in _res_by_race.items():
+for rid in sorted(_res_by_race):
+    stage_set = _res_by_race[rid]
     race = _rmap_res.get(rid, {})
     slug = race.get("slug")
     slug_en = race.get("slugEn")
     for sn in sorted(stage_set, key=lambda x: (x is None, x)):
+        result_day = _res_day_by_key.get((rid, sn), {})
+        result_lm = result_lastmod(
+            _res_updated_by_key.get((rid, sn), []), result_day, race
+        )
         if slug:
             seg = _res_seg(sn)
-            entries.append(sitemap_entry(f"{BASE_URL}/resultados/{quote(slug)}/" + (f"{seg}/" if seg else ""), today, "daily", "0.6"))
+            entries.append(sitemap_entry(f"{BASE_URL}/resultados/{quote(slug)}/" + (f"{seg}/" if seg else ""), result_lm, "daily", "0.6"))
             res_count += 1
         if slug_en:
             seg_en = _res_seg(sn, en=True)
-            entries.append(sitemap_entry(f"{BASE_URL_EN}/results/{quote(slug_en)}/" + (f"{seg_en}/" if seg_en else ""), today, "daily", "0.6"))
+            entries.append(sitemap_entry(f"{BASE_URL_EN}/results/{quote(slug_en)}/" + (f"{seg_en}/" if seg_en else ""), result_lm, "daily", "0.6"))
             res_en_count += 1
 
 xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'

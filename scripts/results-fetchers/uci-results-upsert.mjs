@@ -84,7 +84,10 @@
  *               Lo usa el volcado manual "Volcar esta etapa" del panel: el fetcher siempre
  *               trae la carrera entera, pero solo queremos re-escribir la etapa elegida
  *               (no las 15 anteriores del Tour). La pseudo-etapa "Final Classification"
- *               (stageNumber null) NO entra con este filtro salvo que N sea su número.
+ *               (stageNumber null) NO entra con este filtro.
+ *   --include-final  Con --only-stage N, incluye también la pseudo-etapa final. Uso
+ *               interno del cron automático cuando N es la última etapa; no se pasa
+ *               desde el volcado manual de una jornada.
  */
 'use strict';
 
@@ -166,6 +169,12 @@ const ONLY_STAGE = (() => {
   const v = getArg('only-stage');
   return v == null ? null : parseInt(v, 10);
 })();
+// --include-final: junto a --only-stage N conserva también la pseudo-etapa
+// Final Classification (stageNumber null). Lo usa exclusivamente el cron automático
+// cuando N es la última etapa: permite publicar la etapa y la general final en el mismo
+// volcado sin re-procesar las etapas anteriores. El volcado manual "esta etapa" no lo
+// pasa, por lo que mantiene su aislamiento estricto.
+const INCLUDE_FINAL = hasFlag('include-final');
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 
 // Los obligatorios se validan en main() (dentro del guard de CLI): importado desde
@@ -177,6 +186,12 @@ const OUT_SQL = getArg('emit-sql') || (IN ? join(dirname(IN), 'upsert.sql') : nu
 // ── normalización de valores ────────────────────────────────────────────────
 const s = (v) => (v == null || v === '' ? null : String(v));
 const n = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+
+export function shouldIncludeStage(stageNumber, isFinalClassification, onlyStage = ONLY_STAGE, includeFinal = INCLUDE_FINAL) {
+  if (onlyStage == null) return true;
+  if (stageNumber === onlyStage) return true;
+  return includeFinal && stageNumber == null && !!isFinalClassification;
+}
 // Como n() pero REDONDEA a entero: para columnas INTEGER. La UCI a veces manda
 // PointPcR con decimales (p. ej. "1.17", ranking points fuente externa) en clasificaciones
 // que NO mostramos (Stage Classification) → la columna integer `points` peta.
@@ -225,6 +240,15 @@ function sanitizeSpuriousWinner(rows, classKind) {
   return fixed;
 }
 
+// Una clasificación parcial no puede sustituir lo ya publicado ni crear una
+// pestaña engañosa. Debe traer un rank=1 real y esa fila no puede tener IRM.
+// Se comprueba tras sanear el rank=1 espurio de la UCI: si había una ganadora
+// real en rank=2, el saneo la convierte en una clasificación válida.
+function hasValidWinner(rows) {
+  const winner = Array.isArray(rows) && rows.find((r) => n(r.rank) === 1);
+  return !!winner && !s(winner.irm);
+}
+
 // ── Fase 6: split de DisplayName UCI "APELLIDO(S) Nombre(s)" → {first,last} ───
 // La UCI publica el nombre en una sola cadena con el/los apellido(s) en MAYÚSCULAS
 // (DisplayFirstName/LastName vienen null en las carreras pequeñas). Heurística
@@ -264,10 +288,11 @@ function splitUciDisplay(display) {
 // con nombre partido + nacionalidad + fecha de nacimiento (todo de la UCI). Para
 // resolve_uci_results_by_name (Fase 6). Prefiere los campos separados si la UCI los
 // trae; si no, parte DisplayName/riderDisplay.
-function extractRidersForNameResolve(data) {
+function extractRidersForNameResolve(data, acceptedEventIds = null) {
   const byBib = new Map();
   for (const st of (data.stages || [])) {
     for (const cl of (st.classifications || [])) {
+      if (acceptedEventIds && !acceptedEventIds.has(n(cl.eventId))) continue;
       if (cl.isTeamEvent) continue;
       for (const r of (cl.rows || [])) {
         const bib = s(r.bib);
@@ -321,25 +346,33 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
 
   const stages = Array.isArray(data.stages) ? data.stages : [];
   const plan = [];
+  const acceptedEventIds = new Set();
   // nStages = clasificaciones que entran en el plan (nuevas + re-volcado dentro de
   // ventana). nNew = SOLO las cuyo eventId no existía aún en la BD → es la señal de
   // "hay página/contenido nuevo que SEO debe reflejar". Re-volcar datos de una
   // clasificación ya volcada (Tissot corrigiendo gaps en la 1ª hora) NO crea URL nueva
   // → no debe regenerar og-pages/sitemap (decisión Dani 2026-06-12).
-  let nStages = 0, nResults = 0, nSkipped = 0, nNew = 0;
+  let nStages = 0, nResults = 0, nSkipped = 0, nRejected = 0, nNew = 0;
 
   // 1) Puente carrera↔competición. Requiere que la carrera exista (FK).
   //    Con --source se fija también race_uci_links.source (090); sin él no se toca.
-  plan.push(SOURCE ? {
+  //    STS exige además stsCode: Postgres valida el CHECK ANTES de resolver el
+  //    ON CONFLICT, así que no basta con conservar el código de un enlace previo.
+  const stsCode = SOURCE === 'sts' ? data.stsCode : null;
+  if (SOURCE === 'sts' && !stsCode) {
+    throw new Error('--source sts requiere stsCode en el JSON del fetcher STS');
+  }
+  const linkStatement = SOURCE ? {
     note: `puente carrera↔competición (source='${SOURCE}'${UCI_RACE_ID ? `, uciRaceId=${UCI_RACE_ID}` : ''})`,
     text: `INSERT INTO public.race_uci_links
-  ("raceId","competitionId","disciplineId","seasonId","uciRaceId","autoMatched","lastSyncedAt","syncStatus","source")
-VALUES ($1,$2,$3,$4,$7,FALSE,now(),$5,$6)
+  ("raceId","competitionId","disciplineId","seasonId","uciRaceId","autoMatched","lastSyncedAt","syncStatus","source","stsCode")
+VALUES ($1,$2,$3,$4,$7,FALSE,now(),$5,$6,$8)
 ON CONFLICT ("raceId") DO UPDATE SET
   "competitionId"=EXCLUDED."competitionId", "disciplineId"=EXCLUDED."disciplineId",
   "seasonId"=EXCLUDED."seasonId", "uciRaceId"=EXCLUDED."uciRaceId", "lastSyncedAt"=now(),
-  "syncStatus"=EXCLUDED."syncStatus", "syncError"=NULL, "source"=EXCLUDED."source"`,
-    params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE, UCI_RACE_ID],
+  "syncStatus"=EXCLUDED."syncStatus", "syncError"=NULL, "source"=EXCLUDED."source",
+  "stsCode"=COALESCE(EXCLUDED."stsCode", race_uci_links."stsCode")`,
+    params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE, UCI_RACE_ID, stsCode],
   } : {
     note: `puente carrera↔competición${UCI_RACE_ID ? ` (uciRaceId=${UCI_RACE_ID})` : ''}`,
     text: `INSERT INTO public.race_uci_links
@@ -350,15 +383,15 @@ ON CONFLICT ("raceId") DO UPDATE SET
   "seasonId"=EXCLUDED."seasonId", "uciRaceId"=EXCLUDED."uciRaceId", "lastSyncedAt"=now(),
   "syncStatus"=EXCLUDED."syncStatus", "syncError"=NULL`,
     params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, UCI_RACE_ID],
-  });
+  };
 
   for (const st of stages) {
     const stageNumber = n(st.stageNumber);     // null (Final Classification) o 0 (prólogo) o N
-    // --only-stage: descartar toda etapa que no sea la pedida (comparación estricta;
-    // stageNumber null nunca casa un N numérico → la Final Classification se excluye
-    // salvo que N sea explícitamente su número). Descartada = ni purga ni insert.
-    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
     const isFinal = !!st.isFinalClassification;
+    // --only-stage: descartar toda etapa que no sea la pedida (comparación estricta).
+    // stageNumber null nunca casa un N numérico. --include-final hace una excepción
+    // explícita solo para la pseudo-etapa final; descartada = ni purga ni insert.
+    if (!shouldIncludeStage(stageNumber, isFinal)) continue;
     const uciRaceId = n(st.uciRaceId);
     const dateKey = s(st.dateKey);
     const raceType = s(st.raceType);
@@ -381,7 +414,14 @@ ON CONFLICT ("raceId") DO UPDATE SET
       if (officialLogicalKeys && eventId != null && eventId < 0 && officialLogicalKeys.has(logicalKey)) {
         nSkipped++; continue;
       }
+      const rows = sanitizeSpuriousWinner(Array.isArray(cl.rows) ? cl.rows : [], s(cl.classKind));
+      if (!hasValidWinner(rows)) {
+        nRejected++;
+        log(`  ⚠ clasificación omitida: etapa ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} (falta rank=1 válido sin IRM)`);
+        continue;
+      }
       nStages++;
+      acceptedEventIds.add(eventId);
       // ¿Es una clasificación REALMENTE nueva (su eventId no estaba en la BD)?
       // presentEventIds incluye TODOS los eventId ya volcados con filas (sin filtro de
       // tiempo, a diferencia de skipEventIds). Si no está → cuenta como nueva.
@@ -485,7 +525,6 @@ WHERE race_uci_stages."lockedAt" IS NULL`,
         params: [stageRef],
       });
 
-      const rows = sanitizeSpuriousWinner(Array.isArray(cl.rows) ? cl.rows : [], s(cl.classKind));
       rows.forEach((r, i) => {
         nResults++;
         const rank = n(r.rank);
@@ -521,7 +560,10 @@ WHERE ${notLocked}
     }
   }
 
-  return { plan, competitionId, nStages, nResults, nSkipped, nNew };
+  // Si el feed solo trae clasificaciones parciales, tampoco se actualiza el
+  // enlace: así no queda una falsa sincronización sin resultados válidos.
+  if (nStages > 0) plan.unshift(linkStatement);
+  return { plan, competitionId, nStages, nResults, nSkipped, nRejected, nNew, acceptedEventIds };
 }
 
 // ── serializar un statement parametrizado a SQL literal (modo --emit-sql) ────
@@ -553,7 +595,7 @@ async function main() {
   const data = JSON.parse(readFileSync(IN, 'utf8'));
 
   if (!APPLY) {
-    const { plan, competitionId, nStages, nResults } = buildPlan(data);
+    const { plan, competitionId, nStages, nResults, nRejected, acceptedEventIds } = buildPlan(data);
     // ── modo SQL ──
     const out = [
       '-- ════════════════════════════════════════════════════════════════',
@@ -570,15 +612,18 @@ async function main() {
       out.push(toSQL(st) + ';');
     }
     // Fase 3: enlazar globalRiderId por dorsal contra la startlist (mismo TX).
-    out.push('', '-- enlazar riders por dorsal (Fase 3)');
-    out.push(`SELECT public.resolve_uci_results(${lit(RACE_ID)});`);
+    if (nStages > 0) {
+      out.push('', '-- enlazar riders por dorsal (Fase 3)');
+      out.push(`SELECT public.resolve_uci_results(${lit(RACE_ID)});`);
+    }
     // Fase 6: enlazar por nombre + crear fichas que falten (carreras sin startlist).
-    if (GENDER) {
-      const ridersJson = JSON.stringify(extractRidersForNameResolve(data));
+    if (GENDER && nStages > 0) {
+      const ridersJson = JSON.stringify(extractRidersForNameResolve(data, acceptedEventIds));
       out.push('', '-- enlazar riders por nombre + crear fichas faltantes (Fase 6)');
       out.push(`SELECT public.resolve_uci_results_by_name(${lit(RACE_ID)},${lit(GENDER)},${lit(ridersJson)}::jsonb);`);
     }
     out.push('', 'COMMIT;', '', `-- Resumen: ${nStages} clasificaciones, ${nResults} filas.`);
+    if (nRejected) out.push(`-- Omitidas por no tener rank=1 válido sin IRM: ${nRejected}.`);
     const sql = out.join('\n');
     if (OUT_SQL === '-') process.stdout.write(sql + '\n');
     else { mkdirSync(dirname(OUT_SQL), { recursive: true }); writeFileSync(OUT_SQL, sql); log(`✅ ${nStages} clasificaciones, ${nResults} filas → ${OUT_SQL}`); }
@@ -647,14 +692,17 @@ async function main() {
     skipEventIds = new Set(rows.map((r) => Number(r.eventId)));
   }
 
-  const { plan, competitionId, nStages, nResults, nSkipped, nNew } = buildPlan(data, skipEventIds, presentEventIds, officialLogicalKeys);
-  if (SKIP_EXISTING && nStages === 0) {
+  const { plan, competitionId, nStages, nResults, nSkipped, nRejected, nNew, acceptedEventIds } = buildPlan(data, skipEventIds, presentEventIds, officialLogicalKeys);
+  if (nStages === 0) {
     // Nada nuevo que volcar: todas las clasificaciones del fetch ya estaban. Salir
     // limpio sin tocar la BD (ni resolve_*; no hay filas nuevas que enlazar).
     // EXIT 2 = "ok pero SIN escritura": el cron lo distingue del 0 (sí escribió) para
     // NO regenerar og-pages/sitemap en balde cuando no hubo resultados nuevos.
     await client.end().catch(() => {});
-    log(`✅ sin cambios: ${nSkipped} clasificaciones ya volcadas, 0 nuevas (--skip-existing)`);
+    const reasons = [];
+    if (nSkipped) reasons.push(`${nSkipped} ya volcadas`);
+    if (nRejected) reasons.push(`${nRejected} sin rank=1 válido sin IRM`);
+    log(`✅ sin cambios: ${reasons.join('; ') || 'ninguna clasificación válida'}${SKIP_EXISTING ? ' (--skip-existing)' : ''}`);
     process.exit(2);
   }
   try {
@@ -669,6 +717,7 @@ async function main() {
     if (FILL_DNF) {
       for (const stg of (data.stages || [])) {
         for (const cl of (stg.classifications || [])) {
+          if (!acceptedEventIds.has(n(cl.eventId))) continue;
           if (cl.classKind !== 'stage') continue;          // solo la orden de llegada
           const stageRef = `ru_${cl.eventId}`;
           const r = await client.query(
@@ -708,6 +757,7 @@ async function main() {
     if (IRM_OVERRIDES.size) {
       for (const stg of (data.stages || [])) {
         for (const cl of (stg.classifications || [])) {
+          if (!acceptedEventIds.has(n(cl.eventId))) continue;
           if (cl.classKind !== 'stage') continue;
           const stageRef = `ru_${cl.eventId}`;
           for (const [bib, code] of IRM_OVERRIDES) {
@@ -731,7 +781,7 @@ async function main() {
     // Fase 6: si quedaron filas sin enlazar (carrera sin startlist) y se pasó --gender,
     // resolver por NOMBRE desde el propio resultado UCI, creando la ficha que falte.
     let created = 0;
-    const ridersJson = JSON.stringify(extractRidersForNameResolve(data));
+    const ridersJson = JSON.stringify(extractRidersForNameResolve(data, acceptedEventIds));
     if (GENDER && unresolved > 0) {
       const rn = await client.query(
         'SELECT matched, created, unresolved FROM public.resolve_uci_results_by_name($1,$2,$3::jsonb)',
@@ -753,6 +803,7 @@ async function main() {
     await client.query('COMMIT');
     log(`✅ aplicado: ${nStages} clasificaciones, ${nResults} filas (competition ${competitionId} → ${RACE_ID})` +
         (nSkipped ? `; ${nSkipped} ya volcadas, omitidas (--skip-existing)` : ''));
+    if (nRejected) log(`   ↳ ${nRejected} omitidas sin rank=1 válido sin IRM`);
     if (dnfFilled > 0) log(`   ↳ DNF derivados de la startlist: ${dnfFilled} (--fill-dnf-from-startlist)`);
     if (irmOverridden > 0) log(`   ↳ IRM corregidos: ${irmOverridden} (--irm-override)`);
     log(`   ↳ riders: ${matched} enlazados, ${unresolved} sin enlazar` +

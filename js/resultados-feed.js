@@ -29,6 +29,12 @@ import { getLang } from './i18n.js';
 import { buildExtUrlA, buildExtUrlB, isRaceConcluded } from './race-data-modal.js';
 import { isAbandonIrm } from './uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
+import {
+  decorateUciRanking,
+  formatUciRankingUpdated,
+  UciRankingTier,
+  uciRankingRuleText,
+} from './uci-team-ranking.js';
 
 const WINDOW_DAYS = 14;
 const SEASON_START = '2026-01-01';
@@ -411,6 +417,11 @@ export function renderResultsFeed(content) {
   const locale = _isEn ? 'en-GB' : 'es-ES';
   const todayKey = toDateKey(new Date());
   let fromKey = addDays(todayKey, -(WINDOW_DAYS - 1));
+  let activeView = 'latest';
+  let rankingGender = 'male';
+  let feedEntries = null;
+  let rankingRows = null;
+  let infoModal = null;
 
   // ── SEO (la home del feed es evergreen) ───────────────────────────
   const title = _isEn
@@ -438,16 +449,43 @@ export function renderResultsFeed(content) {
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
-  async function load() {
-    content.innerHTML = `<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`;
-    const entries = await fetchEntries(fromKey, todayKey, _isEn);
-
-    // ── Render ────────────────────────────────────────────────────
-    let html = `
+  function shell(body) {
+    return `
       <div class="feed-hero">
-        <h1 class="feed-hero__title">${_isEn ? 'Latest Results' : 'Últimos Resultados'}</h1>
-      </div>`;
+        <h1 class="feed-hero__title">${_isEn ? 'Results' : 'Resultados'}</h1>
+        <div class="feed-view-tabs" role="tablist" aria-label="${_isEn ? 'Results view' : 'Vista de resultados'}">
+          <button class="feed-view-tab${activeView === 'latest' ? ' feed-view-tab--active' : ''}"
+                  type="button" role="tab" aria-selected="${activeView === 'latest'}" data-results-view="latest">
+            ${_isEn ? 'Latest Results' : 'Últimos Resultados'}
+          </button>
+          <button class="feed-view-tab${activeView === 'ranking' ? ' feed-view-tab--active' : ''}"
+                  type="button" role="tab" aria-selected="${activeView === 'ranking'}" data-results-view="ranking">
+            ${_isEn ? 'UCI Ranking' : 'Ránking UCI'}
+          </button>
+        </div>
+      </div>
+      <div id="resultsFeedPanel">${body}</div>`;
+  }
 
+  function bindViewTabs() {
+    content.querySelectorAll('[data-results-view]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const next = button.dataset.resultsView;
+        if (next === activeView) return;
+        activeView = next;
+        if (activeView === 'ranking') {
+          renderRankingOrLoad();
+        } else if (feedEntries) {
+          renderFeed(feedEntries);
+        } else {
+          loadFeed();
+        }
+      });
+    });
+  }
+
+  function renderFeed(entries) {
+    let html = '';
     if (!entries.length) {
       html += `<div class="startlist-empty">${_isEn
         ? 'No results in this period.' : 'No hay resultados en este periodo.'}</div>`;
@@ -467,18 +505,233 @@ export function renderResultsFeed(content) {
     if (fromKey > SEASON_START) {
       html += `<div class="feed-more-wrap"><button class="feed-more" id="feedMoreBtn">${_isEn ? 'Load more results' : 'Cargar más resultados'}</button></div>`;
     }
-    content.innerHTML = html;
+    content.innerHTML = shell(html);
+    bindViewTabs();
 
     const moreBtn = document.getElementById('feedMoreBtn');
     if (moreBtn) {
-      moreBtn.addEventListener('click', () => {
+      moreBtn.addEventListener('click', async () => {
         const next = addDays(fromKey, -WINDOW_DAYS);
         fromKey = next < SEASON_START ? SEASON_START : next;
         const y = window.scrollY;
-        load().then(() => window.scrollTo(0, y));
+        await loadFeed();
+        window.scrollTo(0, y);
       });
     }
   }
 
-  load();
+  async function loadFeed() {
+    content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
+    bindViewTabs();
+    try {
+      feedEntries = await fetchEntries(fromKey, todayKey, _isEn);
+      if (activeView === 'latest') renderFeed(feedEntries);
+    } catch (error) {
+      console.error('[resultados-feed] latest', error);
+      if (activeView === 'latest') {
+        content.innerHTML = shell(`<div class="startlist-empty">${_isEn
+          ? 'The latest results could not be loaded.'
+          : 'No se pudieron cargar los últimos resultados.'}</div>`);
+        bindViewTabs();
+      }
+    }
+  }
+
+  function rankingInfoHtml(rows) {
+    const updated = formatUciRankingUpdated(rows[0]?.rankingDate, _isEn);
+    const sourceUrl = rows[0]?.sourceUrl || 'https://dataride.uci.ch/iframe/Rankings/10';
+    const regulationsUrl = 'https://assets.ctfassets.net/761l7gh5x5an/6FEzFHeA2oKMBGb5sdIvQ7/96aad776f210fc38853ec9bf9ec9acba/2-ROA-20260701-E.pdf';
+    if (_isEn) {
+      return `
+        <p><strong>${esc(updated)}.</strong> DataRide normally publishes a new ranking every Tuesday.</p>
+        <p>The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season.</p>
+        <ul class="uci-ranking-legend">
+          <li><span class="uci-ranking-swatch uci-ranking-swatch--wt"></span> ${rankingGender === 'male' ? 'WorldTeams' : "Women's WorldTeams"}</li>
+          <li><span class="uci-ranking-swatch uci-ranking-swatch--orange"></span> ${rankingGender === 'male' ? 'Mandatory WorldTour and ProSeries invitations' : "Mandatory Women's WorldTour invitations"}</li>
+          ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--green"></span> Mandatory ProSeries invitations</li>' : ''}
+          ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--excluded"></span> ProTeams outside the overall top 30</li>' : ''}
+        </ul>
+        <p><a href="${esc(sourceUrl)}" target="_blank" rel="noopener">UCI DataRide source</a> ·
+        <a href="${regulationsUrl}" target="_blank" rel="noopener">UCI Regulations, art. 2.1.007bis</a></p>`;
+    }
+    return `
+      <p><strong>${esc(updated)}.</strong> DataRide publica normalmente un nuevo ránking cada martes.</p>
+      <p>Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.</p>
+      <ul class="uci-ranking-legend">
+        <li><span class="uci-ranking-swatch uci-ranking-swatch--wt"></span> ${rankingGender === 'male' ? 'WorldTeams' : "Women's WorldTeams"}</li>
+        <li><span class="uci-ranking-swatch uci-ranking-swatch--orange"></span> ${rankingGender === 'male' ? 'Invitaciones obligatorias a todo el WorldTour y ProSeries' : "Invitaciones obligatorias al Women's WorldTour"}</li>
+        ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--green"></span> Invitaciones obligatorias a ProSeries</li>' : ''}
+        ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--excluded"></span> ProTeams fuera del top-30 absoluto</li>' : ''}
+      </ul>
+      <p><a href="${esc(sourceUrl)}" target="_blank" rel="noopener">Fuente UCI DataRide</a> ·
+      <a href="${regulationsUrl}" target="_blank" rel="noopener">Reglamento UCI, art. 2.1.007bis</a></p>`;
+  }
+
+  function closeInfoModal() {
+    if (!infoModal) return;
+    infoModal.classList.remove('rd-modal--open');
+    document.body.style.overflow = '';
+    content.querySelector('.uci-ranking-info-button')?.focus();
+  }
+
+  function openInfoModal(rows) {
+    if (!infoModal) {
+      infoModal = document.createElement('div');
+      infoModal.className = 'rd-modal-overlay';
+      infoModal.innerHTML = `
+        <div class="rd-modal uci-ranking-info-modal" role="dialog" aria-modal="true" aria-labelledby="uciRankingInfoTitle">
+          <div class="rd-modal__bar">
+            <div class="rd-modal__header-text">
+              <span class="rd-modal__race-name" id="uciRankingInfoTitle">${_isEn ? 'About the UCI Ranking' : 'Sobre el Ránking UCI'}</span>
+            </div>
+            <button class="rd-modal__close" type="button" aria-label="${_isEn ? 'Close' : 'Cerrar'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="rd-modal__body uci-ranking-info-modal__body"></div>
+        </div>`;
+      infoModal.addEventListener('click', (event) => {
+        if (event.target === infoModal) closeInfoModal();
+      });
+      infoModal.querySelector('.rd-modal__close').addEventListener('click', closeInfoModal);
+      document.body.appendChild(infoModal);
+    }
+    infoModal.querySelector('.uci-ranking-info-modal__body').innerHTML = rankingInfoHtml(rows);
+    infoModal.classList.add('rd-modal--open');
+    document.body.style.overflow = 'hidden';
+    infoModal.querySelector('.rd-modal__close').focus();
+  }
+
+  function tierClass(row) {
+    switch (row.invitationTier) {
+      case UciRankingTier.WORLD_TOUR: return 'uci-ranking-row--wt';
+      case UciRankingTier.ALL_WORLD_TOUR:
+      case UciRankingTier.WOMENS_WORLD_TOUR: return 'uci-ranking-row--orange';
+      case UciRankingTier.PRO_SERIES: return 'uci-ranking-row--green';
+      default: return '';
+    }
+  }
+
+  function renderRanking(rows) {
+    const selected = decorateUciRanking(rows, rankingGender);
+    const info = rankingInfoHtml(selected);
+    const updated = formatUciRankingUpdated(selected[0]?.rankingDate, _isEn);
+    const pointsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+    const genderButtons = [
+      ['male', _isEn ? 'Men' : 'Masculino'],
+      ['female', _isEn ? 'Women' : 'Femenino'],
+    ].map(([value, label]) => `
+      <button class="feed-view-tab${value === rankingGender ? ' feed-view-tab--active' : ''}"
+              type="button" data-ranking-gender="${value}">${label}</button>`).join('');
+    const rowsHtml = selected.map((row) => {
+      const rule = uciRankingRuleText(row, _isEn);
+      const classes = [
+        'uci-ranking-row',
+        tierClass(row),
+        row.grandTourExcluded ? 'uci-ranking-row--excluded' : '',
+        rule ? 'uci-ranking-row--explained' : '',
+      ].filter(Boolean).join(' ');
+      return `
+        <div class="${classes}"${rule ? ` tabindex="0" role="button" aria-expanded="false" data-tooltip="${esc(rule)}"` : ''}>
+          <span class="uci-ranking-row__rank">${esc(String(row.rank))}</span>
+          <span class="uci-ranking-row__flag">${countryFlag(row.countryCode)}</span>
+          <span class="uci-ranking-row__team">${esc(row.displayName || row.sourceName)}</span>
+          <span class="uci-ranking-row__category">${esc(row.teamCategory || '')}</span>
+          <span class="uci-ranking-row__points">${esc(pointsFormat.format(Number(row.points)))}</span>
+        </div>`;
+    }).join('');
+
+    const body = `
+      <section class="uci-ranking">
+        <div class="uci-ranking-heading-row">
+          <h2 class="uci-ranking-title">${_isEn ? 'UCI Team Ranking' : 'Ránking UCI por equipos'}</h2>
+          <div class="uci-ranking-heading-meta">
+            <p class="uci-ranking-updated">${esc(updated)}</p>
+            <button class="uci-ranking-info-button" type="button"
+                    aria-label="${_isEn ? 'Ranking source and invitation rules' : 'Fuente y reglas de invitación'}"
+                    aria-describedby="uciRankingInfoTooltip">i</button>
+          </div>
+          <div class="uci-ranking-info-tooltip" id="uciRankingInfoTooltip" role="tooltip">${info}</div>
+        </div>
+        <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
+          ${genderButtons}
+        </div>
+        <div class="uci-ranking-table" role="table" aria-label="${_isEn ? 'UCI team ranking' : 'Ránking UCI por equipos'}">
+          <div class="uci-ranking-table__head" role="row">
+            <span>#</span><span></span><span>${_isEn ? 'Team' : 'Equipo'}</span><span>${_isEn ? 'Cat.' : 'Cat.'}</span><span>${_isEn ? 'Points' : 'Puntos'}</span>
+          </div>
+          ${rowsHtml || `<div class="startlist-empty">${_isEn ? 'Ranking not available.' : 'Ránking no disponible.'}</div>`}
+        </div>
+      </section>`;
+    content.innerHTML = shell(body);
+    bindViewTabs();
+
+    content.querySelectorAll('[data-ranking-gender]').forEach((button) => {
+      button.addEventListener('click', () => {
+        rankingGender = button.dataset.rankingGender;
+        renderRanking(rows);
+      });
+    });
+    content.querySelector('.uci-ranking-info-button')?.addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 768px)').matches) openInfoModal(selected);
+    });
+    const explainedRows = [...content.querySelectorAll('.uci-ranking-row--explained')];
+    const closeRuleTooltips = (except = null) => {
+      explainedRows.forEach((row) => {
+        if (row === except) return;
+        row.classList.remove('uci-ranking-row--tooltip-open');
+        row.setAttribute('aria-expanded', 'false');
+      });
+    };
+    const toggleRuleTooltip = (row) => {
+      const shouldOpen = !row.classList.contains('uci-ranking-row--tooltip-open');
+      closeRuleTooltips(row);
+      row.classList.toggle('uci-ranking-row--tooltip-open', shouldOpen);
+      row.setAttribute('aria-expanded', String(shouldOpen));
+    };
+    explainedRows.forEach((row) => {
+      row.addEventListener('click', () => toggleRuleTooltip(row));
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleRuleTooltip(row);
+      });
+    });
+    content.querySelector('.uci-ranking')?.addEventListener('click', (event) => {
+      if (!event.target.closest('.uci-ranking-row--explained')) closeRuleTooltips();
+    });
+  }
+
+  async function renderRankingOrLoad() {
+    if (rankingRows) {
+      renderRanking(rankingRows);
+      return;
+    }
+    content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading UCI ranking' : 'Cargando ránking UCI'}</div>`);
+    bindViewTabs();
+    try {
+      const { data, error } = await supabase
+        .from('uci_team_rankings')
+        .select('gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl')
+        .order('gender', { ascending: true })
+        .order('rank', { ascending: true });
+      if (error) throw error;
+      rankingRows = data || [];
+      if (activeView === 'ranking') renderRanking(rankingRows);
+    } catch (error) {
+      console.error('[resultados-feed] ranking', error);
+      if (activeView === 'ranking') {
+        content.innerHTML = shell(`<div class="startlist-empty">${_isEn
+          ? 'The UCI ranking could not be loaded.'
+          : 'No se pudo cargar el ránking UCI.'}</div>`);
+        bindViewTabs();
+      }
+    }
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && infoModal?.classList.contains('rd-modal--open')) closeInfoModal();
+  });
+
+  loadFeed();
 }

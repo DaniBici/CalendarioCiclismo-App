@@ -97,6 +97,16 @@ object DateFormatting {
     fun formatDateLongContent(dateKey: String): String =
         formatDateLongIn(dateKey, contentLocale)
 
+    /** Fecha canónica del ránking UCI, completa y con el mismo patrón por idioma. */
+    fun formatUciRankingUpdated(dateKey: String, isEnglish: Boolean): String {
+        val locale = if (isEnglish) LOCALE_EN else LOCALE_ES
+        val prefix = if (isEnglish) "Updated" else "Actualizado"
+        val date = parseDateKey(dateKey) ?: return "$prefix: $dateKey"
+        val pattern = if (isEnglish) "EEEE, d MMMM yyyy" else "EEEE, d 'de' MMMM 'de' yyyy"
+        val f = SimpleDateFormat(pattern, locale)
+        return "$prefix: ${f.format(date)}"
+    }
+
     /** Día de la semana + día + mes, SIN año, en el idioma del CONTENIDO
      *  ("Martes 24 de junio" / "Tuesday 24 June"). Para el feed del mercado de
      *  fichajes; paridad con web (`dayHeading`) e iOS. */

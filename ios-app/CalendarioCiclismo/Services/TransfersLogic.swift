@@ -87,9 +87,13 @@ enum TransfersLogic {
     static func confirmedFeed(_ transfers: [RiderTransfer]) -> [RiderTransfer] {
         transfers.filter { $0.status == "confirmed" && $0.dateVisible && isRealSigning($0) }
             .sorted {
-                let a = ($0.announcedAt ?? "", $0.createdAt ?? "")
-                let b = ($1.announcedAt ?? "", $1.createdAt ?? "")
-                return a > b
+                let dateA = $0.announcedAt ?? ""
+                let dateB = $1.announcedAt ?? ""
+                if dateA != dateB { return dateA > dateB }
+                // En una misma fecha, primero el mercado de la próxima temporada
+                // y después los fichajes efectivos de mitad de temporada.
+                if $0.midSeason != $1.midSeason { return !$0.midSeason }
+                return ($0.createdAt ?? "") > ($1.createdAt ?? "")
             }
     }
 
@@ -190,6 +194,9 @@ enum TransfersLogic {
         categoryByTeamId: [String: String] = [:],
         teamNameById: [String: String] = [:]
     ) -> TeamDetail {
+        // Los fichajes efectivos durante la temporada se muestran en el feed,
+        // pero no forman parte del mercado de la plantilla siguiente.
+        let marketTransfers = transfers.filter { !$0.midSeason }
         // Llegan (fichajes): primero los CONFIRMADOS, luego los rumores; dentro
         // de cada grupo, alfabético por apellido.
         func arrivalName(_ x: RiderTransfer) -> String {
@@ -199,13 +206,13 @@ enum TransfersLogic {
         func arrivalKey(_ x: RiderTransfer) -> (Int, String) {
             (x.status == "rumor" ? 1 : 0, arrivalName(x))
         }
-        let arrivals = transfers.filter { $0.type == "transfer" && $0.toTeamId == teamId }
+        let arrivals = marketTransfers.filter { $0.type == "transfer" && $0.toTeamId == teamId }
             .sorted { a, b in
                 let ka = arrivalKey(a), kb = arrivalKey(b)
                 if ka.0 != kb.0 { return ka.0 < kb.0 }
                 return ka.1 < kb.1
             }
-        let allDepartures = transfers.filter {
+        let allDepartures = marketTransfers.filter {
             ($0.type == "transfer" || $0.type == "retirement") && $0.fromTeamId == teamId
         }
         // Fin de contrato sin destino → su propia sección (alfabético por
@@ -237,7 +244,7 @@ enum TransfersLogic {
         // Las EN DUDA van a su propio bucket: no anotan contrato ni "continúan".
         var renewalsByRider: [String: RiderTransfer] = [:]
         var doubtsByRider: [String: RiderTransfer] = [:]
-        for t in transfers where t.type == "renewal" && t.toTeamId == teamId {
+        for t in marketTransfers where t.type == "renewal" && t.toTeamId == teamId {
             if t.status == "doubt" {
                 if doubtsByRider[t.riderId] == nil { doubtsByRider[t.riderId] = t }
             } else if renewalsByRider[t.riderId] == nil {

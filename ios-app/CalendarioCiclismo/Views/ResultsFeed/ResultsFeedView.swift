@@ -1,5 +1,21 @@
 import SwiftUI
 
+private enum ResultsFeedSection {
+    case latest
+    case ranking
+}
+
+private enum UciRankingGender: String {
+    case male
+    case female
+}
+
+private struct UciRankingExplanationItem: Identifiable {
+    let id: String
+    let title: String
+    let message: String
+}
+
 /// Pestaña "Resultados" — feed "Últimos resultados" (apps 3.1, fase F3).
 /// Réplica nativa de `js/resultados-feed.js` (`renderResultsFeed`): cronología
 /// inversa agrupada por día, ventana de 14 días + "Cargar más" hasta el
@@ -21,21 +37,44 @@ struct ResultsFeedView: View {
     @State private var resultsRoute: ResultsRoute?
     /// Sheet externos para las filas EXT (sin volcado in-house).
     @State private var resultsSheetItem: ResultsSheetItem?
+    @State private var activeSection = ResultsFeedSection.latest
+    @State private var rankingGender = UciRankingGender.male
+    @State private var rankingRows: [UciTeamRankingRow] = []
+    @State private var isRankingLoading = false
+    @State private var rankingError: String?
+    @State private var isShowingRankingInfo = false
+    @State private var rankingExplanation: UciRankingExplanationItem?
     @State private var localeService = LocaleService.shared
 
     var body: some View {
-        Group {
-            if isLoading && entries.isEmpty {
-                LoadingView(message: localeService.t("Cargando resultados...", "Loading results..."), branded: true)
-            } else if let error, entries.isEmpty {
-                ErrorView(message: error) {
-                    Task { await load() }
+        VStack(spacing: 0) {
+            sectionSelector
+            Group {
+                switch activeSection {
+                case .latest:
+                    if isLoading && entries.isEmpty {
+                        LoadingView(message: localeService.t("Cargando resultados...", "Loading results..."), branded: true)
+                    } else if let error, entries.isEmpty {
+                        ErrorView(message: error) {
+                            Task { await load() }
+                        }
+                    } else {
+                        feedList
+                    }
+                case .ranking:
+                    if isRankingLoading && rankingRows.isEmpty {
+                        LoadingView(message: localeService.t("Cargando ránking UCI...", "Loading UCI ranking..."), branded: true)
+                    } else if let rankingError, rankingRows.isEmpty {
+                        ErrorView(message: rankingError) {
+                            Task { await loadRanking() }
+                        }
+                    } else {
+                        rankingList
+                    }
                 }
-            } else {
-                feedList
             }
         }
-        .navigationTitle(localeService.t("Últimos Resultados", "Latest Results"))
+        .navigationTitle(localeService.t("Resultados", "Results"))
         .navigationBarTitleDisplayMode(.inline)
         // Push por valor a la pantalla de resultados in-house (data-driven,
         // como en Hoy — NUNCA por destino, corrompe el NavigationStack).
@@ -43,10 +82,75 @@ struct ResultsFeedView: View {
             ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
         }
         .resultsSheet(item: $resultsSheetItem)
+        .sheet(isPresented: $isShowingRankingInfo) {
+            UciRankingInfoSheet(
+                rows: decoratedRanking,
+                gender: rankingGender,
+                localeService: localeService
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .alert(item: $rankingExplanation) { item in
+            Alert(
+                title: Text(item.title),
+                message: Text(item.message),
+                dismissButton: .default(Text(localeService.t("Cerrar", "Close")))
+            )
+        }
         .task { await load() }
         .onAppear {
             AnalyticsService.shared.logScreenView("results_feed")
         }
+    }
+
+    private var sectionSelector: some View {
+        HStack(spacing: 8) {
+            sectionChip(
+                localeService.t("Últimos Resultados", "Latest Results"),
+                selected: activeSection == .latest
+            ) {
+                activeSection = .latest
+            }
+            sectionChip(
+                localeService.t("Ránking UCI", "UCI Ranking"),
+                selected: activeSection == .ranking
+            ) {
+                activeSection = .ranking
+                AnalyticsService.shared.logScreenView("uci_team_ranking")
+                if rankingRows.isEmpty {
+                    Task { await loadRanking() }
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func sectionChip(
+        _ label: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            Haptics.play(.selection)
+            action()
+        } label: {
+            Text(label)
+                .font(.caption)
+                .fontWeight(selected ? .semibold : .regular)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule().fill(
+                        selected
+                            ? Color.accentColor.opacity(0.15)
+                            : Color(.secondarySystemBackground)
+                    )
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Lista
@@ -114,6 +218,94 @@ struct ResultsFeedView: View {
         .refreshable { await load() }
     }
 
+    // MARK: - Ránking UCI
+
+    private var decoratedRanking: [UciTeamRankingPresentation] {
+        UciTeamRankingLogic.decorate(rankingRows, gender: rankingGender.rawValue)
+    }
+
+    private var rankingList: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                sectionChip(
+                    localeService.t("Masculino", "Men"),
+                    selected: rankingGender == .male
+                ) { rankingGender = .male }
+                sectionChip(
+                    localeService.t("Femenino", "Women"),
+                    selected: rankingGender == .female
+                ) { rankingGender = .female }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+
+            if let rankingDate = decoratedRanking.first?.row.rankingDate {
+                HStack(spacing: 4) {
+                    Text(DateFormatting.formatUciRankingUpdated(rankingDate))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                    Button {
+                        Haptics.play(.selection)
+                        isShowingRankingInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localeService.t(
+                        "Fuente y reglas del ránking UCI",
+                        "UCI ranking source and rules"
+                    ))
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 2)
+            }
+
+            if decoratedRanking.isEmpty {
+                EmptyStateView(
+                    icon: "list.number",
+                    title: localeService.t("Ránking no disponible", "Ranking unavailable"),
+                    subtitle: localeService.t(
+                        "La UCI todavía no ha publicado esta clasificación.",
+                        "The UCI has not published this ranking yet."
+                    )
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        Section {
+                            ForEach(decoratedRanking) { item in
+                                UciRankingRowView(item: item) {
+                                    let message = item.explanation(isEnglish: LocaleService.isEnglish)
+                                    guard !message.isEmpty else { return }
+                                    Haptics.play(.selection)
+                                    rankingExplanation = UciRankingExplanationItem(
+                                        id: item.id,
+                                        title: item.row.displayName,
+                                        message: message
+                                    )
+                                }
+                            }
+                        } header: {
+                            UciRankingTableHeader()
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                }
+                .refreshable { await loadRanking() }
+            }
+        }
+    }
+
     private var loadMoreButton: some View {
         HStack {
             Spacer()
@@ -161,6 +353,216 @@ struct ResultsFeedView: View {
         fromKey = ResultsFeedLogic.extendedFromKey(fromKey)
         await load()
         isLoadingMore = false
+    }
+
+    private func loadRanking() async {
+        if rankingRows.isEmpty { isRankingLoading = true }
+        rankingError = nil
+        do {
+            rankingRows = try await SupabaseService.shared.loadUciTeamRankings()
+        } catch {
+            if rankingRows.isEmpty {
+                rankingError = localeService.t(
+                    "No se pudo cargar el ránking UCI.",
+                    "The UCI ranking could not be loaded."
+                )
+            }
+        }
+        isRankingLoading = false
+    }
+}
+
+// MARK: - Componentes del ránking UCI
+
+private struct UciRankingTableHeader: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            Text("#").frame(width: 27, alignment: .trailing)
+            Color.clear.frame(width: 18)
+            Text(LocaleService.t("Equipo", "Team")).frame(maxWidth: .infinity, alignment: .leading)
+            Text("Cat.").frame(width: 32)
+            Text(LocaleService.t("Puntos", "Points")).frame(width: 68, alignment: .trailing)
+        }
+        .font(.caption2)
+        .fontWeight(.bold)
+        .textCase(.uppercase)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(.background)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct UciRankingRowView: View {
+    let item: UciTeamRankingPresentation
+    let onTap: () -> Void
+
+    private var background: Color {
+        if item.grandTourExcluded {
+            return AppTheme.red.opacity(0.13)
+        }
+        return switch item.invitationTier {
+        case .worldTour:
+            AppTheme.categoryBadgeColor(for: "1.UWT").background
+        case .allWorldTour, .womensWorldTour:
+            AppTheme.orange.opacity(0.15)
+        case .proSeries:
+            AppTheme.green.opacity(0.15)
+        case .standard:
+            Color.clear
+        }
+    }
+
+    private var explanation: String {
+        item.explanation(isEnglish: LocaleService.isEnglish)
+    }
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text("\(item.row.rank)")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 27, alignment: .trailing)
+            CountryFlag(countryCode: item.row.countryCode, width: 18)
+                .frame(width: 18)
+            Text(item.row.displayName)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(item.row.teamCategory ?? "")
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundStyle(.secondary)
+                .frame(width: 32)
+            Text(item.row.points.formatted(.number.precision(.fractionLength(0))))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(width: 68, alignment: .trailing)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(background)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(explanation)
+        .accessibilityAddTraits(explanation.isEmpty ? [] : .isButton)
+    }
+}
+
+private struct UciRankingInfoSheet: View {
+    let rows: [UciTeamRankingPresentation]
+    let gender: UciRankingGender
+    let localeService: LocaleService
+    @Environment(\.dismiss) private var dismiss
+
+    private var dateText: String {
+        guard let date = rows.first?.row.rankingDate else {
+            return LocaleService.shouldShowEnglishContent ? "Updated: —" : "Actualizado: —"
+        }
+        return DateFormatting.formatUciRankingUpdated(date)
+    }
+
+    private var sourceUrl: URL? {
+        rows.first.flatMap { URL(string: $0.row.sourceUrl) }
+    }
+
+    private let regulationsUrl = URL(string: "https://assets.ctfassets.net/761l7gh5x5an/6FEzFHeA2oKMBGb5sdIvQ7/96aad776f210fc38853ec9bf9ec9acba/2-ROA-20260701-E.pdf")!
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(localeService.t(
+                        "\(dateText). DataRide publica normalmente un nuevo ránking cada martes.",
+                        "\(dateText). DataRide normally publishes a new ranking every Tuesday."
+                    ))
+                    .font(.subheadline)
+
+                    Text(localeService.t(
+                        "Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.",
+                        "The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season."
+                    ))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        legendRow(
+                            color: AppTheme.categoryBadgeColor(for: "1.UWT").background,
+                            text: gender == .male ? "WorldTeams" : "Women's WorldTeams"
+                        )
+                        legendRow(
+                            color: AppTheme.orange.opacity(0.15),
+                            text: localeService.t(
+                                gender == .male
+                                    ? "Invitaciones obligatorias a todo el WorldTour y ProSeries"
+                                    : "Invitaciones obligatorias al Women's WorldTour",
+                                gender == .male
+                                    ? "Mandatory WorldTour and ProSeries invitations"
+                                    : "Mandatory Women's WorldTour invitations"
+                            )
+                        )
+                        if gender == .male {
+                            legendRow(
+                                color: AppTheme.green.opacity(0.15),
+                                text: localeService.t(
+                                    "Invitaciones obligatorias a ProSeries",
+                                    "Mandatory ProSeries invitations"
+                                )
+                            )
+                            legendRow(
+                                color: AppTheme.red.opacity(0.13),
+                                text: localeService.t(
+                                    "ProTeams fuera del top-30: fondo rojo",
+                                    "ProTeams outside the top 30: red background"
+                                )
+                            )
+                        }
+                    }
+
+                    if let sourceUrl {
+                        Link(localeService.t("Abrir fuente UCI DataRide", "Open UCI DataRide source"), destination: sourceUrl)
+                    }
+                    Link(
+                        localeService.t(
+                            "Abrir Reglamento UCI · art. 2.1.007bis",
+                            "Open UCI Regulations · art. 2.1.007bis"
+                        ),
+                        destination: regulationsUrl
+                    )
+                }
+                .padding()
+            }
+            .navigationTitle(localeService.t("Sobre el Ránking UCI", "About the UCI Ranking"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(localeService.t("Cerrar", "Close")) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func legendRow(color: Color, text: String) -> some View {
+        HStack(spacing: 9) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(color)
+                .frame(width: 34, height: 16)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4).stroke(AppTheme.border, lineWidth: 0.5)
+                }
+            Text(text).font(.footnote)
+        }
     }
 }
 

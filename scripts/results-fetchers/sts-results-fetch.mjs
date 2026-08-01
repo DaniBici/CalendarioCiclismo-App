@@ -33,8 +33,11 @@
  *       · "Abandon" (con tr="4") → IRM DNF · m = km/h media · b = hora de paso
  *       · g = gap ("-" líder · "+0'04" · "+1'02,00" · "+0:36" · "+16:49"
  *               · "+1h00'15" · "+ 1 tour" lapped) · p0/pb0/tt/tc/mt = parciales (ignorados).
- *   Etapa CRI/CRE: type="1" (ITT) o chrono>0 → raceType='ITT' (la web aplica el
- *     truncado de CRI). type="0"/chrono="0" → etapa en ruta.
+ *   Etapa CRI: type="1" / chrono="1" → raceType='ITT' (la web aplica el
+ *     truncado de CRI). CRE: type="2" / chrono="2" → raceType='TTT'; Wiclax
+ *     lista a los corredores agrupados por equipo y el fetcher deja el puesto
+ *     y el tiempo solo en el primer corredor de cada equipo para que web/apps
+ *     colapsen la tabla correctamente. type="0"/chrono="0" → etapa en ruta.
  *   Anexas <Clt id="gpm|pts|JE"> → <Rush id="GN"> = clasificación ACUMULADA
  *     (montaña/puntos/jóvenes); filas <res dos= pts= [bonif=]> en orden de puesto.
  *
@@ -343,6 +346,38 @@ export function parseResultRows(blockXml, riderByBib) {
   return rows;
 }
 
+// CRE/TTT Wiclax: <Resultats> lista corredores, no una fila sintética por equipo.
+// Los primeros corredores de cada equipo comparten su tiempo de equipo y los que
+// llegan descolgados pueden reaparecer más abajo con otro tiempo. El contrato que
+// ya consumen web/apps (mismo que expandTeamTimeTrial de Tissot) es:
+//   · primer corredor visto del equipo: rank + tiempo del EQUIPO;
+//   · compañeros: rank/time null (siguen presentes para resolver y mostrar roster).
+// Agrupamos por equipo globalmente, no solo por filas contiguas, para que un corredor
+// descolgado no cree una segunda clasificación ficticia para el mismo equipo.
+export function parseTttResultRows(blockXml, riderByBib) {
+  const parsed = parseResultRows(blockXml, riderByBib);
+  const seenTeams = new Set();
+  let teamRank = 0;
+  return parsed.map((row, index) => {
+    if (row.irm) return row;
+    const team = clean(row.teamName);
+    const key = team ? team.toUpperCase() : `__row_${index}`;
+    if (!seenTeams.has(key)) {
+      seenTeams.add(key);
+      teamRank += 1;
+      return { ...row, rank: teamRank, rankText: String(teamRank) };
+    }
+    return {
+      ...row,
+      rank: null,
+      rankText: null,
+      resultValue: null,
+      timeText: null,
+      gapText: null,
+    };
+  });
+}
+
 // filas <res dos= pts=> (montaña/puntos) o <res dos= tps=> (jóvenes, TIEMPO — misma
 // convención "HHhMM'SS" que <Resultats>/<General>) de una anexa (Rush id="GN").
 // La clasificación de jóvenes es POR TIEMPO (mismo GC restringido a jóvenes), no por
@@ -427,11 +462,14 @@ async function main() {
       if (!(d > 0)) continue;
       riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
     }
-    const stageRows = parseResultRows(firstBlock(stg.body, 'Resultats'), riderByBib);
+    const isTtt = String(stg.a.type) === '2' || Number(stg.a.chrono) === 2;
+    const isItt = !isTtt && (String(stg.a.type) === '1' || Number(stg.a.chrono) > 0);
+    const stageRows = isTtt
+      ? parseTttResultRows(firstBlock(stg.body, 'Resultats'), riderByBib)
+      : parseResultRows(firstBlock(stg.body, 'Resultats'), riderByBib);
     if (!stageRows.length) {
       log('  one-day sin <Resultats> publicado (no terminada) — 0 clasificaciones');
     } else {
-      const isItt = String(stg.a.type) === '1' || Number(stg.a.chrono) > 0;
       const annexesXml = firstBlock(stg.body, 'ClassementsAnnexes');
       const annexes = [];
       for (const cm of annexesXml.matchAll(/<Clt\s+id="([^"]+)">(.*?)<\/Clt>/gs)) {
@@ -450,7 +488,7 @@ async function main() {
         stageName: 'Final Classification',
         isFinalClassification: false,   // one-day: NO es "general final de vuelta"; es la prueba en sí
         dateKey: clean(stg.a.dt1) || clean(ep.dt1) || null,
-        raceType: isItt ? 'ITT' : null,
+        raceType: isTtt ? 'TTT' : isItt ? 'ITT' : null,
         startLocation: null,
         classificationCount: classifications.length,
         classifications,
@@ -475,13 +513,16 @@ async function main() {
       riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
     }
 
+    const isTtt = String(stg.a.type) === '2' || Number(stg.a.chrono) === 2;
+    const isItt = !isTtt && (String(stg.a.type) === '1' || Number(stg.a.chrono) > 0);
     const resultatsXml = firstBlock(stg.body, 'Resultats');
-    const stageRows = parseResultRows(resultatsXml, riderByBib);
+    const stageRows = isTtt
+      ? parseTttResultRows(resultatsXml, riderByBib)
+      : parseResultRows(resultatsXml, riderByBib);
     if (!stageRows.length) { log(`  E${stageNumber} sin <Resultats> publicado (no terminada) — omitida`); return; }
 
-    // raceType: type="1" (ITT) o chrono>0 → CRI (la web aplica el truncado).
-    const isItt = String(stg.a.type) === '1' || Number(stg.a.chrono) > 0;
-    const raceType = isItt ? 'ITT' : null;
+    // raceType: Wiclax distingue CRI (type/chrono=1) y CRE (type/chrono=2).
+    const raceType = isTtt ? 'TTT' : isItt ? 'ITT' : null;
 
     const generalXml = firstBlock(stg.body, 'General');
     const gcRows = parseResultRows(generalXml, riderByBib);

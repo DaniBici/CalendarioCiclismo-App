@@ -284,6 +284,7 @@ private fun MarketContent(
                     onFeedSelect(TransfersFeed.Renewals)
                 }
             }
+            Spacer(Modifier.height(6.dp))
             Spacer(Modifier.height(8.dp))
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 if (feed.isEmpty()) {
@@ -403,7 +404,7 @@ private fun DivisionChip(label: String, selected: Boolean, onClick: () -> Unit) 
 private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) =
     DivisionChip(label, selected, onClick)
 
-/** Fila del feed: bandera + "Corredor  → Destino" + "hasta YYYY". */
+/** Fila del feed: bandera + "Corredor → Destino" + marcador Mid-Season si aplica. */
 @Composable
 fun TransferFeedRow(
     transfer: RiderTransfer,
@@ -414,7 +415,6 @@ fun TransferFeedRow(
     val unknownTeam = stringResource(R.string.transfers_unknown_team)
     val renewsWith = stringResource(R.string.transfers_renews_with)
     val retires = stringResource(R.string.transfers_retires)
-    val untilText = transfer.contractUntil?.let { stringResource(R.string.transfers_until, it) }
     val rider = data.ridersById[transfer.riderId]
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
     // El feed contiene solo fichajes reales: enlaza al equipo de DESTINO si
@@ -467,9 +467,8 @@ fun TransferFeedRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             CountryFlag(countryCode = rider?.nationality, height = 11.dp)
-            // Corredor + movimiento trunca con "…" a una línea (misma fórmula
-            // que las cards de Hoy): sin doble altura, y el badge de año queda
-            // fijo a la derecha.
+            // Corredor + movimiento trunca con "…" a una línea; el año de
+            // contrato (o el marcador de mitad de temporada) queda fijo a la derecha.
             Text(
                 text = moveText,
                 style = MaterialTheme.typography.bodySmall,
@@ -477,23 +476,42 @@ fun TransferFeedRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            // El año de contrato como BADGE (solo el año, sin "hasta").
-            if (untilText != null) {
+            if (transfer.midSeason) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+                        .background(Color(0xFF2563EB).copy(alpha = 0.14f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
-                        text = untilText,
+                        text = stringResource(R.string.transfers_mid_season),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color(0xFF2563EB),
                     )
                 }
+            } else if (transfer.contractUntil != null) {
+                TransferContractBadge(transfer.contractUntil)
             }
         }
+    }
+}
+
+/** Badge neutro del año de fin de contrato en el feed de confirmaciones. */
+@Composable
+private fun TransferContractBadge(year: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = if (year == 9999) "∞" else stringResource(R.string.transfers_until, year),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

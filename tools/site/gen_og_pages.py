@@ -132,9 +132,14 @@ def breadcrumb_list(items):
 
 def sports_event(name, start_date, end_date, url, description,
                  image=None, location_name=None, location_country=None,
-                 super_event=None, cancelled=False,
+                 cancelled=False,
                  date_published=None, date_modified=None,
                  organizer_url=None, same_as=None):
+    # Google solo considera elegible un Event con nombre, fecha y ubicación
+    # física. No publicamos un SportsEvent parcial: el resto del JSON-LD y del
+    # SEO de la página se conserva.
+    if not (name and start_date and end_date and location_name and location_country):
+        return None
     ev = {
         "@context": "https://schema.org",
         "@type": "SportsEvent",
@@ -156,14 +161,14 @@ def sports_event(name, start_date, end_date, url, description,
     if date_published:  ev["datePublished"] = date_published
     if date_modified:   ev["dateModified"]  = date_modified
     if image:           ev["image"]         = image
-    if location_name:
-        loc = {"@type": "Place", "name": location_name}
-        if location_country:
-            loc["address"] = {"@type": "PostalAddress", "addressCountry": location_country}
-        ev["location"] = loc
-    if super_event:
-        ev["superEvent"] = super_event
-        ev["isPartOf"] = super_event
+    ev["location"] = {
+        "@type": "Place",
+        "name": location_name,
+        "address": {
+            "@type": "PostalAddress",
+            "addressCountry": location_country,
+        },
+    }
     ev["mainEntityOfPage"] = {
         "@type": "WebPage",
         "@id": url,
@@ -269,6 +274,8 @@ def og_page(title, description, canonical_url,
     # sin duplicar bloques. Fallback: sin id.
     ld_tags = ""
     for obj in (json_ld_objs or []):
+        if not isinstance(obj, dict):
+            continue
         t = obj.get("@type") if isinstance(obj, dict) else None
         if   t == "SportsEvent":    sid = ' id="jsonld-main"'
         elif t == "BreadcrumbList": sid = ' id="jsonld-breadcrumbs"'
@@ -595,6 +602,8 @@ def og_page_en(title, description, canonical_url,
     img_alt = og_image_alt or title
     ld_tags = ""
     for obj in (json_ld_objs or []):
+        if not isinstance(obj, dict):
+            continue
         t = obj.get("@type") if isinstance(obj, dict) else None
         if   t == "SportsEvent":    sid = ' id="jsonld-main"'
         elif t == "BreadcrumbList": sid = ' id="jsonld-breadcrumbs"'
@@ -777,7 +786,17 @@ for race in races:
         (display_title, None),
     ]
 
-    country_iso = (race.get("countryCode") or "").upper() or None
+    representative_stage = next(
+        (s for s in stages_by_race.get(race.get("id"), [])
+         if not s.get("isRestDay") and s.get("dateKey")
+         and (s.get("startLocation") or s.get("finishLocation"))),
+        None,
+    )
+    representative_location = ((representative_stage or {}).get("startLocation")
+                               or (representative_stage or {}).get("finishLocation")
+                               or None)
+    country_iso = (((representative_stage or {}).get("countryCode")
+                   or race.get("countryCode") or "").upper() or None)
     race_website_url = race.get("websiteUrl") or None
     race_updated_at = (race.get("updatedAt") or "")[:10] or None
     date_published_comp = start or None
@@ -798,23 +817,21 @@ for race in races:
         item_name = f"{sl_name}: {route}" if route else sl_name
         il_items.append((pos, item_name, f"{BASE_URL}/jornada/{quote(_s['slug'])}/"))
 
-    json_ld_list = [
-        sports_event(
+    competition_event = sports_event(
             name=display_title,
-            start_date=start or None,
-            end_date=end or start or None,
+            start_date=start or (representative_stage or {}).get("dateKey") or None,
+            end_date=end or start or (representative_stage or {}).get("dateKey") or None,
             url=canonical,
             description=description,
             image=og_image,
-            location_name=None,
+            location_name=representative_location,
             location_country=country_iso,
             cancelled=cancelled,
             date_published=date_published_comp,
             date_modified=date_modified_comp,
             organizer_url=race_website_url,
-        ),
-        breadcrumb_list(crumbs),
-    ]
+        )
+    json_ld_list = [obj for obj in (competition_event, breadcrumb_list(crumbs)) if obj]
     if il_items and len(race_stages) > 1:
         json_ld_list.insert(1, item_list(f"Etapas de {display_title}", il_items))
     if year:
@@ -1005,17 +1022,7 @@ for rd in racedays:
             location_name = f"{start_loc} → {finish_loc}"
         elif start_loc:
             location_name = start_loc
-        super_event = None
-        if not is_one_day and race_slug:
-            super_event = {
-                "@type": "SportsEvent",
-                "name": f"{race_name} {race_year}" if race_year else race_name,
-                "url": f"{BASE_URL}/competicion/{quote(race_slug)}/",
-                "startDate": race.get("startDate") or None,
-                "endDate": race.get("endDate") or None,
-            }
-            super_event = {k: v for k, v in super_event.items() if v}
-        json_ld_list.append(sports_event(
+        stage_event = sports_event(
             name=og_title,
             start_date=date_key or None,
             end_date=date_key or None,
@@ -1024,13 +1031,14 @@ for rd in racedays:
             image=og_image,
             location_name=location_name,
             location_country=rd_country,
-            super_event=super_event,
             cancelled=is_cancelled_day or bool(race.get("isCancelled")),
             date_published=date_key or None,
             date_modified=rd_updated_at or date_key or None,
             organizer_url=race.get("websiteUrl") or None,
             same_as=race.get("websiteUrl") or None,
-        ))
+        )
+        if stage_event:
+            json_ld_list.append(stage_event)
         about = []
         if stage_type_label:
             about.append({"@type": "Thing", "name": f"Tipo de etapa: {stage_type_label}"})
@@ -1040,19 +1048,8 @@ for rd in racedays:
             about.append({"@type": "Thing", "name": f"Distancia: {km_txt}"})
         if is_rest:
             about.append({"@type": "Thing", "name": "Jornada de descanso"})
-        if about and isinstance(json_ld_list[0], dict):
-            json_ld_list[0]["about"] = about
-
-        try:
-            dt_key = datetime.strptime(date_key, "%Y-%m-%d").date() if date_key else None
-        except Exception:
-            dt_key = None
-        if is_cancelled_day or bool(race.get("isCancelled")):
-            json_ld_list[0]["eventStatus"] = "https://schema.org/EventCancelled"
-        elif dt_key and dt_key < datetime.now(timezone.utc).date():
-            json_ld_list[0]["eventStatus"] = "https://schema.org/EventCompleted"
-        else:
-            json_ld_list[0]["eventStatus"] = "https://schema.org/EventScheduled"
+        if about and stage_event:
+            stage_event["about"] = about
     json_ld_list.append(breadcrumb_list(crumbs))
 
     # Body — link a perfil de elevación si existe y es visible
@@ -1935,6 +1932,24 @@ for race in races:
     ]
 
     race_stages_en = stages_by_race.get(race.get("id"), [])
+    representative_stage_en = next(
+        (s for s in race_stages_en
+         if not s.get("isRestDay") and s.get("dateKey")
+         and (s.get("startLocationEn") or s.get("startLocation")
+              or s.get("finishLocationEn") or s.get("finishLocation"))),
+        None,
+    )
+    representative_location_en = (
+        (representative_stage_en or {}).get("startLocationEn")
+        or (representative_stage_en or {}).get("startLocation")
+        or (representative_stage_en or {}).get("finishLocationEn")
+        or (representative_stage_en or {}).get("finishLocation")
+        or None
+    )
+    representative_country_en = (
+        ((representative_stage_en or {}).get("countryCode")
+         or race.get("countryCode") or "").upper() or None
+    )
     il_items_en = []
     pos_en = 0
     for _s in race_stages_en:
@@ -1950,23 +1965,21 @@ for race in races:
         if s_slug_en:
             il_items_en.append((pos_en, item_name_en, f"{BASE_URL_EN}/stage/{quote(s_slug_en)}/"))
 
-    json_ld_en = [
-        sports_event(
+    competition_event_en = sports_event(
             name=title_en,
-            start_date=start or None,
-            end_date=end or start or None,
+            start_date=start or (representative_stage_en or {}).get("dateKey") or None,
+            end_date=end or start or (representative_stage_en or {}).get("dateKey") or None,
             url=canonical_en,
             description=desc_en,
             image=og_img_en,
-            location_name=None,
-            location_country=country_en,
+            location_name=representative_location_en,
+            location_country=representative_country_en or country_en,
             cancelled=cancelled_en,
             date_published=start or None,
             date_modified=race_updated_en or end or start or None,
             organizer_url=race.get("websiteUrl") or None,
-        ),
-        breadcrumb_list(crumbs_en),
-    ]
+        )
+    json_ld_en = [obj for obj in (competition_event_en, breadcrumb_list(crumbs_en)) if obj]
     if il_items_en and len(race_stages_en) > 1:
         json_ld_en.insert(1, item_list(f"Stages of {title_en}", il_items_en))
 
@@ -2113,18 +2126,8 @@ for rd in racedays:
         elif start_en:
             location_name_en = start_en
         rd_country_en = (rd.get("countryCode") or race.get("countryCode") or "").upper() or None
-        super_event_en = None
-        if not is_one_day_en and slug_en_race:
-            super_event_en = {
-                "@type": "SportsEvent",
-                "name": f"{name_en} {year_en}".strip() if year_en else name_en,
-                "url": f"{BASE_URL_EN}/race/{quote(slug_en_race)}/",
-                "startDate": race.get("startDate") or None,
-                "endDate": race.get("endDate") or None,
-            }
-            super_event_en = {k: v for k, v in super_event_en.items() if v}
         og_title_en = f"{name_en} {year_en}".strip() if is_one_day_en and year_en else title_en
-        json_ld_list_en.append(sports_event(
+        stage_event_en = sports_event(
             name=og_title_en,
             start_date=date_key_en or None,
             end_date=date_key_en or None,
@@ -2133,19 +2136,10 @@ for rd in racedays:
             image=og_img_en,
             location_name=location_name_en,
             location_country=rd_country_en,
-            super_event=super_event_en,
             cancelled=is_cancelled_en,
-        ))
-        try:
-            dt_key_en = datetime.strptime(date_key_en, "%Y-%m-%d").date() if date_key_en else None
-        except Exception:
-            dt_key_en = None
-        if is_cancelled_en:
-            json_ld_list_en[0]["eventStatus"] = "https://schema.org/EventCancelled"
-        elif dt_key_en and dt_key_en < datetime.now(timezone.utc).date():
-            json_ld_list_en[0]["eventStatus"] = "https://schema.org/EventCompleted"
-        else:
-            json_ld_list_en[0]["eventStatus"] = "https://schema.org/EventScheduled"
+        )
+        if stage_event_en:
+            json_ld_list_en.append(stage_event_en)
     json_ld_list_en.append(breadcrumb_list(crumbs_en))
 
     # Body HTML EN (pre-render with H1 and breadcrumbs)

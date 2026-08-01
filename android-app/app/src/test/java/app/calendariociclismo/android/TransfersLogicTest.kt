@@ -28,11 +28,12 @@ class TransfersLogicTest {
         announcedAt: String? = "2026-07-10",
         createdAt: String? = null,
         dateVisible: Boolean = true,
+        midSeason: Boolean = false,
     ) = RiderTransfer(
         id = id, season = 2027, riderId = riderId, riderGender = "male",
         fromTeamId = from, toTeamId = to, toTeamName = toName, type = type, status = status,
         contractUntil = contractUntil, announcedAt = announcedAt, createdAt = createdAt,
-        dateVisible = dateVisible,
+        dateVisible = dateVisible, midSeason = midSeason,
     )
 
     private fun rider(id: String, last: String, contractUntil: Int? = null, currentTeamId: String? = "team_a") = RiderProfile(
@@ -109,6 +110,17 @@ class TransfersLogicTest {
             )
         )
         assertEquals(listOf("new", "mid", "old"), feed.map { it.id })
+    }
+
+    @Test
+    fun feedPrioritizesNextSeasonSigningsOverMidSeasonOnSameDay() {
+        val feed = TransfersLogic.confirmedFeed(
+            listOf(
+                transfer("midSeason", "r1", to = "team_b", announcedAt = "2026-08-01", createdAt = "2026-08-01T12:00:00Z", midSeason = true),
+                transfer("nextSeason", "r2", to = "team_b", announcedAt = "2026-08-01", createdAt = "2026-08-01T09:00:00Z"),
+            )
+        )
+        assertEquals(listOf("nextSeason", "midSeason"), feed.map { it.id })
     }
 
     @Test
@@ -383,6 +395,17 @@ class TransfersLogicTest {
         val detail = TransfersLogic.teamDetail(moves, listOf(rider("r1", "Uno")), "team_a")
         assertEquals(listOf("t1"), detail.departures.map { it.id })
         assertTrue(detail.staying.isEmpty())   // sale de "continúan" igual
+    }
+
+    @Test
+    fun midSeasonMoveDoesNotAppearAsNextMarketArrivalButKeepsRealRosterContract() {
+        // El fichaje de agosto es informativo en el feed. Si más adelante se
+        // registra contrato 2027+ en la afiliación, el corredor continúa; no
+        // debe aparecer simultáneamente como una llegada del mercado.
+        val moves = listOf(transfer("mid", "r1", from = "team_old", to = "team_a", midSeason = true))
+        val detail = TransfersLogic.teamDetail(moves, listOf(rider("r1", "Uno", contractUntil = 2029)), "team_a")
+        assertTrue(detail.arrivals.isEmpty())
+        assertEquals(listOf("r1"), detail.staying.map { it.rider.id })
     }
 
     // ── Duda del corredor (mig. 123) ──────────────────────────────

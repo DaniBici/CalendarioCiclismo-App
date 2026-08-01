@@ -795,7 +795,7 @@ private fun RaceCard(
     // Mini-perfil + badge inscritos se liberaron al plan gratuito: visibles
     // siempre (gateados por featuresUnlocked, no por la suscripción).
     val featuresUnlocked = app.premium.featuresUnlocked
-    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay && !isFinishedMode &&
+    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay &&
         rd.elevationProfile?.points?.let { it.size >= 2 } == true
     // Paridad con web: clásicas siempre; vueltas por etapas solo el primer día.
     val isFirstOrOnlyDay = race?.raceFormat != "stage_race" || rd.dateKey == race?.startDate
@@ -1045,9 +1045,10 @@ private fun RaceCard(
                   waypoints = rd.profileWaypoints ?: emptyList(),
                   primaryType = rd.primaryType,
                   startTimeMs = rd.neutralStartTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                  endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                  isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
-              )
+                    endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
+                    isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
+                    forceCompleted = isFinishedMode,
+                )
           }
       }
       }

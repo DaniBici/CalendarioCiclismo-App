@@ -362,7 +362,9 @@ async function init() {
         const _isTimeTrial1 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
         let epSvgHtml1 = null;
         if (rd.elevationProfile && !rd.isCancelledDay) {
-          if (!showResultsC && !hideNoIdsC) {
+          if (showResultsC || hideNoIdsC) {
+            epSvgHtml1 = buildElevationSparkline(rd.elevationProfile, 1, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
+          } else {
             if (rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
               const now1 = Date.now();
               const startMs1 = new Date(rd.neutralStartTimeUtc).getTime();
@@ -566,14 +568,24 @@ function updateSeoCompeticion(race, days) {
 
   // ── JSON-LD SportsEvent ──
   const origin = CONFIG.webOrigin;
-  const jsonLd = {
+  const eventDays = sorted.filter(d => !d.isRestDay);
+  const firstEventDay = eventDays.find(d => d.dateKey && (rdLocation(d, 'startLocation') || rdLocation(d, 'finishLocation')));
+  const lastEventDay = [...eventDays].reverse().find(d => d.dateKey);
+  const eventLocation = firstEventDay
+    ? (rdLocation(firstEventDay, 'startLocation') || rdLocation(firstEventDay, 'finishLocation'))
+    : '';
+  const eventCountry = String(firstEventDay?.countryCode || race.countryCode || '').toUpperCase() || null;
+  const eventStatus = race.isCancelled
+    ? 'https://schema.org/EventCancelled'
+    : 'https://schema.org/EventScheduled';
+  const jsonLd = name && firstEventDay?.dateKey && eventLocation && eventCountry ? {
     '@context': 'https://schema.org',
     '@type': 'SportsEvent',
     'name': title.replace(` — ${t('seo.siteName')}`, ''),
     'url': canonicalUrl,
     'description': description,
     'sport': 'Ciclismo en ruta',
-    'eventStatus': race.isCancelled ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
+    'eventStatus': eventStatus,
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
     'image': ogImage,
     'organizer': {
@@ -581,11 +593,16 @@ function updateSeoCompeticion(race, days) {
       'name': t('seo.siteName'),
       'url': origin
     }
-  };
-  if (first?.dateKey) jsonLd['startDate'] = first.dateKey;
-  if (last?.dateKey)  jsonLd['endDate']   = last.dateKey;
-  const lastCity = (last ? rdLocation(last, 'finishLocation') : '') || (last ? rdLocation(last, 'startLocation') : '');
-  if (lastCity) jsonLd['location'] = { '@type': 'Place', 'name': lastCity };
+  } : null;
+  if (jsonLd) {
+    jsonLd.startDate = firstEventDay.dateKey;
+    jsonLd.endDate = lastEventDay?.dateKey || firstEventDay.dateKey;
+    jsonLd.location = { '@type': 'Place', 'name': eventLocation };
+    jsonLd.location.address = {
+      '@type': 'PostalAddress',
+      'addressCountry': eventCountry,
+    };
+  }
   setJsonLdC('jsonld-main', jsonLd);
 
   // ── JSON-LD BreadcrumbList ──
@@ -604,6 +621,10 @@ function setJsonLdC(id, obj) {
   // EN: conservar el JSON-LD en castellano del HTML estático (SEO en español).
   if (getLang() === 'en') return;
   let el = document.getElementById(id);
+  if (!obj) {
+    if (el) el.remove();
+    return;
+  }
   if (!el) {
     el = document.createElement('script');
     el.id = id;
@@ -780,8 +801,10 @@ async function loadChallenge(slug, content, params) {
         const _isTimeTrial2 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
         const rdEpColor2 = rd._colorHex || 'var(--accent)';
         let epSvgHtml2 = null;
-        if (rd.elevationProfile && !rd.isCancelledDay && !showResultsC2) {
-          if (rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
+        if (rd.elevationProfile && !rd.isCancelledDay) {
+          if (showResultsC2) {
+            epSvgHtml2 = buildElevationSparkline(rd.elevationProfile, 1, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
+          } else if (rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
             const now2 = Date.now();
             const startMs2 = new Date(rd.neutralStartTimeUtc).getTime();
             const endMs2   = new Date(rd.estimatedFinishTimeUtc).getTime();

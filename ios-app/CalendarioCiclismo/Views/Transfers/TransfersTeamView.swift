@@ -361,6 +361,21 @@ struct YearBadge: View {
     }
 }
 
+/// Badge azul para un fichaje efectivo durante la temporada en curso.
+struct MidSeasonBadge: View {
+    var body: some View {
+        Text(LocaleService.t("M. TEMPORADA", "MID-SEASON"))
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255).opacity(0.14))
+            )
+    }
+}
+
 /// Badge ámbar "Rumor" — espejo del `.tr-chip--rumor` de la web.
 struct RumorBadge: View {
     var body: some View {

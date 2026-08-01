@@ -21,6 +21,7 @@ const LOCALES = {
       heading: 'Mercado de Fichajes {season}',
       feedTitle: 'Últimas confirmaciones',
       feedSignings: 'Fichajes',
+      midSeason: 'M. Temporada',
       feedRenewals: 'Renovaciones',
       feedEmpty: 'Todavía no hay movimientos confirmados.',
       loadMore: 'Cargar más',

@@ -12,9 +12,9 @@
  * uci-results-cron.mjs — PERO esta carrera se vuelca EN LOCAL (sin GitHub
  * Actions): este fetcher + uci-results-upsert.mjs --apply, a mano o en bucle.
  *
- * FUENTE (sin API JSON; lectura del HTML estable por query param):
- *   GET /event/{eventId}/results?cat={catLabel}
- *   - {catLabel} selecciona la carrera dentro del evento ("Elite Women (13. June)"
+ * FUENTE (sin API JSON; lectura del HTML estable):
+ *   GET /event/{eventId}/results[?cat={catLabel}]
+ *   - {catLabel} (opcional) selecciona la carrera dentro del evento ("Elite Women (13. June)"
  *     / "Elite Men (14. June)"): un evento sportstiming agrupa varias carreras.
  *   - La clasificación de meta se renderiza server-side, UNA <table> por corredor
  *     (sin paginación: todas las filas en una carga). NO se usan las vistas
@@ -44,18 +44,21 @@
  *     --event 18776 --cat "Elite Women (13. June)" --competition-id -123456
  *
  * Args:
- *   --event           id numérico del evento sportstiming (p. ej. 18776).
- *   --cat             etiqueta EXACTA de la carrera dentro del evento
- *                     ("Elite Women (13. June)"). Imprescindible: un evento tiene
- *                     varias carreras (masc/fem) bajo el mismo --event.
+ *   --event           id numérico del evento sportstiming (p. ej. 18578).
+ *   --cat             (opcional) etiqueta EXACTA de la carrera dentro del evento
+ *                     ("Elite Women (13. June)"). Se usa solo si el evento agrupa
+ *                     varias carreras; las etapas de la Vuelta a Dinamarca no la usan.
+ *   --stage           número de etapa. Úsalo junto con un --code estable cuando cada
+ *                     etapa tiene su propio eventId (p. ej. 1, 2, 3…).
  *   --code            (opcional) código del puente para los IDs sintéticos;
- *                     default = "{event}|{cat}". Debe ser ESTABLE por carrera.
+ *                     default = "{event}" o "{event}|{cat}". Para una vuelta por
+ *                     etapas DEBE ser estable durante toda la semana.
  *   --competition-id  competitionId del puente race_uci_links (sintético NEGATIVO;
  *                     obligatorio: el JSON lo lleva para que el upsert NO recablee
  *                     el puente y nombra el archivo de salida <id>.json). Lo
  *                     imprime este script con --suggest-id.
- *   --date            (opcional) dateKey YYYY-MM-DD de la jornada (default: se
- *                     intenta deducir del catLabel; si no, null).
+ *   --date            dateKey YYYY-MM-DD de la jornada. Opcional si --cat incluye
+ *                     fecha; obligatoria en etapas sin --cat.
  *   --out             carpeta de salida (default _results_run/sportstiming-<code> JUNTO A ESTE
  *                     script, no relativo al cwd). La ruta que imprime al terminar es la
  *                     real: leer esa, no reconstruirla a mano.
@@ -74,6 +77,7 @@ const hasFlag = (n) => args.includes(`--${n}`);
 
 const EVENT = getArg('event');
 const CAT = getArg('cat');
+const STAGE = getArg('stage');
 // Inyección manual de corredores que el cronómetro NO capta (p. ej. sin
 // transponder por cambio de bici): "--inject rank|dorsal|Nombre|Equipo[|gap]"
 // (repetible). Se inserta en ese rank desplazando +1 a los >= rank; se
@@ -97,7 +101,7 @@ const REMAP = new Map(args.reduce((acc, a, i) => {
   }
   return acc;
 }, []));
-const CODE = getArg('code') || (EVENT && CAT ? `${EVENT}|${CAT}` : null);
+const CODE = getArg('code') || (EVENT ? (CAT ? `${EVENT}|${CAT}` : EVENT) : null);
 const COMPETITION_ID = getArg('competition-id');
 const DATE_ARG = getArg('date');
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
@@ -112,6 +116,10 @@ const PRETTY = hasFlag('pretty');
 // --html-file <ruta>, que se parsea con la MISMA lógica (parseRows).
 // Es el motivo de que esta fuente sea de volcado MANUAL: ningún workflow la usa.
 const HTML_FILE = getArg('html-file');
+// Carpeta de HTML guardado desde el navegador cuando el anti-bot impide los GET
+// directos. Para una vuelta: stage.html, leader.html, points.html, hill.html,
+// youth.html, fighter.html y team.html.
+const HTML_DIR = getArg('html-dir');
 
 const BASE = 'https://www.sportstiming.dk';
 // UA de referencia del proyecto: nos identificamos y damos URL de contacto.
@@ -135,7 +143,10 @@ const ID_BASE = CODE ? fnv1a(`sportstiming:${CODE}`) % 200000 : NaN;
 // Validación de args: DENTRO de main(), no a nivel de módulo — un process.exit() al
 // importar mataría el runner de tests.
 function checkArgs() {
-  if (!EVENT || !CAT) { log('FATAL: faltan --event <id> y --cat "<etiqueta>"'); process.exit(1); }
+  if (!EVENT) { log('FATAL: falta --event <id>'); process.exit(1); }
+  if (STAGE != null && (!/^\d+$/.test(STAGE) || Number(STAGE) < 1)) {
+    log('FATAL: --stage debe ser un entero positivo'); process.exit(1);
+  }
   if (hasFlag('suggest-id')) {
     process.stdout.write(String(-ID_BASE) + '\n');
     process.exit(0);
@@ -148,8 +159,11 @@ function checkArgs() {
 
 // Carrera de un día → un solo slot/clasificación (stage/stage). idx fijo igual
 // que los demás fetchers para que el eventId sea estable.
-const STAGE_SLOT = 1;
-const CLASS_IDX = { 'stage/stage': 1 };
+const STAGE_SLOT = STAGE ? Number(STAGE) : 1;
+const CLASS_IDX = {
+  'stage/stage': 1, 'gc/stage': 2, 'points/overall': 3, 'kom/overall': 4,
+  'youth/overall': 5, 'other/overall': 6, 'teams/overall': 7,
+};
 const synthRaceId = () => -(ID_BASE * 10000 + STAGE_SLOT * 100);
 const synthEventId = (kind, scope) => -(ID_BASE * 10000 + STAGE_SLOT * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 1));
 
@@ -201,6 +215,33 @@ export function normGap(g) {
   return '+' + out;
 }
 
+export function clockSeconds(v) {
+  const p = clean(v).split(':').map(Number);
+  if (!((p.length === 2 || p.length === 3) && p.every(Number.isFinite))) return null;
+  return p.length === 2 ? p[0] * 60 + p[1] : p[0] * 3600 + p[1] * 60 + p[2];
+}
+
+export function secondsGap(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  if (seconds < 60) return `+${seconds}`;
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+  return h ? `+${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `+${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Tid es el tiempo oficial de grupo; Efter #1 puede traer microcortes espurios.
+export function normalizeStageGaps(rows) {
+  const winner = rows.find((r) => r.rank === 1 && r._sourceTime);
+  const winnerSeconds = winner ? clockSeconds(winner._sourceTime) : null;
+  if (winnerSeconds == null) return rows;
+  for (const row of rows) {
+    if (row.rank == null || row.rank === 1 || !row._sourceTime) continue;
+    const seconds = clockSeconds(row._sourceTime);
+    const gap = seconds == null ? null : secondsGap(seconds - winnerSeconds);
+    if (gap != null) { row.gapText = gap; row.resultValue = gap; }
+  }
+  return rows;
+}
+
 // ── parseo de la tabla HTML ───────────────────────────────────────────────────
 // Cada corredor es un <tr> plano con celdas (verificado contra /event/16511):
 //   <td>Plac</td><td>Tiempo</td><td>gap</td>
@@ -242,7 +283,16 @@ export function parseRows(html) {
     for (let i = nameTdIdx + 1; i < tds.length; i++) {
       const c = tds[i];
       if (!country && /^[A-Z]{3}$/.test(c)) { country = c; continue; }
-      if (!team && c && !/^[+\-\d:]+$/.test(c) && c.length > 3 && !/^[A-Z]{3}$/.test(c)) team = c;
+      // En las etapas de la Vuelta a Dinamarca aparece una columna adicional
+      // "Kategori" entre país y equipo. Las columnas posteriores son pasos,
+      // por lo que el último texto no numérico es el equipo real.
+      if (c && !/^[+\-\d:]+$/.test(c) && c.length > 3 && !/^[A-Z]{3}$/.test(c)) {
+        // La misma celda contiene el nombre de escritorio y su sigla móvil:
+        // <span class="hidden-xs">TEAM VISMA ...</span><span ...>TVL</span>.
+        // Se conserva el primer span para no guardar "TEAM VISMA ... TVL".
+        const firstSpan = tdsRaw[i].match(/<span\b[^>]*>([\s\S]*?)<\/span>/i);
+        team = clean(stripTags(firstSpan ? firstSpan[1] : tdsRaw[i]));
+      }
     }
     // Fallback: el equipo también va en el <div> bajo el nombre (misma td).
     if (!team && nameTdIdx >= 0) {
@@ -261,10 +311,75 @@ export function parseRows(html) {
       rank, rankText: rank != null ? String(rank) : null, bib,
       riderDisplay: name || null, teamName: team || null, country: country || null,
       resultValue: rank === 1 ? abs : (gap || abs), timeText: rank === 1 ? abs : null,
-      gapText: gap, points: null, irm: null,
+      gapText: gap, points: null, irm: null, _sourceTime: abs,
     });
   }
   return rows;
+}
+
+// Puntos, montaña y combatividad: Plac. | Point | Rytter | Land | Kategori | Hold.
+export function parsePointsRows(html) {
+  const rows = [];
+  const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = trRe.exec(html)) !== null) {
+    const seg = m[1];
+    if (!/\/results\/\d+/.test(seg)) continue;
+    const raw = [...seg.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((x) => x[1]);
+    const cells = raw.map((c) => clean(stripTags(c)));
+    const nameIdx = raw.findIndex((c) => /\/results\/\d+/.test(c));
+    if (cells.length < 4 || nameIdx < 0 || !/^\d+$/.test(cells[0])) continue;
+    const linked = (raw[nameIdx].match(/<a\b[^>]*\/results\/\d+[^>]*>\s*<span>([\s\S]*?)<\/span>/i) || [])[1] || raw[nameIdx];
+    const nameCell = clean(stripTags(linked));
+    const bibM = nameCell.match(/\((\d+)\)\s*$/);
+    let country = null, team = null;
+    for (let i = nameIdx + 1; i < cells.length; i++) {
+      if (!country && /^[A-Z]{3}$/.test(cells[i])) { country = cells[i]; continue; }
+      if (cells[i] && cells[i] !== '-' && cells[i].length > 3) {
+        const firstSpan = raw[i].match(/<span\b[^>]*>([\s\S]*?)<\/span>/i);
+        team = clean(stripTags(firstSpan ? firstSpan[1] : raw[i]));
+      }
+    }
+    const points = /^\d+(?:[.,]\d+)?$/.test(cells[1]) ? Number(cells[1].replace(',', '.')) : null;
+    rows.push({ rank: Number(cells[0]), rankText: cells[0], bib: bibM ? bibM[1] : null,
+      riderDisplay: clean(nameCell.replace(/\s*\(\d+\)\s*$/, '')) || null, teamName: team || null, country,
+      resultValue: points == null ? null : String(points), timeText: null, gapText: null, points, irm: null });
+  }
+  return rows;
+}
+
+// La clasificación por equipos no enlaza a /results/{id}: se identifica por las
+// cabeceras. Sportstiming puede servirlas en danés (Plac./Tid/Efter #1/Hold) o
+// en inglés (Pos./Time/Behind #1/Team), según el evento/sesión.
+export function parseTeamRows(html) {
+  const header = (html.match(/<tr\b[^>]*>([\s\S]*?)<\/tr>/i) || [])[1] || '';
+  const labels = [...header.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi)].map((x) => clean(stripTags(x[1])).toLowerCase());
+  const teamIdx = labels.findIndex((x) => /hold|team/.test(x));
+  const timeIdx = labels.findIndex((x) => /tid|time/.test(x));
+  const gapIdx = labels.findIndex((x) => /efter|behind/.test(x));
+  const pointsIdx = labels.findIndex((x) => /point/.test(x));
+  if (teamIdx < 0) return [];
+  const rows = [];
+  const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = trRe.exec(html)) !== null) {
+    const cells = [...m[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((x) => clean(stripTags(x[1])));
+    if (!/^\d+$/.test(cells[0] || '') || !cells[teamIdx]) continue;
+    const rank = Number(cells[0]);
+    const time = timeIdx >= 0 ? normAbsTime(cells[timeIdx]) : null;
+    const gap = rank === 1 ? null : (gapIdx >= 0 ? normGap(cells[gapIdx]) : null);
+    const points = pointsIdx >= 0 && /^\d+(?:[.,]\d+)?$/.test(cells[pointsIdx] || '') ? Number(cells[pointsIdx].replace(',', '.')) : null;
+    rows.push({ rank, rankText: String(rank), bib: null, riderDisplay: cells[teamIdx], teamName: cells[teamIdx], country: null,
+      resultValue: time || gap || (points == null ? null : String(points)), timeText: rank === 1 ? time : null,
+      gapText: gap, points, irm: null });
+  }
+  return rows;
+}
+
+// La fuente publica abandonos durante la etapa. Mientras no exista un ganador,
+// NO hay clasificación de meta que el upsert deba materializar.
+export function hasFinalRanking(rows) {
+  return rows.some((r) => r.rank === 1);
 }
 
 // ── cliente HTTP ───────────────────────────────────────────────────────────
@@ -272,6 +387,23 @@ async function getHtml(path) {
   const res = await fetch(`${BASE}${path}`, { headers: { 'User-Agent': UA, 'Accept-Language': 'en-GB,en;q=0.9' } });
   if (!res.ok) { log(`  HTTP ${res.status} en ${path}`); return null; }
   return await res.text();
+}
+
+const STANDING_SPECS = [
+  { key: 'leader', path: 'standings/leader', classKind: 'gc', scope: 'stage', eventName: 'Stage General Classification', parser: parseRows },
+  { key: 'points', path: 'standings/points', classKind: 'points', scope: 'overall', eventName: 'Overall Points Classification', parser: parsePointsRows },
+  { key: 'hill', path: 'standings/hill', classKind: 'kom', scope: 'overall', eventName: 'Overall Mountain Classification', parser: parsePointsRows },
+  { key: 'youth', path: 'standings/youth', classKind: 'youth', scope: 'overall', eventName: 'Overall Youth Classification', parser: parseRows },
+  { key: 'fighter', path: 'standings/fighter', classKind: 'other', scope: 'overall', eventName: 'Overall Fighter Classification', parser: parsePointsRows },
+  { key: 'team', path: 'results?viewType=team', classKind: 'teams', scope: 'overall', eventName: 'Overall Teams Classification', parser: parseTeamRows },
+];
+
+async function loadHtml(key, path) {
+  if (HTML_DIR) {
+    try { return readFileSync(join(HTML_DIR, `${key}.html`), 'utf8'); } catch { return null; }
+  }
+  if (key === 'stage' && HTML_FILE) return readFileSync(HTML_FILE, 'utf8');
+  return getHtml(path);
 }
 
 // deduce YYYY-MM-DD del catLabel "Elite Women (13. June)" si --date no se pasa.
@@ -292,17 +424,11 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   log(`Fetcher sportstiming — event=${EVENT} cat="${CAT}" (puente sintético ${COMPETITION_ID}) · code="${CODE}" · idBase=${ID_BASE}`);
 
-  const url = `/event/${EVENT}/results?cat=${encodeURIComponent(CAT)}`;
-  let html;
-  if (HTML_FILE) {
-    html = readFileSync(HTML_FILE, 'utf8');
-    log(`  (HTML local desde ${HTML_FILE}, ${html.length} bytes — anti-bot bypass)`);
-  } else {
-    html = await getHtml(url);
-  }
+  const url = `/event/${EVENT}/results${CAT ? `?cat=${encodeURIComponent(CAT)}` : ''}`;
+  const html = await loadHtml('stage', url);
   if (!html) { log(`FATAL: sportstiming no responde para ${url}`); process.exit(1); }
 
-  let rows = parseRows(html);
+  let rows = normalizeStageGaps(parseRows(html));
 
   // Remapeo de dorsal (desfase sportstiming↔startlist UCI). Se aplica antes que
   // todo lo demás para que el resolve por dorsal case y la web enlace.
@@ -343,17 +469,18 @@ async function main() {
 
   const finishers = rows.filter((r) => r.rank != null);
   const dnfs = rows.filter((r) => r.irm);
-  if (!finishers.length && !dnfs.length) {
-    log('⚠️  0 filas — la clasificación de meta aún no está publicada (carrera en directo / no terminada).');
-    // emitir JSON vacío con 0 etapas → el upsert no escribe (sin clasificaciones).
+  if (!hasFinalRanking(rows)) {
+    log('⚠️  Sin ganador — la clasificación de meta aún no está publicada (puede haber abandonos en directo).');
+    // Emitir JSON vacío con 0 etapas → el upsert no escribe nada.
   }
   log(`  parseadas: ${rows.length} filas (${finishers.length} clasificados, ${dnfs.length} IRM)`);
   if (finishers[0]) log(`  ganador: #${finishers[0].bib} ${finishers[0].riderDisplay} (${finishers[0].teamName}) ${finishers[0].timeText}`);
 
   const stages = [];
-  if (rows.length) {
+  if (hasFinalRanking(rows)) {
     const winner = rows.find((r) => r.rank === 1);
-    const cl = {
+    for (const r of rows) delete r._sourceTime;
+    const classifications = [{
       eventId: synthEventId('stage', 'stage'),
       classKind: 'stage', scope: 'stage',
       eventName: 'Stage Classification',
@@ -361,17 +488,35 @@ async function main() {
       winnerName: winner ? winner.riderDisplay : null,
       rowCount: rows.length,
       rows,
-    };
+    }];
+
+    if (STAGE) {
+      for (const spec of STANDING_SPECS) {
+        const standingHtml = await loadHtml(spec.key, `/event/${EVENT}/${spec.path}`);
+        if (!standingHtml) { log(`  ${spec.key}: aún no disponible`); continue; }
+        const standingRows = spec.parser(standingHtml);
+        if (!hasFinalRanking(standingRows)) { log(`  ${spec.key}: sin filas publicables`); continue; }
+        for (const r of standingRows) delete r._sourceTime;
+        classifications.push({
+          eventId: synthEventId(spec.classKind, spec.scope), classKind: spec.classKind, scope: spec.scope,
+          eventName: spec.eventName, isTeamEvent: spec.classKind === 'teams',
+          winnerName: standingRows.find((r) => r.rank === 1)?.riderDisplay
+            || standingRows.find((r) => r.rank === 1)?.teamName
+            || null,
+          rowCount: standingRows.length, rows: standingRows,
+        });
+      }
+    }
     stages.push({
       uciRaceId: synthRaceId(),
-      stageNumber: null,                  // one_day: la jornada única (sin stageNumber)
-      stageName: clean(CAT),
+      stageNumber: STAGE ? Number(STAGE) : null,
+      stageName: CAT ? clean(CAT) : (STAGE ? `Stage ${STAGE}` : null),
       isFinalClassification: false,
       dateKey: dateFromCat(CAT),
       raceType: null,
       startLocation: null,
-      classificationCount: 1,
-      classifications: [cl],
+      classificationCount: classifications.length,
+      classifications,
     });
   }
 
@@ -380,7 +525,7 @@ async function main() {
     disciplineId: 10,
     source: 'sportstiming',
     sportstimingEvent: String(EVENT),
-    sportstimingCat: clean(CAT),
+    sportstimingCat: CAT ? clean(CAT) : null,
     sportstimingCode: CODE,
     fetchedAt: new Date().toISOString(),
     stageCount: stages.length,

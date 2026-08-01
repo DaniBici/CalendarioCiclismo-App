@@ -118,6 +118,10 @@ function contractBit(year) {
   return `<span class="tr-contract"${year === LIFETIME_YEAR ? ' title="Vitalicio"' : ''}>${esc(label)}</span>`;
 }
 
+function midSeasonBit(isMidSeason) {
+  return isMidSeason ? `<span class="tr-contract tr-contract--midseason">${esc(t('transfers.midSeason'))}</span>` : '';
+}
+
 // Fecha del feed: día de la semana + día + mes, SIN año (ES: "martes 24 de
 // junio"; EN: "Tuesday 24 June"). Primera letra en mayúscula.
 function dayHeading(dateKey) {
@@ -229,7 +233,17 @@ function isRealSigning(x) {
   return x.type === 'transfer' && (x.toTeamId || (x.toTeamName && x.toTeamName !== UNKNOWN_DEST));
 }
 function confirmedFeed() {
-  return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x));
+  // Dentro de una misma fecha, el mercado de la próxima temporada siempre
+  // precede a los fichajes efectivos de mitad de temporada.
+  return _transfers
+    .filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x))
+    .sort((a, b) => {
+      const dateA = a.announcedAt || '';
+      const dateB = b.announcedAt || '';
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      if (Boolean(a.midSeason) !== Boolean(b.midSeason)) return a.midSeason ? 1 : -1;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
 }
 
 function renewalFeed() {
@@ -254,8 +268,8 @@ function feedRowHtml(x) {
   }
   const inner = `
     <span class="tr-row__flag">${flag}</span>
-    <span class="tr-row__body"><span class="tr-name">${name}</span> <span class="tr-move">${move}</span></span>
-    ${contractBit(x.contractUntil)}`;
+    <span class="tr-row__body"><span class="tr-name">${name}</span><span class="tr-move">${move}</span></span>
+    ${x.midSeason ? midSeasonBit(true) : contractBit(x.contractUntil)}`;
   // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
   // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
   // la fila conserva el aspecto no enlazado.
@@ -499,7 +513,11 @@ async function openTeam(teamId, { push = true } = {}) {
   // Movimientos del equipo. Llegan (fichajes): primero los CONFIRMADOS, luego
   // los rumores; dentro de cada grupo, alfabético por apellido.
   const arrivalLastName = (x) => `${x.rider?.lastName || ''} ${x.rider?.firstName || ''}`.toLowerCase();
-  const arrivals = _transfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId)
+  // Un fichaje efectivo a mitad de temporada se muestra en el feed, pero no
+  // como llegada/salida del mercado siguiente. Su afiliación contractual sí
+  // puede aparecer en la situación de plantilla ("continúan").
+  const marketTransfers = _transfers.filter(x => !x.midSeason);
+  const arrivals = marketTransfers.filter(x => x.type === 'transfer' && x.toTeamId === teamId)
     .sort((a, b) => {
       const ra = a.status === 'rumor' ? 1 : 0, rb = b.status === 'rumor' ? 1 : 0;
       if (ra !== rb) return ra - rb;   // confirmados (0) antes que rumores (1)
@@ -509,7 +527,7 @@ async function openTeam(teamId, { push = true } = {}) {
   // toTeamName='?' y sin toTeamId) NO es marcharse a otro equipo → va a su
   // propia sección "Terminan contrato". El resto (fichaje con destino conocido
   // o retirada) sigue en "Se marchan".
-  const allDepartures = _transfers.filter(x =>
+  const allDepartures = marketTransfers.filter(x =>
     (x.type === 'transfer' || x.type === 'retirement') && x.fromTeamId === teamId);
   const isContractEnd = (x) => x.type === 'transfer' && !x.toTeamId && x.toTeamName === UNKNOWN_DEST;
   // Terminan contrato: alfabético por apellido.
@@ -535,7 +553,7 @@ async function openTeam(teamId, { push = true } = {}) {
   // rumoreada) sigue anotando el contrato de quien continúa.
   const renewalsByRider = new Map();
   const doubtsByRider = new Map();
-  _transfers.filter(x => x.type === 'renewal' && x.toTeamId === teamId)
+  marketTransfers.filter(x => x.type === 'renewal' && x.toTeamId === teamId)
     .forEach(x => {
       const bucket = x.status === 'doubt' ? doubtsByRider : renewalsByRider;
       if (!bucket.has(x.riderId)) bucket.set(x.riderId, x);

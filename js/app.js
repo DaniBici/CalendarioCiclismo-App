@@ -833,13 +833,19 @@ function buildCard(rd) {
   let _epSvgHtml = null;
   let _epEntry   = null;
   // Con clasificaciones propias la card pasa a modo terminado aunque la heurística
-  // horaria aún no haya vencido (paridad apps) → sin mini-perfil ni horario.
+  // horaria aún no haya vencido (paridad apps) → sin horario, pero el
+  // miniperfil se conserva completado.
   const _rdInhouse = rd._hasInhouse === true;
+  const showResults = _rdInhouse || _shouldShowResultsCard(rd, race);
+  const hideNoIds = !_rdInhouse && _noIdsAndPastDeadline(rd, race);
   // CRI/CRE: el perfil se renderiza en reposo (sin avance) hasta que la card se sustituya por modo resultados/Revive.
   const _isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
   // Una jornada cancelada no se corre: ni silueta ni avance (el % seguía
   // "recorriendo" un perfil de una etapa que nunca salió). Espejo de competicion.js.
-  if (!rd.isCancelledDay && !_rdInhouse && rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
+  if (!rd.isCancelledDay && rd.elevationProfile && (showResults || hideNoIds)) {
+    _epSvgHtml = buildElevationSparkline(rd.elevationProfile, 1, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
+    if (_epSvgHtml) card.classList.add('race-card--elevation');
+  } else if (!rd.isCancelledDay && !_rdInhouse && rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
     const now = Date.now();
     const startMs = new Date(rd.neutralStartTimeUtc).getTime();
     const endMs   = new Date(rd.estimatedFinishTimeUtc).getTime();
@@ -858,7 +864,7 @@ function buildCard(rd) {
   }
   // Perfil estático al 0%: con horario, mientras no haya empezado; sin horario, mientras
   // la jornada no haya entrado en modo resultados (clásicas sin start time aún configurado).
-  if (!rd.isCancelledDay && !_rdInhouse && !_epSvgHtml && rd.elevationProfile) {
+  if (!rd.isCancelledDay && !_rdInhouse && !showResults && !hideNoIds && !_epSvgHtml && rd.elevationProfile) {
     const _showStaticProfile = rd.neutralStartTimeUtc
       ? Date.now() < new Date(rd.neutralStartTimeUtc).getTime()
       : !_raceTimeCheckCard(rd, 30);
@@ -878,8 +884,6 @@ function buildCard(rd) {
     ? rd._assets.some(a => (a.url || a.filePath) && ['startOrder','roadbook','profile','map','ports'].includes(a.type))
     : (rd.hasAssets === true));
   const rdClickable = !race.isNoClickable && rdHasAssets;
-  const showResults = _rdInhouse || _shouldShowResultsCard(rd, race);
-  const hideNoIds = !_rdInhouse && _noIdsAndPastDeadline(rd, race);
   const _isFirstOrOnlyDay = race.raceFormat !== 'stage_race' || rd.dateKey === race.startDate;
   const _showStartlist = !!(race.startlistImportedAt) && !showResults && !hideNoIds && !rd.isCancelledDay && _isFirstOrOnlyDay;
   const _startlistHref = _showStartlist ? startlistUrl(race) : '';

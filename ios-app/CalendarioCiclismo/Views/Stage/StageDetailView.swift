@@ -207,6 +207,7 @@ struct StageDetailView: View {
     @State private var quickLookURL: URL?
     @State private var offlineAlert: OfflineAccessAlert?
     @State private var guideExpanded = false
+    @State private var actionStripAtStart = true
     @State private var actionStripAtEnd = false
     /// Resultados in-house: ¿esta jornada los tiene? y el stageNumber al que
     /// navega "Ver clasificaciones". Diferido y no bloqueante (sin red → false →
@@ -752,7 +753,10 @@ struct StageDetailView: View {
             Divider()
             ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                FixedActionStripLayout {
+                // HStack conserva el desplazamiento nativo de ScrollView y no
+                // convierte los marcadores de extremo en una celda completa.
+                HStack(spacing: 0) {
+                Color.clear.frame(width: 1, height: 60).id("stage-actions-start")
                 // Web oficial — siempre primero si existe
                 if let websiteStr = viewModel.race?.websiteUrl,
                    let websiteURL = URL(string: websiteStr) {
@@ -934,13 +938,18 @@ struct StageDetailView: View {
             // bloque de datos de la etapa.
             .padding(.top, 4)
             .accessibilityIdentifier(AccessibilityID.assetSection)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 1
-            } action: { _, canMoveForward in
-                actionStripAtEnd = !canMoveForward
+            .onScrollGeometryChange(for: ActionStripEdges.self) { geometry in
+                let maxOffset = max(0, geometry.contentSize.width - geometry.containerSize.width)
+                return ActionStripEdges(
+                    atStart: geometry.contentOffset.x <= 1,
+                    atEnd: geometry.contentOffset.x >= maxOffset - 1
+                )
+            } action: { _, edges in
+                actionStripAtStart = edges.atStart
+                actionStripAtEnd = edges.atEnd
             }
             .overlay(alignment: .leading) {
-                if actionCount > 4 && actionStripAtEnd {
+                if actionCount > 4 && !actionStripAtStart {
                     ZStack(alignment: .leading) {
                         LinearGradient(
                             gradient: Gradient(stops: [
@@ -954,8 +963,9 @@ struct StageDetailView: View {
                         .frame(width: 24, height: 60)
 
                         Button {
-                            withAnimation { proxy.scrollTo("stage-actions-start", anchor: .leading) }
-                            actionStripAtEnd = false
+                            withAnimation(.smooth) {
+                                proxy.scrollTo("stage-actions-start", anchor: .leading)
+                            }
                         } label: {
                             Image(systemName: "chevron.left")
                                 .font(.subheadline.weight(.semibold))
@@ -985,8 +995,9 @@ struct StageDetailView: View {
                         .frame(width: 24, height: 60)
 
                         Button {
-                            withAnimation { proxy.scrollTo("stage-actions-end", anchor: .trailing) }
-                            actionStripAtEnd = true
+                            withAnimation(.smooth) {
+                                proxy.scrollTo("stage-actions-end", anchor: .trailing)
+                            }
                         } label: {
                             Image(systemName: "chevron.right")
                                 .font(.subheadline.weight(.semibold))
@@ -1005,24 +1016,9 @@ struct StageDetailView: View {
         }
     }
 
-    /// Conserva las acciones en una sola tira desplazable: todos los hijos
-    /// reciben la misma celda, incluso cuando su etiqueta es más larga.
-    private struct FixedActionStripLayout: Layout {
-        let itemWidth: CGFloat = 100
-
-        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-            let height = subviews.map { $0.sizeThatFits(.init(width: itemWidth, height: nil)).height }.max() ?? 0
-            return CGSize(width: itemWidth * CGFloat(subviews.count), height: max(52, height))
-        }
-
-        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-            var x = bounds.minX
-            for subview in subviews {
-                subview.place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
-                              proposal: .init(width: itemWidth, height: bounds.height))
-                x += itemWidth
-            }
-        }
+    private struct ActionStripEdges: Equatable {
+        let atStart: Bool
+        let atEnd: Bool
     }
 
     /// SwiftUI no expone un comportamiento «sin rebote» para una tira que sí
@@ -1050,7 +1046,8 @@ struct StageDetailView: View {
                     guard let self else { return }
                     var view = self.superview
                     while let current = view {
-                        if let scrollView = current as? UIScrollView {
+                        if let scrollView = current as? UIScrollView,
+                           scrollView.contentSize.width > scrollView.bounds.width + 1 {
                             guard self.scrollView !== scrollView else { return }
                             self.restoreBounce()
                             self.scrollView = scrollView

@@ -75,6 +75,9 @@ data class RaceUciResultRow(
     val timeText: String? = null,
     val gapText: String? = null,
     val points: Int? = null,
+    /** Puntos UCI derivados de carrera + clasificación + puesto. Double permite
+     *  las centésimas del reparto de una CRE o de un ex-aequo. */
+    val uciPoints: Double? = null,
     val irm: String? = null,          // DNF | DNS | OTL | DSQ
     val sortOrder: Int = 0,
 ) {

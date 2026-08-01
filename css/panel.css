@@ -1712,6 +1712,17 @@ html.dark  .date-nav__input { color-scheme: dark; }
 .md-wysiwyg h3 { font-size: 0.9rem; font-weight: 600; margin: 0.5rem 0 0.2rem; }
 .md-wysiwyg p  { margin: 0; }
 .md-wysiwyg p + p { margin-top: 0.65rem; }
+/* Marcador de una línea en blanco del Markdown. Conserva un NBSP para que
+   Chrome no lo elimine de contenteditable, pero no debe sumar otro espacio
+   entre los párrafos al cargar un texto previamente guardado. */
+.md-wysiwyg p.md-wysiwyg__blank {
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  line-height: 0;
+}
+.md-wysiwyg p.md-wysiwyg__blank + p { margin-top: 0.65rem; }
 .md-wysiwyg ul { margin: 0.25rem 0; padding-left: 1.25rem; }
 .md-wysiwyg li { margin: 0.1rem 0; }
 .md-wysiwyg hr { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }

@@ -86,6 +86,8 @@ fun MiniElevationProfile(
     endTimeMs: Long? = null,
     /** CRI/CRE: el reloj de pelotón no representa un avance único → sin relleno. */
     isTimeTrial: Boolean = false,
+    /** Fuerza 100% cuando la tarjeta ya muestra Resultados o Revive. */
+    forceCompleted: Boolean = false,
 ) {
     // Reloj que avanza cada 60 s mientras la etapa está en curso. `remember`
     // y `LaunchedEffect` se invocan siempre (las condiciones van dentro) para
@@ -105,6 +107,7 @@ fun MiniElevationProfile(
         // CRI/CRE: siempre 0% (silueta gris, sin teñir). Cada corredor o equipo
         // sale en un momento distinto, así que un único reloj de salida→llegada
         // no representa el avance (paridad con la web).
+        forceCompleted -> 1f
         isTimeTrial -> 0f
         startTimeMs != null && endTimeMs != null && endTimeMs > startTimeMs ->
             ((nowState.value - startTimeMs).toFloat() / (endTimeMs - startTimeMs).toFloat()).coerceIn(0f, 1f)

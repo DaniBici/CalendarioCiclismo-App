@@ -194,6 +194,13 @@
   white-space: nowrap;
 }
 
+.tr-contract--midseason {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.14);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .tr-chip {
   flex-shrink: 0;
   font-size: 0.62rem;

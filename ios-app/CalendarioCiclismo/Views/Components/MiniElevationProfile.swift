@@ -37,6 +37,10 @@ struct MiniElevationProfile: View {
     var endTime: Date? = nil
     /// CRI/CRE: el reloj de pelotón no representa un avance único → sin relleno.
     var isTimeTrial: Bool = false
+    /// Fuerza el perfil completado cuando la tarjeta ya está en modo resultados
+    /// o Revive. Tiene prioridad sobre el caso CRI/CRE, que en directo se queda
+    /// intencionadamente al 0%.
+    var forceCompleted: Bool = false
 
     /// Radio del círculo del indicador en px. `nonisolated` para que el closure
     /// del `Canvas` (que se ejecuta fuera del MainActor en Swift 6) pueda leerla
@@ -47,7 +51,9 @@ struct MiniElevationProfile: View {
 
     var body: some View {
         Group {
-            if isTimeTrial {
+            if forceCompleted {
+                profileCanvas(progress: 1)
+            } else if isTimeTrial {
                 // CRI/CRE: siempre 0% (silueta gris, sin teñir). Cada corredor o
                 // equipo sale en un momento distinto, así que un único reloj de
                 // salida→llegada no representa el avance (paridad con la web).

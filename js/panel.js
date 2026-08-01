@@ -2409,7 +2409,10 @@ function markdownToHtml(md) {
     const li = line.match(/^-\s+(.*)/);
     if (li) { if (!inUl) { out.push('<ul>'); inUl = true; } out.push(`<li>${inline(escHtml(li[1]))}</li>`); continue; }
     closeUl();
-    if (line.trim() === '') { out.push('<p>\u00A0</p>'); continue; }
+    // El NBSP evita que Chrome descarte el primer párrafo vacío al serializar
+    // `contenteditable`. Se marca para que el CSS no lo cuente como un párrafo
+    // editorial adicional al reabrir una descripción ya guardada.
+    if (line.trim() === '') { out.push('<p class="md-wysiwyg__blank">\u00A0</p>'); continue; }
     out.push(`<p>${inline(escHtml(line))}</p>`);
   }
   closeUl(); closeBq();
@@ -9193,37 +9196,6 @@ function _populateSpecialRaceSelect(selectedId, query = '') {
   sel.value = selectedId || '';
 }
 
-// Abre el modal de colores (overlay de detección de maillot). Para un equipo
-// existente guarda directamente en BD; para uno nuevo aplica los colores a los
-// inputs ocultos del formulario sin guardar (se guardan al pulsar "Guardar").
-function openTeamColorsModal() {
-  const teamName = document.getElementById('te-name').value.trim() || '(equipo)';
-  if (_editingTeamId) {
-    // Equipo existente: flujo completo con guardado y detección de startlists
-    openJerseyDetector(_editingTeamId, teamName);
-  } else {
-    // Equipo nuevo: aplica colores al formulario sin guardar en BD
-    openJerseyDetector(null, teamName, {
-      applyCallback: (colors) => {
-        setColorPair('headerBg',    colors.headerBg);
-        setColorPair('headerText',  colors.headerText);
-        setColorPair('torsoCenter', colors.badgeTorsoCenter);
-        setColorPair('torsoSides',  colors.badgeTorsoSides);
-        setColorPair('shorts',      colors.badgeShorts);
-        if (colors.badgeInnerCircle) {
-          document.getElementById('te-innerCircle-enabled').checked = true;
-          setColorPair('innerCircle', colors.badgeInnerCircle);
-        } else {
-          document.getElementById('te-innerCircle-enabled').checked = false;
-        }
-        _teamColorsExplicitlySet = true;
-        refreshTeamPreview();
-        document.getElementById('teamSaveStatus').textContent = 'Colores detectados. Revisa y guarda.';
-      },
-    });
-  }
-}
-
 async function setupTeamsView() {
   if (!_teamsViewReady) {
     _teamsViewReady = true;
@@ -9567,36 +9539,36 @@ function teamEditorBodyHtml() {
             </div>
           </div>
         </div>
-        <div id="te-colors-hidden" style="display:none">
+        <div id="te-colors">
         <div class="field-row field-row--2">
           <div class="field">
             <label>Fondo cabecera</label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-headerBg-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-headerBg-text" value="#1f2937">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-headerBg-color">
+              <input class="u-grow" type="text" id="te-headerBg-text" value="#1f2937">
             </div>
           </div>
           <div class="field">
             <label>Texto cabecera</label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-headerText-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-headerText-text" value="#ffffff">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-headerText-color">
+              <input class="u-grow" type="text" id="te-headerText-text" value="#ffffff">
             </div>
           </div>
         </div>
         <div class="field-row field-row--2">
           <div class="field">
             <label>Chapa — central torso</label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-torsoCenter-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-torsoCenter-text" value="#ffffff">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-torsoCenter-color">
+              <input class="u-grow" type="text" id="te-torsoCenter-text" value="#ffffff">
             </div>
           </div>
           <div class="field">
             <label>Chapa — laterales</label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-torsoSides-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-torsoSides-text" value="#111111">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-torsoSides-color">
+              <input class="u-grow" type="text" id="te-torsoSides-text" value="#111111">
             </div>
           </div>
         </div>
@@ -9609,24 +9581,20 @@ function teamEditorBodyHtml() {
                 <span class="u-fs-sm u-c-dim">activar</span>
               </label>
             </label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-innerCircle-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-innerCircle-text" value="#ffd700">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-innerCircle-color">
+              <input class="u-grow" type="text" id="te-innerCircle-text" value="#ffd700">
             </div>
           </div>
           <div class="field">
             <label>Chapa — culotte</label>
-            <div class="u-row u-row--gap-sm">
-              <input type="color" id="te-shorts-color" class="u-w-color">
-              <input class="u-grow u-mono u-upper" type="text" id="te-shorts-text" value="#111111">
+            <div class="color-preview">
+              <input class="u-color-dot" type="color" id="te-shorts-color">
+              <input class="u-grow" type="text" id="te-shorts-text" value="#111111">
             </div>
           </div>
         </div>
-        </div><!-- /te-colors-hidden -->
-        <div class="field">
-          <label>Colores del maillot</label>
-          <button type="button" class="btn btn--ghost" id="editTeamColorsBtn" style="width:100%;justify-content:center;padding:0.5rem;font-size:0.82rem">🎨 Editar colores…</button>
-        </div>
+        </div><!-- /te-colors -->
       </div>
       <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:center;position:sticky;top:1rem">
         <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)">Vista previa</div>
@@ -9708,32 +9676,32 @@ function teamEditorBodyHtml() {
           <div class="field-row field-row--2">
             <div class="field">
               <label>Fondo cabecera</label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-headerBg-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-headerBg-text" value="#1f2937">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-headerBg-color">
+                <input class="u-grow" type="text" id="ts27-headerBg-text" value="#1f2937">
               </div>
             </div>
             <div class="field">
               <label>Texto cabecera</label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-headerText-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-headerText-text" value="#ffffff">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-headerText-color">
+                <input class="u-grow" type="text" id="ts27-headerText-text" value="#ffffff">
               </div>
             </div>
           </div>
           <div class="field-row field-row--2">
             <div class="field">
               <label>Chapa — central torso</label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-torsoCenter-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-torsoCenter-text" value="#ffffff">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-torsoCenter-color">
+                <input class="u-grow" type="text" id="ts27-torsoCenter-text" value="#ffffff">
               </div>
             </div>
             <div class="field">
               <label>Chapa — laterales</label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-torsoSides-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-torsoSides-text" value="#111111">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-torsoSides-color">
+                <input class="u-grow" type="text" id="ts27-torsoSides-text" value="#111111">
               </div>
             </div>
           </div>
@@ -9746,16 +9714,16 @@ function teamEditorBodyHtml() {
                   <span class="u-fs-sm u-c-dim">activar</span>
                 </label>
               </label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-innerCircle-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-innerCircle-text" value="#ffd700">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-innerCircle-color">
+                <input class="u-grow" type="text" id="ts27-innerCircle-text" value="#ffd700">
               </div>
             </div>
             <div class="field">
               <label>Chapa — culotte</label>
-              <div class="u-row u-row--gap-sm">
-                <input type="color" id="ts27-shorts-color" class="u-w-color">
-                <input class="u-grow u-mono u-upper" type="text" id="ts27-shorts-text" value="#111111">
+              <div class="color-preview">
+                <input class="u-color-dot" type="color" id="ts27-shorts-color">
+                <input class="u-grow" type="text" id="ts27-shorts-text" value="#111111">
               </div>
             </div>
           </div>
@@ -9816,7 +9784,6 @@ function wireTeamEditor() {
     const g = CATEGORY_GENDER[e.target.value];
     if (g) document.getElementById('te-gender').value = g;
   });
-  bind('editTeamColorsBtn', 'click', openTeamColorsModal);
   // Panel de plantilla (antes setupRosterPanel con guarda once)
   setupRosterPanel();
   // Panel de temporada 2027 (mercado de fichajes)
@@ -9943,13 +9910,6 @@ async function saveTeam() {
     _syncRosterVisibility(_editingTeamId, t.specialEdition);
     _syncSeason27Visibility(_editingTeamId, t.specialEdition);
 
-    // Comprobar startlists no asociadas para este equipo
-    const savedId   = _editingTeamId;
-    const savedName = t.name;
-    const cachedTeam = (_teamsCache || []).find(tm => tm.id === savedId)
-                    || { id: savedId, name: savedName, nameAliases: t.nameAliases, gender: t.gender };
-    const matches = await _jerseyCheckStartlistMatches(cachedTeam);
-    if (matches.length > 0) _openJerseyStartlistOnly(savedId, savedName, matches);
   } catch (err) {
     console.error('[saveTeam]', err);
     status.textContent = 'Error: ' + (err.message || err);
@@ -12832,36 +12792,9 @@ function closeJerseyDetector() {
 }
 
 async function jerseyHandleFile(file) {
-  const ov = document.getElementById('jerseyDetectorOverlay');
-  if (!ov) return;
-  const statusEl = ov.querySelector('#jerseyDetectorStatus');
-  const fileLbl  = ov.querySelector('#jerseyFileLabel');
-
-  fileLbl.textContent = file.name;
-  statusEl.style.display = 'block';
-  statusEl.textContent = 'Analizando imagen con IA…';
-  ov.querySelector('#jerseyDetectorSaveBtn').style.display = 'none';
-  ov.querySelector('#jerseyColorsPreview').style.display = 'none';
-
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    const auth = await getAuthHeaders();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/detect-team-colors`, {
-      method: 'POST',
-      headers: auth,
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      statusEl.textContent = `Error: ${data.error || 'Respuesta inesperada de la IA'}`;
-      return;
-    }
-    statusEl.textContent = '✓ Colores detectados. Revisa y ajusta si es necesario.';
-    _jerseyApplyColors(data.colors);
-  } catch (err) {
-    statusEl.textContent = `Error: ${err.message}`;
-  }
+  // La edición de colores se realiza directamente en el formulario del equipo.
+  // Este manejador queda como salvaguarda para overlays antiguos aún cacheados.
+  console.warn('[team colors] La detección automática ya no está disponible.', file.name);
 }
 
 function _jerseyApplyColors(raw) {
@@ -13541,8 +13474,10 @@ async function openTeamSituationEditor(teamId) {
       _tseSituations.set(r.id, { rider: r, ...init, initial: { ...init } });
     });
 
-    // Incorporaciones: transfers hacia T desde otros equipos (los que llegan).
-    _tseIncoming = _transfersCache.filter(t => t.type === 'transfer' && t.toTeamId === teamId);
+    // Incorporaciones del mercado: los fichajes efectivos a mitad de temporada
+    // pertenecen al feed informativo, no a la plantilla editable de 2027.
+    _tseIncoming = _transfersCache.filter(t =>
+      !t.midSeason && t.type === 'transfer' && t.toTeamId === teamId);
 
     _tseRenderEditor(body_of(1), { teamId, teamName, teamCat });
   } catch (err) {
@@ -13872,6 +13807,11 @@ async function _deleteAffiliation2027(riderId, teamId) {
 // retirada, destino texto libre) no toca afiliaciones aquí.
 async function _syncSigningAffiliation(t) {
   if (!t || t.type !== 'transfer' || !t.toTeamId) return;
+  // `midSeason` no es evidencia contractual para la temporada siguiente. La
+  // afiliación 2027 solo se escribe desde un contrato/roster verificado; no
+  // tocarla aquí preserva tanto una continuidad ya confirmada como la ausencia
+  // correcta de afiliación cuando aún no se ha anunciado el contrato.
+  if (t.midSeason) return;
   if (t.status === 'confirmed') {
     await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
   } else {
@@ -13883,7 +13823,7 @@ async function _syncSigningAffiliation(t) {
 // corredor: se usa al cambiar su estado (p. ej. de "cambio"/"duda" a "continúa").
 async function _tseClearRiderTransfersForTeam(riderId, teamId) {
   const ids = _transfersCache.filter(t =>
-    t.riderId === riderId && (
+    t.riderId === riderId && !t.midSeason && (
       ((t.type === 'transfer' || t.type === 'retirement') && t.fromTeamId === teamId) ||
       (t.type === 'renewal' && t.toTeamId === teamId)
     )).map(t => t.id);
@@ -13901,7 +13841,9 @@ async function _tseClearRiderTransfersForTeam(riderId, teamId) {
 // movimiento guardado la vuelve a poner _syncSigningAffiliation / _tseSaveTeam).
 async function _clearOtherTransfersForRider(riderId, keepId) {
   const ids = (_transfersCache || [])
-    .filter(t => t.riderId === riderId && t.season === MARKET_SEASON && t.id !== keepId)
+    // Los movimientos mid-season comparten tabla y temporada del mercado por
+    // comodidad editorial, pero pueden coexistir con un fichaje para 2027.
+    .filter(t => t.riderId === riderId && t.season === MARKET_SEASON && t.id !== keepId && !t.midSeason)
     .map(t => t.id);
   if (!ids.length) return;
   const { error } = await supabase.from('rider_transfers').delete().in('id', ids);
@@ -14171,6 +14113,9 @@ function renderTransfersList() {
       : isDoubt
       ? `<span style="${chipCss};background:rgba(139,92,246,0.15);color:#8b5cf6">Duda</span>`
       : `<span style="${chipCss};background:var(--accent-dim, rgba(26,115,232,0.12));color:var(--accent)">Confirmado</span>`;
+    const midSeasonChip = t.midSeason
+      ? `<span style="${chipCss};background:rgba(59,130,246,0.14);color:#2563eb">M. temporada</span>`
+      : '';
     const borderColor = isRumor ? '#f59e0b' : isDoubt ? '#8b5cf6' : 'var(--border)';
     // Fecha tachada = no sale en el feed público (dateVisible=false).
     const dateStyle = dateHidden ? 'text-decoration:line-through;opacity:0.55' : '';
@@ -14184,6 +14129,7 @@ function renderTransfersList() {
         <span class="u-fs-xs u-c-dim" style="white-space:nowrap">${esc(typeLabel)}</span>
         <span style="flex:1;min-width:12rem;font-size:0.8rem">${movement} ${contractBit}</span>
         ${statusChip}
+        ${midSeasonChip}
         ${isRumor || isDoubt ? `<button class="btn btn--ghost transfer-confirm" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--accent)">Confirmar</button>` : ''}
         <button class="btn btn--ghost transfer-edit" style="padding:0.2rem 0.5rem;font-size:0.72rem">Editar</button>
       </div>`;
@@ -14298,6 +14244,10 @@ function transferEditorBodyHtml() {
           <label style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.8rem;margin-top:0.35rem">
             <input type="checkbox" id="tr-dateHidden">
             <span>Ocultar del listado de últimos</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.8rem;margin-top:0.35rem">
+            <input type="checkbox" id="tr-midSeason">
+            <span>Fichaje de mitad de temporada <span class="u-dim">— muestra el badge Mid-Season</span></span>
           </label>
         </div>
       </div>
@@ -14566,6 +14516,7 @@ function openTransferEditor(t, opts = null) {
   document.getElementById('tr-contractUntil').value = t?.contractUntil || '';
   document.getElementById('tr-announcedAt').value   = t?.announcedAt || _localDateKey();
   document.getElementById('tr-dateHidden').checked  = t ? t.dateVisible === false : false;
+  document.getElementById('tr-midSeason').checked   = t?.midSeason === true;
 
   _trRefreshTypeVisibility();
 }
@@ -14619,6 +14570,7 @@ async function saveTransfer() {
     contractUntil,
     announcedAt: document.getElementById('tr-announcedAt').value || _localDateKey(),
     dateVisible: !document.getElementById('tr-dateHidden').checked,
+    midSeason: document.getElementById('tr-midSeason').checked,
     updatedAt: new Date().toISOString(),
   };
 
@@ -14673,7 +14625,7 @@ async function deleteTransfer() {
     const del = (_transfersCache || []).find(x => x.id === _editingTransferId);
     const { error } = await supabase.from('rider_transfers').delete().eq('id', _editingTransferId);
     if (error) throw error;
-    if (del && del.type === 'transfer' && del.status === 'confirmed' && del.toTeamId) {
+    if (del && !del.midSeason && del.type === 'transfer' && del.status === 'confirmed' && del.toTeamId) {
       await _deleteAffiliation2027(del.riderId, del.toTeamId);
     }
     showToast('Movimiento eliminado', 'success', 2500);

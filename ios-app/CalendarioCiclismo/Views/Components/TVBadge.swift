@@ -137,9 +137,8 @@ struct TVBadge: View {
                broadcastDate <= neutralDate {
                 return LocaleService.t("Íntegra", "Full Race")
             }
-            if let time = ref.startTimeLocal {
-                return "TV \(time)"
-            }
+            // La web muestra solo la hora: mantener la misma etiqueta en las apps.
+            if let time = ref.startTimeLocal { return time }
         }
         if !regionBroadcasts.isEmpty { return "TV" }
 

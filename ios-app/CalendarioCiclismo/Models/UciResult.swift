@@ -108,12 +108,15 @@ struct RaceUciResultRow: Codable, Hashable {
     let timeText: String?
     let gapText: String?
     let points: Int?
+    /// Puntos UCI derivados de carrera + clasificación + puesto. Double permite
+    /// las centésimas del reparto de una CRE o de un ex-aequo.
+    let uciPoints: Double?
     let irm: String?                 // DNF | DNS | OTL | DSQ
     let sortOrder: Int
 
     private enum CodingKeys: String, CodingKey {
         case stageRef, raceId, rank, rankText, bib, riderDisplay, globalRiderId
-        case teamId, resultValue, timeText, gapText, points, irm, sortOrder
+        case teamId, resultValue, timeText, gapText, points, uciPoints, irm, sortOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +133,7 @@ struct RaceUciResultRow: Codable, Hashable {
         timeText = try c.decodeIfPresent(String.self, forKey: .timeText)
         gapText = try c.decodeIfPresent(String.self, forKey: .gapText)
         points = try c.decodeIfPresent(Int.self, forKey: .points)
+        uciPoints = try c.decodeIfPresent(Double.self, forKey: .uciPoints)
         irm = try c.decodeIfPresent(String.self, forKey: .irm)
         sortOrder = try c.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
     }
@@ -139,7 +143,7 @@ struct RaceUciResultRow: Codable, Hashable {
         bib: String? = nil, riderDisplay: String? = nil, globalRiderId: String? = nil,
         teamId: String? = nil,
         resultValue: String? = nil, timeText: String? = nil, gapText: String? = nil,
-        points: Int? = nil, irm: String? = nil, sortOrder: Int = 0
+        points: Int? = nil, uciPoints: Double? = nil, irm: String? = nil, sortOrder: Int = 0
     ) {
         self.stageRef = stageRef
         self.raceId = raceId
@@ -153,6 +157,7 @@ struct RaceUciResultRow: Codable, Hashable {
         self.timeText = timeText
         self.gapText = gapText
         self.points = points
+        self.uciPoints = uciPoints
         self.irm = irm
         self.sortOrder = sortOrder
     }

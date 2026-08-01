@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { buildPlan } from '../../scripts/results-fetchers/uci-results-upsert.mjs';
+import { buildPlan, shouldIncludeStage } from '../../scripts/results-fetchers/uci-results-upsert.mjs';
+
+describe('filtro de etapa — general final del último volcado automático', () => {
+  it('mantiene la etapa pedida y la pseudo-etapa final con --include-final', () => {
+    expect(shouldIncludeStage(3, false, 3, true)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, true)).toBe(true);
+    expect(shouldIncludeStage(2, false, 3, true)).toBe(false);
+  });
+
+  it('el volcado manual de una etapa sigue excluyendo la general final', () => {
+    expect(shouldIncludeStage(3, false, 3, false)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, false)).toBe(false);
+  });
+
+  it('no admite un stageNumber null que no esté marcado como final', () => {
+    expect(shouldIncludeStage(null, false, 3, true)).toBe(false);
+  });
+});
 
 // Guarda de lock ASIMÉTRICA en la purga de gemelas sintéticas.
 //
@@ -143,5 +160,56 @@ describe('el candado propio sigue protegiendo el re-volcado de la MISMA clasific
       (p) => p.text.includes('DELETE FROM public.race_uci_results') && p.text.includes('"stageRef"=$1'),
     );
     expect(del.text).toContain('lockedAt" IS NOT NULL');
+  });
+});
+
+describe('gate de integridad — rank 1 válido', () => {
+  it('no genera ninguna escritura si la clasificación no trae rank 1', () => {
+    const { plan, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion({
+        rows: [{ rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel' }],
+      })] }],
+    });
+
+    expect(nRejected).toBe(1);
+    expect(plan).toEqual([]); // tampoco actualiza race_uci_links
+  });
+
+  it('omite solo la clasificación cuyo rank 1 lleva IRM', () => {
+    const invalida = clasificacion({
+      eventId: -1359920102,
+      classKind: 'points',
+      rows: [
+        { rank: 1, rankText: 'DNF', bib: '11', riderDisplay: 'BRAVO Henrique', irm: 'DNF' },
+        { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: -135992,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion(), invalida] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(1);
+    expect(plan.some((p) => p.params?.includes(-1359920102))).toBe(false);
+  });
+
+  it('acepta la etapa si el saneo desplaza un IRM espurio y restaura al ganador', () => {
+    const { nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion({
+        rows: [
+          { rank: 1, rankText: 'DNS', bib: '11', riderDisplay: 'BRAVO Henrique', irm: 'DNS' },
+          { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel', timeText: '3:00:00' },
+        ],
+      })] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(0);
   });
 });

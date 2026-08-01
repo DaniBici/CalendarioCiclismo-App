@@ -13,6 +13,7 @@ final class UciResultsLogicTests: XCTestCase {
         timeText: String? = nil,
         gapText: String? = nil,
         points: Int? = nil,
+        uciPoints: Double? = nil,
         resultValue: String? = nil,
         irm: String? = nil,
         riderDisplay: String? = nil,
@@ -24,9 +25,32 @@ final class UciResultsLogicTests: XCTestCase {
             stageRef: "s", raceId: "r", rank: rank, rankText: nil, bib: bib,
             riderDisplay: riderDisplay, globalRiderId: globalRiderId, teamId: teamId,
             resultValue: resultValue,
-            timeText: timeText, gapText: gapText, points: points, irm: irm,
+            timeText: timeText, gapText: gapText, points: points, uciPoints: uciPoints, irm: irm,
             sortOrder: sortOrder
         )
+    }
+
+    func testLosPuntosUCISePropaganSinMezclarseConLosPuntosDeLaClasificacion() {
+        let individual = UciResultsLogic.buildIndividualRows(
+            rows: [row(rank: 1, points: 50, uciPoints: 125.0)],
+            classKind: "points",
+            isTeams: false,
+            byDorsal: [:],
+            isEn: false
+        ).first!
+        XCTAssertEqual(individual.valueText, "50")
+        XCTAssertEqual(individual.uciPoints, 125.0)
+
+        let ttt = UciResultsLogic.collapseTtt(
+            rows: [
+                row(rank: 1, bib: "1", timeText: "20:00", uciPoints: 12.5),
+                row(bib: "2", timeText: "20:10", uciPoints: 12.5),
+            ],
+            byDorsal: [:],
+            isEn: false
+        ).first!
+        XCTAssertEqual(ttt.uciPoints, 12.5)
+        XCTAssertEqual(ttt.riders.map(\.uciPoints), [12.5, 12.5])
     }
 
     // Helper: equipo canónico con lo mínimo (chapa irrelevante para la lógica).

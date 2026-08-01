@@ -34,5 +34,7 @@ data class RiderTransfer(
     // false → fuera del feed de últimos, pero cuenta en el detalle de equipo
     // (mig. 123; default true = como estaba antes de existir la columna).
     val dateVisible: Boolean = true,
+    // Fichaje efectivo durante la temporada en curso (mig. 136).
+    val midSeason: Boolean = false,
     val createdAt: String? = null,
 )

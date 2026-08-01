@@ -59,6 +59,18 @@ class DateFormattingTest {
         assertTrue(result.lowercase().contains("julio"))
     }
 
+    @Test
+    fun `fecha de actualizacion UCI comparte patron en castellano e ingles`() {
+        assertEquals(
+            "Actualizado: martes, 28 de julio de 2026",
+            DateFormatting.formatUciRankingUpdated("2026-07-28", isEnglish = false),
+        )
+        assertEquals(
+            "Updated: Tuesday, 28 July 2026",
+            DateFormatting.formatUciRankingUpdated("2026-07-28", isEnglish = true),
+        )
+    }
+
     // ── formatMonthYear ────────────────────────────────────────────
 
     @Test

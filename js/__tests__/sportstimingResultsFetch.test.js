@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { irmOf, normAbsTime, normGap, parseRows, decodeEntities, stripTags, dateFromCat, fnv1a }
+import { irmOf, normAbsTime, normGap, clockSeconds, secondsGap, normalizeStageGaps, parseRows, parsePointsRows, parseTeamRows, hasFinalRanking, decodeEntities, stripTags, dateFromCat, fnv1a }
   from '../../scripts/results-fetchers/sportstiming-results-fetch.mjs';
 
 // Fuente: sportstiming.dk (cronometrador DANÉS). Sin API JSON: se lee el HTML
@@ -206,6 +206,71 @@ describe('parseRows — el número entre paréntesis ES EL DORSAL', () => {
       <td><a href="/event/1/results/9"><span>Mads S&#248;rensen (42)</span></a><div>Uno-X</div></td>
       <td><span>DEN</span></td><td><span>Uno-X</span></td></tr></table>`;
     expect(parseRows(html)[0]).toMatchObject({ bib: '42', riderDisplay: 'Mads Sørensen' });
+  });
+});
+
+describe('Vuelta a Dinamarca — etapa sin categoría interna', () => {
+  const LIVE_DNFS = `<table>
+    <tr><th>Plac.</th><th>Tid</th><th>Efter #1</th><th>Rytter</th><th>Land</th><th>Kategori</th><th>Hold</th></tr>
+    <tr><td>DNF</td><td>-</td><td></td><td><a href="/event/18578/results/8462421"><span>Kristian Egholm (2)</span></a></td><td>DEN</td><td>Young Rider</td><td>LIDL-TREK</td></tr>
+  </table>`;
+  const FINAL = LIVE_DNFS.replace('<td>DNF</td><td>-</td><td></td>', '<td>1</td><td>4:12:34</td><td></td>');
+
+  it('toma el equipo después de la columna adicional de categoría', () => {
+    expect(parseRows(LIVE_DNFS)[0]).toMatchObject({
+      irm: 'DNF', country: 'DEN', teamName: 'LIDL-TREK', riderDisplay: 'Kristian Egholm', bib: '2',
+    });
+  });
+
+  it('descarta la sigla móvil que Sportstiming duplica en la celda de equipo', () => {
+    const html = LIVE_DNFS.replace('<td>LIDL-TREK</td>', '<td><span class="hidden-xs">LIDL-TREK</span><span class="hidden-lg">LTK</span></td>');
+    expect(parseRows(html)[0].teamName).toBe('LIDL-TREK');
+  });
+
+  it('no considera los abandonos en directo como una clasificación final', () => {
+    expect(hasFinalRanking(parseRows(LIVE_DNFS))).toBe(false);
+    expect(hasFinalRanking(parseRows(FINAL))).toBe(true);
+  });
+});
+
+describe('cortes de grupo y clasificaciones acumuladas', () => {
+  it('recalcula el corte desde Tid y elimina microcortes dentro del mismo grupo', () => {
+    const html = `<table>
+      <tr><td>1</td><td>4:10:49</td><td></td><td><a href="/event/1/results/1"><span>A (1)</span></a></td><td>BEL</td><td>Team A</td></tr>
+      <tr><td>2</td><td>4:10:49</td><td>+0:01</td><td><a href="/event/1/results/2"><span>B (2)</span></a></td><td>DEN</td><td>Team B</td></tr>
+      <tr><td>3</td><td>4:11:06</td><td>+0:17</td><td><a href="/event/1/results/3"><span>C (3)</span></a></td><td>FRA</td><td>Team C</td></tr>
+    </table>`;
+    const rows = normalizeStageGaps(parseRows(html));
+    expect(rows[1].gapText).toBe('+0');
+    expect(rows[2].gapText).toBe('+17');
+    expect(clockSeconds('4:10:49')).toBe(15049);
+    expect(secondsGap(62)).toBe('+1:02');
+  });
+
+  it('lee las clasificaciones de puntos acumuladas', () => {
+    const html = `<table><tr><th>Plac.</th><th>Point</th><th>Rytter</th><th>Land</th><th>Kategori</th><th>Hold</th></tr>
+      <tr><td>1</td><td>15</td><td><a href="/event/1/results/1"><span>Wout Van Aert (51)</span></a></td><td>BEL</td><td>-</td><td>TEAM VISMA</td></tr></table>`;
+    expect(parsePointsRows(html)).toMatchObject([{ rank: 1, bib: '51', riderDisplay: 'Wout Van Aert', points: 15, teamName: 'TEAM VISMA' }]);
+  });
+
+  it('lee una clasificación acumulada por equipos sin enlaces de corredor', () => {
+    const html = `<table><tr><th>Plac.</th><th>Tid</th><th>Efter #1</th><th>Hold</th></tr>
+      <tr><td>1</td><td>12:30:00</td><td></td><td>TEAM VISMA</td></tr>
+      <tr><td>2</td><td>12:30:10</td><td>+0:10</td><td>LIDL-TREK</td></tr></table>`;
+    expect(parseTeamRows(html)).toMatchObject([
+      { rank: 1, riderDisplay: 'TEAM VISMA', teamName: 'TEAM VISMA', timeText: '12:30:00' },
+      { rank: 2, riderDisplay: 'LIDL-TREK', teamName: 'LIDL-TREK', gapText: '+10' },
+    ]);
+  });
+
+  it('acepta las cabeceras inglesas de la vista viewType=team', () => {
+    const html = `<table><tr><th>Pos.</th><th>Time</th><th>Behind #1</th><th>Team</th></tr>
+      <tr><td>1</td><td>11:58:53</td><td></td><td>TEAM VISMA</td></tr>
+      <tr><td>2</td><td>11:59:08</td><td>+0:15</td><td>DANISH NATIONAL TEAM</td></tr></table>`;
+    expect(parseTeamRows(html)).toMatchObject([
+      { rank: 1, teamName: 'TEAM VISMA', timeText: '11:58:53' },
+      { rank: 2, teamName: 'DANISH NATIONAL TEAM', gapText: '+15' },
+    ]);
   });
 });
 

@@ -16,13 +16,14 @@ final class TransfersLogicTests: XCTestCase {
         contractUntil: Int? = nil,
         announcedAt: String? = "2026-07-10",
         createdAt: String? = nil,
-        dateVisible: Bool = true
+        dateVisible: Bool = true,
+        midSeason: Bool = false
     ) -> RiderTransfer {
         RiderTransfer(
             id: id, season: 2027, riderId: riderId, riderGender: "male",
             fromTeamId: from, fromTeamName: nil, toTeamId: to, toTeamName: toName,
             type: type, status: status, contractUntil: contractUntil,
-            announcedAt: announcedAt, dateVisible: dateVisible, createdAt: createdAt
+            announcedAt: announcedAt, dateVisible: dateVisible, midSeason: midSeason, createdAt: createdAt
         )
     }
 
@@ -88,6 +89,14 @@ final class TransfersLogicTests: XCTestCase {
             transfer(id: "mid", riderId: "r3", to: "team_b", announcedAt: "2026-07-05"),
         ])
         XCTAssertEqual(feed.map(\.id), ["new", "mid", "old"])
+    }
+
+    func test_feedPrioritizesNextSeasonSigningsOverMidSeasonOnSameDay() {
+        let feed = TransfersLogic.confirmedFeed([
+            transfer(id: "midSeason", riderId: "r1", to: "team_b", announcedAt: "2026-08-01", createdAt: "2026-08-01T12:00:00Z", midSeason: true),
+            transfer(id: "nextSeason", riderId: "r2", to: "team_b", announcedAt: "2026-08-01", createdAt: "2026-08-01T09:00:00Z"),
+        ])
+        XCTAssertEqual(feed.map(\.id), ["nextSeason", "midSeason"])
     }
 
     func test_groupByDayKeepsOrderAndGroups() {
@@ -373,6 +382,16 @@ final class TransfersLogicTests: XCTestCase {
         let detail = TransfersLogic.teamDetail(transfers: moves, roster: [rider("r1", last: "Uno")], teamId: "team_a")
         XCTAssertEqual(detail.departures.map(\.id), ["t1"])
         XCTAssertTrue(detail.staying.isEmpty)   // sale de "continúan" igual
+    }
+
+    func test_midSeasonMoveDoesNotAppearAsNextMarketArrivalButKeepsRealRosterContract() {
+        // El fichaje de agosto es informativo en el feed. Si más adelante se
+        // registra contrato 2027+ en la afiliación, el corredor continúa; no
+        // debe aparecer simultáneamente como una llegada del mercado.
+        let moves = [transfer(id: "mid", riderId: "r1", from: "team_old", to: "team_a", midSeason: true)]
+        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [rider("r1", last: "Uno", contractUntil: 2029)], teamId: "team_a")
+        XCTAssertTrue(detail.arrivals.isEmpty)
+        XCTAssertEqual(detail.staying.map(\.id), ["r1"])
     }
 
     // MARK: - Duda del corredor (mig. 123)

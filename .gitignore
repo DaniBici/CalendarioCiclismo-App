@@ -136,7 +136,8 @@ en/race/
 en/stage/
 en/startlist/
 en/profile/
-en/results/
+# En resultados EN, el índice es fuente y las subrutas de carrera son generadas.
+en/results/*/
 en/route-map/
 en/start-order/
 en/feed/

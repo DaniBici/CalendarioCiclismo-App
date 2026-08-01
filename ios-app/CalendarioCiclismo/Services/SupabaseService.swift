@@ -236,6 +236,20 @@ final class SupabaseService {
             .value
     }
 
+    /// Libro de ruta único de una competición. Se resuelve mediante la relación
+    /// con `race_days` para que una ficha de jornada no tenga que esperar a que
+    /// termine la consulta de siblings antes de poder mostrarlo.
+    func technicalGuide(byRaceId raceId: String) async throws -> Asset? {
+        let guides: [Asset] = try await client.from("assets")
+            .select("id,raceDayId,type,url,race_days!inner(raceId)")
+            .eq("type", value: "technicalGuide")
+            .eq("race_days.raceId", value: raceId)
+            .limit(1)
+            .execute()
+            .value
+        return guides.first
+    }
+
     /// Resultado mínimo para buscar siguiente fecha.
     private struct MinimalDateRow: Codable {
         let dateKey: String

@@ -220,6 +220,9 @@ actor CacheManager {
     static func yearRacesKey(_ year: Int) -> String { "races_\(year)" }
     /// Clave para los siblings (todas las etapas) de una carrera.
     static func siblingsKey(_ raceId: String) -> String { "siblings_\(raceId)" }
+    /// Clave para el Libro de Ruta común a todas las jornadas de una carrera.
+    /// Se guarda como lista para poder memorizar también que no existe.
+    static func technicalGuideKey(_ raceId: String) -> String { "technical_guide_\(raceId)" }
     /// Clave para los datos del mes.
     static func monthKey(year: Int, month: Int) -> String { "month_\(year)-\(String(format: "%02d", month))" }
     /// Clave para las jornadas del mes.

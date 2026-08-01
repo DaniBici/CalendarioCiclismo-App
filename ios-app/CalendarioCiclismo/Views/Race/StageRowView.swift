@@ -19,13 +19,13 @@ struct StageRowView: View {
     private var rd: RaceDay { item.raceDay }
 
     /// Modo terminado: hay resultados o revive disponibles. Igual que en "Hoy"
-    /// (y que la web), oculta el mini-perfil y cambia el accesorio derecho
-    /// (chevron → iconos de resultados/revive).
+    /// (y que la web), cambia el accesorio derecho (chevron → iconos de
+    /// resultados/revive) y completa el mini-perfil.
     private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil }
 
     private var showsMiniProfile: Bool {
         guard premium.featuresUnlocked else { return false }
-        guard !rd.isRestDay, !rd.isCancelledDay, !isFinishedMode else { return false }
+        guard !rd.isRestDay, !rd.isCancelledDay else { return false }
         guard let pts = rd.elevationProfile?.points, pts.count >= 2 else { return false }
         return true
     }
@@ -204,7 +204,8 @@ struct StageRowView: View {
             primaryType: rd.primaryType,
             startTime: rd.neutralStartTimeUtc.flatMap(DateFormatting.parseISO),
             endTime: rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
-            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt"
+            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt",
+            forceCompleted: isFinishedMode
         )
     }
 }

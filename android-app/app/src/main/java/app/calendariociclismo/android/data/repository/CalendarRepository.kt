@@ -692,6 +692,9 @@ class CalendarRepository(
             ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey)
         }
 
+    /** Instantánea actual del ránking UCI de equipos (solo online, sin Room). */
+    suspend fun loadUciTeamRankings() = api.uciTeamRankings()
+
     /**
      * Refina el ganador de cada entrada in-house — espejo del bloque de
      * ganadores de `fetchEntries` en resultados-feed.js:

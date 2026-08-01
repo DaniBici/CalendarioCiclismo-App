@@ -364,6 +364,17 @@ extension SupabaseService {
         try await raceDays(from: fromKey, to: toKey)
     }
 
+    /// Instantánea semanal de DataRide compartida por las tres plataformas.
+    /// La tabla no conserva históricos: cada martes se reemplazan ambos géneros.
+    func loadUciTeamRankings() async throws -> [UciTeamRankingRow] {
+        try await client.from("uci_team_rankings")
+            .select("gender,rank,previousRank,uciTeamId,teamId,teamCategory,sourceName,displayName,teamCode,countryCode,points,rankingDate,sourceUrl")
+            .order("gender", ascending: true)
+            .order("rank", ascending: true)
+            .execute()
+            .value
+    }
+
     /// Fila mínima del rank 1 de una clasificación (resolución del ganador).
     private struct FeedRank1Row: Codable {
         let stageRef: String

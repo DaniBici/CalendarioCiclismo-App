@@ -41,7 +41,23 @@ final class StageDetailViewModel {
                var cachedSiblings = await CacheManager.shared.load([RaceDay].self, forKey: CacheManager.siblingsKey(raceId)) {
                 RaceLogic.annotateDoubleSectors(&cachedSiblings)
                 siblings = cachedSiblings
-                cachedSiblingsReady = true
+                // La guía técnica pertenece a la carrera, no necesariamente a
+                // esta jornada. Recuperarla con los siblings evita que el chip
+                // aparezca solo cuando llegue el refresco remoto.
+                let cachedGuides = await CacheManager.shared
+                    .load([Asset].self, forKey: CacheManager.technicalGuideKey(raceId))
+                let cachedGuide = cachedGuides?.first
+                let localGuide = cached.assets.first { $0.type == "technicalGuide" }
+                let technicalGuide = cachedGuide ?? localGuide
+                assets = (technicalGuide.map { [$0] } ?? [])
+                    + cached.assets.filter { $0.type != "technicalGuide" }
+                // `nil` significa que esta instalación aún no ha creado la
+                // nueva entrada por carrera (p. ej. tras actualizar desde una
+                // versión anterior). En ese caso la instantánea no es completa:
+                // mantener Loading hasta la respuesta remota evita pintar la
+                // tira sin guía y añadirla unas décimas después. Una lista
+                // vacía sí es un estado cacheado válido: sabemos que no existe.
+                cachedSiblingsReady = cachedGuides != nil || localGuide != nil
             }
             // Solo pintar desde caché si ya tenemos siblings — primera visita espera la red
             if cachedSiblingsReady { isLoading = false }
@@ -64,8 +80,14 @@ final class StageDetailViewModel {
                 async let assetsResult = service.assets(byRaceDayId: rdId)
                 // Cargar siblings para detectar doble sector
                 async let siblingsResult = service.raceDays(byRaceId: raceId)
+                // La guía es de toda la competición. Se pide directamente por
+                // raceId, en paralelo, en vez de esperar a siblings y lanzar
+                // una segunda ronda de red: así el chip no aparece tarde.
+                async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
 
-                let (r, b, a, siblings) = try await (raceResult, broadcastsResult, assetsResult, siblingsResult)
+                let (r, b, a, siblings, technicalGuide) = try await (
+                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult
+                )
                 race = r
 
                 // Detectar doble sector desde siblings
@@ -81,12 +103,16 @@ final class StageDetailViewModel {
                 )
                 // Se guarda una sola guía técnica por competición, pero se
                 // expone en cada jornada sin duplicar su fila ni su PDF.
-                let allAssets = try await service.assets(byRaceDayIds: siblings.map(\.id))
-                let technicalGuide = allAssets.first { $0.type == "technicalGuide" }
                 assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays
                 // Guardar siblings para cargas futuras sin flash
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
+                // Guardar incluso una lista vacía: si el Libro de Ruta se borra
+                // en servidor, no debe resucitar desde una caché anterior.
+                await CacheManager.shared.save(
+                    technicalGuide.map { [$0] } ?? [],
+                    forKey: CacheManager.technicalGuideKey(raceId)
+                )
             }
 
             raceDay = rd
@@ -151,9 +177,10 @@ final class StageDetailViewModel {
                 async let broadcastsResult = service.broadcasts(byRaceDayId: rdId)
                 async let assetsResult = service.assets(byRaceDayId: rdId)
                 async let siblingsResult = service.raceDays(byRaceId: raceId)
+                async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
 
-                let (r, b, a, siblings) = try await (
-                    raceResult, broadcastsResult, assetsResult, siblingsResult
+                let (r, b, a, siblings, technicalGuide) = try await (
+                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult
                 )
                 race = r
 
@@ -167,9 +194,13 @@ final class StageDetailViewModel {
                     b,
                     allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
                 )
-                assets = a
+                assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
+                await CacheManager.shared.save(
+                    technicalGuide.map { [$0] } ?? [],
+                    forKey: CacheManager.technicalGuideKey(raceId)
+                )
             }
 
             // Sustituir la instantánea completa. Las colecciones vienen de

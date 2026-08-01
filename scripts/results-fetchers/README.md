@@ -5,6 +5,12 @@ Motor de volcado de resultados. **Código en producción**: lo invocan los workf
 introducen manualmente desde la jornada: el matcher automático y sus informes ya
 no forman parte del circuito de producción.
 
+La excepción es `uci-team-ranking-sync.mjs`: mantiene la única instantánea
+semanal de los ránkings de equipos masculino y femenino. El workflow
+`uci-team-ranking.yml` lo ejecuta tras la publicación de los martes y repite el
+miércoles como red de seguridad. Sin `--apply` valida DataRide y los
+emparejamientos sin escribir; `--fetch-only` comprueba solo la fuente.
+
 Antes se llamaba `catalog-continental/`, nombre heredado de la tarea puntual con la
 que nació el directorio. Se renombró en la preparación del repo público (2026-07-18)
 porque ese nombre escondía que aquí vive el motor de resultados y estuvo a punto de
