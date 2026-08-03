@@ -577,7 +577,7 @@
     <string name="transfers_contract_ends">Contract ending</string>
     <string name="transfers_contract_ends_empty">No contract endings announced yet.</string>
     <string name="transfers_team_empty">No moves announced yet.</string>
-    <string name="transfers_team_doubt">Future in doubt</string>
+    <string name="transfers_team_doubt">TBC</string>
     <string name="transfers_team_doubt_notice">The team\'s participation in %1$d is not confirmed.</string>
     <string name="transfers_staying">Staying</string>
     <string name="transfers_arrivals">Arrivals</string>

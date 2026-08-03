@@ -38,8 +38,8 @@ android {
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 438
-        versionName = "4.2.1"
+        versionCode = 448
+        versionName = "4.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

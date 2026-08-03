@@ -37,6 +37,9 @@ struct MiniElevationProfile: View {
     var endTime: Date? = nil
     /// CRI/CRE: el reloj de pelotón no representa un avance único → sin relleno.
     var isTimeTrial: Bool = false
+    /// En Competición, una crono sin horario usa el mismo fallback teñido que
+    /// una jornada en línea. Hoy mantiene el gris actual por defecto.
+    var usesLineFallbackWithoutTimeTrialSchedule: Bool = false
     /// Fuerza el perfil completado cuando la tarjeta ya está en modo resultados
     /// o Revive. Tiene prioridad sobre el caso CRI/CRE, que en directo se queda
     /// intencionadamente al 0%.
@@ -53,10 +56,11 @@ struct MiniElevationProfile: View {
         Group {
             if forceCompleted {
                 profileCanvas(progress: 1)
-            } else if isTimeTrial {
+            } else if isTimeTrial, !usesLineFallbackWithoutTimeTrialSchedule || (startTime != nil && endTime != nil) {
                 // CRI/CRE: siempre 0% (silueta gris, sin teñir). Cada corredor o
                 // equipo sale en un momento distinto, así que un único reloj de
-                // salida→llegada no representa el avance (paridad con la web).
+                // salida→llegada no representa el avance. Competición usa el
+                // fallback de línea cuando aún no hay intervalo horario.
                 profileCanvas(progress: 0)
             } else if let start = startTime, let end = endTime, end > start {
                 // Auto-refresco cada 60 s mientras la etapa está en curso, para

@@ -3,6 +3,8 @@ import SwiftUI
 /// Tarjeta de carrera en la agenda del día.
 struct RaceCardView: View {
     let item: EnrichedRaceDay
+    /// Filtro activo de Hoy; permite ocultar redundancias femeninas en Femenino/WWT.
+    var activeFilter: Constants.CategoryFilter = .all
     /// Llamada cuando el usuario pulsa el icono de resultados (trofeo).
     /// Nil = no mostrar botón de resultados.
     var onShowResults: (() -> Void)? = nil
@@ -24,6 +26,17 @@ struct RaceCardView: View {
 
     private var race: Race? { item.race }
     private var rd: RaceDay { item.raceDay }
+    private var isFemaleFilterActive: Bool { activeFilter == .female || activeFilter == .wwt }
+    private var displayRaceName: String {
+        let fallback = LocaleService.t("Carrera", "Race")
+        guard let race else { return fallback }
+        return isFemaleFilterActive && race.isFemale
+            ? RaceLogic.cleanFeminineDisplayName(race.localizedName)
+            : race.localizedName
+    }
+    private var showFemaleIndicator: Bool {
+        !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
+    }
 
     /// URL de live texto (asset tipo live_text).
     private var liveTextUrl: String? {
@@ -268,12 +281,12 @@ struct RaceCardView: View {
                     if race?.hideFlag != true || rd.countryCode != nil {
                         CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
                     }
-                    Text(race?.localizedName ?? LocaleService.t("Carrera", "Race"))
+                    Text(displayRaceName)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(1)
 
-                    if RaceLogic.shouldShowFemaleIndicator(race) {
+                    if showFemaleIndicator {
                         Text("♀")
                             .font(.caption)
                             .foregroundStyle(AppTheme.green)
@@ -315,12 +328,12 @@ struct RaceCardView: View {
                     if race?.hideFlag != true || rd.countryCode != nil {
                         CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
                     }
-                    Text(race?.localizedName ?? LocaleService.t("Carrera", "Race"))
+                    Text(displayRaceName)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(1)
 
-                    if RaceLogic.shouldShowFemaleIndicator(race) {
+                    if showFemaleIndicator {
                         Text("♀")
                             .font(.caption)
                             .foregroundStyle(AppTheme.green)
@@ -454,11 +467,11 @@ struct RaceCardView: View {
                 if race?.hideFlag != true || rd.countryCode != nil {
                     CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
                 }
-                Text(race?.localizedName ?? LocaleService.t("Carrera", "Race"))
+                Text(displayRaceName)
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                if RaceLogic.shouldShowFemaleIndicator(race) {
+                if showFemaleIndicator {
                     Text("♀")
                         .font(.caption)
                         .foregroundStyle(AppTheme.green)

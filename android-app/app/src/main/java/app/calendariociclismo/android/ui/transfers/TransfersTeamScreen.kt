@@ -182,7 +182,7 @@ private fun TeamContent(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = "${season.category.orEmpty()} · ${TransfersLogic.MARKET_SEASON}",
+                            text = season.category.orEmpty(),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

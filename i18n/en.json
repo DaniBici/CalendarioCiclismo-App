@@ -324,7 +324,7 @@
     "until": "{year}",
     "rumor": "Rumor",
     "doubt": "Undecided",
-    "teamDoubt": "Future in doubt",
+    "teamDoubt": "TBC",
     "teamDoubtNotice": "The team's participation in {season} is not confirmed.",
     "teamsTitle": "{season} Teams",
     "teamsEmpty": "No teams in this division.",

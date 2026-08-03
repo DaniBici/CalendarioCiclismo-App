@@ -503,6 +503,7 @@ private fun MonthDayPage(
                     dateKey = dateKey,
                     raceDays = dayRaces,
                     raceMap = raceMap,
+                    activeFilter = category,
                     isChampDay = isChampDay,
                     onStageClick = onStageClick,
                     onPlaceholderClick = onPlaceholderClick,
@@ -520,6 +521,7 @@ private fun DaySection(
     dateKey: String,
     raceDays: List<RaceDay>,
     raceMap: Map<String, Race>,
+    activeFilter: Constants.CategoryFilter,
     isChampDay: Boolean,
     onStageClick: (String) -> Unit,
     onPlaceholderClick: (Race, RaceDay) -> Unit,
@@ -596,6 +598,7 @@ private fun DaySection(
                     MonthScheduleRaceRow(
                         raceDay = rd,
                         race = race,
+                        activeFilter = activeFilter,
                         onClick = {
                             when {
                                 rd.editorialStatus == "placeholder" && race != null ->
@@ -620,12 +623,18 @@ private fun DaySection(
 private fun MonthScheduleRaceRow(
     raceDay: RaceDay,
     race: Race?,
+    activeFilter: Constants.CategoryFilter,
     onClick: () -> Unit,
 ) {
     val stripe = colorFromHex(race?.colorHex, fallback = Color.Gray)
     // Solo se atenúa la CARRERA cancelada (no se corre en absoluto). Una JORNADA
     // cancelada no: su aviso ya lo dice y su ficha sigue siendo accesible.
     val rowAlpha = if (race?.isCancelled == true) 0.5f else 1f
+    val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
+        activeFilter == Constants.CategoryFilter.WWT
+    val displayName = race?.localizedName?.let {
+        if (isFemaleFilterActive && race?.isFemale == true) RaceLogic.cleanFeminineDisplayName(it) else it
+    } ?: stringResource(R.string.today_race_fallback)
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTimeTrial = raceDay.primaryType == "itt" || raceDay.primaryType == "ttt"
@@ -669,14 +678,14 @@ private fun MonthScheduleRaceRow(
                 }
                 // Peso del nombre alineado con Hoy/cintillo (Medium 14/16).
                 Text(
-                    text = race?.localizedName ?: stringResource(R.string.today_race_fallback),
+                    text = displayName,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
                     lineHeight = 16.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (RaceLogic.shouldShowFemaleIndicator(race)) {
+                if (!isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)) {
                     val femaleCd = stringResource(R.string.season_female_indicator_cd)
                     Text(
                         text = "♀",

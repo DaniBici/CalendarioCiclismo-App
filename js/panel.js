@@ -2409,10 +2409,9 @@ function markdownToHtml(md) {
     const li = line.match(/^-\s+(.*)/);
     if (li) { if (!inUl) { out.push('<ul>'); inUl = true; } out.push(`<li>${inline(escHtml(li[1]))}</li>`); continue; }
     closeUl();
-    // El NBSP evita que Chrome descarte el primer párrafo vacío al serializar
-    // `contenteditable`. Se marca para que el CSS no lo cuente como un párrafo
-    // editorial adicional al reabrir una descripción ya guardada.
-    if (line.trim() === '') { out.push('<p class="md-wysiwyg__blank">\u00A0</p>'); continue; }
+    // En Markdown una línea vacía separa párrafos; no es un párrafo editable
+    // adicional. Los <p> reales se volverán a serializar con \n\n al guardar.
+    if (line.trim() === '') continue;
     out.push(`<p>${inline(escHtml(line))}</p>`);
   }
   closeUl(); closeBq();
@@ -2450,7 +2449,11 @@ function htmlToMarkdown(html) {
           out += bqLines.join('\n') + '\n';
           break;
         }
-        case 'div':    out += inner ? `${inner}\n` : '\n'; break;
+        // Aunque pedimos <p> como separador por defecto, Safari y Chrome pueden
+        // crear un <div> al pulsar Enter en un contenteditable nuevo. Es también
+        // un bloque: serializarlo como párrafo evita que el salto se convierta
+        // en una única nueva línea, que el renderizador público colapsa.
+        case 'div':    out += inner ? `\n\n${inner}\n\n` : '\n\n'; break;
         default:       out += inner;
       }
     }
@@ -2458,6 +2461,17 @@ function htmlToMarkdown(html) {
   }
 
   return walk(div.childNodes).replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// La fuente de verdad durante la edición es el contenteditable. Algunos
+// navegadores no emiten `input` para todos los Enter, así que antes de guardar
+// se serializa siempre desde él en vez de confiar solo en el textarea oculto.
+function markdownFromEditor(wysiwygId, textareaId) {
+  const wysiwyg = document.getElementById(wysiwygId);
+  const textarea = document.getElementById(textareaId);
+  if (!textarea) return '';
+  if (wysiwyg) textarea.value = htmlToMarkdown(wysiwyg.innerHTML);
+  return textarea.value;
 }
 
 // Markup de la barra de herramientas markdown. Idéntica para ES y EN salvo
@@ -2501,7 +2515,7 @@ function initMdToolbar(toolbarId, textareaId, wysiwygId) {
   // e.g. corrección ortográfica del SO, drag-and-drop, o IME composition)
   wysiwyg.addEventListener('blur', syncMarkdown);
 
-  function syncMarkdown() { hidden.value = htmlToMarkdown(wysiwyg.innerHTML); }
+  function syncMarkdown() { markdownFromEditor(wysiwyg.id, hidden.id); }
   function applyInlineFormat(tag) { const sel=window.getSelection(), r=sel?.rangeCount?sel.getRangeAt(0):null; if(!r||r.collapsed||!wysiwyg.contains(r.commonAncestorContainer)) return false; const w=document.createElement(tag); try { r.surroundContents(w); } catch (_) { const c=r.extractContents(); w.append(c); r.insertNode(w); } sel.removeAllRanges(); const n=document.createRange(); n.selectNodeContents(w); sel.addRange(n); return true; }
   function applyFormat(action) { wysiwyg.focus(); const tags={bold:'strong',italic:'em',underline:'u'}; if(tags[action]) { if(applyInlineFormat(tags[action])) syncMarkdown(); return; } switch(action) { case 'h2': document.execCommand('formatBlock',false,'h2'); break; case 'h3': document.execCommand('formatBlock',false,'h3'); break; case 'ul': document.execCommand('insertUnorderedList'); break; case 'blockquote': document.execCommand('formatBlock',false,'blockquote'); break; case 'hr': document.execCommand('insertHTML',false,'<hr>'); break; } syncMarkdown(); }
 
@@ -2513,20 +2527,14 @@ function initMdToolbar(toolbarId, textareaId, wysiwygId) {
     });
   });
 
-  // Párrafo por defecto: <p> en lugar de <div> o <br>
+  // Párrafo por defecto: <p> en lugar de <div> o <br>.
   document.execCommand('defaultParagraphSeparator', false, 'p');
 
-  // Atajos de teclado + Enter → párrafo (no <br>)
+  // Atajos de teclado. El Enter queda en manos del navegador: así conserva
+  // correctamente la selección y el historial de deshacer; el serializador
+  // admite tanto <p> como el <div> que algunos navegadores puedan crear.
   wysiwyg.addEventListener('keydown', e => {
     const mod = navigator.platform.toUpperCase().includes('MAC') ? e.metaKey : e.ctrlKey;
-
-    // Enter sin modificadores → nuevo párrafo <p>
-    if (e.key === 'Enter' && !e.shiftKey && !mod) {
-      e.preventDefault();
-      document.execCommand('insertParagraph');
-      hidden.value = htmlToMarkdown(wysiwyg.innerHTML);
-      return;
-    }
 
     if (!mod) return;
     const map = { b: 'bold', i: 'italic', u: 'underline' };
@@ -2928,6 +2936,9 @@ async function saveRaceDay(status) {
     }
   }
 
+  // No depender de que el navegador haya emitido `input` al pulsar Enter.
+  const descriptionMarkdown = markdownFromEditor('ed-description-wysiwyg', 'ed-description');
+
   const data = {
     raceId,
     dateKey,
@@ -2949,7 +2960,7 @@ async function saveRaceDay(status) {
     neutralStartTimeUtc:  toTimestamp(dateKey, document.getElementById('ed-startTime').value),
     estimatedFinishTimeUtc: toTimestamp(dateKey, document.getElementById('ed-finishTime').value),
     tvStatus:             document.getElementById('ed-tvStatus').value || null,
-    description:          document.getElementById('ed-description').value.trim(),
+    description:          descriptionMarkdown.trim(),
     bonuses:              document.getElementById('ed-bonuses').value.trim(),
     notes:                document.getElementById('ed-notes').value.trim(),
     editorialStatus:      status,
@@ -3138,7 +3149,7 @@ async function saveRaceDay(status) {
     const { data: rdForTr } = await supabase.from('race_days').select('translations').eq('id', rdId).single();
     const existingTr = rdForTr?.translations || {};
     const existingEn = existingTr.en || {};
-    const descEnVal    = document.getElementById('ed-description-en')?.value.trim() || null;
+    const descEnVal    = markdownFromEditor('ed-description-en-wysiwyg', 'ed-description-en').trim() || null;
     const bonusesEnVal = document.getElementById('ed-bonuses-en')?.value.trim() || null;
     const notesEnVal   = document.getElementById('ed-notes-en')?.value.trim() || null;
     const updateEnFields = (field, newVal, currentEntry) => {

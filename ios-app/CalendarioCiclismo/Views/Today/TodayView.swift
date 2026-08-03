@@ -615,7 +615,7 @@ struct TodayView: View {
                     placeholderItem = PlaceholderModalItem(race: race, raceDay: item.raceDay)
                 }
             } label: {
-                RaceCardView(item: item, isFinalStage: isFinalStage)
+                RaceCardView(item: item, activeFilter: viewModel.activeFilter, isFinalStage: isFinalStage)
             }
             .buttonStyle(.plain)
             .disabled(isHorizontalSwipe)
@@ -626,13 +626,14 @@ struct TodayView: View {
             // La jornada cancelada SÍ navega a su ficha (paridad con la vista de
             // competición y la web): conserva recorrido, perfil y documentación.
             // La de DESCANSO no: no tiene ficha que abrir.
-            RaceCardView(item: item, isFinalStage: isFinalStage)
+            RaceCardView(item: item, activeFilter: viewModel.activeFilter, isFinalStage: isFinalStage)
                 .accessibilityIdentifier(AccessibilityID.raceCard(item.id))
                 .id(viewId)
         } else {
             NavigationLink(value: item) {
                 RaceCardView(
                     item: item,
+                    activeFilter: viewModel.activeFilter,
                     onShowResults: showResults ? {
                         Haptics.play(.primaryAction)
                         guard let race = item.race else { return }

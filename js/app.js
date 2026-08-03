@@ -661,13 +661,24 @@ function isLightCardColor(hex) {
   return (0.299*r + 0.587*g + 0.114*b) > 210;
 }
 
+function cleanFeminineAgendaName(name) {
+  if (_agendaCat !== 'female' && _agendaCat !== 'wwt') return name;
+  if (/women cycling pro|sanremo women|tour de feminin/i.test(name)) return name;
+  const cleaned = name
+    .replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ')
+    .trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '');
+  return cleaned || name;
+}
+
 function buildPlaceholderCard(race) {
   const color  = safeCardColor(race.colorHex) || '#888';
   const flag   = countryFlag(race.countryCode);
-  const name   = raceName(race) || t('race.unknown');
+  const rawName = raceName(race) || t('race.unknown');
+  const name   = cleanFeminineAgendaName(rawName);
   const uci    = race.uciCategory || '';
   const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
-  const isFemale = race.gender === 'female' && !nameImpliesFemale(race.name || '');
+  const isFemaleFilterActive = _agendaCat === 'female' || _agendaCat === 'wwt';
+  const isFemale = race.gender === 'female' && !nameImpliesFemale(race.name || '') && !isFemaleFilterActive;
 
   const logo = race.logoUrl
     ? `<div class="race-card__logo">
@@ -757,10 +768,12 @@ function buildCard(rd) {
   // El override de país de la jornada vence al hideFlag de la carrera:
   // si la jornada fija un país, se muestra bandera aunque la carrera la oculte.
   const hideFlag = race.hideFlag && !rd.countryCode;
-  const name   = raceName(race) || t('race.unknown');
+  const rawName = raceName(race) || t('race.unknown');
+  const name   = cleanFeminineAgendaName(rawName);
   const uci    = race.uciCategory || '';
   const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
-  const isFemale = race.gender === 'female' && !nameImpliesFemale(race.name || '');
+  const isFemaleFilterActive = _agendaCat === 'female' || _agendaCat === 'wwt';
+  const isFemale = race.gender === 'female' && !nameImpliesFemale(race.name || '') && !isFemaleFilterActive;
   const _isFinalStage = !!(
     rd._race?.raceFormat === 'stage_race' &&
     rd.stageNumber != null &&

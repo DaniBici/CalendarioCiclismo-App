@@ -86,6 +86,8 @@ fun MiniElevationProfile(
     endTimeMs: Long? = null,
     /** CRI/CRE: el reloj de pelotón no representa un avance único → sin relleno. */
     isTimeTrial: Boolean = false,
+    /** Competición iguala una crono sin horario a una jornada en línea; Hoy no. */
+    usesLineFallbackWithoutTimeTrialSchedule: Boolean = false,
     /** Fuerza 100% cuando la tarjeta ya muestra Resultados o Revive. */
     forceCompleted: Boolean = false,
 ) {
@@ -108,7 +110,10 @@ fun MiniElevationProfile(
         // sale en un momento distinto, así que un único reloj de salida→llegada
         // no representa el avance (paridad con la web).
         forceCompleted -> 1f
-        isTimeTrial -> 0f
+        // Hoy conserva el gris de las cronos sin horario. Competición puede
+        // optar por el fallback teñido de una jornada en línea en ese caso.
+        isTimeTrial && (!usesLineFallbackWithoutTimeTrialSchedule ||
+            (startTimeMs != null && endTimeMs != null)) -> 0f
         startTimeMs != null && endTimeMs != null && endTimeMs > startTimeMs ->
             ((nowState.value - startTimeMs).toFloat() / (endTimeMs - startTimeMs).toFloat()).coerceIn(0f, 1f)
         else -> null

@@ -7,7 +7,7 @@
 //      los rumores y las dudas NO aparecen aquí). Un movimiento con la fecha
 //      oculta (dateVisible=false, mig. 123) tampoco: la carga inicial mete de
 //      golpe anuncios de hace semanas que poblarían el feed de días viejos.
-//   2. Botones de división (WT · WWT · PT · PRW) + lista de equipos 2027.
+//   2. Botones de división (WT · PT · WWT · PRW) + lista de equipos 2027.
 //      Los equipos salen de team_seasons[2027] → los renombres de sponsor y
 //      los ascensos/descensos se editan en el panel sin tocar `teams`.
 //      La chapa muestra los colores 2027 si team_seasons.badgeVisible; si aún
@@ -35,7 +35,7 @@ import { t, getLang, initI18n } from './i18n.js';
 
 const SEASON = 2027;
 const PREV_SEASON = SEASON - 1;
-const DIVISIONS = ['WT', 'WWT', 'PT', 'PRW'];
+const DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
 // Corte del feed "Últimas confirmaciones": 5 fechas distintas U 8 fichajes, lo
 // que se alcance antes.
 const FEED_MAX_DAYS = 5;
@@ -268,7 +268,7 @@ function feedRowHtml(x) {
   }
   const inner = `
     <span class="tr-row__flag">${flag}</span>
-    <span class="tr-row__body"><span class="tr-name">${name}</span><span class="tr-move">${move}</span></span>
+    <span class="tr-row__body"><span class="tr-name">${name}</span> <span class="tr-move">${move}</span></span>
     ${x.midSeason ? midSeasonBit(true) : contractBit(x.contractUntil)}`;
   // El feed solo contiene fichajes reales, pero el destino puede no tener ficha
   // propia en el mercado (equipo fuera de las cuatro divisiones). En ese caso,
@@ -361,10 +361,11 @@ function renderTeams() {
   }
   grid.innerHTML = teams.map(s => `
     <button class="tr-team-card" data-team="${esc(s.teamId)}">
-      ${badgeOrPlaceholder(s, 26)}
-      <span class="tr-team-card__name">${esc(s.name)}</span>
-      ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
-      <svg class="tr-team-card__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      ${badgeOrPlaceholder(s, 34)}
+      <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
+        <span class="tr-team-card__name">${esc(s.name)}</span>
+        ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
+      </span>
     </button>`).join('');
   grid.querySelectorAll('[data-team]').forEach(el =>
     el.addEventListener('click', () => openTeam(el.dataset.team))
@@ -454,9 +455,6 @@ async function openTeam(teamId, { push = true } = {}) {
   }
 
   $('trHome').hidden = true;
-  // El detalle de equipo scrollea como una página normal → se quita el bloqueo
-  // de doble panel del home.
-  document.body.classList.remove('tr-home-locked');
   const view = $('trTeamView');
   view.hidden = false;
   // El "volver a todos los equipos" vive en el botón ← del header (aparece solo
@@ -472,7 +470,7 @@ async function openTeam(teamId, { push = true } = {}) {
       ${badgeOrPlaceholder(season, 44)}
       <div class="tr-team-header__text">
         <h2 class="tr-team-header__name">${esc(season.name)}</h2>
-        <span class="tr-team-header__cat">${esc(season.category || '')} · ${SEASON}</span>
+        <span class="tr-team-header__cat">${esc(season.category || '')}</span>
       </div>
     </div>
     ${season.continuityDoubt
@@ -680,7 +678,6 @@ function closeTeam() {
   view.hidden = true;
   view.innerHTML = '';
   $('trHome').hidden = false;
-  document.body.classList.add('tr-home-locked');
   // Ocultar el ← del header: en la lista de equipos no hay "volver".
   if (typeof window.ccHeaderBack === 'function') window.ccHeaderBack(null);
   window.scrollTo(0, 0);
@@ -851,10 +848,6 @@ async function init() {
 
   renderFeed();
   renderTeams();
-  // Home visible → doble panel bloqueado en móvil (lo quita openTeam si se abre
-  // un equipo, incluido el de abajo por ?equipo=).
-  document.body.classList.add('tr-home-locked');
-
   // ?team= (bilingüe ES/EN) acepta el slug legible (visma-lease-a-bike) o,
   // retrocompatible, el teamId antiguo (team_...). El ?equipo= previo se sigue
   // leyendo para no romper enlaces ya compartidos.

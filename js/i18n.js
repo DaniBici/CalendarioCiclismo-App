@@ -31,7 +31,7 @@ const LOCALES = {
       until: '{year}',
       rumor: 'Rumor',
       doubt: 'Duda',
-      teamDoubt: 'Continuidad en duda',
+      teamDoubt: 'En duda',
       teamDoubtNotice: 'La continuidad del equipo en {season} no está confirmada.',
       teamsTitle: 'Equipos {season}',
       teamsEmpty: 'Sin equipos en esta división.',

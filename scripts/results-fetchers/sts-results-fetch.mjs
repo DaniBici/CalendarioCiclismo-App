@@ -51,10 +51,9 @@
  *   gap "+0'04"/"+0:04" → "+0:04" · "+1'02,00" → "+1:02" · "+16:49" → "+16:49"
  *       · "+1h00'15" → "+1:00:15" · "-" (líder) → null.
  *   ⚠ "+ N tour"/"+ N tours" (DOBLADO): Wiclax le da tiempo absoluto, pero de una
- *       distancia MENOR → NO comparable con el ganador. Se emite con IRM **OTL**
- *       (fuera de control), no como clasificado: con su tiempo dentro, la web
- *       activa `gapsDisguised` (una fila rank>1 con timeText < ganador) y pinta el
- *       absoluto de TODAS las filas como gap. Ver parseResultRows.
+ *       distancia MENOR → NO comparable con el ganador. No se incluye: no es una
+ *       clasificación final y tampoco se infiere OTL/FC. El estado oficial de fuera
+ *       de control solo llega explícito en `t` ("Hors délai"/HD/OTL).
  *   puntos "28" → "28".  IRM: Abandon→DNF · "Non partant"/NP→DNS · "Hors délai"/HD→OTL
  *       · "Disqualifié"/DSQ/EX→DSQ (códigos de js/uci-irm.js).
  *
@@ -302,15 +301,14 @@ export function parseResultRows(blockXml, riderByBib) {
     // cuanto UNA fila rank>1 tiene timeText < ganador (el doblado, que rodó menos),
     // y entonces pinta el tiempo absoluto de TODAS las filas como si fuera un gap
     // ("+3:24:19"). Verificado en La Périgord Ladies 2026: 33 dobladas de 106 filas
-    // → las 107 filas salían con gaps de ~3 h. Un doblado no completó la distancia
-    // del ganador → se emite con IRM **OTL** ("FC", fuera de control): es lo que de
-    // hecho le pasa al doblado en un circuito (se le retira por quedar fuera de
-    // plazo), y a diferencia de DNF no afirma que abandonara — terminó, pero a
-    // vuelta(s). Como todo IRM, no consume puesto → el rank posicional del resto
-    // no se descuadra, y su tiempo no comparable queda fuera de la derivación.
+    // → las 107 filas salían con gaps de ~3 h. Al no ser una clasificación final,
+    // esta fila se descarta. OTL/FC solo puede salir de un estado explícito de `t`
+    // (Hors délai/HD/OTL), nunca de que Wiclax la marque como doblada.
     const lapped = /tour|lap/i.test(clean(a.g) || '');
+    const explicitIrm = irmOf(a.t);
+    if (lapped && !explicitIrm) continue;
     const trMarked = a.tr != null && String(a.tr) !== '0';
-    const irm = irmOf(a.t) || (lapped ? 'OTL' : null)
+    const irm = explicitIrm
       || (trMarked && !abs && !normGap(a.g) ? 'DNF' : null);
     if (irm) {
       rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null,
@@ -323,8 +321,8 @@ export function parseResultRows(blockXml, riderByBib) {
     // las filas con rank y sin irm tengan timeText parseable → la web pintaría
     // absolutos en vez de m.t. en todas, no solo en esta.
     // El guard `tr` de arriba cubre al no-finisher que Wiclax marca; este cubre al
-    // que NO marca — p. ej. el doblado <R d="16" g="+ 1 tour" /> (normGap devuelve
-    // null ahí por diseño: "1 tour" no es una diferencia de tiempo).
+    // que NO marca. Las filas dobladas ya se descartaron antes porque "1 tour" no es
+    // una diferencia de tiempo ni una clasificación final.
     // ⚠ Tampoco vale caer al gap de Wiclax como resultValue: la fila quedaría
     // clasificada con timeText null → MISMO apagón de deriveGaps, solo que en
     // silencio. Sin tiempo de meta no hay resultado publicable: va como DNF (que es

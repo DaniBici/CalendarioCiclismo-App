@@ -706,6 +706,7 @@ private fun StageRow(
                     startTimeMs = rd.neutralStartTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
+                    usesLineFallbackWithoutTimeTrialSchedule = true,
                     forceCompleted = isFinishedMode,
                 )
             }

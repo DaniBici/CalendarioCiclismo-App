@@ -6,6 +6,16 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`448` / `4.2.2` = FICHAJES, ORDEN DE CATEGORÍAS:** los filtros de equipos siguen el orden WT · PT · WWT · PRW en web, Android e iOS.**
+
+**`447` / `4.2.2` = FICHAJES, TARJETAS Y FICHA:** el distintivo de continuidad incierta se simplifica a «En duda» / «TBC» y queda pegado al nombre. Cada tarjeta mantiene altura fija; la ficha de equipo deja de repetir el año junto a la categoría.**
+
+**`441` / `4.2.2` = COMPILACIÓN:** se propaga el filtro activo de Mes a sus filas de carrera, corrigiendo un error de compilación que impedía generar el APK.**
+
+**`440` / `4.2.2` = FICHAJES, SCROLL Y PARRILLA:** Últimas confirmaciones y los equipos comparten ahora un único scroll, de modo que el feed no queda recortado y todos los equipos son alcanzables. Los equipos se presentan en una parrilla compacta, con chapa y nombre de hasta dos líneas. Espejo web + iOS.**
+
+**`439` / `4.2.2` = MINIPERFILES EN COMPETICIÓN:** las CRI y CRE sin horario de salida/llegada ya usan el mismo color de carrera que una jornada en línea no disputada; con intervalo horario se mantiene el gris, pues no hay un avance único. La vista Hoy conserva su comportamiento actual. Espejo iOS `1246`.**
+
 **`438` / `4.2.1` = FICHAJES:** Corrección del año de contrato en Últimas confirmaciones de los fichajes hacia la próxima temporada. Espejo web + iOS.**
 
 **`437` / `4.2.1` = FICHAJES DE PRÓXIMA TEMPORADA:** Últimas confirmaciones prioriza los movimientos hacia la próxima temporada y deja después los de años más lejanos, también cuando llegan en el mismo lote. Vuelve a mostrar el año de contrato de los fichajes hacia la próxima temporada; los de mitad de temporada conservan su distintivo propio. Espejo web + iOS.**
@@ -122,6 +132,8 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1246` / `MARKETING_VERSION 4.2.2` = MINIPERFILES EN COMPETICIÓN:** las CRI y CRE sin horario de salida/llegada ya usan el mismo color de carrera que una jornada en línea no disputada; con intervalo horario se mantiene el gris, pues no hay un avance único. La vista Hoy conserva su comportamiento actual. Espejo Android `439`.**
 
 **`1243` / `MARKETING_VERSION 4.2` = LEYENDA UCI POR MODALIDAD:** el color azul del cajón de información identifica únicamente a los WorldTeams en el ránking masculino y únicamente a los Women's WorldTeams en el femenino, sin citar la categoría contraria. Espejo web + Android `434`.**
 

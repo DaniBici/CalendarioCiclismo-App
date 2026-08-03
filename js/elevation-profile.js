@@ -416,8 +416,9 @@ export function buildElevationProfileSVG({
 
   // ── Annotations: build unified list ───────────────────────────────
   // All summits + relevant waypoints become circle indicators (puertos,
-  // sprints, bonificación, punto intermedio, pavé, sterrato). 'town' keeps
-  // the legacy triangle marker. 'kom' is deprecated and ignored.
+  // sprints, bonificación, punto intermedio, pavé, sterrato). Los waypoints
+  // de ciudad se muestran como una referencia textual con conector: sin icono
+  // y siempre fuera de la silueta. 'kom' is deprecated and ignored.
   const CIRCLE_WP_TYPES = new Set([
     'intermediate_sprint', 'bonus_sprint',
     'intermediate_split', 'cobblestone', 'sterrato',
@@ -426,28 +427,7 @@ export function buildElevationProfileSVG({
 
   const filteredWp = (waypoints ?? []).filter(w => inRange(w) && w.type !== 'kom');
   const circleWp   = filteredWp.filter(w =>  CIRCLE_WP_TYPES.has(w.type));
-  const simpleWp   = filteredWp.filter(w => !CIRCLE_WP_TYPES.has(w.type));
-
-  // ── Simple waypoints (town): legacy triangle + rotated label ─────
-  let wpSvg = '';
-  for (const wp of simpleWp) {
-    const cx    = X(wp.km);
-    const wpY   = Y(interpolateAlt(wp.km));
-    const col   = WP_FILL[wp.type] ?? '#8e9099';
-    const lbl   = sv(wp.name || WP_DISP[wp.type] || wp.type || '');
-    const cxF   = cx.toFixed(2);
-    const ts    = 5;
-    const tipY  = wpY.toFixed(2);
-    const baseY = (wpY - ts * 2).toFixed(2);
-    const textY = (wpY - ts * 2 - 3).toFixed(2);
-    // En iconsOnly se omite la etiqueta (nombre) y queda solo el triángulo.
-    const labelSvg = iconsOnly ? '' : `<text x="${cxF}" y="${textY}" transform="rotate(-55,${cxF},${textY})"
-            text-anchor="end" font-size="9.5" fill="${col}" dominant-baseline="auto">${lbl}</text>`;
-    wpSvg += `<g class="ep-wp">
-      <polygon points="${cxF},${tipY} ${(cx - ts).toFixed(2)},${baseY} ${(cx + ts).toFixed(2)},${baseY}" fill="${col}" opacity="0.88"/>
-      ${labelSvg}
-    </g>`;
-  }
+  const lineWp     = filteredWp.filter(w => !CIRCLE_WP_TYPES.has(w.type));
 
   // ── Pavé / sterrato segment overlays ─────────────────────────────
   // For cobblestone/sterrato waypoints with lengthKm, draw a thicker
@@ -500,10 +480,20 @@ export function buildElevationProfileSVG({
   for (const wp of circleWp) {
     annots.push({ kind: wp.type, item: wp, km: wp.km, anchorY: Y(interpolateAlt(wp.km)) });
   }
+  // Los waypoints de localidad se reservan para el perfil de escritorio: no
+  // tienen icono y sus nombres no caben con claridad ni en móvil ni en el
+  // miniperfil de los assets. Los demás tipos de waypoint siguen entrando en
+  // `circleWp` y se mantienen también en esos dos contextos.
+  if (!iconsOnly && !compact) {
+    for (const wp of lineWp) {
+      annots.push({ kind: 'waypoint', item: wp, km: wp.km, anchorY: Y(interpolateAlt(wp.km)) });
+    }
+  }
   annots.sort((a, b) => a.km - b.km);
 
   let summitSvg = '';
   let sprintSvg = '';
+  let waypointSvg = '';
 
   if (compact) {
     // Mobile: just the colored circle floating above the anchor point.
@@ -566,6 +556,7 @@ export function buildElevationProfileSVG({
     for (const a of annots) {
       const item    = a.item;
       const cx      = X(a.km);
+      const isLineWaypoint = a.kind === 'waypoint';
       const hasName = !!(item.name?.trim());
       const altStr  = '';
       const hasAlt  = !!altStr;
@@ -576,7 +567,14 @@ export function buildElevationProfileSVG({
       const circleCx = cx;
       let lx, lw, lx_f, lw_f;
 
-      if (hasName) {
+      if (isLineWaypoint) {
+        // Sin badge ni tarjeta: el nombre queda centrado sobre una línea que
+        // baja hasta el punto exacto del recorrido.
+        lx = cx - nameW / 2;
+        lw = nameW;
+        lx_f = lx;
+        lw_f = lw;
+      } else if (hasName) {
         // Normal: [name][circle]
         const nameLeftX = circleCx - R - GAP_NAME - nameW;
         lx = nameLeftX;
@@ -590,7 +588,7 @@ export function buildElevationProfileSVG({
         lx = cx - lw / 2;
         lx_f = lx; lw_f = lw;
       }
-      const lh = hasAlt ? (LH1 + LINE_GAP + LH2) : LH1;
+      const lh = isLineWaypoint ? FONT_NAME + 4 : (hasAlt ? (LH1 + LINE_GAP + LH2) : LH1);
 
       const mkBaseLy = (bx, bw) => {
         const ceil = curveMinYInRange(bx, bx + bw);
@@ -601,7 +599,7 @@ export function buildElevationProfileSVG({
       const baseLy_f = mkBaseLy(lx_f, lw_f);
 
       cards.push({
-        kind: a.kind, item, cx, anchorY: a.anchorY,
+        kind: a.kind, item, cx, anchorY: a.anchorY, isLineWaypoint,
         lx, lw, lx_f, lw_f, lh, baseLy, baseLy_f,
         hasName, hasAlt, altStr, circleCx,
       });
@@ -637,7 +635,10 @@ export function buildElevationProfileSVG({
       const sideOverride = card.kind === 'summit' ? (card.item.side ?? null) : null;
       let ly, flipped = false;
 
-      if (sideOverride === 'right') {
+      if (card.isLineWaypoint) {
+        ly = tryPlace(card.lx, card.lw, card.lh, card.baseLy);
+        if (ly === null) ly = card.baseLy;
+      } else if (sideOverride === 'right') {
         ly = tryPlace(card.lx_f, card.lw_f, card.lh, card.baseLy_f);
         if (ly === null) ly = card.baseLy_f;
         flipped = true;
@@ -666,8 +667,18 @@ export function buildElevationProfileSVG({
 
     // Render
     for (const card of cards) {
-      const { kind, item, cx, anchorY, lx, lh, ly, hasName, hasAlt, altStr, circleCx, flipped } = card;
+      const { kind, item, cx, anchorY, lx, lh, ly, hasName, hasAlt, altStr, circleCx, flipped, isLineWaypoint } = card;
       const cxF = cx.toFixed(2);
+      if (isLineWaypoint) {
+        if (!hasName) continue;
+        waypointSvg += `<g class="ep-waypoint">
+          <line x1="${cxF}" y1="${(ly + lh + 2).toFixed(2)}" x2="${cxF}" y2="${(anchorY - 3).toFixed(2)}"
+                stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2"/>
+          <text x="${cxF}" y="${(ly + lh / 2).toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+                font-size="${FONT_NAME}" font-weight="600" fill="var(--text-muted)">${sv(item.name)}</text>
+        </g>`;
+        continue;
+      }
       const col = indicatorColor(kind);
       const isSummit = kind === 'summit';
 
@@ -784,7 +795,7 @@ export function buildElevationProfileSVG({
   ${profileLayers}
   ${climbZonesSvg}
   ${segmentSvg}
-  ${wpSvg}
+  ${waypointSvg}
   ${sprintSvg}
   ${summitSvg}
 `
@@ -799,7 +810,7 @@ export function buildElevationProfileSVG({
   ${yTicks}
   ${xTicks}
   ${xUnitLabel}
-  ${wpSvg}
+  ${waypointSvg}
   ${sprintSvg}
   ${summitSvg}
   ${startSvg}

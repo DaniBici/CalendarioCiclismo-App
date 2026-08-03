@@ -337,6 +337,7 @@ struct MonthView: View {
                             raceDays: dayRaces,
                             isChampDay: isChampDay,
                             raceMap: viewModel.raceMap,
+                            activeFilter: viewModel.activeFilter,
                             onPlaceholderTap: { race, rd in
                                 placeholderItem = PlaceholderModalItem(race: race, raceDay: rd)
                             }
@@ -379,6 +380,7 @@ private struct MonthScheduleDaySection: View {
     /// Día de la semana de Campeonatos (22-28 jun): muestra la fila sintética.
     var isChampDay: Bool = false
     let raceMap: [String: Race]
+    let activeFilter: Constants.CategoryFilter
     var onPlaceholderTap: ((Race, RaceDay) -> Void)?
 
     /// Un día puede tener `raceDays` vacío (todas eran CN y se filtraron) pero
@@ -451,7 +453,7 @@ private struct MonthScheduleDaySection: View {
                             // La jornada cancelada SÍ navega a su ficha (paridad
                             // con la vista de competición, Android y la web). La
                             // de DESCANSO no: no tiene ficha que abrir.
-                            MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap)
+                            MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
                                 .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
                         } else if rd.editorialStatus == "placeholder",
                                   let raceId = rd.raceId,
@@ -460,14 +462,14 @@ private struct MonthScheduleDaySection: View {
                                 Haptics.play(.navigation)
                                 onPlaceholderTap?(race, rd)
                             } label: {
-                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap)
+                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint("Sin información detallada, pulsa dos veces para ver más")
                             .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
                         } else {
                             NavigationLink(value: rd) {
-                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap)
+                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
                             }
                             .buttonStyle(.plain)
                             .simultaneousGesture(TapGesture().onEnded {
@@ -546,9 +548,24 @@ private struct MonthChampionshipsRow: View {
 private struct MonthScheduleRaceRow: View {
     let raceDay: RaceDay
     let raceMap: [String: Race]
+    let activeFilter: Constants.CategoryFilter
 
     private var race: Race? {
         raceDay.raceId.flatMap { raceMap[$0] }
+    }
+
+    private var isFemaleFilterActive: Bool { activeFilter == .female || activeFilter == .wwt }
+
+    private var displayRaceName: String {
+        let fallback = LocaleService.t("Carrera", "Race")
+        guard let race else { return fallback }
+        return isFemaleFilterActive && race.isFemale
+            ? RaceLogic.cleanFeminineDisplayName(race.localizedName)
+            : race.localizedName
+    }
+
+    private var showFemaleIndicator: Bool {
+        !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
     }
 
     private var raceColor: Color {
@@ -589,12 +606,12 @@ private struct MonthScheduleRaceRow: View {
                         if race?.hideFlag != true || raceDay.countryCode != nil {
                             CountryFlag(countryCode: raceDay.countryCode ?? race?.countryCode)
                         }
-                        Text(race?.localizedName ?? LocaleService.t("Carrera", "Race"))
+                        Text(displayRaceName)
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .lineLimit(1)
 
-                        if RaceLogic.shouldShowFemaleIndicator(race) {
+                        if showFemaleIndicator {
                             Text("♀")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.green)

@@ -254,29 +254,34 @@ describe('parseResultRows — casos límite', () => {
 // pintarse con tiempos absolutos en vez de m.t./+gap. De ahí que ninguna fila sin
 // tiempo de meta pueda salir clasificada, por muy tentador que sea rellenarla.
 describe('parseResultRows — NINGUNA fila clasificada sin timeText (deriveGaps)', () => {
-  it('el doblado sin gap numérico (g="+ 1 tour") NO se clasifica: sale OTL', () => {
+  it('el doblado sin gap numérico (g="+ 1 tour") no se incluye', () => {
     // El caso que se colaba: normGap('+ 1 tour') → null por diseño, así que la fila
     // entraba con rank y resultValue/timeText nulos → deriveGaps muerto en la etapa.
-    // El guard `tr` no lo cubre: esta fila no trae tr. Sale con IRM OTL (fuera de
-    // control), que es lo que le pasa al doblado, en vez de DNF (no abandonó).
-    const [row] = parseResultRows(`<R d="16" g="+ 1 tour" />`, riderByBib);
-    expect(row).toMatchObject({ rank: null, rankText: 'OTL', irm: 'OTL', timeText: null });
+    // El guard `tr` no lo cubre: esta fila no trae tr. No se convierte en OTL/FC ni
+    // se muestra como LAP: no es un resultado final publicable.
+    expect(parseResultRows(`<R d="16" g="+ 1 tour" />`, riderByBib)).toEqual([]);
   });
 
-  it('el doblado CON tiempo absoluto tampoco se clasifica (envenena gapsDisguised)', () => {
+  it('el doblado CON tiempo absoluto tampoco se incluye', () => {
     // Regresión de La Périgord Ladies 2026: Wiclax SÍ da tiempo al doblado, pero de
     // una distancia menor → menor que el del ganador. Si entra clasificado, la web
     // activa `gapsDisguised` (una fila rank>1 con timeText < ganador) y pinta el
-    // absoluto de TODAS las filas como gap ("+3:24:19"). Debe salir OTL.
+    // absoluto de TODAS las filas como gap ("+3:24:19"). Se descarta sin inferir un
+    // OTL que el feed todavía no ha publicado.
     const rows = parseResultRows(
       `<R d="44" t="03h15'06" g="-" /><R d="16" t="03h02'30" g="+ 2 tours" />`,
       riderByBib,
     );
-    expect(rows[1]).toMatchObject({ rank: null, irm: 'OTL' });
+    expect(rows).toHaveLength(1);
     const clasificadas = rows.filter((r) => r.rank != null && !r.irm);
     const winner = clasificadas[0];
     // Ninguna clasificada por debajo del ganador → deriveGaps sigue vivo.
     expect(clasificadas.every((r) => r.timeText >= winner.timeText)).toBe(true);
+  });
+
+  it('un OTL explícito se conserva aunque Wiclax también indique vueltas', () => {
+    const [row] = parseResultRows(`<R d="16" t="Hors délai" g="+ 1 tour" />`, riderByBib);
+    expect(row).toMatchObject({ rank: null, rankText: 'OTL', irm: 'OTL' });
   });
 
   it('tampoco se clasifica cayendo al gap del .clax como resultValue', () => {
@@ -296,7 +301,7 @@ describe('parseResultRows — NINGUNA fila clasificada sin timeText (deriveGaps)
       `<R d="44" t="04h31'03" g="-" /><R d="16" g="+ 1 tour" /><R d="102" t="04h31'03" g="-" />`,
       riderByBib,
     );
-    expect(rows.map((r) => r.rank)).toEqual([1, null, 2]);   // no [1, null, 3]
+    expect(rows.map((r) => r.rank)).toEqual([1, 2]);
   });
 
   it('INVARIANTE: ninguna clasificada sin timeText, ninguna con gapText', () => {

@@ -176,6 +176,8 @@ const RACERESULT_FETCH = join(HERE, 'raceresult-results-fetch.mjs');
 const STS_FETCH = join(HERE, 'sts-results-fetch.mjs');
 const DOMTEL_FETCH = join(HERE, 'domtel-results-fetch.mjs');
 const LIVETIMING_FETCH = join(HERE, 'livetiming-results-fetch.mjs');
+const CLASSIFICACOES_FETCH = join(HERE, 'classificacoes-results-fetch.mjs');
+const INFOCITY_FETCH = join(HERE, 'infocity-results-fetch.mjs');
 const UPSERT = join(HERE, 'uci-results-upsert.mjs');
 
 function loadEnv() {
@@ -216,7 +218,7 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
@@ -227,7 +229,7 @@ async function main() {
     } else if (CONFIGURED) {
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", r.gender, r.year,
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
                 d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 d."stageNumber" AS "liveStage",
@@ -314,7 +316,7 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
@@ -343,6 +345,8 @@ async function main() {
         : t.source === 'sts' && t.stsCode ? `sts:${t.stsCode}`
         : t.source === 'domtel' && t.domtelCode ? `domtel:${t.domtelCode}`
         : t.source === 'livetiming' && t.livetimingCode ? `livetiming:${t.livetimingCode}`
+        : t.source === 'classificacoes' && t.classificacoesCode ? `classificacoes:${t.classificacoesCode}`
+        : t.source === 'infocity' && t.infocityCode ? `infocity:${t.infocityCode}`
         // Híbrido UCI-preferente: source='uci' + domtelCode → UCI + relleno Domtel.
         : t.source === 'uci' && t.domtelCode ? `uci + domtel:${t.domtelCode} (relleno)` : 'uci';
       log(`  · ${t.raceId}  comp ${t.competitionId}  [${src}]  ${t.gender}  startlist=${t.sl > 0 ? 'sí' : 'NO→seed'}`);
@@ -421,6 +425,21 @@ async function main() {
       srcLabel = ` ← livetiming:${t.livetimingCode}`;
       fc = await run(LIVETIMING_FETCH, ['--vid', String(t.livetimingCode), '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY,
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+    } else if (kind === 'classificacoes') {
+      // Classificações.net: el slug de la prueba descubre los ids variables de
+      // etapa y clasificación; no persiste ni supone una URL por día.
+      srcLabel = ` ← classificacoes:${t.classificacoesCode}`;
+      fc = await run(CLASSIFICACOES_FETCH, ['--code', String(t.classificacoesCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.liveStage != null ? ['--stage', String(t.liveStage)] : []),
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+    } else if (kind === 'infocity') {
+      // InfoCity (Tour de Pologne): el endpoint entrega JavaScript+HTML. El código
+      // fija race:test:ced de E1 y el fetcher deriva los ced correlativos.
+      const fetchStage = ONE_RACE ? null : (t.scheduledStage ?? t.liveStage);
+      srcLabel = ` ← infocity:${t.infocityCode}`;
+      fc = await run(INFOCITY_FETCH, ['--code', String(t.infocityCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(fetchStage != null ? ['--stage', String(fetchStage)] : []),
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
     } else {
       // 'uci' (DataRide): fuente oficial. --uci-race-id para una prueba concreta (CN).
       srcLabel = uciRaceId ? ` ← prueba ${uciRaceId}` : '';
@@ -496,6 +515,8 @@ async function main() {
       : t.source === 'sts' && t.stsCode ? 'sts'
       : t.source === 'domtel' && t.domtelCode ? 'domtel'
       : t.source === 'livetiming' && t.livetimingCode ? 'livetiming'
+      : t.source === 'classificacoes' && t.classificacoesCode ? 'classificacoes'
+      : t.source === 'infocity' && t.infocityCode ? 'infocity'
       : 'uci';
     const kinds = [primaryKind];
     // HÍBRIDO UCI-preferente: source='uci' (oficial, completo) + domtelCode poblado

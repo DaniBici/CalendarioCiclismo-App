@@ -96,7 +96,7 @@ struct TransfersTeamView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(season.name ?? "")
                                 .font(.headline)
-                            Text("\(season.category ?? "") · \(String(TransfersLogic.marketSeason))")
+                            Text(season.category ?? "")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -395,7 +395,7 @@ struct RumorBadge: View {
 /// distinto del ámbar del rumor: un rumor es una noticia sin confirmar, una
 /// duda es la ausencia de noticia; no deben leerse como el mismo estado.
 struct DoubtBadge: View {
-    /// Texto opcional (la tarjeta de equipo usa "Continuidad en duda").
+    /// Texto opcional (la tarjeta de equipo usa "En duda").
     var text: String?
 
     var body: some View {

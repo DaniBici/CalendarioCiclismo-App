@@ -577,7 +577,7 @@
     <string name="transfers_contract_ends">Terminan contrato</string>
     <string name="transfers_contract_ends_empty">Sin finales de contrato anunciados por ahora.</string>
     <string name="transfers_team_empty">Sin movimientos anunciados por ahora.</string>
-    <string name="transfers_team_doubt">Continuidad en duda</string>
+    <string name="transfers_team_doubt">En duda</string>
     <string name="transfers_team_doubt_notice">La continuidad del equipo en %1$d no está confirmada.</string>
     <string name="transfers_staying">Continúan</string>
     <string name="transfers_arrivals">Llegan</string>

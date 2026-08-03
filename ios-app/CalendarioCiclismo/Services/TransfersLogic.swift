@@ -27,7 +27,7 @@ enum TransfersLogic {
     static let marketSeason = 2027
 
     /// Las 4 divisiones del mercado, en el orden de los botones.
-    static let divisions = ["WT", "WWT", "PT", "PRW"]
+    static let divisions = ["WT", "PT", "WWT", "PRW"]
 
     /// Género de la tabla riders_* por división (para cargar la plantilla).
     static func divisionGender(_ category: String?) -> String? {

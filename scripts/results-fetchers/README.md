@@ -45,3 +45,9 @@ resto del pipeline (locks, resolución por dorsal, saneos) funciona sin tocar na
 
 El patrón está en cualquiera de los existentes; `tissot-results-fetch.mjs` es el más
 completo (incluye el híbrido con DataRide para las CRE).
+
+`classificacoes-results-fetch.mjs` es la excepción portuguesa: recibe el slug de
+la prueba, descubre desde la web los ids de etapa y clasificaciones y conserva los
+dorsales publicados. Para crear el enlace, su `--suggest-id` da el `competitionId`
+sintético estable y el cron usa `race_uci_links.source='classificacoes'` junto a
+`classificacoesCode=<slug>`.

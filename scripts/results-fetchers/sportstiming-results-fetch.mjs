@@ -59,6 +59,9 @@
  *                     imprime este script con --suggest-id.
  *   --date            dateKey YYYY-MM-DD de la jornada. Opcional si --cat incluye
  *                     fecha; obligatoria en etapas sin --cat.
+ *   --final           La etapa es la última de una vuelta: duplica las generales
+ *                     como pseudo-etapa "Final Classification" para marcarlas
+ *                     como definitivas. La clasificación de etapa no se duplica.
  *   --out             carpeta de salida (default _results_run/sportstiming-<code> JUNTO A ESTE
  *                     script, no relativo al cwd). La ruta que imprime al terminar es la
  *                     real: leer esa, no reconstruirla a mano.
@@ -104,6 +107,7 @@ const REMAP = new Map(args.reduce((acc, a, i) => {
 const CODE = getArg('code') || (EVENT ? (CAT ? `${EVENT}|${CAT}` : EVENT) : null);
 const COMPETITION_ID = getArg('competition-id');
 const DATE_ARG = getArg('date');
+const IS_FINAL = hasFlag('final');
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el JSON en una ruta distinta de la que imprime, y una lectura posterior
 // se quedaba con un fichero viejo (cazado en el TdF E12, relegación de Van Mechelen).
@@ -160,12 +164,15 @@ function checkArgs() {
 // Carrera de un día → un solo slot/clasificación (stage/stage). idx fijo igual
 // que los demás fetchers para que el eventId sea estable.
 const STAGE_SLOT = STAGE ? Number(STAGE) : 1;
+const FINAL_SLOT = 99; // pseudo-etapa "Final Classification", como los demás fetchers
 const CLASS_IDX = {
   'stage/stage': 1, 'gc/stage': 2, 'points/overall': 3, 'kom/overall': 4,
   'youth/overall': 5, 'other/overall': 6, 'teams/overall': 7,
+  'points/stage': 8, 'kom/stage': 9, 'youth/stage': 10,
+  'teams/stage': 11, 'other/stage': 12,
 };
-const synthRaceId = () => -(ID_BASE * 10000 + STAGE_SLOT * 100);
-const synthEventId = (kind, scope) => -(ID_BASE * 10000 + STAGE_SLOT * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 1));
+const synthRaceId = (slot = STAGE_SLOT) => -(ID_BASE * 10000 + slot * 100);
+const synthEventId = (kind, scope, slot = STAGE_SLOT) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 1));
 
 // ── normalización ────────────────────────────────────────────────────────────
 // Exportadas para tests (js/__tests__/sportstimingResultsFetch.test.js). El script sigue
@@ -395,7 +402,11 @@ const STANDING_SPECS = [
   { key: 'hill', path: 'standings/hill', classKind: 'kom', scope: 'overall', eventName: 'Overall Mountain Classification', parser: parsePointsRows },
   { key: 'youth', path: 'standings/youth', classKind: 'youth', scope: 'overall', eventName: 'Overall Youth Classification', parser: parseRows },
   { key: 'fighter', path: 'standings/fighter', classKind: 'other', scope: 'overall', eventName: 'Overall Fighter Classification', parser: parsePointsRows },
-  { key: 'team', path: 'results?viewType=team', classKind: 'teams', scope: 'overall', eventName: 'Overall Teams Classification', parser: parseTeamRows },
+  // `results?viewType=team` es la clasificación de EQUIPOS DE LA ETAPA
+  // (tres mejores corredores; p.ej. 7:30:03), no la general acumulada. Para
+  // `scope='overall'` manda standings/team. El fallback conserva las carreras
+  // donde Sportstiming aún no expone esa pestaña, como prevé el runbook.
+  { key: 'team', path: 'standings/team', fallbackPath: 'results?viewType=team', classKind: 'teams', scope: 'overall', eventName: 'Overall Teams Classification', parser: parseTeamRows },
 ];
 
 async function loadHtml(key, path) {
@@ -492,9 +503,17 @@ async function main() {
 
     if (STAGE) {
       for (const spec of STANDING_SPECS) {
-        const standingHtml = await loadHtml(spec.key, `/event/${EVENT}/${spec.path}`);
+        let standingHtml = await loadHtml(spec.key, `/event/${EVENT}/${spec.path}`);
         if (!standingHtml) { log(`  ${spec.key}: aún no disponible`); continue; }
-        const standingRows = spec.parser(standingHtml);
+        let standingRows = spec.parser(standingHtml);
+        // En los captures manuales `team.html` ya representa la superficie
+        // correcta elegida por el operador. En fetch nativo, si standings/team
+        // sigue vacío, probamos la vista visible de resultados como respaldo.
+        if (!hasFinalRanking(standingRows) && spec.fallbackPath && !HTML_DIR) {
+          standingHtml = await getHtml(`/event/${EVENT}/${spec.fallbackPath}`);
+          standingRows = standingHtml ? spec.parser(standingHtml) : [];
+          if (hasFinalRanking(standingRows)) log(`  ${spec.key}: usado fallback ${spec.fallbackPath}`);
+        }
         if (!hasFinalRanking(standingRows)) { log(`  ${spec.key}: sin filas publicables`); continue; }
         for (const r of standingRows) delete r._sourceTime;
         classifications.push({
@@ -518,6 +537,43 @@ async function main() {
       classificationCount: classifications.length,
       classifications,
     });
+
+    // Última etapa: las generales ya son definitivas. Se duplican en la
+    // pseudo-etapa final (scope='stage', quirk 085), igual que manual_timing y
+    // los demás cronometradores de vueltas. La orden de llegada NO entra.
+    if (IS_FINAL && STAGE) {
+      const FINAL_NAMES = {
+        gc: 'General Classification', points: 'Points Classification',
+        kom: 'Mountain Classification', youth: 'Youth Classification',
+        teams: 'Teams Classification', other: 'Fighter Classification',
+      };
+      const finalCls = classifications
+        .filter((c) => c.classKind !== 'stage')
+        .map((c) => ({
+          eventId: synthEventId(c.classKind, 'stage', FINAL_SLOT),
+          classKind: c.classKind,
+          scope: 'stage',
+          eventName: FINAL_NAMES[c.classKind] || c.eventName,
+          isTeamEvent: c.isTeamEvent,
+          winnerName: c.winnerName,
+          rowCount: c.rowCount,
+          rows: c.rows,
+        }));
+      if (finalCls.length) {
+        stages.push({
+          uciRaceId: synthRaceId(FINAL_SLOT),
+          stageNumber: null,
+          stageName: 'Final Classification',
+          isFinalClassification: true,
+          dateKey: dateFromCat(CAT),
+          raceType: null,
+          startLocation: null,
+          classificationCount: finalCls.length,
+          classifications: finalCls,
+        });
+        log(`  FINAL (carrera terminada): ${finalCls.length} clasificaciones → pseudo-etapa`);
+      }
+    }
   }
 
   const out = {

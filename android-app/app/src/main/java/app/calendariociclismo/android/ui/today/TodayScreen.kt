@@ -410,6 +410,7 @@ fun TodayScreen(navController: NavController) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 RaceCard(
                                     day = day,
+                                    activeFilter = state.category,
                                     isFinalStage = isFinalStage,
                                     onShowResults = if (showResults && day.race != null) { {
                                         haptic(Haptics.Event.PrimaryAction)
@@ -777,6 +778,7 @@ private fun miniProfileBandHeight(primaryType: String?) = when (primaryType) {
 @Composable
 private fun RaceCard(
     day: EnrichedRaceDay,
+    activeFilter: Constants.CategoryFilter,
     onClick: () -> Unit,
     onShowResults: (() -> Unit)? = null,
     onRevive: (() -> Unit)? = null,
@@ -789,6 +791,11 @@ private fun RaceCard(
     val rd = day.raceDay
     val liveTextUrl = day.assets.firstOrNull { it.type == "live_text" }?.url
     val isFinishedMode = onShowResults != null || onRevive != null
+    val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
+        activeFilter == Constants.CategoryFilter.WWT
+    val displayName = race?.localizedName?.let {
+        if (isFemaleFilterActive && race?.isFemale == true) RaceLogic.cleanFeminineDisplayName(it) else it
+    } ?: stringResource(R.string.today_race_fallback)
 
     val cancelled = race?.isCancelled == true || rd.isCancelledDay
     val app = rememberApp()
@@ -848,14 +855,14 @@ private fun RaceCard(
                 // que se percibía un punto más grande que el cintillo pese a
                 // compartir peso y familia.
                 Text(
-                    text = race?.localizedName ?: stringResource(R.string.today_race_fallback),
+                    text = displayName,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
                     lineHeight = 16.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (RaceLogic.shouldShowFemaleIndicator(race)) {
+                if (!isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)) {
                     val femaleCd = stringResource(R.string.season_female_indicator_cd)
                     Text(
                         text = "♀",

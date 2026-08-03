@@ -11,8 +11,8 @@ private enum TransfersFeed { case signings, renewals }
 
 /// Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
 /// /fichajes/ web (`js/fichajes.js`) y de `TransfersScreen` (Android): feed
-/// cronológico inverso de CONFIRMACIONES + botones de división (WT·WWT·PT·PRW)
-/// + lista de equipos 2027 (team_seasons; chapa solo si badgeVisible). Tocar
+/// cronológico inverso de CONFIRMACIONES + botones de división (WT·PT·WWT·PRW)
+/// + parrilla de equipos 2027 (team_seasons; chapa solo si badgeVisible). Tocar
 /// un equipo abre `TransfersTeamView` (continúan / llegan / se marchan).
 ///
 /// Solo-online (sin caché), como resultados/inscritos. La lógica pura vive en
@@ -106,10 +106,9 @@ struct TransfersView: View {
         let feedByDay = TransfersLogic.groupByDay(feed)
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)
 
-        // Doble panel: "Últimas confirmaciones" (arriba, ~38%) y equipos (abajo,
-        // ~62%), cada uno con su propio scroll → ambos siempre visibles.
-        return GeometryReader { geo in
-            VStack(spacing: 0) {
+        // Un único scroll permite que el feed crezca y todos los equipos sigan accesibles.
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 // ── Panel 1: feed de confirmaciones ────────────────
                 VStack(alignment: .leading, spacing: 0) {
                     // Primer título: pegado a la barra de navegación → menos top
@@ -127,8 +126,7 @@ struct TransfersView: View {
                     }
                     .padding(.top, 6)
                     .padding(.bottom, 8)
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 8) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
                             if feed.isEmpty {
                                 emptyText(localeService.t("Todavía no hay movimientos confirmados.", "No confirmed moves yet."))
                             } else {
@@ -146,14 +144,10 @@ struct TransfersView: View {
                                     }
                                 }
                             }
-                        }
-                        .padding(.bottom, 8)
                     }
-                    .refreshable { await load() }
+                    .padding(.bottom, 8)
                 }
-                .frame(height: geo.size.height * 0.38, alignment: .top)
-
-                Divider()
+                Divider().padding(.top, 8)
 
                 // ── Panel 2: divisiones + equipos ──────────────────
                 VStack(alignment: .leading, spacing: 0) {
@@ -168,24 +162,25 @@ struct TransfersView: View {
                         }
                     }
                     .padding(.bottom, 12)
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 8) {
-                            if teams.isEmpty {
-                                emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
-                            } else {
-                                ForEach(teams, id: \.teamId) { season in
-                                    teamRow(season, prev: data.prevSeasonsByTeamId)
-                                }
+                    if teams.isEmpty {
+                        emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
+                    } else {
+                        LazyVGrid(
+                            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
+                            spacing: 8
+                        ) {
+                            ForEach(teams, id: \.teamId) { season in
+                                teamTile(season, prev: data.prevSeasonsByTeamId)
                             }
                         }
-                        .padding(.bottom, 8)
                     }
                 }
-                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.bottom, 12)
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
         }
+        .refreshable { await load() }
     }
 
     private func sectionTitle(_ text: String, topPadding: CGFloat = 16) -> some View {
@@ -243,38 +238,50 @@ struct TransfersView: View {
         .buttonStyle(.plain)
     }
 
-    private func teamRow(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
+    private func teamTile(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
         Button {
             Haptics.play(.navigation)
             teamRoute = TransfersTeamRoute(teamId: season.teamId)
         } label: {
             CCCard {
-                HStack(spacing: 10) {
-                    // Sin chapa no se monta la vista: en un HStack con spacing,
-                    // un EmptyView gastaría el hueco igual.
+                VStack(spacing: 5) {
+                    // Sin chapa no se monta la vista para no dejar un hueco.
                     if let badge = TransfersLogic.badgeSeason(for: season, prev: prev) {
-                        TransfersSeasonBadge(season: badge, size: 24)
+                        TransfersSeasonBadge(season: badge, size: 32)
                     }
-                    Text(season.name ?? "")
-                        .font(.footnote)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // Continuidad del equipo sin confirmar (mig. 123): sigue
-                    // listado, solo se advierte.
                     if season.continuityDoubt == true {
-                        DoubtBadge(text: localeService.t("Continuidad en duda", "Future in doubt"))
+                        VStack(spacing: 0) {
+                            teamTileName(season.name ?? "")
+                            DoubtBadge(text: localeService.t("En duda", "TBC"))
+                        }
+                    } else {
+                        teamTileName(season.name ?? "")
+                            .frame(
+                                minWidth: nil, idealWidth: nil, maxWidth: .infinity,
+                                minHeight: 26, idealHeight: 26, maxHeight: 26,
+                                alignment: .top
+                            )
                     }
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .frame(
+                    minWidth: nil, idealWidth: nil, maxWidth: .infinity,
+                    minHeight: 92, idealHeight: 92, maxHeight: 92,
+                    alignment: .center
+                )
+                .padding(6)
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func teamTileName(_ name: String) -> some View {
+        Text(name)
+            .font(.caption2)
+            .foregroundStyle(.primary)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
     }
 }
 

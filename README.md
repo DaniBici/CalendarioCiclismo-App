@@ -1,79 +1,81 @@
 # Calendario Ciclismo
 
-Calendario de carreras del ciclismo profesional. Horarios, recorridos, retransmisiones de TV/streaming, perfiles de etapa y resultados de todas las competiciones del pelotón internacional.
+Guía editorial del ciclismo profesional en ruta, masculino y femenino. Reúne el calendario internacional, horarios, recorridos, perfiles, televisión y streaming, inscritos, resultados y mercado de fichajes.
 
-**Web:** [calendariociclismo.app](https://calendariociclismo.app)
-**iOS:** [App Store](https://apps.apple.com/app/id6761902611)
-**Android:** [Google Play](https://play.google.com/store/apps/details?id=app.calendariociclismo.android)
+- **Web:** [calendariociclismo.app](https://calendariociclismo.app)
+- **iOS:** [App Store](https://apps.apple.com/app/id6761902611)
+- **Android:** [Google Play](https://play.google.com/store/apps/details?id=app.calendariociclismo.android)
 
 ## Plataformas
 
-Tres plataformas nativas sobre el mismo backend. La cobertura de funcionalidades es muy similar, con algunas diferencias deliberadas (las notificaciones push, por ejemplo, son exclusivas de las apps):
+El proyecto tiene tres clientes sobre el mismo backend. La web es un sitio estático enriquecido con JavaScript; las apps móviles son nativas y comparten la mayor parte de la experiencia, además de funciones propias como notificaciones y modo sin conexión.
 
 | Plataforma | Stack | Directorio |
 |---|---|---|
-| Web | HTML5 + CSS3 + JS (ES modules, sin framework) | raíz |
+| Web | HTML5 + CSS3 + JavaScript (ES modules, sin framework) | raíz |
 | iOS | SwiftUI nativa (iOS 18+) | `ios-app/` |
-| Android | Kotlin + Jetpack Compose (API 26+) | `android-app/` |
+| Android | Kotlin + Jetpack Compose (Android 8.0/API 26+) | `android-app/` |
 
-Las apps móviles son **nativas puras** — sin WebView ni shell híbrida. Consumen directamente la API REST de Supabase.
+Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consumen directamente la API de Supabase. Todas sus funciones son gratuitas; la suscripción opcional solo elimina los anuncios y ayuda a cubrir los costes del proyecto.
 
 ## Funcionalidades
 
-- **Vista diaria** — carreras del día con horarios y TV en directo; navegación filter-aware
-- **Calendario** — vista mensual y de temporada, filtrable por categoría y país
-- **Detalle de carrera y etapa** — perfiles de elevación, recorridos, mapas interactivos, horarios de paso, canales de TV/streaming
-- **Resultados** — clasificaciones propias volcadas desde la UCI y ocho cronometradores, con etapa, general, puntos, montaña, jóvenes y equipos
-- **Mercado de fichajes** — altas, bajas, renovaciones y rumores por equipo
-- **Inscritos y orden de salida** — startlists curadas con dorsales y abandonos
-- **Modo sin conexión** — descarga de datos y assets para consulta offline
-- **Push notifications** — alertas de jornada vía APNs (iOS) y FCM (Android)
-- **Suscripción iCal** — feeds `.ics` con filtros por categoría y género
-- **Bilingüe** (ES/EN), tema claro/oscuro/automático
+- **Hoy** — carreras de cada día con horas de salida y meta, estado de TV y accesos a resultados o repeticiones al terminar
+- **Calendario** — vistas mensual y de temporada, con filtros por categoría, género y país
+- **Competición y jornada** — recorrido, perfil interactivo y oficial, puertos y puntos clave, mapas, rutómetro, libro de ruta y canales de TV/streaming
+- **Resultados** — clasificaciones de etapa, general, puntos, montaña, jóvenes y equipos, importadas desde UCI DataRide y nueve cronometradores; incluye el ránking UCI de equipos masculino y femenino
+- **Mercado de fichajes** — confirmaciones, rumores, renovaciones, contratos y movimientos por equipo y temporada
+- **Dorsales y orden de salida** — listas curadas, abandonos y horarios de CRI/CRE
+- **Calendarios iCal** — feeds de temporada por categoría y género, además de eventos individuales
+- **Apps móviles** — notificaciones personalizables vía APNs/FCM y descarga automática para consulta sin conexión
+- **Experiencia** — castellano e inglés, tema claro/oscuro/automático y soporte de las opciones de accesibilidad del sistema
 
 ## Stack
 
 | Capa | Tecnología |
 |---|---|
 | Web | HTML5, CSS3, JavaScript (ES6 modules, sin framework) |
-| iOS | SwiftUI, Combine, Swift Concurrency |
-| Android | Kotlin 2.0, Jetpack Compose, Room, WorkManager, Coil 3 |
-| Datos y API | [Supabase](https://supabase.com) (PostgreSQL + Edge Functions Deno) |
-| Hosting | [GitHub Pages](https://pages.github.com) + Cloudflare Workers |
+| iOS | Swift 6, SwiftUI, MapKit, Swift Concurrency, StoreKit 2 |
+| Android | Kotlin 2.2, Jetpack Compose, Room, WorkManager, Coil 3, MapLibre |
+| Datos y API | [Supabase](https://supabase.com) (PostgreSQL, PostgREST, Auth y Edge Functions en Deno) |
+| Hosting web | [GitHub Pages](https://pages.github.com) por artefacto + CDN de Cloudflare |
 | Assets | [Cloudflare R2](https://developers.cloudflare.com/r2/) |
-| Cartografía | [OpenFreeMap](https://openfreemap.org) + MapLibre GL |
+| Cartografía | MapKit en iOS; [OpenFreeMap](https://openfreemap.org) + MapLibre en web y Android |
 | Push | APNs HTTP/2 + FCM HTTP v1 (edge function `send-push`) |
+| Publicidad y pagos | AdMob + StoreKit 2 / Google Play Billing, solo para la opción sin anuncios |
 | Analytics | Firebase Analytics (GA4) — opt-in en web, opt-out en las apps |
 
 ## Estructura
 
 ```
-├── index.html, calendario.html, …   # Web
-├── js/                    # Módulos JavaScript
-├── css/                   # Hojas de estilo
-├── ios-app/               # App iOS (SwiftUI)
-├── android-app/           # App Android (Kotlin + Compose)
-├── panel/                 # Panel de administración
+├── index.html, calendario.html, …  # Fuentes de la web
+├── js/                             # Módulos JavaScript y lógica compartida
+├── css/                            # Hojas de estilo
+├── ios-app/                        # App iOS (SwiftUI)
+├── android-app/                    # App Android (Kotlin + Compose)
+├── panel/                          # Panel editorial y de administración
 ├── supabase/
-│   ├── migrations/        # Migraciones SQL
-│   └── functions/         # Edge Functions
+│   ├── migrations/                 # Migraciones SQL
+│   └── functions/                  # Edge Functions
 ├── scripts/
-│   ├── results-fetchers/  # Volcado de resultados (UCI + 8 cronometradores)
-│   └── fetch-logos.mjs    # Descarga de logos (ver más abajo)
-├── workers/               # Cloudflare Workers
-├── feed/                  # Feeds iCal estáticos
-└── docs/                  # Documentación técnica, runbooks y ADRs
+│   ├── results-fetchers/           # Resultados (UCI + 9 cronometradores)
+│   └── fetch-logos.mjs             # Descarga de logos (ver más abajo)
+├── tools/site/                      # Generadores de páginas, sitemap y feeds
+├── workers/                         # OpenGraph y redirección del dominio legado
+└── docs/                            # Arquitectura, memorias y ADRs
 ```
 
-## Compilar
+Las páginas generadas por competición y jornada —incluidos sus resultados—, el sitemap y los feeds iCal no se versionan. En producción, un workflow privado los regenera desde Supabase, compone el sitio completo y publica un único artefacto de GitHub Pages. Los workflows operativos se excluyen del espejo público para evitar que sus procesos se ejecuten por duplicado.
+
+## Desarrollo y comprobaciones
 
 ```bash
-npm install && npm test        # web
-cd ios-app && ./setup.sh       # iOS: genera el xcodeproj
-cd android-app && ./gradlew assembleDebug   # Android
+npm ci && npm test                              # web
+open ios-app/CalendarioCiclismo.xcodeproj       # iOS
+cd android-app && ./gradlew test assembleDebug  # Android
 ```
 
-Las apps necesitan credenciales que no se versionan (`Supabase.xcconfig`, `google-services.json`, `secrets.properties`). Hay plantillas `.template` de cada una. El runbook [`docs/runbooks/nuevo-equipo.md`](docs/runbooks/nuevo-equipo.md) cubre el arranque completo.
+Las apps necesitan archivos de configuración que no se versionan: `Supabase.xcconfig` y `GoogleService-Info.plist` en iOS; `google-services.json` y `secrets.properties` en Android. Hay plantillas `.template` para un entorno de desarrollo. Consulta [`android-app/README.md`](android-app/README.md) para el entorno Android; `ios-app/setup.sh` permite regenerar el proyecto Xcode con XcodeGen cuando sea necesario.
 
 ### Logos de carreras
 

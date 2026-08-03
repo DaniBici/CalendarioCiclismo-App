@@ -31,7 +31,7 @@ object TransfersLogic {
     const val MARKET_SEASON = 2027
 
     /** Las 4 divisiones del mercado, en el orden de los botones. */
-    val DIVISIONS = listOf("WT", "WWT", "PT", "PRW")
+    val DIVISIONS = listOf("WT", "PT", "WWT", "PRW")
 
     /** Género de la tabla riders_* por división (para cargar la plantilla). */
     fun divisionGender(category: String?): String? = when (category) {

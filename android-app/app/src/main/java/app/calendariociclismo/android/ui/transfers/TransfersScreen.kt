@@ -16,14 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -97,7 +95,7 @@ private val transferSources = listOf(
 /**
  * Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
  * /fichajes/ web (`js/fichajes.js`): feed cronológico inverso de
- * CONFIRMACIONES + botones de división (WT·WWT·PT·PRW) + lista de equipos
+ * CONFIRMACIONES + botones de división (WT·PT·WWT·PRW) + parrilla de equipos
  * 2027 (team_seasons; la chapa muestra los colores 2027 publicados, los
  * antiguos mientras no, o nada si el equipo es nuevo — ver [TransfersLogic.badgeSeason]).
  * Tocar un equipo abre [TransfersTeamScreen] (continúan / llegan / se marchan).
@@ -264,100 +262,89 @@ private fun MarketContent(
         TransfersLogic.divisionTeams(data.seasons, activeDivision)
     }
 
-    // Doble panel: "Últimas confirmaciones" (arriba, ~38%) y equipos (abajo,
-    // ~62%), cada uno con su propio scroll → ambos siempre visibles.
+    // Un único scroll para que las confirmaciones puedan ocupar lo que necesitan
+    // y todos los equipos sigan siendo alcanzables sin pelear con dos paneles.
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        // ── Panel 1: feed de confirmaciones ────────────────────────
-        Column(modifier = Modifier.weight(0.38f)) {
-            // Primer título: pegado al top bar → sin el top de 18dp (que sí
-            // separa el título de "equipos" del feed de arriba).
-            SectionTitle(stringResource(R.string.transfers_feed_title), topPadding = 4.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FeedChip(stringResource(R.string.transfers_feed_signings), activeFeed == TransfersFeed.Signings) {
-                    onFeedSelect(TransfersFeed.Signings)
-                }
-                FeedChip(stringResource(R.string.transfers_feed_renewals), activeFeed == TransfersFeed.Renewals) {
-                    onFeedSelect(TransfersFeed.Renewals)
-                }
+        // ── Confirmaciones ─────────────────────────────────────────
+        SectionTitle(stringResource(R.string.transfers_feed_title), topPadding = 4.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FeedChip(stringResource(R.string.transfers_feed_signings), activeFeed == TransfersFeed.Signings) {
+                onFeedSelect(TransfersFeed.Signings)
             }
-            Spacer(Modifier.height(6.dp))
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                if (feed.isEmpty()) {
-                    item(key = "feed_empty") {
-                        Text(
-                            text = stringResource(R.string.transfers_feed_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-                    }
-                } else {
-                    feedByDay.forEach { (day, moves) ->
-                        item(key = "day_$day") {
-                            Text(
-                                text = DateFormatting.formatDateWeekdayNoYear(day),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
-                            )
-                        }
-                        items(moves.size, key = { i -> "move_${moves[i].id}" }) { i ->
-                            TransferFeedRow(
-                                transfer = moves[i],
-                                data = data,
-                                onLinkTeam = onTeamTap,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                        }
-                    }
+            FeedChip(stringResource(R.string.transfers_feed_renewals), activeFeed == TransfersFeed.Renewals) {
+                onFeedSelect(TransfersFeed.Renewals)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        if (feed.isEmpty()) {
+            Text(
+                text = stringResource(R.string.transfers_feed_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        } else {
+            feedByDay.forEach { (day, moves) ->
+                Text(
+                    text = DateFormatting.formatDateWeekdayNoYear(day),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                )
+                moves.forEach { move ->
+                    TransferFeedRow(transfer = move, data = data, onLinkTeam = onTeamTap)
+                    Spacer(Modifier.height(6.dp))
                 }
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            modifier = Modifier.padding(top = 14.dp),
+        )
 
-        // ── Panel 2: divisiones + equipos ──────────────────────────
-        Column(modifier = Modifier.weight(0.62f)) {
-            SectionTitle(stringResource(R.string.transfers_teams_title, TransfersLogic.MARKET_SEASON))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TransfersLogic.DIVISIONS.forEach { div ->
-                    DivisionChip(
-                        label = div,
-                        selected = div == activeDivision,
-                        onClick = { onDivisionSelect(div) },
-                    )
+        // ── Divisiones + parrilla de equipos ───────────────────────
+        SectionTitle(stringResource(R.string.transfers_teams_title, TransfersLogic.MARKET_SEASON))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TransfersLogic.DIVISIONS.forEach { div ->
+                DivisionChip(label = div, selected = div == activeDivision) {
+                    onDivisionSelect(div)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                if (teams.isEmpty()) {
-                    item(key = "teams_empty") {
-                        Text(
-                            text = stringResource(R.string.transfers_teams_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    items(teams.size, key = { i -> "team_${teams[i].teamId}" }) { i ->
-                        val season = teams[i]
-                        TeamRow(
+        }
+        Spacer(Modifier.height(10.dp))
+        if (teams.isEmpty()) {
+            Text(
+                text = stringResource(R.string.transfers_teams_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            teams.chunked(4).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    row.forEach { season ->
+                        TeamTile(
                             season = season,
                             prev = data.prevSeasonsByTeamId,
                             onTap = { onTeamTap(season.teamId) },
+                            modifier = Modifier.weight(1f),
                         )
-                        Spacer(Modifier.height(6.dp))
                     }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
-                item(key = "bottom_spacer") { Spacer(Modifier.height(12.dp)) }
+                Spacer(Modifier.height(8.dp))
             }
         }
+        Spacer(Modifier.height(12.dp))
     }
 }
 
@@ -515,56 +502,67 @@ private fun TransferContractBadge(year: Int) {
     }
 }
 
-/** Fila de equipo: chapa efectiva (colores 2027 / antiguos / vacía) + nombre 2027. */
+/** Tarjeta compacta de equipo: chapa efectiva encima del nombre de dos líneas. */
 @Composable
-private fun TeamRow(season: TeamSeason, prev: Map<String, TeamSeason>, onTap: () -> Unit) {
-    CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onTap)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+private fun TeamTile(
+    season: TeamSeason,
+    prev: Map<String, TeamSeason>,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CCCard(modifier = modifier.height(104.dp), cornerRadius = 12) {
+        Column(
+            modifier = Modifier.fillMaxSize().clickable(onClick = onTap).padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            // Sin chapa no se invoca: en un Row con spacedBy, un composable
-            // vacío gastaría el hueco igual.
+            // Sin chapa no se invoca para que el nombre no arrastre un hueco.
             val badge = TransfersLogic.badgeSeason(season, prev)
             if (badge != null) {
-                SeasonBadge(season = badge, size = 24)
+                SeasonBadge(season = badge, size = 32)
             }
-            Text(
-                text = season.name.orEmpty(),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // Continuidad del equipo sin confirmar (mig. 123): sigue listado,
-            // solo se advierte.
+            Spacer(Modifier.height(5.dp))
             if (season.continuityDoubt) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(TRANSFERS_DOUBT_COLOR.copy(alpha = 0.16f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.transfers_team_doubt).uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp,
-                        color = TRANSFERS_DOUBT_COLOR,
-                    )
+                // El distintivo queda pegado al nombre; solo estas tarjetas
+                // redistribuyen su contenido dentro de la altura fija.
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    TeamTileName(season.name.orEmpty())
+                    TeamDoubtBadge()
                 }
+            } else {
+                TeamTileName(season.name.orEmpty(), reserveTwoLines = true)
             }
-            Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(18.dp),
-            )
         }
+    }
+}
+
+@Composable
+private fun TeamTileName(name: String, reserveTwoLines: Boolean = false) {
+    Text(
+        text = name,
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = if (reserveTwoLines) Modifier.height(28.dp) else Modifier,
+    )
+}
+
+@Composable
+private fun TeamDoubtBadge() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(TRANSFERS_DOUBT_COLOR.copy(alpha = 0.16f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.transfers_team_doubt).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            fontSize = 8.sp,
+            color = TRANSFERS_DOUBT_COLOR,
+        )
     }
 }
 

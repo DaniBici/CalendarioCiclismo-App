@@ -143,6 +143,23 @@
   line-height: 1.35;
 }
 
+/* En móvil el feed puede reunir ocho confirmaciones: se hace algo más denso
+   para que el selector y el inicio de la parrilla de equipos sigan asomando
+   en la primera pantalla, sin sacrificar la lectura a una línea. */
+@media (max-width: 768px) {
+  .tr-home-feed > .tr-section-title { margin-top: 0.65rem; }
+  .tr-feed-day { font-size: 0.68rem; margin: 0.65rem 0 0.25rem; }
+  .tr-row {
+    gap: 0.45rem;
+    padding: 0.38rem 0.55rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+  .tr-contract { font-size: 0.64rem; padding: 0.12rem 0.35rem; }
+  .tr-div-btn { padding: 0.28rem 0.7rem; }
+}
+
 .tr-row__flag {
   flex-shrink: 0;
   width: 1.4em;
@@ -178,7 +195,7 @@
    ya del equipo de destino, así que no hace falta divisor extra. */
 .tr-name { font-weight: 600; }
 
-.tr-arrow { color: var(--text-dim); margin: 0 0.15rem 0 0.4rem; }
+.tr-arrow { color: var(--text-dim); margin-right: 0.15rem; }
 
 /* El año de contrato como BADGE (chip), no texto suelto: se lee de un vistazo
    junto a los chips de rumor/duda. */
@@ -286,69 +303,35 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 
 .tr-team-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
-@media (max-width: 560px) {
-  .tr-team-grid { grid-template-columns: 1fr; }
+@media (min-width: 561px) {
+  .tr-team-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
-/* ── Doble scroll en MÓVIL (home del mercado) ──────────────────────
-   Las "Últimas confirmaciones" y la lista de equipos quedan siempre a la
-   vista, cada una con su propio scroll: la pantalla se divide en dos paneles.
-   Solo en la vista de INICIO (no en el detalle de equipo) y solo en móvil.
-   El feed es corto (máx 8 fichajes) → ocupa menos; los equipos, más. */
-@media (max-width: 768px) {
-  /* Solo en la home (body.tr-home-locked): la página no scrollea por fuera; el
-     scroll vive dentro de cada panel. El detalle de equipo scrollea normal. */
-  body.tr-home-locked { overflow: hidden; }
-  body.tr-home-locked .site-footer { display: none; }
-
-  body.tr-home-locked #trHome {
-    display: flex;
-    flex-direction: column;
-    /* Alto disponible bajo el header sticky (56px) + el h1 del mercado. */
-    height: calc(100dvh - 56px - 3.75rem);
-    min-height: 22rem;
-    gap: 0;
-  }
-  body.tr-home-locked .tr-home-feed,
-  body.tr-home-locked .tr-home-teams {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;   /* imprescindible para que el hijo con scroll no desborde */
-  }
-  body.tr-home-locked .tr-home-feed { flex: 38 1 0; }
-  body.tr-home-locked .tr-home-teams { flex: 62 1 0; }
-  /* El título de sección y los botones de división quedan fijos arriba de su
-     panel; solo scrollea la lista. */
-  body.tr-home-locked #trHome .tr-section-title { margin: 0.5rem 0 0.5rem; flex-shrink: 0; }
-  body.tr-home-locked .tr-home-feed > .tr-section-title { margin-top: 0.15rem; }
-  body.tr-home-locked #trHome .tr-div-btns { flex-shrink: 0; }
-  body.tr-home-locked .tr-home-scroll {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-  }
-  body.tr-home-locked .tr-home-teams { border-top: 1px solid var(--border); padding-top: 0.25rem; }
-  body.tr-home-locked .tr-heading { margin: 0.5rem 0 0.4rem; }
+@media (min-width: 769px) {
+  .tr-team-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); }
 }
 
 .tr-team-card {
   display: flex;
+  min-width: 0;
+  height: 6.5rem;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.7rem;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.3rem;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 0.88rem;
-  text-align: left;
+  font-size: 0.7rem;
+  line-height: 1.18;
+  text-align: center;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -356,14 +339,24 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-card:hover { background: var(--bg-card-hover); }
 
 .tr-team-card__name {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.tr-team-card__chev { color: var(--text-dim); flex-shrink: 0; }
+.tr-team-card__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(2 * 1.18em);
+}
+.tr-team-card__label--doubt { min-height: 0; }
+.tr-team-card__label .tr-chip { margin-top: 0.1rem; }
+
+.tr-team-card .team-badge { flex-shrink: 0; }
+.tr-team-card .tr-chip { font-size: 0.52rem; padding: 0.1rem 0.25rem; }
 
 /* ── Vista de equipo ────────────────────────────────────────────── */
 /* El "volver a todos los equipos" vive en el botón ← del header (ccHeaderBack
