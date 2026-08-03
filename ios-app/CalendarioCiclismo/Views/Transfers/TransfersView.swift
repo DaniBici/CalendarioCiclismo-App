@@ -251,16 +251,11 @@ struct TransfersView: View {
                     }
                     if season.continuityDoubt == true {
                         VStack(spacing: 0) {
-                            teamTileName(season.name ?? "")
+                            teamTileName(season.name ?? "", reservesSpace: false)
                             DoubtBadge(text: localeService.t("En duda", "TBC"))
                         }
                     } else {
                         teamTileName(season.name ?? "")
-                            .frame(
-                                minWidth: nil, idealWidth: nil, maxWidth: .infinity,
-                                minHeight: 26, idealHeight: 26, maxHeight: 26,
-                                alignment: .top
-                            )
                     }
                 }
                 .frame(
@@ -274,11 +269,11 @@ struct TransfersView: View {
         .buttonStyle(.plain)
     }
 
-    private func teamTileName(_ name: String) -> some View {
+    private func teamTileName(_ name: String, reservesSpace: Bool = true) -> some View {
         Text(name)
             .font(.caption2)
             .foregroundStyle(.primary)
-            .lineLimit(2)
+            .lineLimit(2, reservesSpace: reservesSpace)
             .truncationMode(.tail)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
