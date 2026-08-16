@@ -2,7 +2,7 @@
 //  BUSCAR — buscar.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag, stageLabel, categoryBadge, initPhTooltip, jornadaUrl, raceUrl }
+import { supabase, countryFlag, stageLabel, categoryBadge, initPhTooltip, jornadaUrl, raceUrl, femaleMark }
   from './shared.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
 import { t, initI18n } from './i18n.js';
@@ -119,7 +119,7 @@ function buildRaceCard(r) {
     card.innerHTML = `
       <div class="race-card__ph-row">
         ${flagHtml ? `<span class="race-card__ph-flag">${flagHtml}</span>` : ''}
-        <span class="race-card__ph-name">${name}${isFemale ? ' <span style="font-size:0.8em;opacity:0.7">♀</span>' : ''}</span>
+        <span class="race-card__ph-name">${name}${isFemale ? femaleMark({ style: 'font-size:0.8em;opacity:0.7' }) : ''}</span>
         <span class="race-card__ph-stage">${dateStr}</span>
       </div>
       <div class="race-card__meta">
@@ -166,7 +166,7 @@ function buildRaceCard(r) {
     card.innerHTML = `
       ${logo}
       <div class="race-card__main">
-        <div class="race-card__name">${name}${isFemale ? ' <span style="font-size:0.8em;opacity:0.7">♀</span>' : ''}</div>
+        <div class="race-card__name">${name}${isFemale ? femaleMark({ style: 'font-size:0.8em;opacity:0.7' }) : ''}</div>
         <div class="race-card__sub">
           ${displayDate ? `<span class="race-card__stage">${displayDate}</span><span class="race-card__sep">·</span>` : ''}
           <span class="race-card__route">${formatCategory(r)}</span>

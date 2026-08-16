@@ -8,7 +8,7 @@ final class SeasonViewModel {
     var races: [Race] = []
     var isLoading = false
     var error: String?
-    var activeFilter: Constants.CategoryFilter = .pro
+    var activeFilter: Constants.CategoryFilter = .all
     var activeCountry: String = "all"
 
     init() {

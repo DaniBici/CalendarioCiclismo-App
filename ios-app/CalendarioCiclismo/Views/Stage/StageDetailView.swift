@@ -209,18 +209,6 @@ struct StageDetailView: View {
     @State private var guideExpanded = false
     @State private var actionStripAtStart = true
     @State private var actionStripAtEnd = false
-    /// Resultados in-house: ¿esta jornada los tiene? y el stageNumber al que
-    /// navega "Ver clasificaciones". Diferido y no bloqueante (sin red → false →
-    /// no aparece el CTA, sin regresión). Maneja las carreras de un día
-    /// (clasificación 'gc' sin raceDayId, stageNumber nil). Espejo de Android.
-    @State private var hasInhouseResults = false
-    @State private var resultsStageNumber: Int?
-    /// "Así está la carrera": ¿la etapa ANTERIOR tiene resultados in-house? Si los
-    /// tiene, esa sección enlaza a la pantalla nativa de esa etapa (con externos de
-    /// respaldo), igual que el CTA de la etapa actual. Espejo de `_prevHasInhouse`
-    /// en jornada.js. Diferido/no bloqueante como el de arriba.
-    @State private var prevHasInhouse = false
-    @State private var prevResultsStageNumber: Int?
     private let network  = NetworkMonitor.shared
     private let offline  = OfflineManager.shared
     private let manager  = NotificationManager.shared
@@ -315,9 +303,6 @@ struct StageDetailView: View {
         }
 
         .task { await viewModel.load(raceDayId: raceDayId) }
-        // Gates de resultados in-house (etapa actual + anterior), diferidos para
-        // no bloquear el primer pintado. Se recalculan al cambiar la jornada.
-        .task(id: viewModel.raceDay?.id) { await loadInhouseGates() }
         .onChange(of: viewModel.raceDay) { _, newRaceDay in
             guard let raceDay = newRaceDay, let race = viewModel.race else { return }
             AnalyticsService.shared.logScreenView("stage_detail", parameters: [
@@ -543,32 +528,6 @@ struct StageDetailView: View {
         return LocaleService.shouldShowEnglishContent ? raw : raw.replacingOccurrences(of: ".", with: ",")
     }
 
-    /// Carga diferida de los gates de resultados in-house (etapa actual y
-    /// anterior). Cualquier fallo de red → false (comportamiento clásico externos).
-    private func loadInhouseGates() async {
-        hasInhouseResults = false
-        resultsStageNumber = nil
-        prevHasInhouse = false
-        prevResultsStageNumber = nil
-        guard let rd = viewModel.raceDay, let raceId = rd.raceId else { return }
-        let (has, sn) = await SupabaseService.shared.resultsStageNumberForDay(
-            raceId: raceId, raceDayId: rd.id, stageNumber: rd.stageNumber
-        )
-        // Una jornada CANCELADA tiene SIEMPRE página propia de resultados (aviso
-        // de cancelación + generales arrastradas de la etapa anterior), aunque no
-        // tenga —ni vaya a tener— clasificaciones volcadas: el CTA debe salir.
-        // Espejo de jornada.js (web).
-        hasInhouseResults = has || rd.isCancelledDay
-        resultsStageNumber = has ? sn : rd.stageNumber
-
-        guard let prevRd = viewModel.previousStage else { return }
-        let (prevHas, prevSn) = await SupabaseService.shared.resultsStageNumberForDay(
-            raceId: raceId, raceDayId: prevRd.id, stageNumber: prevRd.stageNumber
-        )
-        prevHasInhouse = prevHas
-        prevResultsStageNumber = prevSn
-    }
-
     /// "Así está la carrera": resultados de la etapa anterior. Si esa etapa tiene
     /// clasificaciones in-house → CTA primario a la pantalla nativa (externos de
     /// respaldo); si no, comportamiento clásico externos con el gate temporal.
@@ -580,11 +539,11 @@ struct StageDetailView: View {
             // ¿Los resultados de la etapa ACTUAL ya están disponibles (in-house o
             // por hora)? Si lo están, la GC del día los recoge → no se muestra
             // "Así está la carrera" (espejo de `_currentResultsAvailable`).
-            let currentResultsAvailable = hasInhouseResults
+            let currentResultsAvailable = viewModel.hasInhouseResults
                 || RaceLogic.shouldShowResultsDetail(rd: rd, race: race)
-            let showPrevInhouse = prevHasInhouse && !currentResultsAvailable
+            let showPrevInhouse = viewModel.prevHasInhouse && !currentResultsAvailable
             let showPrevExternal = RaceLogic.shouldShowPreviousResults(prevRd: prevRd, currentRd: rd, race: race)
-            if showPrevExternal || showPrevInhouse {
+            if viewModel.areInhouseGatesResolved && (showPrevExternal || showPrevInhouse) {
                 ResultsButtonsCard(
                     title: localeService.t("Así está la carrera", "Race standings"),
                     extUrlA: RaceLogic.buildExtUrlA(race: race, stageNumber: prevRd.stageNumber),
@@ -592,7 +551,7 @@ struct StageDetailView: View {
                     inhouseRoute: showPrevInhouse
                         // "Así está la carrera" → abre en la General (GC) de la
                         // etapa anterior, no en su clasificación de etapa.
-                        ? ResultsRoute(raceId: race.id, stageNumber: prevResultsStageNumber, stageSuffix: prevRd.stageSuffix, classKind: "gc")
+                        ? ResultsRoute(raceId: race.id, stageNumber: viewModel.prevResultsStageNumber, stageSuffix: prevRd.stageSuffix, classKind: "gc")
                         : nil,
                     onLinkTap: { tapExternal(url: $0) }
                 )
@@ -609,13 +568,13 @@ struct StageDetailView: View {
         let race = viewModel.race
         if let race {
             let showResults = RaceLogic.shouldShowResultsDetail(rd: rd, race: race)
-            if showResults || hasInhouseResults {
+            if viewModel.areInhouseGatesResolved && (showResults || viewModel.hasInhouseResults) {
                 ResultsButtonsCard(
                     title: localeService.t("Resultados", "Results"),
                     extUrlA: RaceLogic.buildExtUrlA(race: race, stageNumber: rd.stageNumber),
                     extUrlB: RaceLogic.buildExtUrlB(race: race, stageNumber: rd.stageNumber, stageSuffix: rd.stageSuffix),
-                    inhouseRoute: hasInhouseResults
-                        ? ResultsRoute(raceId: race.id, stageNumber: resultsStageNumber, stageSuffix: rd.stageSuffix)
+                    inhouseRoute: viewModel.hasInhouseResults
+                        ? ResultsRoute(raceId: race.id, stageNumber: viewModel.resultsStageNumber, stageSuffix: rd.stageSuffix)
                         : nil,
                     onLinkTap: { tapExternal(url: $0) }
                 )

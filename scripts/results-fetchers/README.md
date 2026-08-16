@@ -24,8 +24,8 @@ y las utilidades de fuentes de resultados.
 ## Qué NO va aquí
 
 - **Scripts ad-hoc de vigilancia** (`_watch-*.sh`, `_poll-*.sh`). Son andamiaje de una
-  carrera concreta y ya cumplieron; los playbooks quedan en `CLAUDE.md` y en
-  `docs/runbooks/`. Si necesitas uno nuevo, que sea temporal y no se commitee.
+  carrera concreta y ya cumplieron; los playbooks quedan en `docs/runbooks/`.
+  Si necesitas uno nuevo, que sea temporal y no se commitee.
 - **Utilidades de catálogo** (seeds, mapeo de equipos): no son parte del volcado.
 - **Documentación de contratos de API.** Los `.md` con los contratos verificados de
   las fuentes de cronometraje (Tissot, Matsport, manual_timing, race|result, STS,
@@ -51,3 +51,8 @@ la prueba, descubre desde la web los ids de etapa y clasificaciones y conserva l
 dorsales publicados. Para crear el enlace, su `--suggest-id` da el `competitionId`
 sintético estable y el cron usa `race_uci_links.source='classificacoes'` junto a
 `classificacoesCode=<slug>`.
+
+`burgos-results-fetch.mjs` descubre los dos PDFs que publica la página estable
+`/es/clasificaciones-Na-etapa/` de la Vuelta a Burgos. Extrae etapa, general,
+puntos, montaña, jóvenes y equipos; el cron lo activa con
+`race_uci_links.source='burgos'`.

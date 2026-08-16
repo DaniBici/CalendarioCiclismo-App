@@ -115,15 +115,25 @@ describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
     Math.max(...[...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
 
   const planConStage = (stageNumber) => {
+    const stages = [{
+      stageNumber,
+      isFinalClassification: stageNumber == null,
+      dateKey: '2026-07-19',
+      classifications: [clasificacion({ stageNumber })],
+    }];
+    // Una final llega siempre junto a una llegada confirmada: desde el gate de
+    // integridad no se admite un JSON que contenga solo generales finales.
+    if (stageNumber == null) {
+      stages.unshift({
+        stageNumber: 4,
+        dateKey: '2026-07-19',
+        classifications: [clasificacion({ stageNumber: 4 })],
+      });
+    }
     const { plan } = buildPlan({
       competitionId: 78302,
       disciplineId: 10,
-      stages: [{
-        stageNumber,
-        isFinalClassification: stageNumber == null,
-        dateKey: '2026-07-19',
-        classifications: [clasificacion({ stageNumber })],
-      }],
+      stages,
     });
     return plan;
   };
@@ -134,7 +144,9 @@ describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
   });
 
   it('Final Classification (stageNumber null): params cuadran con los placeholders', () => {
-    const ins = insertCabeceraDe(planConStage(null));
+    const ins = planConStage(null)
+      .filter((p) => p.text.includes('INSERT INTO public.race_uci_stages'))
+      .at(-1);
     expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
   });
 
@@ -164,6 +176,100 @@ describe('el candado propio sigue protegiendo el re-volcado de la MISMA clasific
 });
 
 describe('gate de integridad — rank 1 válido', () => {
+  it('omite toda la etapa si faltan resultados de etapa con rank 1', () => {
+    const general = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' },
+        { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel', gapText: '+1' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [general] }],
+    });
+
+    expect(nStages).toBe(0);
+    expect(nRejected).toBe(1);
+    expect(plan).toEqual([]);
+  });
+
+  it('acepta una prueba de un día cuyo resultado principal viene como gc/stage', () => {
+    // Las one-day no tienen stageNumber ni raceDayId propio. Algunos proveedores
+    // (STS) tipan la llegada como gc/stage; no debe confundirse con una general
+    // heredada de una vuelta, que sí conserva un número de etapa.
+    const principal = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      scope: 'stage',
+      rows: [{ rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' }],
+    });
+    const { nStages, nRejected } = buildPlan({
+      competitionId: -135992,
+      disciplineId: 10,
+      stages: [{ stageNumber: null, isFinalClassification: false, classifications: [principal] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(0);
+  });
+
+  it('omite la clasificación final si el payload no confirma ninguna llegada', () => {
+    const general = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' },
+      ],
+    });
+    const final = clasificacion({
+      eventId: -1359929902,
+      classKind: 'gc',
+      stageNumber: null,
+      scope: 'stage',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '20:00:00' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 1, classifications: [general] },
+        { stageNumber: null, isFinalClassification: true, classifications: [final] },
+      ],
+    });
+
+    expect(nStages).toBe(0);
+    expect(nRejected).toBe(2);
+    expect(plan).toEqual([]);
+  });
+
+  it('admite la clasificación final cuando el payload confirma la llegada', () => {
+    const final = clasificacion({
+      eventId: -1359929902,
+      classKind: 'gc',
+      stageNumber: null,
+      scope: 'stage',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '20:00:00' },
+      ],
+    });
+    const { nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 1, classifications: [clasificacion()] },
+        { stageNumber: null, isFinalClassification: true, classifications: [final] },
+      ],
+    });
+
+    expect(nStages).toBe(2);
+    expect(nRejected).toBe(0);
+  });
+
   it('no genera ninguna escritura si la clasificación no trae rank 1', () => {
     const { plan, nRejected } = buildPlan({
       competitionId: 78302,

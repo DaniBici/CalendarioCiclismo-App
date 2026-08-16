@@ -1,6 +1,6 @@
 # Pagers paginados — diferir logos y banderas (iOS + Android)
 
-Detalle complementario de la sección "Pagers paginados" de `CLAUDE.md`.
+Documentación técnica de los pagers paginados.
 
 Tamaños del artwork: 28×28 logo, 20×15 bandera.
 

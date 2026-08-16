@@ -3,7 +3,8 @@
 //  Usado desde mes.js y temporada.js
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels } from './shared.js';
+import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, trapFocus, femaleMark } from './shared.js';
+import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 
 const STAGE_COLORS = {
@@ -101,24 +102,22 @@ async function _hasInhouseResults(raceId, stageNumber) {
 // el trofeo se muestra sin esperar a la heur\u00edstica horaria ni exigir extId/extSlug.
 // Misma clave por stageNumber que jornada.js ('final' = NULL \u2192 un d\u00eda / general),
 // de modo que badge visible \u21d4 openResultsModal redirige a /resultados/.
-// Una jornada CANCELADA tiene SIEMPRE p\u00e1gina propia de resultados (aviso de
-// cancelaci\u00f3n + generales arrastradas de la etapa anterior, js/resultados.js),
-// aunque no tenga \u2014ni vaya a tener\u2014 clasificaciones volcadas: el trofeo debe
-// salir igual. No sale de la query: lo dice `isCancelledDay` de la jornada.
+// Las jornadas canceladas pueden tener p\u00e1gina propia de resultados, pero no se
+// consideran resultados disponibles para las cards: no deben activar el trofeo.
 export async function loadInhouseStageSet(raceIds) {
   const ids = [...new Set((raceIds || []).filter(Boolean))];
   const keyOf = rd => `${rd.raceId}#${rd.stageNumber == null ? 'final' : rd.stageNumber}`;
-  if (!ids.length) return { has: rd => !!rd?.isCancelledDay };
+  if (!ids.length) return { has: () => false };
   try {
     const { data } = await supabase.from('race_uci_stages')
       .select('raceId,stageNumber')
       .eq('keepForWeb', true).gt('rowCount', 0)
       .in('raceId', ids);
     const keys = new Set((data || []).map(s => `${s.raceId}#${s.stageNumber == null ? 'final' : s.stageNumber}`));
-    return { has: rd => !!rd?.isCancelledDay || keys.has(keyOf(rd)) };
+    return { has: rd => !rd?.isCancelledDay && keys.has(keyOf(rd)) };
   } catch (_) {
-    // Sin red \u2192 gate horario cl\u00e1sico, pero la cancelada s\u00ed tiene p\u00e1gina.
-    return { has: rd => !!rd?.isCancelledDay };
+    // Sin red \u2192 gate horario cl\u00e1sico.
+    return { has: () => false };
   }
 }
 function _attachResultGaListeners(container) {
@@ -247,10 +246,18 @@ function _getOverlay() {
   return _overlay;
 }
 
+// Trampa de foco compartida por los tres diálogos de este módulo.
+let _releaseFocus = null;
+function _openFocusTrap(overlay) {
+  if (_releaseFocus) _releaseFocus();
+  _releaseFocus = trapFocus(overlay.querySelector('.rd-modal') || overlay);
+}
+
 function _close() {
   if (!_overlay) return;
   _overlay.classList.remove('rd-modal--open');
   document.body.style.overflow = '';
+  if (_releaseFocus) { _releaseFocus(); _releaseFocus = null; }
   const iframe = _overlay.querySelector('.rd-modal__body iframe');
   if (iframe) iframe.src = 'about:blank';
 }
@@ -295,11 +302,12 @@ export async function openRaceDataModal(rdOrId, raceObj) {
   const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
   const flag = raceObj.hideFlag ? '' : countryFlag(raceObj.countryCode);
   headerEl.innerHTML =
-    `${flag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? ' <span style="font-size:0.7em;opacity:0.65">♀</span>' : ''}</span>`;
+    `${flag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : ''}</span>`;
 
   body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
   overlay.classList.add('rd-modal--open');
   document.body.style.overflow = 'hidden';
+  _openFocusTrap(overlay);
 
   // Registrar apertura del modal como página virtual en GA4
   if (window.gtag) {
@@ -381,7 +389,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     if (rd.countryCode && (raceObj.hideFlag || rd.countryCode !== raceObj.countryCode)) {
       const newFlag = countryFlag(effectiveCountryCode(rd, raceObj));
       headerEl.innerHTML =
-        `${newFlag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? ' <span style="font-size:0.7em;opacity:0.65">♀</span>' : ''}</span>`;
+        `${newFlag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : ''}</span>`;
     }
 
     // Actualizar cabecera con etapa y fecha
@@ -393,11 +401,11 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     body.innerHTML = _buildBody(rd, raceObj, broadcasts, assets, hasStartlist, prevRd, inhouseStages);
     _attachResultGaListeners(body);
 
-    // YouTube embed: abre openYoutubeTvModal al hacer clic en "Ver" de un broadcast embebible
-    body.querySelectorAll('a.tv-link-btn--yt[data-yt-id]').forEach(btn => {
+    // Emisión embebible: abre el reproductor inline al pulsar "Ver".
+    body.querySelectorAll('a.tv-link-btn--embed[data-tv-embed]').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
-        openYoutubeTvModal(rd, raceObj, btn.dataset.ytId);
+        openBroadcastTvModal(rd, raceObj, btn.href);
       });
     });
 
@@ -436,7 +444,7 @@ export async function openResultsModal(rdOrId, raceObj) {
   const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i
     .test(_resultsDisplayName || '');
   const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
-  const femSpan = isFemale ? ' <span style="font-size:0.7em;opacity:0.65">♀</span>' : '';
+  const femSpan = isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : '';
 
   const rdId       = typeof rdOrId === 'object' ? rdOrId.id : rdOrId;
   const rdProvided = (typeof rdOrId === 'object' && rdOrId.dateKey != null) ? rdOrId : null;
@@ -480,6 +488,7 @@ export async function openResultsModal(rdOrId, raceObj) {
   body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
   overlay.classList.add('rd-modal--open');
   document.body.style.overflow = 'hidden';
+  _openFocusTrap(overlay);
 
   if (window.gtag) {
     const slug = (raceObj.name || '').toLowerCase()
@@ -531,10 +540,13 @@ export async function openResultsModal(rdOrId, raceObj) {
 }
 
 /**
- * Abre un modal con cabecera de carrera + embed de YouTube.
- * Solo se llama cuando b.embeddable !== false (misma lógica que jornada.js).
+ * Abre un modal con cabecera de carrera + emisión embebida. La URL se valida
+ * siempre contra la allowlist de `broadcast-embed.js` antes de crear el iframe.
  */
-export async function openYoutubeTvModal(rdOrId, raceObj, ytId) {
+export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embeddable = null) {
+  const embed = getBroadcastEmbed(broadcastUrl, embeddable);
+  if (!embed) return;
+
   const overlay  = _getOverlay();
   const body     = overlay.querySelector('.rd-modal__body');
   const headerEl = overlay.querySelector('.rd-modal__header-text');
@@ -544,13 +556,14 @@ export async function openYoutubeTvModal(rdOrId, raceObj, ytId) {
   const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i
     .test(_displayName || '');
   const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
-  const femSpan = isFemale ? ' <span style="font-size:0.7em;opacity:0.65">♀</span>' : '';
+  const femSpan = isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : '';
   const flag = raceObj.hideFlag ? '' : countryFlag(raceObj.countryCode);
   headerEl.innerHTML = `${flag}<span class="rd-modal__race-name">${esc(_displayName || '')}${femSpan}</span>`;
 
   body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
   overlay.classList.add('rd-modal--open');
   document.body.style.overflow = 'hidden';
+  _openFocusTrap(overlay);
 
   if (window.gtag) {
     const slug = (raceObj.name || '').toLowerCase()
@@ -587,18 +600,27 @@ export async function openYoutubeTvModal(rdOrId, raceObj, ytId) {
     const _sub   = [_stage, _date].filter(Boolean).join(' · ');
     if (_sub) headerEl.innerHTML += `<div class="rd-modal__date">${_sub}</div>`;
 
+    const externalText = getLang() === 'en' ? `Open on ${embed.externalLabel}` : `Abrir en ${embed.externalLabel}`;
     body.innerHTML = `<div style="padding:0.75rem">
-      <div class="yt-embed-wrap" style="margin-bottom:0">
-        <iframe src="https://www.youtube-nocookie.com/embed/${esc(ytId)}?autoplay=1"
+      <div class="tv-embed-wrap" style="margin-bottom:0">
+        <iframe src="${esc(embed.src)}" title="${esc(embed.externalLabel)}"
           frameborder="0" allow="autoplay; encrypted-media; picture-in-picture"
           allowfullscreen></iframe>
+      </div>
+      <div class="tv-embed-actions">
+        <a class="tv-link-btn" href="${esc(embed.externalUrl)}" target="_blank" rel="noopener">${externalText} ↗&#xFE0E;</a>
       </div>
     </div>`;
 
   } catch (err) {
     body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted)">${t('race.error')}</div>`;
-    console.error('[yt-tv-modal]', err);
+    console.error('[broadcast-tv-modal]', err);
   }
+}
+
+// Compatibilidad con los consumidores de repeticiones YouTube ya existentes.
+export function openYoutubeTvModal(rdOrId, raceObj, ytId) {
+  return openBroadcastTvModal(rdOrId, raceObj, `https://www.youtube.com/watch?v=${ytId}`);
 }
 
 // ── Construcción del contenido ─────────────────────────────────────
@@ -890,8 +912,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
         const bTimeTU  = formatTimeUser(b.startTimeUtc);
         const bTime    = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
         const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
-        const ytId = extractYouTubeId(b.url);
-        const ytEmbeddable = ytId && b.embeddable !== false;
+        const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         html += `<div class="tv-entry">
           <div style="flex:1;min-width:0;padding-right:0.75rem">
             <div class="tv-entry__platform">${esc(b.channel || '—')}</div>
@@ -899,7 +920,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
           </div>
           <div style="display:flex;align-items:center;gap:0.75rem">
             ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}
-            ${b.url  ? `<a class="tv-link-btn${ytEmbeddable ? ' tv-link-btn--yt' : ''}" href="${b.url}" target="_blank" rel="noopener"${ytEmbeddable ? ` data-yt-id="${esc(ytId)}"` : ''}>Ver ↗&#xFE0E;</a>` : ''}
+            ${b.url  ? `<a class="tv-link-btn${broadcastEmbed ? ' tv-link-btn--embed' : ''}" href="${esc(b.url)}" target="_blank" rel="noopener"${broadcastEmbed ? ' data-tv-embed="1"' : ''}>Ver ↗&#xFE0E;</a>` : ''}
           </div>
         </div>`;
       });

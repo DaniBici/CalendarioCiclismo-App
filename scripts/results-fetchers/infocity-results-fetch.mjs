@@ -31,6 +31,7 @@ export function fnv1a(str) {
 }
 
 export const suggestCompetitionId = (code) => -(fnv1a(`infocity:${code}`) % 200000);
+export const synthRaceId = (code, stage) => -(Math.abs(suggestCompetitionId(code)) * 100 + stage);
 
 export function parseCode(code) {
   const parts = String(code || '').split(':').map((v) => Number(v));
@@ -75,12 +76,25 @@ const irmOf = (v) => {
   return null;
 };
 const timeOf = (v) => {
-  const m = clean(v).match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
-  return m ? `${Number(m[1])}:${m[2]}:${m[3]}` : null;
+  const t = clean(v);
+  const colon = t.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (colon) return `${Number(colon[1])}:${colon[2]}:${colon[3]}`;
+  const infocity = t.match(/^(\d{1,2})h\s*(\d{1,2})'\s*(\d{1,2})''$/);
+  if (infocity) return `${Number(infocity[1])}:${infocity[2].padStart(2, '0')}:${infocity[3].padStart(2, '0')}`;
+  const shortInfocity = t.match(/^(\d{1,2})'\s*(\d{1,2})''$/);
+  return shortInfocity ? `0:${shortInfocity[1].padStart(2, '0')}:${shortInfocity[2].padStart(2, '0')}` : null;
 };
 const gapOf = (v) => {
-  const t = clean(v).replace(/^[+]?0+(?=\d)/, '+');
-  return /^\+\d+(?::\d{2}){0,2}$/.test(t) ? t : null;
+  const t = clean(v);
+  const infocity = t.match(/^\+\s*(?:(\d{1,2})h\s*)?(\d{1,2})'\s*(\d{1,2})''$/);
+  if (infocity) {
+    const hours = Number(infocity[1] || 0);
+    const minutes = Number(infocity[2]);
+    const seconds = infocity[3].padStart(2, '0');
+    return hours ? `+${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `+${minutes}:${seconds}`;
+  }
+  const canonical = t.replace(/^[+]?0+(?=\d)/, '+');
+  return /^\+\d+(?::\d{2}){0,2}$/.test(canonical) ? canonical : null;
 };
 
 /** Extrae el contenido de cada celda y omite la cabecera de la tabla. */
@@ -91,11 +105,61 @@ export function tableRows(html) {
   }).filter((cells) => cells.length > 1);
 }
 
-export function rowsFromHtml(html, { isTeamEvent = false, isPoints = false } = {}) {
+/**
+ * InfoCity normalmente construye la tabla en el navegador en vez de asignar HTML
+ * a `cnt`: `ra[0] = Array(pos, rider, bib, team, bonus, time, ..., penalty)`.
+ * No evaluamos JavaScript de una fuente externa; solo leemos sus argumentos string.
+ */
+export function infoCityArrayRows(script, { isTeamEvent = false, isPoints = false, useAbsoluteTime = false } = {}) {
   const rows = [];
-  for (const cells of tableRows(html)) {
+  // En las CRI InfoCity elimina la columna de bonificación: el tiempo pasa de
+  // la posición 5 a la 4 y después vienen penalización y tiempo intermedio.
+  const isIndividualTimeTrial = /\bINDIVIDUAL TIME TRIAL\b/i.test(String(script));
+  for (const match of String(script).matchAll(/\bra\s*\[\s*\d+\s*\]\s*=\s*Array\s*\(([\s\S]*?)\)\s*;/g)) {
+    const values = [];
+    const source = match[1];
+    let i = 0;
+    while (i < source.length) {
+      while (i < source.length && /[\s,]/.test(source[i])) i++;
+      if (i >= source.length) break;
+      const quote = source[i];
+      if (quote !== "'" && quote !== '"') break;
+      i++;
+      let value = '';
+      while (i < source.length) {
+        if (source[i] === '\\' && i + 1 < source.length) { value += source.slice(i, i + 2); i += 2; continue; }
+        if (source[i] === quote) { i++; break; }
+        value += source[i++];
+      }
+      values.push(clean(decodeJsString(value)));
+      while (i < source.length && /\s/.test(source[i])) i++;
+      if (source[i] === ',') i++;
+    }
+    if (isTeamEvent && values.length >= 4) {
+      // Equipos: posición, equipo, código, tiempo absoluto, pérdida.
+      rows.push([values[0], values[1], '', '', values[3], values[4]]);
+    } else if (useAbsoluteTime && values.length >= 5) {
+      // General: col. 4 = tiempo absoluto, col. 5 = pérdida.
+      rows.push([values[0], values[1], values[2], values[3], values[4], values[5]]);
+    } else if (isPoints && values.length >= 5) {
+      // Puntos: el valor está en la col. 4.
+      rows.push([values[0], values[1], values[2], values[3], values[4]]);
+    } else if (isIndividualTimeTrial && values.length >= 5) {
+      // CRI: tiempo/pérdida en col. 4; col. 5 = penalización, col. 6 = intermedio.
+      rows.push([values[0], values[1], values[2], values[3], values[4]]);
+    } else if (values.length >= 6) {
+      // Etapa: bonus en col. 4, tiempo/pérdida en col. 5 y penalización después.
+      rows.push([values[0], values[1], values[2], values[3], values[5]]);
+    }
+  }
+  return rows;
+}
+
+export function rowsFromCells(cellsRows, { isTeamEvent = false, isPoints = false, useAbsoluteTime = false } = {}) {
+  const rows = [];
+  for (const cells of cellsRows) {
     const rankCell = cells[0];
-    const irm = irmOf(rankCell) || irmOf(cells.at(-1));
+    const irm = cells.map(irmOf).find(Boolean) || null;
     const rankMatch = rankCell.match(/^(\d+)(?:\.|\s|$)/);
     // Los encabezados suelen ser "Miejsce" / "Zawodnik"; no son filas de resultado.
     if (!rankMatch && !irm) continue;
@@ -103,14 +167,16 @@ export function rowsFromHtml(html, { isTeamEvent = false, isPoints = false } = {
     const riderDisplay = clean(cells[1]);
     const bib = isTeamEvent ? null : (clean(cells[2]).match(/^\d+$/) ? clean(cells[2]) : null);
     const teamName = isTeamEvent ? riderDisplay : (clean(cells[3]) || null);
-    const metric = clean(cells.at(-1));
+    const hasSeparateGap = !isPoints && (isTeamEvent || useAbsoluteTime) && cells.length >= 6;
+    const metric = clean(hasSeparateGap ? cells.at(-2) : cells.at(-1));
+    const gapMetric = clean(hasSeparateGap ? cells.at(-1) : cells.at(-1));
     if ((!rank && !irm) || !riderDisplay) continue;
     if (irm) {
       rows.push({ rank: null, rankText: irm, bib, riderDisplay, teamName, resultValue: null, timeText: null, gapText: null, points: null, irm });
       continue;
     }
     const timeText = isPoints ? null : timeOf(metric);
-    const gapText = isPoints ? null : (!timeText ? gapOf(metric) : null);
+    const gapText = isPoints ? null : (hasSeparateGap ? gapOf(gapMetric) : (!timeText ? gapOf(metric) : null));
     const points = isPoints && /^-?\d+(?:[.,]\d+)?$/.test(metric) ? Number(metric.replace(',', '.')) : null;
     rows.push({ rank, rankText: String(rank), bib, riderDisplay, teamName,
       resultValue: metric || null, timeText, gapText, points, irm: null });
@@ -118,17 +184,41 @@ export function rowsFromHtml(html, { isTeamEvent = false, isPoints = false } = {
   return rows;
 }
 
+export function rowsFromHtml(html, options = {}) {
+  return rowsFromCells(tableRows(html), options);
+}
+
+export function rowsFromResponse(script, options = {}) {
+  const htmlRows = rowsFromHtml(htmlFromResponse(script), options);
+  return htmlRows.length ? htmlRows : rowsFromCells(infoCityArrayRows(script, options), options);
+}
+
+export function classificationFromRows(code, stageNumber, query, rows) {
+  return {
+    eventId: synthEventId(code, stageNumber, query.classKind, query.scope),
+    classKind: query.classKind,
+    scope: query.scope,
+    eventName: query.eventName,
+    isTeamEvent: !!query.isTeamEvent,
+    winnerName: rows.find((row) => row.rank === 1)?.riderDisplay || null,
+    rowCount: rows.length,
+    rows,
+  };
+}
+
 const QUERIES = [
   { typ: 'ETAP', kl: 'I', classKind: 'stage', scope: 'stage', eventName: 'Stage Classification' },
-  { typ: 'GENE', kl: 'I', classKind: 'gc', scope: 'stage', eventName: 'Stage General Classification' },
+  { typ: 'GENE', kl: 'I', classKind: 'gc', scope: 'stage', eventName: 'Stage General Classification', useAbsoluteTime: true },
   { typ: 'GENE', kl: 'P', classKind: 'points', scope: 'overall', eventName: 'Overall Points Classification', isPoints: true },
   { typ: 'GENE', kl: 'G', classKind: 'kom', scope: 'overall', eventName: 'Overall Mountains Classification', isPoints: true },
   { typ: 'GENE', kl: 'D2', classKind: 'teams', scope: 'overall', eventName: 'Overall Teams Classification', isTeamEvent: true },
 ];
 
 export function endpoint({ race, test, ced }, query) {
-  const ed = query.typ === 'GENE' ? ced - 1 : ced;
-  return `${BASE}?typ=${query.typ}&race=${race}&test=${test}&ced=${ced}&ed=${ed}&kl=${query.kl}&refill=0&lng=EN&lu=&rnd=1`;
+  // En InfoCity `ed` identifica el checkpoint de la clasificación. Usar el CED
+  // de la propia etapa también para GENE: `ced - 1` devolvía las generales al
+  // cierre del día anterior (TdP 2026 E3: 8:09:28 en vez de 12:21:09).
+  return `${BASE}?typ=${query.typ}&race=${race}&test=${test}&ced=${ced}&ed=${ced}&kl=${query.kl}&refill=0&lng=EN&lu=&rnd=1`;
 }
 
 async function fetchText(url) {
@@ -153,17 +243,20 @@ async function main() {
     for (const query of QUERIES) {
       const script = fixture?.[`${stageNumber}:${query.typ}:${query.kl}`]
         ?? await fetchText(endpoint({ ...config, ced }, query));
-      const rows = rowsFromHtml(htmlFromResponse(script), query);
+      const rows = rowsFromResponse(script, query);
       if (!rows.some((row) => row.rank === 1)) continue;
-      classifications.push({ eventId: synthEventId(CODE, stageNumber, query.classKind, query.scope),
-        classKind: query.classKind, scope: query.scope, eventName: query.eventName,
-        winnerName: rows.find((row) => row.rank === 1)?.riderDisplay || null, rowCount: rows.length, rows });
+      classifications.push(classificationFromRows(CODE, stageNumber, query, rows));
     }
-    if (classifications.length) stages.push({ stageNumber, eventName: `Stage ${stageNumber}`, classifications });
+    if (classifications.length) stages.push({
+      uciRaceId: synthRaceId(CODE, stageNumber),
+      stageNumber,
+      eventName: `Stage ${stageNumber}`,
+      classifications,
+    });
   }
   if (TOTAL_STAGES != null && stagesToFetch.includes(TOTAL_STAGES)) {
     const last = stages.find((stage) => stage.stageNumber === TOTAL_STAGES);
-    if (last) stages.push({ stageNumber: null, isFinalClassification: true, eventName: 'Final Classification',
+    if (last) stages.push({ uciRaceId: synthRaceId(CODE, FINAL_SLOT), stageNumber: null, isFinalClassification: true, eventName: 'Final Classification',
       classifications: last.classifications.filter((c) => c.classKind !== 'stage').map((c) => ({ ...c,
         scope: 'stage', eventId: synthEventId(CODE, FINAL_SLOT, c.classKind, 'stage') })) });
   }

@@ -1,6 +1,6 @@
 # Analytics — Google Analytics (web) + Firebase Analytics (apps)
 
-Detalle complementario de la sección "Google Analytics" de `CLAUDE.md`.
+Documentación técnica de Google Analytics.
 
 ## Web — Google Analytics 4
 

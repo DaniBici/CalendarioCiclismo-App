@@ -1,6 +1,6 @@
 # Indicador de retransmisión en vivo (Live Badge)
 
-Detalle complementario de la sección "Indicador de retransmisión en vivo" de `CLAUDE.md`.
+Documentación técnica del indicador de retransmisión en vivo.
 
 Indicador visual que aparece en cards de `Hoy`, jornada individual, modal de datos de carrera y vista de competición cuando una emisión TV está activa.
 

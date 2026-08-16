@@ -48,20 +48,13 @@
  *      a 'ok' | 'error'. ∅-guard: si el fetch no trae NINGUNA fila (comp
  *      enlazada pero la UCI aún sin publicar), NO se upserta → el link queda
  *      'pending' y los pases siguientes del backlog lo reintentan.
- *      NO RE-VOLCAR LO ASENTADO: en el volcado automático del día (scope=today sin
- *      --race-id ni --ignore-window) el upsert recibe --skip-existing → omite las
- *      clasificaciones ya volcadas (mismo eventId, rowCount>0). La UCI publica
- *      completo y definitivo, así que en la etapa 15 las 14 anteriores cuestan 1
- *      SELECT en vez de re-procesarse cada 30 min (las correcciones se hacen a
- *      mano desde el panel). Las fuentes EN VIVO (tissot/matsport/raceresult/sts/
- *      domtel) llegan parciales y se corrigen durante la ventana de meta → para ellas
- *      se añade --skip-existing-after-min (TISSOT_REVOLCADO_MIN = 180 ≈ la ventana
- *      entera; omite solo lo volcado hace >180 min, así un cambio tardío —un finisher
- *      provisional que pasa a DNF, una descalificación— se re-vuelca mientras la
- *      carrera siga en ventana). El fetcher sí baja la competición entera (red barata);
- *      el ahorro está en evitar el DELETE+INSERT de miles de filas + las RPC.
- *   3. Reporta cuántas se tocaron y si hubo cambios (para que el workflow decida
- *      si regenerar páginas).
+ *      CIERRE ESTRICTO: una jornada con rank=1 válido queda cerrada para el
+ *      automático y las correcciones se hacen desde el panel. El cron solo pide la
+ *      etapa pendiente; la clasificación final de una vuelta conserva su propia
+ *      pasada hasta que llega su GC. Así se evita incluso descargar la historia de
+ *      la competición en cada ejecución.
+ *   3. Reporta cuántas se tocaron y si hubo clasificaciones nuevas para
+ *      observabilidad. Los workflows no regeneran páginas tras el volcado.
  *
  * Dos workflows lo invocan con cadencias distintas (.github/workflows/):
  *   · uci-results-today.yml   cada 30 min, solo en ventana de meta (el gate previo
@@ -111,6 +104,7 @@ import { spawn } from 'child_process';
 import { readFileSync, existsSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -140,8 +134,9 @@ const CONFIGURED = hasFlag('configured');
 // No re-volcar clasificaciones ya presentes (ver uci-results-upsert --skip-existing).
 // Activo por defecto en el volcado AUTOMÁTICO del día (scope=today, sin --race-id ni
 // --ignore-window): la UCI publica completo y definitivo, así que re-volcar las etapas
-// ya volcadas cada 30 min es trabajo en balde. Tissot llega parcial y se corrige en la
-// 1ª hora → para esa fuente se omite solo lo volcado hace >60 min (per-carrera abajo).
+// ya volcadas cada 30 min es trabajo en balde. SportSoft Live puede publicar la meta
+// con décimas antes de incorporar grupos y bonificaciones: se reescribe durante toda
+// la ventana de meta (per-carrera abajo).
 // Se desactiva con --no-skip-existing (forzar re-volcado completo sin --race-id) y NO
 // aplica a --ignore-window ni --race-id (forzados manuales: re-vuelcan todo a propósito).
 // EXCEPCIÓN: --skip-existing explícito lo fuerza ON aunque sea --ignore-window — lo usa
@@ -149,16 +144,6 @@ const CONFIGURED = hasFlag('configured');
 // bestia lo ya asentado. --race-id sigue re-volcando completo (forzado manual de UNA carrera).
 const SKIP_EXISTING = (hasFlag('skip-existing') && !ONE_RACE)
   || (SCOPE === 'today' && !ONE_RACE && !IGNORE_WINDOW && !hasFlag('no-skip-existing'));
-// Ventana de re-volcado de las fuentes EN VIVO (tissot/matsport/raceresult/sts) tras
-// meta. Debe cubrir toda la ventana de meta del cron (meta+15min → meta+3h): una
-// clasificación volcada EN VIVO puede cambiar hasta bastante después del primer
-// volcado (un finisher provisional que pasa a DNF, una descalificación, un reordenado).
-// Con 60 min una clasificación volcada pronto quedaba CONGELADA el resto de la ventana
-// y el cambio tardío se perdía (cazado en la Volta a Portugal Feminina 2026 E2: un DNF
-// que Wiclax marcó >1 h tras el primer volcado se quedó como finisher sin tiempo →
-// rompía el cálculo de diferencias en la web). 180 min ≈ la ventana entera → el cron
-// re-vuelca cada clasificación en cada pasada mientras la carrera siga en ventana.
-const TISSOT_REVOLCADO_MIN = 180;
 // Throttle: pausa (ms) tras CADA carrera que escribió algo, para no encadenar los
 // checkpoints de Postgres (escrituras grandes → WAL → checkpoint largo → I/O saturada
 // → la web se arrastra y le caducan las queries). Solo pausa tras escritura real: las
@@ -178,7 +163,49 @@ const DOMTEL_FETCH = join(HERE, 'domtel-results-fetch.mjs');
 const LIVETIMING_FETCH = join(HERE, 'livetiming-results-fetch.mjs');
 const CLASSIFICACOES_FETCH = join(HERE, 'classificacoes-results-fetch.mjs');
 const INFOCITY_FETCH = join(HERE, 'infocity-results-fetch.mjs');
+const EQTIMING_FETCH = join(HERE, 'eqtiming-results-fetch.mjs');
+const ASO_FETCH = join(HERE, 'aso-results-fetch.mjs');
+const SPORTSOFT_FETCH = join(HERE, 'sportsoft-results-fetch.mjs');
+const COLOMBIA_FETCH = join(HERE, 'colombia-pdf-results-fetch.mjs');
+const BURGOS_FETCH = join(HERE, 'burgos-results-fetch.mjs');
+const CHRONORACE_FETCH = join(HERE, 'chronorace-results-fetch.mjs');
 const UPSERT = join(HERE, 'uci-results-upsert.mjs');
+
+function topologyFromPayload(kind, data) {
+  return {
+    version: 1,
+    source: kind,
+    fetchedAt: data.fetchedAt || new Date().toISOString(),
+    stages: (data.stages || []).map((st) => ({
+      uciRaceId: st.uciRaceId ?? null,
+      stageNumber: st.stageNumber ?? null,
+      stageName: st.stageName ?? null,
+      dateKey: st.dateKey ?? null,
+      raceType: st.raceType ?? null,
+      isFinalClassification: !!st.isFinalClassification,
+      eventIds: (st.classifications || []).map((cl) => cl.eventId).filter((id) => id != null),
+    })),
+  };
+}
+
+async function saveTopology(url, raceId, kind, data) {
+  // La caché no participa en el volcado: si falla, el resultado sigue siendo
+  // válido y el siguiente runner volverá a descubrir la topología.
+  try {
+    const { default: pg } = await import('pg');
+    const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+    await client.connect();
+    await client.query(
+      `UPDATE public.race_uci_links
+       SET "resultsFetchTopology" = $2::jsonb, "resultsFetchTopologyUpdatedAt" = now()
+       WHERE "raceId" = $1`,
+      [raceId, JSON.stringify(topologyFromPayload(kind, data))],
+    );
+    await client.end();
+  } catch (e) {
+    log(`  ⚠ no se pudo guardar caché de topología: ${e.message}`);
+  }
+}
 
 function loadEnv() {
   if (!existsSync('.env')) return {};
@@ -187,6 +214,20 @@ function loadEnv() {
       .filter((l) => l && !l.startsWith('#') && l.includes('='))
       .map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }),
   );
+}
+
+// ¿La etapa que estamos volcando es la ÚLTIMA de la vuelta? Decide DOS cosas a la vez
+// (por eso vive aquí y no inline): que el fetch lea la competición ENTERA en vez de
+// `--stage N`, y que el upsert reciba `--include-final`. Las dos son necesarias: la
+// pseudo-etapa "Final Classification" de DataRide es una `race` aparte con stageNumber
+// NULL, así que `--stage N` no la trae y sin ella `--include-final` no filtra nada.
+//
+// `needsFinal` lo calcula la query --configured (mira si la general final ya está
+// cubierta); en el disparo manual llega undefined, así que hay que caer a totalStages.
+export function isFinalStageDump(targetStage, totalStages, needsFinal = false) {
+  if (needsFinal) return true;
+  if (targetStage == null || totalStages == null) return false;
+  return Number(targetStage) === Number(totalStages);
 }
 
 // Ejecuta un script Node como subproceso; resuelve con su exit code. Hereda stderr.
@@ -218,7 +259,8 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
+                COALESCE((SELECT d2."dateKey" FROM race_days d2 WHERE d2."raceId" = r.id AND d2."stageNumber" = ${LIVE_STAGE_SUBSELECT}), r."startDate") AS "scheduledDate",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
@@ -227,10 +269,49 @@ async function main() {
          WHERE l."raceId" = $1`, [ONE_RACE]);
       targets = rows;
     } else if (CONFIGURED) {
+      // Cierre estricto automático: una jornada cuya llegada principal ya tiene
+      // rank=1 válido no vuelve a salir de la BD. Las correcciones pasan por el
+      // disparo manual. La final de una vuelta es una unidad independiente: puede
+      // publicarse más tarde que la llegada de la última etapa.
+      const MAIN_COVERED = `EXISTS (
+        SELECT 1 FROM public.race_uci_stages s
+        JOIN public.race_uci_results rr ON rr."stageRef" = s.id
+        WHERE (s."raceDayId" = d.id OR (d."stageNumber" IS NULL
+               AND s."raceId" = d."raceId" AND s."stageNumber" IS NULL
+               AND s."isFinalClassification" = false))
+          AND s.scope = 'stage'
+          AND (s."classKind" = 'stage' OR (d."stageNumber" IS NULL AND s."classKind" = 'gc'))
+          AND rr.rank = 1 AND COALESCE(rr.irm, '') = ''
+      )`;
+      const FINAL_COVERED = `EXISTS (
+        SELECT 1 FROM public.race_uci_stages s
+        JOIN public.race_uci_results rr ON rr."stageRef" = s.id
+        WHERE s."raceId" = l."raceId" AND s."isFinalClassification" = true
+          AND s."classKind" = 'gc' AND s.scope = 'stage'
+          AND rr.rank = 1 AND COALESCE(rr.irm, '') = ''
+      )`;
+      // Una clasificación sintética (PDF o cronometrador) puede haber dejado un
+      // ganador válido antes de que DataRide publique la oficial. MAIN_COVERED la
+      // considera cubierta por diseño, pero con source='uci' debe seguir entrando:
+      // el upsert oficial purga la gemela negativa aunque no esté bloqueada.
+      // Acotamos la excepción a la carrera que sigue en su ventana configurada;
+      // una fuente que no sea UCI conserva el cierre estricto habitual.
+      const UCI_OFFICIAL_REPLACEMENT_PENDING = `l."source" = 'uci' AND EXISTS (
+        SELECT 1 FROM public.race_uci_stages s
+        WHERE s."raceId" = l."raceId" AND s."eventId" < 0
+          AND COALESCE(s."rowCount",0) > 0
+      )`;
+      const IS_LAST_STAGE = `d."stageNumber" IS NOT NULL AND d."stageNumber" = (
+        SELECT max(x."stageNumber") FROM race_days x
+        WHERE x."raceId" = l."raceId" AND x."isRestDay" = false
+      )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
+                d."dateKey" AS "scheduledDate",
                 d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
+                ${MAIN_COVERED} AS "stageCovered",
+                (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_STAGE} AND NOT (${FINAL_COVERED})) AS "needsFinal",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 d."stageNumber" AS "liveStage",
                 (SELECT max(x."stageNumber") FROM race_days x WHERE x."raceId" = r.id) AS "totalStages",
@@ -247,6 +328,8 @@ async function main() {
              + COALESCE(d."resultsSyncStopOffsetMinutes", l."syncStopOffsetMinutes") * interval '1 minute'
            AND (d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
              - COALESCE(d."resultsSyncIntervalMinutes", l."syncIntervalMinutes") * interval '1 minute')
+           AND (NOT (${MAIN_COVERED}) OR (${UCI_OFFICIAL_REPLACEMENT_PENDING})
+             OR (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_STAGE} AND NOT (${FINAL_COVERED})))
          ORDER BY l."raceId", d."estimatedFinishTimeUtc" DESC
          LIMIT $1`, [LIMIT]);
       targets = rows;
@@ -316,7 +399,7 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
@@ -347,6 +430,11 @@ async function main() {
         : t.source === 'livetiming' && t.livetimingCode ? `livetiming:${t.livetimingCode}`
         : t.source === 'classificacoes' && t.classificacoesCode ? `classificacoes:${t.classificacoesCode}`
         : t.source === 'infocity' && t.infocityCode ? `infocity:${t.infocityCode}`
+        : t.source === 'sportsoft' && t.sportsoftCode ? `sportsoft:${t.sportsoftCode}`
+        : t.source === 'eqtiming' && t.eqtimingCode ? `eqtiming:${t.eqtimingCode}`
+        : t.source === 'ASO' && t.asoUrl ? `ASO:${t.asoUrl}`
+        : t.source === 'colombia' && t.colombiaCode ? `colombia:${t.colombiaCode}`
+        : t.source === 'chronorace' && t.chronoraceCode ? `chronorace:${t.chronoraceCode}`
         // Híbrido UCI-preferente: source='uci' + domtelCode → UCI + relleno Domtel.
         : t.source === 'uci' && t.domtelCode ? `uci + domtel:${t.domtelCode} (relleno)` : 'uci';
       log(`  · ${t.raceId}  comp ${t.competitionId}  [${src}]  ${t.gender}  startlist=${t.sl > 0 ? 'sí' : 'NO→seed'}`);
@@ -366,6 +454,14 @@ async function main() {
   // su propia subcarpeta para no pisar el <comp>.json de la otra.
   async function processSource(t, kind) {
     const outDir = join(tmp, String(t.competitionId), kind);
+    // La sincronización automática trabaja UNA jornada. Solo la final pendiente
+    // hace una lectura completa: varios proveedores la derivan de la última
+    // etapa y no la emiten bajo --stage. Es un caso único por vuelta.
+    const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
+    // Última etapa → lectura completa de la competición (ver isFinalStageDump).
+    const isFinalStage = isFinalStageDump(targetStage, t.totalStages, t.needsFinal);
+    const fetchStageArgs = targetStage != null && !isFinalStage
+      ? ['--stage', String(targetStage)] : [];
     // CN (source='uci' con uciRaceId != 0, migración 110): volcar SOLO esa prueba del país.
     const uciRaceId = kind === 'uci' && t.source === 'uci' && t.uciRaceId ? t.uciRaceId : 0;
     let fc, srcLabel;
@@ -374,12 +470,12 @@ async function main() {
       // los eventId sintéticos negativos). El JSON lleva el competitionId del puente.
       const tissotComp = `${t.tissotCode}${t.year}`;
       srcLabel = ` ← tissot:${tissotComp}`;
-      fc = await run(TISSOT_FETCH, ['--competition', tissotComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY]);
+      fc = await run(TISSOT_FETCH, ['--competition', tissotComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY, ...fetchStageArgs]);
     } else if (kind === 'matsport') {
       // 'matsport' (101): comp id {year}_{code} ("2026_PYF"); competitionId sintético negativo.
       const matsportComp = `${t.year}_${t.matsportCode}`;
       srcLabel = ` ← matsport:${matsportComp}`;
-      fc = await run(MATSPORT_FETCH, ['--competition', matsportComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY]);
+      fc = await run(MATSPORT_FETCH, ['--competition', matsportComp, '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY, ...fetchStageArgs]);
     } else if (kind === 'raceresult') {
       // 'raceresult' (108): API JSON de my.raceresult.com; raceresultCode = eventId numérico.
       srcLabel = ` ← raceresult:${t.raceresultCode}`;
@@ -387,7 +483,7 @@ async function main() {
         // La lista LIVE de race|result no filtra por etapa → solo activamos su fallback en
         // vivo apuntando a la etapa de HOY con --stage (si la hay). Sin etapa hoy, se queda
         // con las listas "results" oficiales (con selector, seguras).
-        ...(t.liveStage != null ? ['--stage', String(t.liveStage)] : [])]);
+        ...(targetStage != null ? ['--stage', String(targetStage)] : [])]);
     } else if (kind === 'sts') {
       // 'sts' (109): STS/Wiclax; .clax XML público en /LIVE/<stsCode>.clax.
       // TIMERSPEED y otros cronometradores usan el MISMO motor Wiclax con OTRO host
@@ -402,7 +498,7 @@ async function main() {
       // minStage - 1 (prólogo 0 → -1; carrera normal que empieza en 1 → 0).
       const stsOffset = t.minStage != null ? Number(t.minStage) - 1 : 0;
       fc = await run(STS_FETCH, ['--clax-url', stsClaxUrl, '--code', String(t.stsCode), '--competition-id', String(t.competitionId), '--out', outDir,
-        ...(stsOffset !== 0 ? ['--stage-offset', String(stsOffset)] : [])]);
+        ...(stsOffset !== 0 ? ['--stage-offset', String(stsOffset)] : []), ...fetchStageArgs]);
     } else if (kind === 'domtel') {
       // 'domtel' (118): Domtel Sport Timing (domtel-sport.pl), cronometrador polaco.
       // domtelCode = id de post WordPress; POST a wp-admin/admin-ajax.php. Un pid acumula
@@ -411,7 +507,7 @@ async function main() {
       // del upsert omite la gemela Domtel; donde no, Domtel tapa el hueco.
       srcLabel = ` ← domtel:${t.domtelCode}`;
       fc = await run(DOMTEL_FETCH, ['--pid', String(t.domtelCode), '--competition-id', String(t.competitionId), '--out', outDir,
-        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
     } else if (kind === 'livetiming') {
       // 'livetiming' (119): livetiming.at, cronometrador austriaco (Tour of Austria).
       // livetimingCode = V_ID de la ETAPA 1 (AAMMDD); el fetcher deriva los V_ID de las
@@ -424,27 +520,59 @@ async function main() {
       // Sin --allow-provisional-generals → filtro activo por defecto.
       srcLabel = ` ← livetiming:${t.livetimingCode}`;
       fc = await run(LIVETIMING_FETCH, ['--vid', String(t.livetimingCode), '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY,
-        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
     } else if (kind === 'classificacoes') {
       // Classificações.net: el slug de la prueba descubre los ids variables de
       // etapa y clasificación; no persiste ni supone una URL por día.
       srcLabel = ` ← classificacoes:${t.classificacoesCode}`;
       fc = await run(CLASSIFICACOES_FETCH, ['--code', String(t.classificacoesCode), '--competition-id', String(t.competitionId), '--out', outDir,
-        ...(t.liveStage != null ? ['--stage', String(t.liveStage)] : []),
+        ...(targetStage != null ? ['--stage', String(targetStage)] : []),
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
     } else if (kind === 'infocity') {
       // InfoCity (Tour de Pologne): el endpoint entrega JavaScript+HTML. El código
       // fija race:test:ced de E1 y el fetcher deriva los ced correlativos.
-      const fetchStage = ONE_RACE ? null : (t.scheduledStage ?? t.liveStage);
+      const fetchStage = ONE_RACE ? null : (targetStage ?? t.liveStage);
       srcLabel = ` ← infocity:${t.infocityCode}`;
       fc = await run(INFOCITY_FETCH, ['--code', String(t.infocityCode), '--competition-id', String(t.competitionId), '--out', outDir,
         ...(fetchStage != null ? ['--stage', String(fetchStage)] : []),
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+    } else if (kind === 'eqtiming') {
+      srcLabel = ` ← eqtiming:${t.eqtimingCode}`;
+      fc = await run(EQTIMING_FETCH, ['--code', String(t.eqtimingCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(targetStage != null ? ['--stage', String(targetStage)] : []),
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
+    } else if (kind === 'ASO') {
+      srcLabel = ` ← ASO:${t.asoUrl}`;
+      fc = await run(ASO_FETCH, ['--url', String(t.asoUrl), '--competition-id', String(t.competitionId), '--out', outDir, ...fetchStageArgs]);
+    } else if (kind === 'sportsoft') {
+      // HTML completo y público; el fetcher descubre los competitionId en cada pasada.
+      srcLabel = ` ← sportsoft:${t.sportsoftCode}`;
+      fc = await run(SPORTSOFT_FETCH, ['--code', String(t.sportsoftCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
+    } else if (kind === 'colombia') {
+      srcLabel = ` ← colombia:${t.colombiaCode}`;
+      fc = await run(COLOMBIA_FETCH, ['--code', String(t.colombiaCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
+    } else if (kind === 'burgos') {
+      // Vuelta a Burgos: URL estable por etapa y PDFs oficiales. En la última
+      // lectura no se pasa --stage para incluir la Final Classification.
+      srcLabel = ` ← burgos:${t.year}`;
+      fc = await run(BURGOS_FETCH, ['--year', String(t.year), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
+    } else if (kind === 'chronorace') {
+      srcLabel = ` ← chronorace:${t.chronoraceCode}`;
+      fc = await run(CHRONORACE_FETCH, ['--event-id', String(t.chronoraceCode), '--race-id', String(t.raceId), '--stage', String(targetStage ?? t.minStage ?? 0), '--date', String(t.scheduledDate || t.startDate || ''), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(isFinalStage ? ['--include-final'] : [])]);
     } else {
       // 'uci' (DataRide): fuente oficial. --uci-race-id para una prueba concreta (CN).
       srcLabel = uciRaceId ? ` ← prueba ${uciRaceId}` : '';
+      // Misma condición que fetchStageArgs: la caché solo sirve para atajar el
+      // descubrimiento de UNA etapa. En la final leemos la competición entera
+      // (--stage ausente), y ahí el fetcher la ignora de todas formas.
+      const cachedTopology = kind === 'uci' && targetStage != null && !isFinalStage
+        && t.fetchTopology?.source === 'uci' ? ['--topology', JSON.stringify(t.fetchTopology)] : [];
       fc = await run(FETCH, ['--competition', String(t.competitionId), '--out', outDir, '--delay', DELAY,
-        ...(uciRaceId ? ['--uci-race-id', String(uciRaceId)] : [])]);
+        ...(uciRaceId ? ['--uci-race-id', String(uciRaceId)] : []), ...fetchStageArgs, ...cachedTopology]);
     }
     log(`\n▶ ${t.raceId} [${kind}] (comp ${t.competitionId}${srcLabel}, ${t.gender}, startlist ${t.sl > 0 ? 'sí' : 'NO'})`);
     if (fc !== 0) { log(`  ✗ fetch falló (exit ${fc})`); return { status: 'error', didWrite: false }; }
@@ -456,24 +584,31 @@ async function main() {
     // backlog para siempre (backlog = solo 'pending'). Saltar el upsert → queda 'pending'
     // y el siguiente pase la reintenta (barato: el fetch vacío es 1 request).
     let totalRows = 0;
+    let parsed = null;
     try {
-      const parsed = JSON.parse(readFileSync(jsonPath, 'utf8'));
+      parsed = JSON.parse(readFileSync(jsonPath, 'utf8'));
       for (const st of (parsed.stages || []))
         for (const cl of (st.classifications || [])) totalRows += cl.rowCount || 0;
     } catch { totalRows = -1; }   // JSON ilegible → que el upsert falle visible (errored)
     if (totalRows === 0) { log('  ∅ la fuente aún no publica filas → se deja pending (sin upsert)'); return { status: 'empty', didWrite: false }; }
+    if (parsed) await saveTopology(url, t.raceId, kind, parsed);
 
     const upArgs = ['--in', jsonPath, '--race-id', t.raceId, '--gender', t.gender, '--apply'];
     // Volcado acotado a UNA etapa: el manual usa --stage con --race-id; el automático
-    // configurado trae scheduledStage. En la ÚLTIMA etapa automática se conserva además
-    // la pseudo-etapa Final Classification (stageNumber NULL), porque nace en el mismo
+    // configurado trae scheduledStage. En la ÚLTIMA etapa se conserva además la
+    // pseudo-etapa Final Classification (stageNumber NULL), porque nace en el mismo
     // fetch. Sin --include-final el filtro de etapa la descartaría silenciosamente.
-    const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
+    //
+    // La condición fue `!ONE_RACE && …` hasta 2026-08-07: como ONE_STAGE solo existe
+    // junto a ONE_RACE (--stage exige --race-id), ese `!ONE_RACE` hacía --include-final
+    // INALCANZABLE en el único camino que llega aquí con targetStage != null. Resultado:
+    // "Volcar esta etapa" sobre la última etapa dejaba la general final SIN volcar y sin
+    // avisar (cazado en el Tour of Kahramanmaraş 2026: las 4 finales —general, puntos,
+    // montaña, jóvenes— nunca llegaron a la web). Es la MISMA etapa y el MISMO fetch:
+    // que el disparo sea manual o automático no cambia que la final ya está publicada.
     if (targetStage != null) {
       upArgs.push('--only-stage', String(targetStage));
-      const isAutomaticFinalStage = !ONE_RACE && t.totalStages != null
-        && Number(targetStage) === Number(t.totalStages);
-      if (isAutomaticFinalStage) upArgs.push('--include-final');
+      if (isFinalStage) upArgs.push('--include-final');
     }
     // CN: persistir el MISMO uciRaceId en el link (sin esto el upsert lo resetea a 0 y
     // choca con el índice único (competitionId, disciplineId, uciRaceId)).
@@ -481,18 +616,18 @@ async function main() {
     if (!(t.sl > 0)) upArgs.push('--seed-startlist');   // sin startlist curada → sembrar desde UCI
     if (SKIP_EXISTING) {
       upArgs.push('--skip-existing');
-      // Los cronometradores llegan parciales / con correcciones en la 1ª hora tras meta
-      // (publican en vivo) → re-volcar solo lo reciente; lo asentado (>60 min) se omite.
-      // UCI (DataRide) es definitivo → se omite cualquier clasificación ya presente.
-      if (kind !== 'uci') upArgs.push('--skip-existing-after-min', String(TISSOT_REVOLCADO_MIN));
+      // SportSoft Live consolida bonificaciones tras el orden de meta. Cada
+      // re-volcado refresca lastSyncedAt, por lo que el umbral cubre toda la
+      // ventana de meta sin reabrir etapas asentadas en pasadas posteriores.
+      if (kind === 'sportsoft') upArgs.push('--skip-existing-after-min', '180');
     }
     const up = await run(UPSERT, upArgs);
     // exit 2 = ok pero SIN escritura (--skip-existing omitió todo). No cuenta como cambio.
     if (up === 2) { log('  = sin cambios (todo ya volcado)'); return { status: 'unchanged', didWrite: false }; }
-    // exit 3 = escribió datos pero NINGUNA clasificación era nueva (re-volcado de un
-    // cronometrador sobre páginas ya existentes). Hubo escritura (throttle sí), pero NO
-    // crea contenido/URL nueva → NO regenera og-pages/sitemap.
-    if (up === 3) { log('  ~ re-volcado de datos (sin clasificaciones nuevas) → no regenera SEO'); return { status: 'revolcado', didWrite: true }; }
+    // exit 3 = escribió datos pero NINGUNA clasificación era nueva. Se distingue
+    // para observabilidad; ningún volcado de resultados regenera el sitio porque
+    // las páginas existentes leen las clasificaciones en vivo desde Supabase.
+    if (up === 3) { log('  ~ re-volcado de datos (sin clasificaciones nuevas)'); return { status: 'revolcado', didWrite: true }; }
     if (up !== 0) { log(`  ✗ upsert falló (exit ${up})`); return { status: 'error', didWrite: false }; }
     return { status: 'ok', didWrite: true };
   }
@@ -517,6 +652,12 @@ async function main() {
       : t.source === 'livetiming' && t.livetimingCode ? 'livetiming'
       : t.source === 'classificacoes' && t.classificacoesCode ? 'classificacoes'
       : t.source === 'infocity' && t.infocityCode ? 'infocity'
+      : t.source === 'eqtiming' && t.eqtimingCode ? 'eqtiming'
+      : t.source === 'ASO' && t.asoUrl ? 'ASO'
+      : t.source === 'sportsoft' && t.sportsoftCode ? 'sportsoft'
+      : t.source === 'colombia' && t.colombiaCode ? 'colombia'
+      : t.source === 'burgos' ? 'burgos'
+      : t.source === 'chronorace' && t.chronoraceCode ? 'chronorace'
       : 'uci';
     const kinds = [primaryKind];
     // HÍBRIDO UCI-preferente: source='uci' (oficial, completo) + domtelCode poblado
@@ -544,12 +685,14 @@ async function main() {
   }
 
   log(`\n✅ Resumen: ${ok} ok (${wrote} con clasif. nueva, ${revolcado} re-volcado sin novedad, ${unchanged} sin cambios), ${errored} con error, ${empty} sin publicar (quedan pending), de ${targets.length}.`);
-  // changed = hubo al menos una CLASIFICACIÓN NUEVA (contenido/URL que SEO debe
-  // reflejar) → el workflow regenera og-pages/sitemap. Ni el re-volcado de datos sobre
-  // páginas existentes (exit 3 → `revolcado`) ni los skip-existing (exit 2) cuentan:
-  // así no se queman los workflows cuando las carreras ya tenían su página.
+  // changed conserva el indicador de clasificaciones nuevas para observabilidad.
+  // Los workflows consumidores no lo usan para regenerar el sitio.
   process.stdout.write(JSON.stringify({ processed: targets.length, ok, wrote, revolcado, unchanged, errored, empty, changed: wrote > 0, count: targets.length }) + '\n');
   if (errored > 0 && ok === 0) process.exit(1);   // todo falló → marcar el job en rojo
 }
 
-main().catch((e) => { log('FATAL: ' + (e.stack || e.message)); process.exit(1); });
+// Solo ejecuta al invocarlo directamente (no al importarlo desde los tests), mismo
+// patrón que uci-results-fetch.mjs.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((e) => { log('FATAL: ' + (e.stack || e.message)); process.exit(1); });
+}

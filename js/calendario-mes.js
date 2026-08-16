@@ -11,7 +11,7 @@
 import { supabase, toDateKey, stageLabel, proLevel, countryFlag, effectiveCountryCode,
          jornadaUrl, raceUrl, raceName, categoryBadge, rdLocation,
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
-         getPinnedFilter, renderFilterPins, handleFilterEvent }
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
          from './shared.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
@@ -221,7 +221,7 @@ function raceRowHtml(rd, refId) {
     : '<span class="cal-race__logo cal-race__logo--empty"></span>';
 
   const nameStyle = cancelled ? ' style="text-decoration:line-through;opacity:0.5"' : '';
-  const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${isFemale ? '<span class="cal-race__female">♀</span>' : ''}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
+  const inner = `${logo}<div class="cal-race__main"><div class="cal-race__l1"><span class="cal-race__flag">${flag}</span><span class="cal-race__name"${nameStyle}>${name}</span>${isFemale ? femaleMark({ cls: 'cal-race__female' }) : ''}${l1Extra}</div>${l2}</div><span class="cal-race__chev">›</span>`;
 
   // Destino del clic: misma lógica que la rejilla retirada.
   const isNoClickable = race.isNoClickable === true;
@@ -241,11 +241,14 @@ function raceRowHtml(rd, refId) {
     const month = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
     return `<a class="${cls}" href="${raceUrl(race, { from: 'mes', month })}" style="${style}" data-ref="${refId}" data-nav="1">${inner}</a>`;
   }
+  // Estas dos filas abren un diálogo en vez de navegar: <button> real, que
+  // ya trae foco, Enter/Espacio y el rol anunciado (WCAG 2.1.1). No llevan
+  // enlaces anidados, así que el botón no rompe nada.
   if (!rd._placeholder && !isRestDay && !cancelled && hasModalData(rd)) {
-    return `<div class="${cls} cal-race--modal" style="${style}" data-ref="${refId}" data-modal="1">${inner}</div>`;
+    return `<button type="button" class="${cls} cal-race--modal" style="${style}" data-ref="${refId}" data-modal="1">${inner}</button>`;
   }
   // Placeholder / sin información: banner-tooltip (mismo openPhBanner de la rejilla)
-  return `<div class="${cls}" style="${style}" data-ref="${refId}" data-ph="1">${inner}</div>`;
+  return `<button type="button" class="${cls}" style="${style}" data-ref="${refId}" data-ph="1">${inner}</button>`;
 }
 
 function champRowHtml() {
@@ -450,7 +453,7 @@ function buildBar() {
   // Filtros de categoría (mismo patrón pin/click que temporada)
   const mesCats = document.getElementById('mesCats');
   mesCats.querySelectorAll('.tcat-btn').forEach(b =>
-    b.classList.toggle('tcat-btn--active', b.dataset.cat === activeCat));
+    setPressed(b, b.dataset.cat === activeCat));
   renderFilterPins(mesCats, activeCat);
   const onFilterEvent = e => {
     const res = handleFilterEvent(e);
@@ -458,7 +461,7 @@ function buildBar() {
     if (res.type === 'pin') { renderFilterPins(mesCats, activeCat); return; }
     activeCat = res.cat;
     mesCats.querySelectorAll('.tcat-btn').forEach(b =>
-      b.classList.toggle('tcat-btn--active', b.dataset.cat === activeCat));
+      setPressed(b, b.dataset.cat === activeCat));
     renderFilterPins(mesCats, activeCat);
     renderMes();
   };

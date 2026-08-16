@@ -1,6 +1,6 @@
 # Haptics — mapeo iOS / Android
 
-Detalle complementario de la sección "Haptics" de `CLAUDE.md`.
+Documentación técnica de hápticos.
 
 Archivos: `Services/Haptics.swift` (iOS) · `util/Haptics.kt` (Android).
 

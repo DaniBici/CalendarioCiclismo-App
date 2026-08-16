@@ -63,6 +63,7 @@ const LOCALES = {
       stageCancelledBadge: 'Cancelada', stageCancelledTooltip: 'Etapa cancelada',
       previous: 'Etapa anterior', next: 'Etapa siguiente',
       viewAll: 'Ver todas las etapas', summary: 'Resumen',
+      pickStage: 'Elegir etapa',
       oneDay: 'Clásica', stageTour: 'Vuelta por etapas',
       route: 'Recorrido', distanceAndType: 'Distancia y tipo',
       schedule: 'Horarios', yourTimezone: 'Tu zona horaria', madridTimezone: 'España peninsular',
@@ -150,6 +151,7 @@ const LOCALES = {
       cancelled: 'Carrera cancelada', stageCancelled: 'Etapa cancelada',
       unknown: 'Carrera desconocida', error: 'Error al cargar la carrera',
       errorCompetition: 'Error al cargar la competición', errorChallenge: 'Error al cargar el challenge',
+      viewFull: 'Ver carrera completa',
     },
     loading: {
       stages: 'Cargando jornadas', month: 'Cargando calendario de mes',
@@ -161,6 +163,9 @@ const LOCALES = {
       noRaces: 'No hay carreras programadas para este día',
       noRacesFilter: 'No hay carreras con este filtro para el día seleccionado',
       nextDay: 'Ir al próximo día con carreras →',
+      prevDayLabel: 'Día anterior',
+      nextDayLabel: 'Día siguiente',
+      racesFor: '{n} · {date}',
     },
     report: {
       title: 'Reportar cambio',

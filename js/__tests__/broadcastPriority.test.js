@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { broadcastLinkPriority, pickBadgeBroadcast } from '../broadcast-priority.js';
 
 // Prioridad del enlace del badge de TV en directo:
-//   0) YouTube  1) otras redes sociales  2) RTVE.es  3) CCMA/EITB  4) resto de cadenas.
+//  -1) CyLTV embebible  0) YouTube  1) otras redes  2) RTVE.es  3) RTP1/CCMA/EITB  4) resto.
 describe('broadcastLinkPriority', () => {
+  it('el reproductor embebible de CyLTV tiene prioridad máxima en la web', () => {
+    expect(broadcastLinkPriority('https://www.cyltvplay.es/player/uuid/la8bu/la-8-burgos')).toBe(-1);
+  });
+
   it('YouTube es el tier 0', () => {
     expect(broadcastLinkPriority('https://www.youtube.com/watch?v=abc')).toBe(0);
     expect(broadcastLinkPriority('https://youtu.be/abc')).toBe(0);
@@ -25,7 +29,8 @@ describe('broadcastLinkPriority', () => {
     expect(broadcastLinkPriority('https://www.rtve.es/play/videos/directo/teledeporte/')).toBe(2);
   });
 
-  it('otras TV públicas españolas (CCMA/3Cat, EITB) son tier 3', () => {
+  it('otras TV públicas en abierto (RTP1, CCMA/3Cat, EITB) son tier 3', () => {
+    expect(broadcastLinkPriority('https://www.rtp.pt/play/direto/rtp1')).toBe(3);
     expect(broadcastLinkPriority('https://www.ccma.cat/3cat/directes/esport3/')).toBe(3);
     expect(broadcastLinkPriority('https://www.3cat.cat/3cat/directes/esport3/')).toBe(3);
     expect(broadcastLinkPriority('https://www.eitb.eus/es/directo/etb-1/')).toBe(3);
@@ -38,6 +43,12 @@ describe('broadcastLinkPriority', () => {
     const ccma = broadcastLinkPriority('https://www.ccma.cat/3cat/directes/esport3/');
     expect(rtve).toBeLessThan(eitb);
     expect(rtve).toBeLessThan(ccma);
+  });
+
+  it('RTP1 gana a Eurosport / HBO Max para la Volta a Portugal', () => {
+    const rtp1 = broadcastLinkPriority('https://www.rtp.pt/play/direto/rtp1');
+    expect(rtp1).toBeLessThan(broadcastLinkPriority('https://play.hbomax.com/sport/abc'));
+    expect(rtp1).toBeLessThan(broadcastLinkPriority('https://www.hbomax.com/gb/en/sports/cycling'));
   });
 
   it('Eurosport / HBO Max / Max son "una cadena más" (tier 4)', () => {
@@ -83,6 +94,12 @@ describe('pickBadgeBroadcast', () => {
   it('con AMBAS en directo, manda el tier (RTVE por delante de Eurosport)', () => {
     const late = new Date('2026-07-07T15:00:00Z').getTime() / 1000; // ambas emitiendo
     expect(pickBadgeBroadcast([rtve, eurosport], startSeconds, late)).toBe(rtve);
+  });
+
+  it('CyLTV gana a RTVE si ambas emisiones están en directo', () => {
+    const cyltv = { url: 'https://www.cyltvplay.es/player/uuid/la8bu/la-8-burgos', startTimeUtc: '2026-07-07T11:00:00Z', sortOrder: 2 };
+    const rtveLive = { ...rtve, startTimeUtc: '2026-07-07T11:00:00Z' };
+    expect(pickBadgeBroadcast([rtveLive, cyltv], startSeconds, NOW)).toBe(cyltv);
   });
 
   it('una emisión sin hora NO cuenta como en directo (solo cuenta en el fallback por tier)', () => {

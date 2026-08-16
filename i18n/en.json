@@ -23,6 +23,7 @@
     "previous": "Previous stage",
     "next": "Next stage",
     "viewAll": "View all stages",
+    "pickStage": "Choose stage",
     "summary": "Summary",
     "oneDay": "Classic",
     "stageTour": "Stage race",
@@ -204,6 +205,7 @@
     "unknown": "Unknown race",
     "error": "Error loading race",
     "errorCompetition": "Error loading race",
+    "viewFull": "View full race",
     "errorChallenge": "Error loading challenge"
   },
   "loading": {
@@ -221,7 +223,10 @@
     "races_other": "{n} races",
     "noRaces": "No races scheduled for this day",
     "noRacesFilter": "No races matching this filter for the selected day",
-    "nextDay": "Go to next day with races →"
+    "nextDay": "Go to next day with races →",
+    "prevDayLabel": "Previous day",
+    "nextDayLabel": "Next day",
+    "racesFor": "{n} · {date}"
   },
   "report": {
     "title": "Report a change",

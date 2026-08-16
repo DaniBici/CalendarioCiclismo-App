@@ -56,6 +56,13 @@ const hasFlag = (n) => args.includes(`--${n}`);
 const COMPETITION = getArg('competition');
 const DISCIPLINE = getArg('discipline') || '10';
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
+// Caché opcional de uci-results-cron: cuando solo falta una etapa conocida evita
+// repetir la llamada Races/ para descubrir toda la competición.
+const TOPOLOGY = (() => {
+  const raw = getArg('topology');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+})();
 // --uci-race-id: limitar a UNA "race" de DataRide por su race.Id (NO el nº de etapa). Se usa
 // para los Campeonatos Nacionales, donde la UCI publica todas las pruebas (línea/CRI ×
 // élite/sub23 × M/F) bajo un único competitionId, cada una como una "race" con su race.Id
@@ -389,14 +396,28 @@ async function main() {
   log(`Fetcher de resultados — competitionId=${COMPETITION} disciplineId=${DISCIPLINE}`);
   await seedCookie();
 
-  // 1) Etapas de la competición.
-  const racesRes = await post('Races/', {
-    disciplineId: DISCIPLINE, competitionId: COMPETITION,
-    take: 60, skip: 0, page: 1, pageSize: 60,
-  });
-  const races = (racesRes.json && racesRes.json.data) || [];
-  log(`Etapas: ${races.length}`);
-  if (!races.length) { log('⚠️  0 etapas — ¿competitionId correcto? ¿disciplina correcta?'); }
+  // 1) Etapas de la competición. Para una etapa concreta, reutilizar la
+  // topología persistida por el cron si contiene su raceId DataRide; el fallback
+  // conserva el descubrimiento normal si la caché quedó vieja o incompleta.
+  const cachedStages = ONLY_STAGE != null && TOPOLOGY?.source === 'uci'
+    ? (TOPOLOGY.stages || []).filter((st) => Number(st.stageNumber) === ONLY_STAGE && Number(st.uciRaceId) > 0)
+    : [];
+  let races;
+  if (cachedStages.length) {
+    races = cachedStages.map((st) => ({
+      Id: Number(st.uciRaceId), RaceName: st.stageName, Date: st.dateKey,
+      RaceTypeCode: st.raceType, StartLocation: null,
+    }));
+    log(`Etapas: 1 (caché de topología)`);
+  } else {
+    const racesRes = await post('Races/', {
+      disciplineId: DISCIPLINE, competitionId: COMPETITION,
+      take: 60, skip: 0, page: 1, pageSize: 60,
+    });
+    races = (racesRes.json && racesRes.json.data) || [];
+    log(`Etapas: ${races.length}`);
+    if (!races.length) { log('⚠️  0 etapas — ¿competitionId correcto? ¿disciplina correcta?'); }
+  }
 
   // CN: quedarnos SOLO con la "race" cuyo race.Id pidió --uci-race-id (la prueba concreta).
   const racesToWalk = ONLY_UCI_RACE_ID != null ? races.filter((r) => r.Id === ONLY_UCI_RACE_ID) : races;

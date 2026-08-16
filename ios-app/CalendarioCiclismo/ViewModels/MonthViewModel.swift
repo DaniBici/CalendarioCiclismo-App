@@ -11,7 +11,7 @@ final class MonthViewModel {
     var races: [Race] = []
     var isLoading = false
     var error: String?
-    var activeFilter: Constants.CategoryFilter = .pro
+    var activeFilter: Constants.CategoryFilter = .all
     /// Indica que los datos mostrados provienen de la caché offline.
     var isFromCache = false
     /// Texto legible con la antigüedad de la caché (ej: "Hace 2 h").

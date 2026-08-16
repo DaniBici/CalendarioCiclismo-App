@@ -77,7 +77,7 @@ class PremiumServiceTest {
     @Test
     fun `billing product id is the canonical 'premium' identifier`() {
         // El subscription product en Play Console se llama `premium`. Si esto
-        // cambia, hay que actualizar también la documentación en CLAUDE.md
+        // cambia, hay que actualizar también docs/memory/premium.md
         // y avisar al usuario para que migre el product en Play.
         assertEquals("premium", BillingManager.PRODUCT_ID)
     }

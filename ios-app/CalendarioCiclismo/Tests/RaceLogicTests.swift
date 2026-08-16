@@ -99,7 +99,8 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/"), 2)
     }
 
-    func test_broadcastLinkPriority_otherSpanishPublicTvIsTier3() {
+    func test_broadcastLinkPriority_otherPublicTvIsTier3() {
+        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1"), 3)
         XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"), 3)
         XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.3cat.cat/3cat/directes/esport3/"), 3)
         XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"), 3)
@@ -110,6 +111,12 @@ final class RaceLogicTests: XCTestCase {
         let rtve = RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/")
         XCTAssertLessThan(rtve, RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
         XCTAssertLessThan(rtve, RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
+    }
+
+    func test_broadcastLinkPriority_rtp1BeatsWbdForVoltaPortugal() {
+        let rtp1 = RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1")
+        XCTAssertLessThan(rtp1, RaceLogic.broadcastLinkPriority("https://play.hbomax.com/sport/abc"))
+        XCTAssertLessThan(rtp1, RaceLogic.broadcastLinkPriority("https://www.hbomax.com/gb/en/sports/cycling"))
     }
 
     func test_broadcastLinkPriority_eurosportAndHboAreJustAnotherChannel() {

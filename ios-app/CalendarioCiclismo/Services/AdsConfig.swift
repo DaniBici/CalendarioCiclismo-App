@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Espejo del objeto `AdsConfig` de Android (`data/ads/AdsConfig.kt`).
 ///
-/// **Principio rector (CLAUDE.md):** todo lo de anuncios cuelga de
+/// **Principio rector (`docs/memory/premium.md`):** todo lo de anuncios cuelga de
 /// `PremiumService.shouldShowAds`; NUNCA de `featuresUnlocked`. Esta config solo
 /// provee identificadores — el gate de si se inicializa/renderiza vive en la capa
 /// que la consume.

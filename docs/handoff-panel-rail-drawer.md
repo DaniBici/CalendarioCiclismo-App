@@ -1,7 +1,7 @@
 # Handoff — Rediseño del panel: rail lateral + drawer único
 
 > **Para retomar en una sesión nueva.** Lee esto entero antes de tocar nada.
-> Memoria asociada: `project_panel_rail_drawer_redesign`. Plan: `~/.claude/plans/wobbly-growing-toast.md`.
+> Memoria asociada: `project_panel_rail_drawer_redesign`.
 > ⚠️ Los números de línea son orientativos (bailan al editar). **Confirma siempre con `grep`** antes de usarlos.
 
 ## Estado al cierre (2026-06-09, 2ª sesión) — REDISEÑO EN `main` ✅
@@ -52,7 +52,7 @@ Por cada editor:
 
 ## Verificación (cómo probar)
 
-- Servidor: `preview_start` con la config **`static`** (`.claude/launch.json`, puerto **8765**). Navegar a `http://localhost:8765/panel/app.html`.
+- Servidor: `node tools/static-server.mjs` (puerto **8765**). Navegar a `http://localhost:8765/panel/app.html`.
 - **Dani inicia sesión manualmente** (Supabase auth) — sin sesión, redirige a `panel/index.html`. Pídeselo al empezar.
 - La consola del preview MCP **a veces no captura** logs de este módulo → verifica con `getComputedStyle`/estado DOM, no solo con la consola.
 - Al leer `getComputedStyle(transform)` justo tras togglear `.is-open`, esperas **~350ms** o capturas la transición a medias (la lectura da `translateX(426px)` en vez de 0).
@@ -75,5 +75,4 @@ Por cada editor:
 
 ## Al terminar el rediseño completo — ESTADO
 - ✅ Subido a `main` (varias veces, en sync).
-- ⏳ Actualizar `CLAUDE.md` ("Estado actual") describiendo el nuevo shell — HACER en esta sesión.
 - Apéndice del plan: split de `panel.js` (10k líneas) queda como PR **aparte** posterior.

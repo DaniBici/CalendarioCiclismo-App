@@ -8,6 +8,7 @@ import SwiftUI
 struct PremiumShowcaseOnboardingView: View {
     @State private var premium = PremiumService.shared
     @State private var isAnimating = false
+    @Environment(\.openURL) private var openURL
     let onDismiss: () -> Void
 
     // MARK: - Body
@@ -22,6 +23,7 @@ struct PremiumShowcaseOnboardingView: View {
                         headerSection
                             .padding(.top, 56)
                         benefitsCard
+                        transparencyCard
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
@@ -66,14 +68,14 @@ struct PremiumShowcaseOnboardingView: View {
             ))
             .accessibilityHidden(true)
 
-            Text(LocaleService.t("Sin anuncios, independiente", "Ad-free and independent"))
+            Text(LocaleService.t("Sin anuncios. Gratis para todos.", "Ad-free. Free for everyone."))
                 .font(.title)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
 
             Text(LocaleService.t(
-                "Quita todos los anuncios y disfruta de una app más limpia y rápida. No es un negocio: la suscripción solo ayuda a cubrir el coste de mantener el proyecto, que seguirá siendo gratis para todos.",
-                "Remove every ad and enjoy a cleaner, faster app. It's not a business: the subscription only helps cover the cost of running the project, which will stay free for everyone."
+                "Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.",
+                "Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free."
             ))
             .font(.body)
             .foregroundStyle(.secondary)
@@ -98,6 +100,36 @@ struct PremiumShowcaseOnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var transparencyCard: some View {
+        Button {
+            AnalyticsService.shared.logEvent("contribution_transparency_tap", parameters: ["source": "onboarding"])
+            openURL(transparencyURL)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "heart.text.square")
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(LocaleService.t("Un proyecto sostenido por su comunidad", "A project sustained by its community"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(LocaleService.t("Código abierto, sin intereses comerciales y con las cuentas publicadas.", "Open source, non-commercial, with public accounts."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(LocaleService.t("Abre la página de transparencia en el navegador", "Opens the transparency page in the browser"))
     }
 
     // MARK: - Bottom buttons (fijos, fuera del scroll)
@@ -179,9 +211,12 @@ struct PremiumShowcaseOnboardingView: View {
     // MARK: - Helpers
 
     private func markDone() {
-        // Marca el gate vivo de esta pantalla. Los flags legacy `ads_intro_done`
-        // (2.3) y `premium_showcase_done` (2.0) se retiraron el 2026-07-19 (ya
-        // saturados a `true` en el parque, no los lee nadie).
-        UserDefaults.standard.set(true, forKey: "ads_intro_v4_done")
+        UserDefaults.standard.set(true, forKey: "contribution_intro_v4_2_3_1_done")
+    }
+
+    private var transparencyURL: URL {
+        URL(string: LocaleService.isEnglish
+            ? "https://www.calendariociclismo.app/en/open/"
+            : "https://www.calendariociclismo.app/abierto.html")!
     }
 }

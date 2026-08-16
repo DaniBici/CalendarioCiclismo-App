@@ -12,6 +12,7 @@ import { supabase, toDateKey, countryFlag, stageLabel, esc,
 import { annotateDoubleSectors } from './services/races.js';
 import { detectClimb, computeClimbStats } from './climb-detection.js';
 import { exportElevationProfilePNG } from './elevation-profile.js';
+import { mountProfileDigitizer } from './profile-digitizer.js';
 import { openDrawer, closeDrawer, isDrawerOpen } from './components/drawer.js';
 import { confirmDialog, alertDialog, promptDialog } from './components/dialog.js';
 import { genderToggleHtml, setGenderToggleActive, wireGenderToggle } from './components/gender-toggle.js';
@@ -82,7 +83,7 @@ function _gpxSimplify(enriched) {
   return best;
 }
 
-async function _gpxHandleUpload(file, rdId, statusEl, summaryEl, btnEl) {
+async function _gpxHandleUpload(file, rdId, statusEl, summaryEl, btnEl, onSaved = null) {
   statusEl.textContent = 'Procesando…';
   btnEl.disabled = true;
   try {
@@ -113,6 +114,7 @@ async function _gpxHandleUpload(file, rdId, statusEl, summaryEl, btnEl) {
     const { error } = await supabase.from('race_days').update({ elevationProfile: profile }).eq('id', rdId);
     if (error) throw error;
     if (_editorCache?.rdId === rdId) _editorCache.rd = { ..._editorCache.rd, elevationProfile: profile };
+    onSaved?.(profile);
     // Tras guardar el GPX, intentar detectar el inicio de cada puerto que aún
     // no lo tenga, y refrescar el "X km · Y%" de los que sí. Los cambios se
     // reflejan en los inputs y se persisten cuando el usuario pulse Guardar.
@@ -219,7 +221,6 @@ function _wireMapDelete(delBtn, rdId, summaryEl, btnEl) {
 // ── Cloudflare R2 — subida vía Edge Function (proxy server-side) ─
 const R2_PUBLIC_BASE       = 'https://assets.calendariociclismo.app';
 const R2_UPLOAD_FN         = `${SUPABASE_URL}/functions/v1/r2-upload`;
-const TRIGGER_WORKFLOWS_FN = `${SUPABASE_URL}/functions/v1/trigger-workflows`;
 
 // ── Helpers para subir/borrar/listar archivos vía Edge Function ──
 async function getAuthHeaders() {
@@ -400,6 +401,7 @@ let currentRaceDayId    = null;
 let allRaces            = [];
 let currentDayRaceIds   = new Set(); // raceIds que ya tienen jornada en currentDateKey
 let _editorCache = null; // { rd, broadcasts, assets } | null — evita releer Firestore tras guardar
+let _profileDigitizerCleanup = null;
 let _raceDaySaveInFlight = false;
 
 function setRaceDaySaveInFlight(inFlight) {
@@ -1310,12 +1312,6 @@ async function setupStartOrderSection(rd) {
       // Actualizar hasAssets
       await supabase.from('race_days').update({ hasAssets: true }).eq('id', rd.id);
 
-      // Disparar og-pages y sitemap para que la página estática se genere de inmediato
-      getAuthHeaders().then(auth =>
-        fetch(TRIGGER_WORKFLOWS_FN, { method: 'POST', headers: auth })
-          .catch(() => {}) // fire-and-forget, no bloquea el guardado
-      );
-
       // Actualizar estado visual
       const statusEl = document.getElementById('soStatus');
       if (statusEl) {
@@ -1426,6 +1422,8 @@ function attachDeleteHandler(btn, rd) {
 
 function renderEditor(rd, race, broadcasts, assets) {
   const area   = document.getElementById('editorArea');
+  _profileDigitizerCleanup?.();
+  _profileDigitizerCleanup = null;
   const isDraft = rd.editorialStatus !== 'published';
   const flag    = countryFlag(race.countryCode);
 
@@ -1826,17 +1824,28 @@ function renderEditor(rd, race, broadcasts, assets) {
           </div>
           <div style="display:flex;align-items:center;gap:0.6rem">
             <button class="btn btn--ghost" id="ed-gpx-btn">${rd.elevationProfile ? 'Reemplazar GPX' : 'Subir GPX'}</button>
-            ${rd.elevationProfile ? `<button class="btn btn--ghost" id="ed-gpx-del" style="font-size:0.8rem;color:var(--red)">Borrar</button>` : ''}
-            ${rd.elevationProfile ? `<a class="btn btn--ghost u-fs-082" href="/panel/perfil.html?id=${rd.id}" target="_blank" rel="noopener">Ver perfil ↗</a>` : ''}
-            ${rd.elevationProfile ? `<button class="btn btn--ghost u-fs-082" id="ed-gpx-png" title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.3em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>` : ''}
+            <button class="btn btn--ghost" id="ed-gpx-del" style="font-size:0.8rem;color:var(--red);${rd.elevationProfile ? '' : 'display:none'}">Borrar</button>
+            <a class="btn btn--ghost u-fs-082" id="ed-gpx-view" href="/panel/perfil.html?id=${rd.id}" target="_blank" rel="noopener" style="${rd.elevationProfile ? '' : 'display:none'}">Ver perfil ↗</a>
+            <button class="btn btn--ghost u-fs-082" id="ed-gpx-png" style="${rd.elevationProfile ? '' : 'display:none'}" title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.3em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>
             <span class="u-fs-md u-c-muted" id="ed-gpx-status"></span>
           </div>
-          ${rd.elevationProfile ? `<label style="display:flex;align-items:center;gap:0.45rem;margin-top:0.5rem;cursor:pointer;font-size:0.82rem;color:var(--text-muted)">
+          <label id="ed-profile-not-viewable-label" style="display:${rd.elevationProfile ? 'flex' : 'none'};align-items:center;gap:0.45rem;margin-top:0.5rem;cursor:pointer;font-size:0.82rem;color:var(--text-muted)">
             <input type="checkbox" id="ed-profile-not-viewable" ${rd.profileNotViewable ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--red)">
             No visualizable en público
-          </label>` : ''}
+          </label>
         </div>
       </div>
+
+      <!-- Digitalizador manual de perfiles desde una imagen -->
+      <details class="editor-section editor-section--advanced" data-tab="perfil">
+        <summary class="editor-section__header editor-advanced__summary">
+          <span class="editor-section__title">Digitalizar perfil desde imagen</span>
+          <span class="editor-advanced__hint">Clics + dos referencias de altitud</span>
+        </summary>
+        <div class="editor-section__body">
+          <div id="ed-profile-digitizer" class="profile-digitizer"></div>
+        </div>
+      </details>
 
       <!-- Mapa interactivo del recorrido (Leaflet, opt-in) -->
       <div class="editor-section" data-tab="perfil">
@@ -1989,12 +1998,40 @@ function renderEditor(rd, race, broadcasts, assets) {
   const _gpxBtn    = document.getElementById('ed-gpx-btn');
   const _gpxStatus = document.getElementById('ed-gpx-status');
   const _gpxSummary = document.getElementById('ed-gpx-summary');
+  const _syncElevationProfileUi = profile => {
+    if (_editorCache?.rdId === area.dataset.rdId) {
+      _editorCache.rd = { ..._editorCache.rd, elevationProfile: profile };
+    }
+    if (profile) {
+      _gpxSummary.textContent = `${profile.distance} km · +${profile.elevationGain} m / -${profile.elevationLoss} m · ${profile.points?.length ?? '?'} puntos`;
+      _gpxSummary.dataset.distance = profile.distance;
+      _gpxSummary.style.display = '';
+      _gpxBtn.textContent = 'Reemplazar GPX';
+      document.getElementById('ed-gpx-del').style.display = '';
+      document.getElementById('ed-gpx-view').style.display = '';
+      document.getElementById('ed-gpx-png').style.display = '';
+      document.getElementById('ed-profile-not-viewable-label').style.display = 'flex';
+      const elevInput = document.getElementById('ed-elev');
+      if (elevInput) elevInput.value = profile.elevationGain ?? '';
+    } else {
+      _gpxSummary.style.display = 'none';
+      _gpxSummary.textContent = '';
+      delete _gpxSummary.dataset.distance;
+      _gpxBtn.textContent = 'Subir GPX';
+      document.getElementById('ed-gpx-del').style.display = 'none';
+      document.getElementById('ed-gpx-view').style.display = 'none';
+      document.getElementById('ed-gpx-png').style.display = 'none';
+      document.getElementById('ed-profile-not-viewable-label').style.display = 'none';
+      const elevInput = document.getElementById('ed-elev');
+      if (elevInput) elevInput.value = '';
+    }
+  };
   if (_gpxBtn) {
     const _gpxFileIn = document.createElement('input');
     _gpxFileIn.type = 'file';
     _gpxFileIn.accept = '.gpx,application/gpx+xml,text/xml,application/xml';
     _gpxFileIn.addEventListener('change', () => {
-      if (_gpxFileIn.files[0]) _gpxHandleUpload(_gpxFileIn.files[0], area.dataset.rdId, _gpxStatus, _gpxSummary, _gpxBtn);
+      if (_gpxFileIn.files[0]) _gpxHandleUpload(_gpxFileIn.files[0], area.dataset.rdId, _gpxStatus, _gpxSummary, _gpxBtn, _syncElevationProfileUi);
       _gpxFileIn.value = '';
     });
     _gpxBtn.addEventListener('click', () => _gpxFileIn.click());
@@ -2003,15 +2040,48 @@ function renderEditor(rd, race, broadcasts, assets) {
     if (!await confirmDialog('Borrar el perfil de elevación de esta jornada?', { danger: true })) return;
     const { error } = await supabase.from('race_days').update({ elevationProfile: null }).eq('id', area.dataset.rdId);
     if (error) { showToast('Error al borrar: ' + error.message); return; }
-    if (_editorCache?.rdId === area.dataset.rdId) _editorCache.rd = { ..._editorCache.rd, elevationProfile: null };
-    _gpxSummary.style.display = 'none';
-    _gpxSummary.textContent = '';
-    // Vaciar el campo manual de desnivel: al borrar el GPX no queda perfil ni gain.
-    const _elevInput = document.getElementById('ed-elev');
-    if (_elevInput) _elevInput.value = '';
-    document.getElementById('ed-gpx-del').remove();
-    _gpxBtn.textContent = 'Subir GPX';
+    _syncElevationProfileUi(null);
     showToast('Perfil de elevacion borrado', 'success', 3000);
+  });
+
+  _profileDigitizerCleanup = mountProfileDigitizer({
+    root: document.getElementById('ed-profile-digitizer'),
+    distanceInput: document.getElementById('ed-km'),
+    initialAssetUrl: (() => {
+      const profileAsset = assets.find(asset => asset.type === 'profile' && (asset.url || asset.filePath));
+      return profileAsset?.url || profileAsset?.filePath || null;
+    })(),
+    loadAssetData: async url => {
+      if (!url.startsWith(R2_PUBLIC_BASE)) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      }
+      const filename = decodeURIComponent(new URL(url).pathname.replace(/^\/+/, ''));
+      const response = await fetch(R2_UPLOAD_FN, {
+        method: 'GET',
+        headers: {
+          ...await getAuthHeaders(),
+          'x-action': 'download-profile',
+          'x-filename': encodeURIComponent(filename),
+        },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+      return response.arrayBuffer();
+    },
+    onSave: async profile => {
+      const current = (_editorCache?.rdId === area.dataset.rdId) ? _editorCache.rd?.elevationProfile : rd.elevationProfile;
+      if (current && !await confirmDialog('¿Reemplazar el perfil de elevación actual por el digitalizado?')) {
+        throw new Error('Guardado cancelado.');
+      }
+      const { error } = await supabase.from('race_days').update({ elevationProfile: profile }).eq('id', area.dataset.rdId);
+      if (error) throw error;
+      _syncElevationProfileUi(profile);
+      showToast('Perfil digitalizado guardado', 'success', 3000);
+    },
   });
 
   // Boton de subida del GPX del MAPA interactivo (independiente del perfil).
@@ -3176,11 +3246,11 @@ async function saveRaceDay(status) {
     await openEditor(rdId); // usará _editorCache, 0 lecturas Firestore
     showToast(status === 'published' ? 'Publicado correctamente' : 'Borrador guardado', 'success', 3000);
 
-    // Al publicar una jornada CLICABLE (published + slug), disparar la
-    // regeneración de sus páginas estáticas para que dejen de dar 404 sin
-    // esperar al cron diario. Fire-and-forget: no bloquea ni afecta al toast.
+    // Crear las páginas estáticas solo si la URL canónica aún no existe. Las
+    // jornadas ya publicadas leen sus cambios en vivo desde Supabase y no deben
+    // reconstruir el artifact completo tras cada edición.
     if (status === 'published' && slugVal) {
-      _triggerWebPagesRegen();
+      _markWebPagesDirtyIfMissing(slugVal);
     }
 
   } catch (err) {
@@ -4624,11 +4694,6 @@ const UCI_CLASS_LABELS = {
 };
 const UCI_IRM_CODES = ['DNF', 'DNS', 'OTL', 'DSQ', 'ABD', 'LAP'];
 
-const UCI_SYNC_LABELS = {
-  ok: '✓ sincronizada', pending: 'pendiente de volcado',
-  error: 'error de sync', partial: 'sync parcial',
-};
-
 // Fuentes que el panel puede cambiar a 'uci' al (re)enlazar una competición de DataRide.
 // Las de CRONOMETRADOR quedan fuera a propósito: su competitionId es sintético y su
 // código propio (tissotCode…) manda — pasarlas a 'uci' las rompería. Ver _writeUciLink.
@@ -4644,7 +4709,46 @@ const UCI_SOURCE_LABELS = {
   matsport: 'Matsport', sportstiming: 'Sportstiming (volcado manual)',
   manual_timing: 'manual_timing (volcado manual)', raceresult: 'race|result',
   sts: 'STS/Wiclax', domtel: 'Domtel', livetiming: 'Livetiming.at',
+  classificacoes: 'Classificações', infocity: 'InfoCity', sportsoft: 'Sportsoft',
+  eqtiming: 'EQ Timing', colombia: 'Clasificaciones del Ciclismo Colombiano',
+  burgos: 'Vuelta a Burgos',
 };
+
+// La cabecera del panel debe llevar a quien realmente cronometra la carrera, no
+// al identificador técnico que conservamos para el fetcher. Son páginas base: el
+// código de cada proveedor no siempre se puede convertir en una URL pública estable.
+const UCI_SOURCE_URLS = {
+  uci: 'https://dataride.uci.ch/iframe/Results/10/',
+  tissot: 'https://www.tissottiming.com/',
+  matsport: 'https://cycling.matsport.com/',
+  sportstiming: 'https://www.sportstiming.dk/',
+  manual_timing: 'https://timing.example.invalid/',
+  raceresult: 'https://my.raceresult.com/',
+  sts: 'https://www.stsport.fr/',
+  domtel: 'https://wyniki.domtel-sport.pl/',
+  livetiming: 'https://livetiming.at/',
+  classificacoes: 'https://www.classificacoes.net/',
+  infocity: 'https://tdp.infocity.pl/',
+  sportsoft: 'https://vysledky.sportsoft.cz/',
+  eqtiming: 'https://live.eqtiming.com/',
+  colombia: 'https://www.clasificacionesdelciclismocolombiano.com/',
+  burgos: 'https://www.vueltaburgos.com/',
+};
+
+function _ruSourceLink(source) {
+  const label = UCI_SOURCE_LABELS[source] || source;
+  const url = UCI_SOURCE_URLS[source];
+  return url
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`
+    : esc(label);
+}
+
+function _ruLastDumpAt(stages) {
+  return stages.reduce((latest, stage) => {
+    const value = stage.updatedAt;
+    return value && (!latest || new Date(value) > new Date(latest)) ? value : latest;
+  }, null);
+}
 
 function _ruClassLabel(st) {
   const base = UCI_CLASS_LABELS[st.classKind] || st.classKind;
@@ -4671,7 +4775,7 @@ async function setupUciResultsSection(rd, race) {
 }
 
 // Cabecera de fuente: el enlace se decide a mano en DataRide; no hay matcher.
-function _ruOriginHtml(rd, race, link) {
+function _ruOriginHtml(rd, race, link, stageResults = []) {
   if (!link) {
     return `<div class="ru-origin">
       <div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> —
@@ -4682,10 +4786,9 @@ function _ruOriginHtml(rd, race, link) {
       </div>
     </div>`;
   }
-  const sync = UCI_SYNC_LABELS[link.syncStatus] || link.syncStatus || '';
-  const evTag = link.uciRaceId ? ` <span class="u-c-dim" title="Campeonato Nacional: prueba concreta dentro de la competición">· prueba ${esc(String(link.uciRaceId))}</span>` : '';
   const src = link.source || 'uci';
   const srcLabel = UCI_SOURCE_LABELS[src] || src;
+  const lastDumpAt = _ruLastDumpAt(stageResults);
   // Una fuente sin fetcher deja el volcado en manos del volcado manual: decirlo aquí
   // evita que el cron parezca activo y no lo esté (fallo mudo).
   const manualWarn = UCI_MANUAL_SOURCES.has(src)
@@ -4705,11 +4808,8 @@ function _ruOriginHtml(rd, race, link) {
         : '');
   return `<div class="ru-origin">
     <div class="ru-origin__state">
-      Origen: ${_uciCompLink(link.competitionId)}${evTag}
-      <span class="u-c-dim">(${link.autoMatched ? 'auto' : 'manual'})</span>
-      · <span class="u-c-dim" title="Fuente de datos de esta carrera">${esc(srcLabel)}</span>
-      · <span style="${link.syncStatus === 'error' ? 'color:#e55' : 'color:var(--text-muted)'}">${esc(sync)}</span>
-      ${link.lastSyncedAt ? `<span class="u-c-dim"> · último volcado ${formatDateTime(link.lastSyncedAt)}</span>` : ''}
+      Origen: ${_ruSourceLink(src)}
+      ${lastDumpAt ? `<span class="u-c-dim"> · último volcado ${formatDateTime(lastDumpAt)}</span>` : ''}
     </div>
     ${manualWarn}
     ${link.syncError ? `<div style="color:#e55;font-size:0.72rem;margin-top:0.25rem">${esc(link.syncError)}</div>` : ''}
@@ -4733,6 +4833,7 @@ function _ruClassRowHtml(st) {
     ${locked ? `<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(formatDateTime(st.lockedAt))} — el cron no la sobreescribe">🔒 bloqueada</span>` : ''}
     <button type="button" class="btn btn--ghost ru-lock-toggle" data-id="${esc(st.id)}" style="font-size:0.68rem;padding:0 0.55rem">${locked ? 'Desbloquear' : 'Bloquear'}</button>
     <button type="button" class="btn btn--ghost ru-edit" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>
+    <button type="button" class="btn btn--ghost ru-delete" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>
   </div>`;
 }
 
@@ -4750,7 +4851,7 @@ function _ruSyncPolicyHtml(rd, link) {
   return `<details class="ru-sync-policy" style="margin-top:0.65rem">
     <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted)">Programación automática ${enabled ? '· activa' : '· desactivada'}</summary>
     <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
-      <p style="margin:0 0 0.5rem;color:var(--text-muted)">Solo se crea un runner dentro de esta ventana y con una fuente enlazada. Si está desactivada, no consume CI.</p>
+      <p style="margin:0 0 0.5rem;color:var(--text-muted)">La captación es opt-in: enlazar una fuente no la activa. Solo se crea un runner si marcas «Activar» y la jornada está dentro de esta ventana.</p>
       <div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
         <label><input type="radio" name="ru-sync-scope" value="race" ${dayOverride ? '' : 'checked'}> Regla global de carrera</label>
         <label><input type="radio" name="ru-sync-scope" value="day" ${dayOverride ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
@@ -4821,7 +4922,9 @@ function _ruRenderSection(body, rd, race, link, stages) {
   mine.sort((a, b) => ord(a) - ord(b));
   finals.sort((a, b) => ord(a) - ord(b));
 
-  let html = _ruOriginHtml(rd, race, link);
+  // `updatedAt` vive en cada clasificación: no usar `link.lastSyncedAt`, que
+  // pertenece a la carrera completa y puede corresponder a otra etapa.
+  let html = _ruOriginHtml(rd, race, link, [...mine, ...finals]);
   html += `<div id="ruDetectPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>`;
   html += _ruSyncPolicyHtml(rd, link);
 
@@ -4865,6 +4968,10 @@ function _ruRenderSection(body, rd, race, link, stages) {
   body.querySelectorAll('.ru-edit').forEach(b => b.addEventListener('click', () => {
     const s = stById.get(b.dataset.id);
     if (s) openUciClassEditor(s, rd, race);
+  }));
+  body.querySelectorAll('.ru-delete').forEach(b => b.addEventListener('click', () => {
+    const s = stById.get(b.dataset.id);
+    if (s) _ruDeleteClass(s, rd, race);
   }));
 }
 
@@ -5015,6 +5122,29 @@ async function _ruToggleLock(st, rd, race) {
     .update({ lockedAt: locked ? null : new Date().toISOString() }).eq('id', st.id);
   if (error) { showToast('Error: ' + error.message); return; }
   showToast(locked ? 'Clasificación desbloqueada — el cron vuelve a sincronizarla.' : 'Clasificación bloqueada — el cron no la sobreescribirá.', 'success');
+  setupUciResultsSection(rd, race);
+}
+
+// Borra la cabecera y, por ON DELETE CASCADE, las filas de esta clasificación.
+// El filtro por carrera evita actuar sobre un id ajeno si se cambió de jornada.
+async function _ruDeleteClass(st, rd, race) {
+  const label = _ruClassLabel(st);
+  const count = st.rowCount || 0;
+  const rows = count === 1 ? '1 fila de resultado' : `${count} filas de resultados`;
+  const message = `¿Eliminar la clasificación «${label}»? Se borrarán también sus ${rows}.\n\nSi la fuente automática vuelve a publicarla, el cron podrá crearla de nuevo.`;
+  if (!await confirmDialog(message, {
+    danger: true,
+    title: 'Eliminar clasificación',
+    confirmText: 'Eliminar',
+  })) return;
+
+  const { error } = await supabase.from('race_uci_stages')
+    .delete().eq('id', st.id).eq('raceId', rd.raceId);
+  if (error) {
+    showToast('Error al eliminar la clasificación: ' + error.message);
+    return;
+  }
+  showToast(`Clasificación «${label}» eliminada.`, 'success');
   setupUciResultsSection(rd, race);
 }
 
@@ -5770,10 +5900,10 @@ async function setupUciView() {
 async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
   const oneStage = raceId && stageNumber != null;
   const msg = oneStage
-    ? `¿Volcar ahora SOLO esta etapa (${stageNumber === 0 ? 'prólogo' : 'etapa ' + stageNumber})? Re-escribe únicamente su clasificación (no las demás etapas de la carrera), respetando las bloqueadas manualmente; tarda 1-3 min en regenerarse.`
+    ? `¿Volcar ahora SOLO esta etapa (${stageNumber === 0 ? 'prólogo' : 'etapa ' + stageNumber})? Re-escribe únicamente su clasificación (no las demás etapas de la carrera), respetando las bloqueadas manualmente; tarda 1-3 min en verse reflejada.`
     : raceId
-    ? '¿Re-volcar la carrera ENTERA? Re-escribe TODAS las etapas publicadas por su fuente (también las de días anteriores), respetando las clasificaciones bloqueadas manualmente. En carreras largas es lento — si solo quieres actualizar una etapa, usa «Volcar esta etapa». Tarda 1-3 min en regenerarse.'
-    : '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en regenerarse.';
+    ? '¿Re-volcar la carrera ENTERA? Re-escribe TODAS las etapas publicadas por su fuente (también las de días anteriores), respetando las clasificaciones bloqueadas manualmente. En carreras largas es lento — si solo quieres actualizar una etapa, usa «Volcar esta etapa». Tarda 1-3 min en verse reflejado.'
+    : '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en verse reflejados.';
   const ok = await confirmDialog(msg);
   if (!ok) return;
   btn.disabled = true;
@@ -5792,9 +5922,9 @@ async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
   }
 }
 
-// Marca que hay páginas estáticas pendientes de regenerar (og-pages.yml +
-// sitemap.yml). Al publicar una jornada nueva con slug, su página /jornada/<slug>/
-// no existe hasta el siguiente cron (05:00/05:20 UTC) → 404.
+// Marca que hay páginas estáticas pendientes de crear solo cuando la URL
+// canónica de la jornada todavía responde 404. Una página ya creada se hidrata
+// con los datos vivos de Supabase y no necesita reconstruir el artifact.
 //
 // DEBOUNCE EN EL SERVIDOR (migración 121): antes esto programaba un setTimeout(8s)
 // en el navegador que, al vencer, disparaba los workflows. Era frágil — si tras
@@ -5804,20 +5934,25 @@ async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
 // Castilla y León 2026). Y no colapsaba ráfagas entre guardados espaciados: una
 // sesión de edición llegaba a disparar ~15 runs de og-pages en 30 min.
 //
-// Ahora el cliente solo MARCA "hay cambios pendientes" con una RPC instantánea
-// (`admin_mark_web_pages_dirty`), garantizada dentro del guardado. El debounce y el
-// disparo los hace un pg_cron cada minuto (`web_pages_regen_tick`): dispara UN run
-// tras 45 s de reposo desde el ÚLTIMO guardado → colapsa la ráfaga y no se pierde
-// nada aunque se cierre la pestaña. Latencia máxima ~1-2 min (antes 8 s).
+// La comprobación es conservadora: solo un 404 confirmado marca la cola. Un
+// error de red o una respuesta distinta no dispara nada, porque una edición de
+// una jornada existente nunca debe provocar una regeneración por defecto.
 //
-// Fire-and-forget y NON-BLOCKING: el guardado ya terminó cuando se llama; un fallo
-// aquí (red) no rompe el guardado ni el toast de éxito (solo console.warn).
-function _triggerWebPagesRegen() {
-  supabase.rpc('admin_mark_web_pages_dirty')
-    .then(({ error }) => {
-      if (error) console.warn('No se pudo marcar la regeneración de páginas:', error.message || error);
-    })
-    .catch(err => console.warn('No se pudo marcar la regeneración de páginas:', err?.message || err));
+// Fire-and-forget y NON-BLOCKING: el guardado ya terminó cuando se llama.
+async function _markWebPagesDirtyIfMissing(slug) {
+  try {
+    const pageUrl = `${CONFIG.basePath}/jornada/${encodeURIComponent(slug)}/`;
+    const response = await fetch(pageUrl, { method: 'HEAD', cache: 'no-store' });
+    if (response.ok) return;
+    if (response.status !== 404) {
+      console.warn(`No se comprobó la página de jornada (${response.status}); no se regenera.`);
+      return;
+    }
+    const { error } = await supabase.rpc('admin_mark_web_pages_dirty');
+    if (error) console.warn('No se pudo marcar la creación de páginas:', error.message || error);
+  } catch (err) {
+    console.warn('No se pudo comprobar la página de jornada; no se regenera:', err?.message || err);
+  }
 }
 
 // Carga el estado vivo de race_uci_links (tabla corta) → Map por raceId.
@@ -7285,7 +7420,11 @@ function getAnalyticsDateRange() {
     };
   }
   if (days === 'since_start') {
-    return { startDate: '2026-04-07', endDate: 'today' };
+    // 6 de abril de 2026: día de lanzamiento de la web, incluido en el rango.
+    // Debe coincidir con el `startDate` del endpoint público `portfolio_stats`
+    // de la edge function: empezar el día 7 dejaba fuera el pico del
+    // lanzamiento y el panel mostraba ~10.600 páginas vistas menos que la web.
+    return { startDate: '2026-04-06', endDate: 'today' };
   }
   return { startDate: 'today', endDate: 'today' };
 }
@@ -7901,7 +8040,7 @@ function renderWeeklyPageviews(data, platformTotals) {
 function renderTopPages(data) {
   const container = document.getElementById('gaTopPages');
   const allRows = data?.rows || [];
-  const rows = allRows.filter(r => /\/(jornada|competicion|inscritos|orden-salida|resultados|equipo|corredor|campeonatos|modal|perfil)/.test(gaDimensionValue(r, 0))).slice(0, 15);
+  const rows = allRows.filter(r => /\/(jornada|competicion|inscritos|orden-salida|resultados|equipo|corredor|campeonatos|modal|perfil|fichajes|transfers)/.test(gaDimensionValue(r, 0))).slice(0, 15);
   if (!rows.length) { container.innerHTML = '<div class="ga-placeholder">Sin datos de páginas</div>'; return; }
 
   const maxViews = Math.max(...rows.map(r => Number(gaMetricValue(r, 0))));
@@ -12446,7 +12585,8 @@ async function loadScheduledNotifications() {
       });
       const dlLabel = n.deepLink ? ` → <span class="u-c-accent">${esc(deepLinkDisplayLabel(n.deepLink))}</span>` : '';
 
-      const isPending    = n.status === 'pending' || n.status === 'processing';
+      const isPending    = n.status === 'pending';
+      const isProcessing  = n.status === 'processing';
       const isFailed     = n.status === 'failed';
       const isCancelled  = n.status === 'cancelled';
 
@@ -12457,6 +12597,8 @@ async function loadScheduledNotifications() {
 
       const statusBadge = isPending
         ? `<span style="font-size:0.7rem;background:var(--accent);color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Pendiente</span>`
+        : isProcessing
+          ? `<span style="font-size:0.7rem;background:var(--accent);color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Enviando…</span>`
         : isFailed
           ? `<span style="font-size:0.7rem;background:#e55;color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Fallida</span>`
           : `<span style="font-size:0.7rem;background:var(--border);color:var(--text-dim);padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Cancelada</span>`;
@@ -12551,12 +12693,19 @@ async function sendScheduledNotificationNow(id) {
 async function cancelScheduledNotification(id) {
   if (!await confirmDialog('¿Cancelar esta notificación programada?', { danger: true })) return;
   try {
-    const { error } = await supabase
+    // Cancelar elimina la programación del panel. Solo se puede borrar una
+    // fila que siga pendiente; si el cron ya la está procesando no debemos
+    // fingir que se ha cancelado porque podría llegar a enviarse igualmente.
+    const { data: deleted, error } = await supabase
       .from('scheduled_push_notifications')
-      .update({ status: 'cancelled' })
+      .delete()
       .eq('id', id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
     if (error) throw error;
+    if (!deleted || deleted.length === 0) {
+      throw new Error('La notificación ya no está pendiente o ya fue procesada');
+    }
     showToast('Notificación cancelada', 'success');
     loadScheduledNotifications();
   } catch (err) {

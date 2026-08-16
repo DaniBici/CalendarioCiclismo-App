@@ -30,7 +30,7 @@
 //  Cambiar de división es replaceState (no apila).
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag, buildTeamBadgeSvg } from './shared.js';
+import { supabase, countryFlag, buildTeamBadgeSvg, trapFocus } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 
 const SEASON = 2027;
@@ -779,10 +779,12 @@ async function init() {
 
   const infoButton = content.querySelector('.tr-info-button');
   let infoModal = null;
+  let _releaseInfoFocus = null;
   const closeInfoModal = () => {
     if (!infoModal) return;
     infoModal.classList.remove('rd-modal--open');
     document.body.style.overflow = '';
+    if (_releaseInfoFocus) { _releaseInfoFocus(); _releaseInfoFocus = null; }
     infoButton?.focus();
   };
   const openInfoModal = () => {
@@ -808,7 +810,9 @@ async function init() {
     }
     infoModal.classList.add('rd-modal--open');
     document.body.style.overflow = 'hidden';
-    infoModal.querySelector('.rd-modal__close').focus();
+    // Ya enfocaba el botón de cerrar; faltaba retener el tabulador dentro.
+    _releaseInfoFocus = trapFocus(infoModal.querySelector('.rd-modal'),
+      { initial: infoModal.querySelector('.rd-modal__close') });
   };
   infoButton?.addEventListener('click', () => {
     if (window.matchMedia('(max-width: 768px)').matches) openInfoModal();

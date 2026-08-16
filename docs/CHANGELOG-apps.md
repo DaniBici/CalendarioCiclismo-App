@@ -1,10 +1,22 @@
 # Changelog de las apps (Android + iOS)
 
-> Historial completo de versiones de las apps nativas. Extraído del CLAUDE.md el 2026-07-20 para aligerarlo — el CLAUDE.md conserva solo la versión **actual** de cada plataforma.
+> Historial completo de versiones de las apps nativas, consolidado el 2026-07-20.
 >
-> Convención de versiones y reglas de bump: ver `docs/memory/ios-conventions.md` (iOS) y `docs/runbooks/android-release.md` (Android). El CLAUDE.md resume las reglas operativas de bump.
+> Convención de versiones y reglas de bump: ver `docs/memory/ios-conventions.md` (iOS) y `docs/runbooks/android-release.md` (Android).
 
 ## Android (`versionCode` / `versionName`)
+
+**`454` / `4.2.5` = ORDEN DE CARRERAS EN HOY:** la vista Hoy incorpora, junto a los filtros y sobre la lista, el selector de orden por categoría, hora de TV u hora estimada de meta que ya ofrecían web e iOS.**
+
+**`453` / `4.2.5` = FILTROS DE CALENDARIO:** Mes y Temporada parten de Todas cuando el usuario no ha guardado un filtro por defecto, sin mostrar Pro durante la carga inicial. En iOS se desactiva el efecto automático de borde de los scrolls de filtros, cuya capa interceptaba las pulsaciones en dispositivos físicos con iOS 27 Beta; se conservan la barra superior, la posición de año/país y los botones nativos. Espejo iOS `1269`.**
+
+**`452` / `4.2.4` = SIN CAMBIO FUNCIONAL:** versión de marketing sincronizada con la corrección iOS de los filtros de Calendario. Los chips Android ya usan `combinedClickable` y no requieren modificación. Sin AAB nuevo.**
+
+**`452` / `4.2.3` = TV PÚBLICA: RTP1 se suma a la prioridad de televisiones públicas en web, Android e iOS, por delante de Eurosport/HBO Max; la Volta a Portugal ordena además RTP1 antes que los streams de WBD.**
+
+**`450` / `4.2.3` = SOSTENIMIENTO DEL PROYECTO:** la pantalla Sin anuncios se vuelve a mostrar una vez a usuarios no suscritos que actualizan desde 4.2.2 y en instalaciones nuevas, tras el onboarding de notificaciones. Espejo iOS `1248`.**
+
+**`449` / `4.2.3` = RESULTADOS SIN PARPADEO:** Jornada resuelve las clasificaciones nativas junto con el resto de datos, antes de pintar «Resultados» y «Así está la carrera». Los botones ya no aparecen como enlaces externos para transformarse después en «Ver clasificaciones». Espejo iOS `1247`.**
 
 **`448` / `4.2.2` = FICHAJES, ORDEN DE CATEGORÍAS:** los filtros de equipos siguen el orden WT · PT · WWT · PRW en web, Android e iOS.**
 
@@ -132,6 +144,12 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1250` / `MARKETING_VERSION 4.2.5` = FILTROS DE CALENDARIO CON BOTÓN NATIVO:** corrección de `1249`. Mes y Temporada eliminan por completo el estilo primitivo basado en `Gesture`, que bajo iOS 27 seguía perdiendo el toque frente al paginador. Los chips usan ahora la acción estándar de `Button`; tocar de nuevo el filtro activo conserva la configuración del filtro predeterminado. Sin selección previa, ambas vistas parten de Todas en iOS y Android. Espejo Android `453`.**
+
+**`1249` / `MARKETING_VERSION 4.2.4` = FILTROS DE CALENDARIO PULSABLES:** Mes y Temporada sustituyen los reconocedores de toque y pulsación larga en competición por un botón con gesto exclusivo. El selector Todas · Pro · WT · WWT · Masc · Fem vuelve a responder bajo iOS 27 Beta 5 y conserva la fijación por pulsación larga. Android no presenta el defecto estructural.**
+
+**`1247` / `MARKETING_VERSION 4.2.3` = RESULTADOS SIN PARPADEO:** Jornada incorpora el gate de clasificaciones nativas a su carga inicial. «Resultados» y «Así está la carrera» se presentan ya en su versión definitiva, sin sustituir después los enlaces externos por «Ver clasificaciones». Espejo Android `449`.**
 
 **`1246` / `MARKETING_VERSION 4.2.2` = MINIPERFILES EN COMPETICIÓN:** las CRI y CRE sin horario de salida/llegada ya usan el mismo color de carrera que una jornada en línea no disputada; con intervalo horario se mantiene el gris, pues no hay un avance único. La vista Hoy conserva su comportamiento actual. Espejo Android `439`.**
 

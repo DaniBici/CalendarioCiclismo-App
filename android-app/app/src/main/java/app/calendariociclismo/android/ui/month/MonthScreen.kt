@@ -77,6 +77,7 @@ import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
 import app.calendariociclismo.android.ui.components.RaceLogo
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.colorFromHex
@@ -106,14 +107,15 @@ fun MonthScreen(
     val haptic = rememberHaptics()
     val scope = rememberCoroutineScope()
     var year by remember { mutableStateOf(LocalDate.now().year) }
-    var category by remember { mutableStateOf(Constants.CategoryFilter.PRO) }
+    var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var placeholderItem by remember { mutableStateOf<PlaceholderItem?>(null) }
     var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
     var scrollToTodayTrigger by remember { mutableStateOf(0) }
+    var isLoading by remember { mutableStateOf(true) }
 
     // Default filter (synced across tabs)
-    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.PRO)
+    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
 
     // Analytics con parámetros
@@ -195,8 +197,13 @@ fun MonthScreen(
     LaunchedEffect(year) {
         val target = if (year == LocalDate.now().year) LocalDate.now().monthValue - 1 else 0
         pagerState.scrollToPage(target)
-        runCatching { app.repository.refreshRange("%04d-01-01".format(year), "%04d-12-31".format(year)) }
-        runCatching { app.repository.refreshRacesYear(year) }
+        isLoading = true
+        try {
+            runCatching { app.repository.refreshRange("%04d-01-01".format(year), "%04d-12-31".format(year)) }
+            runCatching { app.repository.refreshRacesYear(year) }
+        } finally {
+            isLoading = false
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -323,32 +330,36 @@ fun MonthScreen(
                     }
                 }
 
-                // HorizontalPager — one page per month
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1,
-                ) { pageIdx ->
-                    MonthDayPage(
-                        year = year,
-                        monthNum = pageIdx + 1,
-                        allDaysWithPlaceholders = allDaysWithPlaceholders,
-                        raceMap = raceMap,
-                        category = category,
-                        scrollToTodayTrigger = scrollToTodayTrigger,
-                        onStageClick = { id ->
-                            haptic(Haptics.Event.Navigation)
-                            navController.navigate(Routes.stage(id))
-                        },
-                        onPlaceholderClick = { race, rd ->
-                            haptic(Haptics.Event.Navigation)
-                            placeholderItem = PlaceholderItem(race, rd)
-                        },
-                        onChampionshipsClick = {
-                            haptic(Haptics.Event.Navigation)
-                            navController.navigate(Routes.CHAMPIONSHIPS)
-                        },
-                    )
+                if (isLoading && allDaysRaw.isEmpty() && allRaces.none { it.year == year }) {
+                    RouteLoadingView(message = stringResource(R.string.calendar_loading))
+                } else {
+                    // HorizontalPager — one page per month
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1,
+                    ) { pageIdx ->
+                        MonthDayPage(
+                            year = year,
+                            monthNum = pageIdx + 1,
+                            allDaysWithPlaceholders = allDaysWithPlaceholders,
+                            raceMap = raceMap,
+                            category = category,
+                            scrollToTodayTrigger = scrollToTodayTrigger,
+                            onStageClick = { id ->
+                                haptic(Haptics.Event.Navigation)
+                                navController.navigate(Routes.stage(id))
+                            },
+                            onPlaceholderClick = { race, rd ->
+                                haptic(Haptics.Event.Navigation)
+                                placeholderItem = PlaceholderItem(race, rd)
+                            },
+                            onChampionshipsClick = {
+                                haptic(Haptics.Event.Navigation)
+                                navController.navigate(Routes.CHAMPIONSHIPS)
+                            },
+                        )
+                    }
                 }
             }
         }

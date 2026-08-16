@@ -20,15 +20,20 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +73,7 @@ import app.calendariociclismo.android.ui.startorder.StartOrderScreen
 import app.calendariociclismo.android.ui.transfers.TransfersScreen
 import app.calendariociclismo.android.ui.transfers.TransfersTeamScreen
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.today.TodayScreen
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.rememberHaptics
@@ -83,6 +89,8 @@ fun AppNavHost(navController: NavHostController) {
     val currentRoute = backStackEntry?.destination?.route
     val haptic = rememberHaptics()
     val app = rememberApp()
+    val isSubscribed by app.premium.isSubscribed.collectAsState()
+    var showContributionPrompt by remember { mutableStateOf(false) }
 
     // Registrar pantalla visible en Firebase Analytics.
     // today, results_feed, calendar (month/season), transfers se loggean desde
@@ -108,6 +116,20 @@ fun AppNavHost(navController: NavHostController) {
         }
 
         app.analytics.logScreenView(screenName)
+    }
+
+    LaunchedEffect(currentRoute, isSubscribed) {
+        val route = currentRoute ?: return@LaunchedEffect
+        val contentRoute = route in Routes.MAIN_TABS || route.startsWith("race/") ||
+            route.startsWith("stage/") || route.startsWith("elevation_profile/") ||
+            route.startsWith("route_map/") || route.startsWith("startlist/") ||
+            route.startsWith("start_order/") || route.startsWith("results/") ||
+            route.startsWith("transfers_team/")
+        if (!contentRoute) return@LaunchedEffect
+        if (app.preferences.recordContributionContentView(route == Routes.TODAY, isSubscribed)) {
+            showContributionPrompt = true
+            app.analytics.logEvent("contribution_prompt_view")
+        }
     }
 
     // Scaffold exterior solo se encarga de la bottom bar; cada pantalla tiene
@@ -249,6 +271,31 @@ fun AppNavHost(navController: NavHostController) {
                 ChampionshipsScreen(navController = navController)
             }
         }
+    }
+
+    if (showContributionPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                showContributionPrompt = false
+                app.analytics.logEvent("contribution_prompt_action")
+            },
+            title = { Text(stringResource(R.string.contribution_prompt_title)) },
+            text = { Text(stringResource(R.string.contribution_prompt_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showContributionPrompt = false
+                    app.analytics.logEvent("contribution_prompt_action")
+                    app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
+                }) { Text(stringResource(R.string.contribution_prompt_open)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showContributionPrompt = false
+                    app.analytics.logEvent("contribution_prompt_action")
+                }) { Text(stringResource(R.string.contribution_prompt_later)) }
+            },
+        )
+        LaunchedEffect(Unit) { app.preferences.recordContributionPromptDecision() }
     }
 
 }

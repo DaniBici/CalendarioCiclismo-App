@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "pg": "^8.22.0",
     "vitest": "^2.1.9"
   }
 }

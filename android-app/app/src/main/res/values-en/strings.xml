@@ -68,9 +68,14 @@
     <string name="today_prev_day_cd">Previous day</string>
     <string name="today_next_day_cd">Next day</string>
     <string name="today_refresh_cd">Refresh</string>
+    <string name="today_sort_action">Sort</string>
+    <string name="today_sort_category">Category</string>
+    <string name="today_sort_tv_time">TV time</string>
+    <string name="today_sort_finish_time">Finish time</string>
 
     <!-- Month screen -->
     <string name="month_title">Calendar</string>
+    <string name="calendar_loading">Loading calendar…</string>
     <string name="month_button_today">Today</string>
     <string name="month_no_races">No races</string>
 
@@ -316,8 +321,8 @@
     <!-- Onboarding: offline mode -->
 
     <!-- Onboarding: "ad-free" showcase (last step; the subscription only removes ads) -->
-    <string name="onboarding_premium_title">Ad-free and independent</string>
-    <string name="onboarding_premium_body">Remove every ad and enjoy a cleaner, faster app. It\'s not a business: the subscription only helps cover the cost of running the project, which will stay free for everyone.</string>
+    <string name="onboarding_premium_title">Ad-free. Free for everyone.</string>
+    <string name="onboarding_premium_body">Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free.</string>
     <string name="onboarding_premium_benefit_no_ads">No ads on any screen</string>
     <string name="onboarding_premium_benefit_clean">A cleaner, faster experience</string>
     <string name="onboarding_premium_benefit_support">Helps cover the cost of the servers and upkeep</string>
@@ -326,11 +331,17 @@
     <string name="onboarding_premium_cancel_hint">Cancel anytime from Settings → Google Play</string>
 
     <!-- Paywall "ad-free" -->
-    <string name="paywall_title">Enjoy ad-free</string>
-    <string name="paywall_subtitle">Remove all ads from the app. The whole calendar stays free: no feature depends on the subscription.</string>
+    <string name="paywall_title">Ad-free. Free for everyone.</string>
+    <string name="paywall_subtitle">Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free.</string>
     <string name="paywall_benefit_no_ads">No ads on any screen</string>
     <string name="paywall_benefit_clean">A cleaner, faster experience</string>
-    <string name="paywall_benefit_support">Help cover the costs of an independent project</string>
+    <string name="paywall_benefit_support">Helps sustain an independent Open Source project</string>
+    <string name="contribution_transparency_title">A project sustained by its community</string>
+    <string name="contribution_transparency_body">Open source, non-commercial, with public accounts.</string>
+    <string name="contribution_prompt_title">Is Calendario Ciclismo useful to you?</string>
+    <string name="contribution_prompt_body">It is an independent Open Source project, free for everyone. If you like it, you can help sustain it and remove ads.</string>
+    <string name="contribution_prompt_open">See Ad-free</string>
+    <string name="contribution_prompt_later">Not now</string>
     <string name="paywall_nonprofit_note">Calendario Ciclismo is not a business. It is made by one person and does not seek profit: the ads and subscriptions are there to cover the servers and upkeep that keep it running.</string>
     <string name="paywall_period_yearly">per year</string>
     <string name="paywall_period_monthly">per month</string>

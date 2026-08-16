@@ -25,7 +25,7 @@
 --    · 0 FKs entrantes
 --    · 0 vistas / vistas materializadas dependientes
 --    · 0 funciones que la nombren (`prosrc`)
---    · 0 referencias en el código — solo menciones históricas en CLAUDE.md
+--    · 0 referencias en el código — solo menciones históricas en la guía de entonces
 --      y en las propias migraciones 041 / 042 / 127
 --    · `broadcasts_suggested` (la original) ya no existe: la 127 la dropeó
 --

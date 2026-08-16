@@ -261,7 +261,7 @@ for rd in so_racedays:
 
 # ── Resultados (UCI in-house): una URL por (carrera × etapa), exista o no ──
 # clasificación real todavía (adelanta la creación para SEO — toda jornada
-# publicada/no-descanso recibe ya su hueco de resultados; ver CLAUDE.md).
+# publicada/no-descanso recibe ya su hueco de resultados.
 res_count = 0
 res_en_count = 0
 _rmap_res = {r["id"]: r for r in races}

@@ -59,7 +59,7 @@
     .abierto section { margin-bottom: 2.5rem; }
     .abierto h2 {
       font-family: var(--font-display); font-weight: 600; font-size: 0.82rem;
-      text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-text);
       margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
     }
     .abierto p { font-size: 0.95rem; line-height: 1.75; margin: 0 0 1rem; }
@@ -67,7 +67,7 @@
       font-weight: 600; color: var(--text);
       text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
     }
-    .abierto a.link:hover { color: var(--accent); }
+    .abierto a.link:hover { color: var(--accent-text); }
     /* Lista de fuentes: término + descripción */
     .src { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
     .src li { display: grid; grid-template-columns: 8.5rem 1fr; gap: 0.25rem 1rem; align-items: baseline; }
@@ -83,7 +83,7 @@
     .license__tag {
       display: inline-flex; align-items: center; font-family: var(--font-body); font-weight: 600;
       font-size: 0.68rem; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap;
-      color: var(--accent); background: var(--accent-dim);
+      color: var(--accent-text); background: var(--accent-dim);
       padding: 0.18rem 0.5rem; border-radius: 3px; margin-bottom: 0.8rem;
     }
     .disclaimer { font-size: 0.88rem; line-height: 1.7; color: var(--text-muted); font-style: italic; }
@@ -98,7 +98,7 @@
       text-decoration: none;
       transition: border-color var(--transition), color var(--transition);
     }
-    .license__btn:hover { border-color: var(--accent); color: var(--accent); }
+    .license__btn:hover { border-color: var(--accent); color: var(--accent-text); }
     .license__btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
     /* Cuentas del proyecto — dos columnas gastos / ingresos */
     .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin: 1.25rem 0 1.1rem; }
@@ -210,6 +210,21 @@
           <span class="v">Las listas de inscritos, las notas y correcciones y todo el trabajo de orden y verificación son cosecha propia de <a class="link" href="/about.html">Dani Sánchez</a>.</span>
         </li>
       </ul>
+    </section>
+
+    <section>
+      <h2>Uso de inteligencia artificial</h2>
+      <p>
+        Usamos herramientas de inteligencia artificial como apoyo en algunos procesos internos,
+        principalmente traducciones, volcado de resultados y tareas de filtrado de información.
+        Los datos aquí contenidos proceden, allá donde corresponde, de fuentes oficiales, y siempre
+        se comprueban antes de publicarse. Las decisiones editoriales y el contenido publicado son
+        siempre responsabilidad última de Calendario Ciclismo.
+      </p>
+      <p>
+        Si en el futuro publicamos una imagen generada con IA que pueda confundirse con una
+        fotografía o una representación real, lo indicaremos de forma clara junto a la imagen.
+      </p>
     </section>
 
     <section>

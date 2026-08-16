@@ -7,36 +7,68 @@
 //   - clasificaciones de 1 columna (etapa, puntos) → pdftotext -layout (línea completa)
 //   - clasificaciones de 2 columnas (gc, jóvenes, equipos) → pdftotext -bbox (separar por x)
 //
-// Uso:
+// Uso automático:
+//   node chronorace-results-fetch.mjs --event-id <eventId> --race-id <id> \
+//        --competition-id <id> --stage <N> --out <dir> [--include-final]
+// Uso local:
 //   node chronorace-results-fetch.mjs --pdf dossier.pdf --race-id <id> \
-//        --stage <N> --date <YYYY-MM-DD> [--race-type IRR] [--final] [--suggest-id] > out.json
+//        --stage <N> --date <YYYY-MM-DD> [--race-type IRR] [--final] > out.json
 //
 // NO commitear al repo salvo que se pida.
 
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const arg = (n, d = null) => { const i = args.indexOf(n); return i >= 0 && i + 1 < args.length ? args[i + 1] : d; };
-const PDF = arg('--pdf');
+let PDF = arg('--pdf');
+const EVENT_ID = arg('--event-id');
+const LINK_COMPETITION_ID = arg('--competition-id');
 const RACE_ID = arg('--race-id');
 const STAGE = arg('--stage') != null ? parseInt(arg('--stage'), 10) : null;
-const DATE = arg('--date');
+let DATE = arg('--date');
 const RACE_TYPE = arg('--race-type', 'IRR');
 const IS_FINAL = args.includes('--final');
+const INCLUDE_FINAL = args.includes('--include-final');
+const OUT = arg('--out');
 const SUGGEST = args.includes('--suggest-id');
 const STARTLIST = arg('--startlist'); // JSON { "<minDorsal>": "<teamName canónico>" } para nombres de equipo no truncados
-if (!PDF || !RACE_ID || STAGE == null || !DATE) { console.error('Faltan args: --pdf --race-id --stage --date'); process.exit(1); }
+if ((!PDF && !EVENT_ID) || !RACE_ID || STAGE == null) { console.error('Faltan args: --pdf o --event-id --race-id --stage'); process.exit(1); }
 const TEAM_BY_DORSAL = STARTLIST ? JSON.parse(fs.readFileSync(STARTLIST, 'utf8')) : null;
+
+let downloadDir = null;
+if (!PDF) {
+  const listingUrl = `https://prod.chronorace.be/classements/listerapports.aspx?eventId=${encodeURIComponent(EVENT_ID)}`;
+  const response = await fetch(listingUrl, { headers: { 'user-agent': 'calendariociclismo.app results sync' } });
+  if (!response.ok) throw new Error(`ChronoRace listing HTTP ${response.status}`);
+  const html = await response.text();
+  const reports = [...html.matchAll(/<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>([\s\S]*?)<\/a>/gi)]
+    .map((m) => ({ url: new URL(m[1], listingUrl).href, label: m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() }))
+    .map((r) => ({ ...r, stage: /^E(\d+)$/i.test(r.label) ? Number(r.label.slice(1)) : null }))
+    .filter((r) => r.stage != null);
+  const report = reports.find((r) => r.stage === STAGE);
+  if (!report) {
+    const empty = { competitionId: LINK_COMPETITION_ID != null ? Number(LINK_COMPETITION_ID) : 0, disciplineId: 10, source: 'pdf', stages: [] };
+    if (OUT) { mkdirSync(OUT, { recursive: true }); writeFileSync(join(OUT, `${empty.competitionId}.json`), JSON.stringify(empty, null, 2)); }
+    process.exit(0);
+  }
+  downloadDir = mkdtempSync(join('/tmp', 'chronorace-'));
+  const pdfResponse = await fetch(report.url, { headers: { 'user-agent': 'calendariociclismo.app results sync' } });
+  if (!pdfResponse.ok) throw new Error(`ChronoRace PDF HTTP ${pdfResponse.status}: ${report.url}`);
+  PDF = join(downloadDir, `E${STAGE}.pdf`);
+  writeFileSync(PDF, Buffer.from(await pdfResponse.arrayBuffer()));
+}
 
 // ---------- IDs sintéticos (FNV-1a 32-bit, salt pdf:) ----------
 function fnv1a(s) { let h = 0x811c9dc5; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0; return h; }
 const ID_BASE = fnv1a(`pdf:${RACE_ID}`) % 200000;
 const CLASS_IDX = { 'stage|stage': 1, 'gc|stage': 2, 'points|overall': 3, 'kom|overall': 4, 'youth|overall': 5, 'teams|overall': 6 };
 const slotOf = () => (IS_FINAL ? 99 : STAGE);
-const synthEventId = (kind, scope) => -((ID_BASE * 10000 + slotOf() * 100 + CLASS_IDX[`${kind}|${scope}`]) & 0x7fffffff);
-const synthRaceId = () => -((ID_BASE * 10000 + slotOf() * 100) & 0x7fffffff);
-const COMPETITION_ID = -(ID_BASE & 0x7fffffff);
+const synthEventId = (kind, scope, slot = slotOf()) => -((ID_BASE * 10000 + slot * 100 + CLASS_IDX[`${kind}|${scope}`]) & 0x7fffffff);
+const synthRaceId = (slot = slotOf()) => -((ID_BASE * 10000 + slot * 100) & 0x7fffffff);
+const COMPETITION_ID = LINK_COMPETITION_ID != null ? Number(LINK_COMPETITION_ID) : -(ID_BASE & 0x7fffffff);
 if (SUGGEST) console.error(`ID_BASE=${ID_BASE} competitionId=${COMPETITION_ID} uciRaceId=${synthRaceId()}`);
 
 // ---------- helpers texto ----------
@@ -81,6 +113,11 @@ function rowsOf(words, ytol = 2.2) {
   return rows.sort((a, b) => a.y - b.y);
 }
 const PAGES = bboxPages();
+if (!DATE) {
+  const m = layout(1, 1).match(/\b(\d{2})[\/-](\d{2})[\/-](20\d{2})\b/);
+  if (m) DATE = `${m[3]}-${m[2]}-${m[1]}`;
+}
+if (!DATE) throw new Error('No se pudo determinar --date desde el PDF');
 const pageText = (i) => PAGES[i].map((w) => w.t).join(' ');
 const findPages = (re) => PAGES.map((_, i) => i).filter((i) => re.test(pageText(i)));
 
@@ -246,8 +283,8 @@ function parseTeams(idxs) {
 }
 
 // ---------- ensamblar ----------
-const classObj = (kind, scope, name, rows, isTeam = false) => ({
-  eventId: synthEventId(kind, scope), classKind: kind, scope, eventName: name, isTeamEvent: isTeam,
+const classObj = (kind, scope, name, rows, isTeam = false, slot = slotOf()) => ({
+  eventId: synthEventId(kind, scope, slot), classKind: kind, scope, eventName: name, isTeamEvent: isTeam,
   winnerName: (rows.find((r) => r.rank === 1) || {}).riderDisplay || null, rowCount: rows.length, rows,
 });
 
@@ -264,9 +301,18 @@ if (ptsP.length) { const r = parsePoints(ptsP[0], ptsP[ptsP.length - 1]); if (r.
 if (youthP.length) classifications.push(classObj('youth', 'overall', 'Général des jeunes', parseTwoCol(youthP, { leadingBib: true })));
 if (teamsP.length) { const r = parseTeams(teamsP); if (r.length) classifications.push(classObj('teams', 'overall', 'Classement par équipe', r, true)); }
 
+const stages = [{ uciRaceId: synthRaceId(), stageNumber: IS_FINAL ? null : STAGE, stageName: IS_FINAL ? 'Final Classification' : `Etapa ${STAGE}`, isFinalClassification: IS_FINAL, dateKey: DATE, raceType: RACE_TYPE, classifications }];
+if (INCLUDE_FINAL && classifications.length) {
+  const finalClassifications = classifications.filter((c) => c.classKind !== 'stage').map((c) => ({
+    ...c, eventId: synthEventId(c.classKind, c.scope, 99),
+  }));
+  stages.push({ uciRaceId: synthRaceId(99), stageNumber: null, stageName: 'Final Classification', isFinalClassification: true, dateKey: DATE, raceType: RACE_TYPE, classifications: finalClassifications });
+}
 const out = {
   competitionId: COMPETITION_ID, disciplineId: 10, source: 'pdf',
-  stages: [{ uciRaceId: synthRaceId(), stageNumber: IS_FINAL ? null : STAGE, stageName: IS_FINAL ? 'Final Classification' : `Étape ${STAGE}`, isFinalClassification: IS_FINAL, dateKey: DATE, raceType: RACE_TYPE, classifications }],
+  stages,
 };
+if (OUT) { mkdirSync(OUT, { recursive: true }); writeFileSync(join(OUT, `${COMPETITION_ID}.json`), JSON.stringify(out, null, 2)); }
 process.stdout.write(JSON.stringify(out, null, 2));
 console.error(`\n[chronorace] ${classifications.length} clasificaciones: ` + classifications.map((c) => `${c.classKind}/${c.scope}=${c.rowCount}`).join(' '));
+if (downloadDir) rmSync(downloadDir, { recursive: true, force: true });

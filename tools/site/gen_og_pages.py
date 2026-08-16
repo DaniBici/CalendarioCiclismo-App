@@ -1348,7 +1348,7 @@ for st in (res_stages_raw or []):
 
 # Adelantar la creación: TODA jornada publicada (no descanso) recibe ya su
 # página de resultados, tenga o no clasificación real todavía (decisión
-# producto 2026-07-06 — ver CLAUDE.md). Se genera con contenido "aún sin
+# producto 2026-07-06). Se genera con contenido "aún sin
 # disputar" y, en cuanto `race_uci_stages.keepForWeb` aporte datos reales,
 # la MISMA URL pasa a servir la clasificación (sin re-crear/mover nada).
 res_days_by_race = {}

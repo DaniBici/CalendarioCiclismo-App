@@ -90,15 +90,15 @@
     <!-- generado por JS -->
   </div>
 
-  <div class="agenda-filters" id="agendaFilters">
+  <section class="agenda-filters" id="agendaFilters" aria-label="Filtros y orden">
   <div class="agenda-filters__inner">
     <div class="agenda-filter-cats" id="agendaFilterCats">
-      <button class="tcat-btn tcat-btn--active" data-cat="all"><span class="btn-label-full" data-i18n="filter.all">Todas</span><span class="btn-label-short" data-i18n="filter.all">Todas</span></button>
-      <button class="tcat-btn" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem"><span class="btn-label-full" data-i18n="filter.pro">Pro</span><span class="btn-label-short" data-i18n="filter.pro">Pro</span></button>
-      <button class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
-      <button class="tcat-btn" data-cat="wwt"><span class="btn-label-full" data-i18n="filter.wwt">WWT</span><span class="btn-label-short" data-i18n="filter.wwt">WWT</span></button>
-      <button class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Masculino</span><span class="btn-label-short" data-i18n="filter.male_short">Masc</span></button>
-      <button class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Femenino</span><span class="btn-label-short" data-i18n="filter.female_short">Fem</span></button>
+      <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="all"><span class="btn-label-full" data-i18n="filter.all">Todas</span><span class="btn-label-short" data-i18n="filter.all">Todas</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem"><span class="btn-label-full" data-i18n="filter.pro">Pro</span><span class="btn-label-short" data-i18n="filter.pro">Pro</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt"><span class="btn-label-full" data-i18n="filter.wwt">WWT</span><span class="btn-label-short" data-i18n="filter.wwt">WWT</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Masculino</span><span class="btn-label-short" data-i18n="filter.male_short">Masc</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Femenino</span><span class="btn-label-short" data-i18n="filter.female_short">Fem</span></button>
     </div>
 
     <div class="agenda-filter-divider"></div>
@@ -113,7 +113,7 @@
     </div>
 
   </div>
-  </div>
+  </section>
   </div>
 
   <main class="race-list" id="raceList">

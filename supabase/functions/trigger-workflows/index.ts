@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────
 //  Edge Function: trigger-workflows
-//  Dispara build-site.yml desde el panel, p.ej. tras importar un orden
-//  de salida para que la página estática se genere sin esperar al cron
-//  de las 05:00 UTC.
+//  Dispara build-site.yml bajo petición explícita para creación inicial de
+//  páginas o recuperación operativa. Las ediciones de jornadas ya publicadas
+//  no deben llamar a esta función.
 //
 //  Secrets (Supabase Dashboard → Edge Functions → Secrets):
 //    GITHUB_TOKEN — PAT con scope `workflow` (actions: read+write)
@@ -31,18 +31,14 @@ const CORS_HEADERS = {
 
 // build-site.yml compone el sitio entero (páginas OG + sitemap + feeds + EN) y
 // lo publica como artifact de Pages. Sustituye a og-pages.yml + sitemap.yml, que
-// commiteaban su salida a main. El panel llama SIN body → usa este default.
+// commiteaban su salida a main. Una llamada sin body usa este default.
 const DEFAULT_WORKFLOWS = ['build-site.yml'];
 
 // Anti-thundering-herd (BEST-EFFORT, NO fiable bajo concurrencia): coalesce
 // de dispatches del MISMO worker dentro de la ventana. OJO: las edge functions
 // de Supabase son serverless/sin estado compartido → este Map NO sobrevive a
-// invocaciones concurrentes en workers distintos. Una ráfaga de N peticiones
-// casi simultáneas (p.ej. pg_net disparando una por fila) las deja pasar casi
-// todas (cazado 2026-06-13: 122 filas de orden de salida → ~244 dispatches).
-// La defensa REAL contra el INSERT masivo de start_order_entries es el trigger
-// FOR EACH STATEMENT (migración 102), no este lock. No confiar en él para
-// evitar avalanchas; sirve solo para suavizar repeticiones de un worker.
+// invocaciones concurrentes en workers distintos. No confiar en él para evitar
+// avalanchas; sirve solo para suavizar repeticiones de un worker.
 const COALESCE_WINDOW_MS = 30_000;
 const lastDispatchByWorkflow = new Map<string, number>();
 
@@ -55,8 +51,7 @@ function shouldDispatch(workflow: string): boolean {
 }
 
 async function verifyAuth(req: Request): Promise<boolean> {
-  // Bypass interno para DB triggers (pg_net no puede generar JWT de usuario).
-  // El secreto INTERNAL_TRIGGER_TOKEN se comparte entre Postgres y la function.
+  // Bypass interno legado para llamadas operativas de Postgres con pg_net.
   const internal = req.headers.get('X-Internal-Token');
   const expected = Deno.env.get('INTERNAL_TRIGGER_TOKEN');
   if (internal && expected && internal === expected) return true;

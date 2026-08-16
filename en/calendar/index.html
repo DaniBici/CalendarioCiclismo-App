@@ -53,8 +53,8 @@
   <div class="temporada-filters" id="temporadaFilters" hidden>
     <div class="temporada-filters__inner">
       <div class="temporada-filters__row1">
-        <select class="temporada-select" id="filterYear"></select>
-        <select class="temporada-select temporada-select--month" id="filterMonth">
+        <select class="temporada-select" id="filterYear" aria-label="Year"></select>
+        <select class="temporada-select temporada-select--month" id="filterMonth" aria-label="Month">
           <option value="">— Month —</option>
           <option value="01">January</option>
           <option value="02">February</option>
@@ -69,7 +69,7 @@
           <option value="11">November</option>
           <option value="12">December</option>
         </select>
-        <select class="temporada-select temporada-select--country" id="filterCountry"><option value="">Countries</option></select>
+        <select class="temporada-select temporada-select--country" id="filterCountry" aria-label="Country"><option value="">Countries</option></select>
         <a class="btn-ical btn-ical--inline" href="/subscription/">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           <span class="btn-ical__label">Calendar</span>
@@ -83,12 +83,12 @@
       </div>
       <div class="temporada-filter-row2">
         <div class="temporada-filter-cats" id="filterCats">
-          <button class="tcat-btn" data-cat="all">All</button>
-          <button class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
-          <button class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
-          <button class="tcat-btn" data-cat="wwt">WWT</button>
-          <button class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
-          <button class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="all">All</button>
+          <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt">WWT</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
         </div>
         <a class="btn-ical btn-ical--row2" href="/subscription/">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -102,7 +102,7 @@
   <div class="temporada-filters cal-mes-bar" id="mesBar" hidden>
     <div class="temporada-filters__inner">
       <div class="cal-mes-bar__row1">
-        <select class="temporada-select" id="mesYear"></select>
+        <select class="temporada-select" id="mesYear" aria-label="Calendar year"></select>
         <div class="cal-month-chips" id="mesChips"></div>
         <button class="month-today-btn cal-today-btn" id="mesTodayBtn">Today</button>
         <button class="cal-view-toggle" data-cal-switch="temporada" title="Season view">
@@ -112,12 +112,12 @@
       </div>
       <div class="temporada-filter-row2">
         <div class="temporada-filter-cats" id="mesCats">
-          <button class="tcat-btn" data-cat="all">All</button>
-          <button class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
-          <button class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
-          <button class="tcat-btn" data-cat="wwt">WWT</button>
-          <button class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
-          <button class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="all">All</button>
+          <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt">WWT</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
         </div>
       </div>
     </div>

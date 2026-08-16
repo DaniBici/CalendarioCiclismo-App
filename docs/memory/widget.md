@@ -1,6 +1,6 @@
 # Widget "Hoy en el ciclismo" — arquitectura técnica
 
-Detalle complementario de la sección "Widget" de `CLAUDE.md`.
+Documentación técnica del widget.
 
 ## App Group / shared container (iOS)
 

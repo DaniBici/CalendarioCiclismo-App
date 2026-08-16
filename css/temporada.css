@@ -31,7 +31,7 @@
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
 }
-.temporada-select:focus { outline: none; }
+.temporada-select:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* → estilos movidos a app.css */
 
@@ -90,6 +90,19 @@
   color: var(--text);
   transition: background var(--transition), box-shadow var(--transition);
   position: relative;
+}
+/* La fila que abre el modal es <button>: se neutralizan los estilos por
+   defecto para que quede idéntica a las <a> (el display:grid lo hereda de
+   .t-race, que no distingue elemento). */
+button.t-race {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
 }
 .t-race:hover {
   background: color-mix(in srgb, var(--rc, var(--accent)) 8%, var(--bg-card));

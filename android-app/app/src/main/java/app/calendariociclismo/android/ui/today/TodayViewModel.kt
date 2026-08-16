@@ -31,6 +31,12 @@ class TodayViewModel(
     private val prefs: AppPreferences,
 ) : ViewModel() {
 
+    enum class SortMode(val id: String, val labelRes: Int) {
+        CATEGORY("category", app.calendariociclismo.android.R.string.today_sort_category),
+        TV_TIME("tvTime", app.calendariociclismo.android.R.string.today_sort_tv_time),
+        FINISH_TIME("finishTime", app.calendariociclismo.android.R.string.today_sort_finish_time),
+    }
+
     data class State(
         val dateKey: String = DateFormatting.todayKey(),
         val isLoading: Boolean = false,
@@ -38,6 +44,7 @@ class TodayViewModel(
         val error: String? = null,
         val data: DayData? = null,
         val category: Constants.CategoryFilter = Constants.CategoryFilter.ALL,
+        val sortMode: SortMode = SortMode.CATEGORY,
         val nextRaceDate: String? = null,
     )
 
@@ -143,6 +150,10 @@ class TodayViewModel(
         }
         val nextDate = nextDayMatchingFilter(_state.value.dateKey, cat)
         _state.value = _state.value.copy(category = cat, nextRaceDate = nextDate)
+    }
+
+    fun setSortMode(mode: SortMode) {
+        _state.value = _state.value.copy(sortMode = mode)
     }
 
     fun setDefaultFilter(cat: Constants.CategoryFilter) {
@@ -264,12 +275,17 @@ class TodayViewModel(
         return data.copy(raceDays = data.raceDays + placeholders)
     }
 
-    /** DayData filtrada por categoría y ordenada como en iOS. */
+    /** DayData filtrada por categoría y ordenada como en web e iOS. */
     fun visibleData(): DayData? {
         val d = _state.value.data ?: return null
         val cat = _state.value.category
+        val comparator = when (_state.value.sortMode) {
+            SortMode.CATEGORY -> RaceLogic.byCategory
+            SortMode.TV_TIME -> RaceLogic.byTvTime
+            SortMode.FINISH_TIME -> RaceLogic.byFinishTime
+        }
         val filtered = RaceLogic.filterByCategory(d.raceDays, cat)
-            .sortedWith(RaceLogic.byCategory)
+            .sortedWith(comparator)
         return d.copy(raceDays = filtered)
     }
 

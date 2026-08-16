@@ -4,6 +4,8 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { t, getLang, getLocale } from './i18n.js';
+import { extractYouTubeId } from './broadcast-embed.js';
+export { extractYouTubeId };
 
 // ── Supabase singleton ───────────────────────────────────────────
 // SUPABASE_URL y SUPABASE_ANON_KEY son globals definidos en js/config.js
@@ -630,19 +632,6 @@ export function setMetaProperty(property, content) {
 // el SPA lo reemplace por la versión inglesa. true ⇒ el llamante debe abortar.
 export function seoJsonLdLocked() { return SEO_ES_LOCK; }
 
-// ── YouTube ──────────────────────────────────────────────────────
-// Devuelve el ID del vídeo (11 chars) o null si la URL no es de YouTube.
-export function extractYouTubeId(url) {
-  if (!url) return null;
-  let m = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
-  if (m) return m[1];
-  m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-  if (m) return m[1];
-  m = url.match(/youtube\.com\/(?:live|embed|shorts)\/([A-Za-z0-9_-]{11})/);
-  if (m) return m[1];
-  return null;
-}
-
 // Comprueba contra el endpoint público oEmbed si un vídeo de YouTube permite
 // embed (iframe). Devuelve true (embeddable), false (embed deshabilitado o
 // vídeo eliminado/privado) o null si no se ha podido determinar (red, CORS,
@@ -669,6 +658,116 @@ export function esc(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Accesibilidad ───────────────────────────────────────────────
+
+// Estado de un botón de filtro. La clase pinta; aria-pressed es lo único
+// que un lector de pantalla puede anunciar (WCAG 4.1.2).
+export function setPressed(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle('tcat-btn--active', on);
+  btn.setAttribute('aria-pressed', String(on));
+}
+
+// Región activa compartida: un solo nodo por página, creado a demanda.
+// Se vacía antes de escribir para que dos mensajes iguales seguidos
+// también se anuncien.
+export function announce(msg) {
+  if (!msg) return;
+  let el = document.getElementById('ccStatus');
+  if (!el) {
+    el = document.createElement('p');
+    el.id = 'ccStatus';
+    el.className = 'sr-only';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+  }
+  el.textContent = '';
+  requestAnimationFrame(() => { el.textContent = msg; });
+}
+
+// Hace operable con teclado un contenedor que solo reacciona al ratón.
+// Las tarjetas son grids con enlaces anidados (badges), así que no pueden
+// envolverse en <a>/<button> sin romper el layout ni anidar enlaces: se usa
+// el mismo patrón role="button" + Enter/Espacio que ya llevan las filas
+// desplegables de resultados (WCAG 2.1.1 y 4.1.2).
+export function makeCardActivatable(el, { label, onActivate, role = 'button', href = null } = {}) {
+  if (!el || typeof onActivate !== 'function') return;
+  el.setAttribute('role', role);
+  el.setAttribute('tabindex', '0');
+  if (label) el.setAttribute('aria-label', label);
+  if (href) el.dataset.href = href;
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    // Enter/Espacio dentro de un badge o enlace anidado es cosa suya.
+    if (e.target !== el && e.target.closest('a, button')) return;
+    e.preventDefault();
+    onActivate(e);
+  });
+}
+
+// El símbolo ♀ solo: un lector lo lee «signo femenino» o lo calla del todo.
+// El texto oculto lo dice; el glifo queda decorativo (WCAG 1.1.1 y 1.4.1).
+export function femaleMark({ style = '', cls = '' } = {}) {
+  const label = getLang() === 'en' ? 'Women' : 'Femenino';
+  const attrs = (cls ? ` class="${cls}"` : '') + (style ? ` style="${style}"` : '');
+  return ` <span${attrs} aria-hidden="true">♀</span>` +
+         `<span class="sr-only">${label}</span>`;
+}
+
+// apps-modal.js y cookie-consent.js son scripts clásicos (no módulos) y no
+// pueden importar: se les expone el helper por window.
+if (typeof window !== 'undefined') {
+  window.ccTrapFocus = (...a) => trapFocus(...a);
+  window.ccAnnounce  = (...a) => announce(...a);
+}
+
+const FOCUSABLE = 'a[href],button:not([disabled]),select:not([disabled]),' +
+                  'input:not([disabled]),textarea:not([disabled]),' +
+                  '[tabindex]:not([tabindex="-1"])';
+
+// Lleva el foco al diálogo, lo mantiene dentro mientras está abierto y lo
+// devuelve al elemento que lo abrió. Devuelve la función de limpieza, que
+// hay que llamar al cerrar (WCAG 2.4.3).
+export function trapFocus(modal, opts = {}) {
+  if (!modal) return () => {};
+  const prev = document.activeElement;
+  const visible = () => [...modal.querySelectorAll(FOCUSABLE)]
+    .filter(el => el.offsetParent !== null || el === document.activeElement);
+
+  const first = opts.initial || visible()[0] || modal;
+  if (first === modal && !modal.hasAttribute('tabindex')) {
+    modal.setAttribute('tabindex', '-1');
+  }
+  // El navegador aún no ha pintado el diálogo cuando se abre por JS.
+  requestAnimationFrame(() => { try { first.focus(); } catch { /* noop */ } });
+
+  const onKey = (e) => {
+    if (e.key !== 'Tab') return;
+    const f = visible();
+    if (!f.length) { e.preventDefault(); return; }
+    const a = f[0], z = f[f.length - 1];
+    if (e.shiftKey && (document.activeElement === a || document.activeElement === modal)) {
+      e.preventDefault(); z.focus();
+    } else if (!e.shiftKey && document.activeElement === z) {
+      e.preventDefault(); a.focus();
+    }
+  };
+  modal.addEventListener('keydown', onKey);
+
+  // El resto de la página deja de ser tabulable mientras el diálogo está
+  // abierto, sin recorrer el DOM. El overlay del diálogo queda fuera.
+  const overlay = modal.closest('.rd-modal-overlay, .asset-modal-overlay, .sg-overlay') || modal;
+  const inerted = [...document.body.children].filter(el => el !== overlay && !el.contains(overlay));
+  inerted.forEach(el => { el.inert = true; });
+
+  return () => {
+    modal.removeEventListener('keydown', onKey);
+    inerted.forEach(el => { el.inert = false; });
+    try { prev?.focus?.(); } catch { /* noop */ }
+  };
 }
 
 // ── Modal móvil para data-ph-tooltip ────────────────────────────
@@ -755,6 +854,65 @@ export function initPhTooltip({ skipMobileMes = false } = {}) {
     if (el.tagName !== 'A') e.preventDefault();
     openPhBanner(el);
   });
+
+  // El tooltip solo existía para el ratón: con teclado no había forma de
+  // leerlo (WCAG 1.4.13). Con el foco se muestra anclado al elemento, y
+  // Escape lo cierra sin mover el foco.
+  document.addEventListener('focusin', e => {
+    const el = e.target.closest?.('[data-ph-tooltip]');
+    const tip = document.getElementById('ph-tooltip');
+    if (!el) { if (tip) tip.style.display = 'none'; return; }
+    if (isMobile()) return;
+    _showPhTooltipFor(el);
+  });
+  document.addEventListener('focusout', () => {
+    const tip = document.getElementById('ph-tooltip');
+    if (tip) tip.style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const tip = document.getElementById('ph-tooltip');
+    if (tip && tip.style.display === 'block') tip.style.display = 'none';
+  });
+
+  // Los filtros existen ya al cargar; el resto se cablea al repintar.
+  wirePhDescriptions();
+}
+
+// El tooltip visual no lo ve un lector de pantalla. Se copia el texto a un
+// nodo oculto enlazado con aria-describedby, que sí se anuncia al enfocar.
+export function wirePhDescriptions(root = document) {
+  let n = 0;
+  root.querySelectorAll('[data-ph-tooltip]').forEach(el => {
+    if (el.getAttribute('aria-describedby')) return;
+    const txt = el.dataset.phTooltip;
+    if (!txt) return;
+    const id = 'phd-' + (++_phDescSeq);
+    const desc = document.createElement('span');
+    desc.id = id;
+    desc.className = 'sr-only';
+    desc.textContent = txt;
+    el.appendChild(desc);
+    el.setAttribute('aria-describedby', id);
+    n++;
+  });
+  return n;
+}
+let _phDescSeq = 0;
+
+// Muestra el tooltip anclado bajo el elemento (no bajo el puntero).
+function _showPhTooltipFor(el) {
+  let tip = document.getElementById('ph-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'ph-tooltip';
+    document.body.appendChild(tip);
+  }
+  tip.textContent = el.dataset.phTooltip || '';
+  tip.style.display = 'block';
+  const r = el.getBoundingClientRect();
+  tip.style.left = r.left + 'px';
+  tip.style.top  = (r.bottom + 8) + 'px';
 }
 
 // ── Filtro fijado (chincheta) ──────────────────────────────────────
@@ -913,15 +1071,15 @@ export function buildStageNav(navSiblings, currentRdId, urlBuilder, raceHref) {
 
   return `<div class="stage-nav">
     <div class="stage-nav__picker">
-      <button class="stage-nav__arrow${!prev ? ' disabled' : ''}"
+      <button type="button" class="stage-nav__arrow${!prev ? ' disabled' : ''}"
         ${prev ? `onclick="location.href='${urlBuilder(prev)}'"` : ''}
-        title="${t('stage.previous')}">‹</button>
-      <select class="stage-nav__select" onchange="location.href=this.options[this.selectedIndex].dataset.url">
+        aria-label="${esc(t('stage.previous'))}"><span aria-hidden="true">‹</span></button>
+      <select class="stage-nav__select" aria-label="${esc(t('stage.pickStage'))}" onchange="location.href=this.options[this.selectedIndex].dataset.url">
         ${options}
       </select>
-      <button class="stage-nav__arrow${!next ? ' disabled' : ''}"
+      <button type="button" class="stage-nav__arrow${!next ? ' disabled' : ''}"
         ${next ? `onclick="location.href='${urlBuilder(next)}'"` : ''}
-        title="${t('stage.next')}">›</button>
+        aria-label="${esc(t('stage.next'))}"><span aria-hidden="true">›</span></button>
     </div>
     <a class="stage-nav__race" href="${raceHref}">${t('stage.viewAll')}</a>
   </div>`;
@@ -1348,7 +1506,7 @@ export function buildRaceHeader({
   const r = race || {};
   const name = raceName(r) || '';
   const female = r.gender === 'female' && !nameImpliesFemale(name)
-    ? ' <span style="font-size:0.55em;opacity:0.7;font-weight:400;vertical-align:0.15em">♀</span>'
+    ? femaleMark({ style: 'font-size:0.55em;opacity:0.7;font-weight:400;vertical-align:0.15em' })
     : '';
   const flag = countryFlag(countryCode != null ? countryCode : r.countryCode || '');
   const showFlag = !hideFlag;
@@ -1360,10 +1518,13 @@ export function buildRaceHeader({
   const href = nameHref !== undefined
     ? nameHref
     : (r.raceFormat !== 'one_day' && r.id ? raceUrl(r) : '');
+  // El nombre de la carrera es el título real de la página: va en <h1>, no en
+  // un <div> con estilos. Sin él la navegación por encabezados de estas
+  // páginas —las más profundas del sitio— empezaba en nivel 2 (WCAG 1.3.1).
   const nameHtml = name
     ? (href
-        ? `<a class="race-header__name" href="${href}" style="text-decoration:none;display:block">${esc(name)}${female}</a>`
-        : `<div class="race-header__name">${esc(name)}${female}</div>`)
+        ? `<h1 class="race-header__name"><a href="${href}" style="text-decoration:none;display:block;color:inherit">${esc(name)}${female}</a></h1>`
+        : `<h1 class="race-header__name">${esc(name)}${female}</h1>`)
     : '';
 
   // Subtítulo: label destacado + detalle, unidos por " · "
@@ -1463,13 +1624,14 @@ export function openAssetModal(url, label) {
   const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(url);
   const isPdf   = /\.pdf(\?|$)/i.test(url);
 
-  document.getElementById('assetModalTitle').textContent = label.replace(/^\p{Emoji}\s*/u, '');
+  const cleanLabel = label.replace(/^\p{Emoji}\s*/u, '');
+  document.getElementById('assetModalTitle').textContent = cleanLabel;
   document.getElementById('assetModalExternal').href = url;
 
   const body = document.getElementById('assetModalBody');
   const modal = document.querySelector('.asset-modal');
   if (isImage) {
-    body.innerHTML = `<img src="${url}" style="width:100%;height:auto;display:block">`;
+    body.innerHTML = `<img src="${url}" alt="${esc(cleanLabel)}" style="width:100%;height:auto;display:block">`;
     modal.classList.add('asset-modal--image');
     modal.classList.remove('asset-modal--document');
   } else if (isPdf) {
@@ -1484,7 +1646,9 @@ export function openAssetModal(url, label) {
 
   overlay.classList.add('asset-modal--open');
   document.body.style.overflow = 'hidden';
+  _releaseAssetFocus = trapFocus(overlay.querySelector('.asset-modal') || overlay);
 }
+let _releaseAssetFocus = null;
 window.openAssetModal = openAssetModal;
 
 export function closeAssetModal() {
@@ -1492,6 +1656,7 @@ export function closeAssetModal() {
   if (!overlay) return;
   overlay.classList.remove('asset-modal--open');
   document.body.style.overflow = '';
+  if (_releaseAssetFocus) { _releaseAssetFocus(); _releaseAssetFocus = null; }
   setTimeout(() => {
     const body = document.getElementById('assetModalBody');
     if (body) body.innerHTML = '';

@@ -111,7 +111,9 @@ MAIN_BLOCKS_EN = {
       Dani Sánchez's Website
     </a>
     <p style="font-size:0.95rem;line-height:1.8;margin:2rem auto 0;max-width:100%">
-      <strong>Calendario Ciclismo is not a business.</strong> Keeping it running costs money - the servers and database that store and serve all the data, sending the notifications, the domain - and covering that cost is the only thing the ads in the apps and the subscriptions are there for. All the content is free for everyone, and will remain so in the future.
+      <strong>Calendario Ciclismo is not a business.</strong> All content is free for everyone and will remain so in the future.
+      <br><br>
+      Running it involves server, database, repository and domain costs, which are paid for through user subscriptions, ads in the apps and Dani's personal contribution. More information is available via the button below.
     </p>
     <p style="margin-top:2rem">
       <a href="/en/open/"

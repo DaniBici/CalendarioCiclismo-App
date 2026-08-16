@@ -59,7 +59,8 @@
  *               una prueba del país por ficha). Se guarda en race_uci_links.uciRaceId (110).
  *               Default 0 = competición entera (todo lo no-CN).
  *   --season    seasonId UCI (default 464 = 2026). Solo metadato del link.
- *   --source    'uci'|'tissot'|'pdf': fija race_uci_links.source (090). Sin el flag no se
+ *   --source    fuente del fetcher (uci, tissot, colombia, etc.): fija race_uci_links.source
+ *               (090). Sin el flag no se
  *               toca. 'pdf' = volcado manual desde PDF (skill cc-resultados-pdf) → el cron
  *               salta la carrera (su competitionId es sintético negativo, sin fetcher).
  *   --gender    'male'|'female' (de races.gender). Habilita el enlace por NOMBRE + creación de
@@ -109,7 +110,7 @@ const UCI_RACE_ID = parseInt(getArg('uci-race-id') || '0', 10);
 const SEASON = parseInt(getArg('season') || '464', 10);
 const STATUS = getArg('status') || 'ok';
 // 'uci'|'tissot'|'pdf'|'matsport'|'sportstiming'|'manual_timing'|'raceresult'|'sts'|
-// 'domtel'|'livetiming'|'classificacoes'|'infocity': fija
+// 'domtel'|'livetiming'|'classificacoes'|'infocity'|'burgos': fija
 // race_uci_links.source en el upsert del link. Sin el flag, el source NO se toca
 // (INSERT usa el default 'uci'; UPDATE lo conserva). 'pdf' = volcado manual desde
 // PDF (skill cc-resultados-pdf) → el cron salta la carrera. 'sportstiming'/'manual_timing'
@@ -119,8 +120,12 @@ const STATUS = getArg('status') || 'ok';
 const SOURCE = getArg('source');
 const CLASSIFICACOES_CODE = getArg('classificacoes-code');
 const INFOCITY_CODE = getArg('infocity-code');
-if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity'].includes(SOURCE)) {
-  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity (recibido "${SOURCE}")`); process.exit(1);
+const SPORTSOFT_CODE = getArg('sportsoft-code');
+const EQTIMING_CODE = getArg('eqtiming-code');
+const ASO_URL = getArg('aso-url');
+const COLOMBIA_CODE = getArg('colombia-code');
+if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos'].includes(SOURCE)) {
+  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos (recibido "${SOURCE}")`); process.exit(1);
 }
 const GENDER = getArg('gender'); // 'male'|'female': habilita el enlace por NOMBRE (Fase 6) para carreras sin startlist
 const SEED_STARTLIST = hasFlag('seed-startlist'); // Fase 6: sembrar startlist_teams/riders desde el volcado UCI (solo carreras sin startlist curada)
@@ -195,6 +200,14 @@ export function shouldIncludeStage(stageNumber, isFinalClassification, onlyStage
   if (stageNumber === onlyStage) return true;
   return includeFinal && stageNumber == null && !!isFinalClassification;
 }
+
+// DataRide representa algunas carreras de un día solo con la pseudo-etapa
+// "Final Classification". En ese caso no existe una clasificación de etapa que
+// pueda confirmar la llegada dentro del mismo payload: el ganador de la final es
+// la confirmación disponible y debe poder sustituir un resultado sintético.
+export function shouldPublishFinalClassification(hasStageWinnerInPayload, hasIncludedNonFinalStage) {
+  return hasStageWinnerInPayload || !hasIncludedNonFinalStage;
+}
 // Como n() pero REDONDEA a entero: para columnas INTEGER. La UCI a veces manda
 // PointPcR con decimales (p. ej. "1.17", ranking points fuente externa) en clasificaciones
 // que NO mostramos (Stage Classification) → la columna integer `points` peta.
@@ -252,6 +265,17 @@ function hasValidWinner(rows) {
   return !!winner && !s(winner.irm);
 }
 
+// Una prueba de un día no tiene stageNumber: según la fuente, su resultado
+// principal llega tipado como stage/stage o gc/stage. Ambos son la llegada real;
+// las generales/secundarias aisladas no abren nunca el gate.
+function hasMainStageWinner(classifications, stageNumber) {
+  return classifications.some((cl) => {
+    const kind = s(cl.classKind);
+    const isMain = kind === 'stage' || (stageNumber == null && kind === 'gc');
+    return isMain && s(cl.scope) === 'stage' && hasValidWinner(cl.rows);
+  });
+}
+
 // ── Fase 6: split de DisplayName UCI "APELLIDO(S) Nombre(s)" → {first,last} ───
 // La UCI publica el nombre en una sola cadena con el/los apellido(s) en MAYÚSCULAS
 // (DisplayFirstName/LastName vienen null en las carreras pequeñas). Heurística
@@ -291,7 +315,7 @@ function splitUciDisplay(display) {
 // con nombre partido + nacionalidad + fecha de nacimiento (todo de la UCI). Para
 // resolve_uci_results_by_name (Fase 6). Prefiere los campos separados si la UCI los
 // trae; si no, parte DisplayName/riderDisplay.
-function extractRidersForNameResolve(data, acceptedEventIds = null) {
+export function extractRidersForNameResolve(data, acceptedEventIds = null) {
   const byBib = new Map();
   for (const st of (data.stages || [])) {
     for (const cl of (st.classifications || [])) {
@@ -301,6 +325,11 @@ function extractRidersForNameResolve(data, acceptedEventIds = null) {
         const bib = s(r.bib);
         const hasBib = !!bib && /^[0-9]+$/.test(bib);
         const display = s(r.riderDisplay);
+        // Algunos fetchers solo pueden aportar dorsal+IRM (p. ej. un abandono
+        // listado en el resumen PDF pero ausente de la clasificación). Esa fila
+        // se enlaza por dorsal en Fase 3; nunca debe llegar a Fase 6, que la
+        // interpretaría como una persona real llamada «Sin identificar».
+        if (/^sin identificar$/i.test(display)) continue;
         // (093) Las filas SIN dorsal también viajan: la UCI a veces omite el
         // bib (GP Beiras: "NOHALES NIETO Edgar", 340 filas en 7 carreras) y
         // sin esto eran invisibles para ambas RPCs (ni dorsal ni nombre).
@@ -347,7 +376,15 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   const disciplineId = n(data.disciplineId) ?? 10;
   if (!competitionId) { log('FATAL: el JSON no tiene competitionId'); process.exit(1); }
 
-  const stages = Array.isArray(data.stages) ? data.stages : [];
+  const stages = (Array.isArray(data.stages) ? data.stages : []).map((st) => ({
+    ...st,
+    classifications: (Array.isArray(st.classifications) ? st.classifications : []).map((cl) => ({
+      ...cl,
+      // Normalizar antes de los gates: un rank 1 de abandono espurio puede
+      // revelar al ganador real de la etapa.
+      rows: sanitizeSpuriousWinner(Array.isArray(cl.rows) ? cl.rows : [], s(cl.classKind)),
+    })),
+  }));
   const plan = [];
   const acceptedEventIds = new Set();
   // nStages = clasificaciones que entran en el plan (nuevas + re-volcado dentro de
@@ -356,6 +393,19 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   // clasificación ya volcada (Tissot corrigiendo gaps en la 1ª hora) NO crea URL nueva
   // → no debe regenerar og-pages/sitemap (decisión Dani 2026-06-12).
   let nStages = 0, nResults = 0, nSkipped = 0, nRejected = 0, nNew = 0;
+
+  // La pseudo-etapa final se construye desde las generales de la última jornada.
+  // No se debe publicar si el mismo fetch no confirma siquiera una llegada: de
+  // otro modo un feed parcial podría exponer la general final antes de que exista
+  // un rank 1 de etapa. Se limita a las etapas que este run puede procesar para
+  // respetar --only-stage/--include-final.
+  const hasStageWinnerInPayload = stages.some((st) => {
+    const stageNumber = n(st.stageNumber);
+    if (st.isFinalClassification || !shouldIncludeStage(stageNumber, false)) return false;
+    return hasMainStageWinner(st.classifications, stageNumber);
+  });
+  const hasIncludedNonFinalStage = stages.some((st) =>
+    !st.isFinalClassification && shouldIncludeStage(n(st.stageNumber), false));
 
   // 1) Puente carrera↔competición. Requiere que la carrera exista (FK).
   //    Con --source se fija también race_uci_links.source (090); sin él no se toca.
@@ -374,19 +424,39 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   if (SOURCE === 'infocity' && !infocityCode) {
     throw new Error('--source infocity requiere --infocity-code o infocityCode en el JSON');
   }
+  const sportsoftCode = SOURCE === 'sportsoft' ? (SPORTSOFT_CODE || data.sportsoftCode) : null;
+  if (SOURCE === 'sportsoft' && !sportsoftCode) {
+    throw new Error('--source sportsoft requiere --sportsoft-code o sportsoftCode en el JSON');
+  }
+  const eqtimingCode = SOURCE === 'eqtiming' ? (EQTIMING_CODE || data.eqtimingCode) : null;
+  if (SOURCE === 'eqtiming' && !eqtimingCode) {
+    throw new Error('--source eqtiming requiere --eqtiming-code o eqtimingCode en el JSON');
+  }
+  const asoUrl = SOURCE === 'ASO' ? (ASO_URL || data.asoUrl) : null;
+  if (SOURCE === 'ASO' && !asoUrl) {
+    throw new Error('--source ASO requiere --aso-url o asoUrl en el JSON');
+  }
+  const colombiaCode = SOURCE === 'colombia' ? (COLOMBIA_CODE || data.colombiaCode) : null;
+  if (SOURCE === 'colombia' && !colombiaCode) {
+    throw new Error('--source colombia requiere --colombia-code o colombiaCode en el JSON');
+  }
   const linkStatement = SOURCE ? {
     note: `puente carrera↔competición (source='${SOURCE}'${UCI_RACE_ID ? `, uciRaceId=${UCI_RACE_ID}` : ''})`,
     text: `INSERT INTO public.race_uci_links
-  ("raceId","competitionId","disciplineId","seasonId","uciRaceId","autoMatched","lastSyncedAt","syncStatus","source","stsCode","classificacoesCode","infocityCode")
-VALUES ($1,$2,$3,$4,$7,FALSE,now(),$5,$6,$8,$9,$10)
+  ("raceId","competitionId","disciplineId","seasonId","uciRaceId","autoMatched","lastSyncedAt","syncStatus","source","stsCode","classificacoesCode","infocityCode","sportsoftCode","eqtimingCode","asoUrl","colombiaCode")
+VALUES ($1,$2,$3,$4,$7,FALSE,now(),$5,$6,$8,$9,$10,$11,$12,$13,$14)
 ON CONFLICT ("raceId") DO UPDATE SET
   "competitionId"=EXCLUDED."competitionId", "disciplineId"=EXCLUDED."disciplineId",
   "seasonId"=EXCLUDED."seasonId", "uciRaceId"=EXCLUDED."uciRaceId", "lastSyncedAt"=now(),
   "syncStatus"=EXCLUDED."syncStatus", "syncError"=NULL, "source"=EXCLUDED."source",
   "stsCode"=COALESCE(EXCLUDED."stsCode", race_uci_links."stsCode"),
   "classificacoesCode"=COALESCE(EXCLUDED."classificacoesCode", race_uci_links."classificacoesCode"),
-  "infocityCode"=COALESCE(EXCLUDED."infocityCode", race_uci_links."infocityCode")`,
-    params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE, UCI_RACE_ID, stsCode, classificacoesCode, infocityCode],
+  "infocityCode"=COALESCE(EXCLUDED."infocityCode", race_uci_links."infocityCode"),
+  "sportsoftCode"=COALESCE(EXCLUDED."sportsoftCode", race_uci_links."sportsoftCode"),
+  "eqtimingCode"=CASE WHEN EXCLUDED.source='ASO' THEN NULL ELSE COALESCE(EXCLUDED."eqtimingCode", race_uci_links."eqtimingCode") END,
+  "asoUrl"=COALESCE(EXCLUDED."asoUrl", race_uci_links."asoUrl"),
+  "colombiaCode"=COALESCE(EXCLUDED."colombiaCode", race_uci_links."colombiaCode")`,
+    params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE, UCI_RACE_ID, stsCode, classificacoesCode, infocityCode, sportsoftCode, eqtimingCode, asoUrl, colombiaCode],
   } : {
     note: `puente carrera↔competición${UCI_RACE_ID ? ` (uciRaceId=${UCI_RACE_ID})` : ''}`,
     text: `INSERT INTO public.race_uci_links
@@ -406,14 +476,35 @@ ON CONFLICT ("raceId") DO UPDATE SET
     // stageNumber null nunca casa un N numérico. --include-final hace una excepción
     // explícita solo para la pseudo-etapa final; descartada = ni purga ni insert.
     if (!shouldIncludeStage(stageNumber, isFinal)) continue;
-    const uciRaceId = n(st.uciRaceId);
+    // Fuentes con IDs sintéticos (p. ej. Classificações.net) no proporcionan
+    // un uciRaceId por etapa. En ese caso conservan el ID de la competición
+    // (0 para una vuelta completa) que ya se guarda en el enlace de carrera.
+    // race_uci_stages lo exige como NOT NULL.
+    const uciRaceId = n(st.uciRaceId) ?? UCI_RACE_ID;
     const dateKey = s(st.dateKey);
     const raceType = s(st.raceType);
     // Doble sector: dos jornadas comparten stageNumber; sectorIndex (0=A,1=B,…)
     // selecciona la jornada correcta como OFFSET dentro de ese stageNumber
     // ordenado por hora de salida. Sin sector → 0 (etapa normal, 1 sola jornada).
     const sectorIndex = Math.max(0, n(st.sectorIndex) || 0);
-    const classifications = Array.isArray(st.classifications) ? st.classifications : [];
+    const classifications = st.classifications;
+
+    // Un feed intermedio puede traer las generales y clasificaciones secundarias
+    // mientras la llegada sigue sin publicar. No debe aparecer NADA de esa etapa
+    // en la web hasta que exista un ganador real de la clasificación de etapa.
+    // Es un gate de etapa, no de fuente: protege por igual UCI y todos los
+    // cronometradores que pasan por este upsert central.
+    const hasStageWinner = hasMainStageWinner(classifications, stageNumber);
+    if (!isFinal && !hasStageWinner) {
+      nRejected += classifications.length;
+      log(`  ⚠ etapa ${stageNumber == null ? 'FINAL' : stageNumber} omitida: falta rank=1 válido sin IRM en la clasificación de etapa`);
+      continue;
+    }
+    if (isFinal && !shouldPublishFinalClassification(hasStageWinnerInPayload, hasIncludedNonFinalStage)) {
+      nRejected += classifications.length;
+      log('  ⚠ clasificación final omitida: el payload no contiene una etapa con rank=1 válido sin IRM');
+      continue;
+    }
 
     for (const cl of classifications) {
       const eventId = n(cl.eventId);
@@ -428,7 +519,7 @@ ON CONFLICT ("raceId") DO UPDATE SET
       if (officialLogicalKeys && eventId != null && eventId < 0 && officialLogicalKeys.has(logicalKey)) {
         nSkipped++; continue;
       }
-      const rows = sanitizeSpuriousWinner(Array.isArray(cl.rows) ? cl.rows : [], s(cl.classKind));
+      const rows = cl.rows;
       if (!hasValidWinner(rows)) {
         nRejected++;
         log(`  ⚠ clasificación omitida: etapa ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} (falta rank=1 válido sin IRM)`);
@@ -596,21 +687,53 @@ function toSQL({ text, params }) {
 // por resolve_uci_results. Se enlazan contra la startlist de ESTA carrera usando
 // el nombre canónico del equipo y sus aliases. Esto conserva el vínculo tras cada
 // re-volcado (las filas se reemplazan por completo en cada pasada).
+//
+// Las fuentes no dan el nombre a secas: lo envuelven en el código UCI y el país
+// ("NDT - NSN DEVELOPMENT TEAM (SUI)"). Comparar en crudo no casaba NUNCA, así que
+// se despieza el envoltorio y se comparan solo los alfanuméricos en minúscula, que
+// absorbe las diferencias de puntuación entre fuente y ficha ("Anicolor / Campicarn"
+// vs "ANICOLOR/CAMPICARN"). Los sufijos genéricos que algunas fuentes añaden
+// ("... CYCLING TEAM") se recortan como último intento, nunca antes de probar el
+// nombre completo: "UAE Development Team" es una ficha distinta de "UAE Development".
 function linkTeamResultRowsSql(raceId) {
-  return `WITH matches AS (
-  SELECT r.id, st."teamId",
-         row_number() OVER (PARTITION BY r.id ORDER BY st."sortOrder", st.id) AS rn
+  return `WITH src AS (
+  SELECT r.id,
+         COALESCE(public.fold_team_name(
+           regexp_replace(
+             regexp_replace(r."riderDisplay", '^\\s*[A-Z0-9]{2,4}\\s+-\\s+', ''),
+             '\\s*\\([A-Za-z]{3}\\)\\s*$', '')), '') AS core
   FROM public.race_uci_results r
   JOIN public.race_uci_stages s ON s.id = r."stageRef"
-  JOIN public.startlist_teams st ON st."raceId" = r."raceId"
+  WHERE r."raceId" = ${lit(raceId)}
+    AND s."classKind" = 'teams'
+    AND r."riderDisplay" IS NOT NULL
+), cand AS (
+  SELECT st."teamId",
+         st."sortOrder",
+         st.id AS st_id,
+         COALESCE(public.fold_team_name(btrim(alias.name)), '') AS core
+  FROM public.startlist_teams st
   JOIN public.teams t ON t.id = st."teamId"
   CROSS JOIN LATERAL unnest(string_to_array(
     t.name || E'\\n' || COALESCE(t."nameAliases", ''), E'\\n'
   )) AS alias(name)
-  WHERE r."raceId" = ${lit(raceId)}
-    AND s."classKind" = 'teams'
-    AND r."riderDisplay" IS NOT NULL
-    AND lower(btrim(alias.name)) = lower(btrim(r."riderDisplay"))
+  WHERE st."raceId" = ${lit(raceId)}
+    AND btrim(alias.name) <> ''
+), matches AS (
+  SELECT src.id, cand."teamId",
+         row_number() OVER (
+           PARTITION BY src.id
+           ORDER BY exact_hit DESC, cand."sortOrder", cand.st_id
+         ) AS rn
+  FROM src
+  JOIN LATERAL (
+    SELECT c."teamId", c."sortOrder", c.st_id,
+           (c.core = src.core) AS exact_hit
+    FROM cand c
+    WHERE c.core = src.core
+       OR regexp_replace(c.core, '(cyclingteam|team)$', '')
+          = regexp_replace(src.core, '(cyclingteam|team)$', '')
+  ) cand ON TRUE
 )
 UPDATE public.race_uci_results r
 SET "teamId" = m."teamId"
@@ -660,11 +783,18 @@ async function main() {
       out.push('', '-- enlazar equipos de sus clasificaciones contra la startlist');
       out.push(linkTeamResultRowsSql(RACE_ID) + ';');
     }
-    // Fase 6: enlazar por nombre + crear fichas que falten (carreras sin startlist).
+    // Fase 6: enlazar por nombre + crear fichas que falten, solo para las filas
+    // que el enlace por dorsal no haya resuelto. El modo --apply ya usa ese guard;
+    // mantenerlo también al emitir SQL evita que una variante ortográfica de la
+    // fuente cree una ficha duplicada sobre una startlist completa.
     if (GENDER && nStages > 0) {
       const ridersJson = JSON.stringify(extractRidersForNameResolve(data, acceptedEventIds));
       out.push('', '-- enlazar riders por nombre + crear fichas faltantes (Fase 6)');
-      out.push(`SELECT public.resolve_uci_results_by_name(${lit(RACE_ID)},${lit(GENDER)},${lit(ridersJson)}::jsonb);`);
+      out.push(`SELECT public.resolve_uci_results_by_name(${lit(RACE_ID)},${lit(GENDER)},${lit(ridersJson)}::jsonb)
+WHERE EXISTS (
+  SELECT 1 FROM public.race_uci_results
+  WHERE "raceId"=${lit(RACE_ID)} AND "globalRiderId" IS NULL
+);`);
     }
     out.push('', 'COMMIT;', '', `-- Resumen: ${nStages} clasificaciones, ${nResults} filas.`);
     if (nRejected) out.push(`-- Omitidas por no tener rank=1 válido sin IRM: ${nRejected}.`);
@@ -882,4 +1012,4 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   main();
 }
 
-export { buildPlan };
+export { buildPlan, linkTeamResultRowsSql };

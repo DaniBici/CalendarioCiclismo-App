@@ -61,17 +61,6 @@ struct SettingsView: View {
         .navigationTitle(localeService.t("Ajustes", "Settings"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings_view")
-        // Paywall "sin anuncios": se presenta cuando algún CTA llama a
-        // `presentPaywall(...)` (fila de la sección o canjeo de código).
-        .sheet(isPresented: Binding(
-            get: { premium.pendingPaywallSource != nil },
-            set: { if !$0 { premium.dismissPaywall() } }
-        )) {
-            PaywallView(source: premium.pendingPaywallSource ?? .general) {
-                premium.dismissPaywall()
-            }
-            .environment(\.locale, localeService.current.locale)
-        }
         .task {
             await manager.checkCurrentStatus()
             cacheSize = await CacheManager.shared.formattedSize()
@@ -1036,7 +1025,7 @@ struct SettingsView: View {
             }
 
             // Nota "no busca beneficio": el proyecto no es un negocio y la
-            // suscripción solo cubre costes (ver política de pricing en CLAUDE.md).
+            // suscripción solo cubre costes (ver docs/memory/premium.md).
             Text(localeService.t(
                 "Todas las funciones son gratis. Esto no es un negocio: los anuncios y las suscripciones solo cubren los costes de servidor.",
                 "Every feature is free. This is not a business: the ads and subscriptions only cover the server costs."
@@ -1491,7 +1480,7 @@ private struct CalendarFeed: Identifiable {
         // `webcal://` es el único esquema que iOS Calendar reconoce para
         // suscripciones (webcals:// es solo macOS y silencia la apertura en iOS).
         // iOS lo convierte a http:// al refrescar → necesita que Cloudflare NO
-        // redirija HTTP→HTTPS en feed.calendariociclismo.app (ver CLAUDE.md).
+        // redirija HTTP→HTTPS en feed.calendariociclismo.app.
         return URL(string: "webcal://feed.calendariociclismo.app/feed/\(file)")
     }
 }

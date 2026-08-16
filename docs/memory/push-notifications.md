@@ -1,6 +1,6 @@
 # Push Notifications — arquitectura completa
 
-Detalle complementario de la sección "Push Notifications" de `CLAUDE.md`.
+Documentación técnica de notificaciones push.
 
 3 plataformas: APNs (iOS), FCM (Android), Web Push (`sw.js` + VAPID). Todas guardadas en `push_subscriptions` con columna `platform` ∈ `ios|android|web`.
 

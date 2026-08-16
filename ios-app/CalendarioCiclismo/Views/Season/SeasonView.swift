@@ -21,34 +21,7 @@ struct SeasonView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Filtros de categoría
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Constants.CategoryFilter.allCases) { filter in
-                        SeasonFilterChip(
-                            filter: filter,
-                            isActive: viewModel.activeFilter == filter,
-                            activeFilter: viewModel.activeFilter,
-                            pinnedRawValue: storedDefaultFilter,
-                            onTap: {
-                                if viewModel.activeFilter == filter {
-                                    Haptics.play(.primaryAction)
-                                    pendingDefaultFilter = filter
-                                } else {
-                                    Haptics.play(.selection)
-                                    viewModel.activeFilter = filter
-                                }
-                            },
-                            onLongPress: {
-                                Haptics.play(.primaryAction)
-                                pendingDefaultFilter = filter
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 4)
-                .padding(.bottom, 2)
-            }
+            categoryFilterBar
 
             // Pills de mes — sincronizan con el TabView
             if !viewModel.racesByMonth.isEmpty {
@@ -253,6 +226,45 @@ struct SeasonView: View {
                     "The filter «\(filter.label)» will be applied as default in Today, Month and Season."
                 ))
             }
+        }
+    }
+
+    @ViewBuilder
+    private var categoryFilterBar: some View {
+        if #available(iOS 26.0, *) {
+            // En iOS 27 Beta, ScrollEdgeEffectView se extiende bajo la barra
+            // superior y absorbe los toques de esta primera fila en hardware.
+            categoryFilterScrollView
+                .scrollEdgeEffectHidden()
+        } else {
+            categoryFilterScrollView
+        }
+    }
+
+    private var categoryFilterScrollView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Constants.CategoryFilter.allCases) { filter in
+                    SeasonFilterChip(
+                        filter: filter,
+                        isActive: viewModel.activeFilter == filter,
+                        activeFilter: viewModel.activeFilter,
+                        pinnedRawValue: storedDefaultFilter,
+                        onTap: {
+                            if viewModel.activeFilter == filter {
+                                Haptics.play(.primaryAction)
+                                pendingDefaultFilter = filter
+                            } else {
+                                Haptics.play(.selection)
+                                viewModel.activeFilter = filter
+                            }
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
         }
     }
 
@@ -699,7 +711,6 @@ private struct SeasonFilterChip: View {
     let activeFilter: Constants.CategoryFilter
     let pinnedRawValue: String
     let onTap: () -> Void
-    let onLongPress: () -> Void
 
     private enum PinDisplay { case filled, outline, hidden }
 
@@ -712,45 +723,44 @@ private struct SeasonFilterChip: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text(filter.label)
-                .fontWeight(isActive ? .semibold : .regular)
-            switch pinDisplay {
-            case .filled:
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            case .outline:
-                Image(systemName: "pin")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(0.55)
-            case .hidden:
-                EmptyView()
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Text(filter.label)
+                    .fontWeight(isActive ? .semibold : .regular)
+                switch pinDisplay {
+                case .filled:
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                case .outline:
+                    Image(systemName: "pin")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                        .opacity(0.55)
+                case .hidden:
+                    EmptyView()
+                }
             }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            // Activo en azul de marca suave (15%) + texto azul — mismo gesto que el
+            // cintillo "Hoy" y el día seleccionado, en vez del azul sólido + blanco.
+            .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
+            .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
+            .clipShape(Capsule())
+            .frame(minHeight: 44)
         }
-        .font(.caption)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        // Activo en azul de marca suave (15%) + texto azul — mismo gesto que el
-        // cintillo "Hoy" y el día seleccionado, en vez del azul sólido + blanco.
-        .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-        .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-        .clipShape(Capsule())
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        .onLongPressGesture(minimumDuration: 0.5, pressing: { isPressing in
-            if isPressing { Haptics.play(.selection) }
-        }, perform: { onLongPress() })
-        .accessibilityAddTraits([.isButton])
+        // Mantener el Button estándar: los estilos primitivos basados en
+        // Gesture siguen perdiendo el toque frente al pager en iOS 27.
+        .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .accessibilityLabel(pinDisplay == .filled
             ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"
             : "\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
         .accessibilityHint(isActive
-            ? LocaleService.t("Filtro activo. Mantén pulsado para establecer como filtro por defecto.", "Active filter. Long press to set as default filter.")
-            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label). Mantén pulsado para establecer como filtro por defecto.", "Double tap to filter by \(filter.label). Long press to set as default filter."))
+            ? LocaleService.t("Filtro activo. Actívalo de nuevo para establecerlo como filtro por defecto.", "Active filter. Activate it again to set it as the default filter.")
+            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label).", "Double tap to filter by \(filter.label)."))
         .accessibilityIdentifier(AccessibilityID.filterButton(filter.rawValue))
     }
 }

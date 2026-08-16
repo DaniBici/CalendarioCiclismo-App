@@ -18,7 +18,7 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   background: var(--bg);
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
   padding: 0.3rem 0.6rem;
@@ -71,7 +71,7 @@
 .cal-month-chip:hover { background: var(--accent-dim); }
 .cal-month-chip--active {
   background: var(--accent-dim);
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -88,7 +88,7 @@
   padding: 0.3rem 0.6rem;
   cursor: pointer;
 }
-.cal-today-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cal-today-btn:hover { border-color: var(--accent); color: var(--accent-text); }
 
 /* ── Agenda mensual ──────────────────────────────────────────── */
 .cal-mes-list { display: flex; flex-direction: column; }
@@ -118,11 +118,11 @@
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--accent-text);
   flex: none;
 }
 .cal-day--today .cal-day__num { background: var(--accent); color: #fff; font-weight: 700; }
-.cal-day__wd { font-size: 0.9rem; color: var(--accent); }
+.cal-day__wd { font-size: 0.9rem; color: var(--accent-text); }
 
 .cal-day__empty {
   margin: 0 0 0.5rem 2.7rem;
@@ -145,10 +145,29 @@
   color: var(--text);
   min-width: 0;
 }
-a.cal-race:hover { border-color: color-mix(in srgb, var(--rc, var(--accent)) 45%, var(--border-light)); }
+/* Las filas que abren diálogo son <button> reales: hay que neutralizar los
+   estilos por defecto del botón para que se vean igual que las <a>. */
+button.cal-race {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+}
+a.cal-race:hover,
+button.cal-race:not(.cal-race--ph):hover { border-color: color-mix(in srgb, var(--rc, var(--accent)) 45%, var(--border-light)); }
 .cal-race--modal { cursor: pointer; }
-.cal-race--ph { cursor: default; opacity: 0.75; }
-.cal-race--rest { opacity: 0.65; }
+/* Estas filas se atenúan, pero la opacidad sobre TODA la fila arrastraba el
+   texto por debajo de 4.5:1 (WCAG 1.4.3). Se atenúa lo decorativo —logo,
+   bandera, chevron— y el texto conserva su color, que ya pasa AA. */
+.cal-race--ph { cursor: default; }
+.cal-race--ph .cal-race__logo,
+.cal-race--ph .cal-race__flag,
+.cal-race--ph .cal-race__chev,
+.cal-race--rest .cal-race__logo,
+.cal-race--rest .cal-race__flag,
+.cal-race--rest .cal-race__chev { opacity: 0.65; }
+.cal-race--rest .cal-race__name { color: var(--text-muted); }
 
 .cal-race__logo {
   width: 28px;

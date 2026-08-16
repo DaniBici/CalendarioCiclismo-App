@@ -5,7 +5,7 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, startOrderUrl,
-         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, buildTeamBadgeSvg } from './shared.js';
+         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, buildTeamBadgeSvg, setPressed } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
 
 const STAGE_TYPE_LABELS = {
@@ -230,14 +230,6 @@ async function init() {
     ? (_isEn ? 'teams' : 'equipos')
     : (_isEn ? 'riders' : 'corredores');
   const startOrderLabel = _isEn ? 'Start order' : 'Orden de Salida';
-  const viewStageLabel = _isEn ? 'View stage' : 'Ver jornada';
-
-  const viewStageAction = `<a class="btn-ical" href="${jornadaHref}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M12 5V3"/><path d="M10 2h4"/>
-          </svg>
-          ${viewStageLabel}
-        </a>`;
 
   let html = buildRaceHeader({
     race,
@@ -245,7 +237,6 @@ async function init() {
     label: startOrderLabel,
     detail: heroSubline,
     stats: `${entries.length} ${ridersLabel}`,
-    action: viewStageAction,
   }) + buildActionButtons({
     race, rd, view: 'startOrder', assets: withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id)),
     hasStartlist: !!race.startlistImportedAt,
@@ -255,9 +246,9 @@ async function init() {
     ${hasFilters ? `
     <div class="so-filters" id="soFilters">
       <div class="so-filters__inner">
-        <button class="tcat-btn tcat-btn--active" data-filter="all">${_isEn ? 'All' : 'Todos'}</button>
-        ${ttDorsals.size > 0 ? `<button class="tcat-btn" data-filter="tt">${_isEn ? 'TT Specialists' : 'Contrarrelojistas'}</button>` : ''}
-        ${gcDorsals.size > 0 ? `<button class="tcat-btn" data-filter="gc">${_isEn ? 'GC' : 'General'}</button>` : ''}
+        <button type="button" class="tcat-btn tcat-btn--active" aria-pressed="true" data-filter="all">${_isEn ? 'All' : 'Todos'}</button>
+        ${ttDorsals.size > 0 ? `<button type="button" class="tcat-btn" aria-pressed="false" data-filter="tt">${_isEn ? 'TT Specialists' : 'Contrarrelojistas'}</button>` : ''}
+        ${gcDorsals.size > 0 ? `<button type="button" class="tcat-btn" aria-pressed="false" data-filter="gc">${_isEn ? 'GC' : 'General'}</button>` : ''}
       </div>
     </div>` : ''}`;
 
@@ -393,8 +384,7 @@ async function init() {
     const tableWrap = content.querySelector('.so-table-wrap');
     content.querySelectorAll('#soFilters .tcat-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        content.querySelectorAll('#soFilters .tcat-btn').forEach(b => b.classList.remove('tcat-btn--active'));
-        btn.classList.add('tcat-btn--active');
+        content.querySelectorAll('#soFilters .tcat-btn').forEach(b => setPressed(b, b === btn));
         tableWrap.classList.remove('so-filter--tt', 'so-filter--gc');
         if (btn.dataset.filter !== 'all') tableWrap.classList.add(`so-filter--${btn.dataset.filter}`);
       });

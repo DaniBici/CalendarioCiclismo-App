@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
-         raceUrl, raceName as getRaceName, enBase, findMatchingTeam, teamLinkUrl,
+         raceUrl, raceName as getRaceName, enBase, findMatchingTeam, normalizeTeamName, teamLinkUrl,
          buildRaceHeader, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl,
          isIndividualPlaceholderTeam, effectiveCountryCode } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
@@ -411,8 +411,10 @@ async function init() {
   // OJO: startlist_riders.teamId apunta al **PK** de startlist_teams (id), NO a
   // su columna teamId (que es la referencia canónica a teams). El equipo canónico
   // (para el slug de /equipo/) se resuelve por ese teamId canónico de la fila.
-  const byDorsal = new Map();   // dorsal(int) → { name, countryCode, teamName, teamHref }
+  const byDorsal = new Map();          // dorsal(int) → snapshot resuelto de la startlist
+  const byStartlistRider = new Map();  // globalRiderId → el mismo snapshot de la startlist
   let raceTeams = [];
+  let startlistTeams = [];
   const teamBySlugId = new Map();   // teamId canónico → fila teams (hoisted: lo reusa enrichRiders)
   {
     const [{ data: slRiders }, { data: slTeams }] = await Promise.all([
@@ -426,9 +428,10 @@ async function init() {
       supabase.from('startlist_teams').select('id, teamId, teamName').eq('raceId', raceId),
     ]);
     // PK de la fila de startlist_teams → { teamName, canonical teamId }.
-    const slTeamByPk = new Map((slTeams || []).map(t => [t.id, t]));
+    startlistTeams = slTeams || [];
+    const slTeamByPk = new Map(startlistTeams.map(t => [t.id, t]));
     // Equipos canónicos (para enlazar a /equipo/<slug>/): teamId canónico → fila teams.
-    const canonIds = [...new Set((slTeams || []).map(s => s.teamId).filter(Boolean))];
+    const canonIds = [...new Set(startlistTeams.map(s => s.teamId).filter(Boolean))];
     if (canonIds.length) {
       const { data } = await supabase
         .from('teams')
@@ -438,22 +441,54 @@ async function init() {
       raceTeams.forEach(t => teamBySlugId.set(t.id, t));
     }
     (slRiders || []).forEach(r => {
-      if (r.dorsal == null) return;
       const slTeam = r.teamId ? slTeamByPk.get(r.teamId) : null;       // fila por PK
       const canon  = slTeam?.teamId ? teamBySlugId.get(slTeam.teamId) : null;
       // Ficticio "Individual" (corredor sin equipo en la fuente) → ocultación
       // cosmética: sin nombre de equipo, y en cascada sin chapa ni opción de filtro.
       const slName = isIndividualPlaceholderTeam(slTeam) ? '' : (slTeam?.teamName || '');
-      byDorsal.set(r.dorsal, {
+      const snapshot = {
         name: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
         countryCode: r.countryCode || '',
         // Equipo casado → nombre canónico del catálogo (Title Case);
         // sin casar → el crudo de la startlist (p. ej. "TEAM RINGERIKE" de la UCI).
         teamName: canon?.name || slName,
         teamObj: canon || null,   // para la chapa (solo desktop)
-      });
+      };
+      if (r.dorsal != null) byDorsal.set(r.dorsal, snapshot);
+      // Los resultados introducidos a mano pueden no llevar dorsal. Si el panel
+      // ya los enlazó a una ficha presente en la startlist, el equipo inscrito
+      // sigue siendo la fuente de verdad y debe ganar al equipo actual de la ficha.
+      if (r.globalRiderId) byStartlistRider.set(r.globalRiderId, snapshot);
     });
   }
+  const startlistRiderForResult = (row) => {
+    const dorsal = row?.bib != null && /^\d+$/.test(String(row.bib)) ? Number(row.bib) : null;
+    return (dorsal != null ? byDorsal.get(dorsal) : null)
+      || (row?.globalRiderId ? byStartlistRider.get(row.globalRiderId) : null)
+      || null;
+  };
+  // La clasificación por equipos debe conservar el snapshot que figura en los
+  // inscritos. Primero se resuelve por teamId; los cronometrajes colombianos
+  // abrevian varios nombres, por lo que aceptamos solo una segunda coincidencia
+  // inequívoca de dos o más tokens distintivos (nunca un "mejor" empate).
+  const startlistTeamForResult = (resultRow) => {
+    if (resultRow?.teamId) {
+      const byId = startlistTeams.find(t => t.teamId === resultRow.teamId);
+      if (byId) return byId;
+    }
+    const source = normalizeTeamName(resultRow?.riderDisplay || '');
+    if (!source) return null;
+    const exact = startlistTeams.filter(t => normalizeTeamName(t.teamName) === source);
+    if (exact.length === 1) return exact[0];
+    const wanted = new Set(source.split(' ').filter(Boolean));
+    const scored = startlistTeams.map((team) => ({
+      team,
+      score: normalizeTeamName(team.teamName).split(' ').filter(token => wanted.has(token)).length,
+    }));
+    const max = Math.max(0, ...scored.map(item => item.score));
+    const candidates = scored.filter(item => item.score === max);
+    return max >= 2 && candidates.length === 1 ? candidates[0].team : null;
+  };
   // Fallback por nombre (eventos de equipos: el dorsal es del equipo, no del corredor).
   const teamHrefByName = (teamName) => {
     if (!teamName || !raceTeams.length) return null;
@@ -795,12 +830,11 @@ async function init() {
     // al final fuera de su bloque). Si no hay startlist (byDorsal vacío), se cae al
     // "arrastre por rank" (boundary = cambio de rank; rank=null sigue el equipo anterior),
     // que es el único recurso cuando solo el líder trae teamName.
-    const dorsalOf = (r) => (r.bib != null && /^\d+$/.test(String(r.bib)) ? Number(r.bib) : null);
     const order = [];                 // orden de aparición de los equipos
     const byKey = new Map();          // teamKey → { lead, riders }
     let prevRank = undefined, fallbackKey = 0;
     for (const r of rows) {
-      const fromSl = byDorsal.get(dorsalOf(r));
+      const fromSl = startlistRiderForResult(r);
       if (r.rank != null && r.rank !== prevRank) fallbackKey++;   // nuevo equipo (arrastre)
       const key = (fromSl && fromSl.teamName) || `__grp${fallbackKey}`;
       if (!byKey.has(key)) { const g = { lead: null, riders: [] }; byKey.set(key, g); order.push(key); }
@@ -812,7 +846,7 @@ async function init() {
     const teamRows = order.map((key) => {
       const g = byKey.get(key);
       const lead = g.lead || g.riders[0];                        // si nadie trae rank (sueltos)
-      const fromSl = byDorsal.get(dorsalOf(lead));
+      const fromSl = startlistRiderForResult(lead);
       // Override manual de equipo (panel): el teamId del líder define el equipo
       // de la fila colapsada, ganando a la resolución por dorsal.
       const ovr = overrideTeam(lead?.teamId);
@@ -864,8 +898,7 @@ async function init() {
       </tr>`;
       // Sub-filas de corredores (ocultas por defecto): bandera + nombre + tiempo individual.
       tr.riders.forEach((r) => {
-        const dorsal = r.bib != null && /^\d+$/.test(String(r.bib)) ? Number(r.bib) : null;
-        const fs = dorsal != null ? byDorsal.get(dorsal) : null;
+        const fs = startlistRiderForResult(r);
         const fr = !fs && r.globalRiderId ? byRider.get(r.globalRiderId) : null;
         const nm = (fs && fs.name) || (fr && fr.name) || r.riderDisplay || '';
         const cc = fs ? fs.countryCode : (fr ? fr.countryCode : '');
@@ -1078,8 +1111,7 @@ async function init() {
     if (!isTeams) {
       rows.forEach((r) => {
         const ovr = overrideTeam(r.teamId);
-        const d = r.bib != null && /^\d+$/.test(String(r.bib)) ? Number(r.bib) : null;
-        const fs = d != null ? byDorsal.get(d) : null;
+        const fs = startlistRiderForResult(r);
         const fr = !fs && r.globalRiderId ? byRider.get(r.globalRiderId) : null;
         const tn = (ovr && ovr.teamName) || (fs && fs.teamName) || (fr && fr.teamName) || '';
         if (tn) teamsInClass.add(tn);
@@ -1130,8 +1162,8 @@ async function init() {
     }
 
     rows.forEach((r, rowIndex) => {
-      const dorsal = r.bib != null && /^\d+$/.test(String(r.bib)) ? Number(r.bib) : null;
-      const fromSl = dorsal != null ? byDorsal.get(dorsal) : null;
+      const fromSl = startlistRiderForResult(r);
+      const teamSnapshot = isTeams ? startlistTeamForResult(r) : null;
       // Sin casar por dorsal (carrera sin startlist): caer al enriquecido por
       // globalRiderId (bandera + equipo actual + ficha de riders_*). null si la
       // fila no tiene ficha (corredor amateur fuera del catálogo).
@@ -1139,7 +1171,9 @@ async function init() {
       // Nombre: startlist (curado) → ficha por globalRiderId (orden natural) →
       // riderDisplay (fallback de la fuente). La ficha gana al riderDisplay para
       // que las CN sin startlist no muestren el "APELLIDO Nombre" crudo de la UCI.
-      const riderName = (fromSl && fromSl.name) || (fromRider && fromRider.name) || r.riderDisplay || '';
+      const riderName = isTeams
+        ? (teamSnapshot?.teamName || r.riderDisplay || '')
+        : ((fromSl && fromSl.name) || (fromRider && fromRider.name) || r.riderDisplay || '');
       // Override manual de equipo (panel): gana a dorsal/globalRiderId.
       const ovrTeam = isTeams ? null : overrideTeam(r.teamId);
       const teamName = (ovrTeam && ovrTeam.teamName) || (fromSl && fromSl.teamName) || (fromRider && fromRider.teamName) || '';
@@ -1150,7 +1184,7 @@ async function init() {
       // startlist (mismo patrón que orden-salida) para chapa + nombre bonito +
       // enlace. Individual: override manual → equipo de la startlist → href por nombre.
       const rowTeamObj = isTeams
-        ? ((overrideTeam(r.teamId) || {}).teamObj || findMatchingTeam(r.riderDisplay || '', raceTeams))
+        ? ((overrideTeam(r.teamId) || {}).teamObj || (teamSnapshot?.teamId ? teamBySlugId.get(teamSnapshot.teamId) : null) || findMatchingTeam(r.riderDisplay || '', raceTeams))
         : (ovrTeam ? ovrTeam.teamObj : null);
       const teamHref = isTeams
         ? teamLinkUrl(rowTeamObj)

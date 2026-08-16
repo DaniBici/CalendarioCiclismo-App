@@ -108,7 +108,7 @@ fun SeasonScreen(
     val scope = rememberCoroutineScope()
     val allRaces by app.repository.observeAllRaces().collectAsState(initial = emptyList())
     var year by remember { mutableStateOf(LocalDate.now().year) }
-    var category by remember { mutableStateOf(Constants.CategoryFilter.PRO) }
+    var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var country by remember { mutableStateOf<String?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
     var countryMenuOpen by remember { mutableStateOf(false) }
@@ -116,7 +116,7 @@ fun SeasonScreen(
     var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
 
     // Observar el filtro por defecto de forma reactiva (se actualiza cuando otra sección lo cambia)
-    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.PRO)
+    val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
 
     LaunchedEffect(year) {

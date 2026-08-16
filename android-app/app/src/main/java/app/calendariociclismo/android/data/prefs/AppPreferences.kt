@@ -51,6 +51,12 @@ class AppPreferences(private val context: Context) {
         val NOTIFICATION_CATEGORIES = stringPreferencesKey("notification_categories")
         val PREMIUM_SUBSCRIBED = booleanPreferencesKey("premium_subscribed")
         val ADS_INTRO_V4_DONE = booleanPreferencesKey("ads_intro_v4_done")
+        val CONTRIBUTION_INTRO_V4_2_3_1_DONE = booleanPreferencesKey("contribution_intro_v4_2_3_1_done")
+        val CONTRIBUTION_FIRST_VIEW_AT = longPreferencesKey("contribution_prompt_v4_2_4_first_view_at")
+        val CONTRIBUTION_VIEW_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_view_count")
+        val CONTRIBUTION_PROMPT_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_prompt_count")
+        val CONTRIBUTION_LAST_PROMPT_AT = longPreferencesKey("contribution_prompt_v4_2_4_last_prompt_at")
+        val CONTRIBUTION_LAST_PROMPT_VIEWS = intPreferencesKey("contribution_prompt_v4_2_4_last_prompt_views")
         val RACE_FOLLOW_MODE = stringPreferencesKey("race_follow_mode")
         val FOLLOWED_RACE_IDS = stringPreferencesKey("followed_race_ids")
         val RACE_GROUP_FILTERS = stringPreferencesKey("race_group_filters")
@@ -254,6 +260,40 @@ class AppPreferences(private val context: Context) {
     val adsIntroV4Done: Flow<Boolean> = data.map { it[Keys.ADS_INTRO_V4_DONE] ?: false }
     suspend fun setAdsIntroV4Done(value: Boolean) {
         context.dataStore.edit { it[Keys.ADS_INTRO_V4_DONE] = value }
+    }
+
+    val contributionIntroV4231Done: Flow<Boolean> = data.map { it[Keys.CONTRIBUTION_INTRO_V4_2_3_1_DONE] ?: false }
+    suspend fun setContributionIntroV4231Done(value: Boolean) {
+        context.dataStore.edit { it[Keys.CONTRIBUTION_INTRO_V4_2_3_1_DONE] = value }
+    }
+
+    /** Registra una vista local y devuelve si toca mostrar el aviso al volver a Hoy. */
+    suspend fun recordContributionContentView(isToday: Boolean, isSubscribed: Boolean): Boolean {
+        if (isSubscribed) return false
+        var show = false
+        val now = System.currentTimeMillis()
+        context.dataStore.edit { prefs ->
+            val first = prefs[Keys.CONTRIBUTION_FIRST_VIEW_AT] ?: now
+            val views = (prefs[Keys.CONTRIBUTION_VIEW_COUNT] ?: 0) + 1
+            val prompts = prefs[Keys.CONTRIBUTION_PROMPT_COUNT] ?: 0
+            prefs[Keys.CONTRIBUTION_FIRST_VIEW_AT] = first
+            prefs[Keys.CONTRIBUTION_VIEW_COUNT] = views
+            show = isToday && prompts < 2 && now - first >= 7L * 24 * 60 * 60 * 1000 && when (prompts) {
+                0 -> views >= 30
+                else -> now - (prefs[Keys.CONTRIBUTION_LAST_PROMPT_AT] ?: now) >= 21L * 24 * 60 * 60 * 1000 &&
+                    views - (prefs[Keys.CONTRIBUTION_LAST_PROMPT_VIEWS] ?: views) >= 60
+            }
+        }
+        return show
+    }
+
+    suspend fun recordContributionPromptDecision() {
+        val now = System.currentTimeMillis()
+        context.dataStore.edit { prefs ->
+            prefs[Keys.CONTRIBUTION_PROMPT_COUNT] = (prefs[Keys.CONTRIBUTION_PROMPT_COUNT] ?: 0) + 1
+            prefs[Keys.CONTRIBUTION_LAST_PROMPT_AT] = now
+            prefs[Keys.CONTRIBUTION_LAST_PROMPT_VIEWS] = prefs[Keys.CONTRIBUTION_VIEW_COUNT] ?: 0
+        }
     }
 
     // ─── Widget ───

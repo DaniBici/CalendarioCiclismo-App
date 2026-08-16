@@ -11,6 +11,13 @@ final class StageDetailViewModel {
     var siblings: [RaceDay] = []
     var isLoading = false
     var error: String?
+    /// Gates de resultados resueltos junto con la instantánea de la jornada. La
+    /// vista no intercambia los botones externos por el CTA nativo tras pintarse.
+    var hasInhouseResults = false
+    var resultsStageNumber: Int?
+    var prevHasInhouse = false
+    var prevResultsStageNumber: Int?
+    var areInhouseGatesResolved = false
     /// Se incrementa tras sustituir una respuesta remota completa. La vista lo
     /// usa para reconstruir las secciones que pudieran conservar subviews
     /// asociadas al contenido anterior.
@@ -23,6 +30,7 @@ final class StageDetailViewModel {
     func load(raceDayId: String) async {
         isLoading = true
         error = nil
+        areInhouseGatesResolved = false
 
         // 1. Intentar rellenar desde la caché offline (DayData de los últimos 14 días).
         //    Esto permite que la pantalla se pinte inmediatamente sin red y que
@@ -80,13 +88,14 @@ final class StageDetailViewModel {
                 async let assetsResult = service.assets(byRaceDayId: rdId)
                 // Cargar siblings para detectar doble sector
                 async let siblingsResult = service.raceDays(byRaceId: raceId)
+                async let resultsStagesResult = service.raceUciStages(raceId: raceId)
                 // La guía es de toda la competición. Se pide directamente por
                 // raceId, en paralelo, en vez de esperar a siblings y lanzar
                 // una segunda ronda de red: así el chip no aparece tarde.
                 async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
 
-                let (r, b, a, siblings, technicalGuide) = try await (
-                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult
+                let (r, b, a, siblings, technicalGuide, resultsStages) = try await (
+                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
                 )
                 race = r
 
@@ -105,6 +114,7 @@ final class StageDetailViewModel {
                 // expone en cada jornada sin duplicar su fila ni su PDF.
                 assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays
+                updateInhouseGates(raceDay: rd, siblings: allDays, stages: resultsStages)
                 // Guardar siblings para cargas futuras sin flash
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
                 // Guardar incluso una lista vacía: si el Libro de Ruta se borra
@@ -123,6 +133,9 @@ final class StageDetailViewModel {
                 self.error = error.localizedDescription
             }
         }
+        // Ante un fallo de red mantenemos el fallback externos, pero sin enseñar
+        // primero una barra que después pueda mutar al CTA nativo.
+        areInhouseGatesResolved = true
         isLoading = false
     }
 
@@ -178,9 +191,10 @@ final class StageDetailViewModel {
                 async let assetsResult = service.assets(byRaceDayId: rdId)
                 async let siblingsResult = service.raceDays(byRaceId: raceId)
                 async let technicalGuideResult = service.technicalGuide(byRaceId: raceId)
+                async let resultsStagesResult = service.raceUciStages(raceId: raceId)
 
-                let (r, b, a, siblings, technicalGuide) = try await (
-                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult
+                let (r, b, a, siblings, technicalGuide, resultsStages) = try await (
+                    raceResult, broadcastsResult, assetsResult, siblingsResult, technicalGuideResult, resultsStagesResult
                 )
                 race = r
 
@@ -196,6 +210,7 @@ final class StageDetailViewModel {
                 )
                 assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays
+                updateInhouseGates(raceDay: rd, siblings: allDays, stages: resultsStages)
                 await CacheManager.shared.save(allDays, forKey: CacheManager.siblingsKey(raceId))
                 await CacheManager.shared.save(
                     technicalGuide.map { [$0] } ?? [],
@@ -212,6 +227,36 @@ final class StageDetailViewModel {
         } catch {
             // Silenciamos el fallo: mantenemos los datos visibles anteriores.
         }
+    }
+
+    /// Resuelve los CTAs de la etapa actual y de la anterior con la misma
+    /// respuesta UCI que llega durante la carga principal.
+    private func updateInhouseGates(raceDay: RaceDay, siblings: [RaceDay], stages: [RaceUciStage]) {
+        let usable = stages.filter { $0.rowCount > 0 }
+        func matchingStage(for day: RaceDay) -> RaceUciStage? {
+            usable.first { $0.raceDayId == day.id }
+                ?? usable.first { $0.raceDayId == nil && $0.stageNumber == day.stageNumber }
+        }
+
+        let current = matchingStage(for: raceDay)
+        hasInhouseResults = current != nil || raceDay.isCancelledDay
+        resultsStageNumber = current?.stageNumber ?? raceDay.stageNumber
+
+        let navigable = siblings
+            .filter { !$0.isRestDay && !$0.isCancelledDay }
+            .sorted {
+                if let lhs = $0.stageNumber, let rhs = $1.stageNumber, lhs != rhs { return lhs < rhs }
+                return $0.dateKey < $1.dateKey
+            }
+        if let index = navigable.firstIndex(where: { $0.id == raceDay.id }), index > 0,
+           let previous = matchingStage(for: navigable[index - 1]) {
+            prevHasInhouse = true
+            prevResultsStageNumber = previous.stageNumber
+        } else {
+            prevHasInhouse = false
+            prevResultsStageNumber = nil
+        }
+        areInhouseGatesResolved = true
     }
 
     func load(slug: String) async {

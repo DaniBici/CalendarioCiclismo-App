@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, countryFlag, rdLocation, filterBroadcastsByRegion,
-         formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl }
+         formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { openRaceDataModal, openResultsModal, hasModalData, buildExtUrlA, buildExtUrlB, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js';
@@ -150,7 +150,7 @@ async function init() {
     // es el primero y el predeterminado; filtra por la jornada del día en curso.
     const showToday = isChampTodayFilterActive();
     _campFilter = showToday ? 'today' : 'all';
-    const F = (cat, label) => `<button class="tcat-btn${cat === _campFilter ? ' tcat-btn--active' : ''}" data-camp-filter="${cat}">${label}</button>`;
+    const F = (cat, label) => `<button type="button" class="tcat-btn${cat === _campFilter ? ' tcat-btn--active' : ''}" aria-pressed="${cat === _campFilter}" data-camp-filter="${cat}">${label}</button>`;
     content.innerHTML = `<div class="camp-sticky">
       <div class="camp-sticky__inner">
         <h1 class="camp-title">${esc(campTitle(getLang()))} ${CAMP.YEAR}</h1>
@@ -175,7 +175,7 @@ async function init() {
       if (!btn) return;
       _campFilter = btn.dataset.campFilter;
       document.querySelectorAll('#campFilters .tcat-btn').forEach(b =>
-        b.classList.toggle('tcat-btn--active', b.dataset.campFilter === _campFilter));
+        setPressed(b, b.dataset.campFilter === _campFilter));
       renderGrid();
     });
 

@@ -15,7 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
 
@@ -468,12 +468,18 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  if (req.method !== 'POST') {
+  // Este único endpoint público devuelve solo tres agregados redondeados para
+  // la web de portfolio (danisanchez.dev). El resto de informes sigue
+  // protegido por sesión.
+  const isPortfolioStats = req.method === 'GET'
+    && new URL(req.url).searchParams.get('report') === 'portfolio_stats';
+
+  if (!isPortfolioStats && req.method !== 'POST') {
     return jsonRes({ error: 'Método no soportado' }, 405);
   }
 
   // Auth check
-  if (!(await verifyAuth(req))) {
+  if (!isPortfolioStats && !(await verifyAuth(req))) {
     return jsonRes({ error: 'No autorizado' }, 401);
   }
 
@@ -482,8 +488,76 @@ Deno.serve(async (req: Request) => {
   const GA_SERVICE_ACCOUNT_EMAIL = Deno.env.get('GA_SERVICE_ACCOUNT_EMAIL');
   const GA_PRIVATE_KEY           = Deno.env.get('GA_PRIVATE_KEY');
 
-  if (!GA_PROPERTY_ID || !GA_SERVICE_ACCOUNT_EMAIL || !GA_PRIVATE_KEY) {
+  if (!GA_PROPERTY_ID || !GA_SERVICE_ACCOUNT_EMAIL || !GA_PRIVATE_KEY || (isPortfolioStats && !GA_APP_PROPERTY_ID)) {
     return jsonRes({ error: 'Variables de entorno de Google Analytics no configuradas' }, 500);
+  }
+
+  if (isPortfolioStats) {
+    // Debe coincidir con el filtro "Desde inicio web" del panel de métricas.
+    const startDate = '2026-04-06';
+    const endDate = 'today';
+    // Redondeo SIEMPRE a la baja: la web muestra las cifras con sufijo "+",
+    // así que redondear al múltiplo más cercano (Math.round) podía publicar
+    // más de lo real — 349.408 vistas se anunciaban como "360.000+".
+    const floorTo = (value: number, step: number) => Math.floor(value / step) * step;
+
+    try {
+      const accessToken = await getGoogleAccessToken(GA_SERVICE_ACCOUNT_EMAIL, GA_PRIVATE_KEY);
+      const fetchPublicReport = async (propertyId: string, report: ReportType): Promise<GAReport> => {
+        const res = await fetch(
+          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(buildReportBody(report, { startDate, endDate })),
+          },
+        );
+        if (!res.ok) throw new Error(`GA API error ${res.status}`);
+        return res.json();
+      };
+
+      // Dos llamadas bastan: 'overview' da los totales de la web y 'platforms'
+      // los de las apps ya desglosados por plataforma, así que de ahí salen
+      // tanto el total móvil como la cifra de iOS/Android por separado.
+      // La cifra debe cuadrar con el panel de métricas: si difiere, lo primero
+      // que hay que comparar es el rango de fechas de ambos (ver `startDate`
+      // arriba), no el cálculo — un día de desfase ya movía el total en unas
+      // 10.600 páginas vistas.
+      const [webOverview, appPlatforms] = await Promise.all([
+        fetchPublicReport(GA_PROPERTY_ID, 'overview'),
+        fetchPublicReport(GA_APP_PROPERTY_ID, 'platforms'),
+      ]);
+
+      // Orden de métricas en 'overview': 0 activeUsers · 2 screenPageViews.
+      const webMetrics = webOverview.rows?.[0]?.metricValues ?? [];
+      const webUsers = Number(webMetrics[0]?.value ?? 0);
+      const webPageViews = Number(webMetrics[2]?.value ?? 0);
+
+      // En 'platforms': 0 activeUsers · 2 screenPageViews, por plataforma.
+      const appRows = (appPlatforms.rows ?? [])
+        .filter((row) => ['IOS', 'ANDROID'].includes((row.dimensionValues?.[0]?.value ?? '').toUpperCase()));
+      // Usuarios activos en las apps nativas (no descargas de la store).
+      const appUsers = appRows.reduce((total, row) => total + Number(row.metricValues[0]?.value ?? 0), 0);
+      const appPageViews = appRows.reduce((total, row) => total + Number(row.metricValues[2]?.value ?? 0), 0);
+
+      const totalUsers = webUsers + appUsers;
+      const totalPageViews = webPageViews + appPageViews;
+
+      return jsonRes(
+        {
+          users: floorTo(totalUsers, 1000),
+          pageViews: floorTo(totalPageViews, 10000),
+          appDownloads: floorTo(appUsers, 100),
+        },
+        200,
+        { 'Cache-Control': 'public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400' },
+      );
+    } catch (err) {
+      return jsonRes({ error: `Error interno: ${(err as Error).message}` }, 500);
+    }
   }
 
   let body: { report: ReportType; startDate?: string; endDate?: string };

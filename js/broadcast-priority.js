@@ -2,27 +2,32 @@
 //  Prioridad del enlace del badge de TV en directo (Hoy / Competición)
 //
 //  Decide a qué emisión enlaza el badge de TV cuando hay varias. Orden:
+//   -1) reproductor embebible de CyLTV
 //    0) YouTube
 //    1) otras redes sociales (Facebook, Instagram, X/Twitter, TikTok, Twitch, Kick)
 //    2) RTVE.es (la pública estatal, por delante del resto de cadenas españolas)
-//    3) otras TV públicas españolas en abierto: CCMA (TV3 / Esport3 / 3Cat), EITB (ETB)
+//    3) otras TV públicas en abierto: RTP1, CCMA (TV3 / Esport3 / 3Cat), EITB (ETB)
 //    4) resto de cadenas
 //
 //  Eurosport / HBO Max / Max son "una cadena más" (tier 4, sin trato
-//  especial). Módulo puro y sin dependencias para poder testearse en Node.
-//  Espejo en `RaceLogic.broadcastLinkPriority` (iOS Swift y Android Kotlin).
+//  especial). Módulo puro y con dependencias locales puras para poder testearse en Node.
+//  La excepción CyLTV es propia de la web porque abre el reproductor inline.
+//  El resto de tiers tiene espejo en iOS Swift y Android Kotlin.
 // ─────────────────────────────────────────────────────────────────
+
+import { isCyltvPlayerUrl } from './broadcast-embed.js';
 
 const _YT = /youtube\.com|youtu\.be/i;
 // Nota: `x.com` se ancla con `//` o `.` delante para no capturar `play.max.com`.
 const _OTHER_SOCIAL = /facebook\.com|fb\.watch|instagram\.com|tiktok\.com|twitch\.tv|kick\.com|twitter\.com|(?:\/\/|\.)x\.com/i;
 // RTVE (rtve.es) = pública estatal; va por delante del resto de cadenas españolas.
 const _RTVE = /rtve\.es/i;
-// Otras TV públicas autonómicas en abierto: CCMA / 3Cat (ccma.cat, 3cat.cat) y EITB (eitb.eus/tv).
-const _OTHER_PUBLIC_TV = /ccma\.cat|3cat\.cat|eitb\./i;
+// Otras TV públicas en abierto: RTP1 (rtp.pt), CCMA / 3Cat (ccma.cat, 3cat.cat) y EITB (eitb.eus/tv).
+const _OTHER_PUBLIC_TV = /rtp\.pt|ccma\.cat|3cat\.cat|eitb\./i;
 
 export function broadcastLinkPriority(url) {
   const u = url || '';
+  if (isCyltvPlayerUrl(u)) return -1;
   if (_YT.test(u)) return 0;
   if (_OTHER_SOCIAL.test(u)) return 1;
   if (_RTVE.test(u)) return 2;

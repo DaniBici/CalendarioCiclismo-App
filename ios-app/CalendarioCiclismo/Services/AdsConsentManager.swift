@@ -12,7 +12,7 @@ import UserMessagingPlatform
 ///   2. ATT (`ATTrackingManager.requestTrackingAuthorization`)
 ///   3. `MobileAds.shared.start()`
 ///
-/// **Principio rector (CLAUDE.md):** si el usuario está suscrito
+/// **Principio rector (`docs/memory/premium.md`):** si el usuario está suscrito
 /// (`shouldShowAds == false`), este manager NO se invoca: ni UMP, ni el prompt
 /// ATT, ni el arranque del SDK. Todo cuelga de `shouldShowAds`, nunca de
 /// `featuresUnlocked`.

@@ -5,8 +5,9 @@
 //  window.openAssetModal / window.openDynPerfilModal como efecto secundario.
 // ─────────────────────────────────────────────────────────────────
 
-import { formatTime, tsSeconds, rdLocation, enBase, extractYouTubeId } from './shared.js';
+import { formatTime, tsSeconds, rdLocation, enBase, esc } from './shared.js';
 import { pickBadgeBroadcast } from './broadcast-priority.js';
+import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildElevationProfileSVG } from './elevation-profile.js';
 import { setupElevationProfileHover } from './elevation-profile-hover.js';
@@ -44,12 +45,12 @@ export function tvBadge(tvStatus, broadcasts, neutralStartTs, liveTextUrl, rdId 
   // y sortOrder. Ver `pickBadgeBroadcast`. Espejo iOS/Android.
   const linkBroadcast = pickBadgeBroadcast(broadcasts, tsSeconds, Date.now() / 1000);
   const linkUrl = linkBroadcast?.url || null;
-  // Si la URL es YouTube y el embed está habilitado, marcamos para modal inline.
-  const _ytId = (linkUrl && linkBroadcast.embeddable !== false) ? extractYouTubeId(linkUrl) : null;
+  // Los proveedores de la allowlist se abren en el modal inline.
+  const broadcastEmbed = getBroadcastEmbed(linkUrl, linkBroadcast?.embeddable);
   const wrapTv = (content, liveClass) => {
     const extra = liveClass ? ' badge--tv--live' : '';
     return linkUrl
-      ? `<a class="badge badge--tv badge--tv-link${extra}" href="${linkUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()"${_ytId ? ` data-yt-id="${_ytId}"${rdId ? ` data-yt-rd-id="${rdId}"` : ''}` : ''}>${content}</a>`
+      ? `<a class="badge badge--tv badge--tv-link${extra}" href="${linkUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()"${broadcastEmbed ? ` data-tv-embed="1"${rdId ? ` data-tv-rd-id="${rdId}"` : ''}` : ''}>${content}</a>`
       : `<span class="badge badge--tv${extra}">${content}</span>`;
   };
 
@@ -176,7 +177,7 @@ window.openAssetModal = function(url, label) {
   const body  = document.getElementById('assetModalBody');
   const modal = document.querySelector('.asset-modal');
   if (isImage) {
-    body.innerHTML = `<img src="${url}" style="width:100%;height:auto;display:block">`;
+    body.innerHTML = `<img src="${url}" alt="${esc(label)}" style="width:100%;height:auto;display:block">`;
     modal.classList.add('asset-modal--image');
     modal.classList.remove('asset-modal--document');
   } else if (isPdf) {

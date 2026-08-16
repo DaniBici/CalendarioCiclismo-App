@@ -1,6 +1,6 @@
 # Android — Status bar appearance (lección aprendida)
 
-Detalle complementario de la sección "Arquitectura Android" de `CLAUDE.md`.
+Documentación técnica de la barra de estado Android.
 
 ## El problema (versionCode 117 y anteriores)
 

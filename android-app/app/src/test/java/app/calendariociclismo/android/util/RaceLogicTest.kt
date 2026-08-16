@@ -312,7 +312,8 @@ class RaceLogicTest {
     }
 
     @Test
-    fun `broadcastLinkPriority otras TV publicas espanolas (CCMA, EITB) son tier 3`() {
+    fun `broadcastLinkPriority otras TV publicas en abierto (RTP1, CCMA, EITB) son tier 3`() {
+        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1"))
         assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
         assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.3cat.cat/3cat/directes/esport3/"))
         assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
@@ -324,6 +325,13 @@ class RaceLogicTest {
         val rtve = RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/")
         assertTrue(rtve < RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
         assertTrue(rtve < RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
+    }
+
+    @Test
+    fun `broadcastLinkPriority RTP1 gana a WBD en la Volta a Portugal`() {
+        val rtp1 = RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1")
+        assertTrue(rtp1 < RaceLogic.broadcastLinkPriority("https://play.hbomax.com/sport/abc"))
+        assertTrue(rtp1 < RaceLogic.broadcastLinkPriority("https://www.hbomax.com/gb/en/sports/cycling"))
     }
 
     @Test

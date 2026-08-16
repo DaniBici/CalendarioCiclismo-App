@@ -18,12 +18,12 @@
   }
 
   // ── SVGs ────────────────────────────────────────────────────────
-  var clockSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+  var clockSVG = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     '<circle cx="12" cy="12" r="10"/>' +
     '<polyline points="12 6 12 12 16 14"/>' +
     '</svg>';
 
-  var gearSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+  var gearSVG = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     '<circle cx="12" cy="12" r="3"/>' +
     '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
     '</svg>';
@@ -48,16 +48,21 @@
     //  1. BANNER (solo si no hay elección guardada)
     // ════════════════════════════════════════════════════════════
     if (!stored && !deferred) {
-      var banner = document.createElement('div');
+      // <aside role="region">: sin landmark el aviso queda fuera de la
+      // navegación por regiones y se lo salta quien navegue así.
+      var banner = document.createElement('aside');
       banner.id = 'cookieBanner';
       banner.className = 'cookie-banner';
+      banner.setAttribute('role', 'region');
+      banner.setAttribute('aria-label', _isEN ? 'Cookie notice' : 'Aviso de cookies');
       banner.innerHTML =
         '<div class="cookie-banner__inner">' +
           '<p class="cookie-banner__text">' + BANNER_TEXT + '</p>' +
           '<div class="cookie-banner__buttons">' +
             '<button class="cookie-banner__btn cookie-banner__btn--reject" id="cookieReject">' + (_isEN ? 'Reject' : 'Rechazar') + '</button>' +
             '<button class="cookie-banner__btn cookie-banner__btn--accept" id="cookieAccept">' + (_isEN ? 'Accept' : 'Aceptar') + '</button>' +
-            '<button class="cookie-banner__btn cookie-banner__btn--later" id="cookieLater">' + clockSVG + '</button>' +
+            '<button class="cookie-banner__btn cookie-banner__btn--later" id="cookieLater" aria-label="' +
+              (_isEN ? 'Decide later' : 'Elegiré más tarde') + '">' + clockSVG + '</button>' +
           '</div>' +
         '</div>';
 
@@ -154,7 +159,7 @@
       '<div class="cookie-modal__overlay" id="cookieModalOverlay"></div>' +
       '<div class="cookie-modal__box">' +
         '<button class="cookie-modal__close" id="cookieModalClose" aria-label="' + (_isEN ? 'Close' : 'Cerrar') + '">' +
-          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
             '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' +
           '</svg>' +
         '</button>' +

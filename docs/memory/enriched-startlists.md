@@ -1,6 +1,6 @@
 # Equipos y startlists enriquecidas (web-only)
 
-Detalle complementario de la sección "Equipos y startlists enriquecidas" de `CLAUDE.md`.
+Documentación técnica de equipos y startlists enriquecidas.
 
 Asignar un equipo global (tabla `teams`) a cada `startlist_teams.teamId` para pintar la cabecera con colores propios y mostrar una chapa ciclista (SVG) junto al nombre. Solo se activa cuando `races.enrichedStartlist = true`.
 

@@ -21,6 +21,7 @@ const CORS_HEADERS = {
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_PROFILE_DOWNLOAD_SIZE = 25 * 1024 * 1024; // 25 MB
 
 // ── AWS4-HMAC-SHA256 signing helpers ─────────────────────────────
 async function hmacSHA256(key: ArrayBuffer | Uint8Array | string, data: string): Promise<Uint8Array> {
@@ -115,6 +116,52 @@ Deno.serve(async (req: Request) => {
   const host = R2_ENDPOINT.replace('https://', '');
 
   const action = req.headers.get('x-action') || 'upload';
+
+  // ── DOWNLOAD PROFILE (GET) ────────────────────────────────────
+  // El CDN público duplica Access-Control-Allow-Origin y los fetch() del
+  // navegador fallan. Este proxy autenticado permite a PDF.js leer únicamente
+  // los PDF canónicos de perfil, sin convertir la función en un proxy R2 libre.
+  if (req.method === 'GET' && action === 'download-profile') {
+    const rawFilename = req.headers.get('x-filename');
+    const filename = rawFilename ? decodeURIComponent(rawFilename) : null;
+    if (!filename
+      || filename.includes('..')
+      || !/^races\/.+\/profile(?:-\d+)?\.pdf$/i.test(filename)) {
+      return jsonRes({ error: 'Solo se pueden descargar PDF canónicos de perfil' }, 400);
+    }
+
+    const path = `/${R2_BUCKET}/${filename}`;
+    const emptyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const headers: Record<string, string> = { 'host': host };
+    const signedHeaderNames = 'host;x-amz-content-sha256;x-amz-date';
+    const authorization = await signRequest(
+      'GET', path, '', headers, signedHeaderNames, emptyHash,
+      R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY,
+    );
+    const r2Res = await fetch(`${R2_ENDPOINT}${path}`, {
+      headers: {
+        'x-amz-content-sha256': headers['x-amz-content-sha256'],
+        'x-amz-date': headers['x-amz-date'],
+        'Authorization': authorization,
+      },
+    });
+    if (!r2Res.ok) {
+      return jsonRes({ error: `R2 error ${r2Res.status}` }, r2Res.status === 404 ? 404 : 502);
+    }
+    const contentLength = Number(r2Res.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_PROFILE_DOWNLOAD_SIZE) {
+      await r2Res.body?.cancel();
+      return jsonRes({ error: 'Perfil PDF demasiado grande (máx 25 MB)' }, 413);
+    }
+    return new Response(r2Res.body, {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'private, max-age=300',
+      },
+    });
+  }
 
   // Las guías técnicas pueden medir hasta 100 MB. No deben atravesar esta Edge
   // Function (que tendría que bufferizarlas): se entrega una URL PUT de R2 de

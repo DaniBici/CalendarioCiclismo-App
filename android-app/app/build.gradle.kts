@@ -38,8 +38,8 @@ android {
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 448
-        versionName = "4.2.2"
+        versionCode = 454
+        versionName = "4.2.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -108,7 +108,7 @@ android {
             // promo codes y suscripciones reales. Para builds de Internal
             // Testing donde quieras forzar el flag, ponlo temporalmente a
             // "true" y bumpa versionCode. NO subir a Play Store con true.
-            // Equivalente al flag homónimo de iOS (ver CLAUDE.md).
+            // Equivalente al flag homónimo de iOS.
             buildConfigField("boolean", "PREMIUM_TEST_BUILD", "false")
         }
     }

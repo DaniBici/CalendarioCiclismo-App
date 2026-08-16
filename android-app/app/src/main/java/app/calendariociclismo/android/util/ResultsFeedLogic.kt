@@ -79,7 +79,7 @@ object ResultsFeedLogic {
         val rdsByRace = raceDays.filter { it.raceId != null }.groupBy { it.raceId!! }
         // Jornada por (raceId, stageNumber): fallback cuando la clasificación
         // in-house NO trae raceDayId (el volcado precedió a la creación de la
-        // jornada → race_uci_stages.raceDayId NULL; documentado en CLAUDE.md).
+        // jornada → race_uci_stages.raceDayId NULL; documentado en el runbook de saneo).
         // Sin él, la bandera/ruta de la etapa caen al país de la CARRERA e
         // ignoran el override por jornada (p. ej. Giro della Valle d'Aosta et1,
         // disputada en Francia, con race_days.countryCode = 'FR').

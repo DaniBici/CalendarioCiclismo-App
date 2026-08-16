@@ -154,54 +154,6 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
             .onFailure { state = StageState.Error(it.message ?: networkErrorFallback) }
     }
 
-    // Resultados in-house: ¿esta jornada los tiene? y el stageNumber al que navega
-    // "Ver clasificaciones". Diferido y no bloqueante (sin red → false → no aparece
-    // el CTA, sin regresión). Maneja las carreras de un día (clasificación 'gc'
-    // sin raceDayId, stageNumber null).
-    var hasInhouseResults by remember(stageId) { mutableStateOf(false) }
-    var resultsStageNumber by remember(stageId) { mutableStateOf<Int?>(null) }
-    LaunchedEffect(state) {
-        val ready = state as? StageState.Ready ?: return@LaunchedEffect
-        val rd = ready.data.raceDay
-        val rId = rd.raceId ?: return@LaunchedEffect
-        val (has, sn) = runCatching {
-            app.repository.resultsStageNumberForDay(rId, rd.id, rd.stageNumber)
-        }.getOrDefault(false to null)
-        // Una jornada CANCELADA tiene SIEMPRE página propia de resultados (aviso
-        // de cancelación + generales arrastradas de la etapa anterior), aunque no
-        // tenga —ni vaya a tener— clasificaciones volcadas: el CTA debe salir.
-        // Espejo de jornada.js (web).
-        hasInhouseResults = has || rd.isCancelledDay
-        resultsStageNumber = if (has) sn else rd.stageNumber
-    }
-
-    // "Así está la carrera": ¿la etapa ANTERIOR tiene resultados in-house? Si los
-    // tiene, esa sección enlaza a la pantalla nativa de esa etapa (con externos de
-    // respaldo), igual que el CTA de la etapa actual. Espejo de `_prevHasInhouse`
-    // en jornada.js. Diferido/no bloqueante como el de arriba.
-    var prevHasInhouse by remember(stageId) { mutableStateOf(false) }
-    var prevResultsStageNumber by remember(stageId) { mutableStateOf<Int?>(null) }
-    LaunchedEffect(state) {
-        val ready = state as? StageState.Ready ?: return@LaunchedEffect
-        val rd = ready.data.raceDay
-        val rId = rd.raceId ?: return@LaunchedEffect
-        val navSiblings = ready.data.siblings
-            .filter { !it.isRestDay && !it.isCancelledDay }
-            .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
-        val curIdx = navSiblings.indexOfFirst { it.id == rd.id }
-        val prevRd = if (curIdx > 0) navSiblings[curIdx - 1] else null
-        if (prevRd == null) {
-            prevHasInhouse = false
-            prevResultsStageNumber = null
-            return@LaunchedEffect
-        }
-        val (has, sn) = runCatching {
-            app.repository.resultsStageNumberForDay(rId, prevRd.id, prevRd.stageNumber)
-        }.getOrDefault(false to null)
-        prevHasInhouse = has
-        prevResultsStageNumber = sn
-    }
-
     // Analytics: paridad con iOS — race_day_id + stage_name + race_name.
     // Se dispara cuando state pasa a Ready porque necesitamos los nombres
     // del ViewModel. Ver docs/memory/analytics.md.
@@ -339,7 +291,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     // ¿Los resultados de la etapa ACTUAL ya están disponibles (in-house
                     // o por hora)? Si lo están, la GC del día los recoge → no se
                     // muestra "Así está la carrera" (espejo de `_currentResultsAvailable`).
-                    val hasInhouse = hasInhouseResults
+                    val hasInhouse = s.data.hasInhouseResults
                     val currentResultsAvailable =
                         hasInhouse || RaceLogic.shouldShowResultsDetail(raceDay, race)
 
@@ -347,7 +299,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     // etapa tiene clasificaciones in-house → CTA primario a la pantalla
                     // nativa (externos de respaldo); si no, comportamiento clásico externos
                     // con el gate temporal. Espejo de jornada.js (web).
-                    val showPrevInhouse = prevHasInhouse && !currentResultsAvailable
+                    val showPrevInhouse = s.data.prevHasInhouse && !currentResultsAvailable
                     val showPrevExternal = prevRd != null && race != null &&
                         RaceLogic.shouldShowPreviousResults(prevRd, raceDay, race)
                     if (prevRd != null && race != null && (showPrevExternal || showPrevInhouse)) {
@@ -358,7 +310,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                 onInhouseTap = if (showPrevInhouse) {
                                     // "Así está la carrera" → abre en la General (GC) de la
                                     // etapa anterior, no en su clasificación de etapa.
-                                    { navController.navigate(Routes.results(race.id, prevResultsStageNumber, classKind = "gc", suffix = prevRd.stageSuffix)) }
+                                    { navController.navigate(Routes.results(race.id, s.data.prevResultsStageNumber, classKind = "gc", suffix = prevRd.stageSuffix)) }
                                 } else null,
                                 onLinkTap = { url ->
                                     openExternal(context, url) { offlineAlert = it }
@@ -379,7 +331,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                 extUrlA = RaceLogic.buildExtUrlA(race, raceDay.stageNumber),
                                 extUrlB = RaceLogic.buildExtUrlB(race, raceDay.stageNumber, raceDay.stageSuffix),
                                 onInhouseTap = if (hasInhouse) {
-                                    { navController.navigate(Routes.results(race.id, resultsStageNumber, suffix = raceDay.stageSuffix)) }
+                                    { navController.navigate(Routes.results(race.id, s.data.resultsStageNumber, suffix = raceDay.stageSuffix)) }
                                 } else null,
                                 onLinkTap = { url ->
                                     openExternal(context, url) { offlineAlert = it }
@@ -489,6 +441,22 @@ private suspend fun loadStageData(
         RaceLogic.annotateDoubleSectors(allDays)
         allDays.toList()
     } ?: emptyList()
+    // El gate llega antes de publicar StageData: así la tarjeta no aparece con
+    // externos y se transforma después en "Ver clasificaciones".
+    val navigable = siblings
+        .filter { !it.isRestDay && !it.isCancelledDay }
+        .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
+    val previous = navigable.indexOfFirst { it.id == latest.id }
+        .takeIf { it > 0 }
+        ?.let { navigable[it - 1] }
+    val inhouseByDay = latest.raceId?.let { rid ->
+        val days = listOfNotNull(
+            latest.takeUnless { it.isCancelledDay }?.let { it.id to it.stageNumber },
+            previous?.let { it.id to it.stageNumber },
+        )
+        app.repository.inhouseStagesForDays(rid, days)
+    }.orEmpty()
+    val currentInhouseStage = inhouseByDay[latest.id]
     val technicalGuide = app.repository.cachedAssetsForRaceDays(siblings.map { it.id })
         .firstOrNull { it.type == "technicalGuide" }
     val assets = (listOfNotNull(technicalGuide) + stageAssets.filter { it.type != "technicalGuide" })
@@ -504,6 +472,10 @@ private suspend fun loadStageData(
         assets = assets,
         hasStartlist = hasStartlist,
         siblings = siblings,
+        hasInhouseResults = inhouseByDay.containsKey(latest.id) || latest.isCancelledDay,
+        resultsStageNumber = currentInhouseStage ?: latest.stageNumber,
+        prevHasInhouse = previous?.let { inhouseByDay.containsKey(it.id) } == true,
+        prevResultsStageNumber = previous?.let { inhouseByDay[it.id] },
     )
 }
 
@@ -1994,6 +1966,10 @@ private data class StageData(
     val assets: List<Asset>,
     val hasStartlist: Boolean = false,
     val siblings: List<RaceDay> = emptyList(),
+    val hasInhouseResults: Boolean = false,
+    val resultsStageNumber: Int? = null,
+    val prevHasInhouse: Boolean = false,
+    val prevResultsStageNumber: Int? = null,
 )
 
 private sealed class StageState {

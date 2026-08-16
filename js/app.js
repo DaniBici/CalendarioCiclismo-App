@@ -9,12 +9,13 @@ import { supabase, toDateKey, formatDateLabel, formatDateLabelShort, formatTime,
          setCachedRace, tsSeconds, openPhBanner,
          getPinnedFilter, renderFilterPins, handleFilterEvent,
          filterBroadcastsByRegion, extractYouTubeId, startlistUrl, startOrderUrl, buildTimeStack,
-         enBase }
+         enBase, setPressed, announce, makeCardActivatable }
          from './shared.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
+import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { annotateDoubleSectors } from './services/races.js';
-import { openRaceDataModal, hasModalData, openResultsModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { indicatorBadgeSVG, isIndicatorKind, buildElevationSparkline } from './elevation-profile.js';
 import { initCintillo } from './cintillo.js';
 import { compareChampionships, isU23Championship, isFemaleChampionship,
@@ -94,11 +95,11 @@ function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBl
   // y sortOrder. Ver `pickBadgeBroadcast`. Espejo iOS/Android.
   const linkBc = pickBadgeBroadcast(broadcasts, tsSeconds, nowMs / 1000);
   const singleUrl = linkBc ? linkBc.url : null;
-  const _ytId = singleUrl && linkBc.embeddable !== false ? extractYouTubeId(singleUrl) : null;
+  const broadcastEmbed = getBroadcastEmbed(singleUrl, linkBc?.embeddable);
   const wrapTv = (content, liveClass) => {
     const extra = liveClass ? ' badge--tv--live' : '';
     return singleUrl
-      ? `<a class="badge badge--tv badge--tv-link${extra}" href="${singleUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()"${_ytId ? ` data-yt-id="${_ytId}"` : ''}>${content}</a>`
+      ? `<a class="badge badge--tv badge--tv-link${extra}" href="${singleUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()"${broadcastEmbed ? ' data-tv-embed="1"' : ''}>${content}</a>`
       : `<span class="badge badge--tv${extra}">${content}</span>`;
   };
 
@@ -183,8 +184,10 @@ function buildDateBar() {
 
   const prevBtn = document.createElement('button');
   prevBtn.className = 'date-week-arrow';
-  prevBtn.innerHTML = '&#8249;';
-  prevBtn.title = 'Día anterior';
+  // El glifo es decorativo: sin aria-label el lector anuncia «‹ botón».
+  prevBtn.innerHTML = '<span aria-hidden="true">&#8249;</span>';
+  prevBtn.type = 'button';
+  prevBtn.setAttribute('aria-label', t('today.prevDayLabel'));
   prevBtn.addEventListener('click', () => {
     const prev = findPrevDayWithRaces(currentDateKey, _agendaCat);
     if (prev) { loadDay(prev); return; }
@@ -217,10 +220,16 @@ function buildDateBar() {
     const dayNum = date.toLocaleDateString(getLocale(), { day: 'numeric' });
 
     const pill = document.createElement('button');
+    pill.type = 'button';
     pill.className = 'date-pill'
       + (dk === currentDateKey ? ' active' : '')
       + (dk === today ? ' is-today' : '');
-    pill.innerHTML = `<span class="date-pill__wd">${wd}</span><span class="date-pill__num">${dayNum}</span>`;
+    // «Lun 12» no dice ni el mes ni cuál es el día seleccionado: el nombre
+    // accesible lleva la fecha completa y aria-current marca el activo.
+    pill.setAttribute('aria-label', date.toLocaleDateString(getLocale(),
+      { weekday: 'long', day: 'numeric', month: 'long' }));
+    if (dk === currentDateKey) pill.setAttribute('aria-current', 'date');
+    pill.innerHTML = `<span class="date-pill__wd" aria-hidden="true">${wd}</span><span class="date-pill__num" aria-hidden="true">${dayNum}</span>`;
     pill.dataset.dk = dk;
     pill.addEventListener('click', () => loadDay(dk));
     pillsInner.appendChild(pill);
@@ -235,8 +244,9 @@ function buildDateBar() {
 
   const nextBtn = document.createElement('button');
   nextBtn.className = 'date-week-arrow';
-  nextBtn.innerHTML = '&#8250;';
-  nextBtn.title = 'Día siguiente';
+  nextBtn.innerHTML = '<span aria-hidden="true">&#8250;</span>';
+  nextBtn.type = 'button';
+  nextBtn.setAttribute('aria-label', t('today.nextDayLabel'));
   nextBtn.addEventListener('click', () => {
     const next = findNextDayWithRaces(currentDateKey, _agendaCat);
     if (next) { loadDay(next); return; }
@@ -396,6 +406,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
             <div class="empty-state__text">${t('today.noRaces')}</div>
             ${nextBtn}
           </div>`;
+        announce(t('today.noRaces'));
         return;
       }
 
@@ -472,6 +483,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
           <div class="empty-state__text">${t('today.noRacesFilter')}</div>
           ${nextFilteredBtn}
         </div>`;
+      announce(t('today.noRacesFilter'));
       return;
     }
 
@@ -483,6 +495,9 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
         list.appendChild(buildCard(item));
       }
     });
+    // La lista se sustituye sin recargar: sin región activa, quien usa lector
+    // pulsa un filtro o cambia de día y no recibe confirmación (WCAG 4.1.3).
+    _announceDay(allItems.length, dateKey);
 
     if (_progressCards.length > 0) {
       _progressTimer = setInterval(_updateProgressCards, 60_000);
@@ -494,6 +509,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       <div class="empty-state__icon">⚠️</div>
       <div class="empty-state__title">Error al cargar los datos</div>
     </div>`;
+    announce('Error al cargar los datos');
   }
 }
 
@@ -849,7 +865,9 @@ function buildCard(rd) {
   // horaria aún no haya vencido (paridad apps) → sin horario, pero el
   // miniperfil se conserva completado.
   const _rdInhouse = rd._hasInhouse === true;
-  const showResults = _rdInhouse || _shouldShowResultsCard(rd, race);
+  // Una etapa cancelada no puede entrar en modo resultados, incluso si la
+  // ingesta propia contiene filas heredadas o sintéticas. Paridad iOS/Android.
+  const showResults = !rd.isCancelledDay && (_rdInhouse || _shouldShowResultsCard(rd, race));
   const hideNoIds = !_rdInhouse && _noIdsAndPastDeadline(rd, race);
   // CRI/CRE: el perfil se renderiza en reposo (sin avance) hasta que la card se sustituya por modo resultados/Revive.
   const _isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
@@ -941,7 +959,7 @@ function buildCard(rd) {
     card.innerHTML = `
       ${logo}
       <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span><span class="race-card__name-cat">${catBadgeHtml}</span>${rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" title="Ver carrera completa" onclick="event.stopPropagation()">☰</a>` : ''}</div>
+        <div class="race-card__name"><span>${name}</span><span class="race-card__name-cat">${catBadgeHtml}</span>${rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
         <div class="race-card__sub">${restLabel}</div>
       </div>
       <div class="race-card__meta">
@@ -996,7 +1014,7 @@ function buildCard(rd) {
     card.innerHTML = `
       ${logo}
       <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span>${rd.stageNumber != null && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" title="Ver carrera completa" onclick="event.stopPropagation()">☰</a>` : ''}</div>
+        <div class="race-card__name"><span>${name}</span>${rd.stageNumber != null && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
         <div class="race-card__sub">
           ${stagePart}${sepStageRoute}${routeWrap}${sepRouteKm}${kmPart}${sepKmElev}${elevPart}
         </div>
@@ -1009,12 +1027,12 @@ function buildCard(rd) {
       </div>
     `;
 
-    const _tvYtBadge = card.querySelector('.badge--tv-link[data-yt-id]');
-    if (_tvYtBadge) {
-      _tvYtBadge.addEventListener('click', e => {
+    const tvEmbedBadge = card.querySelector('.badge--tv-link[data-tv-embed]');
+    if (tvEmbedBadge) {
+      tvEmbedBadge.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        openYoutubeTvModal(rd, race, _tvYtBadge.dataset.ytId);
+        openBroadcastTvModal(rd, race, tvEmbedBadge.href);
       });
     }
 
@@ -1091,22 +1109,30 @@ function buildCard(rd) {
   }
 
   if (!rdClickable) {
-    // Link oculto para buscadores: la jornada tiene su propia URL indexable
-    // aunque el usuario no pueda clicar la card
+    // Link para buscadores: la jornada tiene su propia URL indexable aunque
+    // el usuario no pueda clicar la card. Antes iba con aria-hidden +
+    // tabindex="-1", lo que cerraba a propósito la única ruta alternativa
+    // que le quedaba al teclado y al lector: ahora es un enlace normal,
+    // visible solo al recibir el foco.
     const seoLink = document.createElement('a');
     seoLink.href = jornadaUrl(rd);
-    seoLink.setAttribute('aria-hidden', 'true');
-    seoLink.setAttribute('tabindex', '-1');
-    seoLink.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;';
+    seoLink.className = 'race-card__seo-link';
     seoLink.textContent = raceName(race) || t('race.unknown');
     card.style.position = 'relative';
     card.appendChild(seoLink);
 
     if (hasModalData(rd)) {
       card.style.cursor = 'pointer';
-      card.addEventListener('click', e => {
-        if (e.target.closest('a.badge, .race-card__overview-btn')) return;
+      const open = e => {
+        if (e?.target?.closest?.('a.badge, .race-card__overview-btn')) return;
         openRaceDataModal(rd, race);
+      };
+      card.addEventListener('click', open);
+      // Abre un diálogo, no navega → botón.
+      makeCardActivatable(card, {
+        role: 'button',
+        label: _cardAriaLabel(name, stage, uci),
+        onActivate: open,
       });
     } else {
       card.style.cursor = 'default';
@@ -1144,13 +1170,37 @@ function buildCard(rd) {
       });
     }
   } else {
-    card.addEventListener('click', e => {
+    const go = () => {
       sessionStorage.removeItem('cc_nav');
       window.location.href = jornadaUrl(rd);
+    };
+    card.addEventListener('click', go);
+    // La card navega: se anuncia como enlace y responde a Enter/Espacio.
+    makeCardActivatable(card, {
+      role: 'link',
+      href: jornadaUrl(rd),
+      label: _cardAriaLabel(name, stage, uci),
+      onActivate: go,
     });
   }
 
   return card;
+}
+
+// Nombre accesible de una tarjeta: sin él el lector lee el amasijo de
+// nombre, badges, horas y kilómetros que contiene el grid.
+function _cardAriaLabel(name, stage, uci) {
+  return [name, stage, uci].filter(Boolean).join(' · ');
+}
+
+// «3 carreras · lunes, 12 de agosto» tras repintar la lista.
+function _announceDay(n, dateKey) {
+  const races = n === 1 ? t('today.races_one', { n }) : t('today.races_other', { n });
+  const date = dateKey
+    ? new Date(dateKey + 'T12:00:00').toLocaleDateString(getLocale(),
+        { weekday: 'long', day: 'numeric', month: 'long' })
+    : '';
+  announce(t('today.racesFor', { n: races, date }));
 }
 
 
@@ -1283,7 +1333,7 @@ function applyChampWeekLock(dateKey) {
       b.style.display = (lockNow && !CHAMP_WEEK_HOY_FILTERS.includes(b.dataset.cat)) ? 'none' : '';
     });
     cats.querySelectorAll('.tcat-btn').forEach(b =>
-      b.classList.toggle('tcat-btn--active', b.dataset.cat === _agendaCat)
+      setPressed(b, b.dataset.cat === _agendaCat)
     );
     // Chinchetas inhibidas dentro de la ventana.
     if (lockNow) cats.querySelectorAll('.tcat-pin').forEach(p => p.remove());
@@ -1307,7 +1357,7 @@ function initAgendaFilters() {
         return;
       }
       cats.querySelectorAll('.tcat-btn').forEach(b =>
-        b.classList.toggle('tcat-btn--active', b.dataset.cat === res.cat)
+        setPressed(b, b.dataset.cat === res.cat)
       );
       _agendaCat = res.cat;
       // El cambio manual dentro de la ventana es contextual a los Campeonatos:

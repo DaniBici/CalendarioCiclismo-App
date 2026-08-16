@@ -55,6 +55,7 @@ const STRINGS = {
     searchHref: '/buscar.html', searchTitle: 'Buscar',
     themeTitle: 'Cambiar tema',
     viewsAria: 'Vistas',
+    skipText: 'Saltar al contenido',
     today:  { href: '/index.html',    text: 'Hoy' },
     results:{ href: '/resultados/',   text: 'Resultados' },
     transfers:{ href: '/fichajes/',   text: 'Fichajes' },
@@ -69,6 +70,7 @@ const STRINGS = {
     searchHref: '/en/search/', searchTitle: 'Search',
     themeTitle: 'Change theme',
     viewsAria: 'Views',
+    skipText: 'Skip to content',
     today:  { href: '/en/',           text: 'Home' },
     results:{ href: '/en/results/',   text: 'Results' },
     transfers:{ href: '/en/transfers/', text: 'Transfers' },
@@ -95,18 +97,36 @@ function detectActive() {
   return null;
 }
 
+// El <main> de cada página lleva su propio id (o ninguno), así que en vez de
+// imponer id="main" en las ~30 plantillas apuntamos el enlace al que haya.
+// tabindex="-1" es imprescindible: sin él el salto mueve el scroll pero no el
+// foco, y el teclado seguiría en la cabecera.
+function ensureSkipTarget() {
+  const link = document.getElementById('skipLink');
+  const main = document.querySelector('main');
+  if (!link || !main) return;
+  if (!main.id) main.id = 'main';
+  if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+  link.setAttribute('href', '#' + main.id);
+}
+
 function buildHeader(el) {
   const lang = el.dataset.lang || detectLang();
   const s = STRINGS[lang] || STRINGS.es;
   const hasBack = el.hasAttribute('data-back');
   const active = el.dataset.active || detectActive();
-  const act = (k) => (active === k ? ' class="active"' : '');
+  const act = (k) => (active === k ? ' class="active" aria-current="page"' : '');
 
   const backBtn = hasBack
     ? `<a class="back-btn" id="backBtn" href="${s.home}" aria-label="${s.backLabel}">←</a>`
     : '';
 
   el.innerHTML =
+    // Primer elemento enfocable del documento: evita repetir cabecera,
+    // navegación y filtros en cada página (WCAG 2.4.1). El destino lo
+    // resuelve ensureSkipTarget() sobre el <main> real, que en cada
+    // página lleva su propio id (o ninguno).
+    `<a class="skip-link" id="skipLink" href="#main">${s.skipText}</a>` +
     '<div class="site-header__inner">' +
       backBtn +
       `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text">Calendario Ciclismo</span></a>` +
@@ -152,6 +172,8 @@ function buildHeader(el) {
   primaryInner?.addEventListener('scroll', syncMoreButton, { passive: true });
   window.addEventListener('resize', syncMoreButton, { passive: true });
   requestAnimationFrame(syncMoreButton);
+
+  ensureSkipTarget();
 
   // Botón "Apps": apps-modal.js (script clásico al pie) ya corrió y dejó
   // window.openAppsModal, pero no pudo enlazar el botón (aún no existía).

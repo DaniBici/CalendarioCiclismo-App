@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * consentimiento — por eso `gather` se llama desde `MainActivity` (no desde
  * `Application`), siempre gateado por `PremiumService.shouldShowAds`.
  *
- * **Principio rector (CLAUDE.md):** si el usuario está suscrito
+ * **Principio rector (`docs/memory/premium.md`):** si el usuario está suscrito
  * (`shouldShowAds == false`), este manager NO se invoca: ni UMP ni
  * `MobileAds.initialize`. Todo cuelga de `shouldShowAds`, nunca de
  * `featuresUnlocked`.

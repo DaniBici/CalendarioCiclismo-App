@@ -24,7 +24,7 @@
 import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          setMeta, setMetaProperty, rdLocation, resolveTypeBadges,
          uciRank, proLevel, genderRank, grandTourRank, tsSeconds,
-         nameImpliesFemale, effectiveCountryCode } from './shared.js';
+         nameImpliesFemale, effectiveCountryCode, trapFocus, femaleMark } from './shared.js';
 import { getLang } from './i18n.js';
 import { buildExtUrlA, buildExtUrlB, isRaceConcluded } from './race-data-modal.js';
 import { isAbandonIrm } from './uci-irm.js';
@@ -357,7 +357,7 @@ function entryRowHtml(e, isEn, locale) {
     ? `<span class="feed-row__logo"><img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">${flag}</span>`
     : flag;
   const fem = (e.race.gender === 'female' && !nameImpliesFemale(e.race.name || ''))
-    ? ' <span class="feed-row__fem" aria-hidden="true">♀</span>' : '';
+    ? femaleMark({ cls: 'feed-row__fem' }) : '';
   const name = `${esc(getRaceName(e.race))}${fem}`;
   const color = safeCardColor(e.race.colorHex);
 
@@ -422,6 +422,7 @@ export function renderResultsFeed(content) {
   let feedEntries = null;
   let rankingRows = null;
   let infoModal = null;
+  let _releaseInfoFocus = null;
 
   // ── SEO (la home del feed es evergreen) ───────────────────────────
   const title = _isEn
@@ -571,6 +572,7 @@ export function renderResultsFeed(content) {
     if (!infoModal) return;
     infoModal.classList.remove('rd-modal--open');
     document.body.style.overflow = '';
+    if (_releaseInfoFocus) { _releaseInfoFocus(); _releaseInfoFocus = null; }
     content.querySelector('.uci-ranking-info-button')?.focus();
   }
 
@@ -599,7 +601,8 @@ export function renderResultsFeed(content) {
     infoModal.querySelector('.uci-ranking-info-modal__body').innerHTML = rankingInfoHtml(rows);
     infoModal.classList.add('rd-modal--open');
     document.body.style.overflow = 'hidden';
-    infoModal.querySelector('.rd-modal__close').focus();
+    _releaseInfoFocus = trapFocus(infoModal.querySelector('.rd-modal'),
+      { initial: infoModal.querySelector('.rd-modal__close') });
   }
 
   function tierClass(row) {
@@ -656,8 +659,12 @@ export function renderResultsFeed(content) {
         <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
           ${genderButtons}
         </div>
-        <div class="uci-ranking-table" role="table" aria-label="${_isEn ? 'UCI team ranking' : 'Ránking UCI por equipos'}">
-          <div class="uci-ranking-table__head" role="row">
+        <!-- Sin role="table": las filas son <div> sin role="row"/"cell" y
+             además llevan botones e imágenes dentro, así que el rol prometía
+             una estructura de tabla que el marcado no cumple y el lector la
+             anunciaba rota. Se conserva el nombre accesible como grupo. -->
+        <div class="uci-ranking-table" role="group" aria-label="${_isEn ? 'UCI team ranking' : 'Ránking UCI por equipos'}">
+          <div class="uci-ranking-table__head">
             <span>#</span><span></span><span>${_isEn ? 'Team' : 'Equipo'}</span><span>${_isEn ? 'Cat.' : 'Cat.'}</span><span>${_isEn ? 'Points' : 'Puntos'}</span>
           </div>
           ${rowsHtml || `<div class="startlist-empty">${_isEn ? 'Ranking not available.' : 'Ránking no disponible.'}</div>`}

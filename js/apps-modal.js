@@ -71,10 +71,14 @@
   var POPUP_KEY  = 'cc_apps_popup_dismissed';
   var _autoMode  = false;
 
+  // Devuelve el foco al elemento que abrió el diálogo y suelta la trampa.
+  var _releaseFocus = null;
+
   function _close() {
     if (!_overlay) return;
     _overlay.classList.remove('rd-modal--open');
     document.body.style.overflow = '';
+    if (_releaseFocus) { _releaseFocus(); _releaseFocus = null; }
     // Si el modal se abrió automáticamente (4ª página), cualquier cierre
     // —botón ✕, clic fuera, Escape o "Seguir en la web"— lo silencia para
     // siempre (hasta que el usuario borre cookies/caché).
@@ -92,6 +96,17 @@
     if (cont) cont.hidden = !_autoMode;
     ov.classList.add('rd-modal--open');
     document.body.style.overflow = 'hidden';
+    // Sin esto el foco se queda detrás del diálogo: con teclado el modal
+    // automático de la 4ª página aparece sin que se note (WCAG 2.4.3).
+    var dialog = ov.querySelector('.rd-modal') || ov;
+    if (typeof window.ccTrapFocus === 'function') {
+      _releaseFocus = window.ccTrapFocus(dialog);
+    }
+    // Abierto sin que el usuario lo pidiera: se anuncia, además de recibir
+    // el foco, para que no aparezca en silencio (WCAG 3.2.5).
+    if (_autoMode && typeof window.ccAnnounce === 'function') {
+      window.ccAnnounce(isEN ? 'Apps dialog opened' : 'Se ha abierto el diálogo de apps');
+    }
   }
 
   var btn = document.getElementById('navAppsBtn');

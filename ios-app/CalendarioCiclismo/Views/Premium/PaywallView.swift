@@ -15,6 +15,7 @@ struct PaywallView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var premium = PremiumService.shared
+    @Environment(\.openURL) private var openURL
 
     private let privacyURL = URL(string: "https://www.calendariociclismo.app/privacidad.html")!
     private let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -24,6 +25,7 @@ struct PaywallView: View {
             VStack(spacing: 28) {
                 header
                 features
+                transparencyCard
                 planSelector
                 primaryCTA
                 secondaryActions
@@ -105,13 +107,13 @@ struct PaywallView: View {
     // El único valor de la suscripción ahora es quitar los anuncios, así que el
     // copy es único (ya no depende de `source`).
     private var headerTitle: String {
-        LocaleService.t("Disfruta sin anuncios", "Enjoy ad-free")
+        LocaleService.t("Sin anuncios. Gratis para todos.", "Ad-free. Free for everyone.")
     }
 
     private var headerSubtitle: String {
         LocaleService.t(
-            "Quita todos los anuncios de la app. Todo el calendario sigue siendo gratuito: ninguna función depende de la suscripción.",
-            "Remove all ads from the app. The whole calendar stays free: no feature depends on the subscription."
+            "Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.",
+            "Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free."
         )
     }
 
@@ -122,8 +124,8 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 14) {
             featureRow(icon: "hand.raised.slash", text: LocaleService.t("Sin anuncios en ninguna pantalla", "No ads on any screen"))
             featureRow(icon: "bolt.fill", text: LocaleService.t("Una experiencia más limpia y rápida", "A cleaner, faster experience"))
-            featureRow(icon: "heart.fill", text: LocaleService.t("Ayuda a cubrir los costes de un proyecto independiente",
-                                                                 "Help cover the costs of an independent project"))
+            featureRow(icon: "heart.fill", text: LocaleService.t("Ayuda a sostener un proyecto Open Source e independiente",
+                                                                 "Helps sustain an independent Open Source project"))
         }
         .padding(20)
         .background(AppTheme.cardBackground)
@@ -142,6 +144,36 @@ struct PaywallView: View {
             Spacer()
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var transparencyCard: some View {
+        Button {
+            AnalyticsService.shared.logEvent("contribution_transparency_tap", parameters: ["source": "paywall"])
+            openURL(transparencyURL)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "heart.text.square")
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(LocaleService.t("Un proyecto sostenido por su comunidad", "A project sustained by its community"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(LocaleService.t("Código abierto, sin intereses comerciales y con las cuentas publicadas.", "Open source, non-commercial, with public accounts."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(LocaleService.t("Abre la página de transparencia en el navegador", "Opens the transparency page in the browser"))
     }
 
     // MARK: - Plan selector
@@ -344,7 +376,7 @@ struct PaywallView: View {
     private var footer: some View {
         VStack(spacing: 8) {
             // Nota "no busca beneficio": el proyecto no es un negocio y la
-            // suscripción solo cubre costes (ver política de pricing en CLAUDE.md).
+            // suscripción solo cubre costes (ver docs/memory/premium.md).
             Text(LocaleService.t(
                 "Calendario Ciclismo no es un negocio. Lo hace una sola persona y no busca beneficio: los anuncios y las suscripciones están para cubrir los servidores y el mantenimiento que lo sostienen.",
                 "Calendario Ciclismo is not a business. It is made by one person and does not seek profit: the ads and subscriptions are there to cover the servers and upkeep that keep it running."
@@ -368,5 +400,11 @@ struct PaywallView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
+    }
+
+    private var transparencyURL: URL {
+        URL(string: LocaleService.isEnglish
+            ? "https://www.calendariociclismo.app/en/open/"
+            : "https://www.calendariociclismo.app/abierto.html")!
     }
 }

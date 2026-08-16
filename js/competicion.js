@@ -6,11 +6,11 @@ import { supabase, stageLabel, countryFlag, formatTime, formatTimeUser,
          typeBadge, resolveTypeBadges, setMeta, setMetaProperty, tsSeconds, initPhTooltip, esc,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
          extractYouTubeId, startOrderUrl, seoLongDate, seoDayMonth, buildTimeStack, buildRaceHeader,
-         articuloNombre }
+         articuloNombre, femaleMark }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
-import { hasModalData, openRaceDataModal, openResultsModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { buildElevationSparkline } from './elevation-profile.js';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
@@ -434,6 +434,14 @@ async function init() {
     _wireResultsBadges(content, rdMap, race);
 
     content.addEventListener('click', e => {
+      const embedBadge = e.target.closest('[data-tv-embed][data-tv-rd-id]');
+      if (embedBadge) {
+        e.stopPropagation();
+        e.preventDefault();
+        const rd = rdMap[embedBadge.dataset.tvRdId];
+        if (rd) openBroadcastTvModal(rd, race, embedBadge.href);
+        return;
+      }
       const ytBadge = e.target.closest('[data-yt-id][data-yt-rd-id]');
       if (ytBadge) {
         e.stopPropagation();
@@ -752,7 +760,7 @@ async function loadChallenge(slug, content, params) {
       html += `<span style="font-size:2rem">${flag}</span>`;
     }
     html += `<div>
-        <div class="jornada-hero__name">${cg.name}${isFemale ? ' <span style="font-size:1rem;font-weight:400"><span style="font-size:0.8em;opacity:0.7;font-weight:400">♀</span></span>' : ''}</div>
+        <div class="jornada-hero__name">${cg.name}${isFemale ? femaleMark({ style: 'font-size:0.8em;opacity:0.7;font-weight:400' }) : ''}</div>
         <div class="jornada-hero__stage">${[cg.uciCategory, cg.year].filter(Boolean).join(' · ')} · ${t(allDays.length !== 1 ? 'stage.racesCount_other' : 'stage.racesCount_one').replace('{n}', allDays.length)}</div>
       </div></div></div>`;
 
@@ -876,6 +884,14 @@ async function loadChallenge(slug, content, params) {
     });
     _wireResultsBadges(content, rdMap2, _raceObjOf);
     content.addEventListener('click', e => {
+      const embedBadge2 = e.target.closest('[data-tv-embed][data-tv-rd-id]');
+      if (embedBadge2) {
+        e.stopPropagation();
+        e.preventDefault();
+        const rd2 = rdMap2[embedBadge2.dataset.tvRdId];
+        if (rd2) openBroadcastTvModal(rd2, _raceObjOf(rd2), embedBadge2.href);
+        return;
+      }
       const ytBadge2 = e.target.closest('[data-yt-id][data-yt-rd-id]');
       if (ytBadge2) {
         e.stopPropagation();

@@ -604,15 +604,6 @@ fun SettingsScreen(navController: NavController) {
             }
         }
 
-        // Paywall "sin anuncios": se monta cuando algún CTA llama a
-        // presentPaywall(...) (fila de la sección o canjeo de código).
-        val paywallSource by app.premium.pendingPaywallSource.collectAsState()
-        if (paywallSource != null) {
-            PaywallSheet(
-                source = paywallSource!!,
-                onDismiss = { app.premium.dismissPaywall() },
-            )
-        }
     }
 }
 

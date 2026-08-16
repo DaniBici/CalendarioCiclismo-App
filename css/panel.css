@@ -3007,3 +3007,130 @@ input[type="color"].u-color-dot {
   color: var(--text);
   font-size: 0.78rem;
 }
+
+/* ── Digitalizador manual del perfil de elevación ─────────────── */
+.profile-digitizer { width: 100%; min-width: 0; }
+.profile-digitizer__topbar,
+.profile-digitizer__toolbar,
+.profile-digitizer__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+.profile-digitizer__file-label { position: relative; overflow: hidden; }
+.profile-digitizer__file-label input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.profile-digitizer__filename,
+.profile-digitizer__counter,
+.profile-digitizer__status {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+.profile-digitizer__filename {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-digitizer__counter { margin-left: auto; }
+.profile-digitizer__pdf-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.profile-digitizer__pdf-nav[hidden] { display: none; }
+.profile-digitizer__pdf-nav .btn { padding: 0.25rem 0.5rem; }
+.profile-digitizer__help {
+  margin: 0.7rem 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.profile-digitizer__canvas-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  overflow: auto;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+}
+.profile-digitizer__canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+.profile-digitizer__canvas-wrap .profile-digitizer__magnifier {
+  position: absolute;
+  z-index: 2;
+  width: 128px;
+  height: 128px;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+}
+.profile-digitizer__magnifier[hidden] { display: none; }
+.profile-digitizer__empty {
+  position: absolute;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+.profile-digitizer__empty[hidden] { display: none; }
+.profile-digitizer__toolbar { margin-top: 0.6rem; }
+.profile-digitizer__laps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.profile-digitizer__laps > span { color: var(--text-muted); }
+.profile-digitizer__laps label { display: flex; align-items: center; gap: 0.4rem; }
+.profile-digitizer__laps input { width: 4.5rem; }
+.profile-digitizer__calibration {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 0.85rem;
+}
+.profile-digitizer__reference {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.78rem;
+}
+.profile-digitizer__reference strong { font-family: var(--font-display); }
+.profile-digitizer__reference span { color: var(--text-muted); text-align: right; }
+.profile-digitizer__reference input { min-width: 0; }
+.profile-digitizer__reference .btn { white-space: nowrap; }
+.profile-digitizer__footer {
+  justify-content: flex-end;
+  margin-top: 0.9rem;
+}
+.profile-digitizer__status { margin-right: auto; }
+
+@media (max-width: 700px) {
+  .profile-digitizer__calibration { grid-template-columns: 1fr; }
+  .profile-digitizer__canvas-wrap { min-height: 190px; }
+  .profile-digitizer__counter { margin-left: 0; }
+  .profile-digitizer__reference { grid-template-columns: 1fr; }
+  .profile-digitizer__reference span { text-align: left; }
+  .profile-digitizer__footer .btn--primary { width: 100%; }
+}

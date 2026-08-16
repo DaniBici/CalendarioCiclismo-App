@@ -1,11 +1,5 @@
-# Claude Code worktrees
-.claude/worktrees/
-# Estado por-máquina de Claude Code: memorias y sesiones. La ruta lleva el
-# nombre de usuario y el contenido es del asistente, no del proyecto.
-# (Lo del proyecto —launch.json, stop-hook, workflows, skills— SÍ se versiona.)
-.claude/projects/
-.claude/sessions/
-.claude/settings.local.json
+# Estado local de Claude Code (el repositorio usa Codex).
+.claude/
 
 # macOS
 .DS_Store
@@ -95,10 +89,6 @@ scripts/**/*_run/**/*.sig
 # El match-report.json TENÍA aquí una excepción para versionarlo (el panel lo leía por
 # ruta relativa). Desde 2026-07-19 va al bucket privado `uci-reports` de Storage
 # (migración 133) y lo suben los crons → vuelve a estar ignorado como el resto.
-
-# Herramienta local generada para preparar capturas de las stores. El árbol
-# actual solo contiene dependencias y salida compilada de Next.js, no fuentes.
-app-store-screenshots/
 
 # ── Logos de carreras (obras de terceros — NO redistribuir) ──────
 # Se empaquetan en las apps como fallback offline, pero no se versionan:

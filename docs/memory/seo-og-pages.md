@@ -2,7 +2,7 @@
 
 ## Hosting y limitaciones
 
-**GitHub Pages** (despliega desde `main`, `.nojekyll` activo). Cloudflare solo aporta DNS. `_redirects` y `_headers` son **inertes** — GitHub Pages no los procesa. Las únicas formas de entregar contenido para una URL: (a) fichero estático en esa ruta, o (b) `404.html` con JS que redirige.
+**GitHub Pages** (despliega desde `main`, `.nojekyll` activo). Cloudflare solo aporta DNS. `_redirects` no se procesa. Las únicas formas de entregar contenido para una URL: (a) fichero estático en esa ruta, o (b) `404.html` con JS que redirige.
 
 ## Arquitectura hidratada
 
@@ -19,9 +19,9 @@ Los `index.html` pre-generados son SPAs standalone (sin redirect). Cargan los mi
 | `/en/race/{slug}/` | `/en/race/?slug={slug}` |
 | `/en/startlist/{slug}/` | `/en/startlist/?slug={slug}` |
 
-Esto es clave para contenido recién creado (perfiles, **órdenes de salida**): la página estática solo la genera `og-pages.yml` (push/cron), así que hay una ventana de ~2-5 min tras crear el dato en el panel en la que el `index.html` aún no existe. El fallback hace que la URL limpia funcione al instante (el SPA carga en vivo desde Supabase) en lugar de quedarse en el 404.
+Esto es clave para contenido recién creado: la página estática la genera `build-site.yml`, así que puede existir una ventana breve tras la primera publicación en la que el `index.html` aún no existe. El fallback hace que la URL limpia funcione al instante (el SPA carga en vivo desde Supabase) en lugar de quedarse en el 404.
 
-**Auto-regeneración de órdenes de salida:** la migración `064_trigger_workflows_on_start_order.sql` instala triggers en `start_order_entries` (INSERT/UPDATE/DELETE) y `race_days` (`startOrderImportedAt`) que, vía `pg_net` → edge function `trigger-workflows`, disparan `og-pages.yml` + `sitemap.yml` sin esperar al cron de las 05:00. El coalescing de 30s en la function evita 200 dispatches por un INSERT masivo. Esto cierra la ventana por arriba (la página estática llega en minutos); el fallback de `404.html` la cierra por abajo (el usuario nunca ve un 404).
+**Regeneración solo en la creación inicial:** el panel comprueba la URL canónica al publicar y solo marca `admin_mark_web_pages_dirty()` si recibe un 404. La migración `20260814162106_stop_regenerating_published_race_days.sql` retira los triggers históricos de `start_order_entries` y `startOrderImportedAt`. Una jornada cuya página ya existe no se regenera por cambios de orden de salida, resultados, TV, assets o contenido editorial: la SPA los lee en vivo desde Supabase.
 
 **Defensa en og-pages.yml:** `git add competicion/ jornada/ inscritos/ perfil/` aborta con `bash -eo pipefail` si alguna ruta no existe. Por eso `os.makedirs("perfil", exist_ok=True)` se ejecuta antes del bucle.
 

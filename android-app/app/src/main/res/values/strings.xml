@@ -68,9 +68,14 @@
     <string name="today_prev_day_cd">Día anterior</string>
     <string name="today_next_day_cd">Día siguiente</string>
     <string name="today_refresh_cd">Actualizar</string>
+    <string name="today_sort_action">Ordenar</string>
+    <string name="today_sort_category">Categoría</string>
+    <string name="today_sort_tv_time">Hora TV</string>
+    <string name="today_sort_finish_time">Hora meta</string>
 
     <!-- Month screen -->
     <string name="month_title">Calendario</string>
+    <string name="calendar_loading">Cargando calendario…</string>
     <string name="month_button_today">Hoy</string>
     <string name="month_no_races">Sin carreras</string>
 
@@ -316,8 +321,8 @@
     <!-- Onboarding: modo sin conexión -->
 
     <!-- Onboarding: showcase "sin anuncios" (último paso; la suscripción solo quita anuncios) -->
-    <string name="onboarding_premium_title">Sin anuncios, independiente</string>
-    <string name="onboarding_premium_body">Quita todos los anuncios y disfruta de una app más limpia y rápida. No es un negocio: la suscripción solo ayuda a cubrir el coste de mantener el proyecto, que seguirá siendo gratis para todos.</string>
+    <string name="onboarding_premium_title">Sin anuncios. Gratis para todos.</string>
+    <string name="onboarding_premium_body">Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.</string>
     <string name="onboarding_premium_benefit_no_ads">Sin anuncios en ninguna pantalla</string>
     <string name="onboarding_premium_benefit_clean">Una experiencia más limpia y rápida</string>
     <string name="onboarding_premium_benefit_support">Ayuda a cubrir el coste de los servidores y el mantenimiento</string>
@@ -326,11 +331,17 @@
     <string name="onboarding_premium_cancel_hint">Cancela cuando quieras desde Ajustes → Google Play</string>
 
     <!-- Paywall "sin anuncios" -->
-    <string name="paywall_title">Disfruta sin anuncios</string>
-    <string name="paywall_subtitle">Quita todos los anuncios de la app. Todo el calendario sigue siendo gratuito: ninguna función depende de la suscripción.</string>
+    <string name="paywall_title">Sin anuncios. Gratis para todos.</string>
+    <string name="paywall_subtitle">Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.</string>
     <string name="paywall_benefit_no_ads">Sin anuncios en ninguna pantalla</string>
     <string name="paywall_benefit_clean">Una experiencia más limpia y rápida</string>
-    <string name="paywall_benefit_support">Ayuda a cubrir los costes de un proyecto independiente</string>
+    <string name="paywall_benefit_support">Ayuda a sostener un proyecto Open Source e independiente</string>
+    <string name="contribution_transparency_title">Un proyecto sostenido por su comunidad</string>
+    <string name="contribution_transparency_body">Código abierto, sin intereses comerciales y con las cuentas publicadas.</string>
+    <string name="contribution_prompt_title">¿Te está sirviendo Calendario Ciclismo?</string>
+    <string name="contribution_prompt_body">Es un proyecto Open Source, independiente y gratuito para todos. Si te gusta, puedes ayudar a sostenerlo y quitar los anuncios.</string>
+    <string name="contribution_prompt_open">Ver Sin anuncios</string>
+    <string name="contribution_prompt_later">Ahora no</string>
     <string name="paywall_nonprofit_note">Calendario Ciclismo no es un negocio. Lo hace una sola persona y no busca beneficio: los anuncios y las suscripciones están para cubrir los servidores y el mantenimiento que lo sostienen.</string>
     <string name="paywall_period_yearly">al año</string>
     <string name="paywall_period_monthly">al mes</string>

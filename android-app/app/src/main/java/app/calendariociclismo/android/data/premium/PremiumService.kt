@@ -94,7 +94,7 @@ class PremiumService(
 
     /**
      * Las features que en su día fueron Premium son gratis para siempre
-     * (política de pricing del CLAUDE.md). Los gates de feature leen ESTA
+     * (política de pricing en `docs/memory/premium.md`). Los gates de feature leen ESTA
      * constante, NUNCA [isSubscribed]. Mantenerlas desacopladas permite que
      * [isSubscribed] recupere su único significado: la suscripción quita ads.
      */

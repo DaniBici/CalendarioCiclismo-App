@@ -52,7 +52,7 @@ android-app/app/src/main/java/app/calendariociclismo/android/
 
 **Locale:** `MainActivity.onCreate()` lee `snapshotAppLocale()` con `runBlocking` ANTES de `setContent`. Aplica `AppCompatDelegate.setApplicationLocales` + actualiza `LocaleHolder.current`. El cambio desde Settings reinicia la activity automáticamente.
 
-**`PREMIUM_TEST_BUILD`:** `buildConfigField("boolean", "PREMIUM_TEST_BUILD", "false")` en bloque `release`. Debug lo expone como `false`. Ver `CLAUDE.md` sección flag.
+**`PREMIUM_TEST_BUILD`:** `buildConfigField("boolean", "PREMIUM_TEST_BUILD", "false")` en bloque `release`. Debug lo expone como `false`.
 
 ## Build de release (AAB) — solo local
 

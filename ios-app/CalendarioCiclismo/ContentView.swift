@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var transfersTeamId: String?
     @State private var manager = NotificationManager.shared
     @State private var localeService = LocaleService.shared
+    @State private var premium = PremiumService.shared
+    @State private var contributionPrompt = ContributionPromptService.shared
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -87,6 +89,35 @@ struct ContentView: View {
             guard let link = newLink else { return }
             manager.pendingDeepLink = nil
             handleDeepLink(link)
+        }
+        .sheet(isPresented: Binding(
+            get: { premium.pendingPaywallSource != nil },
+            set: { if !$0 { premium.dismissPaywall() } }
+        )) {
+            PaywallView(source: premium.pendingPaywallSource ?? .general) {
+                premium.dismissPaywall()
+            }
+            .environment(\.locale, localeService.current.locale)
+        }
+        .alert(
+            localeService.t("¿Te está sirviendo Calendario Ciclismo?", "Is Calendario Ciclismo useful to you?"),
+            isPresented: Binding(
+                get: { contributionPrompt.shouldPresent },
+                set: { if !$0 && contributionPrompt.shouldPresent { contributionPrompt.deferPrompt() } }
+            )
+        ) {
+            Button(localeService.t("Ver Sin anuncios", "See Ad-free")) {
+                contributionPrompt.openPremium()
+                premium.presentPaywall(.general)
+            }
+            Button(localeService.t("Ahora no", "Not now"), role: .cancel) {
+                contributionPrompt.deferPrompt()
+            }
+        } message: {
+            Text(localeService.t(
+                "Es un proyecto Open Source, independiente y gratuito para todos. Si te gusta, puedes ayudar a sostenerlo y quitar los anuncios.",
+                "It is an independent Open Source project, free for everyone. If you like it, you can help sustain it and remove ads."
+            ))
         }
     }
 

@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Tv
@@ -54,6 +55,8 @@ import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -231,11 +234,12 @@ fun TodayScreen(navController: NavController) {
     }
 
     // Analytics con parámetros
-    LaunchedEffect(state.category) {
+    LaunchedEffect(state.category, state.sortMode) {
         app.analytics.logScreenView(
             "today",
             android.os.Bundle().apply {
                 putString("category_filter", state.category.id)
+                putString("sort_mode", state.sortMode.id)
             },
         )
     }
@@ -302,25 +306,38 @@ fun TodayScreen(navController: NavController) {
                     }
                 },
             )
-            CategoryChips(
-                current = state.category,
-                pinned = pinnedFilter,
-                champWeekLock = champWeekLock,
-                onPick = {
-                    if (it == state.category) {
-                        // En la semana de Campeonatos el fijado está inhibido:
-                        // pulsar el chip activo no abre el diálogo de predeterminado.
-                        if (!champWeekLock) {
-                            haptic(Haptics.Event.PrimaryAction)
-                            pendingDefault = it
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CategoryChips(
+                    modifier = Modifier.weight(1f),
+                    current = state.category,
+                    pinned = pinnedFilter,
+                    champWeekLock = champWeekLock,
+                    onPick = {
+                        if (it == state.category) {
+                            // En la semana de Campeonatos el fijado está inhibido:
+                            // pulsar el chip activo no abre el diálogo de predeterminado.
+                            if (!champWeekLock) {
+                                haptic(Haptics.Event.PrimaryAction)
+                                pendingDefault = it
+                            }
+                        } else {
+                            haptic(Haptics.Event.Selection)
+                            vm.setCategory(it)
                         }
-                    } else {
-                        haptic(Haptics.Event.Selection)
-                        vm.setCategory(it)
-                    }
-                },
-                onLongPress = { haptic(Haptics.Event.PrimaryAction); pendingDefault = it },
-            )
+                    },
+                    onLongPress = { haptic(Haptics.Event.PrimaryAction); pendingDefault = it },
+                )
+                SortMenu(
+                    current = state.sortMode,
+                    onPick = {
+                        if (it != state.sortMode) haptic(Haptics.Event.Selection)
+                        vm.setSortMode(it)
+                    },
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -677,6 +694,7 @@ private fun DateBarItem(
 
 @Composable
 private fun CategoryChips(
+    modifier: Modifier = Modifier,
     current: Constants.CategoryFilter,
     pinned: Constants.CategoryFilter,
     champWeekLock: Boolean,
@@ -688,7 +706,7 @@ private fun CategoryChips(
     val chips = if (champWeekLock) ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS
                 else Constants.CategoryFilter.entries.toList()
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -705,6 +723,54 @@ private fun CategoryChips(
                 onClick = { onPick(cat) },
                 onLongClick = { if (!champWeekLock) onLongPress(cat) },
             )
+        }
+    }
+}
+
+@Composable
+private fun SortMenu(
+    current: TodayViewModel.SortMode,
+    onPick: (TodayViewModel.SortMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = stringResource(current.labelRes)
+    val actionLabel = stringResource(R.string.today_sort_action)
+    Box(modifier = Modifier.padding(end = 12.dp)) {
+        Row(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "$actionLabel: $label"
+                }
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.SwapVert,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TodayViewModel.SortMode.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(mode.labelRes)) },
+                    onClick = {
+                        onPick(mode)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }

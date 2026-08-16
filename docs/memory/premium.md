@@ -4,7 +4,7 @@
 > Todas las features que aquí se describen como "Premium" (mini-perfil, badge inscritos, notificaciones enriquecidas, regiones, inglés) **se liberaron al plan gratuito** (commit `ea0674292da`). Lo que queda de Premium es exclusivamente quitar los anuncios.
 >
 > - **`isSubscribed`** (estado real StoreKit/Billing) → alimenta SOLO el AdGate `shouldShowAds = !isSubscribed` y la UI de gestión de la suscripción. Tras la liberación había quedado hardcodeado a `true`; en 2.3.0 se reactivó a su valor real.
-> - **`featuresUnlocked`** (constante `true` en ambos `PremiumService`) → es lo que leen los gates de features liberadas. **NUNCA** colgar un gate de feature de `isSubscribed` (reintroduciría el cobro). Ver política de pricing en CLAUDE.md.
+> - **`featuresUnlocked`** (constante `true` en ambos `PremiumService`) → es lo que leen los gates de features liberadas. **NUNCA** colgar un gate de feature de `isSubscribed` (reintroduciría el cobro).
 > - **Paywall / onboarding showcase / sección de Ajustes**: reescritos a copy "sin anuncios" (un único mensaje; `PaywallSource` se conserva pero todas las llamadas usan `.general`). El SDK de anuncios (AdMob) es FASE B (Android) / C (iOS), aún no integrado.
 > - La sección de abajo describe la infraestructura StoreKit/Billing original (intacta) y el paywall (solo cambió el copy).
 
@@ -41,6 +41,11 @@
 |---|---|---|
 | iOS | `Views/Premium/PaywallView.swift` | `.sheet(item:)` desde `CalendarioCiclismoApp.swift`. Auto-dismiss en `onChange(isSubscribed)`. |
 | Android | `ui/premium/PaywallScreen.kt` (`PaywallSheet`) | `ModalBottomSheet` desde `AppNavHost.kt`. Auto-dismiss en `LaunchedEffect(isSubscribed)`. Actividad actual via `LocalContext.current.findActivity()`. |
+
+### Invitación de contribución (apps 4.2.3)
+
+- La oleada `contribution_intro_v4_2_3_1_done` vuelve a mostrar una sola vez la pantalla Sin anuncios a usuarios no suscritos que actualizan desde 4.2.2 o instalan por primera vez. Se coloca tras el onboarding de notificaciones. La pantalla explica que los contenidos seguirán siendo gratuitos y enlaza a la transparencia (`/abierto.html`).
+- El contador local de uso no depende de Firebase: primer aviso tras 30 pantallas de contenido y al menos 7 días; solo al regresar a `today`. Si se pospone, un único recordatorio tras 60 pantallas adicionales y 21 días. No aparece a suscriptores ni más de dos veces.
 
 Precios fallback hardcoded si el storefront no responde: `2,99 €` / `17,99 €`. El equivalente mensual del plan anual se calcula desde `priceAmountMicros` + `priceCurrencyCode`.
 

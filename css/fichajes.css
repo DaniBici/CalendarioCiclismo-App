@@ -41,7 +41,7 @@
 }
 .tr-info-button:hover, .tr-info-button:focus-visible {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .tr-info-tooltip {
   display: none;
@@ -86,7 +86,7 @@
 }
 .tr-info-sources li + li { margin-top: 0.22rem; }
 .tr-info-sources a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 0.12em;
 }
@@ -204,12 +204,16 @@
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--text-muted);
+  /* El fondo propio de la chapa aclara la base y --text-muted se quedaba en
+     4.44:1 en tema oscuro (WCAG 1.4.3); en claro ya pasa. */
+  color: #989aa3;
   background: var(--bg-subtle, rgba(120, 120, 128, 0.14));
   padding: 0.14rem 0.45rem;
   border-radius: 4px;
   white-space: nowrap;
 }
+
+html.light .tr-contract { color: var(--text-muted); }
 
 .tr-contract--midseason {
   color: #2563eb;
@@ -231,7 +235,8 @@
 
 .tr-chip--rumor {
   background: rgba(245, 158, 11, 0.16);
-  color: #d97706;
+  /* #d97706 se quedaba en 2.81:1 sobre su propio tinte (WCAG 1.4.3). */
+  color: #a04607;
 }
 
 html.dark .tr-chip--rumor,

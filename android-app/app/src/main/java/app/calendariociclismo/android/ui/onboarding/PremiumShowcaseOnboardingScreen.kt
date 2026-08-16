@@ -1,7 +1,10 @@
 package app.calendariociclismo.android.ui.onboarding
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,7 +66,6 @@ fun PremiumShowcaseOnboardingScreen(onDismiss: () -> Unit) {
     val app = rememberApp()
     val scope = rememberCoroutineScope()
     val haptic = rememberHaptics()
-
     val isSubscribed by app.premium.isSubscribed.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -100,6 +102,14 @@ fun PremiumShowcaseOnboardingScreen(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(24.dp))
 
                 BenefitsCard()
+
+                Spacer(Modifier.height(16.dp))
+                TransparencyCard(onClick = {
+                    app.analytics.logEvent("contribution_transparency_tap", Bundle().apply { putString("source", "onboarding") })
+                    app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.calendariociclismo.app/abierto.html")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                })
 
                 Spacer(Modifier.height(24.dp))
             }
@@ -255,11 +265,23 @@ private fun FeatureRow(icon: ImageVector, text: String) {
     }
 }
 
+@Composable
+private fun TransparencyCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.contribution_transparency_title), fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(3.dp))
+            Text(stringResource(R.string.contribution_transparency_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 // MARK: - Helpers
 
 private suspend fun markDone(app: app.calendariociclismo.android.CalendarioCiclismoApp) {
-    // Marca el gate vivo de esta pantalla. Los flags legacy `adsIntroDone` (2.3)
-    // y `premiumShowcaseDone` (2.0) se retiraron el 2026-07-19 (ya saturados a
-    // `true` en el parque, no los lee nadie).
-    app.preferences.setAdsIntroV4Done(true)
+    app.preferences.setContributionIntroV4231Done(true)
 }

@@ -1,6 +1,8 @@
 package app.calendariociclismo.android.ui.premium
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -187,6 +189,21 @@ fun PaywallSheet(
                 }
             }
 
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable {
+                    app.analytics.logEvent("contribution_transparency_tap", android.os.Bundle().apply { putString("source", "paywall") })
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.calendariociclismo.app/abierto.html")))
+                },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(stringResource(R.string.contribution_transparency_title), fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(3.dp))
+                    Text(stringResource(R.string.contribution_transparency_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
             // Plan selector
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PlanCard(
@@ -286,7 +303,7 @@ fun PaywallSheet(
             }
 
             // Nota "no busca beneficio": el proyecto no es un negocio y la
-            // suscripción solo cubre costes (ver política de pricing en CLAUDE.md).
+            // suscripción solo cubre costes (ver docs/memory/premium.md).
             Text(
                 text = stringResource(R.string.paywall_nonprofit_note),
                 style = MaterialTheme.typography.bodySmall,

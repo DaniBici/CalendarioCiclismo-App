@@ -1,6 +1,6 @@
 # Descarga offline de assets R2 (iOS + Android)
 
-Detalle complementario de la sección "Descarga offline de assets R2" de `CLAUDE.md`.
+Documentación técnica de la descarga offline de assets R2.
 
 ## Modo offline UX
 

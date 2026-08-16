@@ -51,7 +51,7 @@ final class PremiumService {
 
     /// Las features que en su día fueron Premium se liberaron al plan gratuito
     /// (commit `ea0674292da`) y son gratis para siempre — política de pricing
-    /// del CLAUDE.md ("lo que ya era gratis sigue gratis"). Los gates de feature
+    /// de docs/memory/premium.md ("lo que ya era gratis sigue gratis"). Los gates de feature
     /// (mini-perfil, badge de inscritos, notificaciones enriquecidas, regiones,
     /// seguimiento de carreras) leen ESTA constante, NUNCA `isSubscribed`.
     /// Mantenerla desacoplada permite que `isSubscribed` recupere su único

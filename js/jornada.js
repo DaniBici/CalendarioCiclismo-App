@@ -4,12 +4,13 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
-         extractYouTubeId, TYPE_LABELS, esc,
+         TYPE_LABELS, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
          raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
-         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels }
+         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus }
          from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
+import { getBroadcastEmbed } from './broadcast-embed.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { buildSimplifiedGuide, hasSimplifiedGuide } from './simplified-guide.js';
 import { guideMarkerSVG } from './elevation-profile.js';
@@ -446,10 +447,8 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
         const bTimeTU = formatTimeUser(b.startTimeUtc);
         const bTime   = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
         const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
-        const ytId = extractYouTubeId(b.url);
-        // embeddable === false → el creador deshabilitó el embed: forzamos
-        // apertura externa (no añadimos el handler de iframe inline).
-        const ytEmbeddable = ytId && b.embeddable !== false;
+        // `getBroadcastEmbed` aplica la allowlist y respeta embeddable=false.
+        const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         return `<div class="tv-entry${hidden ? ' tv-entry--regional-hidden' : ''}"${hidden ? ' style="display:none"' : ''}>
           <div style="flex:1;min-width:0;padding-right:0.75rem">
             <div class="tv-entry__platform">${b.channel || '—'}</div>
@@ -457,7 +456,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
           </div>
           <div style="display:flex;align-items:center;gap:0.75rem">
             ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}
-            ${b.url  ? `<a class="tv-link-btn${ytEmbeddable ? ' tv-link-btn--yt' : ''}" href="${b.url}" target="_blank" rel="noopener"${ytEmbeddable ? ` data-yt-id="${ytId}"` : ''}>${t('stage.watch')} ↗&#xFE0E;</a>` : ''}
+            ${b.url  ? `<a class="tv-link-btn${broadcastEmbed ? ' tv-link-btn--embed' : ''}" href="${esc(b.url)}" target="_blank" rel="noopener"${broadcastEmbed ? ' data-tv-embed="1"' : ''}>${t('stage.watch')} ↗&#xFE0E;</a>` : ''}
           </div>
         </div>`;
       };
@@ -520,21 +519,24 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   // ── Setup report modal con datos de la jornada ─────────────────
   setupReportModal(rd.id, name, stage);
 
-  // ── YouTube embed inline (solo escritorio) ──────────────────────
+  // ── Emisiones embebibles inline (solo escritorio) ──────────────
   if (window.innerWidth >= 768) {
-    content.querySelectorAll('a.tv-link-btn--yt[data-yt-id]').forEach(btn => {
+    content.querySelectorAll('a.tv-link-btn--embed[data-tv-embed]').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
-        const id = btn.dataset.ytId;
+        const embed = getBroadcastEmbed(btn.href);
+        if (!embed) return;
         const entry = btn.closest('.tv-entry');
         const next = entry.nextElementSibling;
-        if (next && next.classList.contains('yt-embed-wrap')) {
+        if (next && next.classList.contains('tv-embed-block')) {
           next.remove();
           btn.innerHTML = `${t('stage.watch')} ↗&#xFE0E;`;
         } else {
           const wrap = document.createElement('div');
-          wrap.className = 'yt-embed-wrap';
-          wrap.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+          const externalText = getLang() === 'en' ? `Open on ${embed.externalLabel}` : `Abrir en ${embed.externalLabel}`;
+          wrap.className = 'tv-embed-block';
+          wrap.innerHTML = `<div class="tv-embed-wrap"><iframe src="${esc(embed.src)}" title="${esc(embed.externalLabel)}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+            <div class="tv-embed-actions"><a class="tv-link-btn" href="${esc(embed.externalUrl)}" target="_blank" rel="noopener">${externalText} ↗&#xFE0E;</a></div>`;
           entry.insertAdjacentElement('afterend', wrap);
           btn.innerHTML = `${t('ical.closeLabel')} &nbsp;✕`;
         }
@@ -647,6 +649,7 @@ function openGuideModal() {
   overlay.classList.add('sg-overlay--open');
   document.body.style.overflow = 'hidden';
   document.addEventListener('keydown', _guideEsc);
+  _releaseGuideFocus = trapFocus(overlay.querySelector('.sg-modal') || overlay);
 }
 
 function closeGuideModal() {
@@ -655,7 +658,9 @@ function closeGuideModal() {
   overlay.classList.remove('sg-overlay--open');
   document.body.style.overflow = '';
   document.removeEventListener('keydown', _guideEsc);
+  if (_releaseGuideFocus) { _releaseGuideFocus(); _releaseGuideFocus = null; }
 }
+let _releaseGuideFocus = null;
 
 function _guideEsc(e) { if (e.key === 'Escape') closeGuideModal(); }
 
@@ -1379,11 +1384,13 @@ async function init() {
 // ── Modal de suscripción iCal por jornada ─────────────────────────────────────
 
 let _icalOverlay = null;
+let _releaseIcalFocus = null;
 
 function closeIcalModal() {
   if (!_icalOverlay) return;
   _icalOverlay.classList.remove('rd-modal--open');
   document.body.style.overflow = '';
+  if (_releaseIcalFocus) { _releaseIcalFocus(); _releaseIcalFocus = null; }
 }
 
 function setupIcalModal(rd, race) {
@@ -1524,6 +1531,7 @@ function setupIcalModal(rd, race) {
 
     _icalOverlay.classList.add('rd-modal--open');
     document.body.style.overflow = 'hidden';
+    _releaseIcalFocus = trapFocus(_icalOverlay.querySelector('.rd-modal') || _icalOverlay);
   };
 }
 

@@ -5,7 +5,7 @@
 import { supabase, uciRank, proLevel, countryFlag, jornadaUrl, raceUrl, raceName,
          categoryBadge, setMeta, setMetaProperty, initPhTooltip,
          bulkCacheRaces, enBase,
-         getPinnedFilter, renderFilterPins, handleFilterEvent }
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
          from './shared.js';
 import { t, initI18n, getLang } from './i18n.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
@@ -161,7 +161,7 @@ window._temporadaCat = activeCat;
   // Sincronizar botones de filtro con el estado inicial (puede venir de URL o pin)
   const filterCats = document.getElementById('filterCats');
   filterCats.querySelectorAll('.tcat-btn').forEach(b => {
-    b.classList.toggle('tcat-btn--active', b.dataset.cat === activeCat);
+    setPressed(b, b.dataset.cat === activeCat);
   });
   renderFilterPins(filterCats, activeCat);
 
@@ -175,7 +175,7 @@ window._temporadaCat = activeCat;
     activeCat = res.cat;
     window._temporadaCat = activeCat;
     filterCats.querySelectorAll('.tcat-btn').forEach(b =>
-      b.classList.toggle('tcat-btn--active', b.dataset.cat === activeCat)
+      setPressed(b, b.dataset.cat === activeCat)
     );
     renderFilterPins(filterCats, activeCat);
     render();
@@ -864,7 +864,7 @@ function renderRaceRow(race) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`
       : '<span class="t-race__logo-empty"></span>'
     }
-    <span class="t-race__name" style="${race.isCancelled ? 'text-decoration:line-through;opacity:0.45' : ''}">${(() => { const _rn = raceName(race); return (activeCat === 'female' || activeCat === 'wwt') ? (/women cycling pro|sanremo women|tour de feminin/i.test(_rn) ? _rn : _rn.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ').trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '')) : _rn; })()}${isFemale ? ' <span class="t-race__female" style="font-size:0.75em;opacity:0.7;font-weight:400">♀</span>' : ''}</span>
+    <span class="t-race__name" style="${race.isCancelled ? 'text-decoration:line-through;opacity:0.45' : ''}">${(() => { const _rn = raceName(race); return (activeCat === 'female' || activeCat === 'wwt') ? (/women cycling pro|sanremo women|tour de feminin/i.test(_rn) ? _rn : _rn.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ').trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '')) : _rn; })()}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -872,8 +872,10 @@ function renderRaceRow(race) {
   if (href) {
     return `<a class="t-race" href="${href}" style="${colorStyle}"${race.isCancelled ? ' data-ph-tooltip="Carrera cancelada"' : ''} >${inner}</a>`;
   }
+  // Abre el modal de datos: <button> real para que entre en el orden de
+  // tabulación y responda a Enter/Espacio (WCAG 2.1.1).
   if (modalRdId) {
-    return `<div class="t-race t-race--modal" style="${colorStyle}" data-rdid="${modalRdId}" data-raceid="${race.id}">${inner}</div>`;
+    return `<button type="button" class="t-race t-race--modal" style="${colorStyle}" data-rdid="${modalRdId}" data-raceid="${race.id}">${inner}</button>`;
   }
   const todayStr = new Date().toISOString().slice(0, 10);
   const phTooltip = race.isCancelled ? 'Carrera cancelada'
@@ -917,7 +919,7 @@ function renderChallengeGroup(cg) {
     ? (/women cycling pro|sanremo women|tour de feminin/i.test(cg.name) ? cg.name : cg.name.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ').trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, ''))
     : cg.name;
   const femaleSuffix = showFemale
-    ? ' <span class="t-race__female" style="font-size:0.75em;opacity:0.7;font-weight:400">♀</span>'
+    ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
     : '';
 
   const inner = `

@@ -29,7 +29,7 @@
 --    · 0 vistas / vistas materializadas dependientes
 --    · 0 funciones que las nombren (`prosrc`)
 --    · 0 referencias en TODO el código (js/mjs/ts/sql/kt/swift)
---    · 0 menciones en CLAUDE.md
+--    · 0 menciones en la guía de proyecto vigente entonces
 --
 --  ⚠️ Alternativa descartada: activar RLS sin políticas las dejaría
 --  ilegibles pero seguirían ocupando catálogo y saliendo en los advisors

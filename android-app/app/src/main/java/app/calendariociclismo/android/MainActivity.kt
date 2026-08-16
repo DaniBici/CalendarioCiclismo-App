@@ -38,6 +38,7 @@ import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.onboarding.LanguageAnnouncementOnboardingScreen
 import app.calendariociclismo.android.ui.onboarding.NotificationOnboardingScreen
 import app.calendariociclismo.android.ui.onboarding.PremiumShowcaseOnboardingScreen
+import app.calendariociclismo.android.ui.premium.PaywallSheet
 import app.calendariociclismo.android.ui.splash.SplashOverlay
 import app.calendariociclismo.android.ui.theme.CalendarioCiclismoTheme
 import kotlinx.coroutines.delay
@@ -184,6 +185,7 @@ class MainActivity : ComponentActivity() {
                 // (idioma 2.1 → notificaciones → showcase; el paso de modo
                 // offline se retiró en 4.0 — la función vive solo en Ajustes)
                 var onboardingStep by remember { mutableStateOf<OnboardingStep?>(null) }
+                val paywallSource by app.premium.pendingPaywallSource.collectAsState()
 
                 LaunchedEffect(Unit) {
                     // Migración: si el usuario ya tiene push activado, marcar su
@@ -255,6 +257,13 @@ class MainActivity : ComponentActivity() {
                                 showSplash = false
                                 splashDismissing = false
                             },
+                        )
+                    }
+
+                    if (paywallSource != null) {
+                        PaywallSheet(
+                            source = paywallSource!!,
+                            onDismiss = { app.premium.dismissPaywall() },
                         )
                     }
                 }
@@ -449,11 +458,12 @@ private enum class OnboardingStep { Language, Notifications, PremiumShowcase, Do
 private suspend fun nextOnboardingStep(app: CalendarioCiclismoApp): OnboardingStep {
     val languageDone = app.preferences.languageAnnouncementDone.first()
     val notifDone = app.preferences.notifOnboardingDone.first()
-    val adsIntroV4Done = app.preferences.adsIntroV4Done.first()
+    val contributionIntroDone = app.preferences.contributionIntroV4231Done.first()
+    val subscribed = app.preferences.snapshotPremiumSubscribed()
     return when {
         !languageDone -> OnboardingStep.Language
         !notifDone -> OnboardingStep.Notifications
-        !adsIntroV4Done -> OnboardingStep.PremiumShowcase
+        !subscribed && !contributionIntroDone -> OnboardingStep.PremiumShowcase
         else -> OnboardingStep.Done
     }
 }

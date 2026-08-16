@@ -7,11 +7,11 @@ import WidgetKit
 /// step más temprano que no esté completo es el que se muestra. `done` indica
 /// que toda la secuencia se ha cumplido.
 ///
-/// Flujo completo (instalación nueva 4.0):
+/// Flujo completo (instalación nueva 4.2.3):
 ///   language → notifications → premiumShowcase → done
 ///
-/// Flujo para actualizaciones (notif ya completado):
-///   language → premiumShowcase → done
+/// Flujo para actualizaciones:
+///   language → notifications → premiumShowcase → done
 ///
 /// El paso de modo OFFLINE se retiró del onboarding en 4.0 (decisión Dani:
 /// apenas aportaba; la función sigue disponible en Ajustes).
@@ -20,16 +20,11 @@ import WidgetKit
 /// Los usuarios que ya tenían inglés activado en 2.0 (Premium) saltan este
 /// paso automáticamente (migración en `LocaleService.init`).
 ///
-/// `premiumShowcase` (2.3) ofrece la suscripción "sin anuncios" como último
-/// paso. One-shot, gateado por `ads_intro_v4_done`: un flag DEDICADO cuyo nombre
-/// es load-bearing — debe ser una clave que nadie tenga persistida para que la
-/// pantalla se dispare una vez tras actualizar. Nace en `false` para todos, así
-/// que se muestra una vez tras actualizar a 4.0 (upgraders de 2.x/3.x) y una vez
-/// en el onboarding de una instalación fresh. Los gates de oleadas previas
-/// (`premium_showcase_done` 2.0, `ads_intro_done` 2.3) se retiraron el
-/// 2026-07-19. ⚠️ NO renombrar `ads_intro_v4_done` a `ads_intro_done`: los
-/// dispositivos 2.3+ lo tienen persistido en `true` y suprimirían la pantalla.
-/// Futuras oleadas = un nuevo `ads_intro_vN_done`.
+/// `premiumShowcase` es una invitación puntual a contribuir y quitar anuncios.
+/// La oleada 4.2.3 usa `contribution_intro_v4_2_3_1_done`, una clave nueva que nace
+/// en `false` incluso para el parque 4.2.2. Solo se muestra a quien no está
+/// suscrito. Futuras oleadas deben usar otra clave versionada para no reabrir
+/// campañas que la persona ya descartó.
 private enum OnboardingStep: Int, CaseIterable, Comparable {
     case language
     case notifications
@@ -45,7 +40,10 @@ private enum OnboardingStep: Int, CaseIterable, Comparable {
     static func firstPending() -> OnboardingStep {
         if !LocaleService.shared.hasShownLanguageAnnouncement { return .language }
         if !NotificationManager.shared.hasCompletedOnboarding { return .notifications }
-        if !UserDefaults.standard.bool(forKey: "ads_intro_v4_done") { return .premiumShowcase }
+        if !PremiumService.shared.isSubscribed,
+           !UserDefaults.standard.bool(forKey: "contribution_intro_v4_2_3_1_done") {
+            return .premiumShowcase
+        }
         return .done
     }
 }

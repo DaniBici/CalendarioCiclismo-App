@@ -170,7 +170,7 @@ object RaceLogic {
      *   0) YouTube
      *   1) otras redes sociales (Facebook, Instagram, X/Twitter, TikTok, Twitch, Kick)
      *   2) RTVE.es (pública estatal, por delante del resto de cadenas españolas)
-     *   3) otras TV públicas españolas: CCMA (TV3 / Esport3 / 3Cat), EITB (ETB)
+     *   3) otras TV públicas en abierto: RTP1, CCMA (TV3 / Esport3 / 3Cat), EITB (ETB)
      *   4) resto de cadenas
      * Eurosport / HBO Max / Max son "una cadena más" (tier 4, sin trato especial).
      * Espejo de `broadcastLinkPriority` en `js/broadcast-priority.js` (web) e iOS.
@@ -184,7 +184,7 @@ object RaceLogic {
             u.contains("twitter.com") || u.contains("//x.com") || u.contains(".x.com")
         ) return 1
         if (u.contains("rtve.es")) return 2
-        if (u.contains("ccma.cat") || u.contains("3cat.cat") || u.contains("eitb.")) return 3
+        if (u.contains("rtp.pt") || u.contains("ccma.cat") || u.contains("3cat.cat") || u.contains("eitb.")) return 3
         return 4
     }
 
