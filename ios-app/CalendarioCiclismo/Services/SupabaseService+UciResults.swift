@@ -354,14 +354,20 @@ extension SupabaseService {
             .value
     }
 
-    /// Jornadas publicadas del rango del feed (fallback externos + recorrido/km/
+    /// Jornadas publicadas del rango del feed (fallback externos + km/desnivel/
     /// tipos/hora de las filas in-house, vía raceDayId). Las columnas slim de
     /// `raceDays(from:to:)` ya incluyen todo lo que el feed necesita
-    /// (startLocation/finishLocation/+En, distanceKm, primaryType,
+    /// (distanceKm, elevationProfile, primaryType,
     /// secondaryType, neutralStartTimeUtc, estimatedFinishTimeUtc, isRestDay,
     /// isCancelledDay, stageNumber, raceId, dateKey, id).
     func raceDaysFeedWindow(from fromKey: String, to toKey: String) async throws -> [RaceDay] {
-        try await raceDays(from: fromKey, to: toKey)
+        var days = try await raceDays(from: fromKey, to: toKey)
+        let elevation = try await raceDaysElevation(byIds: days.map(\.id))
+        let elevationById = Dictionary(uniqueKeysWithValues: elevation.map { ($0.id, $0) })
+        days = days.map { day in
+            elevationById[day.id].map { day.applying(elevation: $0) } ?? day
+        }
+        return days
     }
 
     /// Instantánea semanal de DataRide compartida por las tres plataformas.

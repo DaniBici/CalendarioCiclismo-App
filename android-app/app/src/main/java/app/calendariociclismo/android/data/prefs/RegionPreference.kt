@@ -12,8 +12,7 @@ import app.calendariociclismo.android.R
  * - [SPAIN] es el baseline gratuito heredado de 1.4.4 — `ALL + ES + EUROPA`.
  *   Cualquier instalación pre-2.0 que actualice mantiene este valor por
  *   defecto y sigue viendo lo mismo de siempre.
- * - El resto son features Premium en Fase 6: añaden grupos regionales
- *   adicionales que NUNCA estuvieron visibles en la app gratuita.
+ * - Todas las opciones son gratuitas desde 4.3.
  *
  * El mapping de cada región a los grupos `broadcasts.country` permitidos
  * vive en [allowedBroadcastGroups]. Los broadcasts sin `country` se tratan
@@ -52,9 +51,6 @@ enum class RegionPreference(@StringRes val labelRes: Int) {
                 "AFRICA",
             )
         }
-
-    /** True si esta preferencia es feature Premium (todo lo que NO sea SPAIN). */
-    val isPremium: Boolean get() = this != SPAIN
 
     /**
      * Grupos finos `broadcasts.country` que el usuario puede elegir como

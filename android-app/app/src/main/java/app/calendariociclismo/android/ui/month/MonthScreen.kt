@@ -470,24 +470,16 @@ private fun MonthDayPage(
         (1..daysInMonth).map { d -> "%04d-%02d-%02d".format(year, monthNum, d) }
     }
 
-    val listState = rememberLazyListState()
-
     val isCurrentMonth = year == LocalDate.now().year && monthNum == LocalDate.now().monthValue
     val todayDay = LocalDate.now().dayOfMonth
-    var initialScrollDone by remember { mutableStateOf(false) }
-
-    // Auto-scroll to today on initial load
-    LaunchedEffect(filtered.size) {
-        if (!isCurrentMonth || initialScrollDone || filtered.isEmpty()) return@LaunchedEffect
-        initialScrollDone = true
-        val todayIdx = (todayDay - 1).coerceAtLeast(0)
-        if (todayIdx > 0) listState.animateScrollToItem(todayIdx)
-    }
+    val todayIdx = (todayDay - 1).coerceAtLeast(0)
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (isCurrentMonth) todayIdx else 0,
+    )
 
     // Scroll to today when "Hoy" button is tapped
     LaunchedEffect(scrollToTodayTrigger) {
         if (scrollToTodayTrigger > 0 && isCurrentMonth) {
-            val todayIdx = (todayDay - 1).coerceAtLeast(0)
             listState.animateScrollToItem(todayIdx)
         }
     }

@@ -34,6 +34,7 @@ import app.calendariociclismo.android.data.prefs.RegionPreference
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
 import app.calendariociclismo.android.util.DateFormatting
+import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.RaceLogic
 
 /**
@@ -160,7 +161,7 @@ fun TVBadge(
         modifier = modifier
             .then(clickModifier)
             .background(colors.background, RoundedCornerShape(3))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -171,7 +172,7 @@ fun TVBadge(
             modifier = Modifier.size(10.dp),
         )
         Text(
-            text = label,
+            text = label.uppercase(LocaleHolder.currentState),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
             color = colors.foreground,
@@ -214,7 +215,7 @@ private fun LiveTextChip(
         modifier = modifier
             .then(clickModifier)
             .background(colors.background, RoundedCornerShape(3))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -225,7 +226,7 @@ private fun LiveTextChip(
             modifier = Modifier.size(10.dp),
         )
         Text(
-            text = stringResource(R.string.tv_badge_live_text),
+            text = stringResource(R.string.tv_badge_live_text).uppercase(LocaleHolder.currentState),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
             color = colors.foreground,
@@ -251,7 +252,7 @@ private fun buildLabel(
         "unavailable_es" -> {
             // Solo aplica a usuarios en España. En EN (Premium) la app sirve
             // a europeos sin restricción geográfica → ocultar el badge.
-            if (app.calendariociclismo.android.util.LocaleHolder.current.language == "en") return null
+            if (LocaleHolder.current.language == "en") return null
             return stringResource(R.string.tv_badge_no_tv_spain)
         }
         "pending" -> return stringResource(R.string.tv_badge_pending)

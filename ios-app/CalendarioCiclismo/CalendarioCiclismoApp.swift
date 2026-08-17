@@ -20,11 +20,8 @@ import WidgetKit
 /// Los usuarios que ya tenían inglés activado en 2.0 (Premium) saltan este
 /// paso automáticamente (migración en `LocaleService.init`).
 ///
-/// `premiumShowcase` es una invitación puntual a contribuir y quitar anuncios.
-/// La oleada 4.2.3 usa `contribution_intro_v4_2_3_1_done`, una clave nueva que nace
-/// en `false` incluso para el parque 4.2.2. Solo se muestra a quien no está
-/// suscrito. Futuras oleadas deben usar otra clave versionada para no reabrir
-/// campañas que la persona ya descartó.
+/// `premiumShowcase` anuncia la retirada definitiva de publicidad en 4.3 y el
+/// modelo voluntario Amigo. Se muestra una vez a todas las instalaciones.
 private enum OnboardingStep: Int, CaseIterable, Comparable {
     case language
     case notifications
@@ -40,8 +37,7 @@ private enum OnboardingStep: Int, CaseIterable, Comparable {
     static func firstPending() -> OnboardingStep {
         if !LocaleService.shared.hasShownLanguageAnnouncement { return .language }
         if !NotificationManager.shared.hasCompletedOnboarding { return .notifications }
-        if !PremiumService.shared.isSubscribed,
-           !UserDefaults.standard.bool(forKey: "contribution_intro_v4_2_3_1_done") {
+        if !UserDefaults.standard.bool(forKey: "support_intro_v4_3_done") {
             return .premiumShowcase
         }
         return .done
@@ -56,6 +52,7 @@ struct CalendarioCiclismoApp: App {
     @State private var currentStep: OnboardingStep = OnboardingStep.firstPending()
     @State private var showSplash = true
     @State private var splashDismissing = false
+    @State private var supportIntroIsNewInstallation = CalendarioCiclismoApp.supportIntroAudience()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -146,7 +143,10 @@ struct CalendarioCiclismoApp: App {
                 ))
                 .zIndex(3)
         case .premiumShowcase:
-            PremiumShowcaseOnboardingView(onDismiss: advance)
+            PremiumShowcaseOnboardingView(
+                isNewInstallation: supportIntroIsNewInstallation,
+                onDismiss: advance
+            )
                 .environment(\.locale, localeService.current.locale)
                 .transition(.asymmetric(
                     insertion: .move(edge: .trailing),
@@ -156,6 +156,21 @@ struct CalendarioCiclismoApp: App {
         case .done:
             EmptyView()
         }
+    }
+
+    /// Fija la audiencia antes de que la primera pantalla marque el idioma como
+    /// completado. La clave versionada conserva el resultado entre relanzamientos
+    /// si el usuario abandona el onboarding antes de llegar al anuncio de apoyo.
+    private static func supportIntroAudience() -> Bool {
+        let defaults = UserDefaults.standard
+        let key = "support_intro_v4_3_new_installation"
+        if defaults.object(forKey: key) != nil {
+            return defaults.bool(forKey: key)
+        }
+        let isNewInstallation = !LocaleService.shared.hasShownLanguageAnnouncement
+            && !NotificationManager.shared.hasCompletedOnboarding
+        defaults.set(isNewInstallation, forKey: key)
+        return isNewInstallation
     }
 
     private func preloadTodayData() async {
@@ -270,15 +285,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         _ = AnalyticsService.shared
         UNUserNotificationCenter.current().delegate = self
 
-        // ── Anuncios (FASE B): consentimiento UMP + ATT + init del SDK ──
-        // Gateado por shouldShowAds: si el usuario está suscrito, NO se pide
-        // consentimiento, NO se muestra el prompt ATT y NO se arranca el SDK.
-        // En un Task @MainActor porque AdsConsentManager presenta UI (UMP/ATT).
-        Task { @MainActor in
-            if PremiumService.shared.shouldShowAds {
-                AdsConsentManager.gather()
-            }
-        }
         return true
     }
 

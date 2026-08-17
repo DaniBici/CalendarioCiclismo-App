@@ -1,14 +1,12 @@
 package app.calendariociclismo.android.data.premium
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
  * Tests "puros" del API de [PremiumService] — los enums [PaywallSource] y
  * [PremiumPlan] son contractuales con el cliente del paywall y con el
- * subscription product de Google Play (`premium` + base plans). No se
+ * producto Amigo de Google Play y los consumibles. No se
  * instancia el servicio porque depende de Context + DataStore + Firebase
  * Analytics + BillingClient, que requieren un entorno Android — esos tests
  * se cubrirán como instrumentation tests si en el futuro hace falta.
@@ -66,7 +64,7 @@ class PremiumServiceTest {
     @Test
     fun `premiumPlan basePlanId matches Google Play subscription product config`() {
         // Estos IDs deben existir como base plans dentro del subscription
-        // product `premium` en Google Play Console. Si se renombran allí,
+        // product `amigo` en Google Play Console. Si se renombran allí,
         // hay que renombrar también las constantes en BillingManager.
         assertEquals(BillingManager.BASE_PLAN_MONTHLY, PremiumService.PremiumPlan.MONTHLY.basePlanId)
         assertEquals(BillingManager.BASE_PLAN_YEARLY, PremiumService.PremiumPlan.YEARLY.basePlanId)
@@ -75,10 +73,12 @@ class PremiumServiceTest {
     }
 
     @Test
-    fun `billing product id is the canonical 'premium' identifier`() {
-        // El subscription product en Play Console se llama `premium`. Si esto
-        // cambia, hay que actualizar también docs/memory/premium.md
-        // y avisar al usuario para que migre el product en Play.
-        assertEquals("premium", BillingManager.PRODUCT_ID)
+    fun `billing product ids match the 4_3 store contract`() {
+        assertEquals("amigo", BillingManager.FRIEND_PRODUCT_ID)
+        assertEquals("premium", BillingManager.LEGACY_PREMIUM_PRODUCT_ID)
+        assertEquals(
+            listOf("aportacion_299", "aportacion_599", "aportacion_1199"),
+            BillingManager.CONTRIBUTION_PRODUCT_IDS,
+        )
     }
 }

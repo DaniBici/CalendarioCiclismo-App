@@ -6,6 +6,28 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`465` / `4.3.0` = COMPILACIÓN DE AJUSTES:** se restaura el import de recursos de texto de Compose requerido por la pantalla Ajustes para generar correctamente las variantes debug y release. Sin cambio funcional.**
+
+**`464` / `4.3.0` = ONBOARDING DE APOYO SEGÚN INSTALACIÓN:** el anuncio 4.3 utiliza el icono Amigo de CC con corazón. Las instalaciones nuevas explican los costes de mantenimiento y la autoría profesional, sin mostrar «Conoce el cambio»; las actualizaciones conservan la explicación de la retirada de publicidad y el reconocimiento Fundador. La audiencia se fija antes de elegir idioma y se conserva entre relanzamientos. La pantalla «Hazte Amigo» usa el mismo icono, elimina el beneficio redundante «Sin anuncios» y prioriza el icono exclusivo antes de recordar que toda la app es gratuita. Contenido completo en español e inglés. Espejo iOS `1277`.**
+
+**`463` / `4.3.0` = RUTA CANÓNICA DE SOSTENIMIENTO:** los enlaces de Ajustes y onboarding abren la página pública en `/apoyar/`. Espejo iOS `1276`.**
+
+**`462` / `4.3.0` = GRATIS, ABIERTA Y SIN ANUNCIOS:** retirada completa de AdMob, UMP, permisos, espacios publicitarios y seguimiento usado exclusivamente para anuncios. Premium deja de venderse y renovarse; las compras anteriores reciben el icono Fundador permanente. Se incorpora Amigo de Calendario Ciclismo (2,99 €/mes o 17,99 €/año) y aportaciones puntuales (2,99 €, 5,99 € y 11,99 €), siempre voluntarias y sin funciones exclusivas. Ajustes simplifica el bloque de sostenimiento y enlaza la explicación pública; el onboarding de 4.3 se muestra una vez y adapta sus acciones al estado Premium/Amigo. Original, Fundador y Amigo cuentan con iconos diferenciados; al vencer Amigo se recupera el icono elegible anterior. Espejo iOS `1275`.**
+
+**`461` / `4.2.6` = APERTURA INMEDIATA DE AGENDA EN HOY:** la vista Calendario/Mes crea la lista directamente en el día actual, sin recorrer mediante animación todos los días anteriores. El posicionamiento inicial funciona aunque el filtro activo no contenga carreras en el mes; el botón «Hoy» conserva su desplazamiento animado.**
+
+**`460` / `4.2.6` = ACCESO A COMPETICIÓN CON ANCHO ESTABLE:** la hamburguesa de Hoy usa un contenedor real de 16 × 16 dp, sin el mínimo implícito de 48 dp de `IconButton`. Los títulos largos ceden el espacio necesario y ya no desplazan ni recortan el botón.**
+
+**`459` / `4.2.6` = BADGES COMPACTOS EN RESULTADOS:** los badges CRI, CRE y cronoescalada reducen su tipografía y relleno exclusivamente en Resultados para conservar la misma altura de línea que las jornadas sin badge. Espejo iOS `1273`.**
+
+**`458` / `4.2.6` = ACCESO A COMPETICIÓN:** el botón de acceso directo desde Hoy se compacta en un rectángulo de acento de 16 dp con hamburguesa reducida. La fila de nombre y bandera conserva 16 dp también en las vueltas por etapas, evitando que el botón introduzca más interlineado que en las clásicas. Espejo iOS `1272`.**
+
+**`457` / `4.2.6` = BADGES EN MAYÚSCULAS:** Hoy, Jornada y Resultados presentan en mayúsculas los badges de categoría, tipo de etapa, TV, inscritos y orden de salida, igual que la web. El estado Cancelada de Hoy adopta en las tres plataformas la misma caja roja compacta, sin icono y alineada con el resto de badges. Espejo web + iOS `1271`.**
+
+**`456` / `4.2.6` = ARMONIZACIÓN DE HOY Y RESULTADOS:** Hoy y Resultados condensan cada jornada a número de etapa, distancia y desnivel, sin repetir las ciudades. Los badges recuperan el espaciado de la web y dejan de usar iconos de tipo; Resultados reserva el badge para CRI, CRE y cronoescalada. Hoy mantiene el tipo junto a la categoría cuando no hay miniperfil y recupera el acceso directo a Competición en vueltas de varias jornadas. Espejo web + iOS `1270`.**
+
+**`455` / `4.2.5` = SEPARADOR EN HOY:** un divisor vertical separa los filtros de categoría del selector de orden, con el mismo tratamiento visual que la separación entre clasificaciones y filtro de equipos en Resultados.**
+
 **`454` / `4.2.5` = ORDEN DE CARRERAS EN HOY:** la vista Hoy incorpora, junto a los filtros y sobre la lista, el selector de orden por categoría, hora de TV u hora estimada de meta que ya ofrecían web e iOS.**
 
 **`453` / `4.2.5` = FILTROS DE CALENDARIO:** Mes y Temporada parten de Todas cuando el usuario no ha guardado un filtro por defecto, sin mostrar Pro durante la carga inicial. En iOS se desactiva el efecto automático de borde de los scrolls de filtros, cuya capa interceptaba las pulsaciones en dispositivos físicos con iOS 27 Beta; se conservan la barra superior, la posición de año/país y los botones nativos. Espejo iOS `1269`.**
@@ -144,6 +166,24 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1278` / `MARKETING_VERSION 4.3.0` = AVISO DE SOSTENIMIENTO TRAS EL USO:** el diálogo local que aparece tras 30 pantallas de contenido y 7 días deja de ofrecer «Sin anuncios» y de afirmar que una aportación elimina publicidad. Presenta la aplicación como gratuita y sin anuncios, abre las formas de apoyo mediante Amigo o aportaciones puntuales y actualiza su evento interno de Premium a sostenimiento. Android ya tenía el copy correcto.**
+
+**`1277` / `MARKETING_VERSION 4.3.0` = ONBOARDING DE APOYO SEGÚN INSTALACIÓN:** el anuncio 4.3 utiliza el icono Amigo de CC con corazón. Las instalaciones nuevas explican los costes de mantenimiento y la autoría profesional, sin mostrar «Conoce el cambio»; las actualizaciones conservan la explicación de la retirada de publicidad y el reconocimiento Fundador. La audiencia se fija antes de elegir idioma y se conserva entre relanzamientos. La pantalla «Hazte Amigo» usa el mismo icono, elimina el beneficio redundante «Sin anuncios» y prioriza el icono exclusivo antes de recordar que toda la app es gratuita. Contenido completo en español e inglés. Espejo Android `464`.**
+
+**`1276` / `MARKETING_VERSION 4.3.0` = AJUSTES VISUALES DE SOSTENIMIENTO:** la pantalla Amigo recupera el fondo general de la aplicación y presenta el icono CC con corazón. El botón principal del onboarding amplía su altura y ancho táctil.**
+
+**`1275` / `MARKETING_VERSION 4.3.0` = GRATIS, ABIERTA Y SIN ANUNCIOS:** retirada completa de Google Mobile Ads, UMP, ATT publicitario, SKAdNetwork y espacios de banner. Premium deja de venderse y renovarse; las compras anteriores reciben el icono Fundador permanente. Se incorpora Amigo de Calendario Ciclismo (2,99 €/mes o 17,99 €/año) y aportaciones puntuales (2,99 €, 5,99 € y 11,99 €), siempre voluntarias y sin funciones exclusivas. Ajustes simplifica el bloque de sostenimiento y enlaza la explicación pública; el onboarding de 4.3 se muestra una vez y adapta sus acciones al estado Premium/Amigo. Original, Fundador y Amigo se rehacen por capas en Icon Composer para Liquid Glass; al vencer Amigo se recupera el icono elegible anterior. Espejo Android `462`.**
+
+**`1274` / `MARKETING_VERSION 4.2.6` = CARDS UNIFICADAS EN RESULTADOS:** las filas que abren el modal de fuentes externas adoptan la misma presentación y el mismo chevron derecho que las clasificaciones nativas. Espejo web; Android ya aplicaba esta presentación.**
+
+**`1273` / `MARKETING_VERSION 4.2.6` = BADGES COMPACTOS EN RESULTADOS:** los badges CRI, CRE y cronoescalada reducen su tipografía y relleno exclusivamente en Resultados para conservar la misma altura de línea que las jornadas sin badge. Espejo Android `459`.**
+
+**`1272` / `MARKETING_VERSION 4.2.6` = ACCESO A COMPETICIÓN:** el botón de acceso directo desde Hoy se compacta en un rectángulo de acento de 16 puntos con hamburguesa reducida, sin alterar el interlineado de la tarjeta. Espejo Android `458`.**
+
+**`1271` / `MARKETING_VERSION 4.2.6` = BADGES EN MAYÚSCULAS:** Hoy, Jornada y Resultados presentan en mayúsculas los badges de categoría, tipo de etapa, TV, inscritos y orden de salida, igual que la web. El estado Cancelada de Hoy adopta en las tres plataformas la misma caja roja compacta, sin icono y alineada con el resto de badges. Espejo web + Android `457`.**
+
+**`1270` / `MARKETING_VERSION 4.2.6` = ARMONIZACIÓN DE HOY Y RESULTADOS:** Hoy y Resultados condensan cada jornada a número de etapa, distancia y desnivel, sin repetir las ciudades. Los badges recuperan el espaciado de la web y dejan de usar iconos de tipo; Resultados reserva el badge para CRI, CRE y cronoescalada. Hoy mantiene el tipo junto a la categoría cuando no hay miniperfil y recupera el acceso directo a Competición en vueltas de varias jornadas. Espejo web + Android `456`.**
 
 **`1250` / `MARKETING_VERSION 4.2.5` = FILTROS DE CALENDARIO CON BOTÓN NATIVO:** corrección de `1249`. Mes y Temporada eliminan por completo el estilo primitivo basado en `Gesture`, que bajo iOS 27 seguía perdiendo el toque frente al paginador. Los chips usan ahora la acción estándar de `Button`; tocar de nuevo el filtro activo conserva la configuración del filtro predeterminado. Sin selección previa, ambas vistas parten de Todas en iOS y Android. Espejo Android `453`.**
 

@@ -100,7 +100,6 @@ una licencia propietaria que **no** concede derecho a redistribuir ni modificar:
 | SDK | Uso |
 |---|---|
 | Firebase Analytics (`firebase-analytics-ktx`) | Analytics |
-| Google Mobile Ads / AdMob (`play-services-ads` 24.0.0) | Anuncios |
 | User Messaging Platform (`user-messaging-platform` 3.1.0) | Consentimiento RGPD |
 | Google Play Billing (`billing-ktx` 8.2.1) | Suscripción |
 

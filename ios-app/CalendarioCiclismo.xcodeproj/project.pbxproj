@@ -17,15 +17,15 @@
 		1AB0E49910E4AA0114AFA6C0 /* RaceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6AC123A990B0C9E6BCF37F /* RaceLogicTests.swift */; };
 		1BA369ACE1E2544F1967C46D /* SupabaseService+UciResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468893C68879486E9A3D9859 /* SupabaseService+UciResults.swift */; };
 		1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */; };
-		1D96090FF66C9A5585A2F95F /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7D54CAC2FEF1421580D17C33 /* FirebaseAnalytics */; };
+		1D96090FF66C9A5585A2F95F /* FirebaseAnalyticsWithoutAdIdSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 265ADF6C6006C82A616BABA8 /* FirebaseAnalyticsWithoutAdIdSupport */; };
 		1E2D019C46203E886E6E3E7C /* FlagRenderAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E785AA0ACD6B894B4244B044 /* FlagRenderAuditTests.swift */; };
 		254B8B7BE4832DB34FF86FDB /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4461E2F63974BDE7CA989245 /* ElevationProfileView.swift */; };
 		26E8DC343F910C5C9446E51C /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9760C23396DE90D30F7DD243 /* CacheManager.swift */; };
 		27D69B27E68A304EF28C79B4 /* ProfileDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC572EA9623AC82543357E70 /* ProfileDestinationView.swift */; };
 		2A9DCFCB56EF967CF8E7F3C2 /* CalendarTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA4282987543E6D2F35303A /* CalendarTabView.swift */; };
 		2B43CECAD914DF21A9BF7EE8 /* PremiumServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510E10AD16CCABDC4B4ECA4A /* PremiumServiceTests.swift */; };
-		2C0984E959FF696A1D810ABB /* AdsConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097FAFED3EA2A1C1BB29C788 /* AdsConsentManager.swift */; };
 		3300591CCF9E81E8222D2588 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD984740158A331D289F46E1 /* NotificationManager.swift */; };
+		340398D765D1197EB7A0F757 /* AppIconFounder.icon in Resources */ = {isa = PBXBuildFile; fileRef = 357FAF5D25E73ABF9C6401E4 /* AppIconFounder.icon */; };
 		36293990D303F6743D421A93 /* FollowedStagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0811885F83B6EABBFD87270 /* FollowedStagesView.swift */; };
 		385244A97900B41E18D5BBFC /* PlaceholderModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */; };
 		388E6D1B1FF25CB5F0320864 /* SimplifiedGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */; };
@@ -38,6 +38,7 @@
 		477786CBA0B9C16A9BE41B5D /* SupabaseService+Transfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493A6548104A38662359470C /* SupabaseService+Transfers.swift */; };
 		490809882B75F134850C169F /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */; };
 		49395434A3D9AF42D7C18049 /* LanguageAnnouncementOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B00C847CE81C5F63CA3FD2D /* LanguageAnnouncementOnboardingView.swift */; };
+		54ACBA1A99E51438FB852362 /* AppIconFriend.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1909CFDC5B0915D1E9B026D8 /* AppIconFriend.icon */; };
 		574C94A43BABE95AF4D4AD2E /* DateFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDFEAC0A589AFE48C8CE3EE /* DateFormattingTests.swift */; };
 		5819834FB8F79399636465F0 /* PremiumShowcaseOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2057A3037AEE913460F62A /* PremiumShowcaseOnboardingView.swift */; };
 		590F1CF043E90DBA9C84CA1A /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714E1EBF959304DB05BEE579 /* Haptics.swift */; };
@@ -48,10 +49,7 @@
 		6370196F5C67453BFA1AFCA6 /* TransfersLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5226BF87D70D9670F0D46D21 /* TransfersLogic.swift */; };
 		65402F16E90FDF1408C07006 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B092494268057641ED882D /* SupabaseService.swift */; };
 		65960C19C110A6530F6F894A /* ElevationProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */; };
-		67B3C15E494C6BCCFB4259C5 /* BannerAdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA451BEBA31287756B24355A /* BannerAdView.swift */; };
-		67F0A8C83B2726E68BD02AD2 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A172D3C67E4CA892926F184A /* GoogleMobileAds */; };
 		6A398CFF70A46920EABBB087 /* RouteMapLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122A04AF5748EF3E37189B1E /* RouteMapLogicTests.swift */; };
-		6AE0FD95E0F27B1C9E562BFF /* AdsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80CDFAFCB449C9EB1EAF9D3 /* AdsConfig.swift */; };
 		6C8AF229EAE53767CA9434CD /* LocaleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1109A4E64314AA3634866E /* LocaleService.swift */; };
 		6DD6E74D1FBA8B548F7E1510 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F94BBFA47CC5EA0A0D8D43 /* CachedAsyncImage.swift */; };
 		6E53393CC2DC6D91612D7AB1 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0C75F2E38677C4B313E14 /* ResultsView.swift */; };
@@ -75,6 +73,7 @@
 		885FF19017FEF27A971CE6C1 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CFC3A064B481CFBD974E40 /* MarkdownText.swift */; };
 		8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */; };
 		8B0B2B5E24E758AC81E3DFAF /* UciTeamRankingLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C034C44A8BF5AE421240FA5C /* UciTeamRankingLogicTests.swift */; };
+		8EADA7E810C2E0E724D08C3E /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6203864B1F1CC402ED4D6C8D /* AppIcon.icon */; };
 		92DFE13B12A339F837758268 /* LocaleServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEE9E16A073346D055C32B4 /* LocaleServiceTests.swift */; };
 		97CE02822015EDA09BD3FBC7 /* TodayHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA357FBE0F960823BC0EB19 /* TodayHighlight.swift */; };
 		9848EE160C33576A783036AC /* ResultsFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF019505A2CAFB9F41393E6C /* ResultsFeedView.swift */; };
@@ -117,7 +116,6 @@
 		DB49F25B6E96EB766CC4823E /* StageDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF8EDBB20E63C2E6C8B54C2 /* StageDetailViewModel.swift */; };
 		DE83A3927A22F104E70F7438 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2906973A5C2ECBEC4B619C27 /* Constants.swift */; };
 		E0C32D29E323DCB4C29F7D7A /* RegionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88BDBC8B030F38B464CD06 /* RegionService.swift */; };
-		E2896156088084340BEBE70A /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 2112734201DE4AECC71AB500 /* GoogleUserMessagingPlatform */; };
 		E3AE216BF5942D66D100814A /* MonthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E34A4C4222E1431F536CC4C /* MonthViewModel.swift */; };
 		E537B6E1F89A345AAA7B61BB /* DeepLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF4E526F300BEC6A5E89CEE /* DeepLinkTests.swift */; };
 		E55C9E590208DE6B15F63540 /* PremiumService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0236C5253451C5FAFCE767 /* PremiumService.swift */; };
@@ -180,7 +178,6 @@
 		02A51405DE542C58C527923A /* UciResultsLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResultsLogicTests.swift; sourceTree = "<group>"; };
 		0336EA81D15ADA7B2C343ADF /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		05EF6EAE65F6B30257021A0E /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
-		097FAFED3EA2A1C1BB29C788 /* AdsConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsConsentManager.swift; sourceTree = "<group>"; };
 		0CBA1E6741D58920B10C4815 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0D657CDFDE6DBCD52B28BE55 /* RouteMapDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapDestinationView.swift; sourceTree = "<group>"; };
 		0D9C7A2775B18372B4A6D309 /* RouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapView.swift; sourceTree = "<group>"; };
@@ -192,6 +189,7 @@
 		173AFC9AC1FA76DAA1686362 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		177FAB8B603DF443D9FD7908 /* DateFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		18679C62EF0371AD001964A3 /* RaceLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceLogic.swift; sourceTree = "<group>"; };
+		1909CFDC5B0915D1E9B026D8 /* AppIconFriend.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIconFriend.icon; sourceTree = "<group>"; };
 		1E0236C5253451C5FAFCE767 /* PremiumService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumService.swift; sourceTree = "<group>"; };
 		23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlag.swift; sourceTree = "<group>"; };
 		2906973A5C2ECBEC4B619C27 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
@@ -201,6 +199,7 @@
 		33EBE13A16CA79590D76F05D /* CategoryBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryBadge.swift; sourceTree = "<group>"; };
 		33F707763849CE075EE394A2 /* DateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateBarView.swift; sourceTree = "<group>"; };
 		354EC95B971E9572BBE3B6DB /* RiderTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiderTransfer.swift; sourceTree = "<group>"; };
+		357FAF5D25E73ABF9C6401E4 /* AppIconFounder.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIconFounder.icon; sourceTree = "<group>"; };
 		36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderModal.swift; sourceTree = "<group>"; };
 		37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfile.swift; sourceTree = "<group>"; };
 		39D0C75F2E38677C4B313E14 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
@@ -227,6 +226,7 @@
 		5DF4E785EB18C1E580828423 /* AccessibilityHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityHelpers.swift; sourceTree = "<group>"; };
 		5EB6CB8843541873DD56705B /* ThemeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeService.swift; sourceTree = "<group>"; };
 		5F12AB2A72EF4FF21C4A3386 /* ResultsFeedLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsFeedLogicTests.swift; sourceTree = "<group>"; };
+		6203864B1F1CC402ED4D6C8D /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		6355226666B1F46947BD209D /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		63C8E6AA25033D6DBC2DC40C /* StartOrderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartOrderViewModel.swift; sourceTree = "<group>"; };
 		6833BA62D6085B0309D60937 /* SeasonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonView.swift; sourceTree = "<group>"; };
@@ -289,7 +289,6 @@
 		D2BAFEAD9A7705A75925642F /* SeasonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonViewModel.swift; sourceTree = "<group>"; };
 		D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedGuide.swift; sourceTree = "<group>"; };
 		D7AEF801C0A7E4A20304BC02 /* StartlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartlistView.swift; sourceTree = "<group>"; };
-		DA451BEBA31287756B24355A /* BannerAdView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BannerAdView.swift; sourceTree = "<group>"; };
 		DAECCCB7643871D151DCE7F2 /* TeamSeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSeason.swift; sourceTree = "<group>"; };
 		DB1B170ACC9D3F708726F967 /* CalendarioCiclismoWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CalendarioCiclismoWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBBD791D932656CF55E63CDB /* UciResultsLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResultsLogic.swift; sourceTree = "<group>"; };
@@ -305,7 +304,6 @@
 		EC9937AA1AC3A4D7C7D9273D /* CalendarioCiclismoWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarioCiclismoWidget.swift; sourceTree = "<group>"; };
 		F33B7CECF50AB095079F8724 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		F4E7BF5976FB449CA43AC193 /* CalendarioCiclismoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CalendarioCiclismoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F80CDFAFCB449C9EB1EAF9D3 /* AdsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsConfig.swift; sourceTree = "<group>"; };
 		F8BA1FC98995EC7AF3384436 /* CalendarioCiclismo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CalendarioCiclismo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA42312F27D44A1C05E34701 /* Broadcast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Broadcast.swift; sourceTree = "<group>"; };
 		FCA4282987543E6D2F35303A /* CalendarTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTabView.swift; sourceTree = "<group>"; };
@@ -318,9 +316,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C1398263EA44D1C48D8CE4BC /* Supabase in Frameworks */,
-				1D96090FF66C9A5585A2F95F /* FirebaseAnalytics in Frameworks */,
-				67F0A8C83B2726E68BD02AD2 /* GoogleMobileAds in Frameworks */,
-				E2896156088084340BEBE70A /* GoogleUserMessagingPlatform in Frameworks */,
+				1D96090FF66C9A5585A2F95F /* FirebaseAnalyticsWithoutAdIdSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,14 +330,6 @@
 				05EF6EAE65F6B30257021A0E /* AppTheme.swift */,
 			);
 			path = Theme;
-			sourceTree = "<group>";
-		};
-		030176F3535D542593F9DC47 /* Ads */ = {
-			isa = PBXGroup;
-			children = (
-				DA451BEBA31287756B24355A /* BannerAdView.swift */,
-			);
-			path = Ads;
 			sourceTree = "<group>";
 		};
 		04DCDAFFA81D16A64A90908E /* ResultsFeed */ = {
@@ -387,6 +375,7 @@
 				C0C5386E2072977C86819908 /* CalendarioCiclismo */,
 				78D98989A472DECAAB067D1C /* CalendarioCiclismoWidget */,
 				226764A1427626F79A1EC35E /* Config */,
+				6B079FC110DC8E400BCE234B /* IconComposer */,
 				1F3D9AB2DABEC977B163DEF1 /* NotificationServiceExtension */,
 				5E1610A306371EC470CC6B4A /* Tests */,
 				7058EB8341C583D66576ABC8 /* Products */,
@@ -475,7 +464,6 @@
 		5AFF5AC908DA55E01A9AB317 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				030176F3535D542593F9DC47 /* Ads */,
 				7ADD2CE1247A99893EE2FC07 /* Calendar */,
 				AE4969D9B7DAE5F5A3CE5011 /* Championships */,
 				140D88496BF90BD04E44B87E /* Components */,
@@ -543,6 +531,16 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		6B079FC110DC8E400BCE234B /* IconComposer */ = {
+			isa = PBXGroup;
+			children = (
+				6203864B1F1CC402ED4D6C8D /* AppIcon.icon */,
+				357FAF5D25E73ABF9C6401E4 /* AppIconFounder.icon */,
+				1909CFDC5B0915D1E9B026D8 /* AppIconFriend.icon */,
+			);
+			path = IconComposer;
+			sourceTree = "<group>";
+		};
 		7058EB8341C583D66576ABC8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -592,8 +590,6 @@
 		A0F108DC9491C474EEE70907 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				F80CDFAFCB449C9EB1EAF9D3 /* AdsConfig.swift */,
-				097FAFED3EA2A1C1BB29C788 /* AdsConsentManager.swift */,
 				789AECB6839EDBC9A838EFAF /* AnalyticsService.swift */,
 				9760C23396DE90D30F7DD243 /* CacheManager.swift */,
 				9B9C3A664AD224C48C4196E9 /* ChampionshipsConfig.swift */,
@@ -781,9 +777,7 @@
 			name = CalendarioCiclismo;
 			packageProductDependencies = (
 				8B1B61A99BB8058205CB0E00 /* Supabase */,
-				7D54CAC2FEF1421580D17C33 /* FirebaseAnalytics */,
-				A172D3C67E4CA892926F184A /* GoogleMobileAds */,
-				2112734201DE4AECC71AB500 /* GoogleUserMessagingPlatform */,
+				265ADF6C6006C82A616BABA8 /* FirebaseAnalyticsWithoutAdIdSupport */,
 			);
 			productName = CalendarioCiclismo;
 			productReference = F8BA1FC98995EC7AF3384436 /* CalendarioCiclismo.app */;
@@ -824,8 +818,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				08B8D63224C941E34AA5AE59 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				BD1EFE17763DB734A20DE19C /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
-				0DB6EF26966CB63C7A74E0AE /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
 				4C5A25D76157E76F117AE721 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -846,6 +838,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8EADA7E810C2E0E724D08C3E /* AppIcon.icon in Resources */,
+				340398D765D1197EB7A0F757 /* AppIconFounder.icon in Resources */,
+				54ACBA1A99E51438FB852362 /* AppIconFriend.icon in Resources */,
 				9D42A07BD375321F1871B5E9 /* Assets.xcassets in Resources */,
 				D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */,
 				DAE065EAF9E2782551CC9E31 /* GoogleService-Info.plist in Resources */,
@@ -910,12 +905,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				429BAB94FF2EC495C5001C52 /* AccessibilityHelpers.swift in Sources */,
-				6AE0FD95E0F27B1C9E562BFF /* AdsConfig.swift in Sources */,
-				2C0984E959FF696A1D810ABB /* AdsConsentManager.swift in Sources */,
 				D18EB5528F090BA272F5C9D8 /* AnalyticsService.swift in Sources */,
 				775321AD68C6563AC93A7129 /* AppTheme.swift in Sources */,
 				F6ADD8EAF4A9C790AE6FD1D6 /* Asset.swift in Sources */,
-				67B3C15E494C6BCCFB4259C5 /* BannerAdView.swift in Sources */,
 				A40B44F0C4881350A548D411 /* Broadcast.swift in Sources */,
 				846DCAC6CA719B23556BEC7B /* CCCard.swift in Sources */,
 				26E8DC343F910C5C9446E51C /* CacheManager.swift in Sources */,
@@ -1065,7 +1057,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1269;
+				CURRENT_PROJECT_VERSION = 1278;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1084,7 +1076,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.2.5;
+				MARKETING_VERSION = 4.3.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1131,7 +1123,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1269;
+				CURRENT_PROJECT_VERSION = 1278;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1144,7 +1136,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.2.5;
+				MARKETING_VERSION = 4.3.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1198,12 +1190,14 @@
 			baseConfigurationReference = AAFC5B864E18FCEB8237FBBE /* Supabase.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconFounder AppIconFriend";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1269;
+				CURRENT_PROJECT_VERSION = 1278;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1212,7 +1206,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.5;
+				MARKETING_VERSION = 4.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1229,12 +1223,14 @@
 			baseConfigurationReference = AAFC5B864E18FCEB8237FBBE /* Supabase.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconFounder AppIconFriend";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1269;
+				CURRENT_PROJECT_VERSION = 1278;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1243,7 +1239,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.5;
+				MARKETING_VERSION = 4.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1394,14 +1390,6 @@
 				minimumVersion = 11.0.0;
 			};
 		};
-		0DB6EF26966CB63C7A74E0AE /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.0.0;
-			};
-		};
 		4C5A25D76157E76F117AE721 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
@@ -1410,36 +1398,18 @@
 				minimumVersion = 2.0.0;
 			};
 		};
-		BD1EFE17763DB734A20DE19C /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 13.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2112734201DE4AECC71AB500 /* GoogleUserMessagingPlatform */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0DB6EF26966CB63C7A74E0AE /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */;
-			productName = GoogleUserMessagingPlatform;
-		};
-		7D54CAC2FEF1421580D17C33 /* FirebaseAnalytics */ = {
+		265ADF6C6006C82A616BABA8 /* FirebaseAnalyticsWithoutAdIdSupport */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 08B8D63224C941E34AA5AE59 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
+			productName = FirebaseAnalyticsWithoutAdIdSupport;
 		};
 		8B1B61A99BB8058205CB0E00 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 4C5A25D76157E76F117AE721 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
-		};
-		A172D3C67E4CA892926F184A /* GoogleMobileAds */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BD1EFE17763DB734A20DE19C /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
-			productName = GoogleMobileAds;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

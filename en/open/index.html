@@ -87,9 +87,9 @@
     .seed { font-size: 0.9rem; line-height: 1.7; color: var(--text-muted); }
     /* Botón al repositorio — variante outline del botón de about.html */
     .license__btn {
-      display: inline-flex; align-items: center; gap: 0.5rem; justify-content: center;
+      display: flex; width: fit-content; align-items: center; gap: 0.5rem; justify-content: center;
       font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
-      padding: 0.6rem 1.4rem; margin-top: 0.4rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
       background: transparent; color: var(--text);
       border: 1px solid var(--border); border-radius: var(--radius-pill);
       text-decoration: none;
@@ -97,6 +97,14 @@
     }
     .license__btn:hover { border-color: var(--accent); color: var(--accent); }
     .license__btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+    .support__btn {
+      display: flex; width: fit-content; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
+      background: var(--accent); color: #fff; border-radius: var(--radius-pill);
+      text-decoration: none; transition: filter var(--transition);
+    }
+    .support__btn:hover { filter: brightness(1.08); }
     /* Project accounts — two columns, costs / income */
     .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin: 1.25rem 0 1.1rem; }
     .ledger h3 { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.7rem; color: var(--text); }
@@ -146,11 +154,24 @@
     <section>
       <h2>How it's funded</h2>
       <p>
-        Calendario Ciclismo is not a business. Keeping it running has a cost - the servers and the
-        database that store and serve all the data, sending the notifications, the domain - and that
-        cost is the only thing the ads in the apps and the subscriptions aim to cover. All the
-        content is free for everyone and will stay that way.
+        In July 2026, the decision was made to make the project Open Source and publish its accounts
+        (see below). During its first months, generous contributions from Premium subscribers funded
+        a significant part of this stage; those who purchased those subscriptions receive permanent
+        recognition as a Founder (see the Support button).
       </p>
+      <p>
+        Advertising —whose removal was presented as a benefit of Premium subscriptions— generated
+        only <strong>4% of the project's income</strong>, while ads reduced visual clarity, occupied space
+        meant for information and added external processes that could reduce responsiveness on some
+        devices or network conditions. Keeping them for those amounts made no sense, so they were
+        removed permanently.
+      </p>
+      <p>
+        Anyone who wishes to help pay for servers and maintenance can do so voluntarily as a
+        <strong>Friend of Calendario Ciclismo</strong> (€2.99/month or €17.99/year), or through a
+        one-time contribution of €2.99, €5.99 or €11.99.
+      </p>
+      <a class="support__btn" href="/en/support/">Support Calendario Ciclismo</a>
     </section>
 
     <section>
@@ -176,7 +197,7 @@
           <ul>
             <li><span>App Store subscriptions (iOS)</span><span>≈ €92</span></li>
             <li><span>Google Play subscriptions (Android)</span><span>≈ €40</span></li>
-            <li><span>In-app advertising</span><span>≈ €6</span></li>
+            <li><span>In-app advertising (full period)</span><span>≈ €6</span></li>
             <li class="tot"><span>Total</span><span>≈ €138</span></li>
           </ul>
         </div>
@@ -187,6 +208,11 @@
         Figures are net and approximate; amounts billed in dollars (Supabase, GitHub, domains
         and advertising) were converted to euros at the ECB's average rate for the period
         (≈ $1.16/€).
+      </p>
+      <p class="disclaimer">
+        Later AdMob reference: €2.40 in July 2026 and €0.57 from 1 to 16 August
+        2026. These are estimated earnings shown in a dashboard snapshot taken on 16 August.
+        Costs, memberships, contributions and personal funding will be updated quarterly.
       </p>
     </section>
 

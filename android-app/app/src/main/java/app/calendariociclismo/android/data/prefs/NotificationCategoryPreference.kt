@@ -13,10 +13,7 @@ import app.calendariociclismo.android.R
  * - [GENERAL] es el baseline gratuito heredado de 1.4.4 — anuncios y
  *   novedades del equipo. NUNCA se puede desactivar (regla "no degradar
  *   lo gratis": cubre todo lo que recibía la app gratuita).
- * - [RACE_START], [TV_START], [RESULTS] son features Premium en Fase 6:
- *   en Fases 1-5 los toggles aparecen deshabilitados con hint
- *   "Próximamente con Premium". NUNCA estuvieron disponibles en la app
- *   gratuita, así que no degradan nada.
+ * - [RACE_START], [TV_START] y [RESULTS] también son gratuitas desde 4.3.
  */
 enum class NotificationCategoryPreference(
     val storageValue: String,
@@ -43,9 +40,6 @@ enum class NotificationCategoryPreference(
         labelRes = R.string.notification_category_results,
         descriptionRes = R.string.notification_category_results_description,
     );
-
-    /** True si esta categoría es feature Premium (todo lo que NO sea GENERAL). */
-    val isPremium: Boolean get() = this != GENERAL
 
     companion object {
         /** Conjunto inicial mientras no haya nada persistido en DataStore. */

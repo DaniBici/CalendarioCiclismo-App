@@ -50,8 +50,15 @@ class AppPreferences(private val context: Context) {
         val PREFERRED_COUNTRY_GROUP = stringPreferencesKey("preferred_country_group")
         val NOTIFICATION_CATEGORIES = stringPreferencesKey("notification_categories")
         val PREMIUM_SUBSCRIBED = booleanPreferencesKey("premium_subscribed")
+        val FRIEND_SUBSCRIBED = booleanPreferencesKey("friend_subscribed")
+        val FOUNDER_RECOGNIZED = booleanPreferencesKey("founder_recognized")
+        val SUPPORTER_ICON = stringPreferencesKey("supporter_icon")
+        val PREVIOUS_SUPPORTER_ICON = stringPreferencesKey("supporter_icon_previous")
+        val CONTRIBUTION_COUNT = intPreferencesKey("supporter_contribution_count")
         val ADS_INTRO_V4_DONE = booleanPreferencesKey("ads_intro_v4_done")
         val CONTRIBUTION_INTRO_V4_2_3_1_DONE = booleanPreferencesKey("contribution_intro_v4_2_3_1_done")
+        val SUPPORT_INTRO_V4_3_DONE = booleanPreferencesKey("support_intro_v4_3_done")
+        val SUPPORT_INTRO_V4_3_NEW_INSTALLATION = booleanPreferencesKey("support_intro_v4_3_new_installation")
         val CONTRIBUTION_FIRST_VIEW_AT = longPreferencesKey("contribution_prompt_v4_2_4_first_view_at")
         val CONTRIBUTION_VIEW_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_view_count")
         val CONTRIBUTION_PROMPT_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_prompt_count")
@@ -246,6 +253,38 @@ class AppPreferences(private val context: Context) {
     }
     suspend fun snapshotPremiumSubscribed(): Boolean = premiumSubscribed.first()
 
+    // ─── Amigo de Calendario Ciclismo (4.3) ───
+    val friendSubscribed: Flow<Boolean> = data.map { it[Keys.FRIEND_SUBSCRIBED] ?: false }
+    suspend fun setFriendSubscribed(value: Boolean) {
+        context.dataStore.edit { it[Keys.FRIEND_SUBSCRIBED] = value }
+    }
+    suspend fun snapshotFriendSubscribed(): Boolean = friendSubscribed.first()
+
+    val founderRecognized: Flow<Boolean> = data.map { it[Keys.FOUNDER_RECOGNIZED] ?: false }
+    suspend fun setFounderRecognized(value: Boolean = true) {
+        context.dataStore.edit { it[Keys.FOUNDER_RECOGNIZED] = value }
+    }
+    suspend fun snapshotFounderRecognized(): Boolean = founderRecognized.first()
+
+    val supporterIcon: Flow<String> = data.map { it[Keys.SUPPORTER_ICON] ?: "default" }
+    suspend fun setSupporterIcon(value: String) {
+        context.dataStore.edit { it[Keys.SUPPORTER_ICON] = value }
+    }
+    suspend fun snapshotSupporterIcon(): String = supporterIcon.first()
+
+    suspend fun setPreviousSupporterIcon(value: String) {
+        context.dataStore.edit { it[Keys.PREVIOUS_SUPPORTER_ICON] = value }
+    }
+    suspend fun snapshotPreviousSupporterIcon(): String =
+        data.map { it[Keys.PREVIOUS_SUPPORTER_ICON] ?: "default" }.first()
+
+    val contributionCount: Flow<Int> = data.map { it[Keys.CONTRIBUTION_COUNT] ?: 0 }
+    suspend fun recordContribution() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.CONTRIBUTION_COUNT] = (prefs[Keys.CONTRIBUTION_COUNT] ?: 0) + 1
+        }
+    }
+
     // ─── Pantalla "sin anuncios" (gate del paso PremiumShowcase del onboarding) ───
     // Gate DEDICADO cuyo NOMBRE es load-bearing: debe ser una clave que nadie
     // tenga persistida, para que la pantalla se dispare una vez tras actualizar.
@@ -265,6 +304,27 @@ class AppPreferences(private val context: Context) {
     val contributionIntroV4231Done: Flow<Boolean> = data.map { it[Keys.CONTRIBUTION_INTRO_V4_2_3_1_DONE] ?: false }
     suspend fun setContributionIntroV4231Done(value: Boolean) {
         context.dataStore.edit { it[Keys.CONTRIBUTION_INTRO_V4_2_3_1_DONE] = value }
+    }
+
+    // Anuncio único de 4.3: retirada definitiva de publicidad y nuevo modelo Amigo.
+    val supportIntroV43Done: Flow<Boolean> = data.map { it[Keys.SUPPORT_INTRO_V4_3_DONE] ?: false }
+    suspend fun setSupportIntroV43Done(value: Boolean) {
+        context.dataStore.edit { it[Keys.SUPPORT_INTRO_V4_3_DONE] = value }
+    }
+
+    /**
+     * Fija la audiencia antes de completar la pantalla de idioma. La clave
+     * conserva el resultado si la aplicación se cierra a mitad del onboarding.
+     */
+    suspend fun initializeSupportIntroV43Audience(): Boolean {
+        var isNewInstallation = false
+        context.dataStore.edit { prefs ->
+            isNewInstallation = prefs[Keys.SUPPORT_INTRO_V4_3_NEW_INSTALLATION]
+                ?: (!(prefs[Keys.LANGUAGE_ANNOUNCEMENT_DONE] ?: false)
+                    && !(prefs[Keys.NOTIF_ONBOARDING_DONE] ?: false))
+            prefs[Keys.SUPPORT_INTRO_V4_3_NEW_INSTALLATION] = isNewInstallation
+        }
+        return isNewInstallation
     }
 
     /** Registra una vista local y devuelve si toca mostrar el aviso al volver a Hoy. */

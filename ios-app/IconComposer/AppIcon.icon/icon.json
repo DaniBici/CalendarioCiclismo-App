@@ -1,0 +1,1 @@
+{"fill":{"solid":"extended-srgb:0.10196,0.45098,0.90980,1.00000"},"groups":[{"layers":[{"image-name":"01-calendar.svg","name":"01-calendar"},{"image-name":"02-cyclist.svg","name":"02-cyclist"}],"shadow":{"kind":"neutral","opacity":0.6},"translucency":{"enabled":true,"value":0.2}}],"supported-platforms":{"circles":["watchOS"],"squares":"shared"}}

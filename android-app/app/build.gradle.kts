@@ -38,8 +38,8 @@ android {
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 454
-        versionName = "4.2.5"
+        versionCode = 465
+        versionName = "4.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -210,10 +210,6 @@ dependencies {
 
     // Google Play Billing (IAP — suscripciones Premium, Fase 6).
     implementation(libs.billing.ktx)
-
-    // Google Mobile Ads (AdMob — FASE B). Banner adaptativo + UMP (consent RGPD).
-    implementation(libs.google.mobile.ads)
-    implementation(libs.google.ump)
 
     // MapLibre GL Native — mapa del recorrido nativo (estilo vector OpenFreeMap, sin key).
     implementation(libs.maplibre.android.sdk)

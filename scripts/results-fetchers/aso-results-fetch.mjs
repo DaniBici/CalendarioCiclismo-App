@@ -22,6 +22,9 @@ const COMPETITION_ID = Number(arg('--competition-id'));
 const OUT = arg('--out', '.');
 const ONLY_STAGE = arg('--stage') == null ? null : Number(arg('--stage'));
 const FIXTURE = arg('--fixture');
+const ONE_DAY = has('--one-day');
+const FINAL_CLASSIFICATION = has('--final');
+const FINAL_STAGE_KEY = 99;
 
 export function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 export const suggestCompetitionId = (url) => -(fnv1a(`aso:${url}`) % 200000);
@@ -107,9 +110,10 @@ const SPECS = {
   etg: { classKind: 'teams', scope: 'overall', eventName: 'Overall Team Classification', isTeamEvent: true },
 };
 
-export function classificationsFromPages(url, stageNumber, pages) {
+export function classificationsFromPages(url, stageNumber, pages, { oneDay = false } = {}) {
   const classifications = [];
   for (const [type, spec] of Object.entries(SPECS)) {
+    if (oneDay && type !== 'ite') continue;
     const html = pages.get(type);
     if (!html) continue;
     const rows = rowsFromRankingHtml(html, spec);
@@ -118,6 +122,15 @@ export function classificationsFromPages(url, stageNumber, pages) {
       isTeamEvent: !!spec.isTeamEvent, winnerName: rows.find((row) => row.rank === 1)?.riderDisplay || null, rowCount: rows.length, rows });
   }
   return classifications;
+}
+
+// ASO no publica una pseudo-etapa final separada: las clasificaciones generales
+// de la última jornada viven en las mismas tablas que la etapa. Las clonamos en
+// una unidad Final Classification estable para que el upsert pueda marcarlas como
+// definitivas sin perder el resultado de la etapa.
+export function finalClassificationsFromPages(url, pages) {
+  return classificationsFromPages(url, FINAL_STAGE_KEY, pages)
+    .filter((cl) => cl.classKind !== 'stage');
 }
 
 async function fetchText(url) { const response = await fetch(url, { headers: { 'User-Agent': 'calendariociclismo.app results sync (+https://calendariociclismo.app)' } }); if (!response.ok) throw new Error(`HTTP ${response.status} en ${url}`); return response.text(); }
@@ -137,8 +150,26 @@ async function main() {
   }
   const pages = new Map();
   for (const [type, url] of urls) pages.set(type, fixture?.pages?.[type] || await fetchText(url));
-  const classifications = classificationsFromPages(PAGE_URL, stageNumber, pages);
-  const output = { competitionId: COMPETITION_ID, disciplineId: 10, source: 'ASO', asoUrl: PAGE_URL, fetchedAt: new Date().toISOString(), stages: classifications.length ? [{ uciRaceId: -Math.abs(suggestCompetitionId(PAGE_URL)) * 100 - stageNumber, stageNumber, eventName: `Stage ${stageNumber}`, classifications }] : [] };
+  const classifications = classificationsFromPages(PAGE_URL, stageNumber, pages, { oneDay: ONE_DAY });
+  const finalClassifications = FINAL_CLASSIFICATION && !ONE_DAY
+    ? finalClassificationsFromPages(PAGE_URL, pages)
+    : [];
+  const stages = [];
+  if (classifications.length) {
+    stages.push(ONE_DAY
+      ? { uciRaceId: -Math.abs(suggestCompetitionId(PAGE_URL)) * 100 - 1, stageNumber: null, isFinalClassification: true, eventName: 'Final Classification', classifications }
+      : { uciRaceId: -Math.abs(suggestCompetitionId(PAGE_URL)) * 100 - stageNumber, stageNumber, isFinalClassification: false, eventName: `Stage ${stageNumber}`, classifications });
+  }
+  if (finalClassifications.length) {
+    stages.push({
+      uciRaceId: -Math.abs(suggestCompetitionId(PAGE_URL)) * 100 - 1,
+      stageNumber: null,
+      isFinalClassification: true,
+      eventName: 'Final Classification',
+      classifications: finalClassifications,
+    });
+  }
+  const output = { competitionId: COMPETITION_ID, disciplineId: 10, source: 'ASO', asoUrl: PAGE_URL, fetchedAt: new Date().toISOString(), stages };
   mkdirSync(OUT, { recursive: true }); writeFileSync(join(OUT, `${COMPETITION_ID}.json`), JSON.stringify(output, null, 2));
   if (has('--pretty')) process.stdout.write(JSON.stringify(output, null, 2) + '\n');
 }

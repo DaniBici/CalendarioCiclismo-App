@@ -197,9 +197,6 @@
     <string name="settings_section_language">Language</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_privacy">Privacy</string>
-    <string name="settings_section_about">Open data</string>
-    <string name="settings_licenses_body">Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles.</string>
-    <string name="settings_open_project_cta">How this project is made</string>
 
     <!-- Settings: Language -->
     <string name="settings_language_description">Choose your app language.</string>
@@ -209,10 +206,10 @@
     <string name="onboarding_language_cta_spanish">Continuar en español</string>
     <string name="onboarding_language_cta_english">Switch to English</string>
 
-    <!-- Settings: Premium -->
-    <string name="settings_premium_cta_title">Get Premium</string>
-    <string name="settings_premium_cta_body">All regions, enriched notifications, and more.</string>
-    <string name="settings_premium_active_title">Premium active</string>
+    <!-- Settings: historical keys reused by voluntary support -->
+    <string name="settings_premium_cta_title">Become a Friend</string>
+    <string name="settings_premium_cta_body">Voluntary support; every feature is free.</string>
+    <string name="settings_premium_active_title">Friend active</string>
     <string name="settings_premium_active_body">Thanks for supporting the app.</string>
     <string name="settings_premium_manage">Manage subscription</string>
     <string name="settings_premium_redeem_code">Redeem code</string>
@@ -252,7 +249,7 @@
     <string name="settings_notifications_title">Receive alerts</string>
     <string name="settings_notifications_body">Heads-up before each race and editorial changes.</string>
     <string name="settings_notification_categories_title">Notification types</string>
-    <string name="settings_notification_category_premium_hint">Get Premium to unlock</string>
+    <string name="settings_notification_category_premium_hint">Available to everyone</string>
 
     <!-- Notification categories (Phase 3) -->
     <string name="notification_category_general">Announcements and updates</string>
@@ -320,15 +317,17 @@
 
     <!-- Onboarding: offline mode -->
 
-    <!-- Onboarding: "ad-free" showcase (last step; the subscription only removes ads) -->
-    <string name="onboarding_premium_title">Ad-free. Free for everyone.</string>
-    <string name="onboarding_premium_body">Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free.</string>
-    <string name="onboarding_premium_benefit_no_ads">No ads on any screen</string>
-    <string name="onboarding_premium_benefit_clean">A cleaner, faster experience</string>
-    <string name="onboarding_premium_benefit_support">Helps cover the cost of the servers and upkeep</string>
-    <string name="onboarding_premium_cta_try">Try 7 days free</string>
-    <string name="onboarding_premium_cta_free">Continue with ads</string>
-    <string name="onboarding_premium_cancel_hint">Cancel anytime from Settings → Google Play</string>
+    <!-- 4.3 announcement: advertising removed and voluntary support -->
+    <string name="onboarding_premium_title">Free and ad-free for everyone</string>
+    <string name="onboarding_premium_body">Advertising is gone for good. Every feature remains free, and anyone who wishes may support the project voluntarily.</string>
+    <string name="onboarding_premium_body_new_installation">Support the maintenance costs of this project, made purely for the love of cycling. Every feature is free.</string>
+    <string name="onboarding_premium_benefit_open">Open source with public accounts</string>
+    <string name="onboarding_premium_benefit_founder">Previous Premium users receive the Founder icon</string>
+    <string name="onboarding_premium_benefit_experience">Made by a professional with two decades of experience in cycling</string>
+    <string name="onboarding_premium_explain">Learn about the change</string>
+    <string name="onboarding_premium_manage">Manage subscription</string>
+    <string name="onboarding_premium_cta_try">View support options</string>
+    <string name="onboarding_premium_cta_free">Continue</string>
 
     <!-- Paywall "ad-free" -->
     <string name="paywall_title">Ad-free. Free for everyone.</string>
@@ -339,15 +338,15 @@
     <string name="contribution_transparency_title">A project sustained by its community</string>
     <string name="contribution_transparency_body">Open source, non-commercial, with public accounts.</string>
     <string name="contribution_prompt_title">Is Calendario Ciclismo useful to you?</string>
-    <string name="contribution_prompt_body">It is an independent Open Source project, free for everyone. If you like it, you can help sustain it and remove ads.</string>
-    <string name="contribution_prompt_open">See Ad-free</string>
+    <string name="contribution_prompt_body">It is an independent Open Source project, free and ad-free. If it is useful to you, you can help sustain its servers and maintenance.</string>
+    <string name="contribution_prompt_open">View support options</string>
     <string name="contribution_prompt_later">Not now</string>
-    <string name="paywall_nonprofit_note">Calendario Ciclismo is not a business. It is made by one person and does not seek profit: the ads and subscriptions are there to cover the servers and upkeep that keep it running.</string>
+    <string name="paywall_nonprofit_note">Every feature is free. Friend memberships and one-time contributions voluntarily help cover servers, tools and maintenance.</string>
     <string name="paywall_period_yearly">per year</string>
     <string name="paywall_period_monthly">per month</string>
     <string name="paywall_badge_best_value">BEST VALUE</string>
     <string name="paywall_cancel_anytime">Cancel anytime</string>
-    <string name="paywall_cta_try">Try 7 days free</string>
+    <string name="paywall_cta_try">Become a Friend</string>
     <!-- %1$s = price already formatted by Billing (e.g. "€17.99/year") -->
     <string name="paywall_after_price">Then %1$s. Cancel anytime.</string>
     <string name="paywall_price_per_year">%1$s/year</string>
@@ -360,15 +359,15 @@
     <string name="paywall_legal_renewal">The subscription renews automatically at the price shown. You can cancel it in Play Store → Payments and subscriptions at least 24 h before the end of the period.</string>
     <string name="paywall_alert_ok">OK</string>
 
-    <!-- Settings: "ad-free" section -->
-    <string name="settings_adfree_header">Ad-free</string>
-    <string name="settings_adfree_cta_title">Remove ads</string>
-    <string name="settings_adfree_cta_body">Enjoy the app ad-free and help pay for the servers.</string>
-    <string name="settings_adfree_active_title">Ad-free active</string>
+    <!-- Settings: voluntary support -->
+    <string name="settings_adfree_header">Support Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_title">Become a Friend of Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_body">A voluntary contribution to sustain an open and free project.</string>
+    <string name="settings_adfree_active_title">Friend active</string>
     <string name="settings_adfree_active_body">Thank you for helping keep the project running.</string>
     <string name="settings_adfree_manage">Manage subscription</string>
     <string name="settings_adfree_redeem">Redeem code</string>
-    <string name="settings_adfree_nonprofit_note">Every feature is free. This is not a business: the ads and subscriptions only cover the server costs.</string>
+    <string name="settings_adfree_nonprofit_note">Every feature is free. Contributions help cover servers, tools and maintenance.</string>
 
     <!-- Onboarding: analytics -->
 

@@ -1,12 +1,12 @@
 package app.calendariociclismo.android.ui.premium
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,18 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -37,7 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -51,34 +47,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.premium.BillingManager
 import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.util.LocaleHolder
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
-import java.util.Currency
-import java.util.Locale
 
-/**
- * Pantalla de paywall (Fase 6 — conectada a Google Play Billing).
- *
- * Equivalente Android de `PaywallView.swift`. Lee:
- *  - `app.premium.plans` para precios reales (con fallback hardcoded si la
- *    query a Play todavía no ha resuelto).
- *  - `app.premium.isPurchasing` para mostrar el spinner durante la compra.
- *  - `app.premium.purchaseError` para presentar errores en un AlertDialog.
- *
- * Se presenta como `ModalBottomSheet` desde el AppNavHost cuando
- * `PremiumService.pendingPaywallSource` deja de ser null.
- */
+/** Pantalla voluntaria de sostenimiento. Ninguna función depende de la compra. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaywallSheet(
@@ -88,34 +70,40 @@ fun PaywallSheet(
     val app = rememberApp()
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
-    val coroutineScope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
     var selectedPlan by remember { mutableStateOf(PremiumService.PremiumPlan.YEARLY) }
     var alert by remember { mutableStateOf<String?>(null) }
-    // Se resuelve aquí: dentro del lambda de restore no hay contexto @Composable.
-    val restoreNoneMsg = stringResource(R.string.paywall_restore_none)
 
     val plans by app.premium.plans.collectAsState()
+    val contributions by app.premium.contributions.collectAsState()
+    val isFriend by app.premium.isSubscribed.collectAsState()
+    val legacyActive by app.premium.isLegacyPremiumActive.collectAsState()
     val isPurchasing by app.premium.isPurchasing.collectAsState()
-    val isSubscribed by app.premium.isSubscribed.collectAsState()
     val purchaseError by app.premium.purchaseError.collectAsState()
+    val contributionCount by app.premium.contributionCount.collectAsState()
+    val contributionCountAtOpen = remember { contributionCount }
 
-    val monthlyPlan = plans.firstOrNull { it.basePlanId == BillingManager.BASE_PLAN_MONTHLY }
-    val yearlyPlan = plans.firstOrNull { it.basePlanId == BillingManager.BASE_PLAN_YEARLY }
-
-    // Auto-cerrar la paywall al confirmarse la compra (vía callback de Billing).
-    LaunchedEffect(isSubscribed) {
-        if (isSubscribed) onDismiss()
+    LaunchedEffect(isFriend) {
+        if (isFriend) onDismiss()
     }
-
-    // Mostrar errores como AlertDialog.
     LaunchedEffect(purchaseError) {
         purchaseError?.let {
             alert = it
             app.premium.clearPurchaseError()
         }
     }
+    LaunchedEffect(contributionCount) {
+        if (contributionCount > contributionCountAtOpen) {
+            alert = t(
+                "Gracias por ayudar a sostener Calendario Ciclismo.",
+                "Thank you for helping sustain Calendario Ciclismo.",
+            )
+        }
+    }
+
+    val monthly = plans.firstOrNull { it.basePlanId == BillingManager.BASE_PLAN_MONTHLY }
+    val yearly = plans.firstOrNull { it.basePlanId == BillingManager.BASE_PLAN_YEARLY }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -125,54 +113,44 @@ fun PaywallSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 12.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            // Header
             Row(verticalAlignment = Alignment.Top) {
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(Modifier.size(40.dp))
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(40.dp),
-                            tint = Color(0xFFF6A623),
-                        )
-                        Icon(
-                            imageVector = Icons.Filled.DirectionsBike,
-                            contentDescription = null,
-                            modifier = Modifier.size(40.dp),
-                            tint = Color(0xFFF6A623),
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
+                    Icon(
+                        painterResource(R.drawable.ic_launcher_friend_foreground),
+                        contentDescription = null,
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(72.dp),
+                    )
                     Text(
-                        text = headerTitle(source),
+                        t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = headerSubtitle(source),
+                        t(
+                            "Ayuda voluntariamente a cubrir servidores, herramientas y mantenimiento.",
+                            "Voluntarily help cover servers, tools and maintenance.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                    Icon(Icons.Filled.Close, contentDescription = t("Cerrar", "Close"))
                 }
             }
 
-            // Features
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -180,71 +158,83 @@ fun PaywallSheet(
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    FeatureRow(Icons.Outlined.Block, stringResource(R.string.paywall_benefit_no_ads))
-                    FeatureRow(Icons.Filled.Bolt, stringResource(R.string.paywall_benefit_clean))
-                    FeatureRow(Icons.Filled.Favorite, stringResource(R.string.paywall_benefit_support))
+                    Guarantee(t("Icono exclusivo mientras seas Amigo", "Exclusive icon while you are a Friend"))
+                    Guarantee(t("La app completa es gratuita para todos", "The complete app is free for everyone"))
                 }
             }
 
             Card(
-                modifier = Modifier.fillMaxWidth().clickable {
-                    app.analytics.logEvent("contribution_transparency_tap", android.os.Bundle().apply { putString("source", "paywall") })
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.calendariociclismo.app/abierto.html")))
-                },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://www.calendariociclismo.app/abierto.html"),
+                            ),
+                        )
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                ),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.contribution_transparency_title), fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(3.dp))
-                    Text(stringResource(R.string.contribution_transparency_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.padding(16.dp)) {
+                    Text(t("Código y cuentas públicas", "Public code and accounts"), fontWeight = FontWeight.Bold)
+                    Text(
+                        t("Consulta cómo se hace y se sostiene el proyecto.", "See how the project is built and sustained."),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 
-            // Plan selector
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PlanCard(
-                    plan = PremiumService.PremiumPlan.YEARLY,
+            if (legacyActive) {
+                Card {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(
+                            Icons.Filled.MilitaryTech,
+                            contentDescription = null,
+                            tint = Color(0xFFB7791F),
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Text(t("Eres Fundador", "You are a Founder"), fontWeight = FontWeight.Bold)
+                        Text(
+                            t(
+                                "Tu Premium anterior no se convertirá ni volverá a cobrarse. Cuando termine podrás hacerte Amigo si quieres seguir contribuyendo.",
+                                "Your previous Premium plan will not be converted or charged again. When it ends, you can become a Friend if you wish to continue supporting the project.",
+                            ),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            } else {
+                PlanRow(
                     selected = selectedPlan == PremiumService.PremiumPlan.YEARLY,
-                    price = yearlyPlan?.formattedPrice ?: FALLBACK_YEARLY_PRICE,
-                    period = stringResource(R.string.paywall_period_yearly),
-                    subtitle = formatYearlySubtitle(monthlyPlan, yearlyPlan),
-                    badge = stringResource(R.string.paywall_badge_best_value),
+                    price = yearly?.formattedPrice ?: "17,99 €",
+                    period = t("al año", "per year"),
+                    badge = t("MEJOR OPCIÓN", "BEST VALUE"),
                     onClick = { selectedPlan = PremiumService.PremiumPlan.YEARLY },
                 )
-                PlanCard(
-                    plan = PremiumService.PremiumPlan.MONTHLY,
+                PlanRow(
                     selected = selectedPlan == PremiumService.PremiumPlan.MONTHLY,
-                    price = monthlyPlan?.formattedPrice ?: FALLBACK_MONTHLY_PRICE,
-                    period = stringResource(R.string.paywall_period_monthly),
-                    subtitle = stringResource(R.string.paywall_cancel_anytime),
+                    price = monthly?.formattedPrice ?: "2,99 €",
+                    period = t("al mes", "per month"),
                     badge = null,
                     onClick = { selectedPlan = PremiumService.PremiumPlan.MONTHLY },
                 )
-            }
-
-            // CTA
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val ctaText = if (selectedPlan == PremiumService.PremiumPlan.YEARLY && (yearlyPlan?.hasFreeTrial ?: true)) {
-                    stringResource(R.string.paywall_cta_try)
-                } else if (selectedPlan == PremiumService.PremiumPlan.MONTHLY && (monthlyPlan?.hasFreeTrial ?: true)) {
-                    stringResource(R.string.paywall_cta_try)
-                } else {
-                    stringResource(R.string.action_subscribe)
-                }
                 Button(
                     onClick = {
-                        val current = activity ?: return@Button
-                        app.premium.subscribe(current, selectedPlan)
+                        activity?.let { app.premium.subscribe(it, selectedPlan) }
                     },
                     enabled = !isPurchasing,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
                     if (isPurchasing) {
                         CircularProgressIndicator(
@@ -253,225 +243,114 @@ fun PaywallSheet(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text(ctaText, fontWeight = FontWeight.SemiBold)
+                        Text(t("Hacerme amigo", "Become a Friend"), fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.height(6.dp))
-                val afterPrice = when (selectedPlan) {
-                    PremiumService.PremiumPlan.YEARLY ->
-                        stringResource(
-                            R.string.paywall_price_per_year,
-                            yearlyPlan?.formattedPrice ?: FALLBACK_YEARLY_PRICE,
-                        )
-                    PremiumService.PremiumPlan.MONTHLY ->
-                        stringResource(
-                            R.string.paywall_price_per_month,
-                            monthlyPlan?.formattedPrice ?: FALLBACK_MONTHLY_PRICE,
-                        )
-                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(t("Aportación puntual", "One-time contribution"), fontWeight = FontWeight.Bold)
                 Text(
-                    text = stringResource(R.string.paywall_after_price, afterPrice),
+                    t("Sin suscripción y sin ventajas funcionales.", "No subscription and no functional advantages."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-
-            // Restore + Canjear código
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            val restored = app.premium.restorePurchases()
-                            alert = if (restored)
-                                "Suscripción restaurada correctamente."
-                            else
-                                restoreNoneMsg
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BillingManager.CONTRIBUTION_PRODUCT_IDS.forEachIndexed { index, id ->
+                        val fallback = listOf("2,99 €", "5,99 €", "11,99 €")[index]
+                        val price = contributions.firstOrNull { it.productId == id }?.formattedPrice ?: fallback
+                        OutlinedButton(
+                            onClick = { activity?.let { app.premium.contribute(it, id) } },
+                            enabled = !isPurchasing,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(price)
                         }
-                    },
-                ) {
-                    Text(stringResource(R.string.paywall_restore))
-                }
-                TextButton(
-                    onClick = { app.premium.redeemCode() },
-                ) {
-                    Text(stringResource(R.string.settings_adfree_redeem))
+                    }
                 }
             }
 
-            // Nota "no busca beneficio": el proyecto no es un negocio y la
-            // suscripción solo cubre costes (ver docs/memory/premium.md).
-            Text(
-                text = stringResource(R.string.paywall_nonprofit_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
+            TextButton(
+                onClick = {
+                    scope.launch {
+                        if (!app.premium.restorePurchases()) {
+                            alert = t(
+                                "No encontramos compras anteriores en esta cuenta de Google.",
+                                "We couldn't find previous purchases on this Google account.",
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text(t("Restaurar compras", "Restore purchases"))
+            }
 
-            // Footer legal
             Text(
-                text = stringResource(R.string.paywall_legal_renewal),
+                t(
+                    "La membresía se renueva automáticamente al precio indicado hasta que la canceles en Google Play. Todas las funciones permanecen gratuitas.",
+                    "The membership renews automatically at the displayed price until you cancel it in Google Play. All features remain free.",
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp),
+                textAlign = TextAlign.Center,
             )
         }
     }
 
-    if (alert != null) {
+    alert?.let { message ->
         AlertDialog(
             onDismissRequest = { alert = null },
-            title = { Text("Premium") },
-            text = { Text(alert!!) },
+            title = { Text(t("Amigo de Calendario Ciclismo", "Friend of Calendario Ciclismo")) },
+            text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = { alert = null }) { Text(stringResource(R.string.paywall_alert_ok)) }
+                TextButton(onClick = { alert = null }) { Text(t("Aceptar", "OK")) }
             },
         )
     }
 }
 
 @Composable
-private fun FeatureRow(icon: ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp),
-        )
-        Spacer(Modifier.width(12.dp))
+private fun Guarantee(text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
 @Composable
-private fun PlanCard(
-    plan: PremiumService.PremiumPlan,
+private fun PlanRow(
     selected: Boolean,
     price: String,
     period: String,
-    subtitle: String,
     badge: String?,
     onClick: () -> Unit,
 ) {
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth(),
-        border = androidx.compose.foundation.BorderStroke(2.dp, borderColor),
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .clickable(onClick = onClick),
-            ) {
-                if (selected) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .align(Alignment.Center)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onPrimary),
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(price, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(8.dp))
-                    Text(period, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (badge != null) {
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(3),
-                        ) {
-                            Text(
-                                badge,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
-                    }
-                }
+            RadioButton(selected = selected, onClick = onClick)
+            Text(price, fontWeight = FontWeight.Bold)
+            Text(" $period", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            badge?.let {
                 Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
     }
 }
 
-// Todas las features que antes eran Premium se liberaron al plan gratuito. El
-// único valor de la suscripción ahora es quitar los anuncios, así que el copy es
-// único (ya no depende de `source`). El parámetro se mantiene por compatibilidad
-// con las llamadas existentes.
-@Composable
-private fun headerTitle(@Suppress("UNUSED_PARAMETER") source: PremiumService.PaywallSource): String =
-    stringResource(R.string.paywall_title)
+private fun t(es: String, en: String): String = LocaleHolder.t(es, en)
 
-@Composable
-private fun headerSubtitle(@Suppress("UNUSED_PARAMETER") source: PremiumService.PaywallSource): String =
-    stringResource(R.string.paywall_subtitle)
-
-private const val FALLBACK_MONTHLY_PRICE = "2,99 €"
-private const val FALLBACK_YEARLY_PRICE = "17,99 €"
-private const val FALLBACK_MONTHLY_EQ_PRICE = "1,50 €"
-@Composable
-private fun formatYearlySubtitle(
-    monthly: BillingManager.Plan?,
-    yearly: BillingManager.Plan?,
-): String {
-    val fallback = stringResource(
-        R.string.paywall_monthly_equiv_savings,
-        FALLBACK_MONTHLY_EQ_PRICE,
-        50,
-    )
-    if (yearly == null) return fallback
-    val monthlyEquivalent = yearly.priceAmountMicros / 12.0
-    val monthlyEquivalentFormatted = formatPrice(monthlyEquivalent, yearly.priceCurrencyCode)
-        ?: return fallback
-    val savingsPct = if (monthly != null && monthly.priceAmountMicros > 0L) {
-        val monthlyYearly = monthly.priceAmountMicros.toDouble() * 12.0
-        ((1.0 - (yearly.priceAmountMicros.toDouble() / monthlyYearly)) * 100.0).toInt()
-    } else {
-        null
-    }
-    return if (savingsPct != null && savingsPct > 0) {
-        stringResource(R.string.paywall_monthly_equiv_savings, monthlyEquivalentFormatted, savingsPct)
-    } else {
-        stringResource(R.string.paywall_monthly_equiv, monthlyEquivalentFormatted)
-    }
-}
-
-private fun formatPrice(amountMicros: Double, currencyCode: String): String? = runCatching {
-    val nf = NumberFormat.getCurrencyInstance(Locale.getDefault())
-    nf.currency = Currency.getInstance(currencyCode)
-    nf.format(amountMicros / 1_000_000.0)
-}.getOrNull()
-
-private fun android.content.Context.findActivity(): Activity? {
-    var ctx: android.content.Context? = this
-    while (ctx is android.content.ContextWrapper) {
-        if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

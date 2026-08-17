@@ -16,20 +16,6 @@ class NotificationCategoryPreferenceTest {
         assertEquals("results", NotificationCategoryPreference.RESULTS.storageValue)
     }
 
-    // ── isPremium ──────────────────────────────────────────────────
-
-    @Test
-    fun `GENERAL no es Premium`() {
-        assertEquals(false, NotificationCategoryPreference.GENERAL.isPremium)
-    }
-
-    @Test
-    fun `RACE_START, TV_START y RESULTS son Premium`() {
-        assertTrue(NotificationCategoryPreference.RACE_START.isPremium)
-        assertTrue(NotificationCategoryPreference.TV_START.isPremium)
-        assertTrue(NotificationCategoryPreference.RESULTS.isPremium)
-    }
-
     // ── DEFAULT_ENABLED ────────────────────────────────────────────
 
     @Test

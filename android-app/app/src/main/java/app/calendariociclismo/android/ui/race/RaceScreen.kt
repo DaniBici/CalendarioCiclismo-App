@@ -68,7 +68,6 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.prefs.RaceFollowMode
-import app.calendariociclismo.android.ui.ads.AdBanner
 import app.calendariociclismo.android.ui.components.AssetChip
 import app.calendariociclismo.android.ui.components.AssetActionStrip
 import app.calendariociclismo.android.ui.components.CCCard
@@ -102,10 +101,6 @@ fun RaceScreen(raceId: String, navController: NavController) {
     // Etapa cuyo diálogo de resultados (fuentes externas) está abierto.
     var resultsDialogItem by remember { mutableStateOf<ResultsDialogItem?>(null) }
     val context = LocalContext.current
-    // Anuncios (FASE B): banner al fondo de la lista solo si el usuario no está
-    // suscrito. Gateado por shouldShowAds (nunca featuresUnlocked).
-    val shouldShowAds by app.premium.shouldShowAds.collectAsState()
-
     val networkErrorFallback = stringResource(R.string.startlist_error_unknown)
     LaunchedEffect(raceId) {
         state = RaceState.Loading
@@ -199,15 +194,7 @@ fun RaceScreen(raceId: String, navController: NavController) {
                         val showResults = hasInhouse || RaceLogic.shouldShowResults(day.raceDay, s.race)
                         val hideNoIds = !showResults && RaceLogic.noIdsAndPastDeadline(day.raceDay, s.race)
                         val reviveUrl = if (showResults || hideNoIds) RaceLogic.reviveUrl(day.broadcasts) else null
-                        // Banner intercalado: tras la 3ª etapa (índice 2); si hay
-                        // menos de 3, tras la última. Gateado por shouldShowAds.
-                        // La tarjeta y su banner opcional viven en el mismo item
-                        // (Column) para no romper el reciclado de la LazyColumn.
-                        // Paridad con TodayScreen y con RaceDetailView (iOS).
-                        val showAdAfter = shouldShowAds &&
-                            (index == 2 || (s.days.size < 3 && index == s.days.lastIndex))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StageRow(
+                        StageRow(
                                 day = day,
                                 race = s.race,
                                 onClick = {
@@ -238,11 +225,7 @@ fun RaceScreen(raceId: String, navController: NavController) {
                                         }
                                     }
                                 },
-                            )
-                            if (showAdAfter) {
-                                AdBanner()
-                            }
-                        }
+                        )
                     }
                 }
             }

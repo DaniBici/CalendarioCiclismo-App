@@ -259,7 +259,7 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
                 COALESCE((SELECT d2."dateKey" FROM race_days d2 WHERE d2."raceId" = r.id AND d2."stageNumber" = ${LIVE_STAGE_SUBSELECT}), r."startDate") AS "scheduledDate",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
@@ -307,7 +307,7 @@ async function main() {
       )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
                 d."dateKey" AS "scheduledDate",
                 d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
                 ${MAIN_COVERED} AS "stageCovered",
@@ -399,7 +399,7 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year,
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
@@ -458,10 +458,17 @@ async function main() {
     // hace una lectura completa: varios proveedores la derivan de la última
     // etapa y no la emiten bajo --stage. Es un caso único por vuelta.
     const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
-    // Última etapa → lectura completa de la competición (ver isFinalStageDump).
+    // La UCI/DataRide y algunos proveedores emiten una clasificación final
+    // adicional fuera de la etapa; por eso su última etapa se lee completa. ASO
+    // funciona distinto: cada página /stage-N contiene SOLO una etapa y no tiene
+    // una pseudo-etapa final separada. Si se omite --stage en ASO, su URL base
+    // /rankings se interpreta como etapa 1 aunque la última etapa ya esté publicada.
     const isFinalStage = isFinalStageDump(targetStage, t.totalStages, t.needsFinal);
-    const fetchStageArgs = targetStage != null && !isFinalStage
-      ? ['--stage', String(targetStage)] : [];
+    const fetchStageArgs = kind === 'ASO' && targetStage != null
+      ? ['--stage', String(targetStage)]
+      : targetStage != null && !isFinalStage
+        ? ['--stage', String(targetStage)]
+        : [];
     // CN (source='uci' con uciRaceId != 0, migración 110): volcar SOLO esa prueba del país.
     const uciRaceId = kind === 'uci' && t.source === 'uci' && t.uciRaceId ? t.uciRaceId : 0;
     let fc, srcLabel;
@@ -543,7 +550,10 @@ async function main() {
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : [])]);
     } else if (kind === 'ASO') {
       srcLabel = ` ← ASO:${t.asoUrl}`;
-      fc = await run(ASO_FETCH, ['--url', String(t.asoUrl), '--competition-id', String(t.competitionId), '--out', outDir, ...fetchStageArgs]);
+      fc = await run(ASO_FETCH, ['--url', String(t.asoUrl), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.raceFormat === 'one_day' ? ['--one-day'] : []),
+        ...(isFinalStage && t.raceFormat !== 'one_day' ? ['--final'] : []),
+        ...fetchStageArgs]);
     } else if (kind === 'sportsoft') {
       // HTML completo y público; el fetcher descubre los competitionId en cada pasada.
       srcLabel = ` ← sportsoft:${t.sportsoftCode}`;

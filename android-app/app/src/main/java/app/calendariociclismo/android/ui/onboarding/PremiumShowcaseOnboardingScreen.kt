@@ -1,48 +1,19 @@
 package app.calendariociclismo.android.ui.onboarding
 
-import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import android.os.Bundle
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,22 +22,23 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.Haptics
+import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.launch
 
-/**
- * Onboarding "sin anuncios" — pantalla única, último paso del flujo, que ofrece
- * la suscripción cuyo ÚNICO valor es quitar los anuncios (todas las antiguas
- * features Premium se liberaron al plan gratuito, commit `ea0674292da`).
- *
- * Flujo resultante: Language → Notifications → Offline → esta pantalla → Done.
- */
+/** Anuncio único de 4.3 para instalaciones nuevas y actualizaciones desde 4.2.6. */
 @Composable
-fun PremiumShowcaseOnboardingScreen(onDismiss: () -> Unit) {
+fun PremiumShowcaseOnboardingScreen(
+    isNewInstallation: Boolean,
+    onDismiss: () -> Unit,
+) {
     val app = rememberApp()
     val scope = rememberCoroutineScope()
     val haptic = rememberHaptics()
-    val isSubscribed by app.premium.isSubscribed.collectAsState()
+    val friendActive by app.premium.isSubscribed.collectAsState()
+    val legacyActive by app.premium.isLegacyPremiumActive.collectAsState()
+    val founder by app.premium.isFounder.collectAsState()
+    val purchaseStateReady by app.premium.purchaseStateReady.collectAsState()
 
     LaunchedEffect(Unit) {
         app.analytics.logEvent("onboarding_view", Bundle().apply {
@@ -74,179 +46,129 @@ fun PremiumShowcaseOnboardingScreen(onDismiss: () -> Unit) {
         })
     }
 
-    LaunchedEffect(isSubscribed) {
-        if (isSubscribed) {
+    fun finish(action: String, next: (() -> Unit)? = null) {
+        haptic(Haptics.Event.PrimaryAction)
+        scope.launch {
             markDone(app)
+            app.analytics.logEvent("onboarding_action", Bundle().apply {
+                putString("onboarding_step", "premium_showcase")
+                putString("action", action)
+            })
+            next?.invoke()
             onDismiss()
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+    fun openExplanation() {
+        val path = if (LocaleHolder.shouldShowEnglishContent) "/en/support/" else "/apoyar/"
+        app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.calendariociclismo.app$path")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-
-            // Contenido desplazable
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                Spacer(Modifier.height(56.dp))
-
-                HeaderSection()
-
+                Icon(
+                    painterResource(R.drawable.ic_launcher_friend_foreground),
+                    null,
+                    Modifier.size(72.dp),
+                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                )
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    stringResource(R.string.onboarding_premium_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(
+                        if (isNewInstallation) R.string.onboarding_premium_body_new_installation
+                        else R.string.onboarding_premium_body
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(24.dp))
-
-                BenefitsCard()
-
-                Spacer(Modifier.height(16.dp))
-                TransparencyCard(onClick = {
-                    app.analytics.logEvent("contribution_transparency_tap", Bundle().apply { putString("source", "onboarding") })
-                    app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.calendariociclismo.app/abierto.html")).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    })
-                })
-
-                Spacer(Modifier.height(24.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        FeatureRow(Icons.Filled.Code, stringResource(R.string.onboarding_premium_benefit_open))
+                        FeatureRow(
+                            Icons.Filled.AutoAwesome,
+                            stringResource(
+                                if (isNewInstallation) R.string.onboarding_premium_benefit_experience
+                                else R.string.onboarding_premium_benefit_founder
+                            ),
+                        )
+                    }
+                }
+                if (!isNewInstallation) {
+                    TextButton(onClick = ::openExplanation) {
+                        Text(stringResource(R.string.onboarding_premium_explain))
+                    }
+                }
             }
 
-            // Botones fijos en la parte inferior
-            Column {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
-
                 Button(
                     onClick = {
-                        haptic(Haptics.Event.PrimaryAction)
-                        scope.launch {
-                            markDone(app)
-                            app.analytics.logEvent("onboarding_action", Bundle().apply {
-                                putString("onboarding_step", "premium_showcase")
-                                putString("action", "try_premium")
-                            })
-                            app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
-                            onDismiss()
+                        when {
+                            legacyActive || friendActive || !purchaseStateReady -> finish("continue")
+                            else -> finish("open_support") {
+                                app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
+                            }
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                     shape = RoundedCornerShape(14.dp),
                     contentPadding = PaddingValues(vertical = 14.dp),
                 ) {
                     Text(
-                        stringResource(R.string.onboarding_premium_cta_try),
+                        if (legacyActive || friendActive || !purchaseStateReady) {
+                            stringResource(R.string.onboarding_premium_cta_free)
+                        } else {
+                            stringResource(R.string.onboarding_premium_cta_try)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            markDone(app)
-                            app.analytics.logEvent("onboarding_action", Bundle().apply {
-                                putString("onboarding_step", "premium_showcase")
-                                putString("action", "continue_free")
-                            })
-                            onDismiss()
+                val showSecondaryButton = !isNewInstallation || friendActive || (purchaseStateReady && !legacyActive)
+                if (showSecondaryButton) {
+                    TextButton(onClick = {
+                        when {
+                            friendActive -> finish("manage_subscription") { app.premium.cancelSubscription() }
+                            !isNewInstallation && (legacyActive || !purchaseStateReady) -> openExplanation()
+                            else -> finish(if (founder) "continue_founder" else "continue_free")
                         }
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) {
-                    Text(
-                        stringResource(R.string.onboarding_premium_cta_free),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    }) {
+                        Text(
+                            when {
+                                friendActive -> stringResource(R.string.onboarding_premium_manage)
+                                !isNewInstallation && (legacyActive || !purchaseStateReady) -> stringResource(R.string.onboarding_premium_explain)
+                                else -> stringResource(R.string.onboarding_premium_cta_free)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-
-                Text(
-                    text = stringResource(R.string.onboarding_premium_cancel_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp),
-                )
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(36.dp))
             }
-        }
-    }
-}
-
-// MARK: - Header
-
-@Composable
-private fun HeaderSection() {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.CalendarMonth,
-                contentDescription = null,
-                modifier = Modifier.size(44.dp),
-                tint = Color(0xFFF6A623),
-            )
-            Icon(
-                imageVector = Icons.Filled.DirectionsBike,
-                contentDescription = null,
-                modifier = Modifier.size(44.dp),
-                tint = Color(0xFFF6A623),
-            )
-        }
-        Text(
-            text = stringResource(R.string.onboarding_premium_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = stringResource(R.string.onboarding_premium_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-// MARK: - Benefits
-
-@Composable
-private fun BenefitsCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        ),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            FeatureRow(
-                icon = Icons.Outlined.Block,
-                text = stringResource(R.string.onboarding_premium_benefit_no_ads),
-            )
-            FeatureRow(
-                icon = Icons.Filled.Bolt,
-                text = stringResource(R.string.onboarding_premium_benefit_clean),
-            )
-            FeatureRow(
-                icon = Icons.Filled.Favorite,
-                text = stringResource(R.string.onboarding_premium_benefit_support),
-            )
         }
     }
 }
@@ -254,34 +176,12 @@ private fun BenefitsCard() {
 @Composable
 private fun FeatureRow(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(12.dp))
-        Text(text = text, style = MaterialTheme.typography.bodyMedium)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
-
-@Composable
-private fun TransparencyCard(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.contribution_transparency_title), fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(3.dp))
-            Text(stringResource(R.string.contribution_transparency_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-// MARK: - Helpers
 
 private suspend fun markDone(app: app.calendariociclismo.android.CalendarioCiclismoApp) {
-    app.preferences.setContributionIntroV4231Done(true)
+    app.preferences.setSupportIntroV43Done(true)
 }

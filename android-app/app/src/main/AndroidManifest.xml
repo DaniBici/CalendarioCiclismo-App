@@ -17,9 +17,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- WorkManager con constraint de batería / red -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Requerido por Firebase Analytics para deduplicación de sesiones/usuarios.
-         Solo se usa cuando el usuario activa analytics en Ajustes → Privacidad. -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <application
         android:name=".CalendarioCiclismoApp"
@@ -43,12 +40,6 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.CalendarioCiclismo.Splash"
             android:windowSoftInputMode="adjustResize">
-
-            <!-- Launcher icon / main intent -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             <!-- ── Deep links HTTPS (App Links verificados) ─────
                  Requiere /.well-known/assetlinks.json en calendariociclismo.app
@@ -80,6 +71,46 @@
             </intent-filter>
         </activity>
 
+        <activity-alias
+            android:name=".LauncherDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherFounder"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_founder"
+            android:roundIcon="@mipmap/ic_launcher_founder"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherFriend"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_friend"
+            android:roundIcon="@mipmap/ic_launcher_friend"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- ── Firebase Cloud Messaging ──────────────────────── -->
         <service
             android:name=".notifications.CCFirebaseMessagingService"
@@ -88,15 +119,6 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-
-        <!-- ── Google Mobile Ads (AdMob — FASE B) ───────────────
-             App ID centralizado también en AdsConfig.APP_ID. El SDK lo lee de
-             este meta-data en el arranque; la inicialización real está gateada
-             por shouldShowAds en CalendarioCiclismoApp (no se toca aquí). -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-7131748907832450~2001481990" />
-
 
         <!-- Canal de notificaciones por defecto (usado si el servidor no especifica channel_id) -->
         <meta-data

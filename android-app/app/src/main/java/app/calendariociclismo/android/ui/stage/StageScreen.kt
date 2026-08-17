@@ -98,7 +98,6 @@ import app.calendariociclismo.android.ui.components.AssetActionStrip
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
-import app.calendariociclismo.android.ui.ads.AdBanner
 import app.calendariociclismo.android.ui.components.MarkdownText
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.StageTypeBadge
@@ -142,10 +141,6 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
     // Usado por la lógica de "sin red" para decidir entre modal "fuera de rango"
     // (offline ON) o modal "Sin conexión" con CTA a activar offline (offline OFF).
     val offlineEnabled by app.preferences.offlineEnabled.collectAsState(initial = false)
-    // Anuncios (FASE B): banner al fondo del detalle de etapa solo si el usuario
-    // no está suscrito. Gateado por shouldShowAds (nunca featuresUnlocked).
-    val shouldShowAds by app.premium.shouldShowAds.collectAsState()
-
     val networkErrorFallback = stringResource(R.string.startlist_error_unknown)
     LaunchedEffect(stageId) {
         state = StageState.Loading
@@ -270,14 +265,6 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                             s.data.raceDay.estimatedFinishTimeUtc != null)
                     ) {
                         item { TimeSection(s.data.raceDay, s.data.race) }
-                    }
-
-                    // Anuncio justo debajo del bloque "Schedule" (TimeSection).
-                    // Si la jornada no tiene horario, cae bajo el header.
-                    if (shouldShowAds) {
-                        item(key = "ad_banner") {
-                            AdBanner(modifier = Modifier.padding(vertical = 4.dp))
-                        }
                     }
 
                     val race = s.data.race

@@ -405,7 +405,7 @@ export function resolveTypeBadges(primary, secondary, countryCode) {
   if (primary === 'flat' && secondary === 'summit_finish') {
     return `<span class="badge badge--type-high">${typeLabel('monopuerto')}</span>`;
   }
-  if (primary === 'itt' && secondary === 'chrono_climb') {
+  if (primary === 'itt' && (secondary === 'chrono_climb' || secondary === 'summit_finish')) {
     return typeBadge('chrono_climb');
   }
   return typeBadge(primary) + (secondary ? ' ' + typeBadge(secondary) : '');

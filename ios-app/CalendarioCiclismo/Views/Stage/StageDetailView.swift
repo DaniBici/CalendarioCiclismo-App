@@ -227,11 +227,6 @@ struct StageDetailView: View {
                     VStack(spacing: 16) {
                         stageHeader(rd)
                         timeSection(rd)
-                        // Anuncio (FASE B) justo debajo del bloque "Schedule"
-                        // (timeSection). Se auto-oculta si el usuario está
-                        // suscrito (AdBannerSlot lee shouldShowAds). Si la jornada
-                        // no tiene horario, cae bajo el header. Paridad con Android.
-                        AdBannerSlot()
                         previousResultsSection(rd)
                         resultsSection(rd)
                         broadcastSection(rd)

@@ -50,18 +50,6 @@ final class RegionServiceTests: XCTestCase {
         }
     }
 
-    // MARK: - isPremium
-
-    func test_spain_notPremium() {
-        XCTAssertFalse(RegionService.RegionPreference.spain.isPremium)
-    }
-
-    func test_otherRegions_arePremium() {
-        for region in [RegionService.RegionPreference.europe, .americas, .asia, .africa, .all] {
-            XCTAssertTrue(region.isPremium, "\(region.rawValue) debería ser Premium")
-        }
-    }
-
     // MARK: - suggestedRegion
 
     func test_madridSuggestsSpain() {

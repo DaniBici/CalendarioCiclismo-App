@@ -9,9 +9,9 @@
 
 ## `SWIFT_ACTIVE_COMPILATION_CONDITIONS`
 
-Flag `PREMIUM_TEST_BUILD`:
+Flag histórico `PREMIUM_TEST_BUILD`, reutilizado para simular Amigo activo:
 - Config Release del target principal (`project.pbxproj`, config `3E254B27AFC6A314812BB591`). Debug NO lo lleva.
-- Lecturas vía `#if PREMIUM_TEST_BUILD` en `Services/PremiumService.swift`: init (línea 65) fuerza `isSubscribed = true`; `setSubscribed(_:)` (línea 259) ignora cualquier `false`.
+- Lecturas vía `#if PREMIUM_TEST_BUILD` en `Services/PremiumService.swift` fuerzan `isSubscribed = true` y evitan que la sincronización lo desactive.
 - **Para reactivar:** añadir `PREMIUM_TEST_BUILD` a `SWIFT_ACTIVE_COMPILATION_CONDITIONS` del Release + bumpar `CURRENT_PROJECT_VERSION`.
 - **Para desactivar:** borrar `SWIFT_ACTIVE_COMPILATION_CONDITIONS = PREMIUM_TEST_BUILD;` del Release + bumpar.
 

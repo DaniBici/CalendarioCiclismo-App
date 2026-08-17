@@ -2,34 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- La app pide ATT (NSUserTrackingUsageDescription) y sirve anuncios
-	     personalizados de AdMob con el IDFA → eso es tracking según Apple. -->
 	<key>NSPrivacyTracking</key>
-	<true/>
-	<!-- Apple exige ≥1 dominio cuando NSPrivacyTracking=true. El manifiesto del
-	     SDK GoogleMobileAds NO declara dominios de tracking (solo tipos de datos),
-	     así que lo declaramos aquí: el host de entrega/tracking de AdMob.
-	     Efecto buscado: si el usuario RECHAZA ATT, Apple bloquea las peticiones a
-	     este dominio → el SDK pasa a anuncios NO personalizados (no se rompen los
-	     anuncios, solo se impide el tracking, que es justo lo que el usuario pidió). -->
-	<key>NSPrivacyTrackingDomains</key>
-	<array>
-		<string>googleads.g.doubleclick.net</string>
-	</array>
+	<false/>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypeDeviceID</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<true/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<true/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string>
-			</array>
-		</dict>
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeProductInteraction</string>

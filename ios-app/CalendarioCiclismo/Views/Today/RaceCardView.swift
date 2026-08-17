@@ -18,6 +18,8 @@ struct RaceCardView: View {
     /// Llamada cuando el usuario pulsa el badge "Orden salida" en CRI/CRE.
     /// Abre la vista nativa de orden de salida desde el caller.
     var onStartOrderTap: (() -> Void)? = nil
+    /// Acceso directo a Competición para vueltas con más de una jornada.
+    var onShowCompetition: (() -> Void)? = nil
     /// True si es la etapa final de la vuelta.
     var isFinalStage: Bool = false
 
@@ -51,7 +53,7 @@ struct RaceCardView: View {
         return item.assets.contains(where: { $0.type == "startOrder" })
     }
 
-    /// Subtítulo compacto (horizontal) con formato "Etapa N · Recorrido · Distancia".
+    /// Subtítulo compacto con etapa, distancia y desnivel.
     /// Las partes ausentes se omiten; el separador es el punto medio (`·`).
     /// "Etapa N" y la distancia se muestran en negrita.
     private var horizontalSubtitleText: Text? {
@@ -63,9 +65,6 @@ struct RaceCardView: View {
         if !rd.stageLabel.isEmpty {
             let label = isFinalStage ? "\(rd.stageLabel) (Final)" : rd.stageLabel
             append(Text(label).fontWeight(.semibold))
-        }
-        if let route = rd.routeDescription, !route.isEmpty {
-            append(Text(route))
         }
         if let dist = rd.distanceFormatted, !dist.isEmpty {
             append(Text(dist).fontWeight(.semibold))
@@ -171,9 +170,10 @@ struct RaceCardView: View {
                     Text(label)
                         .font(.caption2)
                         .fontWeight(.semibold)
+                        .textCase(.uppercase)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
                 .foregroundStyle(.white)
                 .background(Color.accentColor)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
@@ -197,15 +197,30 @@ struct RaceCardView: View {
                     Text(LocaleService.t("Orden salida", "Start order"))
                         .font(.caption2)
                         .fontWeight(.semibold)
+                        .textCase(.uppercase)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
                 .foregroundStyle(.white)
                 .background(Color.accentColor)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
             }
             .buttonStyle(.plain)
         }
+    }
+
+    /// Badge de jornada cancelada, con el mismo tratamiento que la web.
+    private var cancelledDayBadge: some View {
+        Text(LocaleService.t("Cancelada", "Cancelled"))
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .textCase(.uppercase)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .foregroundStyle(AppTheme.red)
+            .background(AppTheme.red.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .accessibilityLabel(LocaleService.t("Jornada cancelada", "Cancelled stage"))
     }
 
     /// Color de la franja lateral de la tarjeta.
@@ -286,6 +301,8 @@ struct RaceCardView: View {
                         .fontWeight(.medium)
                         .lineLimit(1)
 
+                    competitionButton
+
                     if showFemaleIndicator {
                         Text("♀")
                             .font(.caption)
@@ -302,14 +319,6 @@ struct RaceCardView: View {
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(.secondary)
-                    if let loc = rd.startLocation, !loc.isEmpty {
-                        Text("·")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        Text(loc)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
                 }
             }
 
@@ -333,6 +342,8 @@ struct RaceCardView: View {
                         .fontWeight(.medium)
                         .lineLimit(1)
 
+                    competitionButton
+
                     if showFemaleIndicator {
                         Text("♀")
                             .font(.caption)
@@ -355,12 +366,7 @@ struct RaceCardView: View {
                     FlowLayout(spacing: 4) {
                         CategoryBadge(category: race?.uciCategory)
                         if rd.isCancelledDay {
-                            HStack(spacing: 2) {
-                                Image(systemName: "xmark.circle.fill")
-                                Text(LocaleService.t("Cancelada", "Cancelled"))
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.red)
+                            cancelledDayBadge
                         } else if !showsMiniProfile || rd.primaryType == "itt" || rd.primaryType == "ttt" {
                             StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
                         }
@@ -426,6 +432,26 @@ struct RaceCardView: View {
         }
     }
 
+    @ViewBuilder
+    private var competitionButton: some View {
+        if let onShowCompetition {
+            Button {
+                Haptics.play(.navigation)
+                onShowCompetition()
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 16, height: 16)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(LocaleService.t("Ver competición", "View race"))
+        }
+    }
+
     // MARK: - Iconos de resultados/revive (modo terminado)
 
     private var finishedIconsColumn: some View {
@@ -471,6 +497,8 @@ struct RaceCardView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
 
+                competitionButton
+
                 if showFemaleIndicator {
                     Text("♀")
                         .font(.caption)
@@ -485,23 +513,16 @@ struct RaceCardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let route = rd.routeDescription {
-                Text(route)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let elev = rd.elevationGainFormatted {
-                Text(elev)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             HStack(spacing: 6) {
                 if let dist = rd.distanceFormatted {
                     Text(dist)
                         .font(.caption)
                         .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+                if let elev = rd.elevationGainFormatted {
+                    Text(elev)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if !isFinishedMode, !rd.isCancelledDay,
@@ -525,12 +546,7 @@ struct RaceCardView: View {
                 FlowLayout(spacing: 4) {
                     CategoryBadge(category: race?.uciCategory)
                     if rd.isCancelledDay {
-                        HStack(spacing: 2) {
-                            Image(systemName: "xmark.circle.fill")
-                            Text(LocaleService.t("Cancelada", "Cancelled"))
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.red)
+                        cancelledDayBadge
                     } else if !showsMiniProfile || rd.primaryType == "itt" || rd.primaryType == "ttt" {
                         StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
                     }

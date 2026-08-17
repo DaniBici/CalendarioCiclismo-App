@@ -22,8 +22,8 @@ private struct UciRankingExplanationItem: Identifiable {
 /// arranque de temporada. Espejo de `ResultsFeedScreen` (Android).
 ///
 /// Filas con el lenguaje visual de las cards de Hoy (`RaceCardView`): CCCard
-/// con tinte del color de la carrera, logo + bandera, "Etapa N · salida › meta
-/// · km" + badges de tipo, y el ganador con trofeo. Tap in-house → pantalla
+/// con tinte del color de la carrera, logo + bandera, "Etapa N · km · desnivel"
+/// + badge de tipo solo para contrarrelojes, y el ganador con trofeo. Tap in-house → pantalla
 /// nativa de resultados (push POR VALOR con `ResultsRoute`); filas EXT → la
 /// sheet externos existente.
 struct ResultsFeedView: View {
@@ -594,18 +594,7 @@ private struct FeedRowView: View {
         return ""
     }
 
-    /// "salida › meta" (campo EN cuando la UI va en inglés, espejo de rdLocation).
-    private var routeText: String {
-        guard let rd else { return "" }
-        let isEn = LocaleService.isEnglish
-        let start = (isEn && rd.startLocationEn?.isEmpty == false ? rd.startLocationEn : rd.startLocation) ?? ""
-        let finish = (isEn && rd.finishLocationEn?.isEmpty == false ? rd.finishLocationEn : rd.finishLocation) ?? ""
-        if finish.isEmpty || start == finish { return start.isEmpty ? finish : start }
-        if start.isEmpty { return finish }
-        return "\(start) › \(finish)"
-    }
-
-    /// Línea 2: "Etapa N" y el kilometraje en NEGRITA · salida › meta.
+    /// Línea 2: número de etapa, kilometraje y desnivel acumulado.
     /// (Las generales finales llevan solo su etiqueta; un día: sin etiqueta.)
     private var subtitleText: Text? {
         let separator = Text(" · ")
@@ -616,11 +605,11 @@ private struct FeedRowView: View {
         if !stageLabelText.isEmpty {
             append(Text(stageLabelText).fontWeight(.semibold))
         }
-        if !routeText.isEmpty {
-            append(Text(routeText))
-        }
         if let dist = rd?.distanceFormatted, !dist.isEmpty {
             append(Text(dist).fontWeight(.semibold))
+        }
+        if let elevation = rd?.elevationGainFormatted, !elevation.isEmpty {
+            append(Text(elevation))
         }
         return result
     }
@@ -670,10 +659,10 @@ private struct FeedRowView: View {
                         } else {
                             // HStack (no FlowLayout): el flow mide el texto a su
                             // ancho IDEAL y el lineLimit nunca truncaba — la línea
-                            // "Etapa N · salida › meta · km" rebosaba la card. Así
+                            // "Etapa N · km · desnivel" rebosaba la card. Así
                             // el texto se comprime con puntos suspensivos y el
                             // badge conserva su tamaño.
-                            HStack(spacing: 4) {
+                            HStack(spacing: 6) {
                                 if let subtitle = subtitleText {
                                     subtitle
                                         .font(.caption)
@@ -681,12 +670,13 @@ private struct FeedRowView: View {
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
-                                // Badges de tipo reducidos (los de las cards).
-                                if let rd, rd.primaryType?.isEmpty == false {
+                                // Badge de tipo solo para contrarrelojes.
+                                if let rd, rd.primaryType == "itt" || rd.primaryType == "ttt" {
                                     StageTypeBadge(
                                         primaryType: rd.primaryType,
-                                        secondaryType: rd.secondaryType,
-                                        countryCode: rd.countryCode ?? race.countryCode
+                                        secondaryType: rd.primaryType == "itt" && ["chrono_climb", "summit_finish"].contains(rd.secondaryType ?? "") ? rd.secondaryType : nil,
+                                        countryCode: rd.countryCode ?? race.countryCode,
+                                        compact: true
                                     )
                                     .fixedSize()
                                     .layoutPriority(1)
@@ -710,7 +700,7 @@ private struct FeedRowView: View {
 
                     Spacer(minLength: 0)
 
-                    Image(systemName: entry.kind == .inhouse ? "chevron.right" : "arrow.up.right.square")
+                    Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .accessibilityHidden(true)

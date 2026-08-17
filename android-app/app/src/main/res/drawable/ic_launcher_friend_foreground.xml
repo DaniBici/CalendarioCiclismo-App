@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <group
+        android:scaleX="0.8"
+        android:scaleY="0.8"
+        android:pivotX="50"
+        android:pivotY="50">
+        <path android:fillColor="#00000000" android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M18.5,38 L39.5,38 Q42.5,38 42.5,41 L42.5,62 Q42.5,65 39.5,65 L18.5,65 Q15.5,65 15.5,62 L15.5,41 Q15.5,38 18.5,38 Z" />
+        <path android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M23,35 L23,41" />
+        <path android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M35,35 L35,41" />
+        <path android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M15.5,47 L42.5,47" />
+        <path android:fillColor="#00000000" android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:pathData="M61.25,58.25 m-5.25,0 a5.25,5.25 0 1,0 10.5,0 a5.25,5.25 0 1,0 -10.5,0" />
+        <path android:fillColor="#00000000" android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:pathData="M80.75,58.25 m-5.25,0 a5.25,5.25 0 1,0 10.5,0 a5.25,5.25 0 1,0 -10.5,0" />
+        <path android:fillColor="#00000000" android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:pathData="M75.5,39.5 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+        <path android:fillColor="#00000000" android:strokeColor="#1A73E8" android:strokeWidth="2.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M71,58.25 L71,53 L66.5,48.5 L72.5,44 L75.5,48.5 L78.5,48.5" />
+        <path android:fillColor="#1A73E8" android:pathData="M84,27.5 L77.2,21 C73.4,17.3 79,11.7 82.8,15.4 L84,16.6 L85.2,15.4 C89,11.7 94.6,17.3 90.8,21 Z" />
+    </group>
+</vector>

@@ -799,8 +799,6 @@ function buildCard(rd) {
     rd.dateKey === rd._race.endDate
   );
   const stage  = stageLabel(rd.stageNumber, rd._stageSuffix, _isFinalStage);
-  const route  = rd.startLocation
-    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} > ${rdLocation(rd, 'finishLocation')}`) : '';
   const _isEn  = getLang() === 'en';
   const km     = rd.distanceKm ? `${_isEn ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')}${_isEn ? 'km' : ' km'}` : '';
   const _elevGain = rd.elevationProfile?.elevationGain;
@@ -816,34 +814,15 @@ function buildCard(rd) {
   if (!rd._broadcasts) rd._broadcasts = [];
   // El badge UCI va SIEMPRE junto al nombre, nunca en el sub
   const catBadgeHtml = categoryBadge(uci, isFemale);
-  // Sub: etapa (sin badge), ruta truncable, km fijo, tipos inline
+  // Sub: etapa, km y desnivel; sin ciudades de salida/llegada.
   const stagePart   = stage ? `<span class="race-card__stage">${stage}</span>` : '';
-  const routePart   = route ? `<span class="race-card__route">${route}</span>` : '';
   const kmPart      = km    ? `<span class="race-card__km">${km}</span>` : '';
   const elevPart    = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
   const typeBadges  = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode) : '';
-  // La ruta (salida > llegada) se oculta en móvil (≤600px, CSS) para no quedar como
-  // muñón ("Brus…") ni dejar dos · seguidos cuando el ancho la colapsa. Para que al
-  // ocultarla desaparezca también su separador, el · adyacente viaja DENTRO del wrap:
-  // el líder si hay una parte antes (etapa), si no el de cola (hacia km). En desktop el
-  // resultado es idéntico al de antes.
   const sep = `<span class="race-card__sep">·</span>`;
-  const _routeLeadSep  = routePart && stagePart;                       // etapa · ruta
-  const _routeTrailSep = routePart && !stagePart && kmPart;            // ruta · km (un día)
-  // El · que viaja dentro del wrap lleva un modificador de lado para recuperar el hueco
-  // hacia el texto de la ruta (el flex gap del sub solo separa hermanos, no contenido
-  // dentro del mismo wrap).
-  const sepLead  = `<span class="race-card__sep race-card__sep--in-route">·</span>`;
-  const sepTrail = `<span class="race-card__sep race-card__sep--in-route race-card__sep--in-route-trail">·</span>`;
-  const routeWrap = routePart
-    ? `<span class="race-card__route-wrap">${_routeLeadSep ? sepLead : ''}${routePart}${_routeTrailSep ? sepTrail : ''}</span>`
-    : '';
-  // Separadores que quedan FUERA del wrap (no desaparecen al ocultar la ruta en móvil)
-  const sepStageRoute = '';                                            // el de etapa·ruta vive dentro del wrap
-  const sepRouteKm    = (routePart && _routeLeadSep && kmPart) ? sep   // etapa · ruta · km → el ·km va fuera
-                      : (!routePart && stagePart && kmPart) ? sep      // etapa · km (sin ruta)
-                      : '';
+  const sepStageKm    = (stagePart && kmPart) ? sep : '';
   const sepKmElev     = (kmPart && elevPart) ? sep : '';
+  const sepStageElev  = (stagePart && !kmPart && elevPart) ? sep : '';
   // Horario apilado (paridad iOS): salida ↓ meta. Helper compartido en shared.js.
   const timeStackHtml = buildTimeStack(start, finish, timeTip);
 
@@ -959,7 +938,7 @@ function buildCard(rd) {
     card.innerHTML = `
       ${logo}
       <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span><span class="race-card__name-cat">${catBadgeHtml}</span>${rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
+        <div class="race-card__name"><span>${name}</span><span class="race-card__name-cat">${catBadgeHtml}</span>${race.raceFormat === 'stage_race' && race.startDate !== race.endDate && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
         <div class="race-card__sub">${restLabel}</div>
       </div>
       <div class="race-card__meta">
@@ -1014,9 +993,9 @@ function buildCard(rd) {
     card.innerHTML = `
       ${logo}
       <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span>${rd.stageNumber != null && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
+        <div class="race-card__name"><span>${name}</span>${race.raceFormat === 'stage_race' && race.startDate !== race.endDate && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
         <div class="race-card__sub">
-          ${stagePart}${sepStageRoute}${routeWrap}${sepRouteKm}${kmPart}${sepKmElev}${elevPart}
+          ${stagePart}${sepStageKm}${kmPart}${sepKmElev}${sepStageElev}${elevPart}
         </div>
         ${_badgeRowHtml}
       </div>

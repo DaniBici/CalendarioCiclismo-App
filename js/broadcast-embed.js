@@ -26,6 +26,19 @@ export function isCyltvPlayerUrl(url) {
   }
 }
 
+export function isNdrPlayerUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return parsed.protocol === 'https:'
+      && (host === 'ndr.de' || host === 'www.ndr.de')
+      && /~player\.html$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 // Devuelve los datos necesarios para el iframe, o null si el proveedor no está
 // en la allowlist o la emisión tiene el embed deshabilitado explícitamente.
 export function getBroadcastEmbed(url, embeddable = null) {
@@ -48,6 +61,16 @@ export function getBroadcastEmbed(url, embeddable = null) {
       src: canonical,
       externalUrl: canonical,
       externalLabel: 'CyLTV',
+    };
+  }
+
+  if (isNdrPlayerUrl(url)) {
+    const canonical = new URL(url).href;
+    return {
+      provider: 'ndr',
+      src: canonical,
+      externalUrl: canonical,
+      externalLabel: 'NDR',
     };
   }
 

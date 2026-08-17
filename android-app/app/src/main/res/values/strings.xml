@@ -197,9 +197,6 @@
     <string name="settings_section_language">Idioma</string>
     <string name="settings_section_appearance">Apariencia</string>
     <string name="settings_section_privacy">Privacidad</string>
-    <string name="settings_section_about">Datos abiertos</string>
-    <string name="settings_licenses_body">Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles.</string>
-    <string name="settings_open_project_cta">Cómo se hace este proyecto</string>
 
     <!-- Settings: Idioma -->
     <string name="settings_language_description">Elige el idioma de la aplicación.</string>
@@ -209,10 +206,10 @@
     <string name="onboarding_language_cta_spanish">Continuar en español</string>
     <string name="onboarding_language_cta_english">Switch to English</string>
 
-    <!-- Settings: Premium -->
-    <string name="settings_premium_cta_title">Hazte Premium</string>
-    <string name="settings_premium_cta_body">Todas las regiones, notificaciones enriquecidas y más.</string>
-    <string name="settings_premium_active_title">Premium activo</string>
+    <!-- Settings: claves históricas reutilizadas por sostenimiento -->
+    <string name="settings_premium_cta_title">Hazte Amigo</string>
+    <string name="settings_premium_cta_body">Una aportación voluntaria; todas las funciones son gratuitas.</string>
+    <string name="settings_premium_active_title">Amigo activo</string>
     <string name="settings_premium_active_body">Gracias por apoyar el desarrollo de la app.</string>
     <string name="settings_premium_manage">Gestionar suscripción</string>
     <string name="settings_premium_redeem_code">Canjear código</string>
@@ -252,7 +249,7 @@
     <string name="settings_notifications_title">Recibir avisos</string>
     <string name="settings_notifications_body">Aviso antes de cada carrera y cambios editoriales.</string>
     <string name="settings_notification_categories_title">Tipos de notificación</string>
-    <string name="settings_notification_category_premium_hint">Hazte Premium para activarla</string>
+    <string name="settings_notification_category_premium_hint">Disponible para todos</string>
 
     <!-- Notification categories (Fase 3) -->
     <string name="notification_category_general">Anuncios y novedades</string>
@@ -320,15 +317,17 @@
 
     <!-- Onboarding: modo sin conexión -->
 
-    <!-- Onboarding: showcase "sin anuncios" (último paso; la suscripción solo quita anuncios) -->
-    <string name="onboarding_premium_title">Sin anuncios. Gratis para todos.</string>
-    <string name="onboarding_premium_body">Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.</string>
-    <string name="onboarding_premium_benefit_no_ads">Sin anuncios en ninguna pantalla</string>
-    <string name="onboarding_premium_benefit_clean">Una experiencia más limpia y rápida</string>
-    <string name="onboarding_premium_benefit_support">Ayuda a cubrir el coste de los servidores y el mantenimiento</string>
-    <string name="onboarding_premium_cta_try">Probar 7 días gratis</string>
-    <string name="onboarding_premium_cta_free">Continuar con anuncios</string>
-    <string name="onboarding_premium_cancel_hint">Cancela cuando quieras desde Ajustes → Google Play</string>
+    <!-- Anuncio 4.3: retirada de publicidad y apoyo voluntario -->
+    <string name="onboarding_premium_title">Gratis y sin anuncios para todos</string>
+    <string name="onboarding_premium_body">La publicidad desaparece de forma definitiva. Todas las funciones siguen siendo gratuitas y quien quiera podrá sostener voluntariamente el proyecto.</string>
+    <string name="onboarding_premium_body_new_installation">Apoya los costes de mantenimiento de este proyecto, hecho por puro amor al ciclismo. Todas las funciones son gratuitas.</string>
+    <string name="onboarding_premium_benefit_open">Código abierto y cuentas públicas</string>
+    <string name="onboarding_premium_benefit_founder">Quien tuvo Premium recibe el icono Fundador</string>
+    <string name="onboarding_premium_benefit_experience">Hecho por un profesional con dos décadas de experiencia en ciclismo</string>
+    <string name="onboarding_premium_explain">Conoce el cambio</string>
+    <string name="onboarding_premium_manage">Gestionar suscripción</string>
+    <string name="onboarding_premium_cta_try">Ver formas de apoyar</string>
+    <string name="onboarding_premium_cta_free">Continuar</string>
 
     <!-- Paywall "sin anuncios" -->
     <string name="paywall_title">Sin anuncios. Gratis para todos.</string>
@@ -339,15 +338,15 @@
     <string name="contribution_transparency_title">Un proyecto sostenido por su comunidad</string>
     <string name="contribution_transparency_body">Código abierto, sin intereses comerciales y con las cuentas publicadas.</string>
     <string name="contribution_prompt_title">¿Te está sirviendo Calendario Ciclismo?</string>
-    <string name="contribution_prompt_body">Es un proyecto Open Source, independiente y gratuito para todos. Si te gusta, puedes ayudar a sostenerlo y quitar los anuncios.</string>
-    <string name="contribution_prompt_open">Ver Sin anuncios</string>
+    <string name="contribution_prompt_body">Es un proyecto Open Source, independiente, gratuito y sin anuncios. Si te resulta útil, puedes ayudar a sostener sus servidores y mantenimiento.</string>
+    <string name="contribution_prompt_open">Ver formas de apoyar</string>
     <string name="contribution_prompt_later">Ahora no</string>
-    <string name="paywall_nonprofit_note">Calendario Ciclismo no es un negocio. Lo hace una sola persona y no busca beneficio: los anuncios y las suscripciones están para cubrir los servidores y el mantenimiento que lo sostienen.</string>
+    <string name="paywall_nonprofit_note">Todas las funciones son gratuitas. Amigo y las aportaciones puntuales ayudan voluntariamente a cubrir servidores, herramientas y mantenimiento.</string>
     <string name="paywall_period_yearly">al año</string>
     <string name="paywall_period_monthly">al mes</string>
     <string name="paywall_badge_best_value">MEJOR OFERTA</string>
     <string name="paywall_cancel_anytime">Cancela cuando quieras</string>
-    <string name="paywall_cta_try">Probar 7 días gratis</string>
+    <string name="paywall_cta_try">Hacerme Amigo</string>
     <!-- %1$s = precio ya formateado por Billing (p. ej. "17,99 €/año") -->
     <string name="paywall_after_price">Después %1$s. Cancela cuando quieras.</string>
     <string name="paywall_price_per_year">%1$s/año</string>
@@ -360,15 +359,15 @@
     <string name="paywall_legal_renewal">La suscripción se renueva automáticamente al precio indicado. Puedes cancelarla en Play Store → Pagos y suscripciones al menos 24 h antes del final del periodo.</string>
     <string name="paywall_alert_ok">Aceptar</string>
 
-    <!-- Ajustes: sección "sin anuncios" -->
-    <string name="settings_adfree_header">Sin anuncios</string>
-    <string name="settings_adfree_cta_title">Quitar anuncios</string>
-    <string name="settings_adfree_cta_body">Disfruta la app sin anuncios y ayuda a pagar los servidores.</string>
-    <string name="settings_adfree_active_title">Sin anuncios activo</string>
+    <!-- Ajustes: sostenimiento voluntario -->
+    <string name="settings_adfree_header">Apoyar Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_title">Hazte Amigo de Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_body">Una aportación voluntaria para mantener un proyecto abierto y gratuito.</string>
+    <string name="settings_adfree_active_title">Amigo activo</string>
     <string name="settings_adfree_active_body">Gracias por ayudar a mantener el proyecto en marcha.</string>
     <string name="settings_adfree_manage">Gestionar suscripción</string>
     <string name="settings_adfree_redeem">Canjear código</string>
-    <string name="settings_adfree_nonprofit_note">Todas las funciones son gratis. Esto no es un negocio: los anuncios y las suscripciones solo cubren los costes de servidor.</string>
+    <string name="settings_adfree_nonprofit_note">Todas las funciones son gratuitas. Las aportaciones ayudan a cubrir servidores, herramientas y mantenimiento.</string>
 
     <!-- Onboarding: estadísticas -->
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
@@ -60,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -112,6 +115,9 @@ fun SettingsScreen(navController: NavController) {
     val activeRaceFilters by app.preferences.activeRaceFilters.collectAsState(initial = emptySet())
     val followedStageIds by app.preferences.followedStageIds.collectAsState(initial = emptySet())
     val isPremium by app.premium.isSubscribed.collectAsState()
+    val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
+    val isFounder by app.premium.isFounder.collectAsState()
+    val supporterIcon by app.premium.supporterIcon.collectAsState()
     val syncState by app.offlineManager.state.collectAsState()
     var hapticsEnabled by remember { mutableStateOf(Haptics.isEnabled(context)) }
 
@@ -134,11 +140,14 @@ fun SettingsScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(pad),
         ) {
-            // ── Sin anuncios (suscripción) — primera opción del panel ──
+            // ── Apoyo voluntario — primera opción del panel ──
             item {
                 Section(title = stringResource(R.string.settings_adfree_header)) {
                     AdFreeSection(
-                        isPremium = isPremium,
+                        isFriend = isPremium,
+                        legacyPremiumActive = legacyPremiumActive,
+                        isFounder = isFounder,
+                        supporterIcon = supporterIcon,
                         onSubscribe = {
                             haptic(Haptics.Event.Selection)
                             app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
@@ -147,6 +156,16 @@ fun SettingsScreen(navController: NavController) {
                         onRedeem = {
                             haptic(Haptics.Event.Selection)
                             app.premium.redeemCode()
+                        },
+                        onIcon = { app.premium.setSupporterIcon(it) },
+                        onExplain = {
+                            haptic(Haptics.Event.Navigation)
+                            val url = if (LocaleHolder.shouldShowEnglishContent) {
+                                "https://www.calendariociclismo.app/en/support/"
+                            } else {
+                                "https://www.calendariociclismo.app/apoyar/"
+                            }
+                            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                         },
                     )
                 }
@@ -563,45 +582,6 @@ fun SettingsScreen(navController: NavController) {
                 }
             }
 
-            // ── Acerca de / Licencias ──
-            item {
-                Section(title = stringResource(R.string.settings_section_about)) {
-                    Text(
-                        text = stringResource(R.string.settings_licenses_body),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    // Mismo aspecto que el CTA «Ver clasificaciones» (ResultsButtonsCard):
-                    // botón relleno de acento, texto onPrimary semibold, radio 3.
-                    val primary = MaterialTheme.colorScheme.primary
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(primary, RoundedCornerShape(3))
-                            .clickable(role = Role.Button) {
-                                haptic(Haptics.Event.Navigation)
-                                val url = if (LocaleHolder.shouldShowEnglishContent) {
-                                    "https://www.calendariociclismo.app/en/open/"
-                                } else {
-                                    "https://www.calendariociclismo.app/abierto.html"
-                                }
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, url.toUri())
-                                )
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_open_project_cta),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                }
-            }
         }
 
     }
@@ -1380,12 +1360,25 @@ private fun AdFreeIcon() {
 
 @Composable
 private fun AdFreeSection(
-    isPremium: Boolean,
+    isFriend: Boolean,
+    legacyPremiumActive: Boolean,
+    isFounder: Boolean,
+    supporterIcon: String,
     onSubscribe: () -> Unit,
     onManage: () -> Unit,
     onRedeem: () -> Unit,
+    onIcon: (PremiumService.SupporterIcon) -> Unit,
+    onExplain: () -> Unit,
 ) {
-    if (isPremium) {
+    if (legacyPremiumActive) {
+        SupportStatus(
+            title = LocaleHolder.t("Fundador", "Founder"),
+            body = LocaleHolder.t(
+                "Tu Premium anterior no se convertirá en otra suscripción. Conservas para siempre el icono Fundador.",
+                "Your previous Premium plan will not become another subscription. You keep the Founder icon permanently.",
+            ),
+        )
+    } else if (isFriend) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1396,11 +1389,14 @@ private fun AdFreeSection(
             AdFreeIcon()
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.settings_adfree_active_title),
+                    text = LocaleHolder.t("Amigo activo", "Friend active"),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = stringResource(R.string.settings_adfree_active_body),
+                    text = LocaleHolder.t(
+                        "Gracias por ayudar a sostener el proyecto.",
+                        "Thank you for helping sustain the project.",
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1413,37 +1409,57 @@ private fun AdFreeSection(
         TextButton(onClick = onRedeem) {
             Text(stringResource(R.string.settings_adfree_redeem))
         }
+    } else if (isFounder) {
+        SupportStatus(
+            title = LocaleHolder.t("Fundador", "Founder"),
+            body = LocaleHolder.t(
+                "Conservas para siempre el reconocimiento y el icono Fundador.",
+                "You permanently keep the Founder recognition and icon.",
+            ),
+        )
+        SupportCTA(onSubscribe)
     } else {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onSubscribe)
-                .semantics(mergeDescendants = true) { },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            AdFreeIcon()
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.settings_adfree_cta_title),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = stringResource(R.string.settings_adfree_cta_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        SupportCTA(onSubscribe)
         Spacer(Modifier.height(4.dp))
         TextButton(onClick = onRedeem) {
             Text(stringResource(R.string.settings_adfree_redeem))
+        }
+    }
+
+    if (isFounder || isFriend) {
+        Spacer(Modifier.height(12.dp))
+        Text(
+            LocaleHolder.t("Icono de la aplicación", "App icon"),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconChoice(
+                LocaleHolder.t("Original", "Original"),
+                Color(0xFF1A73E8),
+                Color.White,
+                null,
+                supporterIcon == "default",
+                useAppIcon = true,
+            ) { onIcon(PremiumService.SupporterIcon.DEFAULT) }
+            if (isFounder) {
+                IconChoice(
+                    LocaleHolder.t("Fundador", "Founder"),
+                    Color(0xFF101828),
+                    Color(0xFFF6A623),
+                    Icons.Filled.AutoAwesome,
+                    supporterIcon == "founder",
+                ) { onIcon(PremiumService.SupporterIcon.FOUNDER) }
+            }
+            if (isFriend) {
+                IconChoice(
+                    LocaleHolder.t("Amigo", "Friend"),
+                    Color.White,
+                    Color(0xFF1A73E8),
+                    Icons.Filled.Favorite,
+                    supporterIcon == "friend",
+                ) { onIcon(PremiumService.SupporterIcon.FRIEND) }
+            }
         }
     }
 
@@ -1453,4 +1469,99 @@ private fun AdFreeSection(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    TextButton(onClick = onExplain, modifier = Modifier.fillMaxWidth()) {
+        Text(LocaleHolder.t(
+            "Por qué ahora es gratis y sin anuncios",
+            "Why it is now free and ad-free",
+        ))
+    }
+}
+
+@Composable
+private fun SupportStatus(title: String, body: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        AdFreeIcon()
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun SupportCTA(onSubscribe: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSubscribe),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AdFreeIcon()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(LocaleHolder.t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"))
+            Text(
+                LocaleHolder.t(
+                    "Una aportación voluntaria para sostener un proyecto abierto y gratuito.",
+                    "A voluntary contribution to sustain an open and free project.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun RowScope.IconChoice(
+    label: String,
+    backgroundColor: Color,
+    foregroundColor: Color,
+    badge: androidx.compose.ui.graphics.vector.ImageVector?,
+    selected: Boolean,
+    useAppIcon: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.weight(1f),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(backgroundColor, RoundedCornerShape(9.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (useAppIcon) {
+                    Icon(
+                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        contentDescription = null,
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(42.dp),
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = foregroundColor, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Filled.DirectionsBike, contentDescription = null, tint = foregroundColor, modifier = Modifier.size(15.dp))
+                    }
+                    badge?.let {
+                        Icon(
+                            imageVector = it,
+                            contentDescription = null,
+                            tint = foregroundColor,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(10.dp),
+                        )
+                    }
+                }
+            }
+            Text(label, style = MaterialTheme.typography.labelSmall)
+            if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+        }
+    }
 }

@@ -26,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
-import app.calendariociclismo.android.data.ads.AdsConsentManager
 import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.ThemePreference
 import app.calendariociclismo.android.data.repository.CalendarRepository
@@ -149,18 +148,6 @@ class MainActivity : ComponentActivity() {
                     splashDismissing = true
                 }
 
-                // ── Anuncios (FASE B): consentimiento UMP + init del SDK ──
-                // Gateado por shouldShowAds: si el usuario está suscrito, NO se
-                // pide consentimiento ni se inicializa el SDK de Ads. UMP necesita
-                // un Activity para presentar el formulario, por eso vive aquí y no
-                // en CalendarioCiclismoApp.onCreate. Idempotente (AdsConsentManager
-                // protege la init del SDK con un flag por proceso).
-                LaunchedEffect(Unit) {
-                    if (app.premium.shouldShowAds.value) {
-                        AdsConsentManager.gather(this@MainActivity)
-                    }
-                }
-
                 // Deep link inicial (desde notificación o App Link)
                 LaunchedEffect(Unit) {
                     parseIntent(intent)?.let { pendingDeepLink.value = it }
@@ -185,6 +172,7 @@ class MainActivity : ComponentActivity() {
                 // (idioma 2.1 → notificaciones → showcase; el paso de modo
                 // offline se retiró en 4.0 — la función vive solo en Ajustes)
                 var onboardingStep by remember { mutableStateOf<OnboardingStep?>(null) }
+                var supportIntroIsNewInstallation by remember { mutableStateOf(false) }
                 val paywallSource by app.premium.pendingPaywallSource.collectAsState()
 
                 LaunchedEffect(Unit) {
@@ -203,6 +191,7 @@ class MainActivity : ComponentActivity() {
                         app.preferences.setLanguageAnnouncementDone(true)
                     }
 
+                    supportIntroIsNewInstallation = app.preferences.initializeSupportIntroV43Audience()
                     onboardingStep = nextOnboardingStep(app)
                 }
 
@@ -241,6 +230,7 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                         OnboardingStep.PremiumShowcase -> PremiumShowcaseOnboardingScreen(
+                            isNewInstallation = supportIntroIsNewInstallation,
                             onDismiss = {
                                 scope.launch {
                                     onboardingStep = nextOnboardingStep(app)
@@ -442,12 +432,9 @@ class MainActivity : ComponentActivity() {
  * apenas aportaba; la función sigue disponible en Ajustes).
  *
  * `Language` es el anuncio one-shot introducido en 2.1 (inglés ya no es Premium).
- * `PremiumShowcase` (2.3) ofrece la suscripción "sin anuncios" como último paso.
- * Gateado por `adsIntroV4Done`: un flag DEDICADO que nace en `false` para todos,
- * así que la pantalla se dispara una vez tras actualizar a 4.0 (upgraders de
- * 2.x/3.x) y una vez en el onboarding de una instalación fresh. Los gates de las
- * oleadas previas (`premiumShowcaseDone` 2.0, `adsIntroDone` 2.3) se retiraron el
- * 2026-07-19; futuras oleadas = un nuevo `adsIntroVNDone` (ver `AppPreferences`).
+ * `PremiumShowcase` anuncia en 4.3 la retirada definitiva de publicidad y el
+ * modelo voluntario Amigo. Su clave versionada permite mostrarlo una sola vez
+ * tanto a instalaciones nuevas como a quienes actualizan, incluidos Fundadores.
  */
 private enum class OnboardingStep { Language, Notifications, PremiumShowcase, Done }
 
@@ -458,12 +445,11 @@ private enum class OnboardingStep { Language, Notifications, PremiumShowcase, Do
 private suspend fun nextOnboardingStep(app: CalendarioCiclismoApp): OnboardingStep {
     val languageDone = app.preferences.languageAnnouncementDone.first()
     val notifDone = app.preferences.notifOnboardingDone.first()
-    val contributionIntroDone = app.preferences.contributionIntroV4231Done.first()
-    val subscribed = app.preferences.snapshotPremiumSubscribed()
+    val supportIntroDone = app.preferences.supportIntroV43Done.first()
     return when {
         !languageDone -> OnboardingStep.Language
         !notifDone -> OnboardingStep.Notifications
-        !subscribed && !contributionIntroDone -> OnboardingStep.PremiumShowcase
+        !supportIntroDone -> OnboardingStep.PremiumShowcase
         else -> OnboardingStep.Done
     }
 }

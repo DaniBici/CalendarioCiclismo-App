@@ -1,122 +1,118 @@
 import Foundation
 import StoreKit
 import SwiftUI
+import UIKit
 
-/// Servicio centralizado del estado Premium de la app.
+/// Servicio de sostenimiento de 4.3.
 ///
-/// **Fase 6 (actual):** StoreKit 2. `subscribe(plan:)` lanza la compra real
-/// contra App Store (sandbox en Debug). `restorePurchases()` sincroniza con
-/// `AppStore.sync()` y verifica `Transaction.currentEntitlements`. Un Task
-/// escucha `Transaction.updates` en segundo plano para cubrir renovaciones,
-/// revocaciones y compras Ask to Buy.
-///
-/// **Product IDs** — TODO: crear estos dos productos de tipo "Auto-Renewable
-/// Subscription" en App Store Connect antes de la publicación en App Store.
-/// Los IDs son los valores de `monthlyProductID` / `yearlyProductID` de abajo.
-///
-/// **PREMIUM_TEST_BUILD** — quitar el flag de `SWIFT_ACTIVE_COMPILATION_CONDITIONS`
-/// (Debug y Release) antes de enviar a App Store. En Fase 6 ya no hace falta:
-/// la forma de probar es el toggle DEBUG o el sandbox de StoreKit.
+/// El nombre se conserva para mantener compatibilidad con los call sites
+/// existentes. Premium ya no se vende: sus transacciones solo sirven para
+/// reconocer a Fundador. Las nuevas compras son Amigo o aportaciones puntuales.
 @MainActor @Observable
 final class PremiumService {
     static let shared = PremiumService()
 
-    // TODO: crear en App Store Connect → Funcionalidades → Compras integradas
-    static let monthlyProductID = "app.calendariociclismo.premium.mensual"
-    static let yearlyProductID  = "app.calendariociclismo.premium.anual"
+    static let monthlyProductID = "app.calendariociclismo.amigo.mensual"
+    static let yearlyProductID = "app.calendariociclismo.amigo.anual"
+    static let contributionSmallID = "app.calendariociclismo.aportacion.299"
+    static let contributionMediumID = "app.calendariociclismo.aportacion.599"
+    static let contributionLargeID = "app.calendariociclismo.aportacion.1199"
 
-    /// Origen del CTA que disparó el paywall. Determina el copy de `PaywallView`.
+    static let legacyMonthlyProductID = "app.calendariociclismo.premium.mensual"
+    static let legacyYearlyProductID = "app.calendariociclismo.premium.anual"
+
+    static let friendProductIDs = [monthlyProductID, yearlyProductID]
+    static let contributionProductIDs = [
+        contributionSmallID,
+        contributionMediumID,
+        contributionLargeID,
+    ]
+    static let legacyProductIDs = [legacyMonthlyProductID, legacyYearlyProductID]
+
     enum PaywallSource: String, Identifiable, CaseIterable {
-        case region
-        case notifications
-        case raceCards
-        case raceNotifications
-        case general
-
+        case region, notifications, raceCards, raceNotifications, general
         var id: String { rawValue }
     }
 
-    /// Plan de suscripción. Los precios reales vienen de `products` (StoreKit).
     enum PremiumPlan: String, Identifiable, CaseIterable {
-        case monthly
-        case yearly
-
+        case monthly, yearly
         var id: String { rawValue }
     }
 
-    private static let subscribedKey = "premium_subscribed"
+    enum SupporterIcon: String, Identifiable, CaseIterable {
+        case standard, founder, friend
+        var id: String { rawValue }
+        var alternateIconName: String? {
+            switch self {
+            case .standard: nil
+            case .founder: "AppIconFounder"
+            case .friend: "AppIconFriend"
+            }
+        }
+    }
+
+    private static let friendKey = "friend_subscribed"
+    private static let legacyActiveKey = "premium_subscribed"
+    private static let founderKey = "founder_recognized"
+    private static let contributionCountKey = "supporter_contribution_count"
+    private static let supporterIconKey = "supporter_icon"
+    private static let previousSupporterIconKey = "supporter_icon_previous"
 
     private(set) var isSubscribed: Bool
-    var pendingPaywallSource: PaywallSource?
+    private(set) var isLegacyPremiumActive: Bool
+    private(set) var isFounder: Bool
+    private(set) var contributionCount: Int
+    private(set) var supporterIcon: SupporterIcon
+    private(set) var hasRefreshedPurchaseState = false
 
-    /// Las features que en su día fueron Premium se liberaron al plan gratuito
-    /// (commit `ea0674292da`) y son gratis para siempre — política de pricing
-    /// de docs/memory/premium.md ("lo que ya era gratis sigue gratis"). Los gates de feature
-    /// (mini-perfil, badge de inscritos, notificaciones enriquecidas, regiones,
-    /// seguimiento de carreras) leen ESTA constante, NUNCA `isSubscribed`.
-    /// Mantenerla desacoplada permite que `isSubscribed` recupere su único
-    /// significado real: la suscripción quita los anuncios.
     let featuresUnlocked = true
-
-    /// Único significado de la suscripción a partir del modelo con anuncios:
-    /// suscrito → sin anuncios. Es el "AdGate" que consulta la capa de ads
-    /// antes de inicializar el SDK / mostrar unidades.
-    var shouldShowAds: Bool { !isSubscribed }
-
-    /// Productos cargados desde App Store. Vacío hasta que `loadProducts()` los cargue.
-    /// Ordenados de menor a mayor precio (monthly → yearly).
+    var pendingPaywallSource: PaywallSource?
     private(set) var products: [Product] = []
-
-    /// `true` mientras hay una transacción en curso (compra o restore).
-    private(set) var isPurchasing: Bool = false
-
-    /// Mensaje de error de la última operación fallida. `PaywallView` lo observa.
+    private(set) var isPurchasing = false
     private(set) var purchaseError: String?
-
-    /// `true` mientras hay un sheet nativo de canjeo de código presentado. Lo
-    /// monta UIKit directamente sobre la `UIWindowScene` (fuera del árbol
-    /// SwiftUI), por lo que SwiftUI no se entera de su ciclo de vida. La
-    /// paywall observa este flag para NO auto-cerrarse cuando `isSubscribed`
-    /// pasa a `true` durante el canjeo — si la cerrase, iOS quedaría con la
-    /// jerarquía de ventanas desincronizada y las vistas por debajo se
-    /// dibujan recortadas tras pulsar "Done".
-    private(set) var isRedeemingCode: Bool = false
-
+    private(set) var isRedeemingCode = false
     private var updatesTask: Task<Void, Never>?
 
     private init() {
-        self.isSubscribed = UserDefaults.standard.bool(forKey: Self.subscribedKey)
+        let defaults = UserDefaults.standard
+        let storedFriend = defaults.bool(forKey: Self.friendKey)
+        let storedLegacy = defaults.bool(forKey: Self.legacyActiveKey)
+        isSubscribed = storedFriend
+        isLegacyPremiumActive = storedLegacy
+        isFounder = defaults.bool(forKey: Self.founderKey) || storedLegacy
+        contributionCount = defaults.integer(forKey: Self.contributionCountKey)
+        supporterIcon = SupporterIcon(
+            rawValue: defaults.string(forKey: Self.supporterIconKey) ?? ""
+        ) ?? .standard
+        if isFounder { defaults.set(true, forKey: Self.founderKey) }
 
-        // Escuchar Transaction.updates para renovaciones/revocaciones en tiempo real.
         updatesTask = Task { [weak self] in
             await self?.listenForTransactions()
         }
-        // Verificar entitlements actuales al arrancar (cubre cambios mientras
-        // la app estaba cerrada y no llegó ningún Transaction.update).
-        Task { await verifyCurrentEntitlements() }
+        Task { await refreshPurchaseState() }
     }
 
-    // MARK: - Productos
-
-    /// Carga los productos de App Store. Llamado al abrir la paywall.
-    /// Falla silenciosamente si no hay red o los IDs aún no existen en ASC.
     func loadProducts() async {
         do {
-            let loaded = try await Product.products(for: [Self.monthlyProductID, Self.yearlyProductID])
-            products = loaded.sorted { $0.price < $1.price }
+            let ids = Self.friendProductIDs + Self.contributionProductIDs
+            products = try await Product.products(for: ids).sorted { $0.price < $1.price }
         } catch {
-            // La paywall muestra precios hardcoded como fallback.
+            purchaseError = "No se pudieron cargar las opciones de apoyo."
         }
     }
 
-    // MARK: - Paywall
+    var friendProducts: [Product] {
+        products.filter { Self.friendProductIDs.contains($0.id) }
+    }
+
+    var contributionProducts: [Product] {
+        products.filter { Self.contributionProductIDs.contains($0.id) }
+    }
 
     func presentPaywall(_ source: PaywallSource) {
         Haptics.play(.primaryAction)
         pendingPaywallSource = source
-        AnalyticsService.shared.logEvent("paywall_view", parameters: [
-            "source": source.rawValue,
-        ])
+        AnalyticsService.shared.logEvent("support_view", parameters: ["source": source.rawValue])
         Task { await loadProducts() }
     }
 
@@ -125,26 +121,41 @@ final class PremiumService {
         purchaseError = nil
     }
 
-    // MARK: - Compra
-
     func subscribe(plan: PremiumPlan) {
-        AnalyticsService.shared.logEvent("paywall_subscribe_tap", parameters: [
+        guard !isLegacyPremiumActive else { return }
+        let id = plan == .yearly ? Self.yearlyProductID : Self.monthlyProductID
+        AnalyticsService.shared.logEvent("support_subscribe_tap", parameters: [
             "plan": plan.rawValue,
             "source": pendingPaywallSource?.rawValue ?? "unknown",
         ])
         #if DEBUG
-        // Builds Debug: activación directa para testing sin StoreKit sandbox.
-        setSubscribed(true)
+        setFriendSubscribed(true)
         #else
-        Task { await performPurchase(plan: plan) }
+        Task { await performPurchase(productID: id, kind: .friend(plan)) }
         #endif
     }
 
-    private func performPurchase(plan: PremiumPlan) async {
-        let targetID = plan == .yearly ? Self.yearlyProductID : Self.monthlyProductID
+    func contribute(productID: String) {
+        guard Self.contributionProductIDs.contains(productID) else { return }
+        AnalyticsService.shared.logEvent("support_contribution_tap", parameters: [
+            "product_id": productID,
+        ])
+        #if DEBUG
+        recordContribution()
+        #else
+        Task { await performPurchase(productID: productID, kind: .contribution) }
+        #endif
+    }
+
+    private enum PurchaseKind {
+        case friend(PremiumPlan)
+        case contribution
+    }
+
+    private func performPurchase(productID: String, kind: PurchaseKind) async {
         if products.isEmpty { await loadProducts() }
-        guard let product = products.first(where: { $0.id == targetID }) else {
-            purchaseError = "No se pudo cargar el producto. Inténtalo de nuevo."
+        guard let product = products.first(where: { $0.id == productID }) else {
+            purchaseError = "Esta opción no está disponible ahora mismo."
             return
         }
 
@@ -153,138 +164,122 @@ final class PremiumService {
         defer { isPurchasing = false }
 
         do {
-            let result = try await product.purchase()
-            switch result {
+            switch try await product.purchase() {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
-                setSubscribed(true)
+                switch kind {
+                case .friend:
+                    setFriendSubscribed(true)
+                case .contribution:
+                    recordContribution()
+                }
                 await transaction.finish()
-                AnalyticsService.shared.logEvent("purchase_success", parameters: [
-                    "plan": plan.rawValue,
+                AnalyticsService.shared.logEvent("support_purchase_success", parameters: [
                     "product_id": product.id,
                 ])
-            case .userCancelled:
-                break
-            case .pending:
-                // Ask to Buy u otro flujo externo — esperamos Transaction.updates.
+            case .userCancelled, .pending:
                 break
             @unknown default:
                 break
             }
         } catch {
             purchaseError = "No se pudo completar la compra. Inténtalo de nuevo."
-            AnalyticsService.shared.logEvent("purchase_error", parameters: [
-                "plan": plan.rawValue,
+            AnalyticsService.shared.logEvent("support_purchase_error", parameters: [
+                "product_id": productID,
                 "error": error.localizedDescription,
             ])
         }
     }
 
-    // MARK: - Restore
-
     @discardableResult
     func restorePurchases() async -> Bool {
-        AnalyticsService.shared.logEvent("paywall_restore_tap", parameters: [:])
         isPurchasing = true
         defer { isPurchasing = false }
-
         do {
             try await AppStore.sync()
-            var hasActive = false
-            for await result in Transaction.currentEntitlements {
-                if case .verified(let tx) = result,
-                   [Self.monthlyProductID, Self.yearlyProductID].contains(tx.productID),
-                   tx.revocationDate == nil {
-                    hasActive = true
-                    await tx.finish()
-                }
-            }
-            setSubscribed(hasActive)
-            if hasActive {
-                AnalyticsService.shared.logEvent("restore_success", parameters: [:])
-            }
-            return hasActive
+            await refreshPurchaseState()
+            return isSubscribed || isLegacyPremiumActive || isFounder
         } catch {
             return false
         }
     }
 
-    // MARK: - Canjear código
+    private func refreshPurchaseState() async {
+        defer { hasRefreshedPurchaseState = true }
+        var friendActive = false
+        var legacyActive = false
 
-    /// Abre el sheet nativo de App Store para introducir un código (offer code
-    /// o promo code). Apple gestiona la validación y, si es válido, dispara
-    /// `Transaction.updates` que actualiza `isSubscribed` automáticamente.
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let tx) = result, tx.revocationDate == nil else { continue }
+            if Self.friendProductIDs.contains(tx.productID) { friendActive = true }
+            if Self.legacyProductIDs.contains(tx.productID) {
+                legacyActive = true
+                recognizeFounder()
+            }
+        }
+
+        // StoreKit permite recuperar una compra Premium anterior aunque ya haya
+        // vencido; se excluyen las transacciones revocadas.
+        for await result in Transaction.all {
+            guard case .verified(let tx) = result,
+                  Self.legacyProductIDs.contains(tx.productID),
+                  tx.revocationDate == nil else { continue }
+            recognizeFounder()
+            break
+        }
+
+        setFriendSubscribed(friendActive)
+        setLegacyPremiumActive(legacyActive)
+    }
+
+    private func listenForTransactions() async {
+        for await result in Transaction.updates {
+            do {
+                let tx = try checkVerified(result)
+                if Self.friendProductIDs.contains(tx.productID) {
+                    setFriendSubscribed(tx.revocationDate == nil)
+                } else if Self.legacyProductIDs.contains(tx.productID) {
+                    if tx.revocationDate == nil { recognizeFounder() }
+                    await refreshPurchaseState()
+                } else if Self.contributionProductIDs.contains(tx.productID),
+                          tx.revocationDate == nil {
+                    recordContribution()
+                }
+                await tx.finish()
+            } catch {
+                // Las transacciones no verificadas no alteran reconocimientos.
+            }
+        }
+    }
+
     func presentCodeRedemption() {
-        AnalyticsService.shared.logEvent("paywall_redeem_code_tap", parameters: [
-            "source": pendingPaywallSource?.rawValue ?? "settings",
-        ])
-        // Marcamos canje en curso para que la paywall NO se auto-cierre cuando
-        // `Transaction.updates` ponga `isSubscribed = true`. Si cerrase, iOS
-        // dejaría el sheet UIKit del App Store huérfano y la jerarquía de
-        // ventanas quedaría con safe-area/clipping corrupto, recortando las
-        // vistas de fondo (Hoy/Mes/Temporada).
         isRedeemingCode = true
         #if DEBUG
-        // En Debug no hay App Store real — simulamos un canjeo activando el flag.
-        // Bajamos `isRedeemingCode` inmediatamente porque no hay sheet UIKit
-        // huérfano del que protegerse; queremos que la paywall se auto-cierre
-        // con normalidad cuando `isSubscribed` cambie a true.
         isRedeemingCode = false
-        setSubscribed(true)
+        setFriendSubscribed(true)
         #else
-        if #available(iOS 16.0, *),
-           let scene = UIApplication.shared.connectedScenes
+        guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })
-        {
-            Task { [weak self] in
-                try? await AppStore.presentOfferCodeRedeemSheet(in: scene)
-                // Tras cerrar el sheet de App Store (UIKit montado fuera del
-                // árbol SwiftUI), la jerarquía de ventanas puede quedar con
-                // safe-area corrupta. Forzar relayout del root window evita
-                // que las vistas de fondo (Hoy/Mes/Temporada) se dibujen
-                // recortadas. Esperamos un frame para que iOS termine de
-                // desmontar el sheet antes de invalidar el layout.
-                try? await Task.sleep(for: .milliseconds(100))
-                await MainActor.run {
-                    self?.invalidateRootLayout()
-                    self?.isRedeemingCode = false
-                }
-            }
-        } else {
+            .first(where: { $0.activationState == .foregroundActive }) else {
             isRedeemingCode = false
+            return
+        }
+        Task { [weak self] in
+            try? await AppStore.presentOfferCodeRedeemSheet(in: scene)
+            try? await Task.sleep(for: .milliseconds(100))
+            self?.isRedeemingCode = false
+            await self?.refreshPurchaseState()
         }
         #endif
     }
 
-    /// Limpia el flag de canje en curso. La paywall lo llama en su `onDismiss`
-    /// (cuando el usuario cierra manualmente la sheet con la X), garantizando
-    /// que las próximas compras vuelvan a comportarse con auto-dismiss normal.
     func clearRedemptionFlag() {
         isRedeemingCode = false
     }
 
-    /// Fuerza un relayout completo del root window. Workaround para el bug
-    /// de safe-area corrupta tras cerrar el sheet nativo de App Store (canjeo
-    /// de código). Sin esto, las vistas de fondo aparecen recortadas a media
-    /// pantalla en iOS 17/18.
-    private func invalidateRootLayout() {
-        for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene else { continue }
-            for window in windowScene.windows {
-                window.setNeedsLayout()
-                window.layoutIfNeeded()
-                window.rootViewController?.view.setNeedsLayout()
-                window.rootViewController?.view.layoutIfNeeded()
-            }
-        }
-    }
-
-    // MARK: - Cancel
-
     func cancelSubscription() {
         #if DEBUG
-        setSubscribed(false)
+        setFriendSubscribed(false)
         #else
         if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
             UIApplication.shared.open(url)
@@ -292,37 +287,51 @@ final class PremiumService {
         #endif
     }
 
-    // MARK: - Verificación al arrancar
-
-    private func verifyCurrentEntitlements() async {
-        var hasActive = false
-        for await result in Transaction.currentEntitlements {
-            if case .verified(let tx) = result,
-               [Self.monthlyProductID, Self.yearlyProductID].contains(tx.productID),
-               tx.revocationDate == nil {
-                hasActive = true
-            }
+    func setSupporterIcon(_ icon: SupporterIcon) {
+        let allowed = switch icon {
+        case .standard: true
+        case .founder: isFounder
+        case .friend: isSubscribed
         }
-        if hasActive != isSubscribed {
-            setSubscribed(hasActive)
+        guard allowed, UIApplication.shared.supportsAlternateIcons else { return }
+        if icon == .friend, supporterIcon != .friend {
+            UserDefaults.standard.set(supporterIcon.rawValue, forKey: Self.previousSupporterIconKey)
+        }
+        UIApplication.shared.setAlternateIconName(icon.alternateIconName) { [weak self] error in
+            guard error == nil else { return }
+            Task { @MainActor in
+                self?.supporterIcon = icon
+                UserDefaults.standard.set(icon.rawValue, forKey: Self.supporterIconKey)
+            }
         }
     }
 
-    // MARK: - Transaction updates (segundo plano)
-
-    private func listenForTransactions() async {
-        for await result in Transaction.updates {
-            do {
-                let tx = try checkVerified(result)
-                let isOurs = [Self.monthlyProductID, Self.yearlyProductID].contains(tx.productID)
-                if isOurs {
-                    setSubscribed(tx.revocationDate == nil)
-                }
-                await tx.finish()
-            } catch {
-                // Transacción no verificada — ignorar.
-            }
+    private func setFriendSubscribed(_ value: Bool) {
+        isSubscribed = value
+        UserDefaults.standard.set(value, forKey: Self.friendKey)
+        if !value && supporterIcon == .friend {
+            let previous = SupporterIcon(
+                rawValue: UserDefaults.standard.string(forKey: Self.previousSupporterIconKey) ?? ""
+            ) ?? .standard
+            setSupporterIcon(previous == .founder && isFounder ? .founder : .standard)
         }
+    }
+
+    private func setLegacyPremiumActive(_ value: Bool) {
+        isLegacyPremiumActive = value
+        UserDefaults.standard.set(value, forKey: Self.legacyActiveKey)
+        if value { recognizeFounder() }
+    }
+
+    private func recognizeFounder() {
+        guard !isFounder else { return }
+        isFounder = true
+        UserDefaults.standard.set(true, forKey: Self.founderKey)
+    }
+
+    private func recordContribution() {
+        contributionCount += 1
+        UserDefaults.standard.set(contributionCount, forKey: Self.contributionCountKey)
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
@@ -336,34 +345,13 @@ final class PremiumService {
         case failedVerification
     }
 
-    // MARK: - Debug helpers
-
     #if DEBUG
-    func _debugToggle() { setSubscribed(!isSubscribed) }
-    func _debugSetSubscribed(_ value: Bool) { setSubscribed(value) }
+    func _debugToggle() { setFriendSubscribed(!isSubscribed) }
+    func _debugSetSubscribed(_ value: Bool) { setFriendSubscribed(value) }
+    func _debugSetFounder(_ value: Bool) {
+        isFounder = value
+        UserDefaults.standard.set(value, forKey: Self.founderKey)
+        if !value && supporterIcon == .founder { setSupporterIcon(.standard) }
+    }
     #endif
-
-    // MARK: - Persistencia
-
-    private func setSubscribed(_ value: Bool) {
-        let wasSubscribed = isSubscribed
-        UserDefaults.standard.set(value, forKey: Self.subscribedKey)
-        isSubscribed = value
-        if value && !wasSubscribed {
-            applyDefaultRaceFollowPresetOnPremiumActivation()
-        }
-    }
-
-    /// Al activarse Premium por primera vez, si el modo de seguimiento sigue en
-    /// el default `.followAll`, lo cambiamos a `.followRaces` ("Selectas") para
-    /// evitar que el usuario reciba notificaciones de TODAS las carreras nada
-    /// más suscribirse. Respetamos la lista existente de `followedRaceIds`: si
-    /// está vacía, el usuario recibirá cero notificaciones hasta que siga una
-    /// carrera manualmente. No tocamos los modos `.followRaces`/`.followFilters`
-    /// porque indican una elección consciente previa.
-    private func applyDefaultRaceFollowPresetOnPremiumActivation() {
-        let follow = RaceFollowService.shared
-        guard follow.followMode == .followAll else { return }
-        follow.setMode(.followRaces)
-    }
 }

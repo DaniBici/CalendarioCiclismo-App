@@ -11,10 +11,7 @@ import Foundation
 /// - `@Observable` para que cambios en runtime recalculen filtros sin
 ///   reiniciar la app.
 ///
-/// Las preferencias distintas de `.spain` son features Premium en Fase 6:
-/// muestran grupos regionales adicionales (PT, FR, BE, ..., NORTEAM, LATAM,
-/// ASIAPAC, AFRICA, MENA) que NUNCA estuvieron disponibles en la app
-/// gratuita. Cumple Apple Guideline 3.1.2(a) — no degradar lo gratis.
+/// Todas las preferencias regionales están disponibles sin compra desde 4.3.
 @MainActor @Observable
 final class RegionService {
     static let shared = RegionService()
@@ -61,9 +58,6 @@ final class RegionService {
                 ]
             }
         }
-
-        /// True si esta preferencia es feature Premium (todo lo que NO sea `.spain`).
-        var isPremium: Bool { self != .spain }
 
         /// Etiqueta visible en la UI. Devuelve la cadena fuente en español;
         /// `LocalizedStringKey(label)` resuelve la traducción contra el

@@ -90,6 +90,7 @@ fun AppNavHost(navController: NavHostController) {
     val haptic = rememberHaptics()
     val app = rememberApp()
     val isSubscribed by app.premium.isSubscribed.collectAsState()
+    val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     var showContributionPrompt by remember { mutableStateOf(false) }
 
     // Registrar pantalla visible en Firebase Analytics.
@@ -118,7 +119,7 @@ fun AppNavHost(navController: NavHostController) {
         app.analytics.logScreenView(screenName)
     }
 
-    LaunchedEffect(currentRoute, isSubscribed) {
+    LaunchedEffect(currentRoute, isSubscribed, legacyPremiumActive) {
         val route = currentRoute ?: return@LaunchedEffect
         val contentRoute = route in Routes.MAIN_TABS || route.startsWith("race/") ||
             route.startsWith("stage/") || route.startsWith("elevation_profile/") ||
@@ -126,7 +127,11 @@ fun AppNavHost(navController: NavHostController) {
             route.startsWith("start_order/") || route.startsWith("results/") ||
             route.startsWith("transfers_team/")
         if (!contentRoute) return@LaunchedEffect
-        if (app.preferences.recordContributionContentView(route == Routes.TODAY, isSubscribed)) {
+        if (app.preferences.recordContributionContentView(
+                route == Routes.TODAY,
+                isSubscribed || legacyPremiumActive,
+            )
+        ) {
             showContributionPrompt = true
             app.analytics.logEvent("contribution_prompt_view")
         }

@@ -93,6 +93,7 @@
         '/temporada.html': '/en/calendar/',
         '/about.html':   '/en/about/',
         '/abierto.html': '/en/open/',
+        '/apoyar/':      '/en/support/',
         '/buscar.html':  '/en/search/',
         '/resultados/':  '/en/results/',
         '/fichajes/':    '/en/transfers/',
@@ -142,6 +143,7 @@
           '/season/':       '/calendario.html',
           '/about/':        '/about.html',
           '/open/':         '/abierto.html',
+          '/support/':      '/apoyar/',
           '/search/':       '/buscar.html',
           '/results/':      '/resultados/',
           '/transfers/':    '/fichajes/',
@@ -167,6 +169,7 @@
       if (path.startsWith('/en/season/')) return '/calendario.html' + qs;
       if (path.startsWith('/en/about/')) return '/about.html' + qs;
       if (path.startsWith('/en/open/')) return '/abierto.html' + qs;
+      if (path.startsWith('/en/support/')) return '/apoyar/' + qs;
       if (path.startsWith('/en/search/')) return '/buscar.html' + qs;
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;
       if (path.startsWith('/en/transfers/')) return '/fichajes/' + qs;

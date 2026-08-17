@@ -16,19 +16,6 @@ final class NotificationCategoryServiceTests: XCTestCase {
         XCTAssertEqual(NotificationCategoryService.NotificationCategory.results.rawValue, "results")
     }
 
-    // MARK: - isPremium
-
-    func test_general_notPremium() {
-        XCTAssertFalse(NotificationCategoryService.NotificationCategory.general.isPremium)
-    }
-
-    func test_otherCategories_arePremium() {
-        for cat in [NotificationCategoryService.NotificationCategory.raceStart,
-                    .tvStart, .results] {
-            XCTAssertTrue(cat.isPremium, "\(cat.rawValue) debería ser Premium")
-        }
-    }
-
     // MARK: - allCases
 
     func test_allCases_hasFourEntries() {

@@ -110,24 +110,26 @@ MAIN_BLOCKS_EN = {
        onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter=''">
       Dani Sánchez's Website
     </a>
-    <p style="font-size:0.95rem;line-height:1.8;margin:2rem auto 0;max-width:100%">
-      <strong>Calendario Ciclismo is not a business.</strong> All content is free for everyone and will remain so in the future.
-      <br><br>
-      Running it involves server, database, repository and domain costs, which are paid for through user subscriptions, ads in the apps and Dani's personal contribution. More information is available via the button below.
-    </p>
-    <p style="margin-top:2rem">
-      <a href="/en/open/"
-         style="display:inline-flex;align-items:center;justify-content:center;
-                font-family:var(--font-display);font-weight:600;
-                font-size:0.9rem;letter-spacing:0;text-transform:none;
-                padding:0.6rem 1.4rem;background:transparent;color:var(--text);
-                border:1px solid var(--border);border-radius:var(--radius-pill);
-                text-decoration:none;transition:border-color var(--transition),color var(--transition)"
-         onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
-        How this project is made
-      </a>
-    </p>
+    <section style="margin:2rem auto 0;padding:1.4rem 1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">
+      <p style="font-size:0.95rem;line-height:1.8;margin:0;max-width:100%">
+        <strong>Calendario Ciclismo is not a business.</strong> All content is free for everyone and will remain so in the future.
+        <br><br>
+        Running it involves server, database, repository and domain costs. From version 4.3 the apps contain no advertising and every feature is free. The project is funded through voluntary contributions from its Friends and Dani's personal contribution. More information is available via the button below.
+      </p>
+      <p style="margin:1.5rem 0 0">
+        <a href="/en/open/"
+           style="display:inline-flex;align-items:center;justify-content:center;
+                  font-family:var(--font-display);font-weight:600;
+                  font-size:0.9rem;letter-spacing:0;text-transform:none;
+                  padding:0.6rem 1.4rem;background:transparent;color:var(--text);
+                  border:1px solid var(--border);border-radius:var(--radius-pill);
+                  text-decoration:none;transition:border-color var(--transition),color var(--transition)"
+           onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+           onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+          Transparency
+        </a>
+      </p>
+    </section>
   </main>""",
 
     "privacidad.html": """\

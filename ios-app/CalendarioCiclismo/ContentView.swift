@@ -94,9 +94,7 @@ struct ContentView: View {
             get: { premium.pendingPaywallSource != nil },
             set: { if !$0 { premium.dismissPaywall() } }
         )) {
-            PaywallView(source: premium.pendingPaywallSource ?? .general) {
-                premium.dismissPaywall()
-            }
+            PaywallView(source: premium.pendingPaywallSource ?? .general)
             .environment(\.locale, localeService.current.locale)
         }
         .alert(
@@ -106,8 +104,8 @@ struct ContentView: View {
                 set: { if !$0 && contributionPrompt.shouldPresent { contributionPrompt.deferPrompt() } }
             )
         ) {
-            Button(localeService.t("Ver Sin anuncios", "See Ad-free")) {
-                contributionPrompt.openPremium()
+            Button(localeService.t("Ver formas de apoyar", "View support options")) {
+                contributionPrompt.openSupport()
                 premium.presentPaywall(.general)
             }
             Button(localeService.t("Ahora no", "Not now"), role: .cancel) {
@@ -115,8 +113,8 @@ struct ContentView: View {
             }
         } message: {
             Text(localeService.t(
-                "Es un proyecto Open Source, independiente y gratuito para todos. Si te gusta, puedes ayudar a sostenerlo y quitar los anuncios.",
-                "It is an independent Open Source project, free for everyone. If you like it, you can help sustain it and remove ads."
+                "Es un proyecto Open Source, independiente, gratuito y sin anuncios. Si te resulta útil, puedes ayudar a sostener sus servidores y mantenimiento.",
+                "It is an independent Open Source project, free and ad-free. If it is useful to you, you can help sustain its servers and maintenance."
             ))
         }
     }

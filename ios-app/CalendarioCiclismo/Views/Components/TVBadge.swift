@@ -177,9 +177,10 @@ struct TVBadge: View {
             Text(text)
                 .font(.caption2)
                 .fontWeight(.medium)
+                .textCase(.uppercase)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
         .background(colors.background)
         .foregroundStyle(colors.foreground)
         .clipShape(RoundedRectangle(cornerRadius: 3))

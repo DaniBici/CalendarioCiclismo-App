@@ -22,11 +22,16 @@ struct SettingsView: View {
 
     private let privacyPolicyURL = URL(string: "https://www.calendariociclismo.app/privacidad.html")
         ?? URL(string: "https://calendariociclismo.app")!
+    private var supportStoryURL: URL {
+        URL(string: LocaleService.isEnglish
+            ? "https://www.calendariociclismo.app/en/support/"
+            : "https://www.calendariociclismo.app/apoyar/")!
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
-                // — Sección: Sin anuncios (suscripción) — primera opción del panel
+                // — Sección: apoyo voluntario — primera opción del panel
                 premiumSection
 
                 // — Sección: Calendario iCal —
@@ -53,8 +58,6 @@ struct SettingsView: View {
                 // — Sección: Privacidad —
                 privacySection
 
-                // — Sección: Acerca de / Licencias —
-                aboutSection
             }
             .padding(.bottom, 24)
         }
@@ -989,7 +992,7 @@ struct SettingsView: View {
         .ccCardSurface()
     }
 
-    // MARK: - Premium
+    // MARK: - Sostenimiento
 
     @ViewBuilder
     private var premiumSection: some View {
@@ -1007,15 +1010,23 @@ struct SettingsView: View {
                     endPoint: .bottomTrailing
                 ))
                 .accessibilityHidden(true)
-                Text(localeService.t("Sin anuncios", "Ad-free"))
+                Text(localeService.t("Apoyar Calendario Ciclismo", "Support Calendario Ciclismo"))
                     .font(.title3)
                     .fontWeight(.bold)
             }
             .padding(.horizontal)
             .accessibilityAddTraits(.isHeader)
 
-            if premium.isSubscribed {
+            if premium.isLegacyPremiumActive {
+                founderCard
+                    .padding(.horizontal)
+            } else if premium.isSubscribed {
                 premiumActiveCard
+                    .padding(.horizontal)
+            } else if premium.isFounder {
+                founderCard
+                    .padding(.horizontal)
+                premiumCTACard
                     .padding(.horizontal)
             } else {
                 premiumCTACard
@@ -1024,21 +1035,54 @@ struct SettingsView: View {
                     .padding(.horizontal)
             }
 
-            // Nota "no busca beneficio": el proyecto no es un negocio y la
-            // suscripción solo cubre costes (ver docs/memory/premium.md).
+            if premium.isFounder || premium.isSubscribed {
+                supporterIconChooser
+                    .padding(.horizontal)
+            }
+
             Text(localeService.t(
-                "Todas las funciones son gratis. Esto no es un negocio: los anuncios y las suscripciones solo cubren los costes de servidor.",
-                "Every feature is free. This is not a business: the ads and subscriptions only cover the server costs."
+                "Todas las funciones son gratuitas. Las aportaciones ayudan a cubrir servidores, herramientas y mantenimiento.",
+                "Every feature is free. Contributions help cover servers, tools and maintenance."
             ))
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.horizontal)
+
+            supportStoryLink
+                .padding(.horizontal)
 
             #if DEBUG
             premiumDebugCard
                 .padding(.horizontal)
             #endif
         }
+    }
+
+    private var supportStoryLink: some View {
+        Link(destination: supportStoryURL) {
+            HStack(spacing: 10) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+                Text(localeService.t(
+                    "Por qué ahora es gratis y sin anuncios",
+                    "Why it is now free and ad-free"
+                ))
+                .font(.subheadline)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(14)
+            .ccCardSurface()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(localeService.t(
+            "Abre la explicación pública del cambio",
+            "Opens the public explanation of the change"
+        ))
     }
 
     private var premiumCTACard: some View {
@@ -1063,10 +1107,10 @@ struct SettingsView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(localeService.t("Quitar anuncios", "Remove ads"))
+                    Text(localeService.t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"))
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Text(localeService.t("Disfruta la app sin anuncios y apoya su desarrollo.", "Enjoy the app ad-free and support its development."))
+                    Text(localeService.t("Una aportación voluntaria para sostener un proyecto abierto y gratuito.", "A voluntary contribution to sustain an open and free project."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1083,8 +1127,8 @@ struct SettingsView: View {
             .ccCardSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(localeService.t("Quitar anuncios", "Remove ads"))
-        .accessibilityHint(localeService.t("Abre la pantalla de suscripción sin anuncios", "Opens the ad-free subscription screen"))
+        .accessibilityLabel(localeService.t("Hacerme amigo", "Become a Friend"))
+        .accessibilityHint(localeService.t("Abre las opciones voluntarias de sostenimiento", "Opens the voluntary support options"))
     }
 
     /// Fila de "Canjear código" mostrada también cuando el usuario NO tiene
@@ -1143,10 +1187,10 @@ struct SettingsView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(localeService.t("Sin anuncios activo", "Ad-free active"))
+                    Text(localeService.t("Amigo activo", "Friend active"))
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Text(localeService.t("Gracias por apoyar el desarrollo de la app.", "Thank you for supporting the app's development."))
+                    Text(localeService.t("Gracias por ayudar a sostener el proyecto.", "Thank you for helping sustain the project."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1194,6 +1238,88 @@ struct SettingsView: View {
         .ccCardSurface()
     }
 
+    private var founderCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(localeService.t("Fundador", "Founder"), systemImage: "medal.fill")
+                .font(.headline)
+                .foregroundStyle(.orange)
+            Text(localeService.t(
+                "Tu Premium anterior no se convertirá en otra suscripción. Conservas para siempre el icono Fundador.",
+                "Your previous Premium plan will not become another subscription. You keep the Founder icon permanently."
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
+    }
+
+    private var supporterIconChooser: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localeService.t("Icono de la aplicación", "App icon"))
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            HStack(spacing: 8) {
+                iconChoice(.standard, label: localeService.t("Original", "Original"), color: Color(red: 0.10, green: 0.45, blue: 0.91), imageName: "OriginalAppIcon")
+                if premium.isFounder {
+                    iconChoice(.founder, label: localeService.t("Fundador", "Founder"), color: Color(red: 0.06, green: 0.09, blue: 0.16), imageName: "SupportIconFounder")
+                }
+                if premium.isSubscribed {
+                    iconChoice(.friend, label: localeService.t("Amigo", "Friend"), color: .white, imageName: "SupportIconFriend")
+                }
+            }
+        }
+        .padding(16)
+        .ccCardSurface()
+    }
+
+    private func iconChoice(
+        _ icon: PremiumService.SupporterIcon,
+        label: String,
+        color: Color,
+        imageName: String? = nil
+    ) -> some View {
+        Button {
+            premium.setSupporterIcon(icon)
+        } label: {
+            VStack(spacing: 5) {
+                if let imageName {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 42, height: 42)
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 9)
+                                .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        }
+                } else {
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(color)
+                        .frame(width: 42, height: 42)
+                        .overlay {
+                        HStack(spacing: 1) {
+                            Image(systemName: "calendar")
+                            Image(systemName: "bicycle")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        }
+                }
+                Text(label)
+                    .font(.caption2)
+                if premium.supporterIcon == icon {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+
     #if DEBUG
     /// Solo en builds Debug. Permite forzar el flag Premium para validar
     /// la UI sin tener una compra real. NO se compila en Release.
@@ -1210,7 +1336,7 @@ struct SettingsView: View {
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Forzar suscripción Premium")
+                    Text("Forzar membresía Amigo")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     Text("Toggle solo visible en builds Debug.")
@@ -1218,7 +1344,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                Toggle("Forzar Premium", isOn: Binding(
+                Toggle("Forzar Amigo", isOn: Binding(
                     get: { premium.isSubscribed },
                     set: { premium._debugSetSubscribed($0) }
                 ))
@@ -1304,54 +1430,6 @@ struct SettingsView: View {
             }
             .padding(.horizontal)
         }
-    }
-
-    // — Sección: Acerca de / Licencias —
-    // Aviso de licencia de los materiales de terceros redistribuidos en la app
-    // (flag-icons, MIT). El detalle completo vive en la web /abierto.html.
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(icon: "info.circle", title: localeService.t("Datos abiertos", "Open data"))
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text(localeService.t(
-                    "Los iconos de banderas usan flag-icons (© 2013 Panayiotis Lipiridis), bajo licencia MIT. Cartografía de los mapas: © OpenStreetMap contributors (ODbL), imágenes de satélite de Esri y elevación de AWS Terrain Tiles.",
-                    "Flag icons use flag-icons (© 2013 Panayiotis Lipiridis), under the MIT licence. Map cartography: © OpenStreetMap contributors (ODbL), satellite imagery by Esri and elevation by AWS Terrain Tiles."))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // Mismo aspecto que el CTA «Ver clasificaciones» (ResultsButtonsCard):
-                // botón relleno de acento, texto blanco semibold, radio 3.
-                Link(destination: openPageURL) {
-                    Text(localeService.t("Cómo se hace este proyecto", "How this project is made"))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
-                .accessibilityLabel(localeService.t("Cómo se hace este proyecto", "How this project is made"))
-                .accessibilityHint(localeService.t("Se abrirá en el navegador", "Will open in browser"))
-                .accessibilityIdentifier("about_licenses_link")
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .ccCardSurface()
-            // El header y la tarjeta llevan su propio `.padding(.horizontal)`
-            // (como el resto de secciones); NO poner el padding en el VStack
-            // exterior o el header quedaría con doble sangría y desalineado.
-            .padding(.horizontal)
-        }
-    }
-
-    private var openPageURL: URL {
-        URL(string: LocaleService.isEnglish
-            ? "https://www.calendariociclismo.app/en/open/"
-            : "https://www.calendariociclismo.app/abierto.html")!
     }
 
     // MARK: - Helpers

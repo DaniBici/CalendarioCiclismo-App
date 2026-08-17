@@ -64,16 +64,15 @@ Emitidos en **ambas plataformas** con los mismos nombres y parámetros:
 | Evento | Parámetros | Notas |
 |---|---|---|
 | `onboarding_view` | `onboarding_step` | Pantallas de onboarding (notifications, offline, language_announcement, premium_showcase). |
-| `onboarding_action` | `onboarding_step`, `action` | `action`: `accepted`, `skipped`, `try_premium`, `continue_free`. |
-| `paywall_view` | `source` | Origen del CTA del paywall. |
-| `paywall_subscribe_tap` | `plan`, `source` | `plan`: `monthly`/`yearly`. |
-| `paywall_restore_tap` | — | |
-| `paywall_redeem_code_tap` | `source` | |
-| `purchase_success` | `plan`, `product_id` | Solo Release real (no Debug/`PREMIUM_TEST_BUILD`). |
-| `purchase_error` | `plan`, `error` | Solo Release real. |
-| `restore_success` | — | Solo si la restauración encuentra una suscripción activa. |
+| `onboarding_action` | `onboarding_step`, `action` | En el anuncio 4.3: `open_support` o `continue_free`. |
+| `support_view` | `source` | Origen del acceso a la pantalla de sostenimiento. |
+| `support_subscribe_tap` | `plan`, `source` | `plan`: `monthly`/`yearly`. |
+| `support_contribution_tap` | `product_id` | Aportación puntual seleccionada. |
+| `support_restore_tap` | — | Solicitud de restauración. |
+| `support_purchase_success` | `plan`, `product_id` | Compra de Amigo o aportación confirmada. |
+| `support_purchase_error` | `plan`, `error` | Error de compra. |
 
-> **Android — compra:** `purchase_success`/`purchase_error` se emiten desde `BillingManager` vía callbacks (`onPurchaseSuccess`/`onPurchaseError`) que `PremiumService` cablea a `analytics.logEvent`. El `plan` se rastrea desde el `basePlanId` lanzado en `launchPurchase`. `restore_success` se emite en `PremiumService.restorePurchases()`.
+> **Android — compra:** `support_purchase_success`/`support_purchase_error` se emiten desde `BillingManager` vía callbacks que `PremiumService` conecta con `analytics.logEvent`. El `plan` se rastrea desde el `basePlanId` lanzado en `launchSubscription`; `support_restore_tap` se emite al solicitar una restauración.
 
 > **Alcance:** estos eventos de compra alimentan el embudo de GA4/Firebase Console, **no** los reportes del panel admin (`ga-analytics`), que solo usan `screen_view` (top_screens/top_races/top_stages) + métricas estándar + `push_subscriptions`.
 

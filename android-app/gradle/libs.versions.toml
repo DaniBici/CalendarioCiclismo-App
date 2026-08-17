@@ -59,15 +59,6 @@ glance = "1.1.1"
 # Google Play exige Billing Library 8.0.0 o posterior para las actualizaciones.
 billing = "8.2.1"
 
-# Google Mobile Ads (AdMob) — FASE B.
-# Fijado a 24.0.0 (NO 25.x) a propósito: la rama 24.1.0+ y toda la 25.x exigen
-# Kotlin 2.1+ (25.x está compilada con Kotlin 2.3 → su metadata solo la lee un
-# compilador Kotlin 2.3). El proyecto usa Kotlin 2.2.10, así que 24.0.0 es la
-# última versión compatible (minSdk 23, compileSdk 34; el proyecto cumple 26/35).
-# UMP se declara aparte (google-ump) por claridad, aunque 24.x ya lo arrastra.
-googleMobileAds = "24.0.0"
-googleUmp = "3.1.0"
-
 # MapLibre GL Native — mapa del recorrido nativo (OSS; tiles MapTiler vector).
 # Rama 11.x estable; compatible con compileSdk 36 / minSdk 26 / Kotlin 2.2.10.
 maplibre = "11.8.1"
@@ -145,10 +136,6 @@ androidx-glance-material3 = { group = "androidx.glance", name = "glance-material
 
 # Google Play Billing (suscripciones Premium — Fase 6)
 billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
-
-# Google Mobile Ads (AdMob — FASE B). UMP declarado aparte por claridad.
-google-mobile-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "googleMobileAds" }
-google-ump        = { group = "com.google.android.ump", name = "user-messaging-platform", version.ref = "googleUmp" }
 
 # Testing
 junit            = { group = "junit", name = "junit", version.ref = "junit" }

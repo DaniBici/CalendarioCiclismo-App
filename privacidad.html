@@ -62,7 +62,7 @@
       <strong>Datos de uso an&oacute;nimos (opcional, solo apps nativas).</strong> Si el usuario activa la opci&oacute;n <strong>&ldquo;Estad&iacute;sticas de uso&rdquo;</strong> en <strong>Ajustes &rarr; Privacidad</strong>, las apps de iOS y Android recopilan datos an&oacute;nimos de interacci&oacute;n mediante Firebase Analytics: pantallas visitadas e interacciones b&aacute;sicas de navegaci&oacute;n. Esta opci&oacute;n est&aacute; <strong>desactivada por defecto</strong> y requiere activaci&oacute;n expl&iacute;cita. No se recogen identificadores publicitarios (IDFA/GAID) ni ning&uacute;n dato vinculado a la identidad del usuario.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      <strong>Estado de suscripci&oacute;n Premium.</strong> Cuando el usuario contrata una suscripci&oacute;n Premium dentro de la app, almacenamos &uacute;nicamente el estado t&eacute;cnico de la suscripci&oacute;n (identificador an&oacute;nimo del dispositivo o cuenta, plan contratado, fecha de inicio, fecha de expiraci&oacute;n y estado de renovaci&oacute;n), necesario para validar el acceso a las funciones Premium. <strong>En ning&uacute;n caso recibimos ni almacenamos datos de pago</strong>: el cobro lo gestiona Apple a trav&eacute;s de la cuenta de Apple ID del usuario y nosotros no tenemos acceso al n&uacute;mero de tarjeta, direcci&oacute;n de facturaci&oacute;n, correo electr&oacute;nico ni cualquier otro dato personal asociado a esa cuenta.
+      <strong>Estado de compras voluntarias.</strong> Para reconocer una membres&iacute;a Amigo activa, una aportaci&oacute;n o una compra Premium hist&oacute;rica, las apps conservan localmente la confirmaci&oacute;n t&eacute;cnica facilitada por la tienda. <strong>No recibimos ni almacenamos datos de pago</strong>: el cobro lo gestionan Apple o Google y no tenemos acceso a tarjetas, direcciones de facturaci&oacute;n ni datos personales de la cuenta.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       No recopilamos nombres, direcciones de correo electr&oacute;nico ni datos de localizaci&oacute;n.
@@ -75,7 +75,7 @@
     <ul style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem;padding-left:1.5rem">
       <li>Env&iacute;o de notificaciones push sobre actualizaciones de contenido y jornadas se&ntilde;aladas del calendario ciclista.</li>
       <li>An&aacute;lisis an&oacute;nimo del uso de la aplicaci&oacute;n para mejorar la experiencia y el rendimiento del servicio. La recolecci&oacute;n est&aacute; desactivada por defecto y el usuario puede activarla o desactivarla en cualquier momento desde <strong>Ajustes &rarr; Privacidad &rarr; Estad&iacute;sticas de uso</strong>.</li>
-      <li>Validaci&oacute;n y gesti&oacute;n del estado de la suscripci&oacute;n Premium contratada por el usuario, para habilitar las funciones desbloqueadas y verificar la vigencia del plan.</li>
+      <li>Validaci&oacute;n de Amigo, aportaciones puntuales y compras Premium hist&oacute;ricas para mostrar reconocimientos cosm&eacute;ticos. Ninguna funci&oacute;n depende de estas compras.</li>
     </ul>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">4. Base legal</h2>
@@ -85,23 +85,23 @@
     <ul style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem;padding-left:1.5rem">
       <li><strong>Notificaciones push:</strong> consentimiento expl&iacute;cito del usuario (art. 6.1.a RGPD), solicitado antes de activar las notificaciones en la aplicaci&oacute;n.</li>
       <li><strong>Estad&iacute;sticas de uso:</strong> inter&eacute;s leg&iacute;timo del responsable del tratamiento (art. 6.1.f RGPD) para mejorar la experiencia y el rendimiento del servicio. Los datos recogidos son an&oacute;nimos y agregados, sin identificadores publicitarios. El usuario puede oponerse al tratamiento en cualquier momento desactivando la opci&oacute;n en <strong>Ajustes &rarr; Privacidad &rarr; Estad&iacute;sticas de uso</strong>.</li>
-      <li><strong>Suscripciones Premium:</strong> ejecuci&oacute;n del contrato suscrito entre el usuario y el responsable del tratamiento (art. 6.1.b RGPD). El tratamiento del estado de la suscripci&oacute;n es necesario para prestar el servicio contratado.</li>
+      <li><strong>Compras voluntarias:</strong> ejecuci&oacute;n del contrato solicitado expresamente por el usuario (art. 6.1.b RGPD).</li>
     </ul>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">5. Almacenamiento de los datos</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      El token de dispositivo y el estado de la suscripci&oacute;n Premium se almacenan en una base de datos PostgreSQL gestionada a trav&eacute;s de la infraestructura de <strong>Supabase</strong>, con servidores ubicados en la Uni&oacute;n Europea. Puedes consultar las pr&aacute;cticas de seguridad y privacidad de Supabase en <a href="https://supabase.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">supabase.com/privacy</a>.
+      El token de dispositivo se almacena en una base de datos PostgreSQL gestionada a trav&eacute;s de <strong>Supabase</strong>, con servidores ubicados en la Uni&oacute;n Europea. El estado de compras se valida mediante StoreKit o Google Play Billing y se conserva localmente. Puedes consultar las pr&aacute;cticas de Supabase en <a href="https://supabase.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">supabase.com/privacy</a>.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       Los datos de estad&iacute;sticas de uso (cuando est&aacute;n activados) son procesados y almacenados por <strong>Google LLC</strong> a trav&eacute;s de Firebase Analytics y Google Analytics 4, conforme a su pol&iacute;tica de privacidad disponible en <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">policies.google.com/privacy</a>.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Los datos de pago y facturaci&oacute;n asociados a las suscripciones Premium son tratados exclusivamente por <strong>Apple Inc.</strong> a trav&eacute;s de la cuenta de Apple ID del usuario, conforme a su pol&iacute;tica de privacidad disponible en <a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">apple.com/legal/privacy</a>. El desarrollador no tiene acceso a esos datos.
+      Los datos de pago y facturaci&oacute;n son tratados exclusivamente por <strong>Apple Inc.</strong> o <strong>Google LLC</strong> a trav&eacute;s de la cuenta de la tienda. El desarrollador no tiene acceso a esos datos.
     </p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">6. Per&iacute;odo de conservaci&oacute;n</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      El token de notificaciones push se conserva mientras el usuario mantenga las notificaciones activas. Se elimina de forma inmediata cuando el usuario pulsa <strong>&ldquo;Eliminar mis datos&rdquo;</strong> en la aplicaci&oacute;n. Los datos de estad&iacute;sticas de uso son retenidos por Google conforme a la configuraci&oacute;n de retenci&oacute;n de Google Analytics 4 (m&aacute;ximo 14 meses). La recolecci&oacute;n cesa en cuanto el usuario desactiva la opci&oacute;n. El estado de la suscripci&oacute;n Premium se conserva mientras la suscripci&oacute;n est&eacute; activa y durante el plazo legalmente exigible tras su finalizaci&oacute;n a efectos contables y de garant&iacute;a (con car&aacute;cter general, hasta 5 a&ntilde;os conforme al art&iacute;culo 1964 del C&oacute;digo Civil para acciones derivadas del contrato).
+      El token de notificaciones push se conserva mientras el usuario mantenga las notificaciones activas. Se elimina de forma inmediata cuando el usuario pulsa <strong>&ldquo;Eliminar mis datos&rdquo;</strong> en la aplicaci&oacute;n. Los datos de estad&iacute;sticas de uso son retenidos por Google conforme a la configuraci&oacute;n de Google Analytics 4 (m&aacute;ximo 14 meses). La recolecci&oacute;n cesa al desactivarla. El reconocimiento Fundador se conserva localmente para restaurar el beneficio permanente asociado a una compra anterior.
     </p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">7. Derechos del usuario</h2>
@@ -124,26 +124,27 @@
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">8. Cesi&oacute;n de datos a terceros</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Los tokens de notificaciones push son transmitidos a trav&eacute;s de <strong>Apple Push Notification service (APNs)</strong> en iOS y <strong>Google Firebase Cloud Messaging (FCM)</strong> en Android como intermediarios t&eacute;cnicos necesarios para la entrega de las notificaciones. Fuera de este uso t&eacute;cnico, los tokens no se ceden a ning&uacute;n otro tercero. Los datos de estad&iacute;sticas de uso (solo cuando el usuario los activa) son procesados por <strong>Google LLC</strong> a trav&eacute;s de Firebase Analytics y Google Analytics 4 en calidad de encargado del tratamiento. Los datos de pago vinculados a las suscripciones Premium son tratados directamente por <strong>Apple Inc.</strong> como vendedor (<em>Merchant of Record</em>), sin que el desarrollador tenga acceso a ellos. La <strong>versi&oacute;n web no muestra publicidad</strong> ni utiliza redes de anuncios. No se utilizan servicios de intermediaci&oacute;n o venta de datos.
+      Los tokens de notificaciones push son transmitidos a trav&eacute;s de <strong>Apple Push Notification service (APNs)</strong> en iOS y <strong>Google Firebase Cloud Messaging (FCM)</strong> en Android. Los datos de estad&iacute;sticas de uso, cuando se activan, son procesados por <strong>Google LLC</strong> mediante Firebase Analytics y Google Analytics 4. Las compras son tratadas por Apple o Google como vendedores, sin acceso del desarrollador a los datos de pago. Las apps y la web <strong>no muestran publicidad</strong> ni utilizan redes de anuncios. No se venden datos.
     </p>
 
-    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">9. Suscripciones In-App (Premium)</h2>
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">9. Amigo, aportaciones y Premium anterior</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Calendario Ciclismo ofrece una versi&oacute;n Premium mediante suscripciones auto-renovables contratadas dentro de la app a trav&eacute;s de <strong>StoreKit de Apple</strong> (App Store). Esta secci&oacute;n se publica en cumplimiento de la <strong>App Store Review Guideline 3.1.2</strong> sobre transparencia en suscripciones, del RGPD, del Real Decreto Legislativo 1/2007 (Texto Refundido de la Ley General para la Defensa de los Consumidores y Usuarios) y de la Ley 4/2022, de 25 de febrero, sobre contratos celebrados con consumidores y usuarios.
+      Calendario Ciclismo es gratuito, completo y sin anuncios. Amigo de Calendario Ciclismo es una membres&iacute;a voluntaria que solo concede un icono cosm&eacute;tico mientras est&aacute; activa. Las aportaciones puntuales muestran un agradecimiento y no desbloquean funciones. Premium est&aacute; retirado de la venta y no se convierte autom&aacute;ticamente en Amigo.
     </p>
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.1. Planes disponibles y precios</strong></p>
     <ul style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem;padding-left:1.5rem">
-      <li><strong>Premium mensual</strong> &mdash; <code>app.calendariociclismo.premium.mensual</code> &mdash; <strong>2,99 &euro;/mes</strong> (precio de referencia para Espa&ntilde;a; Apple aplica el equivalente en moneda local en otros pa&iacute;ses).</li>
-      <li><strong>Premium anual</strong> &mdash; <code>app.calendariociclismo.premium.anual</code> &mdash; <strong>17,99 &euro;/a&ntilde;o</strong> (equivalente aproximado a 1,50 &euro;/mes, un 50% de ahorro frente al plan mensual; precio de referencia para Espa&ntilde;a).</li>
+      <li><strong>Amigo mensual:</strong> 2,99 &euro;/mes.</li>
+      <li><strong>Amigo anual:</strong> 17,99 &euro;/a&ntilde;o.</li>
+      <li><strong>Aportaciones puntuales:</strong> 2,99 &euro;, 5,99 &euro; y 11,99 &euro;.</li>
     </ul>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Ambos planes desbloquean las mismas funciones Premium: idioma ingl&eacute;s en la app (la versi&oacute;n gratuita est&aacute; disponible &uacute;nicamente en espa&ntilde;ol), selecci&oacute;n de regiones de retransmisi&oacute;n televisiva fuera del baseline gratuito (ALL + ES + EUROPA), notificaciones enriquecidas (aviso T-30 minutos antes del banderazo, aviso T-5 minutos antes de cada retransmisi&oacute;n y resumen de resultados al cierre de la jornada) y, en las racecards de la pantalla &ldquo;Hoy&rdquo;, mini-perfil de elevaci&oacute;n y badge de acceso directo a inscritos. Las notificaciones generales siguen siendo gratuitas para todos los usuarios.
+      Todas las funciones permanecen disponibles sin compra. Cualquier suscriptor Premium anterior recibe el icono Fundador permanente. La restauraci&oacute;n de compras recupera Fundador aunque Premium haya expirado.
     </p>
 
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.2. Periodo de prueba gratuita</strong></p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.2. Consentimiento y ausencia de conversi&oacute;n</strong></p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Los nuevos suscriptores disponen de una <strong>prueba gratuita de 7 d&iacute;as</strong> con acceso completo a todas las funciones Premium. La prueba se inicia al activar la suscripci&oacute;n y, salvo cancelaci&oacute;n con al menos 24 horas de antelaci&oacute;n al final del periodo, se convierte autom&aacute;ticamente en suscripci&oacute;n de pago al plan elegido. Cada cuenta de Apple ID solo puede beneficiarse del periodo de prueba una vez por grupo de suscripciones, conforme a las reglas de App Store.
+      Amigo requiere una compra nueva y expresa. No se convierte ninguna suscripci&oacute;n Premium, no se hacen cargos autom&aacute;ticos por el cambio y no se realizan reembolsos autom&aacute;ticos, sin limitar las v&iacute;as ordinarias de reclamaci&oacute;n de App Store y Google Play.
     </p>
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.3. Renovaci&oacute;n autom&aacute;tica</strong></p>
@@ -162,7 +163,7 @@
       <li>Seleccionar <strong>Calendario Ciclismo</strong> y pulsar <strong>Cancelar suscripci&oacute;n</strong>.</li>
     </ol>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Como alternativa, dentro de la app se ofrece un acceso directo al panel de suscripciones de Apple: <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">apps.apple.com/account/subscriptions</a>. La cancelaci&oacute;n surte efecto al final del periodo ya pagado: el usuario conserva el acceso Premium hasta esa fecha y no se cobra el periodo siguiente.
+      Dentro de la app se ofrece acceso al panel de suscripciones de la tienda. La cancelaci&oacute;n surte efecto al final del periodo pagado; Fundador permanece si existi&oacute; una compra Premium anterior. Apple: <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">gestionar suscripciones</a>. Android: Google Play &rarr; Pagos y suscripciones.
     </p>
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.5. Reembolsos</strong></p>
@@ -172,7 +173,7 @@
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.6. Gesti&oacute;n del pago y datos bancarios</strong></p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Apple es quien cobra, factura y conserva los datos de pago a trav&eacute;s de la cuenta de Apple ID del usuario. <strong>El desarrollador no recibe, no procesa ni almacena</strong> n&uacute;meros de tarjeta, IBAN, direcci&oacute;n de facturaci&oacute;n, correo electr&oacute;nico ni ning&uacute;n otro dato personal asociado a la cuenta de Apple ID. La &uacute;nica informaci&oacute;n disponible para el desarrollador es la confirmaci&oacute;n t&eacute;cnica del estado de la suscripci&oacute;n (activa, en periodo de prueba, expirada, etc.), necesaria para validar el acceso a las funciones Premium.
+      Apple o Google cobran, facturan y conservan los datos de pago. <strong>El desarrollador no recibe, procesa ni almacena</strong> n&uacute;meros de tarjeta, IBAN, direcci&oacute;n de facturaci&oacute;n ni datos personales de esas cuentas. Solo recibe la confirmaci&oacute;n t&eacute;cnica necesaria para reconocer la compra.
     </p>
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem"><strong>9.7. Derecho de desistimiento</strong></p>
@@ -180,14 +181,14 @@
       Conforme a los art&iacute;culos 102 y siguientes del Real Decreto Legislativo 1/2007, el consumidor dispone con car&aacute;cter general de un plazo de <strong>14 d&iacute;as naturales</strong> desde la celebraci&oacute;n del contrato para desistir del mismo sin necesidad de justificaci&oacute;n.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      <strong>Excepci&oacute;n aplicable a este servicio:</strong> el art&iacute;culo 103.m) del Real Decreto Legislativo 1/2007 establece que el derecho de desistimiento <strong>no se aplica al suministro de contenidos digitales no prestados en un soporte material</strong> cuando la ejecuci&oacute;n haya comenzado con el previo consentimiento expreso del consumidor y con el conocimiento por su parte de que pierde su derecho de desistimiento. Al iniciar la prueba gratuita o al confirmar la compra de la suscripci&oacute;n Premium en la app, el usuario consiente expresamente el inicio inmediato del servicio digital y acepta perder el derecho de desistimiento una vez la ejecuci&oacute;n ha comenzado.
+      <strong>Excepci&oacute;n aplicable a este servicio:</strong> el art&iacute;culo 103.m) del Real Decreto Legislativo 1/2007 establece que el derecho de desistimiento <strong>no se aplica al suministro de contenidos digitales no prestados en un soporte material</strong> cuando la ejecuci&oacute;n haya comenzado con consentimiento expreso y conocimiento de esa consecuencia. Al confirmar una compra voluntaria en la tienda, el usuario solicita su ejecuci&oacute;n inmediata.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       Lo anterior no afecta a la posibilidad de <strong>cancelar la renovaci&oacute;n autom&aacute;tica</strong> en cualquier momento (apartado 9.4) ni a las pol&iacute;ticas de reembolso de Apple (apartado 9.5), que pueden ser m&aacute;s amplias que el derecho de desistimiento legal.
     </p>
 
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      <em>Disponibilidad en Android:</em> las suscripciones Premium estar&aacute;n disponibles pr&oacute;ximamente en la app de Android a trav&eacute;s de Google Play Billing. Cuando se publiquen, esta pol&iacute;tica se actualizar&aacute; con las condiciones espec&iacute;ficas de cancelaci&oacute;n y reembolso aplicables a Google.
+      Amigo y las aportaciones est&aacute;n disponibles mediante StoreKit en iOS y Google Play Billing en Android. Las condiciones, cancelaciones y reembolsos adicionales de cada tienda siguen siendo aplicables.
     </p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Cookies, anal&iacute;tica y seguimiento</h2>

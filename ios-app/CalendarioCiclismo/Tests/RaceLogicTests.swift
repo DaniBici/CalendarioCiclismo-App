@@ -171,6 +171,13 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertFalse(label.contains("·"), "ITT + chrono_climb debería devolver solo el label de chrono_climb")
     }
 
+    func test_resolveTypeLabel_ittWithSummitFinishIsChronoClimb() {
+        XCTAssertEqual(
+            RaceLogic.typeLabel("chrono_climb"),
+            RaceLogic.resolveTypeLabel(primary: "itt", secondary: "summit_finish")
+        )
+    }
+
     // MARK: - categoryTier
 
     func test_categoryTier_wtFor1UWT() {

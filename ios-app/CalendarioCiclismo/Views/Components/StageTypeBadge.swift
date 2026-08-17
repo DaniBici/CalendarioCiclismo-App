@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// Badge de tipo de etapa: "Llana", "Alta montaña", "CRI", etc.
-/// Includes an icon for color-blind accessibility.
 struct StageTypeBadge: View {
     let primaryType: String?
     let secondaryType: String?
     var countryCode: String? = nil
+    var compact: Bool = false
     @Environment(\.accessibilityShowButtonShapes) private var showButtonShapes
 
     private var isHighContrast: Bool { showButtonShapes }
@@ -16,17 +16,12 @@ struct StageTypeBadge: View {
             let resolvedColorType = resolveColorType(primary: primary, secondary: secondaryType)
             let colors = AppTheme.stageTypeBadgeColor(for: resolvedColorType, highContrast: isHighContrast)
 
-            HStack(spacing: 3) {
-                if let iconName = AccessibilityStageType.iconName(for: resolvedColorType) {
-                    Image(systemName: iconName)
-                        .font(.system(size: 8))
-                }
-                Text(label)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            Text(label)
+            .font(compact ? .system(size: 9) : .caption2)
+            .fontWeight(.medium)
+            .textCase(.uppercase)
+            .padding(.horizontal, compact ? 6 : 8)
+            .padding(.vertical, compact ? 1 : 3)
             .background(colors.background)
             .foregroundStyle(colors.foreground)
             .clipShape(RoundedRectangle(cornerRadius: 3))
@@ -44,7 +39,7 @@ struct StageTypeBadge: View {
     /// cronoescalada (itt+chrono_climb) usan colores especiales.
     private func resolveColorType(primary: String, secondary: String?) -> String {
         if primary == "flat" && secondary == "summit_finish" { return "high_mountain" }
-        if primary == "itt" && secondary == "chrono_climb" { return "chrono_climb" }
+        if primary == "itt" && (secondary == "chrono_climb" || secondary == "summit_finish") { return "chrono_climb" }
         return primary
     }
 }

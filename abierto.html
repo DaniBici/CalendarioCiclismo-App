@@ -90,9 +90,9 @@
     .seed { font-size: 0.9rem; line-height: 1.7; color: var(--text-muted); }
     /* Botón al repositorio — variante outline del botón de about.html */
     .license__btn {
-      display: inline-flex; align-items: center; gap: 0.5rem; justify-content: center;
+      display: flex; width: fit-content; align-items: center; gap: 0.5rem; justify-content: center;
       font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
-      padding: 0.6rem 1.4rem; margin-top: 0.4rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
       background: transparent; color: var(--text);
       border: 1px solid var(--border); border-radius: var(--radius-pill);
       text-decoration: none;
@@ -100,6 +100,14 @@
     }
     .license__btn:hover { border-color: var(--accent); color: var(--accent-text); }
     .license__btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+    .support__btn {
+      display: flex; width: fit-content; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
+      background: var(--accent); color: #fff; border-radius: var(--radius-pill);
+      text-decoration: none; transition: filter var(--transition);
+    }
+    .support__btn:hover { filter: brightness(1.08); }
     /* Cuentas del proyecto — dos columnas gastos / ingresos */
     .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin: 1.25rem 0 1.1rem; }
     .ledger h3 { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.7rem; color: var(--text); }
@@ -150,11 +158,25 @@
     <section>
       <h2>Cómo se sostiene</h2>
       <p>
-        Calendario Ciclismo no es un negocio. Mantenerlo en marcha tiene un coste -los servidores
-        y la base de datos que guardan y sirven todos los datos, el envío de las notificaciones, el
-        dominio- y ese coste es lo único que los anuncios de las apps y las suscripciones buscan
-        cubrir. El contenido completo es gratis para todo el mundo y seguirá siéndolo.
+        En julio de 2026 se tomó la decisión de hacer Open Source el proyecto y publicar sus cuentas
+        (ver más abajo). Durante los primeros meses, generosas contribuciones de suscriptores Premium
+        financiaron una parte relevante de esta etapa; quienes contrataron esas suscripciones reciben
+        un reconocimiento permanente como Fundador (ver en botón Apoyar).
       </p>
+      <p>
+        La publicidad —cuya eliminación se ofrecía como ventaja de las suscripciones Premium— apenas
+        generó un <strong>4 % de los ingresos</strong>, mientras que los anuncios restaban limpieza, ocupaban
+        espacio destinado a la información y añadían procesos externos que podían reducir la fluidez
+        en algunos dispositivos o condiciones de red. Mantenerlos por esas cantidades no tenía
+        sentido, por lo que se retiraron de forma definitiva.
+      </p>
+      <p>
+        Quien quiera contribuir a pagar los servidores y el mantenimiento puede hacerlo
+        voluntariamente como
+        <strong>Amigo de Calendario Ciclismo</strong> (2,99 €/mes o 17,99 €/año) o mediante una
+        aportación puntual de 2,99 €, 5,99 € o 11,99 €.
+      </p>
+      <a class="support__btn" href="/apoyar/">Apoya a Calendario Ciclismo</a>
     </section>
 
     <section>
@@ -180,7 +202,7 @@
           <ul>
             <li><span>Suscripciones App Store (iOS)</span><span>≈ 92 €</span></li>
             <li><span>Suscripciones Google Play (Android)</span><span>≈ 40 €</span></li>
-            <li><span>Publicidad en las apps</span><span>≈ 6 €</span></li>
+            <li><span>Publicidad en las apps (periodo completo)</span><span>≈ 6 €</span></li>
             <li class="tot"><span>Total</span><span>≈ 138 €</span></li>
           </ul>
         </div>
@@ -191,6 +213,12 @@
         Importes netos y aproximados; las cifras facturadas en dólares (Supabase, GitHub,
         dominios y publicidad) se han convertido a euros al cambio medio del BCE del periodo
         (≈ 1,16 $/€).
+      </p>
+      <p class="disclaimer">
+        Referencia posterior de AdMob: 2,40 € en julio de 2026 y 0,57 € del 1 al
+        16 de agosto de 2026. Son ingresos estimados según la captura del panel tomada el
+        16 de agosto. Gastos, membresías, aportaciones y financiación personal se actualizarán
+        trimestralmente.
       </p>
     </section>
 

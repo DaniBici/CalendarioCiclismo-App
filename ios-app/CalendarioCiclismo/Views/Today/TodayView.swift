@@ -35,6 +35,7 @@ struct TodayView: View {
     /// estable, no en `TodayHighlightsBanner` (que muta su estado cada 5 s y
     /// recreaba `ChampionshipsView`, rompiendo la navegación a la prueba tocada).
     @State private var championshipsRoute: ChampionshipsRoute?
+    @State private var competitionRaceId: IdentifiableID?
     @State private var startlistSheetRaceId: IdentifiableID?
     @State private var startOrderSheetRaceDayId: IdentifiableID?
     @State private var showSettings = false
@@ -236,6 +237,9 @@ struct TodayView: View {
             }
             .navigationDestination(item: $championshipsRoute) { _ in
                 ChampionshipsView()
+            }
+            .navigationDestination(item: $competitionRaceId) { item in
+                RaceDetailView(raceId: item.id)
             }
             // Push por valor a la pantalla de resultados in-house (trofeo de las
             // race cards). Data-driven, como ChampionshipsRoute, para no
@@ -535,15 +539,8 @@ struct TodayView: View {
         } else {
             LazyVStack(spacing: 8) {
                 let items = viewModel.displayItems
-                // Posición del banner (FASE B): tras la 3ª tarjeta (índice 2);
-                // si hay menos de 3 carreras, tras la última.
-                let adIndex = items.count >= 3 ? 2 : items.count - 1
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                ForEach(items) { item in
                     raceItemView(item: item, refreshToken: String(viewModel.refreshToken))
-                    if index == adIndex {
-                        // Se auto-oculta si el usuario está suscrito.
-                        AdBannerSlot()
-                    }
                 }
             }
             .padding(.horizontal)
@@ -655,6 +652,14 @@ struct TodayView: View {
                     onStartOrderTap: {
                         startOrderSheetRaceDayId = IdentifiableID(id: item.raceDay.id)
                     },
+                    onShowCompetition: item.race?.isStageRace == true && item.race?.startDate != item.race?.endDate ? {
+                        guard let raceId = item.race?.id else { return }
+                        if let path = navigationPath {
+                            path.wrappedValue.append(DeepLinkDestination.race(raceId))
+                        } else {
+                            competitionRaceId = IdentifiableID(id: raceId)
+                        }
+                    } : nil,
                     isFinalStage: isFinalStage
                 )
             }

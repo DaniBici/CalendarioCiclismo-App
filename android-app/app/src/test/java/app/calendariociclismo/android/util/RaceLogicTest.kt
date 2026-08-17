@@ -129,6 +129,14 @@ class RaceLogicTest {
         assertFalse(RaceLogic.resolveTypeLabel(context, "itt", "chrono_climb").isEmpty())
     }
 
+    @Test
+    fun `resolveTypeLabel itt con final en alto es cronoescalada`() {
+        assertEquals(
+            RaceLogic.typeLabel(context, "chrono_climb"),
+            RaceLogic.resolveTypeLabel(context, "itt", "summit_finish"),
+        )
+    }
+
     // ── cleanFeminineDisplayName ───────────────────────────────────
 
     @Test

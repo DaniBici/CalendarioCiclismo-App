@@ -38,6 +38,8 @@ const PRIMARY_ICONS = {
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
   about: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg>',
+  support: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>',
+  apps: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
 };
 
 // Buscador ARCHIVADO (2026-07-17): el código de /buscar.html + js/buscar.js se
@@ -52,6 +54,8 @@ const STRINGS = {
     logoAria: 'Calendario Ciclismo — Inicio',
     aboutHref: '/about.html', aboutText: 'Acerca de mí',
     openHref: '/abierto.html', openText: 'Datos abiertos',
+    supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Apoyar',
+    appsText: 'Apps', appsLabel: 'Abrir opciones de apps',
     searchHref: '/buscar.html', searchTitle: 'Buscar',
     themeTitle: 'Cambiar tema',
     viewsAria: 'Vistas',
@@ -67,6 +71,8 @@ const STRINGS = {
     logoAria: 'Calendario Ciclismo — Home',
     aboutHref: '/en/about/', aboutText: 'About me',
     openHref: '/en/open/', openText: 'Open Data',
+    supportHref: 'https://ko-fi.com/calendariociclismo', supportText: 'Support',
+    appsText: 'Apps', appsLabel: 'Open app options',
     searchHref: '/en/search/', searchTitle: 'Search',
     themeTitle: 'Change theme',
     viewsAria: 'Views',
@@ -130,13 +136,15 @@ function buildHeader(el) {
     '<div class="site-header__inner">' +
       backBtn +
       `<a class="site-logo" href="${s.home}" aria-label="${s.logoAria}">${LOGO_SVG}<span class="site-logo__text">Calendario Ciclismo</span></a>` +
-      // Cluster de utilidades, SIEMPRE visible: buscar (desktop) · Apps ·
+      // Cluster de utilidades, SIEMPRE visible: buscar (desktop) · apoyar · Apps ·
       // idioma (slider, lo inyecta lang-switch.js) · tema.
       '<div class="header-actions">' +
         (SEARCH_ENABLED
           ? `<a href="${s.searchHref}" class="nav-search-link" title="${s.searchTitle}">${SEARCH_SVG}</a>`
           : '') +
-        '<button class="nav-apps-btn" id="navAppsBtn">Apps</button>' +
+        `<a class="header-support-link" href="${s.supportHref}" target="_blank" rel="noopener"><span class="header-action-icon">${PRIMARY_ICONS.support}</span><span>${s.supportText}</span></a>` +
+        '<span class="header-actions__divider" aria-hidden="true"></span>' +
+        `<button class="nav-apps-btn" id="navAppsBtn" type="button" aria-label="${s.appsLabel}"><span class="header-action-icon">${PRIMARY_ICONS.apps}</span><span>${s.appsText}</span></button>` +
         `<button class="theme-toggle" title="${s.themeTitle}"></button>` +
       '</div>' +
     '</div>';

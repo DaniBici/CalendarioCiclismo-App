@@ -218,7 +218,9 @@ object RaceLogic {
             return context.getString(app.calendariociclismo.android.R.string.stage_doc_ribinou)
         }
         if (primary == "flat" && secondary == "summit_finish") return LocaleHolder.t("Monopuerto", "One-Climb")
-        if (primary == "itt" && secondary == "chrono_climb") return typeLabel(context, "chrono_climb")
+        if (primary == "itt" && (secondary == "chrono_climb" || secondary == "summit_finish")) {
+            return typeLabel(context, "chrono_climb")
+        }
         val pLabel = typeLabel(context, primary)
         if (primary == "itt" || primary == "ttt") return pLabel
         return if (!secondary.isNullOrEmpty()) "$pLabel · ${typeLabel(context, secondary)}" else pLabel

@@ -218,8 +218,11 @@ enum RaceLogic {
     static func resolveTypeLabel(primary: String?, secondary: String?, countryCode: String? = nil) -> String {
         if primary == "sterrato" && countryCode?.uppercased() == "FR" { return "Ribinou" }
         if primary == "flat" && secondary == "summit_finish" { return LocaleService.shouldShowEnglishContent ? "One-Climb" : "Monopuerto" }
-        if primary == "itt" && secondary == "chrono_climb" { return typeLabel("chrono_climb") }
+        if primary == "itt" && (secondary == "chrono_climb" || secondary == "summit_finish") {
+            return typeLabel("chrono_climb")
+        }
         let pLabel = typeLabel(primary)
+        if primary == "itt" || primary == "ttt" { return pLabel }
         if let sec = secondary, !sec.isEmpty {
             return "\(pLabel) · \(typeLabel(sec))"
         }

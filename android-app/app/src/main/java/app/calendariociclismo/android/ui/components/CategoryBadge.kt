@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.ui.theme.categoryBadgeColor
+import app.calendariociclismo.android.util.LocaleHolder
 
 /**
  * Badge de categoría UCI ("1.UWT", "WC", "1.Pro", …).
@@ -21,7 +22,7 @@ fun CategoryBadge(category: String?, modifier: Modifier = Modifier) {
     if (category.isNullOrBlank()) return
     val colors = categoryBadgeColor(category)
     Text(
-        text = category,
+        text = category.uppercase(LocaleHolder.currentState),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
         color = colors.foreground,
@@ -30,6 +31,6 @@ fun CategoryBadge(category: String?, modifier: Modifier = Modifier) {
                 color = colors.background,
                 shape = RoundedCornerShape(3),
             )
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }

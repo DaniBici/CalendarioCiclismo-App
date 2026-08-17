@@ -8,6 +8,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
@@ -15,6 +16,7 @@ import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
+import com.android.billingclient.api.consumePurchase
 import com.android.billingclient.api.queryProductDetails
 import com.android.billingclient.api.queryPurchasesAsync
 import kotlinx.coroutines.CoroutineScope
@@ -29,32 +31,24 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * Envoltorio fino sobre [BillingClient] de Google Play Billing Library 8.x.
- *
- * Responsabilidades:
- *  - Mantener una conexión persistente con el servicio de billing y reconectar
- *    con backoff exponencial cuando se cae.
- *  - Consultar el detalle del producto Premium (`premium`) y sus dos base
- *    plans (`monthly`, `yearly`) — el SKU es uno solo en Play Console.
- *  - Disparar el flujo de compra desde el Activity actual.
- *  - Comprobar al arranque y bajo demanda si el usuario tiene una suscripción
- *    activa, y propagarlo vía [onSubscriptionStateChanged].
- *  - Ack-eatear (`acknowledgePurchase`) toda compra nueva — obligatorio en 72 h
- *    o Google Play reembolsa automáticamente.
- *
- * El [BillingClient] se crea con application context y vive en el `appScope`
- * del proceso. `launchBillingFlow` sí requiere un [Activity], que recibe como
- * parámetro de [launchPurchase].
+ * Google Play Billing para el modelo 4.3:
+ * - `amigo`: suscripción voluntaria mensual/anual.
+ * - `aportacion_*`: aportaciones puntuales consumibles.
+ * - `premium`: producto retirado; solo se consulta para convertir una compra
+ *   todavía activa en el reconocimiento permanente de Fundador.
  */
 class BillingManager(
     context: Context,
     private val scope: CoroutineScope,
-    private val onSubscriptionStateChanged: (active: Boolean) -> Unit,
+    private val onFriendStateChanged: (Boolean) -> Unit,
+    private val onLegacyPremiumStateChanged: (Boolean) -> Unit,
+    private val onFounderDetected: () -> Unit,
+    private val onContributionSuccess: (String) -> Unit,
     private val onPurchaseSuccess: (plan: String?, productId: String) -> Unit = { _, _ -> },
     private val onPurchaseError: (plan: String?, message: String) -> Unit = { _, _ -> },
 ) : PurchasesUpdatedListener, BillingClientStateListener {
 
-    enum class PurchaseOutcome { SUCCESS, USER_CANCELED, PENDING, ERROR }
+    enum class PurchaseOutcome { SUCCESS, ERROR }
 
     data class Plan(
         val basePlanId: String,
@@ -67,21 +61,29 @@ class BillingManager(
         val freeTrialPeriod: String?,
     )
 
-    private val appContext: Context = context.applicationContext
+    data class Contribution(
+        val productId: String,
+        val formattedPrice: String,
+        val priceAmountMicros: Long,
+        val priceCurrencyCode: String,
+    )
 
-    private val billingClient: BillingClient = BillingClient.newBuilder(appContext)
+    private val appContext = context.applicationContext
+    private val billingClient = BillingClient.newBuilder(appContext)
         .setListener(this)
         .enablePendingPurchases(
-            PendingPurchasesParams.newBuilder()
-                .enableOneTimeProducts()
-                .build(),
+            PendingPurchasesParams.newBuilder().enableOneTimeProducts().build(),
         )
         .build()
 
-    private val _productDetails = MutableStateFlow<ProductDetails?>(null)
+    private var friendDetails: ProductDetails? = null
+    private val contributionDetails = mutableMapOf<String, ProductDetails>()
 
     private val _plans = MutableStateFlow<List<Plan>>(emptyList())
     val plans: StateFlow<List<Plan>> = _plans.asStateFlow()
+
+    private val _contributions = MutableStateFlow<List<Contribution>>(emptyList())
+    val contributions: StateFlow<List<Contribution>> = _contributions.asStateFlow()
 
     private val _isPurchasing = MutableStateFlow(false)
     val isPurchasing: StateFlow<Boolean> = _isPurchasing.asStateFlow()
@@ -89,27 +91,19 @@ class BillingManager(
     private val _purchaseError = MutableStateFlow<String?>(null)
     val purchaseError: StateFlow<String?> = _purchaseError.asStateFlow()
 
+    private val _purchaseStateReady = MutableStateFlow(false)
+    val purchaseStateReady: StateFlow<Boolean> = _purchaseStateReady.asStateFlow()
+
     private var reconnectAttempts = 0
+    private var pendingPlanId: String? = null
+    private var pendingProductId: String? = null
 
-    /**
-     * Base plan ID del último flujo de compra lanzado. Sirve para etiquetar los
-     * eventos de analytics `purchase_success`/`purchase_error` con el plan
-     * (`monthly`/`yearly`), porque el objeto [Purchase] solo expone el product ID
-     * (`premium`), no el base plan.
-     */
-    private var pendingBasePlanId: String? = null
-
-    /**
-     * Inicia la conexión con Google Play. Idempotente — si ya está conectado
-     * vuelve a disparar la query de productos y de compras activas. Se llama
-     * desde [PremiumService.bootstrap] al crearse el Application.
-     */
     fun start() {
         if (billingClient.isReady) {
             scope.launch { refreshAfterConnected() }
-            return
+        } else {
+            billingClient.startConnection(this)
         }
-        billingClient.startConnection(this)
     }
 
     override fun onBillingSetupFinished(result: BillingResult) {
@@ -118,21 +112,18 @@ class BillingManager(
             scope.launch { refreshAfterConnected() }
         } else {
             Log.w(TAG, "Billing setup falló: ${result.responseCode} ${result.debugMessage}")
+            _purchaseStateReady.value = true
             scheduleReconnect()
         }
     }
 
     override fun onBillingServiceDisconnected() {
-        Log.w(TAG, "Billing desconectado")
         scheduleReconnect()
     }
 
     private fun scheduleReconnect() {
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Log.w(TAG, "Máximo de reintentos de billing alcanzado ($MAX_RECONNECT_ATTEMPTS).")
-            return
-        }
-        val delayMs = min(60_000L, (1000L * 2.0.pow(reconnectAttempts.toDouble()).toLong()))
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
+        val delayMs = min(60_000L, 1000L * 2.0.pow(reconnectAttempts.toDouble()).toLong())
         reconnectAttempts++
         scope.launch {
             delay(delayMs)
@@ -141,184 +132,233 @@ class BillingManager(
     }
 
     private suspend fun refreshAfterConnected() {
-        queryProducts()
-        queryActiveSubscription()
+        querySubscriptionProduct()
+        queryContributionProducts()
+        queryPurchases()
     }
 
-    private suspend fun queryProducts() {
+    private suspend fun querySubscriptionProduct() {
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(
                 listOf(
                     QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(PRODUCT_ID)
+                        .setProductId(FRIEND_PRODUCT_ID)
                         .setProductType(BillingClient.ProductType.SUBS)
                         .build(),
                 ),
             )
             .build()
         val result = withContext(Dispatchers.IO) { billingClient.queryProductDetails(params) }
-        val billingResult = result.billingResult
-        if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            Log.w(TAG, "queryProductDetails falló: ${billingResult.responseCode} ${billingResult.debugMessage}")
-            return
-        }
-        val details = result.productDetailsList?.firstOrNull { it.productId == PRODUCT_ID } ?: run {
-            Log.w(TAG, "Subscription product '$PRODUCT_ID' no encontrado en Play Console.")
-            return
-        }
-        _productDetails.value = details
+        if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) return
+        val details = result.productDetailsList?.firstOrNull() ?: return
+        friendDetails = details
         _plans.value = extractPlans(details)
     }
 
-    private fun extractPlans(details: ProductDetails): List<Plan> {
-        val offers = details.subscriptionOfferDetails ?: return emptyList()
-        // Preferir la oferta con trial para cada basePlanId (si existe).
-        val byBasePlan = offers.groupBy { it.basePlanId }
-        return byBasePlan.mapNotNull { (basePlanId, list) ->
-            val withTrial = list.firstOrNull { offer ->
-                offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
+    private suspend fun queryContributionProducts() {
+        val params = QueryProductDetailsParams.newBuilder()
+            .setProductList(CONTRIBUTION_PRODUCT_IDS.map { id ->
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(id)
+                    .setProductType(BillingClient.ProductType.INAPP)
+                    .build()
+            })
+            .build()
+        val result = withContext(Dispatchers.IO) { billingClient.queryProductDetails(params) }
+        if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) return
+        contributionDetails.clear()
+        result.productDetailsList.orEmpty().forEach { contributionDetails[it.productId] = it }
+        _contributions.value = contributionDetails.values.mapNotNull { details ->
+            details.oneTimePurchaseOfferDetails?.let { offer ->
+                Contribution(details.productId, offer.formattedPrice, offer.priceAmountMicros, offer.priceCurrencyCode)
             }
-            val chosen = withTrial ?: list.firstOrNull() ?: return@mapNotNull null
-            val phases = chosen.pricingPhases.pricingPhaseList
-            val trialPhase = phases.firstOrNull { it.priceAmountMicros == 0L }
-            val pricingPhase = phases.firstOrNull { it.priceAmountMicros > 0L } ?: phases.last()
-            Plan(
-                basePlanId = basePlanId,
-                offerToken = chosen.offerToken,
-                formattedPrice = pricingPhase.formattedPrice,
-                priceAmountMicros = pricingPhase.priceAmountMicros,
-                priceCurrencyCode = pricingPhase.priceCurrencyCode,
-                billingPeriod = pricingPhase.billingPeriod,
-                hasFreeTrial = trialPhase != null,
-                freeTrialPeriod = trialPhase?.billingPeriod,
-            )
-        }
+        }.sortedBy { it.priceAmountMicros }
     }
 
-    /** Devuelve el `Plan` para un base plan ID o null si no se ha cargado todavía. */
-    fun planFor(basePlanId: String): Plan? = _plans.value.firstOrNull { it.basePlanId == basePlanId }
+    private fun extractPlans(details: ProductDetails): List<Plan> {
+        return details.subscriptionOfferDetails.orEmpty()
+            .groupBy { it.basePlanId }
+            .mapNotNull { (basePlanId, offers) ->
+                val chosen = offers.firstOrNull { offer ->
+                    offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
+                } ?: offers.firstOrNull() ?: return@mapNotNull null
+                val phases = chosen.pricingPhases.pricingPhaseList
+                val trial = phases.firstOrNull { it.priceAmountMicros == 0L }
+                val paid = phases.firstOrNull { it.priceAmountMicros > 0L } ?: return@mapNotNull null
+                Plan(
+                    basePlanId,
+                    chosen.offerToken,
+                    paid.formattedPrice,
+                    paid.priceAmountMicros,
+                    paid.priceCurrencyCode,
+                    paid.billingPeriod,
+                    trial != null,
+                    trial?.billingPeriod,
+                )
+            }
+    }
 
-    /**
-     * Lanza el sheet nativo de Google Play para suscribirse al [basePlanId].
-     * Requiere que `queryProducts` haya completado antes — si no, devuelve
-     * `ERROR` con mensaje al usuario y dispara una nueva query.
-     */
-    fun launchPurchase(activity: Activity, basePlanId: String): PurchaseOutcome {
+    fun launchSubscription(activity: Activity, basePlanId: String): PurchaseOutcome {
+        val details = friendDetails ?: return unavailable("La membresía no está disponible ahora mismo.")
+        val plan = _plans.value.firstOrNull { it.basePlanId == basePlanId }
+            ?: return unavailable("Este plan no está disponible ahora mismo.")
+        pendingPlanId = basePlanId
+        pendingProductId = FRIEND_PRODUCT_ID
+        return launch(
+            activity,
+            BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(details)
+                .setOfferToken(plan.offerToken)
+                .build(),
+        )
+    }
+
+    fun launchContribution(activity: Activity, productId: String): PurchaseOutcome {
+        val details = contributionDetails[productId]
+            ?: return unavailable("Esta aportación no está disponible ahora mismo.")
+        pendingPlanId = null
+        pendingProductId = productId
+        return launch(
+            activity,
+            BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(details)
+                .build(),
+        )
+    }
+
+    private fun launch(
+        activity: Activity,
+        detailsParams: BillingFlowParams.ProductDetailsParams,
+    ): PurchaseOutcome {
         if (!billingClient.isReady) {
-            _purchaseError.value = "Conectando con Google Play, vuelve a intentarlo en unos segundos."
             start()
-            return PurchaseOutcome.ERROR
+            return unavailable("Conectando con Google Play. Vuelve a intentarlo en unos segundos.")
         }
-        val details = _productDetails.value ?: run {
-            _purchaseError.value = "Producto no disponible. Inténtalo más tarde."
-            scope.launch { queryProducts() }
-            return PurchaseOutcome.ERROR
-        }
-        val plan = planFor(basePlanId) ?: run {
-            _purchaseError.value = "Plan no disponible."
-            return PurchaseOutcome.ERROR
-        }
-        pendingBasePlanId = basePlanId
-        val flowParams = BillingFlowParams.newBuilder()
-            .setProductDetailsParamsList(
-                listOf(
-                    BillingFlowParams.ProductDetailsParams.newBuilder()
-                        .setProductDetails(details)
-                        .setOfferToken(plan.offerToken)
-                        .build(),
-                ),
-            )
-            .build()
         _isPurchasing.value = true
         _purchaseError.value = null
-        val result = billingClient.launchBillingFlow(activity, flowParams)
+        val result = billingClient.launchBillingFlow(
+            activity,
+            BillingFlowParams.newBuilder()
+                .setProductDetailsParamsList(listOf(detailsParams))
+                .build(),
+        )
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
             _isPurchasing.value = false
-            _purchaseError.value = friendlyError(result)
-            return PurchaseOutcome.ERROR
+            return unavailable(friendlyError(result))
         }
         return PurchaseOutcome.SUCCESS
+    }
+
+    private fun unavailable(message: String): PurchaseOutcome {
+        _purchaseError.value = message
+        return PurchaseOutcome.ERROR
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         _isPurchasing.value = false
         when (result.responseCode) {
-            BillingClient.BillingResponseCode.OK -> {
-                purchases?.forEach { processPurchase(it) }
-            }
-            BillingClient.BillingResponseCode.USER_CANCELED -> {
-                // No mostramos error — el usuario cerró el sheet.
-            }
-            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
-                // El usuario ya tiene una suscripción activa; refrescamos el estado.
-                scope.launch { queryActiveSubscription() }
-            }
+            BillingClient.BillingResponseCode.OK -> purchases.orEmpty().forEach(::processPurchase)
+            BillingClient.BillingResponseCode.USER_CANCELED -> Unit
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> scope.launch { queryPurchases() }
             else -> {
                 val message = friendlyError(result)
                 _purchaseError.value = message
-                onPurchaseError(pendingBasePlanId, message)
+                onPurchaseError(pendingPlanId, message)
             }
         }
     }
 
     private fun processPurchase(purchase: Purchase) {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
-        if (purchase.products.none { it == PRODUCT_ID }) return
-        onSubscriptionStateChanged(true)
-        onPurchaseSuccess(pendingBasePlanId, PRODUCT_ID)
-        if (!purchase.isAcknowledged) {
-            scope.launch { acknowledge(purchase.purchaseToken) }
+        when {
+            purchase.products.contains(FRIEND_PRODUCT_ID) -> {
+                onFriendStateChanged(true)
+                onPurchaseSuccess(pendingPlanId, FRIEND_PRODUCT_ID)
+                if (!purchase.isAcknowledged) scope.launch { acknowledge(purchase.purchaseToken) }
+            }
+            purchase.products.contains(LEGACY_PREMIUM_PRODUCT_ID) -> {
+                onLegacyPremiumStateChanged(true)
+                onFounderDetected()
+                if (!purchase.isAcknowledged) scope.launch { acknowledge(purchase.purchaseToken) }
+            }
+            purchase.products.any { it in CONTRIBUTION_PRODUCT_IDS } -> {
+                val id = purchase.products.first { it in CONTRIBUTION_PRODUCT_IDS }
+                onContributionSuccess(id)
+                onPurchaseSuccess(null, id)
+                scope.launch { consume(purchase.purchaseToken) }
+            }
         }
     }
 
-    private suspend fun acknowledge(purchaseToken: String) {
-        val params = AcknowledgePurchaseParams.newBuilder()
-            .setPurchaseToken(purchaseToken)
-            .build()
-        val result = withContext(Dispatchers.IO) { billingClient.acknowledgePurchase(params) }
-        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-            Log.w(TAG, "acknowledgePurchase falló: ${result.responseCode} ${result.debugMessage}")
-        }
-    }
-
-    /**
-     * Consulta a Google Play si hay suscripciones activas para [PRODUCT_ID]
-     * y propaga el resultado vía [onSubscriptionStateChanged]. Se llama:
-     *  - Al conectar (sincroniza el flag local con la realidad de Play).
-     *  - Desde `PremiumService.restorePurchases` (acción manual del usuario).
-     *
-     * Devuelve `true` si encontró al menos una compra `PURCHASED` activa.
-     */
-    suspend fun queryActiveSubscription(): Boolean {
+    suspend fun queryPurchases(): Boolean {
         if (!billingClient.isReady) {
-            // Si todavía no estamos listos, deja que onBillingSetupFinished lo dispare cuando lo esté.
+            _purchaseStateReady.value = true
             return false
         }
-        val params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.SUBS)
-            .build()
-        val result = withContext(Dispatchers.IO) { billingClient.queryPurchasesAsync(params) }
-        val billingResult = result.billingResult
-        if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            Log.w(TAG, "queryPurchasesAsync falló: ${billingResult.responseCode} ${billingResult.debugMessage}")
+        val subscriptions = withContext(Dispatchers.IO) {
+            billingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder()
+                    .setProductType(BillingClient.ProductType.SUBS)
+                    .build(),
+            )
+        }
+        if (subscriptions.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+            _purchaseStateReady.value = true
             return false
         }
-        val active = result.purchasesList.firstOrNull { purchase ->
-            purchase.products.any { it == PRODUCT_ID } &&
-                purchase.purchaseState == Purchase.PurchaseState.PURCHASED
+
+        var friendActive = false
+        var legacyActive = false
+        subscriptions.purchasesList.forEach { purchase ->
+            if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return@forEach
+            if (purchase.products.contains(FRIEND_PRODUCT_ID)) {
+                friendActive = true
+                if (!purchase.isAcknowledged) acknowledge(purchase.purchaseToken)
+            }
+            if (purchase.products.contains(LEGACY_PREMIUM_PRODUCT_ID)) {
+                legacyActive = true
+                onFounderDetected()
+                if (!purchase.isAcknowledged) acknowledge(purchase.purchaseToken)
+            }
         }
-        if (active != null) {
-            onSubscriptionStateChanged(true)
-            if (!active.isAcknowledged) acknowledge(active.purchaseToken)
-            return true
+        onFriendStateChanged(friendActive)
+        onLegacyPremiumStateChanged(legacyActive)
+
+        val oneTime = withContext(Dispatchers.IO) {
+            billingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder()
+                    .setProductType(BillingClient.ProductType.INAPP)
+                    .build(),
+            )
         }
-        // Sin compras activas — desactivamos el flag (cubre el caso de
-        // suscripción cancelada o expirada que persistió en DataStore).
-        onSubscriptionStateChanged(false)
-        return false
+        oneTime.purchasesList
+            .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+            .filter { purchase -> purchase.products.any { it in CONTRIBUTION_PRODUCT_IDS } }
+            .forEach { purchase ->
+                val id = purchase.products.first { it in CONTRIBUTION_PRODUCT_IDS }
+                onContributionSuccess(id)
+                consume(purchase.purchaseToken)
+            }
+        _purchaseStateReady.value = true
+        return friendActive || legacyActive
     }
 
-    /** Limpia el último error mostrado en la paywall (al cerrar el alert). */
+    private suspend fun acknowledge(token: String) {
+        withContext(Dispatchers.IO) {
+            billingClient.acknowledgePurchase(
+                AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build(),
+            )
+        }
+    }
+
+    private suspend fun consume(token: String) {
+        withContext(Dispatchers.IO) {
+            billingClient.consumePurchase(
+                ConsumeParams.newBuilder().setPurchaseToken(token).build(),
+            )
+        }
+    }
+
     fun clearPurchaseError() {
         _purchaseError.value = null
     }
@@ -326,22 +366,22 @@ class BillingManager(
     private fun friendlyError(result: BillingResult): String = when (result.responseCode) {
         BillingClient.BillingResponseCode.SERVICE_DISCONNECTED,
         BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE,
-        BillingClient.BillingResponseCode.NETWORK_ERROR ->
-            "Sin conexión con Google Play. Inténtalo más tarde."
-        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE ->
-            "Google Play Billing no está disponible en este dispositivo."
-        BillingClient.BillingResponseCode.ITEM_UNAVAILABLE ->
-            "Este plan no está disponible ahora mismo."
-        BillingClient.BillingResponseCode.DEVELOPER_ERROR ->
-            "Error de configuración. Vuelve a abrir la app y prueba de nuevo."
+        BillingClient.BillingResponseCode.NETWORK_ERROR -> "Sin conexión con Google Play. Inténtalo más tarde."
+        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Google Play Billing no está disponible."
+        BillingClient.BillingResponseCode.ITEM_UNAVAILABLE -> "Este producto no está disponible ahora mismo."
         else -> "No se pudo completar la compra (${result.responseCode})."
     }
 
     companion object {
         private const val TAG = "BillingManager"
-        const val PRODUCT_ID = "premium"
+        const val FRIEND_PRODUCT_ID = "amigo"
+        const val LEGACY_PREMIUM_PRODUCT_ID = "premium"
         const val BASE_PLAN_MONTHLY = "monthly"
         const val BASE_PLAN_YEARLY = "yearly"
+        const val CONTRIBUTION_SMALL = "aportacion_299"
+        const val CONTRIBUTION_MEDIUM = "aportacion_599"
+        const val CONTRIBUTION_LARGE = "aportacion_1199"
+        val CONTRIBUTION_PRODUCT_IDS = listOf(CONTRIBUTION_SMALL, CONTRIBUTION_MEDIUM, CONTRIBUTION_LARGE)
         private const val MAX_RECONNECT_ATTEMPTS = 6
     }
 }

@@ -7,9 +7,8 @@ import Foundation
 ///   (CSV de rawValues).
 /// - `.general` siempre presente (no se puede desactivar — es el baseline
 ///   gratuito heredado de 1.4.4 que cubre anuncios y novedades).
-/// - El resto (`.raceStart`, `.tvStart`, `.results`) son features Premium en
-///   Fase 6: en Fases 1-5 los toggles de UI están deshabilitados, así que en
-///   la práctica todos los devices solo tienen `.general` activa.
+/// - El resto (`.raceStart`, `.tvStart`, `.results`) también está disponible
+///   sin compra desde 4.3.
 /// - `@Observable` para que cambios en runtime disparen el upsert al server
 ///   sin esfuerzo desde la vista.
 ///
@@ -17,8 +16,7 @@ import Foundation
 ///  1. `.general` es el único valor activo por defecto.
 ///  2. La categoría `general` engloba TODO lo que la app gratuita 1.4.4
 ///     enviaba — anuncios admin, recordatorios manuales, novedades.
-///  3. Las categorías Premium (`raceStart`, `tvStart`, `results`) NUNCA
-///     estuvieron disponibles en la app gratuita, así que no degradan nada.
+///  3. Ninguna categoría depende de Fundador o Amigo.
 @MainActor @Observable
 final class NotificationCategoryService {
     static let shared = NotificationCategoryService()
@@ -33,10 +31,6 @@ final class NotificationCategoryService {
         case results   = "results"
 
         var id: String { rawValue }
-
-        /// True si esta categoría es feature Premium (todo lo que NO sea
-        /// `.general`). En Fases 1-5 los toggles Premium están deshabilitados.
-        var isPremium: Bool { self != .general }
 
         /// Etiqueta visible en la UI. Cadena fuente en español;
         /// `LocalizedStringKey(label)` resuelve la traducción contra el

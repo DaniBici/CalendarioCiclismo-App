@@ -35,6 +35,7 @@ Lo único que pedimos (no lo exigimos):
 
 Cómo se hace este proyecto, de dónde salen los datos y bajo qué licencia:
 https://calendariociclismo.app/abierto.html
+https://calendariociclismo.app/apoyar/
 
 ## Información de contacto
 

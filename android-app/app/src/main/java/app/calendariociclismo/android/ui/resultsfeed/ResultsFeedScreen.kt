@@ -802,8 +802,8 @@ private fun FeedList(
 /**
  * Fila del feed — mimetiza la card de Hoy (`RaceCard`): superficie CCCard con
  * el tinte del color de la carrera, logo 36dp con la bandera debajo, nombre con
- * la tipografía de card, línea "Etapa N · salida › meta · NNN km" (etapa y km
- * en SemiBold) + chips de tipo reducidos, y tercera línea trofeo + ganador en
+ * la tipografía de card, línea "Etapa N · NNN km · +N.NNN m" + badge de tipo
+ * solo para contrarrelojes, y tercera línea trofeo + ganador en
  * SemiBold. Las generales finales llevan etiqueta propia y tinte algo más
  * fuerte (espejo de `.feed-row--gc` en la web).
  */
@@ -869,7 +869,7 @@ private fun FeedEntryRow(
                 }
 
                 if (entry.isGcFinal) {
-                    // Las generales finales solo llevan su etiqueta (sin ruta/km).
+                    // Las generales finales solo llevan su etiqueta (sin datos de etapa).
                     Text(
                         text = stringResource(R.string.results_feed_gc_final),
                         fontWeight = FontWeight.SemiBold,
@@ -879,26 +879,37 @@ private fun FeedEntryRow(
                     )
                 } else {
                     val subtitle = feedSubtitle(entry)
-                    if (subtitle.isNotEmpty()) {
-                        Text(
-                            text = subtitle,
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    // Chip de tipo reducido (mismo composable que las cards).
                     val rd = entry.rd
-                    if (!rd?.primaryType.isNullOrBlank()) {
-                        Row {
-                            StageTypeBadge(
-                                primaryType = rd?.primaryType,
-                                secondaryType = rd?.secondaryType,
-                                countryCode = race.countryCode,
-                            )
+                    val showType = rd?.primaryType == "itt" || rd?.primaryType == "ttt"
+                    // Como en web e iOS: datos condensados y badge comparten línea.
+                    if (subtitle.isNotEmpty() || showType) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            if (subtitle.isNotEmpty()) {
+                                Text(
+                                    text = subtitle,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (showType) {
+                                StageTypeBadge(
+                                    primaryType = rd?.primaryType,
+                                    secondaryType = if (
+                                        rd?.primaryType == "itt" &&
+                                        (rd.secondaryType == "chrono_climb" || rd.secondaryType == "summit_finish")
+                                    ) rd.secondaryType else null,
+                                    countryCode = race.countryCode,
+                                    compact = true,
+                                )
+                            }
                         }
                     }
                 }
@@ -938,7 +949,7 @@ private fun FeedEntryRow(
 }
 
 /**
- * Línea "Etapa N · salida › meta · NNN km" — "Etapa N" y los km en SemiBold,
+ * Línea "Etapa N · NNN km · +N m" — "Etapa N" y los km en SemiBold,
  * en el idioma de CONTENIDO. Las pruebas de un día van sin etiqueta de etapa
  * (decisión 2026-06-11, igual que la web).
  */
@@ -960,20 +971,13 @@ private fun feedSubtitle(entry: ResultsFeedLogic.FeedEntry): AnnotatedString {
             withStyle(bold) { append(stageLabel) }
         }
         val rd = entry.rd
-        val start = rd?.localizedStartLocation?.takeUnless { it.isEmpty() }
-        val finish = rd?.localizedFinishLocation?.takeUnless { it.isEmpty() }
-        val route = when {
-            finish == null || start == finish -> start ?: finish
-            start == null -> finish
-            else -> "$start › $finish"
-        }
-        route?.let {
-            appendSeparator()
-            append(it)
-        }
         rd?.distanceFormatted?.let {
             appendSeparator()
             withStyle(bold) { append(it) }
+        }
+        rd?.elevationGainFormatted?.let {
+            appendSeparator()
+            append(it)
         }
     }
 }

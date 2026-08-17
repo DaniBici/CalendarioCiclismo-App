@@ -6,18 +6,18 @@ Documentación técnica de notificaciones push.
 
 ## Categorías de notificación (Fase 3 del plan 2.0, añadido 2026-05-07)
 
-Las notificaciones se segmentan por tipo (`category`) para preparar la apertura Premium en Fase 6 sin degradar lo que recibía la app gratuita 1.4.4.
+Las notificaciones se segmentan por tipo (`category`). Todas las categorías son gratuitas desde 4.3.
 
 ### Modelo
 
 | Categoría | Tier | Cubre |
 |---|---|---|
 | `general` | Free (siempre activa, no se puede desactivar) | Anuncios admin, novedades, mejoras de la app — todo lo que entregaba la app 1.4.4. |
-| `race_start` | Premium | Aviso T-30 min antes del banderazo. |
-| `tv_start` | Premium | Aviso T-5 min antes de cada retransmisión. |
-| `results` | Premium | Resumen al cerrar la jornada. |
+| `race_start` | Gratis | Aviso T-30 min antes del banderazo. |
+| `tv_start` | Gratis | Aviso T-5 min antes de cada retransmisión. |
+| `results` | Gratis | Resumen al cerrar la jornada. |
 
-Las 3 Premium NUNCA estuvieron disponibles en la app gratuita, así que añadirlas no rompe la regla "no degradar lo gratis" (Apple Guideline 3.1.2(a)).
+Las tres categorías enriquecidas dejaron de estar bloqueadas en 4.3.
 
 ### Esquema (migración `040_push_subscription_categories.sql`)
 
@@ -58,11 +58,11 @@ Solo entrega a devices que tengan esa categoría activa. El handler valida estri
 | Android | `data/prefs/NotificationCategoryPreference.kt` + `AppPreferences.notificationCategories` | DataStore `notification_categories` (CSV) | `{GENERAL}` |
 | Web | — (no envía categorías) | — | Trigger AFTER INSERT asigna `general` al primer registro |
 
-`general` siempre está en el set y no se puede desactivar (los `setEnabled(.general, false)` son no-op). En Fases 1-5 los toggles Premium aparecen deshabilitados con hint "Próximamente con Premium".
+`general` siempre está en el set y no se puede desactivar (los `setEnabled(.general, false)` son no-op). Las demás categorías se pueden activar sin compra.
 
 ### Sección Ajustes
 
-- **iOS:** subsección "Tipos de notificación" dentro de `notificationsSection` en `SettingsView.swift`. Solo visible cuando push está activo. Toggle de cada tipo, los Premium se renderizan con `disabled` + opacity 0.5 + texto "Próximamente con Premium".
+- **iOS:** subsección "Tipos de notificación" dentro de `notificationsSection` en `SettingsView.swift`. Solo visible cuando push está activo.
 - **Android:** mismo patrón en `SettingsScreen.kt` — `NotificationCategorySelector` + `NotificationCategoryRow`. Visible solo cuando `push == true`.
 
 Al cambiar un toggle: persiste en DataStore/UserDefaults + dispara `pushManager.syncCategories()` (Android) / `manager.healSubscriptionIfNeeded()` (iOS) que re-invoca la RPC con el conjunto actualizado.
@@ -81,7 +81,7 @@ Al cambiar un toggle: persiste en DataStore/UserDefaults + dispara `pushManager.
   3. Enum iOS (`NotificationCategoryService.NotificationCategory`).
   4. Enum Android (`NotificationCategoryPreference`).
   5. Selector del panel admin + helper `pushCategoryLabel`.
-- **Mover una categoría existente entre Free/Premium** → revisar la regla "no degradar lo gratis". `general` debe seguir siendo Free siempre. Si un día queremos liberar una Premium, basta con cambiar `isPremium` en los enums + retirar el hint en la UI.
+- Ninguna categoría puede depender de Fundador o Amigo. `general` debe seguir siempre activa.
 - Las apps que aún no se han actualizado a 2.0 siguen llamando al upsert directo (sin RPC). Eso es OK: el trigger AFTER INSERT les asigna `general` y siguen recibiendo lo de siempre.
 
 ## Edge Function `supabase/functions/send-push/index.ts`

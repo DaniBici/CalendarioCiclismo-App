@@ -56,7 +56,7 @@ Filtro estricto por TZ del usuario:
 
 ### Apps iOS/Android (`RaceLogic.filterBroadcastsByRegion`)
 
-Por defecto: `ALL + ES + EUROPA` (baseline gratuito). Se amplía con la preferencia regional del usuario (Premium). Ver `docs/memory/i18n-region.md`.
+Por defecto: `ALL + ES + EUROPA`. La preferencia regional del usuario amplía ese conjunto y es gratuita desde 4.3. Ver `docs/memory/i18n-region.md`.
 
 ### Reglas al modificar
 

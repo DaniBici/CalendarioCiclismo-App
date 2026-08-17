@@ -340,6 +340,32 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   gap: 0.45rem;
   flex-shrink: 0;
 }
+.header-action-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.header-action-icon svg { display: block; width: 100%; height: 100%; }
+.header-support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--header-text);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+.header-support-link:hover { color: var(--header-text); background: rgba(128,128,128,0.10); }
+.header-actions__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
 
 /* Buscar inline (lupa) — visible en desktop; en móvil va al menú */
 .nav-search-link {
@@ -357,6 +383,9 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 
 /* ── Botón Apps ───────────────────────────────────────────────── */
 .nav-apps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 500;
@@ -432,7 +461,8 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   align-items: stretch;
   justify-content: center;
 }
-.primary-nav a {
+.primary-nav__inner a,
+.primary-nav__inner button {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -447,7 +477,9 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   white-space: nowrap;
   transition: color var(--transition), background var(--transition);
 }
-.primary-nav a:hover { color: var(--header-text); background: rgba(128,128,128,0.08); }
+.primary-nav__inner button { border: 0; cursor: pointer; }
+.primary-nav__inner a:hover,
+.primary-nav__inner button:hover { color: var(--header-text); background: rgba(128,128,128,0.08); }
 .primary-nav a.active { color: var(--accent-text); }
 .primary-nav a.active::after {
   content: '';
@@ -473,18 +505,21 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 @media (min-width: 601px) {
   /* La opacidad rompía el contraste (3.60:1 oscuro / 3.25:1 claro). El color
      atenuado mantiene la jerarquía visual y pasa AA. */
-  .primary-nav a.primary-nav__secondary {
+  .primary-nav a.primary-nav__secondary,
+  .primary-nav button.primary-nav__secondary {
     font-size: 0.78rem !important;
     color: var(--text-muted);
   }
-  .primary-nav a.primary-nav__secondary:hover { color: var(--text); }
+  .primary-nav a.primary-nav__secondary:hover,
+  .primary-nav button.primary-nav__secondary:hover { color: var(--text); }
 }
 
 /* En tablet estrecha compactamos el submenú para que las seis secciones
    completas conserven su alineación centrada. */
 @media (min-width: 601px) and (max-width: 760px) {
   .primary-nav__inner { padding-right: 0.5rem; padding-left: 0.5rem; }
-  .primary-nav a {
+  .primary-nav__inner a,
+  .primary-nav__inner button {
     gap: 0.25rem;
     padding-right: 0.3rem;
     padding-left: 0.3rem;
@@ -2699,7 +2734,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     scroll-snap-type: x proximity;
   }
   .primary-nav__inner::-webkit-scrollbar { display: none; }
-  .primary-nav a {
+  .primary-nav__inner a,
+  .primary-nav__inner button {
     flex-direction: column;
     gap: 0.12rem;
     min-height: 64px;
@@ -2709,7 +2745,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     scroll-snap-align: start;
     background: var(--bg-header);
   }
-  .primary-nav a:not(:first-child)::before {
+  .primary-nav__inner a:not(:first-child)::before,
+  .primary-nav__inner button:not(:first-child)::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -2720,9 +2757,10 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     transform: translateY(-50%);
     pointer-events: none;
   }
-  /* Los seis destinos son celdas equivalentes de una sola tira. */
-  .primary-nav a.primary-nav__main,
-  .primary-nav a.primary-nav__secondary { flex: 0 0 25%; }
+  /* Los destinos son celdas equivalentes de una sola tira. */
+  .primary-nav__inner a.primary-nav__main,
+  .primary-nav__inner a.primary-nav__secondary,
+  .primary-nav__inner button.primary-nav__secondary { flex: 0 0 25%; }
   .primary-nav__icon { width: 21px; height: 21px; }
   .primary-nav__divider { display: none; }
   .primary-nav__prev,
@@ -4431,15 +4469,22 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   color: var(--text);
   transition: background 0.12s ease, border-color 0.12s ease;
 }
-a.feed-row:hover {
+.feed-row:hover {
   background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
   border-color: color-mix(in srgb, var(--card-color, var(--border)) 25%, var(--border));
+}
+button.feed-row {
+  width: 100%;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .feed-row--gc {
   background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
   border-color: color-mix(in srgb, var(--card-color, var(--border)) 22%, var(--border));
 }
-a.feed-row--gc:hover {
+.feed-row--gc:hover {
   background: color-mix(in srgb, var(--card-color, var(--accent)) 12%, var(--bg-card));
 }
 .feed-row__gclabel {
@@ -4452,10 +4497,6 @@ a.feed-row--gc:hover {
   gap: 0.25rem;
   margin-left: 0.4rem;
   vertical-align: 1px;
-}
-.feed-row__badges .badge {
-  font-size: 0.56rem;
-  padding: 0.08rem 0.32rem;
 }
 .feed-row__winner {
   display: block;
@@ -4527,24 +4568,6 @@ a.feed-row--gc:hover {
   color: var(--text-dim);
   font-size: 1.1rem;
   flex-shrink: 0;
-}
-.feed-row__extbtns {
-  display: inline-flex;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-.feed-row__extbtn {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-pill);
-  padding: 0.18rem 0.55rem;
-  white-space: nowrap;
-}
-.feed-row__extbtn:hover {
-  color: var(--accent-text);
-  border-color: var(--accent);
 }
 .feed-more-wrap {
   max-width: 860px;

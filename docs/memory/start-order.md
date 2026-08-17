@@ -123,5 +123,4 @@ siendo la fuente canónica para SEO, deep links externos, e iCal).
 
 ## No degradar el badge
 
-La vista nativa es **gratis** (no Premium). Solo se restringen al baseline Premium
-las features que NUNCA estuvieron disponibles en la app gratuita.
+La vista nativa y todas sus funciones son gratuitas. Fundador y Amigo no intervienen en su disponibilidad.

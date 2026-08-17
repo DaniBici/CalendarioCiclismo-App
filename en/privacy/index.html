@@ -65,6 +65,9 @@
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       We do not collect names, email addresses or location data.
     </p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
+      <strong>Voluntary purchase status.</strong> The apps locally retain the technical store confirmation required to recognise an active Friend membership, a contribution or a historical Premium purchase. Apple or Google handle payment; the developer receives no card, billing or store-account personal data.
+    </p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">3. Purpose of processing</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem">
@@ -73,6 +76,7 @@
     <ul style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem;padding-left:1.5rem">
       <li>Sending push notifications about content updates and highlighted days on the cycling calendar.</li>
       <li>Anonymous analysis of app usage to improve the service experience and performance (only if the user enables usage statistics).</li>
+      <li>Validation of Friend memberships, one-time contributions and historical Premium purchases for cosmetic recognition. No feature depends on these purchases.</li>
     </ul>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">4. Legal basis</h2>
@@ -86,7 +90,7 @@
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">5. Data storage</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      The device token is stored in a PostgreSQL database managed through <strong>Supabase</strong> infrastructure. You can review Supabase's security and privacy practices at <a href="https://supabase.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">supabase.com/privacy</a>.
+      The device token is stored in a PostgreSQL database managed through <strong>Supabase</strong> infrastructure. Purchase status is validated through StoreKit or Google Play Billing and stored locally. You can review Supabase's security and privacy practices at <a href="https://supabase.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">supabase.com/privacy</a>.
     </p>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       Usage statistics data (when enabled) is processed and stored by <strong>Google LLC</strong> through Firebase Analytics and Google Analytics 4, in accordance with their privacy policy available at <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">policies.google.com/privacy</a>.
@@ -116,10 +120,15 @@
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">8. Data sharing with third parties</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      Push notification tokens are transmitted through <strong>Apple Push Notification service (APNs)</strong> on iOS and <strong>Google Firebase Cloud Messaging (FCM)</strong> on Android as necessary technical intermediaries for notification delivery. Beyond this technical use, tokens are not shared with any other third party. Usage statistics data (only when enabled by the user) is processed by <strong>Google LLC</strong> through Firebase Analytics and Google Analytics 4 as a data processor. The <strong>website does not show advertising</strong> or use ad networks. No data brokerage or data-sale services are used.
+      Push notification tokens are transmitted through <strong>Apple Push Notification service (APNs)</strong> and <strong>Google Firebase Cloud Messaging (FCM)</strong>. Optional usage statistics are processed by <strong>Google LLC</strong> through Firebase Analytics and Google Analytics 4. Purchases are processed by Apple or Google as merchants, without the developer receiving payment data. The apps and website <strong>do not show advertising</strong> or use ad networks. No data brokerage or data-sale services are used.
     </p>
 
-    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">9. Cookies, analytics and tracking</h2>
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">9. Friend, contributions and previous Premium</h2>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
+      Calendario Ciclismo is free, complete and ad-free. Friend is a voluntary membership costing €2.99/month or €17.99/year and grants only a temporary cosmetic icon. One-time contributions of €2.99, €5.99 and €11.99 display a thank-you and unlock no feature. Premium is no longer sold, is not converted automatically and receives permanent Founder recognition. Every new membership requires an explicit purchase. Store cancellation and refund channels remain available.
+    </p>
+
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Cookies, analytics and tracking</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.75rem">
       <strong>Native apps (iOS and Android):</strong> No advertising identifiers (IDFA/GAID) or cross-app tracking mechanisms are used. The apps include <strong>Firebase Analytics</strong> for anonymous usage analysis, which is <strong>disabled by default</strong>. Users can enable it in <strong>Settings &rarr; Privacy &rarr; Usage statistics</strong>. Disabling it immediately stops any data collection.
     </p>
@@ -127,7 +136,7 @@
       <strong>Website:</strong> The site uses <strong>Google Analytics (GA4)</strong> for statistical traffic analysis, subject to the user's acceptance of cookies. The site <strong>does not show advertising</strong>.
     </p>
 
-    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Changes to this policy</h2>
+    <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">11. Changes to this policy</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
       We reserve the right to update this privacy policy to reflect legislative changes or changes in how the app works. Any changes will be published on this page with the corresponding update date.
     </p>

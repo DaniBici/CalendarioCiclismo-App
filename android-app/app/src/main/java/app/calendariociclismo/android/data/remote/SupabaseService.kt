@@ -474,7 +474,7 @@ class SupabaseService {
         }.decodeList()
 
     /**
-     * Jornadas publicadas del rango para el feed (fallback externos + ruta/km/
+     * Jornadas publicadas del rango para el feed (fallback externos + km/desnivel/
      * tipos/hora de las filas in-house, vía raceDayId). El rango va dentro de
      * un `and` explícito: dos filtros sueltos sobre la MISMA columna colapsan
      * al primero en supabase-kt 2.6.1 (ver nota de raceUciStagesFeed).
@@ -484,7 +484,8 @@ class SupabaseService {
             columns = Columns.raw(
                 "id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay," +
                     "estimatedFinishTimeUtc,neutralStartTimeUtc,startLocation,finishLocation," +
-                    "startLocationEn,finishLocationEn,distanceKm,primaryType,secondaryType,countryCode"
+                    "startLocationEn,finishLocationEn,distanceKm,elevationProfile," +
+                    "primaryType,secondaryType,countryCode"
             )
         ) {
             filter {

@@ -5899,13 +5899,15 @@ async function setupUciView() {
 //     puede ser 0 (prólogo) → se comprueba con `!= null`, NO por truthiness.
 async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
   const oneStage = raceId && stageNumber != null;
-  const msg = oneStage
-    ? `¿Volcar ahora SOLO esta etapa (${stageNumber === 0 ? 'prólogo' : 'etapa ' + stageNumber})? Re-escribe únicamente su clasificación (no las demás etapas de la carrera), respetando las bloqueadas manualmente; tarda 1-3 min en verse reflejada.`
-    : raceId
-    ? '¿Re-volcar la carrera ENTERA? Re-escribe TODAS las etapas publicadas por su fuente (también las de días anteriores), respetando las clasificaciones bloqueadas manualmente. En carreras largas es lento — si solo quieres actualizar una etapa, usa «Volcar esta etapa». Tarda 1-3 min en verse reflejado.'
-    : '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en verse reflejados.';
-  const ok = await confirmDialog(msg);
-  if (!ok) return;
+  // Los botones de una carrera ya expresan el alcance de la operación. El toast
+  // posterior confirma visualmente que la RPC se ha encolado. La confirmación
+  // queda reservada para la acción global, que afecta a todas las carreras de hoy.
+  if (!raceId) {
+    const ok = await confirmDialog(
+      '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en verse reflejados.'
+    );
+    if (!ok) return;
+  }
   btn.disabled = true;
   try {
     const { error } = oneStage

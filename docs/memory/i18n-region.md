@@ -57,7 +57,7 @@ Ambas plataformas leen el locale activo en cada llamada. iOS usa `nonIsolatedUIL
 
 ## Preferencia regional
 
-Sustituye la whitelist hardcodeada `ALL + ES + EUROPA` por una preferencia elegible por el usuario. SPAIN es el baseline gratuito (nunca mover a Premium).
+Sustituye la whitelist hardcodeada `ALL + ES + EUROPA` por una preferencia elegible por el usuario. Todas las regiones son gratuitas desde 4.3.
 
 ### Persistencia
 
@@ -70,12 +70,12 @@ Sustituye la whitelist hardcodeada `ALL + ES + EUROPA` por una preferencia elegi
 
 | Región | Grupos visibles | Tier |
 |---|---|---|
-| `SPAIN` | `ALL`, `EUROPA`, `ES` | **Gratis — nunca mover a Premium** |
-| `EUROPE` | `ALL`, `EUROPA`, `ES`, `PT`, `FR`, `BE`, `NL`, `IT`, `DE_AT_CH`, `UK_IE`, `SCANDI`, `EE` | Premium |
-| `AMERICAS` | `ALL`, `NORTEAM`, `LATAM` | Premium |
-| `ASIA` | `ALL`, `ASIAPAC`, `MENA` | Premium |
-| `AFRICA` | `ALL`, `AFRICA`, `MENA` | Premium |
-| `ALL` | Todos los grupos | Premium full unlock |
+| `SPAIN` | `ALL`, `EUROPA`, `ES` | Gratis |
+| `EUROPE` | `ALL`, `EUROPA`, `ES`, `PT`, `FR`, `BE`, `NL`, `IT`, `DE_AT_CH`, `UK_IE`, `SCANDI`, `EE` | Gratis |
+| `AMERICAS` | `ALL`, `NORTEAM`, `LATAM` | Gratis |
+| `ASIA` | `ALL`, `ASIAPAC`, `MENA` | Gratis |
+| `AFRICA` | `ALL`, `AFRICA`, `MENA` | Gratis |
+| `ALL` | Todos los grupos | Gratis |
 
 ### Detección por TZ (sugerida en onboarding)
 
@@ -101,7 +101,7 @@ Entre idioma y notificaciones. CTA "Usar mi región" solo aparece si la TZ sugie
 ### Reglas al modificar
 
 - Añadir grupo fino nuevo → `allowedBroadcastGroups` iOS + Android, `countryGroupLabel`/`countryGroupEmoji` iOS + Android, strings EN/ES en Android, `Localizable.xcstrings` iOS, `availableCountryGroups`, CHECK constraints en migraciones, `VALID_COUNTRY_GROUPS` en `send-push/index.ts`, `detectedCountryGroup` en `RegionService.swift` y `RegionDetector.kt`.
-- **No mover SPAIN a Premium nunca.**
+- Ninguna región depende de una compra.
 
 ---
 

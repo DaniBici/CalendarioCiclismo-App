@@ -73,7 +73,7 @@ final class AnalyticsService {
 }
 
 /// Decide de forma local y conservadora cuándo invitar a una persona que ya usa
-/// la app a quitar anuncios y contribuir a su sostenimiento.
+/// la app a contribuir voluntariamente a su sostenimiento.
 ///
 /// No se apoya en Firebase: funciona igual si se desactiva Analytics y solo
 /// persiste contadores agregados en el dispositivo. La campaña admite como
@@ -102,7 +102,9 @@ final class ContributionPromptService {
     private init() {}
 
     func recordContentScreenView(_ screenName: String) {
-        guard eligibleScreens.contains(screenName), !PremiumService.shared.isSubscribed else { return }
+        guard eligibleScreens.contains(screenName),
+              !PremiumService.shared.isSubscribed,
+              !PremiumService.shared.isLegacyPremiumActive else { return }
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: Key.firstContentView) == nil {
@@ -120,7 +122,7 @@ final class ContributionPromptService {
     }
 
     func deferPrompt() { registerDecision("later") }
-    func openPremium() { registerDecision("open_premium") }
+    func openSupport() { registerDecision("open_support") }
 
     private var isEligibleToPresent: Bool {
         let defaults = UserDefaults.standard

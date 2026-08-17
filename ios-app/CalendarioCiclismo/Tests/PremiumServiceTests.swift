@@ -67,7 +67,7 @@ final class PremiumServiceTests: XCTestCase {
         XCTAssertEqual(PremiumService.shared.isSubscribed, initial)
     }
 
-    // MARK: - AdGate (featuresUnlocked / shouldShowAds)
+    // MARK: - Funciones gratuitas
 
     /// Las features liberadas al plan gratuito están SIEMPRE desbloqueadas,
     /// con independencia del estado de suscripción (política de pricing: lo que
@@ -80,13 +80,18 @@ final class PremiumServiceTests: XCTestCase {
         XCTAssertTrue(PremiumService.shared.featuresUnlocked)
     }
 
-    /// El único significado de la suscripción es quitar anuncios:
-    /// shouldShowAds == !isSubscribed.
-    func test_shouldShowAds_isInverseOfSubscription() {
-        PremiumService.shared._debugSetSubscribed(false)
-        XCTAssertTrue(PremiumService.shared.shouldShowAds)
-        PremiumService.shared._debugSetSubscribed(true)
-        XCTAssertFalse(PremiumService.shared.shouldShowAds)
+    func test_productIDs_match43StoreContract() {
+        XCTAssertEqual(PremiumService.monthlyProductID, "app.calendariociclismo.amigo.mensual")
+        XCTAssertEqual(PremiumService.yearlyProductID, "app.calendariociclismo.amigo.anual")
+        XCTAssertEqual(Set(PremiumService.contributionProductIDs), [
+            "app.calendariociclismo.aportacion.299",
+            "app.calendariociclismo.aportacion.599",
+            "app.calendariociclismo.aportacion.1199",
+        ])
+        XCTAssertEqual(Set(PremiumService.legacyProductIDs), [
+            "app.calendariociclismo.premium.mensual",
+            "app.calendariociclismo.premium.anual",
+        ])
     }
 
     // MARK: - Paywall presentation

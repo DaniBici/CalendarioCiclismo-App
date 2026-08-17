@@ -89,16 +89,8 @@ struct RaceDetailView: View {
     @ViewBuilder
     private func stagesList(race: Race) -> some View {
         LazyVStack(spacing: 8) {
-            // Posición del banner (FASE C): tras la 3ª etapa (índice 2); si hay
-            // menos de 3, tras la última. Paridad con el banner de "Hoy"
-            // (TodayView) y con RaceScreen (Android).
-            let adIndex = viewModel.days.count >= 3 ? 2 : viewModel.days.count - 1
-            ForEach(Array(viewModel.days.enumerated()), id: \.element.id) { index, day in
+            ForEach(viewModel.days) { day in
                 stageRow(day: day, race: race)
-                if index == adIndex {
-                    // Se auto-oculta si el usuario está suscrito.
-                    AdBannerSlot()
-                }
             }
         }
         .padding(.horizontal)

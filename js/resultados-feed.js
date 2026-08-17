@@ -13,20 +13,21 @@
 //     (grandes vueltas → nivel pro → género → categoría UCI → hora → nombre).
 //   · Card con el tinte del color de la carrera (como las cards de Hoy; las
 //     generales, ligeramente más fuerte): nombre / "Etapa X" en negrita +
-//     salida › meta · km + badges de tipo reducidos / ganador en negrita con
+//     etapa · km · desnivel + badge de tipo solo para contrarrelojes / ganador en negrita con
 //     nombre canónico de la ficha (fallback al winnerName crudo; CRE → crudo).
 //   · stageDate puede venir NULL (volcados PDF, migración 090) → la fecha se
 //     resuelve por raceDayId→race_days.dateKey o por las fechas de la carrera.
-//   · Sin resultados in-house pero jornada concluida (meta+30) y externos → fila
-//     con los enlaces externos; se convierte sola cuando el cron vuelque.
+//   · Sin resultados in-house pero jornada concluida (meta+30) y externos → la
+//     misma card navegable, que abre el modal de fuentes externas; se convierte
+//     sola cuando el cron vuelque.
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
-         setMeta, setMetaProperty, rdLocation, resolveTypeBadges,
+         setMeta, setMetaProperty, resolveTypeBadges,
          uciRank, proLevel, genderRank, grandTourRank, tsSeconds,
          nameImpliesFemale, effectiveCountryCode, trapFocus, femaleMark } from './shared.js';
 import { getLang } from './i18n.js';
-import { buildExtUrlA, buildExtUrlB, isRaceConcluded } from './race-data-modal.js';
+import { buildExtUrlA, buildExtUrlB, isRaceConcluded, openResultsModal } from './race-data-modal.js';
 import { isAbandonIrm } from './uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
 import {
@@ -129,11 +130,11 @@ async function fetchEntries(fromKey, toKey, isEn) {
     .or(`stageDate.gte.${fromKey},stageDate.is.null`)
     .or(`stageDate.lte.${toKey},stageDate.is.null`);
 
-  // 2) Jornadas publicadas del rango (fallback externos + recorrido/km/tipos/
+  // 2) Jornadas publicadas del rango (fallback externos + km/desnivel/tipos/
   //    hora de las filas in-house, vía raceDayId).
   const { data: raceDays } = await supabase
     .from('race_days')
-    .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, startLocation, finishLocation, startLocationEn, finishLocationEn, distanceKm, primaryType, secondaryType, countryCode')
+    .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, distanceKm, elevationProfile, primaryType, secondaryType, countryCode')
     .eq('editorialStatus', 'published')
     .gte('dateKey', fromKey).lte('dateKey', toKey);
 
@@ -361,29 +362,31 @@ function entryRowHtml(e, isEn, locale) {
   const name = `${esc(getRaceName(e.race))}${fem}`;
   const color = safeCardColor(e.race.colorHex);
 
-  // Línea 2: "Etapa N" y el kilometraje en NEGRITA · salida › meta + badges
-  // de tipo (reducidos). Las generales finales solo llevan su etiqueta. Un
+  // Línea 2: etapa, km y desnivel + badge solo para CRI/CRE/cronoescalada.
+  // Las generales finales solo llevan su etiqueta. Un
   // día: sin etiqueta.
   let subHtml = '';
   if (e.isGcFinal) {
     subHtml = `<span class="feed-row__gclabel">${esc(gcFinalLabel)}</span>`;
   } else {
     const rd = e.rd;
-    const startLoc = rd ? (rdLocation(rd, 'startLocation') || '') : '';
-    const finishLoc = rd ? (rdLocation(rd, 'finishLocation') || '') : '';
-    const route = (!finishLoc || startLoc === finishLoc)
-      ? (startLoc || finishLoc || '')
-      : `${startLoc} › ${finishLoc}`;
     const km = rd?.distanceKm
       ? `${Number(rd.distanceKm).toLocaleString(locale)} km` : '';
+    const gain = rd?.elevationProfile?.elevationGain;
+    const elevation = gain != null
+      ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale)} m`
+      : '';
     const stagePart = stageLabel(e.sn, isEn);
     const seg = [];
     if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
-    if (route) seg.push(esc(route));
     if (km) seg.push(`<strong>${esc(km)}</strong>`);
+    if (elevation) seg.push(esc(elevation));
     const text = seg.join(' · ');
-    const badges = rd?.primaryType
-      ? `<span class="feed-row__badges">${resolveTypeBadges(rd.primaryType, rd.secondaryType, e.race.countryCode)}</span>` : '';
+    const showType = rd?.primaryType === 'itt' || rd?.primaryType === 'ttt';
+    const resultSecondary = rd?.primaryType === 'itt' && ['chrono_climb', 'summit_finish'].includes(rd?.secondaryType)
+      ? rd.secondaryType : null;
+    const badges = showType
+      ? `<span class="feed-row__badges">${resolveTypeBadges(rd.primaryType, resultSecondary, e.race.countryCode)}</span>` : '';
     subHtml = `${text}${badges}`;
   }
 
@@ -400,15 +403,19 @@ function entryRowHtml(e, isEn, locale) {
         <span class="feed-row__chevron" aria-hidden="true">›</span>
       </a>`;
   }
-  const ext = (href, label) => href
-    ? `<a class="feed-row__extbtn" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${label}&nbsp;↗&#xFE0E;</a>` : '';
+  const externalLabel = isEn
+    ? `View results for ${getRaceName(e.race)}`
+    : `Ver resultados de ${getRaceName(e.race)}`;
   return `
-    <div class="feed-row feed-row--ext" style="--card-color:${esc(color)}">
+    <button class="feed-row feed-row--ext" type="button"
+            style="--card-color:${esc(color)}"
+            data-results-fallback="${esc(e.rd?.id || '')}"
+            aria-label="${esc(externalLabel)}">
       ${leftCol}
       <span class="feed-row__main"><span class="feed-row__race">${name}</span>
         ${subHtml ? `<span class="feed-row__sub">${subHtml}</span>` : ''}</span>
-      <span class="feed-row__extbtns">${ext(e.extUrlA, 'FC')}${ext(e.extUrlB, 'fuente externa')}</span>
-    </div>`;
+      <span class="feed-row__chevron" aria-hidden="true">›</span>
+    </button>`;
 }
 
 // ── Índice /resultados/ · /en/results/ ─────────────────────────────
@@ -508,6 +515,14 @@ export function renderResultsFeed(content) {
     }
     content.innerHTML = shell(html);
     bindViewTabs();
+
+    const externalByDayId = new Map(entries
+      .filter(entry => entry.kind === 'ext' && entry.rd?.id)
+      .map(entry => [String(entry.rd.id), entry]));
+    content.querySelectorAll('[data-results-fallback]').forEach(card => {
+      const entry = externalByDayId.get(card.dataset.resultsFallback);
+      if (entry) card.addEventListener('click', () => openResultsModal(entry.rd, entry.race));
+    });
 
     const moreBtn = document.getElementById('feedMoreBtn');
     if (moreBtn) {

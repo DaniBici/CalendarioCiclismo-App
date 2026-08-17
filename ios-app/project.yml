@@ -15,8 +15,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "4.2.5"
-    CURRENT_PROJECT_VERSION: 1269
+    MARKETING_VERSION: "4.3.0"
+    CURRENT_PROJECT_VERSION: 1276
 
 packages:
   Supabase:
@@ -25,15 +25,6 @@ packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     from: "11.0.0"
-  # Google Mobile Ads (AdMob — FASE B). UMP (consent RGPD) es un paquete aparte.
-  # 13.x requiere Xcode 26.2+ (el toolchain local es 26.5; verificar la imagen de
-  # Xcode Cloud si el build remoto falla al resolver el paquete).
-  GoogleMobileAds:
-    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
-    from: "13.0.0"
-  GoogleUserMessagingPlatform:
-    url: https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git
-    from: "3.0.0"
 
 targets:
   CalendarioCiclismo:
@@ -73,6 +64,9 @@ targets:
       # el arranque (splash colgado).
       - path: CalendarioCiclismo/GoogleService-Info.plist
         optional: true
+      - path: IconComposer/AppIcon.icon
+      - path: IconComposer/AppIconFounder.icon
+      - path: IconComposer/AppIconFriend.icon
     info:
       path: CalendarioCiclismo/Info.plist
       properties:
@@ -105,65 +99,6 @@ targets:
             assets.calendariociclismo.app:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
-        # ── Google Mobile Ads (AdMob — FASE B) ──
-        # App ID centralizado también en AdsConfig.appID (Swift).
-        GADApplicationIdentifier: "ca-app-pub-7131748907832450~8887444226"
-        # ATT (App Tracking Transparency): copy del prompt que pide el IDFA.
-        # Si el usuario lo rechaza, sigue viendo anuncios no personalizados.
-        NSUserTrackingUsageDescription: "Usamos tu identificador para mostrarte anuncios más relevantes. Puedes rechazarlo y seguirás viendo anuncios no personalizados."
-        # SKAdNetwork: red de atribución de instalaciones de Google + mediación.
-        # Lista oficial (developers.google.com/admob/ios/3p-skadnetworks).
-        SKAdNetworkItems:
-          - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork
-          - SKAdNetworkIdentifier: 4fzdc2evr5.skadnetwork
-          - SKAdNetworkIdentifier: 2fnua5tdw4.skadnetwork
-          - SKAdNetworkIdentifier: ydx93a7ass.skadnetwork
-          - SKAdNetworkIdentifier: p78axxw29g.skadnetwork
-          - SKAdNetworkIdentifier: v72qych5uu.skadnetwork
-          - SKAdNetworkIdentifier: ludvb6z3bs.skadnetwork
-          - SKAdNetworkIdentifier: cp8zw746q7.skadnetwork
-          - SKAdNetworkIdentifier: 3sh42y64q3.skadnetwork
-          - SKAdNetworkIdentifier: c6k4g5qg8m.skadnetwork
-          - SKAdNetworkIdentifier: s39g8k73mm.skadnetwork
-          - SKAdNetworkIdentifier: wg4vff78zm.skadnetwork
-          - SKAdNetworkIdentifier: 3qy4746246.skadnetwork
-          - SKAdNetworkIdentifier: f38h382jlk.skadnetwork
-          - SKAdNetworkIdentifier: hs6bdukanm.skadnetwork
-          - SKAdNetworkIdentifier: mlmmfzh3r3.skadnetwork
-          - SKAdNetworkIdentifier: v4nxqhlyqp.skadnetwork
-          - SKAdNetworkIdentifier: wzmmz9fp6w.skadnetwork
-          - SKAdNetworkIdentifier: su67r6k2v3.skadnetwork
-          - SKAdNetworkIdentifier: yclnxrl5pm.skadnetwork
-          - SKAdNetworkIdentifier: t38b2kh725.skadnetwork
-          - SKAdNetworkIdentifier: 7ug5zh24hu.skadnetwork
-          - SKAdNetworkIdentifier: gta9lk7p23.skadnetwork
-          - SKAdNetworkIdentifier: vutu7akeur.skadnetwork
-          - SKAdNetworkIdentifier: y5ghdn5j9k.skadnetwork
-          - SKAdNetworkIdentifier: v9wttpbfk9.skadnetwork
-          - SKAdNetworkIdentifier: n38lu8286q.skadnetwork
-          - SKAdNetworkIdentifier: 47vhws6wlr.skadnetwork
-          - SKAdNetworkIdentifier: kbd757ywx3.skadnetwork
-          - SKAdNetworkIdentifier: 9t245vhmpl.skadnetwork
-          - SKAdNetworkIdentifier: a2p9lx4jpn.skadnetwork
-          - SKAdNetworkIdentifier: 22mmun2rn5.skadnetwork
-          - SKAdNetworkIdentifier: 44jx6755aq.skadnetwork
-          - SKAdNetworkIdentifier: k674qkevps.skadnetwork
-          - SKAdNetworkIdentifier: 4468km3ulz.skadnetwork
-          - SKAdNetworkIdentifier: 2u9pt9hc89.skadnetwork
-          - SKAdNetworkIdentifier: 8s468mfl3y.skadnetwork
-          - SKAdNetworkIdentifier: klf5c3l5u5.skadnetwork
-          - SKAdNetworkIdentifier: ppxm28t8ap.skadnetwork
-          - SKAdNetworkIdentifier: kbmxgpxpgc.skadnetwork
-          - SKAdNetworkIdentifier: uw77j35x4d.skadnetwork
-          - SKAdNetworkIdentifier: 578prtvx9j.skadnetwork
-          - SKAdNetworkIdentifier: 4dzt52r2t5.skadnetwork
-          - SKAdNetworkIdentifier: tl55sbb4fm.skadnetwork
-          - SKAdNetworkIdentifier: c3frkrj4fj.skadnetwork
-          - SKAdNetworkIdentifier: e5fvkxwrpn.skadnetwork
-          - SKAdNetworkIdentifier: 8c4e2ghe7u.skadnetwork
-          - SKAdNetworkIdentifier: 3rd42ekr43.skadnetwork
-          - SKAdNetworkIdentifier: 97r2b46745.skadnetwork
-          - SKAdNetworkIdentifier: 3qcr597p9d.skadnetwork
     entitlements:
       path: CalendarioCiclismo/CalendarioCiclismo.entitlements
       properties:
@@ -184,9 +119,11 @@ targets:
         SUPPORTS_MACCATALYST: "NO"
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconFounder AppIconFriend"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: "4.2.5"
-        CURRENT_PROJECT_VERSION: 1269
+        MARKETING_VERSION: "4.3.0"
+        CURRENT_PROJECT_VERSION: 1276
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         CODE_SIGN_ENTITLEMENTS: CalendarioCiclismo/CalendarioCiclismo.entitlements
@@ -199,11 +136,7 @@ targets:
       - package: Supabase
         product: Supabase
       - package: Firebase
-        product: FirebaseAnalytics
-      - package: GoogleMobileAds
-        product: GoogleMobileAds
-      - package: GoogleUserMessagingPlatform
-        product: GoogleUserMessagingPlatform
+        product: FirebaseAnalyticsWithoutAdIdSupport
       - target: NotificationServiceExtension
       - target: CalendarioCiclismoWidgetExtension
 
