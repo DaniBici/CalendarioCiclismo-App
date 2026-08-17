@@ -6,6 +6,8 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`466` / `4.3.0` = PRESENTACIÓN DE AMIGO:** la hoja de apoyo amplía el icono de Calendario Ciclismo con corazón, extiende la tarjeta de ventajas a todo el ancho disponible y fija el fondo de la hoja y de las tarjetas de planes al blanco y gris neutros de la aplicación, sin los tonos de contenedor predeterminados de Material 3.**
+
 **`465` / `4.3.0` = COMPILACIÓN DE AJUSTES:** se restaura el import de recursos de texto de Compose requerido por la pantalla Ajustes para generar correctamente las variantes debug y release. Sin cambio funcional.**
 
 **`464` / `4.3.0` = ONBOARDING DE APOYO SEGÚN INSTALACIÓN:** el anuncio 4.3 utiliza el icono Amigo de CC con corazón. Las instalaciones nuevas explican los costes de mantenimiento y la autoría profesional, sin mostrar «Conoce el cambio»; las actualizaciones conservan la explicación de la retirada de publicidad y el reconocimiento Fundador. La audiencia se fija antes de elegir idioma y se conserva entre relanzamientos. La pantalla «Hazte Amigo» usa el mismo icono, elimina el beneficio redundante «Sin anuncios» y prioriza el icono exclusivo antes de recordar que toda la app es gratuita. Contenido completo en español e inglés. Espejo iOS `1277`.**

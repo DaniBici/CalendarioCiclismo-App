@@ -109,6 +109,7 @@ fun PaywallSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         contentWindowInsets = { WindowInsets(0) },
+        containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(
             modifier = Modifier
@@ -128,7 +129,7 @@ fun PaywallSheet(
                         painterResource(R.drawable.ic_launcher_friend_foreground),
                         contentDescription = null,
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(72.dp),
+                        modifier = Modifier.size(84.dp),
                     )
                     Text(
                         t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"),
@@ -152,6 +153,7 @@ fun PaywallSheet(
             }
 
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
@@ -191,7 +193,11 @@ fun PaywallSheet(
             }
 
             if (legacyActive) {
-                Card {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -326,7 +332,12 @@ private fun PlanRow(
     badge: String?,
     onClick: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
