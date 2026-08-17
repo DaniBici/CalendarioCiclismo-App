@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material3.AlertDialog
@@ -183,11 +184,23 @@ fun PaywallSheet(
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
                 ),
             ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(t("Código y cuentas públicas", "Public code and accounts"), fontWeight = FontWeight.Bold)
-                    Text(
-                        t("Consulta cómo se hace y se sostiene el proyecto.", "See how the project is built and sustained."),
-                        style = MaterialTheme.typography.bodySmall,
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(t("Código y cuentas públicas", "Public code and accounts"), fontWeight = FontWeight.Bold)
+                        Text(
+                            t("Consulta cómo se hace y se sostiene el proyecto.", "See how the project is built and sustained."),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }

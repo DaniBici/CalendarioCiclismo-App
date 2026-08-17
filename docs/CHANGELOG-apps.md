@@ -6,6 +6,8 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`467` / `4.3.0` = JERARQUÍA VISUAL DEL APOYO:** el anuncio de proyecto amplía el icono de Calendario Ciclismo con corazón al mismo tamaño que la hoja de Amigo. La tarjeta «Código y cuentas públicas» añade un chevron para indicar explícitamente que abre la información de transparencia.**
+
 **`466` / `4.3.0` = PRESENTACIÓN DE AMIGO:** la hoja de apoyo amplía el icono de Calendario Ciclismo con corazón, extiende la tarjeta de ventajas a todo el ancho disponible y fija el fondo de la hoja y de las tarjetas de planes al blanco y gris neutros de la aplicación, sin los tonos de contenedor predeterminados de Material 3.**
 
 **`465` / `4.3.0` = COMPILACIÓN DE AJUSTES:** se restaura el import de recursos de texto de Compose requerido por la pantalla Ajustes para generar correctamente las variantes debug y release. Sin cambio funcional.**

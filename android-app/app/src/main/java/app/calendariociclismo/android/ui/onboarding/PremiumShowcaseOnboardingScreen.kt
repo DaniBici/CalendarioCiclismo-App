@@ -76,7 +76,7 @@ fun PremiumShowcaseOnboardingScreen(
                 Icon(
                     painterResource(R.drawable.ic_launcher_friend_foreground),
                     null,
-                    Modifier.size(72.dp),
+                    Modifier.size(84.dp),
                     tint = androidx.compose.ui.graphics.Color.Unspecified,
                 )
                 Spacer(Modifier.height(18.dp))
