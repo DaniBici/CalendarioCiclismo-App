@@ -1,0 +1,158 @@
+[versions]
+# Android Gradle Plugin + Kotlin
+agp = "8.10.1"
+kotlin = "2.2.10"
+ksp = "2.2.10-2.0.2"
+
+# Core AndroidX
+coreKtx = "1.15.0"
+coreSplashscreen = "1.0.1"
+lifecycle = "2.8.6"
+activityCompose = "1.10.1"
+navigationCompose = "2.8.3"
+
+# Compose BOM (aligna todas las libs de Compose).
+# 2024.12.01 incluye fixes de edge-to-edge para Android 15 (SDK 35).
+composeBom = "2024.12.01"
+
+# Material Components for Android (solo para los estilos XML Theme.Material3.*
+# que usa la Activity como launching theme antes de montar Compose).
+material = "1.12.0"
+
+# Room
+room = "2.7.2"
+
+# DataStore
+datastore = "1.1.1"
+
+# WorkManager
+work = "2.9.1"
+
+# Browser (Custom Tabs)
+browser = "1.8.0"
+
+# AppCompat — usado solo para AppCompatDelegate.setApplicationLocales
+# (cambio de idioma en runtime sin reiniciar la app desde APIs antiguas).
+appcompat = "1.7.0"
+
+# Coroutines
+coroutines = "1.9.0"
+
+# Supabase Kotlin SDK
+supabase = "2.6.1"
+ktor = "2.3.12"
+
+# Kotlinx Serialization (usado por Supabase)
+serialization = "1.7.3"
+
+# Coil (imágenes)
+coil = "3.0.0-rc02"
+
+# Firebase (FCM)
+firebaseBom = "33.3.0"
+googleServices = "4.4.2"
+
+# Jetpack Glance (widget "Hoy en el ciclismo")
+glance = "1.1.1"
+
+# Google Play Billing — IAP de suscripciones Premium (Fase 6).
+# Google Play exige Billing Library 8.0.0 o posterior para las actualizaciones.
+billing = "8.2.1"
+
+# MapLibre GL Native — mapa del recorrido nativo (OSS; tiles MapTiler vector).
+# Rama 11.x estable; compatible con compileSdk 36 / minSdk 26 / Kotlin 2.2.10.
+maplibre = "11.8.1"
+
+# Testing
+junit = "4.13.2"
+androidxJunit = "1.2.1"
+turbine = "1.1.0"
+# Robolectric — Context real con recursos en tests JVM (sin emulador).
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
+
+[libraries]
+# Core AndroidX
+androidx-core-ktx              = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-core-splashscreen     = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose   = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+
+# Compose
+androidx-activity-compose  = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom       = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui        = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics     = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling      = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+google-android-material    = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+
+# Room
+androidx-room-runtime  = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx      = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# DataStore
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+
+# WorkManager
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+
+# Browser (Custom Tabs)
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+
+# AppCompat — solo para AppCompatDelegate.setApplicationLocales.
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+
+# Coroutines
+kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
+
+# Serialization
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+
+# Supabase SDK — solo Postgrest; la app no hace auth en cliente.
+supabase-postgrest-kt = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }
+ktor-client-okhttp    = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+
+# Coil
+coil-compose        = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+coil-svg            = { group = "io.coil-kt.coil3", name = "coil-svg", version.ref = "coil" }
+
+# Firebase
+firebase-bom       = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+
+# Jetpack Glance — usado por el widget "Hoy en el ciclismo".
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+
+# Google Play Billing (suscripciones Premium — Fase 6)
+billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
+
+# Testing
+junit            = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit   = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
+turbine          = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+robolectric      = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+
+# MapLibre GL Native (mapa del recorrido).
+maplibre-android-sdk = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+
+[plugins]
+android-application   = { id = "com.android.application", version.ref = "agp" }
+kotlin-android        = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose        = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization  = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp                   = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+google-services       = { id = "com.google.gms.google-services", version.ref = "googleServices" }

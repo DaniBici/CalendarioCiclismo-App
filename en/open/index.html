@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-itunes-app" content="app-id=6761902611">
+  <title>Datos abiertos — Calendario Ciclismo App</title>
+  <meta name="description" content="Cómo se hace Calendario Ciclismo: de dónde salen los datos, los materiales que usamos y a quién se los debemos. Un proyecto sin ánimo de lucro y transparente sobre sus fuentes.">
+  <meta name="keywords" content="cycling calendar, open source, AGPL, data sources, transparency, attribution, UCI, timekeepers">
+  <link rel="canonical" href="https://calendariociclismo.app/en/open/">
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/abierto.html">
+  <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/open/">
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
+  <link rel="preconnect" href="https://assets.calendariociclismo.app">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "name": "Cómo se hace Calendario Ciclismo",
+    "url": "https://calendariociclismo.app/en/open/",
+    "description": "Cómo se hace Calendario Ciclismo: fuentes de datos y atribución.",
+    "isPartOf": { "@type": "WebSite", "name": "Calendario Ciclismo", "url": "https://calendariociclismo.app" }
+  }
+  </script>
+  <meta property="og:title" content="Cómo se hace Calendario Ciclismo">
+  <meta property="og:description" content="Cómo se hace Calendario Ciclismo: de dónde salen los datos y a quién se los debemos.">
+  <meta property="og:url" content="https://calendariociclismo.app/en/open/">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <meta property="og:site_name" content="Calendario Ciclismo App">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Cómo se hace Calendario Ciclismo">
+  <meta name="twitter:description" content="Cómo se hace Calendario Ciclismo: fuentes de datos y atribución.">
+  <meta name="twitter:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+
+  <style>
+    .abierto { max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem; box-sizing: border-box; }
+    .abierto__title {
+      font-family: var(--font-display); font-weight: 700; font-size: 2rem;
+      text-transform: uppercase; letter-spacing: -0.01em; text-align: center;
+      margin: 0 0 0.75rem;
+    }
+    .abierto__lede {
+      font-size: 1rem; line-height: 1.75; text-align: center;
+      color: var(--text-muted); margin: 0 0 2.75rem;
+    }
+    .abierto section { margin-bottom: 2.5rem; }
+    .abierto h2 {
+      font-family: var(--font-display); font-weight: 600; font-size: 0.82rem;
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
+      margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+    }
+    .abierto p { font-size: 0.95rem; line-height: 1.75; margin: 0 0 1rem; }
+    .abierto a.link {
+      font-weight: 600; color: var(--text);
+      text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
+    }
+    .abierto a.link:hover { color: var(--accent); }
+    .src { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+    .src li { display: grid; grid-template-columns: 8.5rem 1fr; gap: 0.25rem 1rem; align-items: baseline; }
+    .src .k { font-weight: 700; font-size: 0.9rem; }
+    .src .v { font-size: 0.92rem; line-height: 1.6; color: var(--text-muted); }
+    @media (max-width: 520px) { .src li { grid-template-columns: 1fr; gap: 0.15rem; } }
+    .license {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.4rem 1.5rem;
+    }
+    /* Badge AGPL — mismos rasgos que el .badge canónico de la web (css/app.css) */
+    .license__tag {
+      display: inline-flex; align-items: center; font-family: var(--font-body); font-weight: 600;
+      font-size: 0.68rem; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap;
+      color: var(--accent); background: var(--accent-dim);
+      padding: 0.18rem 0.5rem; border-radius: 3px; margin-bottom: 0.8rem;
+    }
+    .disclaimer { font-size: 0.88rem; line-height: 1.7; color: var(--text-muted); font-style: italic; }
+    .seed { font-size: 0.9rem; line-height: 1.7; color: var(--text-muted); }
+    /* Botón al repositorio — variante outline del botón de about.html */
+    .license__btn {
+      display: flex; width: fit-content; align-items: center; gap: 0.5rem; justify-content: center;
+      font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius-pill);
+      text-decoration: none;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .license__btn:hover { border-color: var(--accent); color: var(--accent); }
+    .license__btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+    .support__btn {
+      display: flex; width: fit-content; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+      padding: 0.6rem 1.4rem; margin: 0.4rem auto 0;
+      background: var(--accent); color: #fff; border-radius: var(--radius-pill);
+      text-decoration: none; transition: filter var(--transition);
+    }
+    .support__btn:hover { filter: brightness(1.08); }
+    /* Project accounts — two columns, costs / income */
+    .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin: 1.25rem 0 1.1rem; }
+    .ledger h3 { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.7rem; color: var(--text); }
+    .ledger ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+    .ledger li { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; line-height: 1.4; color: var(--text-muted); }
+    .ledger li > span:last-child { font-weight: 600; color: var(--text); white-space: nowrap; }
+    .ledger .tot { border-top: 1px solid var(--border); padding-top: 0.55rem; margin-top: 0.2rem; }
+    .ledger .tot > span { color: var(--text); font-weight: 700; }
+    @media (max-width: 520px) { .ledger { grid-template-columns: 1fr; gap: 1.25rem; } }
+  </style>
+</head>
+<body>
+
+  <header class="site-header" id="siteHeader" data-back="/en/"></header>
+  <script type="module" src="/js/header.js"></script>
+
+  <main class="abierto">
+    <h1 class="abierto__title">How Calendario Ciclismo is made</h1>
+    <p class="abierto__lede">
+      Calendario Ciclismo is built with the work and materials of many people and institutions.
+      This page is our transparency section: where the data comes from, what the site is made
+      with, and who we owe our thanks to. It's our debt to the world of cycling.
+    </p>
+
+    <section>
+      <h2>Open source</h2>
+      <div class="license">
+        <span class="license__tag">AGPL-3.0</span>
+        <p>
+          The Calendario Ciclismo code - the website and the iOS and Android apps - is open source,
+          published under the <strong>AGPL-3.0</strong> licence. It can be read, learned from and
+          reused. There's no business behind this: the idea is to give back to the community.
+        </p>
+        <p class="seed">
+          The public repository is a copy that is synced periodically with the one used in
+          production. It does not include the project's data or credentials, nor the race logos,
+          which belong to their owners.
+        </p>
+        <a class="license__btn" href="https://github.com/DaniBici/CalendarioCiclismo-App"
+           target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          View the code on GitHub
+        </a>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it's funded</h2>
+      <p>
+        In July 2026, the decision was made to make the project Open Source and publish its accounts
+        (see below). During its first months, generous contributions from Premium subscribers funded
+        a significant part of this stage; those who purchased those subscriptions receive permanent
+        recognition as a Founder (see the Support button).
+      </p>
+      <p>
+        Advertising —whose removal was presented as a benefit of Premium subscriptions— generated
+        only <strong>4% of the project's income</strong>, while ads reduced visual clarity, occupied space
+        meant for information and added external processes that could reduce responsiveness on some
+        devices or network conditions. Keeping them for those amounts made no sense, so they were
+        removed permanently.
+      </p>
+      <p>
+        Anyone who wishes to help pay for servers and maintenance can do so voluntarily as a
+        <strong>Friend of Calendario Ciclismo</strong> (€2.99/month or €17.99/year), or through a
+        one-time contribution of €2.99, €5.99 or €11.99.
+      </p>
+      <a class="support__btn" href="/en/support/">Support Calendario Ciclismo</a>
+    </section>
+
+    <section>
+      <h2>The project's accounts</h2>
+      <p>
+        So this isn't just words, here are the accounts for a recent period
+        (April–July 2026), since the project got going.
+      </p>
+      <div class="ledger">
+        <div>
+          <h3>Costs</h3>
+          <ul>
+            <li><span>Database (Supabase)</span><span>≈ €86</span></li>
+            <li><span>Repository &amp; CI (GitHub)</span><span>≈ €62</span></li>
+            <li><span>Domains</span><span>≈ €24</span></li>
+            <li><span>Server (VPS)</span><span>≈ €18</span></li>
+            <li><span>CDN &amp; storage (Cloudflare)</span><span>€0</span></li>
+            <li class="tot"><span>Total</span><span>≈ €190</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Income</h3>
+          <ul>
+            <li><span>App Store subscriptions (iOS)</span><span>≈ €92</span></li>
+            <li><span>Google Play subscriptions (Android)</span><span>≈ €40</span></li>
+            <li><span>In-app advertising (full period)</span><span>≈ €6</span></li>
+            <li class="tot"><span>Total</span><span>≈ €138</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="disclaimer">
+        Over this period, income covered close to 70% of the costs; Dani covers the difference
+        out of his own pocket. It's not a business: it's a project trying to sustain itself.
+        Figures are net and approximate; amounts billed in dollars (Supabase, GitHub, domains
+        and advertising) were converted to euros at the ECB's average rate for the period
+        (≈ $1.16/€).
+      </p>
+      <p class="disclaimer">
+        Later AdMob reference: €2.40 in July 2026 and €0.57 from 1 to 16 August
+        2026. These are estimated earnings shown in a dashboard snapshot taken on 16 August.
+        Costs, memberships, contributions and personal funding will be updated quarterly.
+      </p>
+    </section>
+
+    <section>
+      <h2>Where the data comes from</h2>
+      <ul class="src">
+        <li>
+          <span class="k">UCI and timekeepers</span>
+          <span class="v">Calendar, categories and results come from the UCI and the official timekeepers of each race.</span>
+        </li>
+        <li>
+          <span class="k">Routes</span>
+          <span class="v">Routes and profiles are drawn from the organisers' official roadbooks and websites, and from <a class="link" href="https://www.la-flamme-rouge.eu" target="_blank" rel="noopener">La Flamme Rouge</a> and <a class="link" href="https://www.cronoescalada.com" target="_blank" rel="noopener">Cronoescalada</a>, leading references in the making of stage profiles.</span>
+        </li>
+        <li>
+          <span class="k">Our own work</span>
+          <span class="v">Startlists, notes and corrections, and all the ordering and verification are the personal work of <a class="link" href="/en/about/">Dani Sánchez</a>.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Use of artificial intelligence</h2>
+      <p>
+        We use artificial intelligence tools to support certain internal processes, chiefly
+        translations, importing results and information-filtering tasks. The data contained here
+        comes, where appropriate, from official sources and is always checked before publication.
+        Editorial decisions and published content ultimately remain Calendario Ciclismo's
+        responsibility.
+      </p>
+      <p>
+        If we publish an AI-generated image in the future that could be mistaken for a photograph
+        or a real-life depiction, we will clearly label it alongside the image.
+      </p>
+    </section>
+
+    <section>
+      <h2>Transfer market</h2>
+      <p>
+        Transfer market information - signings, departures and renewals - is cross-checked against
+        the teams' official announcements and the work of specialist journalists who track and
+        break the moves season after season. Our thanks go out to those who do that reporting,
+        among them:
+      </p>
+      <ul class="src">
+        <li>
+          <span class="k">Nacho Labarga</span>
+          <span class="v"><a class="link" href="https://x.com/nacholabarga" target="_blank" rel="noopener">@nacholabarga</a> — MARCA</span>
+        </li>
+        <li>
+          <span class="k">Dani Miranda</span>
+          <span class="v"><a class="link" href="https://x.com/danimiranda9" target="_blank" rel="noopener">@danimiranda9</a> — AS</span>
+        </li>
+        <li>
+          <span class="k">Ciro Scognamiglio</span>
+          <span class="v"><a class="link" href="https://x.com/cirogazzetta" target="_blank" rel="noopener">@cirogazzetta</a> — La Gazzetta dello Sport</span>
+        </li>
+        <li>
+          <span class="k">Youri IJnsen</span>
+          <span class="v"><a class="link" href="https://x.com/Youri_IJnsen" target="_blank" rel="noopener">@Youri_IJnsen</a> — WielerFlits</span>
+        </li>
+        <li>
+          <span class="k">James Odvart</span>
+          <span class="v"><a class="link" href="https://x.com/OdvartJames" target="_blank" rel="noopener">@OdvartJames</a> — DirectVelo</span>
+        </li>
+        <li>
+          <span class="k">Daniel Benson</span>
+          <span class="v"><a class="link" href="https://x.com/dnlbenson" target="_blank" rel="noopener">@dnlbenson</a></span>
+        </li>
+        <li>
+          <span class="k">Bram Vandecapelle</span>
+          <span class="v"><a class="link" href="https://x.com/bvdecape" target="_blank" rel="noopener">@bvdecape</a> — Het Laatste Nieuws</span>
+        </li>
+
+      </ul>
+    </section>
+
+    <section>
+      <h2>Stage maps</h2>
+      <p>
+        Cartography is from <a class="link" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+        (served via OpenFreeMap), satellite imagery is from <strong>Esri</strong>, and the 3D
+        relief elevation data comes from <strong>AWS Terrain Tiles</strong>. Thanks to those who
+        maintain these commons.
+      </p>
+    </section>
+
+    <section>
+      <h2>Flags</h2>
+      <p>
+        Flag icons use <a class="link" href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a>
+        (© 2013 Panayiotis Lipiridis), under the MIT licence.
+      </p>
+    </section>
+
+    <section style="margin-bottom:0">
+      <h2>Copyright</h2>
+      <p class="disclaimer">
+        Calendario Ciclismo is not affiliated with or sponsored by the UCI, the race organisers
+        or the teams. Names and logos belong to their owners and are used solely to identify
+        each competition.
+      </p>
+    </section>
+  </main>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/cookie-consent.js"></script>
+  <script src="/js/analytics.js"></script>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/en/privacy/">Privacy</a></p>
+  </footer>
+
+  <script src="/js/apps-modal.js"></script>
+  <script src="/js/lang-switch.js"></script>
+</body>
+</html>

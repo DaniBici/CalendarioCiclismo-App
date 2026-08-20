@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- En modo oscuro: iconos CLAROS sobre fondo oscuro. -->
+    <style name="Theme.CalendarioCiclismo" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

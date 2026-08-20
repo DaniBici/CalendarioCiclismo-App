@@ -1,0 +1,22 @@
+-- 114_security_invoker_startlist_riders_resolved.sql
+--
+-- Cierra el advisor de seguridad CRÍTICO (0010_security_definer_view) sobre la
+-- vista `public.startlist_riders_resolved`.
+--
+-- PROBLEMA: la vista se evaluaba como SECURITY DEFINER (comportamiento por
+-- defecto de Postgres cuando `security_invoker` no está fijado) → leía sus
+-- tablas con los permisos y RLS del CREADOR (`postgres`, que se salta RLS), no
+-- del usuario que consulta. Cualquier RLS de las tablas subyacentes quedaba
+-- puenteada al pasar por la vista.
+--
+-- FIX: marcarla `security_invoker = true` → las lecturas se evalúan con los
+-- permisos y RLS del rol que consulta (anon / authenticated).
+--
+-- SEGURO de aplicar (verificado en prod antes del cambio): la vista lee de
+-- startlist_riders, races, riders_men y riders_women. Las CUATRO tienen RLS
+-- activado, SELECT concedido a `anon` y una política de lectura `public` con
+-- `USING (true)`. Por tanto las lecturas públicas (web + apps, que consultan
+-- como `anon`) pasan exactamente igual que antes. Smoke test como rol `anon`
+-- tras el cambio: 42.819 filas visibles (sin pérdida).
+
+ALTER VIEW public.startlist_riders_resolved SET (security_invoker = true);

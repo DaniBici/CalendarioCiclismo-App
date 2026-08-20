@@ -1,0 +1,12 @@
+# Calendario Ciclismo — robots.txt
+#
+# El contenido es abierto y sin ánimo de lucro. TODOS los crawlers son
+# bienvenidos, incluidos los de entrenamiento de modelos de lenguaje: nos da
+# igual que copien, queremos que el conocimiento circule. Ver /abierto.html.
+# Lo único que se pide (no se puede exigir por robots.txt) es citar la fuente.
+
+User-agent: *
+Allow: /
+Disallow: /panel/
+
+Sitemap: https://calendariociclismo.app/sitemap.xml

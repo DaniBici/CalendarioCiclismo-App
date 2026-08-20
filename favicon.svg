@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="18" fill="#1a73e8"/>
+
+  <!-- Calendario -->
+  <rect x="15.5" y="38" width="27" height="27" rx="3"
+        fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="23" y1="35" x2="23" y2="41"
+        stroke="white" stroke-width="2.3" stroke-linecap="round"/>
+  <line x1="35" y1="35" x2="35" y2="41"
+        stroke="white" stroke-width="2.3" stroke-linecap="round"/>
+  <line x1="15.5" y1="47" x2="42.5" y2="47"
+        stroke="white" stroke-width="2.3" stroke-linecap="round"/>
+
+  <!-- Bicicleta -->
+  <circle cx="61.25" cy="58.25" r="5.25"
+          fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.75" cy="58.25" r="5.25"
+          fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="39.5" r="1.5"
+          fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M71,58.25 L71,53 L66.5,48.5 L72.5,44 L75.5,48.5 L78.5,48.5"
+        fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,43 @@
+-- ═══════════════════════════════════════════════════════════════════
+--  LIMPIEZA — 3 tablas de respaldo con RLS DESACTIVADA
+--  (tercera tanda; continúa el trabajo de las migraciones 098 y 111)
+-- ═══════════════════════════════════════════════════════════════════
+--
+--  Los advisors de seguridad de Supabase las marcan como CRITICAL
+--  ("RLS Disabled in Public"): son tablas del schema `public`, sin RLS y
+--  sin políticas, así que `anon` —la clave publishable que va embebida en
+--  js/config.js y se sirve en cada carga de la web— puede leerlas enteras.
+--
+--  Qué son: snapshots jsonb de saneos puntuales ya cerrados. El patrón
+--  exacto que ya se limpió dos veces:
+--    · 098 → 35 tablas (18 de ellas con RLS OFF = 18 advisors CRITICAL)
+--    · 111 → 9 tablas más
+--  Cada saneo deja su backup "por si acaso" y nadie vuelve a mirarlo.
+--
+--  | tabla                     | filas | contenido                        |
+--  |---------------------------|-------|----------------------------------|
+--  | blt26_startlist_bak       |  124  | jsonb, startlist Baloise Ladies  |
+--  | blt26_rider_fix_bak       |    3  | jsonb, fichas de corredoras      |
+--  | qinghai2026_sl_dorsal_bak |   11  | dorsales Tour of Qinghai         |
+--
+--  Ambos saneos están cerrados y documentados:
+--  [[project_baloise_ladies_tour_2026_startlist]] (123/123 reconstruida) y
+--  el volcado del Qinghai (etapa 4 desde PDF).
+--
+--  VERIFICADO ANTES DE BORRAR (protocolo de la 111):
+--    · 0 FKs entrantes
+--    · 0 vistas / vistas materializadas dependientes
+--    · 0 funciones que las nombren (`prosrc`)
+--    · 0 referencias en TODO el código (js/mjs/ts/sql/kt/swift)
+--    · 0 menciones en la guía de proyecto vigente entonces
+--
+--  ⚠️ Alternativa descartada: activar RLS sin políticas las dejaría
+--  ilegibles pero seguirían ocupando catálogo y saliendo en los advisors
+--  como tablas sin políticas. Si el dato ya no vale, el DROP es la
+--  respuesta honesta — y el saneo que las generó ya está aplicado y
+--  verificado en producción.
+-- ═══════════════════════════════════════════════════════════════════
+
+DROP TABLE IF EXISTS blt26_startlist_bak;
+DROP TABLE IF EXISTS blt26_rider_fix_bak;
+DROP TABLE IF EXISTS qinghai2026_sl_dorsal_bak;

@@ -1,0 +1,134 @@
+# Estado local de Claude Code (el repositorio usa Codex).
+.claude/
+.mcp.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependency directories
+node_modules/
+
+# ── Android (android-app/) ───────────────────────────────────────
+android-app/.gradle/
+android-app/.kotlin/
+android-app/build/
+android-app/app/build/
+android-app/.idea/
+android-app/captures/
+android-app/.externalNativeBuild/
+android-app/.cxx/
+android-app/local.properties
+android-app/secrets.properties
+android-app/app/release/
+android-app/keystore.properties
+android-app/*.jks
+android-app/*.keystore
+
+# ── iOS (ios-app/) ───────────────────────────────────────────────
+ios-app/build/
+ios-app/build-*/
+ios-app/DerivedData/
+ios-app/.build/
+ios-app/.swiftpm/
+# xcuserdata = estado personal del IDE (ficheros abiertos, cursor, orden de
+# schemes) y lleva el nombre de usuario en la ruta. Se ignora a CUALQUIER
+# profundidad: los patrones `*.xcworkspace/xcuserdata/` y
+# `*.xcodeproj/xcuserdata/` NO casaban con el .xcworkspace anidado dentro del
+# .xcodeproj (ios-app/X.xcodeproj/project.xcworkspace/xcuserdata/), así que ese
+# estado acabó trackeado pese a "estar ignorado".
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+
+# Ficheros de configuración con credenciales (NO commitear valores reales).
+# Usar ios-app/Config/Supabase.xcconfig.template como plantilla.
+ios-app/Config/Supabase.xcconfig
+# GoogleService-Info.plist contiene la API key de Firebase para iOS.
+# Descargarlo desde Firebase Console → Project Settings → iOS app.
+ios-app/CalendarioCiclismo/GoogleService-Info.plist
+# google-services.json contiene la API key de Firebase para Android.
+# Descargarlo desde Firebase Console → Project Settings → Android app.
+android-app/app/google-services.json
+# js/config.js se genera en CI desde GitHub Secrets, DENTRO del build del sitio.
+# Ver el paso "Inyectar js/config.js desde secrets" de .github/workflows/build-site.yml.
+# Localmente: copiar js/config.template.js → js/config.js y rellenar los valores.
+js/config.js
+
+# Artefactos de datos de los runs de ingesta/volcado (regenerables) — no versionar.
+# Conserva las herramientas (.mjs/.sh/.md) que vivan dentro de estos dirs de trabajo.
+scripts/results-fetchers/*_run/**/*.json
+scripts/results-fetchers/*_run/**/*.sql
+scripts/results-fetchers/*_run/**/*.log
+scripts/**/*_run/**/*.json
+scripts/**/*_run/**/*.sql
+scripts/**/*_run/**/*.log
+scripts/**/*_run/**/*.sig
+# El match-report.json TENÍA aquí una excepción para versionarlo (el panel lo leía por
+# ruta relativa). Desde 2026-07-19 va al bucket privado `uci-reports` de Storage
+# (migración 133) y lo suben los crons → vuelve a estar ignorado como el resto.
+
+# ── Logos de carreras (obras de terceros — NO redistribuir) ──────
+# Se empaquetan en las apps como fallback offline, pero no se versionan:
+# son obras de organizadores/federaciones y el repo es público (AGPL-3.0).
+# Reconstruir con: node scripts/fetch-logos.mjs
+ios-app/CalendarioCiclismo/BundledLogos/
+android-app/app/src/main/assets/bundled_logos/
+
+# Caché local del CLI de Supabase (incluye la URL del pooler de producción)
+supabase/.temp/
+
+# ── Sitio generado (GitHub Pages por artifact) ───────────────────
+# build-site.yml recompone estas páginas desde Supabase en cada pasada y las
+# publica como artifact: NO se versionan (eran 11.292 ficheros y ~25 commits
+# automáticos al día). Se siguen generando en local para poder previsualizar.
+# Esta lista es el ESPEJO de los --exclude del rsync de build-site.yml:
+# si se añade un tipo de página nuevo, hay que tocar los dos sitios.
+# Ver docs/runbooks/deploy-pages-por-artifact.md
+jornada/
+competicion/
+inscritos/
+perfil/
+mapa/
+orden-salida/
+feed/
+sitemap.xml
+atom.xml
+# ⚠️ De resultados/ sólo son generados los subdirectorios de carrera.
+# resultados/index.html es FUENTE (el feed de últimos resultados) → se versiona.
+resultados/*/
+# ⚠️ De en/ sólo son generados estos subdirectorios. NUNCA ignorar en/ entero:
+# en/open/, en/transfers/, en/calendar/ y en/2026-national-championships/ son
+# fuentes editadas a mano que ningún generador reconstruye.
+en/race/
+en/stage/
+en/startlist/
+en/profile/
+# En resultados EN, el índice es fuente y las subrutas de carrera son generadas.
+en/results/*/
+en/route-map/
+en/start-order/
+en/feed/

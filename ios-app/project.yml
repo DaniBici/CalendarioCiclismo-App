@@ -1,0 +1,229 @@
+name: CalendarioCiclismo
+
+options:
+  bundleIdPrefix: app.calendariociclismo
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: true
+
+configFiles:
+  Debug: Config/Supabase.xcconfig
+  Release: Config/Supabase.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    MARKETING_VERSION: "4.3.0"
+    CURRENT_PROJECT_VERSION: 1276
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: "2.0.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: "11.0.0"
+
+targets:
+  CalendarioCiclismo:
+    type: application
+    platform: iOS
+    configFiles:
+      Debug: Config/Supabase.xcconfig
+      Release: Config/Supabase.xcconfig
+    sources:
+      - path: CalendarioCiclismo
+        excludes:
+          - Tests
+          # El .template NO debe bundlearse: confunde a FirebaseApp.configure(),
+          # que busca un GoogleService-Info.plist VÁLIDO. El plist real se añade
+          # explícitamente abajo (createIntermediateGroups + optional para que la
+          # generación no falle si CI aún no lo ha materializado).
+          - GoogleService-Info.plist.template
+          # BundledLogos se añade abajo como REFERENCIA DE CARPETA (type: folder),
+          # no como grupo que enumera cada archivo. Sin esta exclusión, xcodegen
+          # listaría los ~500 logos uno a uno en el .pbxproj → cada vez que un
+          # logo cambia de URL (nuevo hash) o se purga, el .pbxproj queda con
+          # referencias a archivos inexistentes y el build falla con "The file
+          # logo_….webp couldn't be opened because there is no such file".
+          - BundledLogos
+      # Logos empaquetados: carpeta gitignored que se rellena en local/CI con
+      # `node scripts/fetch-logos.mjs`. Como REFERENCIA DE CARPETA, Xcode
+      # empaqueta lo que haya en disco al compilar (o nada si está vacía → los
+      # logos se cargan de red), sin listar archivos concretos en el proyecto.
+      - path: CalendarioCiclismo/BundledLogos
+        type: folder
+        buildPhase: resources
+      # GoogleService-Info.plist (gitignored). Se referencia SIEMPRE de forma
+      # explícita para que sobreviva a `setup.sh`/xcodegen aunque el archivo no
+      # exista en disco en el momento de generar (lo materializa
+      # ci_pre_xcodebuild.sh en Xcode Cloud / setup local). Sin esto, regenerar
+      # el proyecto sin el plist presente lo deja fuera del bundle → crash en
+      # el arranque (splash colgado).
+      - path: CalendarioCiclismo/GoogleService-Info.plist
+        optional: true
+      - path: IconComposer/AppIcon.icon
+      - path: IconComposer/AppIconFounder.icon
+      - path: IconComposer/AppIconFriend.icon
+    info:
+      path: CalendarioCiclismo/Info.plist
+      properties:
+        SUPABASE_URL: "$(SUPABASE_URL)"
+        SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
+        CFBundleDisplayName: "Cal Ciclismo"
+        CFBundleDevelopmentRegion: es
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: "public.app-category.sports"
+        # Scheme propio para deep links (`calendariociclismo://...`): notificaciones
+        # push, enlaces internos y verificación local con `simctl openurl`. Lo
+        # consume `NotificationManager.DeepLink.fromURL` + `onOpenURL` de la app.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.calendariociclismo
+            CFBundleURLSchemes:
+              - calendariociclismo
+        UILaunchScreen:
+          UIColorName: LaunchScreenBackground
+          UIImageName: LaunchLogo
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          NSExceptionDomains:
+            bcecwlkynpgovnzhbpah.supabase.co:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: false
+            assets.calendariociclismo.app:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: false
+    entitlements:
+      path: CalendarioCiclismo/CalendarioCiclismo.entitlements
+      properties:
+        aps-environment: $(APS_ENVIRONMENT)
+        com.apple.security.application-groups:
+          - group.app.calendariociclismo
+    capabilities:
+      push-notifications: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo
+        DEVELOPMENT_TEAM: 67VKJ7LF55
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        SUPPORTS_MACCATALYST: "NO"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconFounder AppIconFriend"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        MARKETING_VERSION: "4.3.0"
+        CURRENT_PROJECT_VERSION: 1276
+        SWIFT_EMIT_LOC_STRINGS: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        CODE_SIGN_ENTITLEMENTS: CalendarioCiclismo/CalendarioCiclismo.entitlements
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+    dependencies:
+      - package: Supabase
+        product: Supabase
+      - package: Firebase
+        product: FirebaseAnalyticsWithoutAdIdSupport
+      - target: NotificationServiceExtension
+      - target: CalendarioCiclismoWidgetExtension
+
+  NotificationServiceExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NotificationServiceExtension
+    info:
+      path: NotificationServiceExtension/Info.plist
+      properties:
+        CFBundleDisplayName: "NotificationServiceExtension"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).NotificationService"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo.NotificationService
+        DEVELOPMENT_TEAM: 67VKJ7LF55
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SWIFT_VERSION: "6.0"
+
+  CalendarioCiclismoWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CalendarioCiclismoWidget
+    info:
+      path: CalendarioCiclismoWidget/Info.plist
+      properties:
+        CFBundleDisplayName: CalendarioCiclismoWidget
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: CalendarioCiclismoWidgetExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.calendariociclismo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo.widget
+        DEVELOPMENT_TEAM: 67VKJ7LF55
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_ENTITLEMENTS: CalendarioCiclismoWidgetExtension.entitlements
+
+  CalendarioCiclismoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: CalendarioCiclismo/Tests
+    settings:
+      base:
+        # Sin esto, xcodebuild no puede firmar el bundle de tests ("does not
+        # have an Info.plist") y la suite no corre fuera de Xcode.
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo.tests
+        SWIFT_VERSION: "6.0"
+    dependencies:
+      - target: CalendarioCiclismo
+
+schemes:
+  CalendarioCiclismo:
+    build:
+      targets:
+        CalendarioCiclismo: all
+        NotificationServiceExtension: all
+        CalendarioCiclismoWidgetExtension: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CalendarioCiclismoTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

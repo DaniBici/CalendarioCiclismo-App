@@ -1,0 +1,222 @@
+/* ═══════════════════════════════════════════════════════════════
+   CALENDARIO — página fusionada Mes + Temporada (calendario.html)
+   La subvista Temporada reutiliza temporada.css; aquí viven la agenda
+   mensual (port del MonthScreen de las apps) y el toggle de subvista.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Toggle de subvista (espejo del action del TopAppBar en apps) ── */
+.cal-view-toggle {
+  /* Siempre fijo arriba a la derecha de la barra, en ambas subvistas
+     (último item de la fila 1 + margin-left:auto). */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--bg);
+  color: var(--accent-text);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cal-view-toggle:hover { border-color: var(--accent); }
+
+/* ── Barra de la subvista Mes ────────────────────────────────── */
+.cal-mes-bar__row1 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.cal-month-chips {
+  display: flex;
+  gap: 0.3rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  flex: 1;
+  min-width: 0;
+  cursor: grab;
+  user-select: none;
+}
+.cal-month-chips::-webkit-scrollbar { display: none; }
+.cal-month-chips--dragging { cursor: grabbing; }
+
+/* Chips de mes = mismas píldoras que el selector de días de Hoy (.date-pill):
+   sin borde, fondo transparente, activo/hover en --accent-dim. */
+.cal-month-chip {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  transition: background var(--transition), color var(--transition);
+}
+.cal-month-chip:hover { background: var(--accent-dim); }
+.cal-month-chip--active {
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.cal-today-btn {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+.cal-today-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+/* ── Agenda mensual ──────────────────────────────────────────── */
+.cal-mes-list { display: flex; flex-direction: column; }
+
+.cal-mes-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.cal-day { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+.cal-day__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 0 0.4rem;
+}
+.cal-day__num {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--accent-text);
+  flex: none;
+}
+.cal-day--today .cal-day__num { background: var(--accent); color: #fff; font-weight: 700; }
+.cal-day__wd { font-size: 0.9rem; color: var(--accent-text); }
+
+.cal-day__empty {
+  margin: 0 0 0.5rem 2.7rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.cal-day__races { display: flex; flex-direction: column; gap: 6px; }
+
+/* Tarjeta de carrera — lenguaje CCCard: superficie card + tinte de marca 4-5% */
+.cal-race {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--rc, var(--accent)) 5%, var(--bg-card));
+  border: 1px solid var(--border-light);
+  text-decoration: none;
+  color: var(--text);
+  min-width: 0;
+}
+/* Las filas que abren diálogo son <button> reales: hay que neutralizar los
+   estilos por defecto del botón para que se vean igual que las <a>. */
+button.cal-race {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+}
+a.cal-race:hover,
+button.cal-race:not(.cal-race--ph):hover { border-color: color-mix(in srgb, var(--rc, var(--accent)) 45%, var(--border-light)); }
+.cal-race--modal { cursor: pointer; }
+/* Estas filas se atenúan, pero la opacidad sobre TODA la fila arrastraba el
+   texto por debajo de 4.5:1 (WCAG 1.4.3). Se atenúa lo decorativo —logo,
+   bandera, chevron— y el texto conserva su color, que ya pasa AA. */
+.cal-race--ph { cursor: default; }
+.cal-race--ph .cal-race__logo,
+.cal-race--ph .cal-race__flag,
+.cal-race--ph .cal-race__chev,
+.cal-race--rest .cal-race__logo,
+.cal-race--rest .cal-race__flag,
+.cal-race--rest .cal-race__chev { opacity: 0.65; }
+.cal-race--rest .cal-race__name { color: var(--text-muted); }
+
+.cal-race__logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: none;
+}
+.cal-race__logo--empty { display: inline-block; }
+
+.cal-race__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.cal-race__l1 {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.cal-race__flag { flex: none; display: inline-flex; }
+.cal-race__flag img { width: 17px; height: 13px; border-radius: 2px; display: block; }
+.cal-race__name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-race__female { font-size: 0.72rem; opacity: 0.7; }
+.cal-race__note { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+.cal-race__note--cancel { color: #d93025; }
+
+.cal-race__l2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.cal-race__stage { font-weight: 600; white-space: nowrap; }
+.cal-race__route { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.cal-race__chev { color: var(--text-dim); font-size: 1.1rem; flex: none; padding-right: 0.1rem; }
+
+.cal-race--champ { background: color-mix(in srgb, var(--rc, var(--accent)) 8%, var(--bg-card)); }
+
+@media (max-width: 600px) {
+  .cal-mes-bar__row1 { gap: 0.4rem; }
+  .cal-view-toggle { font-size: 0.72rem; padding: 0.28rem 0.45rem; }
+  .cal-today-btn { font-size: 0.72rem; padding: 0.28rem 0.45rem; }
+  .cal-race__route { display: none; }
+}

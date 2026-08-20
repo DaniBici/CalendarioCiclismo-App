@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-itunes-app" content="app-id=6761902611">
+  <title>Página no encontrada — Calendario Ciclismo App</title>
+  <meta name="robots" content="noindex">
+  <link rel="dns-prefetch" href="https://pub-10252f2a495c488a856a619206783642.r2.dev">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+  <script>
+  // Fallback de URLs limpias — redirige antes de pintar nada.
+  (function () {
+    var p = location.pathname;
+    var m;
+    m = p.match(/^\/perfil\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/perfil.html?id=' + m[1]); return; }
+    m = p.match(/^\/mapa\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/mapa.html?id=' + encodeURIComponent(m[1])); return; }
+    m = p.match(/^\/en\/route-map\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/mapa.html?id=' + encodeURIComponent(m[1]) + '&lang=en'); return; }
+    m = p.match(/^\/orden-salida\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/orden-salida.html?slug=' + encodeURIComponent(m[1])); return; }
+    // Resultados: /resultados/<slug>/ con segmento de etapa opcional (etapa-N|prologo).
+    m = p.match(/^\/resultados\/([^\/?#]+)(?:\/(etapa-\d+|prologo))?\/?$/);
+    if (m) {
+      var rs = '/resultados.html?slug=' + encodeURIComponent(m[1]);
+      if (m[2]) { rs += '&stage=' + (m[2] === 'prologo' ? '0' : m[2].replace('etapa-', '')); }
+      location.replace(rs); return;
+    }
+    m = p.match(/^\/en\/results\/([^\/?#]+)(?:\/(stage-\d+|prologue))?\/?$/);
+    if (m) {
+      var rse = '/en/results/?slug=' + encodeURIComponent(m[1]);
+      if (m[2]) { rse += '&stage=' + (m[2] === 'prologue' ? '0' : m[2].replace('stage-', '')); }
+      location.replace(rse); return;
+    }
+    m = p.match(/^\/en\/start-order\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/en/start-order/?slug=' + encodeURIComponent(m[1])); return; }
+    m = p.match(/^\/en\/stage\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/en/stage/?slug=' + encodeURIComponent(m[1])); return; }
+    m = p.match(/^\/en\/race\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/en/race/?slug=' + encodeURIComponent(m[1])); return; }
+    m = p.match(/^\/en\/startlist\/([^\/?#]+)\/?$/);
+    if (m) { location.replace('/en/startlist/?slug=' + encodeURIComponent(m[1])); return; }
+    if (/^\/campeonatos-nacionales-2026\/?$/.test(p)) { location.replace('/campeonatos-nacionales-2026.html'); return; }
+    // Buscador ARCHIVADO (2026-07-17): hoy /buscar.html y /en/search/ siguen
+    // VIVOS y no llegan aquí — esta regla es la red de seguridad para el día en
+    // que se borren, y solo entonces actúa. Destino = la home (su equivalente
+    // más cercano: el buscador no se mudó a ninguna página concreta).
+    if (/^\/buscar(\.html)?\/?$/.test(p)) { location.replace('/'); return; }
+    if (/^\/en\/search\/?$/.test(p)) { location.replace('/en/'); return; }
+  })();
+  </script>
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+  <header class="site-header" id="siteHeader"></header>
+<script type="module" src="/js/header.js"></script>
+
+  <main style="max-width:560px;margin:0 auto;padding:5rem 1.5rem 4rem;box-sizing:border-box;text-align:center">
+    <div style="display:inline-flex;align-items:center;gap:0.25rem;margin-bottom:1rem">
+      <div style="transform:rotate(180deg);color:var(--accent);opacity:0.85">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+      </div>
+      <div style="color:var(--accent);opacity:0.9;position:relative;top:-6px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><polygon points="12,1 14,8 21,5 16,11 23,12 16,14 20,21 13,17 12,23 11,17 4,21 8,14 1,12 8,11 3,5 10,8"/></svg>
+      </div>
+    </div>
+    <p style="font-family:var(--font-display);font-size:7rem;font-weight:700;
+              line-height:1;margin:0 0 0.25rem;color:var(--accent);letter-spacing:-0.04em">
+      404
+    </p>
+    <h1 id="e404-title" style="font-family:var(--font-display);font-weight:700;font-size:1.6rem;
+               text-transform:uppercase;letter-spacing:0.02em;margin:0 0 1rem">
+      Esta página ha abandonado
+    </h1>
+    <p id="e404-body" style="font-size:0.95rem;line-height:1.8;color:var(--text-muted);margin:0 0 2.5rem">
+      La URL que buscas no existe o ha sido retirada. Puede que hayas seguido
+      un enlace roto o tecleado la dirección con alguna errata.
+    </p>
+    <a id="e404-home" href="/"
+       style="display:inline-flex;align-items:center;justify-content:center;
+              font-family:var(--font-display);font-weight:600;
+              font-size:0.9rem;letter-spacing:0;text-transform:none;
+              padding:0.6rem 1.5rem;background:var(--accent-dim);color:var(--accent);
+              border-radius:var(--radius-pill);text-decoration:none;
+              transition:background var(--transition)"
+       onmouseover="this.style.background='color-mix(in srgb, var(--accent) 20%, transparent)'" onmouseout="this.style.background='var(--accent-dim)'">
+      Volver al inicio
+    </a>
+    <div style="margin-top:2.5rem;display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap">
+      <a id="e404-link1" href="/calendario.html?vista=mes" style="font-size:0.875rem;color:var(--text-muted);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Calendario del mes</a>
+      <a id="e404-link2" href="/calendario.html" style="font-size:0.875rem;color:var(--text-muted);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Temporada 2026</a>
+    </div>
+  </main>
+  <script>
+  (function () {
+    var p = location.pathname;
+    var isEn = p.startsWith('/en/') || p === '/en';
+    if (!isEn) return;
+    document.documentElement.lang = 'en';
+    document.title = 'Page not found — Cycling Calendar';
+    var el;
+    el = document.getElementById('e404-title'); if (el) el.textContent = 'This page has abandoned';
+    el = document.getElementById('e404-body');  if (el) el.textContent = 'The URL you are looking for does not exist or has been removed. You may have followed a broken link or mistyped the address.';
+    el = document.getElementById('e404-home');  if (el) el.textContent = 'Back to home';
+    el = document.getElementById('e404-link1'); if (el) { el.href = '/en/calendar/?vista=mes'; el.textContent = 'Monthly calendar'; }
+    el = document.getElementById('e404-link2'); if (el) { el.href = '/en/calendar/'; el.textContent = '2026 season'; }
+  })();
+  </script>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/cookie-consent.js"></script>
+  <script src="/js/analytics.js"></script>
+  <script src="/js/apps-modal.js"></script>
+  <script src="/js/lang-switch.js"></script>
+  <script>
+  (function () {
+    var burger = document.getElementById('navBurger');
+    var nav = document.getElementById('siteNav');
+    if (!burger || !nav) return;
+    burger.addEventListener('click', function () {
+      var open = nav.classList.toggle('is-open');
+      burger.setAttribute('aria-expanded', open);
+    });
+  })();
+  </script>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/privacy/">Privacy</a></p>
+  </footer>
+
+</body>
+</html>

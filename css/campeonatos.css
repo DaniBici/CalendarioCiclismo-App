@@ -1,0 +1,179 @@
+/* ─────────────────────────────────────────────────────────────────
+   MODO CAMPEONATOS — rejilla países × pruebas
+   ───────────────────────────────────────────────────────────────── */
+
+.camp-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 4rem;
+  box-sizing: border-box;
+}
+
+/* Cabecera (título + filtros) sticky bajo el header global (y el cintillo si
+   lo hay, vía --giro-h), full-bleed como .site-header. La rejilla scrollea por
+   debajo; el fondo opaco evita que se transparente. */
+.camp-sticky {
+  position: sticky;
+  top: calc(56px + var(--giro-h, 0px));
+  z-index: 50;
+  background: var(--bg-header);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.camp-sticky__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 0.75rem;
+  box-sizing: border-box;
+}
+
+.camp-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.7rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.5rem;
+  color: var(--text);
+}
+.camp-sticky .camp-title { margin: 0 0 0.85rem; }
+
+/* Barra de filtros (reutiliza .tcat-btn de app.css) */
+.camp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+}
+.camp-sticky .camp-filters { margin: 0; }
+
+.camp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* ── Fila de país (el "evento" que agrupa) — NEUTRO ────────────── */
+.camp-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 0.85rem;
+}
+
+/* Columna izquierda: bandera + sede */
+.camp-country {
+  flex: 0 0 5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  text-align: center;
+  border-right: 1px solid var(--border);
+  padding-right: 0.6rem;
+}
+.camp-flag { font-size: 1.6rem; line-height: 1; }
+.camp-flag img { width: 2em; height: 1.5em; }
+.camp-sede {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+/* Conjunto de celdas de evento — rejilla fija de 4 columnas (4 + 4) */
+.camp-events {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  align-content: start;
+}
+
+/* ── Celda de evento — misma presentación que las race cards ───── */
+.camp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 4%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.camp-cell:hover {
+  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 8%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 30%, var(--border));
+}
+/* Celda sin datos (no cumple las condiciones de clic de Hoy): ni cursor ni hover.
+   Los badges internos (FC/PCS/TV/trofeo) conservan su propio cursor de enlace. */
+.camp-cell--static { cursor: default; }
+.camp-cell--static:hover {
+  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 4%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+}
+
+.camp-cell__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  line-height: 1.1;
+}
+.camp-cell__day {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.camp-cell__assets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+.camp-cell__time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .camp-wrap { padding: 0.85rem 0.85rem 3rem; }
+  .camp-sticky__inner { padding: 0.85rem 0.85rem 0.6rem; }
+  .camp-title { font-size: 1.35rem; margin-bottom: 1rem; }
+  .camp-sticky .camp-title { margin-bottom: 0.7rem; }
+  .camp-row {
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.7rem;
+  }
+  /* La fila país pasa a encabezar el bloque, horizontal */
+  .camp-country {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-right: 0;
+    padding-bottom: 0.5rem;
+  }
+  .camp-flag { font-size: 1.4rem; }
+  .camp-sede { font-size: 0.8rem; }
+  /* Mantener celdas uniformes: 2 columnas en móvil */
+  .camp-events { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 340px) {
+  .camp-events { grid-template-columns: 1fr; }
+}

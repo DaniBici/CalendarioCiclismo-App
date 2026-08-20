@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Panel de Administración — Calendario Ciclismo</title>
+  <script src="../js/theme.js"></script>
+  <link rel="stylesheet" href="../css/panel.css">
+</head>
+<body>
+
+  <div id="panelOverlay" class="panel-overlay">
+    <div class="panel-overlay__spinner"></div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+  <div class="panel-layout">
+
+    <!-- Rail lateral izquierdo — navegación permanente (sustituye pestañas + hamburguesa) -->
+    <nav class="panel-rail" id="panelRail" aria-label="Navegación del panel">
+      <a class="panel-rail__logo" id="logoHome" href="#" title="Agenda">
+        <img class="panel-rail__favicon" src="/favicon.svg" alt="Calendario Ciclismo" width="26" height="26">
+        <span class="panel-rail__logo-text logo-text">Panel<span class="logo-editorial"> Admin</span></span>
+      </a>
+
+      <div class="panel-rail__scroll">
+        <button class="rail-item active" id="tab-agenda" data-tab="agenda" title="Agenda">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="rail-item__label">Agenda</span>
+        </button>
+        <button class="rail-item" id="tab-analytics" data-tab="analytics" title="Métricas">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span class="rail-item__label">Métricas</span>
+        </button>
+        <button class="rail-item" id="tab-startlists" data-tab="startlists" title="Dorsales">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+          <span class="rail-item__label">Dorsales</span>
+        </button>
+        <button class="rail-item" id="tab-notifications" data-tab="notifications" title="Notificaciones">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="rail-item__label">Notificaciones</span>
+        </button>
+        <button class="rail-item" id="tab-highlights" data-tab="highlights" title="Cintillo">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="rail-item__label">Cintillo</span>
+        </button>
+        <button class="rail-item" id="tab-fichajes" data-tab="fichajes" title="Fichajes">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <span class="rail-item__label">Fichajes</span>
+        </button>
+
+        <button class="rail-item" id="tab-teams" data-tab="teams" title="Equipos">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="rail-item__label">Equipos</span>
+        </button>
+        <button class="rail-item" id="tab-races" data-tab="races" title="Carreras">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+          <span class="rail-item__label">Carreras</span>
+        </button>
+      </div>
+
+      <!-- Footer del rail: usuario + tema + Salir -->
+      <div class="panel-rail__footer">
+        <span class="panel-rail__user" id="userEmail"></span>
+        <div class="panel-rail__footer-actions">
+          <button class="theme-toggle" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0.3rem;line-height:1;color:var(--text-muted);transition:color 0.15s ease" title="Cambiar tema"></button>
+          <button class="rail-item rail-item--mini" id="logoutBtn" title="Salir">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span class="rail-item__label">Salir</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Body: agenda (lista de jornadas del día; la edición abre el drawer) -->
+    <div class="panel-body">
+
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar__header">
+          <div class="date-nav">
+            <div class="date-nav__picker">
+              <button class="date-nav__arrow date-nav__arrow--left" id="prevDayBtn" title="Día anterior">‹</button>
+              <input type="date" class="date-nav__input" id="agendaDate">
+              <button class="date-nav__arrow date-nav__arrow--right" id="nextDayBtn" title="Día siguiente">›</button>
+            </div>
+            <button class="btn btn--ghost date-nav__today" id="todayBtn">Hoy</button>
+            <button class="btn btn--primary date-nav__add" id="addJornadaBtn">
+              + Añadir jornada
+            </button>
+          </div>
+        </div>
+        <div class="sidebar__list" id="sidebarList">
+          <!-- jornadas del día -->
+        </div>
+      </aside>
+
+    </div><!-- /panel-body -->
+
+
+    <!-- Vista carreras (oculta por defecto). Incluye la subvista Challenges
+         (toggle en la cabecera; ya no es un tab del rail). -->
+    <div id="racesView" style="display:none;flex:1;overflow-y:auto">
+      <div class="races-header">
+        <div class="races-header__inner">
+          <div class="races-header__row1">
+            <div class="races-subview-toggle" id="racesSubviewToggle" role="tablist" aria-label="Carreras o challenges">
+              <button class="races-subview-btn active" data-subview="races" role="tab" aria-selected="true">Carreras</button>
+              <button class="races-subview-btn" data-subview="challenges" role="tab" aria-selected="false">Challenges</button>
+            </div>
+            <button class="btn btn--primary races-new-btn" id="addRaceDirectBtn">+ Nueva carrera</button>
+            <button class="btn btn--primary races-new-btn" id="newChallengeBtn" style="display:none">+ Nuevo challenge</button>
+          </div>
+          <div class="races-header__row2" id="racesFiltersRow">
+            <div class="races-filters">
+              <select id="racesYearSelect" class="races-select">
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2028">2028</option>
+                <option value="2029">2029</option>
+                <option value="2030">2030</option>
+              </select>
+              <select id="racesCatFilter" class="races-select">
+                <option value="">Todas</option>
+                <option value="WC">WC</option>
+                <option value="CC">CC</option>
+                <option value="CN">CN</option>
+                <option value="1.UWT">1.UWT</option>
+                <option value="2.UWT">2.UWT</option>
+                <option value="1.WWT">1.WWT</option>
+                <option value="2.WWT">2.WWT</option>
+                <option value="1.Pro">1.Pro</option>
+                <option value="2.Pro">2.Pro</option>
+                <option value="1.1">1.1</option>
+                <option value="2.1">2.1</option>
+                <option value="1.2">1.2</option>
+                <option value="2.2">2.2</option>
+                <option value="1.2U">1.2U</option>
+                <option value="2.2U">2.2U</option>
+              </select>
+              <select id="racesCountryFilter" class="races-select">
+                <option value="">Todos los países</option>
+              </select>
+              <select id="racesSortOrder" class="races-select">
+                <option value="cat" selected>Por categoría</option>
+                <option value="recent">Última actualización</option>
+              </select>
+            </div>
+            <input type="text" id="racesSearch" class="races-search" placeholder="Buscar…">
+          </div>
+        </div>
+      </div>
+      <!-- Subvista Carreras -->
+      <div id="racesListView" style="padding:1rem 1.25rem;max-width:900px;margin:0 auto;width:100%;">
+        <!-- generado por JS -->
+      </div>
+      <!-- Subvista Challenges (misma vista; se alterna con el toggle) -->
+      <div id="challengesListView" style="display:none;padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box"></div>
+    </div>
+
+    <!-- Vista analytics (oculta por defecto) -->
+    <div id="analyticsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div style="display:flex;align-items:center;gap:1rem;max-width:1200px;margin:0 auto;width:100%;flex-wrap:wrap">
+          <div class="panel-view-title">
+            Métricas
+          </div>
+          <div class="ga-date-controls">
+            <select id="gaDateRange" class="races-select">
+              <option value="0">Hoy</option>
+              <option value="1">Ayer</option>
+              <option value="last_7" selected>Últimos 7 días</option>
+              <option value="current_week">Semana actual</option>
+              <option value="prev_week">Semana anterior</option>
+              <option value="current_month">Mes en curso</option>
+              <option value="prev_month">Mes anterior</option>
+              <option value="month_minus_2">Mes -2</option>
+              <option value="month_minus_3">Mes -3</option>
+              <option value="since_start">Desde inicio web</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <input type="date" id="gaStartDate" class="ga-date-input" style="display:none">
+            <input type="date" id="gaEndDate" class="ga-date-input" style="display:none">
+            <button class="btn btn--ghost" id="gaRefreshBtn" style="padding:0.35rem 0.75rem;font-size:0.75rem">Actualizar</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:1.25rem;max-width:1200px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
+        <!-- KPI cards -->
+        <div class="ga-kpi-grid" id="gaKpiGrid">
+          <div class="ga-kpi-card">
+            <div class="ga-kpi-label">Usuarios</div>
+            <div class="ga-kpi-value" id="gaKpiUsers">—</div>
+          </div>
+          <div class="ga-kpi-card">
+            <div class="ga-kpi-label">Páginas vistas</div>
+            <div class="ga-kpi-value" id="gaKpiPageviews">—</div>
+          </div>
+          <div class="ga-kpi-card" id="gaKpiNewUsersCard">
+            <div class="ga-kpi-label">Nuevos usuarios</div>
+            <div class="ga-kpi-value" id="gaKpiNewUsers">—</div>
+          </div>
+          <div class="ga-kpi-card">
+            <div class="ga-kpi-label">Notificaciones activadas</div>
+            <div class="ga-kpi-value" id="gaKpiPushSubs">—</div>
+          </div>
+        </div>
+
+        <!-- Platforms -->
+        <div class="ga-section">
+          <div class="ga-section-title">Plataformas</div>
+          <div id="gaPlatforms" class="ga-table-wrap">
+            <div class="ga-placeholder">Cargando…</div>
+          </div>
+        </div>
+
+        <!-- Peak hour / Daily pageviews -->
+        <div class="ga-section">
+          <div class="ga-section-title" id="gaTimeSectionTitle">Hora pico de usuarios</div>
+          <div id="gaPeakHour">
+            <div class="ga-placeholder">Cargando…</div>
+          </div>
+        </div>
+
+        <!-- Top pages -->
+        <div class="ga-section">
+          <div class="ga-section-title">Páginas más vistas <span style="font-weight:400;opacity:0.55;font-size:0.8em">(Solo Web)</span></div>
+          <div id="gaTopPages" class="ga-table-wrap">
+            <div class="ga-placeholder">Cargando…</div>
+          </div>
+        </div>
+
+        <!-- Top stages -->
+        <div class="ga-section">
+          <div class="ga-section-title">Etapas más vistas <span style="font-weight:400;opacity:0.55;font-size:0.8em">(Apps móviles)</span></div>
+          <div id="gaTopStages" class="ga-table-wrap">
+            <div class="ga-placeholder">Cargando…</div>
+          </div>
+        </div>
+
+        <!-- Two column: sources + countries -->
+        <div class="ga-two-col">
+          <div class="ga-section">
+            <div class="ga-section-title">Fuentes de tráfico</div>
+            <div id="gaTrafficSources" class="ga-table-wrap">
+              <div class="ga-placeholder">Cargando…</div>
+            </div>
+          </div>
+          <div class="ga-section">
+            <div class="ga-section-title">Países</div>
+            <div id="gaCountries" class="ga-table-wrap">
+              <div class="ga-placeholder">Cargando…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Config notice -->
+        <div id="gaConfigNotice" class="ga-config-notice" style="display:none">
+          <div class="ga-config-notice__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div>
+            <strong>Configuración necesaria</strong><br>
+            <span style="font-size:0.82rem;color:var(--text-muted)">Para activar Métricas, configura las siguientes variables de entorno en Supabase Edge Functions:<br>
+            <code>GA_PROPERTY_ID</code>, <code>GA_SERVICE_ACCOUNT_EMAIL</code>, <code>GA_PRIVATE_KEY</code></span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /analyticsView -->
+
+    <!-- Vista inscritos/startlists (oculta por defecto) -->
+    <div id="startlistsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row">
+          <div class="panel-view-title">
+            Dorsales
+          </div>
+        </div>
+      </div>
+      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
+
+        <!-- Existing startlists -->
+        <div class="listcard">
+          <div class="panel-view-label">
+            Últimas listas
+          </div>
+          <div id="existingStartlists" class="listcard__list">Cargando…</div>
+        </div>
+
+      </div>
+    </div><!-- /startlistsView -->
+
+    <!-- Vista equipos (oculta por defecto) -->
+    <div id="teamsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row">
+          <div class="panel-view-title">
+            Equipos
+          </div>
+          <input type="search" id="teamsSearch" placeholder="Buscar equipo…" style="padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);width:200px">
+          <button class="btn btn--ghost" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap;color:#f59e0b">🔍 Duplicados</button>
+          <button class="btn btn--primary" id="addTeamPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo equipo</button>
+        </div>
+      </div>
+      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+        <div class="u-stack" id="teamsListSection">
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Equipos creados</div>
+            <div class="u-grow u-hr-line"></div>
+          </div>
+          <div class="u-stack u-stack--xs" id="teamsList">
+            <div class="u-fs-085 u-c-dim">Cargando…</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /teamsView -->
+
+    <!-- Vista cintillo (oculta por defecto) -->
+    <div id="highlightsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row">
+          <div class="panel-view-title">
+            Cintillo &laquo;Hoy&raquo;
+          </div>
+          <button class="btn btn--primary" id="addHighlightBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Añadir destacado</button>
+        </div>
+        <div style="max-width:900px;margin:0.5rem auto 0;color:var(--text-dim);font-size:0.78rem">
+          El cintillo se muestra en la web y en las apps iOS/Android encima del selector de días. Arrastra las filas para reordenar.
+        </div>
+      </div>
+
+      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+
+        <div class="u-stack" id="highlightsListSection">
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Destacados activos</div>
+            <div class="u-grow u-hr-line"></div>
+          </div>
+          <div id="highlightsList" style="display:flex;flex-direction:column;gap:0.4rem">
+            <div class="u-fs-085 u-c-dim">Cargando…</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /highlightsView -->
+
+    <!-- Vista fichajes (oculta por defecto) — mercado de la temporada 2027.
+         Movimientos (rider_transfers): fichajes, renovaciones y retiradas, con
+         estado confirmado/rumor. El listado y el editor los monta
+         setupFichajesView() en js/panel.js. -->
+    <div id="fichajesView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row panel-view-row--transfers">
+          <div class="panel-view-title">
+            Fichajes <span id="fichajesSeason" style="color:var(--text-dim);font-weight:400;font-size:0.8em"></span>
+          </div>
+          <div class="panel-view-actions panel-view-actions--transfers">
+            <button class="btn btn--ghost" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto">Ver todos los movimientos</button>
+            <button class="btn btn--ghost" id="addTransferDirectBtn" title="Registrar directamente un movimiento de un corredor">+ Nuevo movimiento</button>
+            <button class="btn btn--ghost" id="newTeam27Btn" title="Crear un equipo nuevo del catálogo y darle temporada 2027 (equipos que nacen para el año que viene)">+ Equipo 2027</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+        <!-- Landing = espejo del front /fichajes/: selector de división (WT
+             desplegada por defecto) → lista de equipos → tocar un equipo abre
+             su editor de temporada 2027 en drawer. -->
+        <div class="u-stack" id="marketTeamsSection">
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap" id="marketDivBtns"></div>
+          <div class="u-stack u-stack--xs" id="marketTeamsList"></div>
+        </div>
+      </div>
+    </div><!-- /fichajesView -->
+
+    <!-- Modal "Posibles duplicados" (oculto por defecto; se abre desde Equipos) -->
+    <!-- El escáner de duplicados ("Posibles duplicados") vive ahora en el
+         drawer ancho. Lo monta openDuplicateScanner() → dupScanBodyHtml();
+         se dispara desde el botón "🔍 Duplicados" de la cabecera de Equipos. -->
+
+    <!-- Vista notificaciones push (oculta por defecto) -->
+    <div id="notificationsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row">
+          <div class="panel-view-title">
+            Notificaciones Push
+          </div>
+          <div class="u-fs-md u-c-dim" id="pushSubscriberCount"></div>
+        </div>
+      </div>
+      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
+
+        <!-- Formulario de envío -->
+        <div class="panel-card">
+          <div class="panel-view-label">
+            Enviar notificación
+          </div>
+          <div class="field">
+            <label>Título <span class="u-hint">(obligatorio)</span></label>
+            <input type="text" id="push-title" placeholder="Arranca el Tour de France 2026" maxlength="100">
+          </div>
+          <div class="field">
+            <label>Subtítulo <span class="u-hint">(opcional)</span></label>
+            <input type="text" id="push-subtitle" placeholder="21 etapas desde Lille" maxlength="150">
+          </div>
+          <div class="field">
+            <label>Plataformas <span class="u-hint">(opcional — sin marcar = todas)</span></label>
+            <div id="push-platforms" style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;font-size:0.85rem">
+              <label style="display:flex;align-items:center;gap:0.4rem;font-weight:400;cursor:pointer">
+                <input type="checkbox" class="push-platform-cb" value="ios"> iOS
+              </label>
+              <label style="display:flex;align-items:center;gap:0.4rem;font-weight:400;cursor:pointer">
+                <input type="checkbox" class="push-platform-cb" value="android"> Android
+              </label>
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.3rem">
+              Útil para avisar de una actualización solo a los usuarios de una plataforma.
+            </div>
+          </div>
+          <details id="push-debug-block" style="border:1px dashed var(--border);border-radius:8px;padding:0.6rem 0.85rem">
+            <summary style="cursor:pointer;font-size:0.82rem;color:var(--text-dim);font-weight:500">
+              Debug — enviar a un solo dispositivo
+            </summary>
+            <div class="field" style="margin-top:0.75rem">
+              <label>Dispositivo <span class="u-hint">(deja "—" para envío normal)</span></label>
+              <div style="display:flex;gap:0.5rem;align-items:flex-start">
+                <select id="push-debug-token" style="flex:1;font-size:0.82rem;font-family:monospace">
+                  <option value="">— Sin debug, enviar al público objetivo —</option>
+                </select>
+                <button type="button" id="push-debug-reload" class="btn btn--ghost" style="padding:0.4rem 0.65rem;font-size:0.75rem;white-space:nowrap">Recargar</button>
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.4rem;font-size:0.78rem;flex-wrap:wrap">
+                <select id="push-debug-platform-filter" style="width:auto;font-size:0.78rem;padding:0.25rem 1.8rem 0.25rem 0.55rem">
+                  <option value="ios" selected>Solo iOS</option>
+                  <option value="android">Solo Android</option>
+                  <option value="web">Solo Web</option>
+                  <option value="">Todas las plataformas</option>
+                </select>
+                <span id="push-debug-token-count" style="color:var(--text-dim);font-size:0.74rem"></span>
+              </div>
+              <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.4rem">
+                Cuando hay un dispositivo seleccionado, la notificación se entrega solo a ese token, ignorando filtros de plataforma/región/categoría. No se registra en el historial. No es compatible con la programación diferida.
+              </div>
+            </div>
+          </details>
+          <div class="field">
+            <label>Imagen de previsualización <span class="u-hint">(URL, opcional)</span></label>
+            <div class="field-upload-wrap" id="push-image-wrap">
+              <input type="url" id="push-imageUrl" placeholder="https://assets.calendariociclismo.app/…">
+            </div>
+          </div>
+          <div id="pushImagePreview" style="display:none;margin-top:-0.5rem">
+            <img id="pushImagePreviewImg" src="" alt="Preview" style="max-width:200px;max-height:120px;border-radius:8px;border:1px solid var(--border);object-fit:cover">
+          </div>
+          <div class="field">
+            <label>Destino en la app <span class="u-hint">(deep link)</span></label>
+            <select id="push-deepLinkType">
+              <option value="">Sin destino específico</option>
+              <option value="tab">Pestaña de la app</option>
+              <option value="race">Competición</option>
+              <option value="stage">Jornada / Etapa</option>
+              <option value="startlist">Dorsales</option>
+              <option value="perfil">Perfil de etapa</option>
+              <option value="startOrder">Orden de salida</option>
+              <option value="transfers">Mercado de Fichajes</option>
+              <option value="team">Equipo (Mercado de Fichajes)</option>
+            </select>
+          </div>
+          <div id="push-tabSelector" class="field" style="display:none">
+            <label>Pestaña</label>
+            <select id="push-deepLinkTab">
+              <option value="today">Hoy (agenda del día)</option>
+              <option value="month">Mes (calendario mensual)</option>
+              <option value="season">Temporada (listado completo)</option>
+              <option value="search">Buscar</option>
+              <option value="subscribe">Suscripción (calendarios iCal)</option>
+              <option value="notifications">Avisos (notificaciones)</option>
+            </select>
+          </div>
+          <div id="push-raceSelector" class="field" style="display:none">
+            <label>Competición</label>
+            <div class="u-row">
+              <input class="u-grow" type="text" id="push-raceSearch" placeholder="Buscar competición…">
+            </div>
+            <select id="push-deepLinkRace" size="6" style="margin-top:0.5rem;width:100%;font-size:0.82rem">
+            </select>
+          </div>
+          <div id="push-stageSelector" class="field" style="display:none">
+            <label>Jornada / Etapa</label>
+            <select id="push-deepLinkStage" style="width:100%;font-size:0.82rem">
+              <option value="">Selecciona primero una competición</option>
+            </select>
+          </div>
+          <div id="push-startlistSelector" class="field" style="display:none">
+            <label>Competición (para dorsales)</label>
+            <div class="u-row">
+              <input class="u-grow" type="text" id="push-startlistSearch" placeholder="Buscar competición…">
+            </div>
+            <select id="push-deepLinkStartlist" size="6" style="margin-top:0.5rem;width:100%;font-size:0.82rem">
+            </select>
+          </div>
+          <div id="push-teamSelector" class="field" style="display:none">
+            <label>Equipo (Mercado de Fichajes)</label>
+            <div class="u-row">
+              <input class="u-grow" type="text" id="push-teamSearch" placeholder="Buscar equipo…">
+            </div>
+            <select id="push-deepLinkTeam" size="6" style="margin-top:0.5rem;width:100%;font-size:0.82rem">
+              <option value="">Cargando equipos…</option>
+            </select>
+          </div>
+
+          <!-- Preview -->
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;display:flex;flex-direction:column;gap:0.5rem">
+            <div style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;font-weight:600">Previsualización</div>
+            <div id="pushPreviewCard" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:0.875rem;display:flex;gap:0.75rem;align-items:flex-start">
+              <div style="width:36px;height:36px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+              </div>
+              <div class="u-grow u-min0">
+                <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:0.15rem">CALENDARIO CICLISMO</div>
+                <div id="pushPreviewTitle" style="font-weight:600;font-size:0.85rem;line-height:1.3">Título de la notificación</div>
+                <div id="pushPreviewSubtitle" style="font-size:0.8rem;color:var(--text-muted);line-height:1.3;display:none"></div>
+              </div>
+              <div id="pushPreviewImage" style="display:none;flex-shrink:0">
+                <img id="pushPreviewImg" src="" alt="" style="width:40px;height:40px;border-radius:6px;object-fit:cover">
+              </div>
+            </div>
+          </div>
+
+          <!-- Programación diferida -->
+          <div class="field">
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;user-select:none">
+              <input type="checkbox" id="push-schedule-toggle" style="width:auto;accent-color:var(--accent)">
+              <span>Programar para más tarde</span>
+            </label>
+          </div>
+          <div id="push-schedule-datetime-wrap" class="field" style="display:none">
+            <label>Fecha y hora <span class="u-hint">(hora local del navegador)</span></label>
+            <input type="datetime-local" id="push-scheduledAt">
+          </div>
+
+          <div id="pushSendError" class="alert alert--error" style="display:none"></div>
+          <div style="display:flex;gap:0.75rem;align-items:center">
+            <button class="btn btn--primary" id="sendPushBtn">Enviar ahora</button>
+            <span class="u-fs-md u-c-dim" id="pushSendStatus"></span>
+          </div>
+        </div>
+
+        <!-- Notificaciones programadas -->
+        <div class="panel-card">
+          <div class="panel-view-label">
+            Programadas
+          </div>
+          <div id="pushScheduledList" style="font-size:0.82rem;color:var(--text-dim)">Cargando…</div>
+        </div>
+
+        <!-- Historial de notificaciones -->
+        <div class="panel-card">
+          <div class="panel-view-label">
+            Historial de envíos
+          </div>
+          <div id="pushHistoryList" style="font-size:0.82rem;color:var(--text-dim)">Cargando…</div>
+        </div>
+
+
+      </div>
+    </div><!-- /notificationsView -->
+
+  </div><!-- /panel-layout -->
+
+  <!-- ════ Drawer deslizante (paradigma único de edición) ════════════
+       Un host con 2 niveles apilables (p.ej. equipo → ficha de corredor).
+       El scrim y los paneles se controlan desde js/components/drawer.js.
+       Cada editor monta su contenido en .cc-drawer__body del nivel activo. -->
+  <div class="cc-drawer-root" id="ccDrawerRoot" aria-hidden="true">
+    <div class="cc-drawer__scrim" id="ccDrawerScrim"></div>
+    <aside class="cc-drawer cc-drawer--l1" id="ccDrawer1" role="dialog" aria-modal="true" aria-labelledby="ccDrawer1Title">
+      <header class="cc-drawer__header">
+        <h2 class="cc-drawer__title" id="ccDrawer1Title"></h2>
+        <button class="cc-drawer__close" id="ccDrawer1Close" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="cc-drawer__body" id="ccDrawer1Body"></div>
+    </aside>
+    <aside class="cc-drawer cc-drawer--l2" id="ccDrawer2" role="dialog" aria-modal="true" aria-labelledby="ccDrawer2Title">
+      <header class="cc-drawer__header">
+        <h2 class="cc-drawer__title" id="ccDrawer2Title"></h2>
+        <button class="cc-drawer__close" id="ccDrawer2Close" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="cc-drawer__body" id="ccDrawer2Body"></div>
+    </aside>
+  </div>
+
+  <!-- El selector de carrera ("Seleccionar carrera") vive ahora en el drawer
+       (nivel 2 si se abre desde el editor de jornada, nivel 1 desde la
+       agenda). Lo monta openRaceModal() → raceModalBodyHtml(). -->
+
+  <script src="../js/config.js"></script>
+  <script type="module" src="../js/panel.js"></script>
+
+</body>
+</html>

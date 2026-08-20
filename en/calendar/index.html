@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-itunes-app" content="app-id=6761902611">
+  <title>Calendario — Calendario Ciclismo App</title>
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/temporada.css">
+  <link rel="stylesheet" href="/css/calendario.css">
+  <style>
+    .static-prerender{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
+    .static-prerender h1,.static-prerender h2,.static-prerender p,.static-prerender ul,.static-prerender li,.static-prerender a{all:revert}
+  </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+  <meta name="description" content="Calendario completo del ciclismo profesional: vista mensual y de temporada con todas las carreras WorldTour, Pro Series y categorías inferiores, con fechas, recorrido y cómo verlas.">
+  <link rel="canonical" href="https://calendariociclismo.app/en/calendar/">
+  <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/calendar/"/>
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/calendario.html"/>
+  <link rel="alternate" hreflang="x-default" href="https://calendariociclismo.app/calendario.html"/>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Calendario 2026 — Calendario Ciclismo App">
+  <meta property="og:description" content="Calendario completo del ciclismo profesional: vista mensual y de temporada con todas las carreras WorldTour, Pro Series y categorías inferiores.">
+  <meta property="og:url" content="https://calendariociclismo.app/en/calendar/">
+  <meta property="og:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Calendario Ciclismo">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Calendario 2026 — Calendario Ciclismo App">
+  <meta name="twitter:description" content="Calendario completo del ciclismo profesional: vista mensual y de temporada con todas las carreras WorldTour, Pro Series y categorías inferiores.">
+  <meta name="twitter:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
+  <link rel="preconnect" href="https://assets.calendariociclismo.app">
+  <link rel="dns-prefetch" href="https://pub-10252f2a495c488a856a619206783642.r2.dev">
+
+</head>
+<body>
+
+  <header class="site-header" id="siteHeader"></header>
+<script type="module" src="/js/header.js"></script>
+
+  <!-- ── Filter bar — SEASON subview ───────────────────────────── -->
+  <div class="temporada-filters" id="temporadaFilters" hidden>
+    <div class="temporada-filters__inner">
+      <div class="temporada-filters__row1">
+        <select class="temporada-select" id="filterYear" aria-label="Year"></select>
+        <select class="temporada-select temporada-select--month" id="filterMonth" aria-label="Month">
+          <option value="">— Month —</option>
+          <option value="01">January</option>
+          <option value="02">February</option>
+          <option value="03">March</option>
+          <option value="04">April</option>
+          <option value="05">May</option>
+          <option value="06">June</option>
+          <option value="07">July</option>
+          <option value="08">August</option>
+          <option value="09">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+        <select class="temporada-select temporada-select--country" id="filterCountry" aria-label="Country"><option value="">Countries</option></select>
+        <a class="btn-ical btn-ical--inline" href="/subscription/">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="btn-ical__label">Calendar</span>
+        </a>
+        <!-- Subview toggle: ALWAYS pinned top-right (margin-left:auto), same
+             spot as in the Month bar — mirror of the apps' TopAppBar action. -->
+        <button class="cal-view-toggle" data-cal-switch="mes" title="Month view">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Month
+        </button>
+      </div>
+      <div class="temporada-filter-row2">
+        <div class="temporada-filter-cats" id="filterCats">
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="all">All</button>
+          <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt">WWT</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
+        </div>
+        <a class="btn-ical btn-ical--row2" href="/subscription/">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Calendar
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Filter bar — MONTH subview (monthly agenda) ───────────── -->
+  <div class="temporada-filters cal-mes-bar" id="mesBar" hidden>
+    <div class="temporada-filters__inner">
+      <div class="cal-mes-bar__row1">
+        <select class="temporada-select" id="mesYear" aria-label="Calendar year"></select>
+        <div class="cal-month-chips" id="mesChips"></div>
+        <button class="month-today-btn cal-today-btn" id="mesTodayBtn">Today</button>
+        <button class="cal-view-toggle" data-cal-switch="temporada" title="Season view">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Season
+        </button>
+      </div>
+      <div class="temporada-filter-row2">
+        <div class="temporada-filter-cats" id="mesCats">
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="all">All</button>
+          <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem">Pro</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt">WWT</button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Men</span><span class="btn-label-short" data-i18n="filter.male_short">Men</span></button>
+          <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Women</span><span class="btn-label-short" data-i18n="filter.female_short">Women</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="temporada-main" id="calMain">
+    <div class="static-prerender static-prerender--visible">
+      <h1>Professional cycling calendar</h1>
+      <p>Full calendar of men's and women's professional cycling, in month or full-season view: the three Grand Tours (Tour de France, Giro d'Italia, Vuelta a España), the five Monuments (Milan-San Remo, Tour of Flanders, Paris-Roubaix, Liège-Bastogne-Liège, Il Lombardia), the entire UCI WorldTour, UCI Women's WorldTour, ProSeries, national, world and continental championships.</p>
+      <p>Filter by month, country and category (Pro, WorldTour, WWT, men, women). Every race links to its page with route, profile, startlist and all the TV channels and streaming platforms to watch it live.</p>
+      <h2>Other calendar views</h2>
+      <ul>
+        <li><a href="/en/">Home</a>: today's races with schedules and where to watch.</li>
+        <li><a href="/en/results/">Results</a>: the latest results of every race day.</li>
+        <li><a href="/en/subscription/">Calendar subscription</a>: iCal feeds for Apple, Google and Outlook.</li>
+      </ul>
+    </div>
+    <div class="loading" id="calStaticLoading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text" data-i18n="loading.season">Loading calendar</p><div class="loading__dots"><span></span><span></span><span></span></div></div>
+    <div id="temporadaContent" hidden></div>
+    <div id="mesContent" hidden></div>
+  </main>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/cookie-consent.js"></script>
+  <script src="/js/analytics.js"></script>
+  <script type="module" src="/js/calendario.js"></script>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/en/privacy/">Privacy</a></p>
+  </footer>
+
+  <script src="/js/apps-modal.js"></script>
+  <script src="/js/lang-switch.js"></script>
+</body>
+</html>

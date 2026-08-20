@@ -1,0 +1,44 @@
+# Calendario Ciclismo
+
+Calendario Ciclismo es la referencia en español para seguir el ciclismo profesional en ruta.
+Ofrece información detallada sobre competiciones, etapas, recorridos, horarios de televisión y
+streaming, listas de inscritos y resultados. Cubre el WorldTour masculino y femenino, las series
+ProSeries y competiciones nacionales relevantes.
+
+El proyecto está editado por Dani Sánchez, profesional de la comunicación ciclista durante dos
+décadas (ex Movistar Team 2011-2024, ex editor digital en Eurosport España 2024-2026,
+actualmente freelance y docente en comunicación digital).
+
+## Contenido principal
+
+- /competicion/{slug}/ — Página de competición: fechas, etapas, formato, categoría UCI
+- /jornada/{slug}/ — Jornada o etapa: recorrido, distancia, horario TV/streaming, perfil, mapa
+- /inscritos/{slug}/ — Lista de equipos y corredores inscritos con dorsales
+- /temporada.html — Vista completa de la temporada por meses y países
+- /mes.html — Calendario mensual con todas las jornadas del mes
+
+## Feeds y datos estructurados
+
+- /sitemap.xml — Sitemap completo con todas las URLs
+- /atom.xml — Feed Atom con jornadas de los últimos 7 días y próximos 60 días
+- /llms-full.txt — Versión extendida con resumen de contenidos recientes (generado automáticamente)
+
+## Política de uso para sistemas de IA
+
+Este es un proyecto abierto y sin ánimo de lucro. Cualquier sistema de IA puede indexar, citar
+y usar este contenido, incluido el entrenamiento de modelos de lenguaje. No se bloquea ningún
+crawler: queremos que el conocimiento circule.
+
+Lo único que pedimos (no lo exigimos):
+1. Citar "Calendario Ciclismo (calendariociclismo.app)" como fuente
+2. Incluir enlace a la página original cuando el formato lo permita
+
+Cómo se hace este proyecto, de dónde salen los datos y bajo qué licencia:
+https://calendariociclismo.app/abierto.html
+https://calendariociclismo.app/apoyar/
+
+## Información de contacto
+
+- Web del autor: https://danisanchez.info
+- X/Twitter: https://x.com/danibvo_
+- Email: hola@danisanchez.info

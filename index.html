@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-itunes-app" content="app-id=6761902611">
+  <meta name="application-name" content="Calendario Ciclismo App">
+  <meta name="apple-mobile-web-app-title" content="Calendario Ciclismo App">
+  <title>Calendario Ciclismo App</title>
+  <meta name="description" content="Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.">
+  <meta name="keywords" content="calendario ciclismo, ciclismo donde echan, ciclismo por TV, ciclismo streaming, Tour de Francia, Giro de Italia, Vuelta a España, París-Roubaix, Tour de Flandes, Danibici, Dani Sánchez, calendario ciclismo app, calendario ciclista, horarios carrera ciclismo">
+  <meta property="og:title" content="Calendario Ciclismo App">
+  <meta property="og:description" content="Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.">
+  <meta property="og:url" content="https://calendariociclismo.app">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Calendario Ciclismo App">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Calendario Ciclismo App">
+  <meta name="twitter:description" content="Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming.">
+  <meta name="twitter:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
+  <link rel="canonical" href="https://calendariociclismo.app">
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/">
+  <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/">
+  <link rel="alternate" hreflang="x-default" href="https://calendariociclismo.app/">
+  <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo — Próximas jornadas" href="https://calendariociclismo.app/atom.xml">
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
+  <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
+  <link rel="preconnect" href="https://assets.calendariociclismo.app">
+  <!-- El cliente de Supabase y las banderas se cargan desde jsDelivr y
+       están en la cadena crítica del primer render → preconnect ahorra el
+       handshake DNS+TLS a mitad de cadena (mejora LCP). crossorigin: los +esm
+       son módulos cargados con CORS. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://pub-10252f2a495c488a856a619206783642.r2.dev">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Calendario Ciclismo App",
+    "alternateName": "Calendario Ciclismo",
+    "url": "https://calendariociclismo.app",
+    "description": "Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://calendariociclismo.app/buscar.html?q={search_term_string}"
+      },
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    .static-prerender{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
+    .static-prerender h1,.static-prerender h2,.static-prerender p,.static-prerender ul,.static-prerender li,.static-prerender a{all:revert}
+  </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+  <link rel="manifest" href="/manifest.json">
+
+</head>
+<body>
+  <!-- Reserva síncrona (pre-paint) del alto del smart-banner de Android: el
+       banner lo inserta js/apps-modal.js DESPUÉS del parse con insertBefore
+       sobre el header, así que sin reservar empuja toda la página hacia abajo
+       (CLS, justo en el dispositivo Android del test). La decisión es síncrona
+       (UA + localStorage), igual que en apps-modal.js → reservamos el hueco ya
+       y apps-modal.js retira la clase al colocar el banner real (que ocupa ese
+       mismo alto en flujo → desplazamiento neto cero). -->
+  <script>!function(){try{if(/Android/i.test(navigator.userAgent)&&!localStorage.getItem('cc_android_banner_dismissed'))document.documentElement.classList.add('cc-android-banner-pending')}catch(e){}}()</script>
+    <header class="site-header" id="siteHeader"></header>
+<script type="module" src="/js/header.js"></script>
+
+  <div id="giroCountdown" class="giro-countdown" hidden></div>
+
+  <div class="hoy-sticky">
+  <div class="date-bar" id="dateBar">
+    <!-- generado por JS -->
+  </div>
+
+  <section class="agenda-filters" id="agendaFilters" aria-label="Filtros y orden">
+  <div class="agenda-filters__inner">
+    <div class="agenda-filter-cats" id="agendaFilterCats">
+      <button type="button" aria-pressed="true" class="tcat-btn tcat-btn--active" data-cat="all"><span class="btn-label-full" data-i18n="filter.all">Todas</span><span class="btn-label-short" data-i18n="filter.all">Todas</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="pro" data-ph-tooltip="Pruebas .1 o superior masc o fem"><span class="btn-label-full" data-i18n="filter.pro">Pro</span><span class="btn-label-short" data-i18n="filter.pro">Pro</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="uwt"><span class="btn-label-full" data-i18n="filter.worldtour">WorldTour</span><span class="btn-label-short">WT</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="wwt"><span class="btn-label-full" data-i18n="filter.wwt">WWT</span><span class="btn-label-short" data-i18n="filter.wwt">WWT</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="male" data-ph-tooltip="Pruebas .1 o superior"><span class="btn-label-full" data-i18n="filter.male">Masculino</span><span class="btn-label-short" data-i18n="filter.male_short">Masc</span></button>
+      <button type="button" aria-pressed="false" class="tcat-btn" data-cat="female" data-ph-tooltip="Pruebas .2 europeas y .1 o superior"><span class="btn-label-full" data-i18n="filter.female">Femenino</span><span class="btn-label-short" data-i18n="filter.female_short">Fem</span></button>
+    </div>
+
+    <div class="agenda-filter-divider"></div>
+
+    <div class="agenda-sort-wrap">
+      <select class="agenda-sort-select" id="agendaSortSelect" aria-label="Ordenar carreras">
+        <option value="" disabled selected data-i18n="sort.label">Ordenar</option>
+        <option value="category" data-i18n="sort.category">Cat. UCI</option>
+        <option value="tvtime" data-i18n="sort.tvtime">Hora TV</option>
+        <option value="finishtime" data-i18n="sort.finishtime">Hora Meta</option>
+      </select>
+    </div>
+
+  </div>
+  </section>
+  </div>
+
+  <main class="race-list" id="raceList">
+    <div class="static-prerender static-prerender--visible">
+      <h1>Calendario Ciclismo: todas las carreras profesionales con TV y streaming</h1>
+      <p>Calendario Ciclismo es la guía completa del ciclismo profesional masculino y femenino. Cada día muestra las carreras en disputa con su horario de salida y meta, recorrido, perfil de etapa, lista de inscritos y todos los canales de televisión y plataformas de streaming desde donde seguirlas en directo, con cobertura específica para España.</p>
+      <p>Cubrimos las tres Grandes Vueltas (Tour de Francia, Giro de Italia y Vuelta a España), los cinco Monumentos (Milán-San Remo, Tour de Flandes, París-Roubaix, Lieja-Bastoña-Lieja y Giro de Lombardía), todas las pruebas del UCI WorldTour y UCI Women's WorldTour, las carreras del UCI ProSeries y las clásicas del calendario continental. También campeonatos nacionales, mundiales y europeos.</p>
+      <h2>Secciones principales</h2>
+      <ul>
+        <li><a href="/index.html">Hoy</a>: las carreras de hoy con horarios y dónde verlas.</li>
+        <li><a href="/calendario.html?vista=mes">Calendario mensual</a>: agenda del mes con todas las carreras.</li>
+        <li><a href="/calendario.html">Calendario de temporada</a>: todas las carreras del año, filtrables por categoría y país.</li>
+        <li><a href="/suscripcion/">Suscripción al calendario</a>: feeds iCal para Apple, Google y Outlook.</li>
+        <li><a href="/about.html">Sobre nosotros</a>: el proyecto, ideado y editado por Dani Sánchez.</li>
+      </ul>
+      <h2>Grandes citas del ciclismo profesional</h2>
+      <ul>
+        <li>Tour de Francia, Giro de Italia, Vuelta a España.</li>
+        <li>Tour de Francia Femmes, Giro d'Italia Women, Vuelta a España Femenina.</li>
+        <li>Monumentos: Milán-San Remo, Tour de Flandes, París-Roubaix, Lieja-Bastoña-Lieja, Giro de Lombardía.</li>
+        <li>Strade Bianche, Amstel Gold Race, Flecha Valona, Gante-Wevelgem, E3 Saxo Classic, Roubaix Femmes.</li>
+        <li>París-Niza, Tirreno-Adriático, Vuelta al País Vasco, Critérium du Dauphiné, Volta a Catalunya.</li>
+        <li>Campeonatos del Mundo y Europeos UCI en ruta y contrarreloj.</li>
+      </ul>
+    </div>
+    <div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text" data-i18n="loading.stages">Cargando jornadas</p><div class="loading__dots"><span></span><span></span><span></span></div></div>
+  </main>
+
+  <!-- config y firebase antes que app.js -->
+  <script src="js/config.js"></script>
+  <script src="js/cookie-consent.js"></script>
+  <script src="js/analytics.js"></script>
+  <script type="module" src="js/app.js"></script>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Ideado y editado por <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/privacidad.html">Privacidad</a></p>
+    <p class="site-footer__actions">
+      <a class="footer-link footer-link--icon" href="/suscripcion/">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span data-i18n="nav.icalCalendar">Calendario iCal</span>
+      </a>
+    </p>
+  </footer>
+
+  <script src="js/apps-modal.js"></script>
+  <script src="js/lang-switch.js"></script>
+</body>
+</html>

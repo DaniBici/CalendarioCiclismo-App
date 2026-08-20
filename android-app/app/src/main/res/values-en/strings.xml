@@ -1,0 +1,603 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendario Ciclismo</string>
+
+    <!-- Bottom bar -->
+    <string name="tab_today">Today</string>
+    <string name="tab_results">Results</string>
+    <string name="tab_calendar">Calendar</string>
+    <string name="tab_month">Month</string>
+    <string name="tab_season">Year</string>
+    <string name="tab_transfers">Transfers</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Common -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_subscribe">Subscribe</string>
+    <string name="action_activate">Activate</string>
+    <string name="action_deactivate">Deactivate</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_set">Set</string>
+    <string name="action_remove">Remove</string>
+    <string name="loading">Loading…</string>
+
+    <!-- Category filters -->
+    <string name="filter_today">Today</string>
+    <string name="filter_all">All</string>
+    <string name="filter_pro">Pro</string>
+    <string name="filter_uwt">WT</string>
+    <string name="filter_wwt">WWT</string>
+    <string name="filter_male">Men</string>
+    <string name="filter_female">Women</string>
+
+    <!-- Championships mode -->
+    <string name="champ_title">National Championships</string>
+    <string name="champ_mode_button">Go to Championships mode</string>
+    <string name="champ_empty">No championship data available yet.</string>
+    <string name="champ_error">Error loading the championships.</string>
+    <string name="champ_slot_linea_masc">Men\'s RR</string>
+    <string name="champ_slot_cri_masc">Men\'s ITT</string>
+    <string name="champ_slot_linea_fem">Women\'s RR</string>
+    <string name="champ_slot_cri_fem">Women\'s ITT</string>
+    <string name="champ_slot_linea_sub23_m">Men\'s U23 RR</string>
+    <string name="champ_slot_cri_sub23_m">Men\'s U23 ITT</string>
+    <string name="champ_slot_linea_sub23_f">Women\'s U23 RR</string>
+    <string name="champ_slot_cri_sub23_f">Women\'s U23 ITT</string>
+
+    <!-- Filters: default filter dialog -->
+    <string name="filter_dialog_title">Default filter</string>
+    <string name="filter_dialog_remove_title">Remove default filter</string>
+    <string name="filter_dialog_set_message">«%1$s» will be applied as the default in Today, Month and Season.</string>
+    <string name="filter_dialog_remove_message">«%1$s» will no longer be the default filter; all categories will be shown.</string>
+
+    <!-- Today screen -->
+    <string name="today_button_today">Today</string>
+    <string name="today_empty_title">No races</string>
+    <string name="today_empty_body">No races scheduled for this day.</string>
+    <string name="today_empty_next_race">Go to the next day with races</string>
+    <string name="today_subtitle_rest">Rest day</string>
+    <string name="today_subtitle_cancelled">Cancelled</string>
+    <string name="today_race_fallback">Race</string>
+    <string name="today_results_title">Results</string>
+    <string name="today_results_title_with_stage">Results · %1$s</string>
+    <string name="today_results_cd">Results</string>
+    <string name="today_revive_cd">Watch back</string>
+    <string name="today_startlist_badge">Startlist</string>
+    <string name="today_prev_day_cd">Previous day</string>
+    <string name="today_next_day_cd">Next day</string>
+    <string name="today_refresh_cd">Refresh</string>
+    <string name="today_sort_action">Sort</string>
+    <string name="today_sort_category">Category</string>
+    <string name="today_sort_tv_time">TV time</string>
+    <string name="today_sort_finish_time">Finish time</string>
+
+    <!-- Month screen -->
+    <string name="month_title">Calendar</string>
+    <string name="calendar_loading">Loading calendar…</string>
+    <string name="month_button_today">Today</string>
+    <string name="month_no_races">No races</string>
+
+    <!-- Season screen -->
+    <string name="season_pill_all_months">All</string>
+    <string name="season_country_pill_default">Country</string>
+    <string name="season_country_all">All countries</string>
+    <string name="season_empty_no_races">No races match these filters</string>
+    <string name="season_female_indicator_cd">Women’s race</string>
+
+    <!-- Search screen -->
+    <string name="search_field_label">Search</string>
+    <string name="search_field_placeholder">Race, climb, town…</string>
+    <string name="search_empty_title">Search our database</string>
+    <string name="search_empty_body">Find races, towns, climbs…</string>
+    <string name="search_no_results_title">No results</string>
+    <string name="search_no_results_body">No races found for «%1$s»</string>
+    <string name="search_results_count_one">%1$d result</string>
+    <string name="search_results_count_other">%1$d results</string>
+    <string name="search_match_start">Start</string>
+    <string name="search_match_finish">Finish</string>
+    <string name="search_match_start_finish">Start and finish</string>
+    <string name="search_match_description">In description</string>
+    <string name="search_race_stage_race">Stage race</string>
+    <string name="search_rider_tag">Rider</string>
+    <string name="search_rider_tag_female">Rider</string>
+
+    <!-- Stage detail -->
+    <string name="stage_section_schedule">Schedule</string>
+    <string name="stage_section_broadcast">Broadcast</string>
+    <string name="stage_section_broadcast_revive_one_day">Watch the race</string>
+    <string name="stage_section_broadcast_revive_stage">Watch the stage</string>
+    <string name="stage_section_previous_results">Race standings</string>
+    <string name="stage_section_results">Results</string>
+    <string name="stage_section_description">Description</string>
+    <string name="stage_section_bonuses">Bonifications</string>
+    <string name="stage_section_notes">Notes</string>
+    <string name="stage_label_start_neutralized">Neutralized start</string>
+    <string name="stage_label_estimated_finish">Estimated finish</string>
+    <string name="stage_label_start_finish">Start and finish</string>
+    <string name="stage_label_start_first_rider">First rider start</string>
+    <string name="stage_label_start_first_rider_female">First rider start</string>
+    <string name="stage_label_start_first_team">First team start</string>
+    <string name="stage_label_finish_last_rider">Last rider finish</string>
+    <string name="stage_label_finish_last_rider_female">Last rider finish</string>
+    <string name="stage_label_finish_last_team">Last team finish</string>
+    <string name="stage_guide_open">Show timetable</string>
+    <string name="stage_guide_estimated_note">Times with * are estimates; the rest come from the road book.</string>
+    <string name="stage_guide_km_to_go">%1$s km to go</string>
+    <string name="stage_guide_at_finish">Finish</string>
+    <string name="stage_guide_start">Start</string>
+    <string name="stage_guide_finish">Finish</string>
+    <string name="stage_guide_climb_foot">Foot of %1$s</string>
+    <string name="stage_guide_climb_foot_generic">Foot of climb</string>
+    <string name="stage_guide_summit">Summit</string>
+    <string name="stage_guide_intermediate_sprint">Intermediate sprint</string>
+    <string name="stage_guide_bonus_sprint">Bonus sprint</string>
+    <string name="stage_guide_intermediate_split">Intermediate point</string>
+    <string name="stage_guide_cobblestone">Cobbles</string>
+    <string name="stage_guide_sterrato">Gravel</string>
+    <string name="stage_guide_town">Town</string>
+    <string name="stage_label_route_unknown">Stage not found</string>
+    <string name="stage_doc_web_official">Official website</string>
+    <string name="stage_doc_startlist_provisional">Provisional Startlist</string>
+    <string name="stage_doc_startlist_female">Startlist</string>
+    <string name="stage_doc_startlist_male">Startlist</string>
+    <string name="stage_doc_profile">Profile</string>
+    <string name="stage_doc_profile_official">Profile</string>
+    <string name="stage_doc_profile_interactive">Profile + Data</string>
+    <string name="stage_doc_map">Map</string>
+    <string name="stage_doc_map_official">Map</string>
+    <string name="stage_doc_map_interactive">3D Map</string>
+    <string name="stage_doc_sterrato">Sterrato</string>
+    <string name="stage_doc_ribinou">Ribinou</string>
+    <string name="stage_doc_add_to_calendar">Add to calendar</string>
+    <string name="stage_broadcast_channel_fallback">Channel</string>
+    <string name="stage_action_back_cd">Back</string>
+    <string name="stage_action_open_link_cd">Open link</string>
+    <string name="stage_dialog_out_of_range_title">File out of range</string>
+    <string name="stage_dialog_out_of_range_body">This file is outside the offline mode range. You\'ll be able to view it once you regain a network connection.</string>
+    <string name="stage_dialog_external_link_title">External link</string>
+    <string name="stage_dialog_external_link_body">External link. Only available with a network connection.</string>
+    <string name="stage_dialog_offline_disabled_title">No connection</string>
+    <string name="stage_dialog_offline_disabled_body">You\'re trying to access content without a network connection. We recommend enabling offline mode to keep files preloaded.</string>
+    <string name="stage_dialog_refresh_offline_title">No connection</string>
+    <string name="stage_dialog_refresh_offline_body_active">No network to update the data. You\'re viewing the latest version downloaded to your device.</string>
+    <string name="stage_dialog_refresh_offline_body_inactive">No network to update the data. Enable offline mode to keep it preloaded.</string>
+    <string name="stage_dialog_refresh_out_of_range_title">Stage out of range</string>
+    <string name="stage_dialog_refresh_out_of_range_body">This stage is outside the offline mode range, so the downloaded data may not be up to date. You\'ll be able to refresh it once you regain a network connection.</string>
+    <string name="stage_dialog_action_activate_offline">Enable offline mode</string>
+
+    <!-- Race detail -->
+    <string name="race_label_stages_count">%1$d stages</string>
+    <string name="race_label_cancelled">Race cancelled</string>
+    <string name="race_empty_no_stages_title">No stages published</string>
+    <string name="race_empty_no_stages_body">Stages will be published soon</string>
+    <string name="race_stage_cancelled">Stage cancelled</string>
+    <string name="race_cancelled">Race cancelled</string>
+    <string name="results_carried_standings">Standings unchanged: the stage was cancelled. Classification after stage %1$s.</string>
+    <string name="race_stage_rest_day">Rest day</string>
+
+    <!-- Startlist -->
+    <string name="startlist_error_title">Loading error</string>
+    <string name="startlist_error_unknown">Unknown error</string>
+    <string name="startlist_empty">No riders registered</string>
+    <string name="startlist_label_teams">Teams</string>
+    <string name="startlist_label_riders_male">Riders</string>
+    <string name="startlist_label_riders_female">Riders</string>
+    <string name="startlist_disclaimer_provisional_title">Provisional Startlist</string>
+    <string name="startlist_disclaimer_provisional_body">Not considered final until the team managers\' meeting. This notice will disappear once it is official.</string>
+    <string name="startlist_team_confirmed_cd">Confirmed</string>
+    <string name="startlist_team_pending_cd">Pending</string>
+
+    <!-- Settings sections -->
+    <string name="settings_section_calendar">iCal calendar</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_section_offline">Offline mode</string>
+    <string name="settings_section_experience">Experience</string>
+    <string name="settings_section_language">Language</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_privacy">Privacy</string>
+
+    <!-- Settings: Language -->
+    <string name="settings_language_description">Choose your app language.</string>
+
+    <!-- Onboarding: language selection (first step of the flow) -->
+    <string name="onboarding_language_title">Choose your language</string>
+    <string name="onboarding_language_cta_spanish">Continuar en español</string>
+    <string name="onboarding_language_cta_english">Switch to English</string>
+
+    <!-- Settings: historical keys reused by voluntary support -->
+    <string name="settings_premium_cta_title">Become a Friend</string>
+    <string name="settings_premium_cta_body">Voluntary support; every feature is free.</string>
+    <string name="settings_premium_active_title">Friend active</string>
+    <string name="settings_premium_active_body">Thanks for supporting the app.</string>
+    <string name="settings_premium_manage">Manage subscription</string>
+    <string name="settings_premium_redeem_code">Redeem code</string>
+
+    <!-- Settings: Appearance -->
+    <string name="settings_appearance_description">Choose how the app looks: always light, always dark, or matching the system setting.</string>
+    <string name="settings_theme_cd">%1$s theme</string>
+    <string name="theme_auto">Auto</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- Settings: Calendar -->
+    <string name="settings_calendar_description">Subscribe to one of these lists from Google Calendar: it will stay updated automatically.</string>
+    <string name="settings_calendar_subscribe_cd">Subscribe to %1$s</string>
+    <!-- Feed labels and descriptions iCal -->
+    <string name="feed_label_todo">All</string>
+    <string name="feed_desc_todo">All categories, both genders</string>
+    <string name="feed_label_pro">Pro</string>
+    <string name="feed_desc_pro">All categories up to .1</string>
+    <string name="feed_label_wt">WorldTour</string>
+    <string name="feed_desc_wt">UCI WorldTour men (1.UWT / 2.UWT)</string>
+    <string name="feed_label_wwt">WWT</string>
+    <string name="feed_desc_wwt">UCI WorldTour women (1.WWT / 2.WWT)</string>
+    <string name="feed_label_masc">Men</string>
+    <string name="feed_desc_masc">All races up to .1</string>
+    <string name="feed_label_fem">Women</string>
+    <string name="feed_desc_fem">All races up to .1 and European .2</string>
+
+    <!-- Settings: Offline mode -->
+    <string name="settings_offline_title">Download calendar</string>
+    <string name="settings_offline_body">Next 14 days + current and next month + season.</string>
+    <string name="settings_offline_last_sync">Last sync: %1$s</string>
+    <string name="settings_offline_update_now">Update now</string>
+    <string name="settings_offline_syncing_cd">Downloading offline data…</string>
+
+    <!-- Settings: Notifications -->
+    <string name="settings_notifications_title">Receive alerts</string>
+    <string name="settings_notifications_body">Heads-up before each race and editorial changes.</string>
+    <string name="settings_notification_categories_title">Notification types</string>
+    <string name="settings_notification_category_premium_hint">Available to everyone</string>
+
+    <!-- Notification categories (Phase 3) -->
+    <string name="notification_category_general">Announcements and updates</string>
+    <string name="notification_category_general_description">App improvements and important alerts</string>
+    <string name="notification_category_race_start">Race start</string>
+    <string name="notification_category_race_start_description">T-30 min before the start</string>
+    <string name="notification_category_tv_start">TV broadcast start</string>
+    <string name="notification_category_tv_start_description">T-5 min before each broadcast</string>
+    <string name="notification_category_results">Results when the day closes</string>
+    <string name="notification_category_results_description">Podium and standings after the finish</string>
+
+    <!-- Settings: Experience -->
+    <string name="settings_haptics_title">Haptics</string>
+    <string name="settings_haptics_body">Tactile feedback while navigating and interacting with the app.</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_privacy_analytics_title">Usage analytics</string>
+    <string name="settings_privacy_analytics_body">Help us improve the app by sharing anonymous usage data.</string>
+    <string name="settings_privacy_delete_button">Delete all my data</string>
+    <string name="settings_privacy_delete_body">Usage data is fully anonymous. You can permanently delete your notification record and the local cache.</string>
+
+    <!-- Onboarding: region -->
+
+    <!-- Settings: Region -->
+    <string name="settings_section_region">Region</string>
+    <string name="settings_region_description">Decides which TV channels you see on each race day.</string>
+
+    <!-- Regions (shared between Settings and onboarding) -->
+    <string name="region_spain">Spain</string>
+    <string name="region_europe">Europe</string>
+    <string name="region_americas">Americas</string>
+    <string name="region_asia">Asia &amp; Pacific</string>
+    <string name="region_africa">Africa</string>
+    <string name="region_all">All regions</string>
+
+    <!-- Country preferred sub-selector -->
+    <string name="settings_region_country_label">Your country (adjusts the TV alert time)</string>
+    <string name="settings_region_country_auto">Automatic (my time zone)</string>
+
+    <!-- Fine broadcasts.country groups -->
+    <string name="country_group_es">Spain</string>
+    <string name="country_group_pt">Portugal</string>
+    <string name="country_group_fr">France</string>
+    <string name="country_group_be">Belgium</string>
+    <string name="country_group_nl">Netherlands</string>
+    <string name="country_group_it">Italy</string>
+    <string name="country_group_de_at_ch">Germany / Austria / Switzerland</string>
+    <string name="country_group_uk_ie">United Kingdom / Ireland</string>
+    <string name="country_group_scandi">Nordic countries</string>
+    <string name="country_group_ee">Eastern Europe</string>
+    <string name="country_group_norteam">USA &amp; Canada</string>
+    <string name="country_group_latam">Latin America</string>
+    <string name="country_group_asiapac">Asia &amp; Pacific</string>
+    <string name="country_group_mena">Middle East &amp; North Africa</string>
+    <string name="country_group_africa">Sub-Saharan Africa</string>
+
+    <!-- Onboarding: notifications -->
+    <string name="onboarding_notif_title">Stay in the loop</string>
+    <string name="onboarding_notif_body">The app has no ads, and we\'ll only use these alerts for major content updates or marquee race days, so you have the best information at your fingertips. Nothing intrusive.</string>
+    <string name="onboarding_notif_bullet_events">Cycling\'s biggest dates</string>
+    <string name="onboarding_notif_bullet_updates">Content updates</string>
+    <string name="onboarding_notif_bullet_no_spam">No spam, just the essentials</string>
+    <string name="onboarding_notif_cta">Enable notifications</string>
+    <string name="onboarding_notif_skip">Not now</string>
+
+    <!-- Onboarding: offline mode -->
+
+    <!-- 4.3 announcement: advertising removed and voluntary support -->
+    <string name="onboarding_premium_title">Free and ad-free for everyone</string>
+    <string name="onboarding_premium_body">Advertising is gone for good. Every feature remains free, and anyone who wishes may support the project voluntarily.</string>
+    <string name="onboarding_premium_body_new_installation">Support the maintenance costs of this project, made purely for the love of cycling. Every feature is free.</string>
+    <string name="onboarding_premium_benefit_open">Open source with public accounts</string>
+    <string name="onboarding_premium_benefit_founder">Previous Premium users receive the Founder icon</string>
+    <string name="onboarding_premium_benefit_experience">Made by a professional with two decades of experience in cycling</string>
+    <string name="onboarding_premium_explain">Learn about the change</string>
+    <string name="onboarding_premium_manage">Manage subscription</string>
+    <string name="onboarding_premium_cta_try">View support options</string>
+    <string name="onboarding_premium_cta_free">Continue</string>
+
+    <!-- Paywall "ad-free" -->
+    <string name="paywall_title">Ad-free. Free for everyone.</string>
+    <string name="paywall_subtitle">Support Calendario Ciclismo, an independent Open Source project. Your subscription helps sustain servers, data, notifications, and development so its content stays free.</string>
+    <string name="paywall_benefit_no_ads">No ads on any screen</string>
+    <string name="paywall_benefit_clean">A cleaner, faster experience</string>
+    <string name="paywall_benefit_support">Helps sustain an independent Open Source project</string>
+    <string name="contribution_transparency_title">A project sustained by its community</string>
+    <string name="contribution_transparency_body">Open source, non-commercial, with public accounts.</string>
+    <string name="contribution_prompt_title">Is Calendario Ciclismo useful to you?</string>
+    <string name="contribution_prompt_body">It is an independent Open Source project, free and ad-free. If it is useful to you, you can help sustain its servers and maintenance.</string>
+    <string name="contribution_prompt_open">View support options</string>
+    <string name="contribution_prompt_later">Not now</string>
+    <string name="paywall_nonprofit_note">Every feature is free. Friend memberships and one-time contributions voluntarily help cover servers, tools and maintenance.</string>
+    <string name="paywall_period_yearly">per year</string>
+    <string name="paywall_period_monthly">per month</string>
+    <string name="paywall_badge_best_value">BEST VALUE</string>
+    <string name="paywall_cancel_anytime">Cancel anytime</string>
+    <string name="paywall_cta_try">Become a Friend</string>
+    <!-- %1$s = price already formatted by Billing (e.g. "€17.99/year") -->
+    <string name="paywall_after_price">Then %1$s. Cancel anytime.</string>
+    <string name="paywall_price_per_year">%1$s/year</string>
+    <string name="paywall_price_per_month">%1$s/month</string>
+    <!-- %1$s = monthly equivalent, %2$d = savings percentage -->
+    <string name="paywall_monthly_equiv_savings">%1$s/month · save %2$d%%</string>
+    <string name="paywall_monthly_equiv">%1$s/month</string>
+    <string name="paywall_restore">Restore purchases</string>
+    <string name="paywall_restore_none">We couldn\'t find any previous purchases on this Google account.</string>
+    <string name="paywall_legal_renewal">The subscription renews automatically at the price shown. You can cancel it in Play Store → Payments and subscriptions at least 24 h before the end of the period.</string>
+    <string name="paywall_alert_ok">OK</string>
+
+    <!-- Settings: voluntary support -->
+    <string name="settings_adfree_header">Support Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_title">Become a Friend of Calendario Ciclismo</string>
+    <string name="settings_adfree_cta_body">A voluntary contribution to sustain an open and free project.</string>
+    <string name="settings_adfree_active_title">Friend active</string>
+    <string name="settings_adfree_active_body">Thank you for helping keep the project running.</string>
+    <string name="settings_adfree_manage">Manage subscription</string>
+    <string name="settings_adfree_redeem">Redeem code</string>
+    <string name="settings_adfree_nonprofit_note">Every feature is free. Contributions help cover servers, tools and maintenance.</string>
+
+    <!-- Onboarding: analytics -->
+
+    <!-- Splash -->
+    <string name="splash_app_name">Calendario Ciclismo</string>
+    <string name="splash_tagline">Cycling, instantly.</string>
+
+    <!-- Placeholder modal -->
+    <string name="placeholder_cancelled_stage">Stage cancelled</string>
+    <string name="placeholder_cancelled_race">Race cancelled</string>
+    <string name="placeholder_future_no_info">No additional information yet</string>
+    <string name="placeholder_no_info">No additional information</string>
+    <string name="placeholder_close_dialog_cd">Close dialog</string>
+
+    <!-- Elevation profile -->
+    <string name="profile_unavailable">Profile not available</string>
+    <string name="profile_section_summits">Climbs</string>
+    <string name="profile_section_other_points">Other points</string>
+    <string name="profile_climb_fallback">Climb</string>
+    <string name="profile_summit_finish">Finish</string>
+    <string name="profile_tooltip_gain">elevation gain: %1$d m</string>
+    <string name="profile_waypoint_intermediate_sprint">Intermediate sprint</string>
+    <string name="profile_waypoint_bonus_sprint">Bonus sprint</string>
+    <string name="profile_waypoint_intermediate_split">Intermediate split</string>
+    <string name="profile_waypoint_cobblestone">Pavé</string>
+    <string name="profile_waypoint_sterrato">Sterrato</string>
+
+    <!-- Route map (native) -->
+    <string name="map_key_points">Key points</string>
+    <string name="map_key_points_empty">No key points</string>
+    <string name="map_section_climbs">Climbs</string>
+    <string name="map_section_sprints">Sprints</string>
+    <string name="map_section_splits">Splits</string>
+    <string name="map_section_sectors">Sectors</string>
+    <string name="map_load_error">Couldn\'t load the map</string>
+    <string name="map_retry">Retry</string>
+    <string name="map_start">Start</string>
+    <string name="map_finish">Finish</string>
+    <string name="map_cat">Cat.</string>
+
+    <!-- Stage types -->
+    <string name="stage_type_flat">Flat</string>
+    <string name="stage_type_rolling">Rolling</string>
+    <string name="stage_type_cotas">Hilly</string>
+    <string name="stage_type_medium_mountain">Medium mountain</string>
+    <string name="stage_type_high_mountain">High mountain</string>
+    <string name="stage_type_cobbles">Cobbles</string>
+    <string name="stage_type_sterrato">Sterrato</string>
+    <string name="stage_type_itt">ITT</string>
+    <string name="stage_type_ttt">TTT</string>
+    <string name="stage_type_summit_finish">Summit finish</string>
+    <string name="stage_type_uphill_finish">Uphill finish</string>
+    <string name="stage_type_chrono_climb">Mountain TT</string>
+
+    <!-- TV status -->
+    <string name="tv_status_pending">TBC</string>
+    <string name="tv_status_none">No TV</string>
+    <string name="tv_status_unavailable_es">Not in Spain</string>
+
+    <!-- TV Badge -->
+    <string name="tv_badge_live_text">Live text</string>
+    <string name="tv_badge_live">Live</string>
+    <string name="tv_badge_no_tv">No TV</string>
+    <string name="tv_badge_no_tv_spain">No TV in Spain</string>
+    <string name="tv_badge_pending">TBC</string>
+    <string name="tv_badge_full">Full</string>
+    <string name="tv_badge_tv">TV</string>
+    <string name="tv_badge_tv_with_time">TV %1$s</string>
+
+    <!-- Asset types -->
+    <string name="asset_start_order">Start order</string>
+    <string name="asset_roadbook">Timetable</string>
+    <string name="asset_technical_guide">Technical Guide</string>
+    <string name="asset_profile">Profile</string>
+    <string name="asset_ports">Climbs</string>
+    <string name="asset_pave">Pavé</string>
+    <string name="asset_map">Map</string>
+    <string name="asset_live_text">Live text</string>
+
+    <!-- Notification channel -->
+    <string name="notification_channel_default_id">races_v1</string>
+
+    <!-- Widget "Today in cycling" -->
+    <string name="widget_today_title">Today in cycling</string>
+    <string name="widget_today_description">Today\'s cycling races, estimated finish time and TV coverage.</string>
+
+    <!-- Notification third level -->
+    <string name="settings_race_follow_title">Races</string>
+
+    <!-- Race notification subscriptions -->
+    <string name="race_startlist">Startlist</string>
+    <string name="race_startlist_female">Startlist</string>
+    <string name="race_notifications">Notifications</string>
+    <string name="race_notifications_mode_title">Notification mode</string>
+    <string name="race_notifications_mode_body">You\'re currently receiving notifications for all races. Switch to only this race?</string>
+    <string name="race_notifications_mode_only_this">Only this race</string>
+    <string name="race_notifications_mode_keep_all">Keep receiving all</string>
+
+    <!-- Race group filters -->
+    <string name="race_filter_wt_male">WorldTour men</string>
+    <string name="race_filter_wt_female">WorldTour women</string>
+    <string name="race_filter_grand_tours">Grand Tours</string>
+    <string name="race_filter_pro_male">ProSeries men</string>
+    <string name="race_filter_pro_female">ProSeries women</string>
+
+    <!-- Race follow modes in Settings -->
+    <string name="race_follow_mode_all">All</string>
+    <string name="race_follow_mode_races">Selected</string>
+    <string name="race_follow_mode_filters">By filters</string>
+
+    <!-- FollowedRaces screen -->
+    <string name="followed_races_title">Followed races</string>
+    <string name="followed_races_empty_title">No followed races</string>
+    <string name="followed_races_empty_body">Tap Notifications on any race to add it.</string>
+
+    <!-- FollowedStages screen -->
+    <string name="followed_stages_title">Followed stages</string>
+    <string name="followed_stages_empty_title">No followed stages</string>
+    <string name="followed_stages_empty_body">Tap Notifications on any stage to add it.</string>
+
+    <!-- Start order (ITT/TTT) -->
+    <string name="start_order_title">Start order</string>
+    <string name="start_order_empty">No start order data available for this stage.</string>
+    <string name="start_order_filter_all">All</string>
+    <string name="start_order_filter_tt">TT Specialists</string>
+    <string name="start_order_filter_gc">GC</string>
+    <string name="start_order_col_time">Start</string>
+    <string name="start_order_col_bib">Bib</string>
+    <string name="start_order_col_rider">Rider</string>
+    <string name="start_order_col_team">Team</string>
+    <string name="start_order_tz_note">Times shown in your local time (%1$s). Tap a time for race-local time in %2$s (%3$s).</string>
+    <string name="start_order_tz_tooltip">%1$s race-local time in %2$s</string>
+    <string name="start_order_tz_tooltip_no_loc">%1$s race-local time</string>
+
+    <!-- In-house UCI results (classifications) -->
+    <string name="results_cta">View classifications</string>
+    <string name="results_empty">No results available yet for this race.</string>
+    <string name="results_no_data">No data for this classification.</string>
+    <string name="results_tab_stage">Stage</string>
+    <string name="results_tab_gc">GC</string>
+    <string name="results_tab_points">Points</string>
+    <string name="results_tab_kom">KOM</string>
+    <string name="results_tab_youth">Youth</string>
+    <string name="results_tab_teams">Teams</string>
+    <string name="results_col_rider">Rider</string>
+    <string name="results_col_team">Team</string>
+    <string name="results_col_time">Time</string>
+    <string name="results_col_points">Pts</string>
+    <string name="results_same_time">s.t.</string>
+    <string name="results_filter_all_teams">All teams</string>
+    <string name="results_more_classifications">See more classifications</string>
+    <string name="results_stage_final_short">F</string>
+    <string name="results_also_on">Also on</string>
+
+    <!-- "Latest results" feed (Results tab, apps 3.1) -->
+    <string name="results_feed_heading">Results</string>
+    <string name="results_feed_latest">Latest Results</string>
+    <string name="uci_ranking_tab">UCI Ranking</string>
+    <string name="uci_ranking_loading">Loading UCI ranking…</string>
+    <string name="uci_ranking_error">The UCI ranking could not be loaded.</string>
+    <string name="uci_ranking_empty">The UCI has not published this ranking yet.</string>
+    <string name="uci_ranking_men">Men</string>
+    <string name="uci_ranking_women">Women</string>
+    <string name="uci_ranking_team">Team</string>
+    <string name="uci_ranking_points">Points</string>
+    <string name="uci_ranking_info_label">UCI ranking source and rules</string>
+    <string name="uci_ranking_info_title">About the UCI Ranking</string>
+    <string name="uci_ranking_updated">%1$s. DataRide normally publishes a new ranking every Tuesday.</string>
+    <string name="uci_ranking_projection">The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season.</string>
+    <string name="uci_ranking_legend_worldteams">WorldTeams</string>
+    <string name="uci_ranking_legend_womens_worldteams">Women\'s WorldTeams</string>
+    <string name="uci_ranking_legend_worldtour">Mandatory WorldTour and ProSeries invitations</string>
+    <string name="uci_ranking_legend_womens_worldtour">Mandatory Women\'s WorldTour invitations</string>
+    <string name="uci_ranking_legend_proseries">Mandatory ProSeries invitations</string>
+    <string name="uci_ranking_legend_top30">ProTeams outside the top 30: red background</string>
+    <string name="uci_ranking_source">Open UCI DataRide source</string>
+    <string name="uci_ranking_regulations">Open UCI Regulations · art. 2.1.007bis</string>
+    <string name="results_feed_load_more">Load more results</string>
+    <string name="results_feed_empty">No results</string>
+    <string name="results_feed_gc_final">Final GC</string>
+    <string name="results_feed_winner_cd">Winner</string>
+
+    <!-- Strikethrough of abandoned riders in the startlist (reason under the name) -->
+    <string name="startlist_dnf_reason_stage">%1$s · stage %2$d</string>
+    <string name="startlist_dnf_reason_prologue">%1$s · prologue</string>
+    <string name="startlist_dnf_reason">%1$s</string>
+
+    <!-- Rider profile (apps 3.1 F4) -->
+    <string name="rider_not_available">Rider not available</string>
+    <string name="rider_results_title">%1$d results</string>
+    <string name="rider_no_results">No results in %1$d yet.</string>
+    <plurals name="rider_race_days">
+        <item quantity="one">%1$d race day</item>
+        <item quantity="other">%1$d race days</item>
+    </plurals>
+
+    <!-- Today highlights banner -->
+    <string name="today_highlight_dismiss">Dismiss highlight</string>
+
+    <!-- Transfers (2027 market, apps 4.0) -->
+    <string name="transfers_heading">%1$d Transfer Market</string>
+    <string name="transfers_feed_title">Latest confirmations</string>
+    <string name="transfers_feed_signings">Signings</string>
+    <string name="transfers_mid_season">MID-SEASON</string>
+    <string name="transfers_feed_renewals">Renewals</string>
+    <string name="transfers_feed_empty">No confirmed moves yet.</string>
+    <string name="transfers_teams_title">%1$d Teams</string>
+    <string name="transfers_teams_empty">No teams in this division.</string>
+    <string name="transfers_renews_with">renews with</string>
+    <string name="transfers_retires">retires</string>
+    <string name="transfers_retired">Retires</string>
+    <string name="transfers_until">%1$d</string>
+    <string name="transfers_rumor">Rumor</string>
+    <string name="transfers_doubt">Undecided</string>
+    <string name="transfers_doubtful">Undecided</string>
+    <string name="transfers_doubtful_empty">No undecided riders yet.</string>
+    <string name="transfers_contract_ends">Contract ending</string>
+    <string name="transfers_contract_ends_empty">No contract endings announced yet.</string>
+    <string name="transfers_team_empty">No moves announced yet.</string>
+    <string name="transfers_team_doubt">TBC</string>
+    <string name="transfers_team_doubt_notice">The team\'s participation in %1$d is not confirmed.</string>
+    <string name="transfers_staying">Staying</string>
+    <string name="transfers_arrivals">Arrivals</string>
+    <string name="transfers_departures">Departures</string>
+    <string name="transfers_staying_empty">No riders on the current roster.</string>
+    <string name="transfers_arrivals_empty">No arrivals announced yet.</string>
+    <string name="transfers_departures_empty">No departures announced yet.</string>
+    <string name="transfers_unknown_team">To be confirmed</string>
+    <string name="transfers_error">Could not load the transfer market.</string>
+    <string name="transfers_info_label">Transfer information</string>
+    <string name="transfers_info_title">Transfer market</string>
+    <string name="transfers_info_text">Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:</string>
+</resources>

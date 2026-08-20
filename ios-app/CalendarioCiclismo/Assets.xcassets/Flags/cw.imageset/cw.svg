@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-cw" viewBox="0 0 640 480">
+  <defs>
+    <clipPath id="cw-a">
+      <path fill-opacity=".7" d="M0 0h641.74v481.28H0z"/>
+    </clipPath>
+    </defs>
+  <g clip-path="url(#cw-a)"><g transform="scale(.94)">
+    <path fill="#002b7f" d="M0 0h768v512H0z"/>
+    <path fill="#f9e814" d="M0 320h768v64H0z"/>
+    <g transform="scale(42.67) translate(2 2)" fill="#fff"><path d="m0-1 .2.7H1L.3 0l.2.7L0 .4l-.6.4.2-.7-.5-.4h.7z"/>
+  </g><g transform="scale(56.9) translate(3 3)" fill="#fff"><path d="m0-1 .2.7H1L.3 0l.2.7L0 .4l-.6.4.2-.7-.5-.4h.7z"/>
+  </g></g></g>
+</svg>

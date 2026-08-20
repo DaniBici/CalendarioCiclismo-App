@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-itunes-app" content="app-id=6761902611">
+  <title>Suscríbete al calendario — Calendario Ciclismo</title>
+  <meta name="description" content="Suscríbete al calendario de ciclismo profesional en tu app de Calendario. Elige entre WorldTour, Pro, masculino, femenino o todas las categorías. Compatible con iPhone, iPad, Mac, Android y Google Calendar.">
+  <link rel="canonical" href="https://calendariociclismo.app/en/subscription/">
+  <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/subscription/"/>
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/"/>
+  <link rel="alternate" hreflang="x-default" href="https://calendariociclismo.app/"/>
+  
+  
+  
+  <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo — Próximas jornadas" href="/atom.xml">
+  <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_GB">
+  <meta property="og:title" content="Suscríbete al calendario — Calendario Ciclismo">
+  <meta property="og:description" content="Añade a tu app de Calendario todas las carreras de ciclismo profesional. WorldTour, Pro, masculino, femenino o todas las categorías.">
+  <meta property="og:url" content="https://calendariociclismo.app/en/subscription/">
+  <meta property="og:image" content="https://assets.calendariociclismo.app/og-default.png">
+  <meta property="og:site_name" content="Calendario Ciclismo">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Suscríbete al calendario — Calendario Ciclismo">
+  <meta name="twitter:description" content="Añade a tu app de Calendario todas las carreras de ciclismo profesional.">
+  <meta name="twitter:image" content="https://assets.calendariociclismo.app/og-default.png">
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+  <style>
+    .sus-main{max-width:760px;margin:0 auto;padding:2.5rem 1.25rem 4rem;box-sizing:border-box}
+    .sus-main h1{font-family:var(--font-display);font-weight:700;font-size:1.85rem;text-transform:uppercase;letter-spacing:-0.01em;margin:0 0 1.5rem}
+    .sus-howto{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem 1.4rem;margin:0 0 2rem}
+    .sus-howto h2{font-family:var(--font-display);font-weight:700;font-size:1rem;text-transform:uppercase;letter-spacing:0.03em;margin:0 0 .9rem;color:var(--text)}
+    .sus-howto__item{display:flex;gap:.8rem;align-items:flex-start;padding:.5rem 0;border-top:1px solid var(--border)}
+    .sus-howto__item:first-of-type{border-top:0;padding-top:0}
+    .sus-howto__icon{flex-shrink:0;width:22px;height:22px;color:var(--accent);margin-top:.15rem}
+    .sus-howto__body{flex:1;font-size:.88rem;line-height:1.55;color:var(--text-muted)}
+    .sus-howto__body strong{color:var(--text);font-weight:600}
+    .sus-howto__body a{color:var(--accent);text-decoration:none}
+    .sus-howto__body a:hover{text-decoration:underline}
+    .sus-feeds-title{font-family:var(--font-display);font-weight:700;font-size:1rem;text-transform:uppercase;letter-spacing:0.03em;margin:2rem 0 .75rem}
+    .sus-feeds{display:grid;grid-template-columns:1fr;gap:.6rem;margin:0 0 2rem}
+    .sus-feed{display:flex;align-items:center;gap:.3rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:border-color .15s}
+    .sus-feed:hover{border-color:var(--border-light)}
+    .sus-feed__link{flex:1;display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;text-decoration:none;color:var(--text);min-width:0;transition:background .15s}
+    .sus-feed__link:hover{background:var(--bg-card-hover)}
+    .sus-feed__body{flex:1;min-width:0}
+    .sus-feed__label{font-family:var(--font-display);font-weight:700;font-size:1rem;margin:0 0 .1rem;line-height:1.2}
+    .sus-feed__desc{font-size:.82rem;color:var(--text-muted);margin:0;line-height:1.4}
+    .sus-feed__arrow{flex-shrink:0;color:var(--text-muted)}
+    .sus-feed__copy{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:44px;height:44px;margin-right:.4rem;background:transparent;border:0;border-radius:var(--radius);color:var(--text-muted);cursor:pointer;transition:background .15s,color .15s}
+    .sus-feed__copy:hover{background:var(--bg-card-hover);color:var(--text)}
+    .sus-feed__copy.copied{color:var(--accent)}
+    .sus-feed__copy svg{width:18px;height:18px}
+    @media (max-width: 600px){
+      .sus-main{padding:2rem 1rem 3rem}
+      .sus-main h1{font-size:1.5rem}
+      .sus-feed__link{padding:.9rem 1rem}
+      .sus-howto{padding:1rem 1.1rem}
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header" id="siteHeader"></header>
+<script type="module" src="/js/header.js"></script>
+
+  <main class="sus-main">
+    <h1>Suscríbete al calendario</h1>
+
+    <section class="sus-howto">
+      <h2>Cómo suscribirse</h2>
+      <div class="sus-howto__item">
+        <svg class="sus-howto__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <div class="sus-howto__body">
+          <strong>iPhone, iPad o Mac con Safari:</strong> pulsa sobre el calendario que quieras. Safari mostrará el botón <strong>Suscribirse</strong> y el calendario se añadirá a la app <strong>Calendario</strong>.
+        </div>
+      </div>
+      <div class="sus-howto__item">
+        <svg class="sus-howto__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <div class="sus-howto__body">
+          <strong>Mac con Chrome u otros navegadores:</strong> pulsa el icono de copiar del calendario y luego, en la app <strong>Calendario</strong>, ve a <em>Archivo → Nueva suscripción a calendario</em> y pega la URL.
+        </div>
+      </div>
+      <div class="sus-howto__item">
+        <svg class="sus-howto__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="sus-howto__body">
+          <strong>Android y Google Calendar:</strong> copia el enlace y pégalo en <a href="https://calendar.google.com/calendar/r/settings/addbyurl" target="_blank" rel="noopener">calendar.google.com → Añadir calendario → Desde URL</a>. Aparecerá en Google Calendar de todos tus dispositivos.
+        </div>
+      </div>
+      <div class="sus-howto__item">
+        <svg class="sus-howto__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
+        <div class="sus-howto__body">
+          <strong>Windows (Outlook y Calendario):</strong> copia el enlace y añádelo en <a href="https://outlook.live.com/calendar/0/addfromweb" target="_blank" rel="noopener">outlook.live.com → Añadir calendario → Suscribir desde la web</a>. Aparecerá también en la app <strong>Calendario</strong> de Windows si usas una cuenta Microsoft. En Thunderbird: <em>Archivo → Nuevo → Calendario → En la Red</em>.
+        </div>
+      </div>
+    </section>
+
+    <h2 class="sus-feeds-title">Elige tu calendario</h2>
+    <div class="sus-feeds" id="susFeeds"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/privacy/">Privacy</a></p>
+  </footer>
+
+  <script>
+  (function(){
+    const FEEDS = [
+      { key: 'todo',  label: 'Todo',        desc: 'Todas las categorías, ambos géneros' },
+      { key: 'pro',   label: 'Pro',         desc: 'Todas las categorías hasta .1' },
+      { key: 'wt',    label: 'WorldTour',   desc: 'UCI WorldTour masculino (1.UWT / 2.UWT)' },
+      { key: 'wwt',   label: 'WWT',         desc: 'UCI WorldTour femenino (1.WWT / 2.WWT)' },
+      { key: 'masc',  label: 'Masculino',   desc: 'Todas las pruebas masculinas hasta .1' },
+      { key: 'fem',   label: 'Femenino',    desc: 'Todas las pruebas femeninas hasta .1 y también .2 europeas' },
+    ];
+
+    const year = new Date().getFullYear();
+
+    function feedUrl(key){
+      return key === 'todo'
+        ? `https://calendariociclismo.app/feed/${year}.ics`
+        : `https://calendariociclismo.app/feed/${year}-${key}.ics`;
+    }
+
+    const ICON_COPY = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    const ICON_CHECK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    const feeds = document.getElementById('susFeeds');
+    FEEDS.forEach(f => {
+      const url = feedUrl(f.key);
+      const wrap = document.createElement('div');
+      wrap.className = 'sus-feed';
+      wrap.innerHTML = `
+        <a class="sus-feed__link" href="${url}" aria-label="Suscribirse al calendario ${f.label} ${year}">
+          <div class="sus-feed__body">
+            <p class="sus-feed__label">${f.label} ${year}</p>
+            <p class="sus-feed__desc">${f.desc}</p>
+          </div>
+          <svg class="sus-feed__arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        <button type="button" class="sus-feed__copy" aria-label="Copiar enlace de ${f.label} ${year}" title="Copiar enlace">${ICON_COPY}</button>
+      `;
+      const btn = wrap.querySelector('.sus-feed__copy');
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch (_) {
+          // Fallback: selección manual en un input efímero
+          const ta = document.createElement('textarea');
+          ta.value = url;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (__) {}
+          document.body.removeChild(ta);
+        }
+        btn.classList.add('copied');
+        btn.innerHTML = ICON_CHECK;
+        btn.setAttribute('title', '¡Copiado!');
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = ICON_COPY;
+          btn.setAttribute('title', 'Copiar enlace');
+        }, 1600);
+      });
+      feeds.appendChild(wrap);
+    });
+  })();
+  </script>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/cookie-consent.js"></script>
+  <script src="/js/analytics.js"></script>
+  <script src="/js/apps-modal.js"></script>
+  <script src="/js/lang-switch.js"></script>
+</body>
+</html>

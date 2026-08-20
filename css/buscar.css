@@ -1,0 +1,83 @@
+/* ── Buscar ──────────────────────────────────────────────────────── */
+.buscar-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.buscar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── Campo de búsqueda ───────────────────────────────────────────── */
+.buscar-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 0.65rem 1rem;
+  transition: border-color var(--transition);
+}
+.buscar-field:focus-within {
+  border-color: var(--accent);
+}
+.buscar-icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.buscar-input {
+  flex: 1;
+  background: none;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  min-width: 0;
+}
+.buscar-input::placeholder {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.buscar-clear {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  transition: color var(--transition);
+  flex-shrink: 0;
+}
+.buscar-clear:hover { color: var(--text); }
+
+/* ── Resultados ──────────────────────────────────────────────────── */
+.buscar-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.buscar-hint {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+/* Las cards usan directamente .race-card de app.css */
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .buscar-main { padding: 1.5rem 1rem 3rem; }
+  .buscar-input { font-size: 1rem; }
+}

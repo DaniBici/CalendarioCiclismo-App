@@ -1,0 +1,20 @@
+# Supabase Edge Functions configuration
+# verify_jwt = false because each function verifies auth internally via verifyAuth()
+
+[functions.parse-startlist]
+verify_jwt = false
+
+[functions.r2-upload]
+verify_jwt = false
+
+[functions.ga-analytics]
+verify_jwt = false
+
+[functions.report-jornada]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.trigger-workflows]
+verify_jwt = false

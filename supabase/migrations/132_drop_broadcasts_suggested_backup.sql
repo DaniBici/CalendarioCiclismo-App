@@ -1,0 +1,38 @@
+-- ═══════════════════════════════════════════════════════════════════
+--  LIMPIEZA — retirada del backup que dejó la migración 127
+--  (cuarta tanda; continúa el trabajo de las migraciones 098, 111 y 126)
+-- ═══════════════════════════════════════════════════════════════════
+--
+--  La 127 retiró una utilidad de importación de broadcasts y, con ella, la tabla
+--  `broadcasts_suggested` que había estado llenando hasta la víspera.
+--  Como manda el protocolo, se guardó un snapshot antes del DROP:
+--
+--  | tabla                                  | filas | contenido                  |
+--  |----------------------------------------|-------|----------------------------|
+--  | broadcasts_suggested_bak_drop_20260717 |  360  | sugerencias de broadcasts  |
+--
+--  Ese backup nació —como todos los de esta serie— con RLS DESACTIVADA y 0
+--  políticas, así que `anon` (la clave publishable embebida en js/config.js,
+--  servida en cada carga de la web) puede leerlo entero. Los advisors de
+--  Supabase lo marcan CRITICAL: "RLS Disabled in Public". La propia 127 lo
+--  dejó anotado como efímero, a retirar.
+--
+--  El productor está retirado y el consumidor también: estas 360 filas son
+--  sugerencias de una fuente que ya no se importa y que nunca se van a
+--  reprocesar. No hay nada que rescatar.
+--
+--  VERIFICADO ANTES DE BORRAR (protocolo de la 111):
+--    · 0 FKs entrantes
+--    · 0 vistas / vistas materializadas dependientes
+--    · 0 funciones que la nombren (`prosrc`)
+--    · 0 referencias en el código — solo menciones históricas en la guía de entonces
+--      y en las propias migraciones 041 / 042 / 127
+--    · `broadcasts_suggested` (la original) ya no existe: la 127 la dropeó
+--
+--  ⚠️ Alternativa descartada, igual que en la 126: activar RLS sin políticas
+--  la dejaría ilegible pero seguiría ocupando catálogo y saliendo en los
+--  advisors como tabla sin políticas. Si el dato ya no vale, el DROP es la
+--  respuesta honesta.
+-- ═══════════════════════════════════════════════════════════════════
+
+DROP TABLE IF EXISTS broadcasts_suggested_bak_drop_20260717;

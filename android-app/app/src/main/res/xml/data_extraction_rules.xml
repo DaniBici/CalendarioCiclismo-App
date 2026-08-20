@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reglas de Data Extraction para Android 12+. Mantiene las preferencias
+  del usuario pero descarta la caché de la DB (se regenera al abrir).
+
+  Nota sobre el token FCM (clave push_token en cc_prefs):
+  No es posible excluir claves individuales dentro de un DataStore — solo
+  ficheros enteros. Excluir cc_prefs.preferences_pb completo borraría todos
+  los ajustes del usuario. El token stale restaurado en un nuevo dispositivo
+  se sobreescribe en el primer arranque mediante refreshToken() (bootstrap).
+  Ver también backup_rules.xml para la explicación completa.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="datastore/" />
+        <!-- Los assets R2 descargados (OfflineAssets/) no entran en backup
+             porque no están incluidos arriba (solo se backupea lo listado
+             en <include>). Se regeneran cuando el usuario reactiva offline. -->
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="datastore/" />
+    </device-transfer>
+</data-extraction-rules>

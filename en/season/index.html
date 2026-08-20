@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario — Calendario Ciclismo App</title>
+  <!-- La vista Temporada vive ahora en /calendario.html (subvista temporada).
+       Este shell conserva las URLs antiguas (?year=&cat=) redirigiendo con params. -->
+  <link rel="canonical" href="https://calendariociclismo.app/en/season/">
+  <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/season/"/>
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/"/>
+  <link rel="alternate" hreflang="x-default" href="https://calendariociclismo.app/"/>
+  <script>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      var q = new URLSearchParams();
+      q.set('vista', 'temporada');
+      if (p.get('year')) q.set('year', p.get('year'));
+      if (p.get('cat')) q.set('cat', p.get('cat'));
+      location.replace('/calendario.html?' + q.toString());
+    })();
+  </script>
+  <meta http-equiv="refresh" content="0;url=/calendario.html?vista=temporada">
+<meta name="robots" content="noindex, follow">
+</head>
+<body>
+  <p><a href="/calendario.html">Calendario de la temporada</a></p>
+</body>
+</html>

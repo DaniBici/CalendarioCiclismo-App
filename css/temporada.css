@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════════════
+   TEMPORADA — listado de carreras de la temporada
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Filtros ─────────────────────────────────────────────────── */
+/* → estilos movidos a app.css */
+
+.t-race--placeholder {
+  cursor: default;
+}
+.t-race--placeholder:hover {
+  background: var(--bg-card);
+}
+
+.temporada-select {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.6rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+.temporada-select:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+/* → estilos movidos a app.css */
+
+/* ── Main ────────────────────────────────────────────────────── */
+.temporada-main {
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+.temporada-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ── Mes ─────────────────────────────────────────────────────── */
+.temporada-month__title {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: var(--temporada-month-top, calc(56px + env(safe-area-inset-top) + 45px));
+  background: var(--bg);
+  z-index: 10;
+  padding-top: 0.4rem;
+  box-shadow: 0 -8px 8px 4px var(--bg);
+}
+
+/* ── Dark mode: igualar color meses al de los títulos de recorrido/km/tipo */
+.dark .temporada-month__title { color: var(--text-muted); }
+
+.temporada-races {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* ── Fila de carrera ─────────────────────────────────────────── */
+.t-race {
+  display: grid;
+  grid-template-columns: 1.5rem 28px 1fr auto auto;
+  align-items: center;
+  gap: 0 0.65rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+  transition: background var(--transition), box-shadow var(--transition);
+  position: relative;
+}
+/* La fila que abre el modal es <button>: se neutralizan los estilos por
+   defecto para que quede idéntica a las <a> (el display:grid lo hereda de
+   .t-race, que no distingue elemento). */
+button.t-race {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.t-race:hover {
+  background: color-mix(in srgb, var(--rc, var(--accent)) 8%, var(--bg-card));
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--rc, var(--accent)) 12%, transparent);
+}
+
+.t-race__flag {
+  font-size: 1rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.t-race__logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+}
+.t-race__logo-empty {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.t-race__name {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.t-race__female {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.t-race__dates {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.t-race__cat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  min-width: 3rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .temporada-main { padding: 1rem 1rem 3rem; }
+  .temporada-filters__inner { padding: 0.5rem 1rem; gap: 0.5rem; }
+  .temporada-month__title { top: var(--temporada-month-top, calc(56px + 80px)); } /* gestionado por JS */
+
+  .t-race {
+    grid-template-columns: 1.2rem 22px 1fr auto auto;
+    grid-template-rows: auto;
+    gap: 0 0.4rem;
+    padding: 0.5rem 0.5rem;
+  }
+  .t-race__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .t-race__cat {
+    grid-column: 5;
+    grid-row: 1;
+    min-width: 2.8rem;
+  }
+  .t-race__dates {
+    grid-column: 4;
+    grid-row: 1;
+    font-size: 0.72rem;
+  }
+  .t-race__logo,
+  .t-race__logo-empty {
+    width: 24px;
+    height: 24px;
+  }
+}
+

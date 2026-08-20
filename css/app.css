@@ -1,0 +1,4877 @@
+/* ═══════════════════════════════════════════════════════════════
+   CALENDARIO CICLISMO — Estilos públicos
+   Estética: clean editorial, Google Material You
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+
+/* ── Variables (modo oscuro por defecto) ──────────────────────── */
+:root {
+  --primary-nav-h: 42px;
+  --bg:            #111318;
+  --bg-card:       #1c1e24;
+  --bg-card-hover: #24262d;
+  --border:        #2e3038;
+  --border-light:  #3c3f4a;
+  --text:          #e2e2e9;
+  --text-muted:    #8e9099;
+  --text-dim:      #9296a3;
+  --accent:        #1a73e8;
+  --accent-dim:    rgba(26,115,232,0.12);
+  /* Texto en color de acento SOBRE fondo --accent-dim (día seleccionado,
+     botón Hoy): el azul base #1a73e8 queda por debajo de 4.5:1 sobre el
+     tinte; este azul más claro pasa AA en tema oscuro. */
+  --accent-text:   #4d94f0;
+  --btn-primary-text: #ffffff;
+  --red:           #ffb4ab;
+  --green:         #6dd58c;
+  --blue:          #7fcfff;
+  --orange:        #ffb77c;
+
+  --header-text:   #e2e2e9;
+  --font-display: 'Google Sans', 'Roboto', sans-serif;
+  --font-body:    'Google Sans', 'Roboto', sans-serif;
+
+  --dorsal-bg-a: #1c2030;
+
+  --radius:      8px;
+  --radius-btn:  3px;          /* legado — los botones usan --radius-pill/-soft */
+  --radius-pill: 999px;        /* pastilla completa (filtros, chips, CTAs)       */
+  --radius-soft: 12px;         /* esquina suave para botones rectangulares       */
+  --radius-lg:   12px;
+  --transition:  0.15s ease;
+  --bg-header:   rgba(17,19,24,0.97);
+  /* Elevación de tarjetas: en oscuro se eleva con LUZ (glow blanco tenue),
+     no con sombra oscura — sobre fondo casi negro una sombra no contrasta.
+     Paridad conceptual con la elevación de CCCard en las apps. */
+  --card-shadow: 0 0 6px rgba(255,255,255,0.07);
+
+  /* ── Badges de categoría UCI ──────────────────────────────────
+     WT / WWT (WorldTour)  → azul
+     Pro / .1 (ProSeries)  → verde
+     .2 / menores          → ámbar
+     WC / CC               → lila
+     Masculino             → lila suave
+     Femenino              → verde suave  (inverso al mockup)
+  ── */
+  --badge-wt-bg:     rgba(170,199,255,0.15);
+  --badge-wt-color:  #aac7ff;
+  --badge-pro-bg:    rgba(180,180,180,0.15);
+  --badge-pro-color: #aaaaaa;
+  --badge-1-bg:      rgba(180,180,180,0.15);
+  --badge-1-color:   #aaaaaa;
+  --badge-2-bg:      rgba(180,180,180,0.15);
+  --badge-2-color:   #aaaaaa;
+  --badge-wc-bg:     rgba(210,180,255,0.15);
+  --badge-wc-color:  #d2b4ff;
+  --badge-m-bg:      rgba(210,180,255,0.12);
+  --badge-m-color:   #c8aaff;
+  --badge-f-bg:      rgba(109,213,140,0.12);
+  --badge-f-color:   #6dd58c;
+
+  /* ── Badges de tipo de etapa ──────────────────────────────────
+     flat / cobbles        → azul cielo
+     rolling               → verde-lima
+     cotas                 → verde-amarillo (mix rolling+medium)
+     medium_mountain       → naranja
+     high_mountain / summit_finish / chrono_climb → rojo-coral
+     itt / ttt             → lila
+     sterrato              → marrón/ámbar
+  ── */
+  --type-flat-bg:    rgba(140,220,100,0.15);
+  --type-flat-color: #8cdc64;
+  --type-roll-bg:    rgba(100,170,80,0.15);
+  --type-roll-color: #7ab85a;
+  --type-cotas-bg:   rgba(177,176,80,0.15);
+  --type-cotas-color:#bcb755;
+  --type-med-bg:     rgba(255,183,80,0.15);
+  --type-med-color:  #ffb750;
+  --type-high-bg:    rgba(255,120,100,0.15);
+  --type-high-color: #ff7864;
+  --type-uphill-bg:  rgba(255,160,48,0.15);
+  --type-uphill-color:#ffa030;
+  --type-chrono-bg:  rgba(100,200,255,0.15);
+  --type-chrono-color:#64c8ff;
+  --type-cobble-bg:  rgba(160,160,160,0.15);
+  --type-cobble-color:#a8a8a8;
+  --type-sterra-bg:  rgba(210,185,140,0.15);
+  --type-sterra-color:#d4bc8c;
+}
+
+/* ── Tema claro ───────────────────────────────────────────────── */
+html.light {
+  --bg:            #ffffff;
+  --bg-card:       #ffffff;
+  --bg-card-hover: #f1f3f4;
+  --border:        #e0e0e0;
+  --border-light:  #c8cacf;
+  --text:          #1f1f1f;
+  --text-muted:    #5f6368;
+  --text-dim:      #63686d;
+  --accent:        #1a73e8;
+  --accent-text:   #1666cc;
+  --accent-dim:    rgba(26,115,232,0.10);
+  --btn-primary-text: #fff;
+  --red:           #c5221f;
+  --green:         #137333;
+  --blue:          #1565c0;
+  --orange:        #e37400;
+
+  --dorsal-bg-a: #eeeff2;
+
+  --header-text:   #1f1f1f;
+  --bg-header:     rgba(255,255,255,0.97);
+  /* En claro la elevación sí es una sombra oscura suave, idéntica a la de
+     CCCard en iOS/Android (negro 6-8% sobre fondo claro). */
+  --card-shadow: 0 2px 6px rgba(0,0,0,0.08);
+
+  --badge-wt-bg:     #d3e3fd;
+  --badge-wt-color:  #0842a0;
+  /* Gris de los badges .pro/.1/.2 sobre #eeeeee: #888 daba 3.06:1; #666 pasa
+     AA (4.95:1) para texto pequeño (~11px). */
+  --badge-pro-bg:    #eeeeee;
+  --badge-pro-color: #666666;
+  --badge-1-bg:      #eeeeee;
+  --badge-1-color:   #666666;
+  --badge-2-bg:      #eeeeee;
+  --badge-2-color:   #666666;
+  --badge-wc-bg:     #f3e8fd;
+  --badge-wc-color:  #7b1fa2;
+  --badge-m-bg:      #f3e8fd;
+  --badge-m-color:   #7b1fa2;
+  --badge-f-bg:      #e6f4ea;
+  --badge-f-color:   #137333;
+
+  --type-flat-bg:    #e8f5e9;
+  --type-flat-color: #2e7d32;
+  --type-roll-bg:    #dcedc8;
+  --type-roll-color: #3f6b1f;
+  --type-cotas-bg:   #edf0d4;
+  --type-cotas-color:#7a5410;
+  --type-med-bg:     #fff3e0;
+  --type-med-color:  #b34700;
+  --type-high-bg:    #fce4ec;
+  --type-high-color: #b71c1c;
+  --type-uphill-bg:  #fff0d8;
+  --type-uphill-color:#8f4a00;
+  --type-chrono-bg:  #e8f4fd;
+  --type-chrono-color:#1565c0;
+  --type-cobble-bg:  #f0f0f0;
+  --type-cobble-color:#616161;
+  --type-sterra-bg:  #f5ede0;
+  --type-sterra-color:#795548;
+}
+
+@media (prefers-color-scheme: light) {
+  html:not(.dark) {
+    --bg:            #ffffff;
+    --bg-card:       #ffffff;
+    --bg-card-hover: #f1f3f4;
+    --border:        #e0e0e0;
+    --border-light:  #c8cacf;
+    --text:          #1f1f1f;
+    --text-muted:    #5f6368;
+    --text-dim:      #63686d;
+    --accent:        #1a73e8;
+    --accent-text:   #1666cc;
+    --accent-dim:    rgba(26,115,232,0.10);
+    --btn-primary-text: #fff;
+    --red:           #c5221f;
+    --green:         #137333;
+    --blue:          #1565c0;
+    --orange:        #e37400;
+
+    --header-text:   #1f1f1f;
+    --bg-header:     rgba(255,255,255,0.97);
+    --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
+
+    --badge-wt-bg:     #d3e3fd;
+    --badge-wt-color:  #0842a0;
+    --badge-pro-bg:    #eeeeee;
+    --badge-pro-color: #666666;
+    --badge-1-bg:      #eeeeee;
+    --badge-1-color:   #666666;
+    --badge-2-bg:      #eeeeee;
+    --badge-2-color:   #666666;
+    --badge-wc-bg:     #f3e8fd;
+    --badge-wc-color:  #7b1fa2;
+    --badge-m-bg:      #f3e8fd;
+    --badge-m-color:   #7b1fa2;
+    --badge-f-bg:      #e6f4ea;
+    --badge-f-color:   #137333;
+
+    --type-flat-bg:    #e8f5e9;
+    --type-flat-color: #2e7d32;
+    --type-roll-bg:    #dcedc8;
+    --type-roll-color: #3f6b1f;
+    --type-cotas-bg:   #edf0d4;
+    --type-cotas-color:#7a5410;
+    --type-med-bg:     #fff3e0;
+    --type-med-color:  #b34700;
+    --type-high-bg:    #fce4ec;
+    --type-high-color: #b71c1c;
+    --type-uphill-bg:  #fff0d8;
+    --type-uphill-color:#8f4a00;
+    --type-chrono-bg:  #e8f4fd;
+    --type-chrono-color:#1565c0;
+    --type-cobble-bg:  #f0f0f0;
+    --type-cobble-color:#616161;
+    --type-sterra-bg:  #f5ede0;
+    --type-sterra-color:#795548;
+  }
+
+}
+
+/* ── Reset ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-x: hidden;
+  /* Safe areas laterales y bottom (home indicator iOS).
+     El top lo gestiona .site-header para que su fondo cubra
+     toda la zona de la Dynamic Island / notch. */
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+
+/* ── Accesibilidad ────────────────────────────────────────────── */
+/* Suelo de foco global: garantiza un indicador visible en todo control
+   enfocable con teclado. Los componentes pueden afinarlo, pero ninguno
+   se queda sin nada. :where() mantiene especificidad 0. */
+:where(a, button, select, input, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* main[tabindex="-1"] es solo destino del enlace de salto, no un control:
+   recibe el foco programáticamente y no debe dibujar contorno. */
+main:focus, main:focus-visible { outline: none; }
+
+/* Texto solo para lectores de pantalla. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Saltar al contenido: fuera de pantalla hasta recibir el foco. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 0.5rem;
+  z-index: 1000;
+  background: var(--bg-card);
+  color: var(--text);
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--accent-text);
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* La cabecera y los filtros fijos pueden tapar el elemento enfocado
+   (WCAG 2.4.11). Solo aplica al CONTENIDO: los controles que viven dentro
+   de la propia cabecera o de las barras sticky ya están siempre visibles, y
+   darles margen de scroll hace que el navegador desplace la página en cada
+   tabulación —subiendo de card en card antes de llegar a la lista—. */
+main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 9rem; }
+:where(.site-header, .primary-nav, .hoy-sticky, .temporada-filters, .cal-mes-bar)
+  :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-header);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  padding: env(safe-area-inset-top, 0) 1.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(56px + env(safe-area-inset-top));
+}
+
+.site-logo {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--accent-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.site-logo__text { color: var(--header-text); }
+/* ── Cluster de utilidades (siempre visible: buscar·Apps·idioma·tema·menú) ── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+.header-action-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.header-action-icon svg { display: block; width: 100%; height: 100%; }
+.header-support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+.header-support-link:hover { color: var(--header-text); background: rgba(128,128,128,0.10); }
+.header-actions__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
+/* Buscar inline (lupa) — visible en desktop; en móvil va al menú */
+.nav-search-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--header-text);
+  padding: 0.3rem 0.4rem;
+  border-radius: 7px;
+  opacity: 0.72;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+}
+.nav-search-link:hover { opacity: 1; background: rgba(128,128,128,0.10); }
+.nav-search-link.active { opacity: 1; color: var(--accent-text); }
+
+/* ── Botón Apps ───────────────────────────────────────────────── */
+.nav-apps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+  line-height: normal;
+  flex-shrink: 0;
+}
+.nav-apps-btn:hover { color: var(--header-text); background: rgba(128,128,128,0.10); }
+
+/* ── Selector de idioma — slider ES↔EN ───────────────────────────── */
+.lang-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.lang-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  bottom: 2px;
+  width: calc(50% - 2px);
+  border-radius: 999px;
+  background: var(--accent);
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+.lang-switcher[data-active="en"] .lang-knob { transform: translateX(100%); }
+.lang-btn {
+  position: relative;
+  z-index: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  /* WCAG 2.5.8: el objetivo táctil no puede bajar de 24×24 px. */
+  padding: 0.35rem 0.5rem;
+  min-width: 26px;
+  min-height: 24px;
+  transition: color 0.2s ease;
+}
+.lang-btn--active { color: #fff; }
+
+/* ── Navegación global — tabs de las apps adaptados a web ─────── */
+.primary-nav {
+  position: sticky;
+  top: calc(56px + env(safe-area-inset-top));
+  z-index: 99;
+  background: var(--bg-header);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.primary-nav__inner {
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.primary-nav__inner a,
+.primary-nav__inner button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0.55rem 1rem 0.48rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.86rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+.primary-nav__inner button { border: 0; cursor: pointer; }
+.primary-nav__inner a:hover,
+.primary-nav__inner button:hover { color: var(--header-text); background: rgba(128,128,128,0.08); }
+.primary-nav a.active { color: var(--accent-text); }
+.primary-nav a.active::after {
+  content: '';
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0;
+  left: 0.8rem;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: currentColor;
+}
+.primary-nav__icon { display: block; width: 16px; height: 16px; }
+.primary-nav__icon svg { display: block; width: 100%; height: 100%; }
+.primary-nav__divider {
+  width: 1px;
+  height: 18px;
+  margin: auto 0.3rem;
+  background: var(--border);
+}
+.primary-nav__secondary { font-size: 0.8rem !important; }
+.primary-nav__more { display: none; }
+
+@media (min-width: 601px) {
+  /* La opacidad rompía el contraste (3.60:1 oscuro / 3.25:1 claro). El color
+     atenuado mantiene la jerarquía visual y pasa AA. */
+  .primary-nav a.primary-nav__secondary,
+  .primary-nav button.primary-nav__secondary {
+    font-size: 0.78rem !important;
+    color: var(--text-muted);
+  }
+  .primary-nav a.primary-nav__secondary:hover,
+  .primary-nav button.primary-nav__secondary:hover { color: var(--text); }
+}
+
+/* En tablet estrecha compactamos el submenú para que las seis secciones
+   completas conserven su alineación centrada. */
+@media (min-width: 601px) and (max-width: 760px) {
+  .primary-nav__inner { padding-right: 0.5rem; padding-left: 0.5rem; }
+  .primary-nav__inner a,
+  .primary-nav__inner button {
+    gap: 0.25rem;
+    padding-right: 0.3rem;
+    padding-left: 0.3rem;
+    font-size: 0.78rem;
+  }
+  .primary-nav__secondary { font-size: 0.74rem !important; }
+  .primary-nav__divider { margin-right: 0.2rem; margin-left: 0.2rem; }
+}
+
+/* ── Cintillo "Hoy" — tarjeta editorial (carrusel, estilo apps) ────
+   Lengua visual de las apps: tarjeta redondeada sobre superficie
+   --bg-card, tinte del color de carrera, hairline + sombra suave,
+   logo grande, dos líneas (título + detalle), dots y X. La franja
+   .giro-countdown es el carril sticky opaco (--bg) que evita que las
+   cards se vean a través de los márgenes/esquinas de la tarjeta. */
+.giro-countdown {
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h) + env(safe-area-inset-top));
+  z-index: 95;
+  background: var(--bg);
+  padding: 8px 1.5rem 10px;
+}
+.giro-card {
+  position: relative;
+  max-width: 812px;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
+}
+.giro-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.giro-bg--active { opacity: 1; }
+.giro-countdown__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  min-height: 58px;
+}
+.giro-text-area {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  align-self: stretch;
+}
+.giro-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+.giro-text--active { opacity: 1; pointer-events: auto; }
+.giro-countdown__link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--text);
+  text-decoration: none;
+  font-family: var(--font-body);
+  width: 100%;
+  min-width: 0;
+}
+.giro-countdown__logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  border-radius: 9px;
+  background: rgba(127,127,127,0.08);
+  flex-shrink: 0;
+}
+/* Slot vacío (slide sin logo): reserva el espacio pero sin caja visible */
+.giro-countdown__logo:empty { background: none; }
+/* Fichajes: las flechas se muestran sin la pastilla translúcida del logo. */
+.giro-countdown__logo--transfers { background: none; }
+/* Icono inline (bandera de meta de Campeonatos): se tiñe con --accent dentro de
+   una caja con el fondo accent-dim, igual que el icono de las apps. El propio
+   dibujo ya trae márgenes internos, así que basta un padding ligero. */
+.giro-countdown__logo--icon {
+  color: var(--accent-text);
+  padding: 5px;
+  background: var(--accent-dim);
+}
+.giro-countdown__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Fila título + flecha: la flecha va pegada al final del título, no al
+   borde de la tarjeta. La fila se encoge a su contenido. */
+.giro-countdown__title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.giro-countdown__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.giro-countdown__days {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.giro-countdown__days strong { color: var(--accent-text); font-weight: 600; }
+.giro-countdown__chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-left: 0.3rem;
+}
+.giro-countdown__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  /* ≥24px de área táctil (WCAG target-size); el icono sigue siendo 12px. */
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+.giro-countdown__close:hover { color: var(--text); background: var(--border); }
+.giro-countdown__dots {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 8px;
+}
+/* El BOTÓN conserva su área táctil (24×24, WCAG target-size) — transparente;
+   el punto visible de 6px lo dibuja ::before centrado. Los botones se solapan
+   con margen horizontal negativo para que los puntos queden juntos
+   visualmente, sin renunciar a la caja real de 24px que mide Lighthouse. */
+.gc-dot {
+  width: 24px;
+  height: 24px;
+  margin: 0 -6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.gc-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.4;
+  transition: background 0.25s, opacity 0.25s;
+}
+.gc-dot--active::before { background: var(--accent); opacity: 1; }
+@media (max-width: 600px) {
+  .giro-countdown { padding: 6px 0.75rem 8px; }
+  .giro-countdown__chevron { display: none; }
+}
+
+/* ── Bloque "Hoy" sticky (tira de fechas + título + filtros) ──────
+   Todo el bloque se ancla como una unidad bajo el header (+ giro),
+   y las race cards scrollean por debajo. El fondo --bg evita que las
+   cards se vean a través del hueco del título. */
+.hoy-sticky {
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h) + var(--giro-h, 0px));
+  z-index: 90;
+  background: var(--bg);
+}
+
+/* ── Date selector ────────────────────────────────────────────── */
+.date-bar {
+  background: transparent;
+  padding: 0.75rem 1.5rem 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+/* El swipe de cambio de día también se inicia sobre el selector (ver
+   initDaySwipe): cedemos el eje horizontal y conservamos el pan vertical
+   (scroll de la página bajo la barra sticky). En píldoras/flechas/chip
+   (botones) también, para que un swipe no dispare el gesto «atrás». */
+.date-bar,
+.date-bar button { touch-action: pan-y; }
+
+/* Controles izquierdos: flecha + HOY — nunca scrollean */
+.date-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Tira de pastillas — los 7 días reparten el ancho disponible (sin scroll) */
+.date-bar__pills-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.date-bar__pills {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0 0.25rem;
+}
+.date-pill { flex: 1; width: auto; max-width: 4.5rem; }
+
+/* Controles derechos: flecha */
+.date-bar__right {
+  flex-shrink: 0;
+}
+
+/* Pastilla de día — dos líneas (día de la semana sobre número), estilo apps */
+.date-pill {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  padding: 0.3rem 0;
+  width: 3rem;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+.date-pill__wd {
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+.date-pill__num {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.date-pill:hover { background: var(--accent-dim); }
+/* Hoy (no seleccionado): tinte suave con borde, como en las apps */
+.date-pill.is-today:not(.active) {
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* Día seleccionado: relleno azul suave (15%), texto en acento, semibold */
+.date-pill.active {
+  background: var(--accent-dim);
+}
+.date-pill.active .date-pill__wd { color: var(--accent-text); }
+.date-pill.active .date-pill__num { color: var(--accent-text); font-weight: 700; }
+
+/* Escritorio: día en una sola línea ("Mar 9") en vez de dos */
+@media (min-width: 601px) {
+  .date-pill {
+    flex-direction: row;
+    gap: 0.3rem;
+    max-width: 5.5rem;
+  }
+  .date-pill__wd {
+    text-transform: none;
+    font-size: 0.85rem;
+  }
+  .date-pill__num { font-size: 0.85rem; }
+}
+
+.date-today-btn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity var(--transition), max-width var(--transition), padding var(--transition), margin var(--transition), background var(--transition), color var(--transition), border-color var(--transition);
+  opacity: 0;
+  pointer-events: none;
+  max-width: 0;
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+}
+.date-today-btn--visible {
+  opacity: 1;
+  pointer-events: auto;
+  max-width: 6rem;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+.date-today-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.date-week-arrow {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  /* ≥24px de área táctil (WCAG target-size). */
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition);
+  font-family: var(--font-body);
+}
+.date-week-arrow:hover { color: var(--accent-text); }
+
+
+/* ── Race list ────────────────────────────────────────────────── */
+/* ── Filtros agenda ────────────────────────────────────────────── */
+.agenda-filters {
+  padding: 0;
+}
+.agenda-filters__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.25rem 1.5rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+}
+.agenda-filter-cats {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+/* El divisor sobra: "Ordenar" va empujado al extremo derecho */
+.agenda-filter-divider { display: none; }
+.agenda-sort-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;   /* "Ordenar" siempre al extremo derecho del bloque */
+}
+.agenda-sort-select {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.3rem 1.8rem 0.3rem 0.75rem;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  transition: color var(--transition), border-color var(--transition);
+}
+.agenda-sort-select:hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+.agenda-sort-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Labels de botones: versión corta en móvil, completa en escritorio */
+.btn-label-short { display: none; }
+.btn-label-full  { display: inline; }
+
+@media (max-width: 600px) {
+  .agenda-filters { padding: 0; }
+  .agenda-filters__inner { padding: 0.5rem 1rem; gap: 0.35rem; }
+
+  .btn-label-short { display: inline; }
+  .btn-label-full  { display: none; }
+  /* Mes: ajustar barra de filtros para que quepan todos en una fila */
+  .temporada-filters__inner { padding-left: 0.6rem; padding-right: 0.6rem; gap: 0.3rem; }
+  .temporada-filter-cats { gap: 0.25rem; }
+  .tcat-btn { padding: 0.28rem 0.45rem; letter-spacing: 0.03em; }
+  .agenda-filters .tcat-btn { padding: 0.3rem 0.7rem; }
+  /* La barra de filtros se reparte: pastillas a la izquierda, orden a la derecha */
+  .agenda-filters__inner { flex-wrap: nowrap; }
+  .agenda-filter-cats { flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .agenda-filter-cats::-webkit-scrollbar { display: none; }
+  .agenda-sort-select { font-size: 0.75rem; padding: 0.28rem 1.6rem 0.28rem 0.55rem; }
+}
+
+.race-list {
+  padding: 0.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  /* El swipe de cambio de día gestiona el eje horizontal; el navegador conserva
+     el scroll vertical (ver initDaySwipe en app.js). */
+  touch-action: pan-y;
+}
+
+/* ── Race card ────────────────────────────────────────────────── */
+.race-card {
+  background: linear-gradient(to right, color-mix(in srgb, var(--card-color, var(--accent)) 4%, var(--bg-card)) var(--progress, 100%), var(--bg-card) var(--progress, 100%));
+  border: 1px solid color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+  position: relative;
+  overflow: hidden;
+  /* Elevación. drop-shadow (no box-shadow) porque overflow:hidden recortaría
+     la sombra exterior. Variable por tema: glow claro en oscuro, sombra
+     oscura suave en claro. Ver --card-shadow. */
+  filter: drop-shadow(var(--card-shadow));
+}
+/* Enlace indexable de las cards NO clicables: oculto a la vista, pero
+   alcanzable con teclado y anunciado por el lector — es la única ruta a la
+   página de la jornada cuando la card no se puede activar. */
+.race-card__seo-link {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.race-card__seo-link:focus-visible {
+  position: static;
+  width: auto; height: auto;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+.race-card:hover {
+  background: linear-gradient(to right, color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card)) var(--progress, 100%), var(--bg-card) var(--progress, 100%));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 35%, var(--border));
+}
+/* Cards con perfil de elevacion: fondo solido (sin gradiente de progreso) + espacio para el SVG */
+.race-card--elevation {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 4%, var(--bg-card));
+  padding-bottom: 58px;
+}
+.race-card--elevation:hover {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
+}
+/* SVG sparkline de elevacion, posicionado al fondo de la card */
+.race-card__elevation {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 58px;
+  display: block;
+  pointer-events: none;
+}
+/* Indicadores de perfil sobre el sparkline: spans HTML (border-radius:50%)
+   para que siempre sean círculos, sin distorsión por preserveAspectRatio. */
+.race-card__ep-inds {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 58px;
+  pointer-events: none;
+}
+.race-card__ep-inds span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  line-height: 0;
+}
+.race-card__ep-inds .ann-ind { opacity: 0.9; }
+.race-card--light-color {
+  border-color: var(--border-light);
+}
+.race-card--light-color:hover {
+  border-color: var(--border);
+}
+.race-card--stage:hover {
+  background: var(--bg-card-hover);
+}
+/* race-card--minor eliminado */
+.race-card--placeholder {
+  cursor: default;
+  padding: 0.4rem 1rem;
+  min-height: 0;
+  /* Conserva la elevación heredada de .race-card para que no quede plana
+     (y así "destaque") entre las tarjetas de carrera de la lista. */
+}
+
+.race-card--rest-day {
+  cursor: default;
+  /* Conserva la elevación heredada: homogénea con el resto de la lista. */
+}
+
+.race-card--rest-day:hover {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 5%, var(--bg-card));
+}
+
+.race-card--placeholder:hover {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 30%, var(--border));
+}
+.race-card__ph-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.race-card__ph-flag {
+  flex-shrink: 0;
+}
+.race-card__ph-name {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.race-card__ph-stage {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.race-card__flag {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.race-card__main { min-width: 0; }
+
+.race-card__name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.race-card__name > span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.race-card__name-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.race-card__ph-name .race-card__name-cat {
+  margin-left: 0.35rem;
+}
+
+.race-card__sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.race-card__route-wrap {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.race-card__km { color: var(--text); font-weight: 700; flex-shrink: 0; white-space: nowrap; }
+.race-card__elev { font-weight: 400; flex-shrink: 0; white-space: nowrap; }
+
+/* Fila unificada de badges bajo el nombre (paridad iOS):
+   Categoría → Cancelada → Tipo → TV → Inscritos → Orden salida */
+.race-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  min-width: 0;
+}
+.race-card__badges:empty { display: none; }
+.race-card__types--inline { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+
+.race-card__stage { color: var(--text); font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0; white-space: nowrap; }
+.race-card__route { }
+.race-card__sep   { color: var(--text-dim); }
+/* El · que vive DENTRO del wrap de ruta recupera el hueco hacia el texto (el flex gap
+   del sub solo separa hermanos). Líder (·ruta) → hueco a la derecha; cola (ruta·) →
+   hueco a la izquierda. */
+.race-card__sep--in-route { margin-right: 0.35rem; }
+.race-card__sep--in-route-trail { margin-right: 0; margin-left: 0.35rem; }
+
+.race-card__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+/* Horario apilado (paridad iOS, timesColumn): salida ↓ meta, alineado a la
+   derecha. Salida en peso normal, meta semibold, flecha pequeña y tenue. */
+.race-card__time-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  line-height: 1;
+  font-family: var(--font-body);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.race-card__time-start  { font-size: 0.8rem; font-weight: 400; }
+.race-card__time-arrow  { font-size: 0.5rem; color: var(--text-dim); line-height: 1; align-self: center; margin: 0.15rem 0; }
+.race-card__time-finish { font-size: 0.8rem; font-weight: 600; }
+.race-card__time-stack.badge--time-user { cursor: help; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 3px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+button.badge { border: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+/* categoría UCI */
+.badge--uci    { background: var(--accent-dim); color: var(--accent-text); }
+.badge--wt     { background: var(--badge-wt-bg);  color: var(--badge-wt-color); }
+.badge--pro    { background: var(--badge-pro-bg); color: var(--badge-pro-color); }
+.badge--1      { background: var(--badge-1-bg);   color: var(--badge-1-color); }
+.badge--2      { background: var(--badge-2-bg);   color: var(--badge-2-color); }
+.badge--wc     { background: var(--badge-wc-bg);  color: var(--badge-wc-color); }
+/* género (añadido a badge--uci, no reemplaza) */
+.badge--female { background: var(--badge-f-bg);   color: var(--badge-f-color); padding-inline: 0.35rem; }
+.badge--female svg { display: block; width: 1lh; height: 1lh; }
+/* tipo de etapa */
+.badge--type-flat    { background: var(--type-flat-bg);   color: var(--type-flat-color); }
+.badge--type-rolling { background: var(--type-roll-bg);   color: var(--type-roll-color); }
+.badge--type-cotas   { background: var(--type-cotas-bg);  color: var(--type-cotas-color); }
+.badge--type-medium  { background: var(--type-med-bg);    color: var(--type-med-color); }
+.badge--type-high    { background: var(--type-high-bg);   color: var(--type-high-color); }
+.badge--type-uphill  { background: var(--type-uphill-bg); color: var(--type-uphill-color); }
+.badge--type-chrono  { background: var(--type-chrono-bg); color: var(--type-chrono-color); }
+.badge--type-cobbles { background: var(--type-cobble-bg); color: var(--type-cobble-color); }
+.badge--type-sterra  { background: var(--type-sterra-bg); color: var(--type-sterra-color); }
+
+.race-card__meta-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.race-card__overview-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* WCAG 2.5.8: mínimo 24×24 px del objetivo táctil. */
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  font-size: 0.7rem;
+  line-height: 1;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.race-card__overview-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.race-card--stage {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.race-card--stage .race-card__meta {
+  margin-left: auto;
+}
+.badge--tv        { background: rgba(71,153,232,0.15); color: var(--blue); }
+/* Los badges que son enlaces sí son objetivos táctiles: 24 px de alto
+   mínimo (WCAG 2.5.8). Los badges informativos no se tocan. */
+a.badge { min-height: 24px; }
+.badge--tv-link   { text-decoration: none; }
+.badge--tv-link:hover { background: rgba(71,153,232,0.3); }
+.badge--notv      { background: rgba(136,136,136,0.1); color: var(--text-dim); }
+.badge--notv-es   { background: rgba(220,53,69,0.15); color: var(--red, #dc3545); }
+.badge--pend      { background: rgba(232,135,71,0.15); color: var(--orange); }
+.badge--livetext  { background: rgba(109,213,140,0.15); color: var(--green); text-decoration: none; }
+.badge--livetext:hover { background: rgba(109,213,140,0.3); }
+.badge--tv--live         { background: rgba(109,213,140,0.15); color: var(--green); }
+.badge--tv--live:hover   { background: rgba(109,213,140,0.3); }
+.badge--livetext--pre    { background: rgba(71,153,232,0.15); color: var(--blue); }
+.badge--livetext--pre:hover { background: rgba(71,153,232,0.3); }
+.badge--results   { background: var(--accent-dim); color: var(--accent-text); text-decoration: none; }
+.badge--results:hover { background: rgba(26,115,232,0.22); }
+.badge--revive    { font-weight: 600; }
+
+/* Variante "solo icono" (copa / TV) en las cards de Hoy y Competición:
+   réplica del estilo de las apps — glifo apagado, sin píldora ni etiqueta,
+   centrado en un blanco cuadrado de ~44px (objetivo táctil). Sustituye al
+   badge de texto en mayúsculas. No tocar .badge--results/--tv globales: esas
+   clases las comparten los enlaces FC/PCS de Campeonatos y el badge "ver en TV". */
+.badge--icon {
+  background: none;
+  padding: 0;
+  border-radius: 6px;
+  width: 2.1rem;
+  height: 2.1rem;
+  justify-content: center;
+  color: var(--text-muted);
+  letter-spacing: normal;
+}
+.badge--icon:hover { background: var(--hover-bg, rgba(128,128,128,0.12)); color: var(--text); }
+.badge--icon svg { width: 1.35rem; height: 1.35rem; }
+/* Oculta la etiqueta de texto pero la conserva para lectores de pantalla */
+.badge--icon .badge__label {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Modo terminado: iconos copa/TV a la derecha ──────────────────
+   Paridad con las apps (HStack [contenido | Spacer | iconos]): el par de
+   iconos va al borde derecho, en la fila del contenido. Los iconos viven en
+   .race-card__meta-top (flex row), así que en ESCRITORIO basta con la rejilla
+   normal de 3 columnas (auto 1fr auto): el meta ocupa su columna derecha y el
+   nombre se trunca con elipsis en la columna central, con sitio de sobra. NO
+   se aplica máscara ni padding extra en escritorio (causaba un degradado
+   indebido sobre el nombre junto a la hamburguesa). El layout especial
+   —meta superpuesto en absoluto + fundido del texto por debajo— es SOLO para
+   móvil (ver media query <=600px), donde no hay columna dedicada. */
+.race-card--finished .race-card__meta-top { gap: 0.1rem; }
+.badge--startlist { background: rgba(71,153,232,0.15); color: var(--blue); text-decoration: none; }
+.badge--startlist:hover { background: rgba(71,153,232,0.3); }
+.badge--startorder { background: rgba(71,153,232,0.15); color: var(--blue); text-decoration: none; }
+.badge--startorder:hover { background: rgba(71,153,232,0.3); }
+.badge--time   { background: transparent; color: var(--text-muted);
+                 padding: 0; font-size: 0.75rem; font-weight: 600; }
+.badge--asset  { background: rgba(136,136,136,0.1); color: var(--text-dim);
+                 font-size: 0.85rem; padding: 0.2rem 0.45rem;
+                 border-radius: 5px; line-height: 1.4;
+                 transition: background 0.15s; }
+.badge--asset:hover { background: rgba(136,136,136,0.2); }
+/* Solo color: tipografía, espaciado y caja los hereda de .badge para que
+   "Cancelada" se lea igual que el resto de badges de la fila. */
+.badge--cancelled-day {
+  background: rgba(229,85,85,0.12);
+  color: var(--red);
+}
+/* La jornada cancelada NO se atenúa: el badge "Cancelada" ya lo dice, y
+   bajarle la opacidad la hacía parecer deshabilitada cuando su ficha
+   (recorrido, perfil, documentación) sigue siendo accesible. Sin regla
+   propia: la clase .race-card--cancelled-day ya no existe. */
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.empty-state {
+  padding: 4rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty-state__icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.empty-state__title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Loading ──────────────────────────────────────────────────── */
+.loading {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  /* cuando está dentro de un grid (ej. month-grid), ocupar todas las columnas */
+  grid-column: 1 / -1;
+}
+.loading__icons {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--accent-text);
+}
+.loading__icons svg {
+  width: 2rem; height: 2rem;
+}
+.loading__icons svg:first-child {
+  width: 1.7rem; height: 1.7rem;
+}
+.loading__text {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.loading__dots {
+  display: flex;
+  gap: 0.35rem;
+}
+.loading__dots span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.3;
+  animation: cc-dot-pulse 1.2s ease-in-out infinite;
+}
+.loading__dots span:nth-child(2) { animation-delay: .2s; }
+.loading__dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes cc-dot-pulse {
+  0%, 80%, 100% { opacity: .3; transform: scale(1); }
+  40%           { opacity: 1;  transform: scale(1.3); }
+}
+
+/* ── Page loading — overlay a pantalla completa (js/page-loading.js) ─ */
+/* Cortina anti-flash: js/theme.js (síncrono, pre-paint) marca <html> con
+   .cc-booting; page-loading.js la retira al montar el overlay (o al ver que
+   la página no tiene marcador de carga). El keyframes es el failsafe si
+   header.js no llega a ejecutarse: la cortina se autodestruye a los 5 s. */
+html.cc-booting::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 799; /* justo bajo .page-loading (800) */
+  background: var(--bg);
+  animation: cc-curtain-failsafe 5s step-end forwards;
+}
+@keyframes cc-curtain-failsafe { to { visibility: hidden; } }
+
+.page-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 800; /* sobre header (100) y stickies; los modales no abren durante la carga */
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.page-loading--hide { opacity: 0; pointer-events: none; }
+.page-loading__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: center;
+  padding: 0 1.5rem;
+}
+.page-loading__icons {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent-text);
+}
+.page-loading__icons svg { width: 2.4rem; height: 2.4rem; }
+.page-loading__icons svg:first-child { width: 2rem; height: 2rem; }
+.page-loading__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.page-loading__msg {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+/* Pegado bajo el bloque de marca (centrado a 50%): el SVG arranca justo
+   debajo y el tinte de continuación (__ground) rellena hasta el borde. */
+.page-loading__profile {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(50% + 72px);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+.page-loading__svgwrap {
+  position: relative; /* ancla del punto-ciclista (posicionado en %) */
+  flex: none;
+}
+.page-loading__svgwrap svg {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 24vh, 260px);
+}
+.page-loading__ground {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.10; /* mismo tinte que .page-loading__fill */
+}
+.page-loading__fill  { fill: var(--accent); opacity: 0.10; }
+.page-loading__line  {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  /* preserveAspectRatio="none" estira el viewBox → mantener grosor real */
+  vector-effect: non-scaling-stroke;
+}
+/* Punto del "ciclista": span HTML que JS posiciona en % del svgwrap;
+   el halo pulsante es su ::after. */
+.page-loading__rider {
+  position: absolute;
+  top: 0; left: 0;
+  width: 9px; height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.page-loading__rider::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.25;
+  animation: cc-rider-halo 1.4s ease-in-out infinite;
+}
+@keyframes cc-rider-halo {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.45); }
+}
+.page-loading__caption {
+  position: absolute;
+  left: 1rem; bottom: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+/* ── Cabecera de carrera unificada (jornada/competición/orden/inscritos) ─ */
+.race-header {
+  padding: 2rem 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  max-width: 860px;
+  margin: 0 auto;
+  position: relative;
+}
+.race-header__inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+.race-header__main {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.race-header__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.race-header__logo {
+  max-height: 3.5rem;
+  width: auto;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.race-header__flag { font-size: 1.5rem; line-height: 1; }
+.race-header__flag--solo { font-size: 2rem; }
+.race-header__text { min-width: 0; }
+.race-header__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.2rem;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: var(--text);
+  /* Es un <h1>: se anula el margen del navegador para que no cambie nada. */
+  margin: 0;
+}
+.race-header__subtitle {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  margin-top: 0.4rem;
+}
+.race-header__label { color: var(--text); }
+.race-header__date {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-top: 0.3rem;
+}
+.race-header__stats {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+}
+@media (max-width: 640px) {
+  .race-header__name { font-size: 1.7rem; }
+  .race-header__inner { flex-wrap: wrap; }
+  .race-header__inner .btn-ical { align-self: flex-end; }
+}
+
+/* ── Jornada detail ───────────────────────────────────────────── */
+.jornada-hero {
+  padding: 2rem 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.jornada-hero__name  {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.2rem;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.jornada-hero__stage {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 0.35rem;
+}
+
+.jornada-cancelled-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.55rem 0.9rem;
+  background: rgba(229,85,85,0.1);
+  border: 1px solid rgba(229,85,85,0.3);
+  border-radius: 6px;
+  color: var(--red);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.jornada-section {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.jornada-section__title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+h2.jornada-section__title {
+  margin: 0 0 0.85rem;
+}
+.jornada-section__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+.jornada-section__title-row h2.jornada-section__title {
+  margin: 0;
+  flex: 1;
+}
+.jornada-section__title-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+}
+.jornada-section__title-badge h2.jornada-section__title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.tv-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.7rem;
+  background: var(--bg-card-hover);
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+.tv-filter-btn--active {
+  background: var(--accent-dim);
+  color: var(--accent-text);
+}
+.tv-filter-btn:hover:not(.tv-filter-btn--active) {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+.tv-entry--regional-hidden {
+  display: none;
+}
+.jornada-section__ai-note {
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-tertiary, var(--text-muted));
+  opacity: 0.7;
+  margin-left: 0.4em;
+}
+
+.jornada-description p {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  margin: 0;
+}
+.jornada-description p + p {
+  margin-top: 0.75rem;
+}
+.jornada-description + .info-row {
+  margin-top: 1.25rem;
+}
+
+.info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.info-row__label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  min-width: 160px;
+  flex-shrink: 0;
+}
+.info-row__value {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.info-row__value--secondary {
+  font-weight: 400;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* ── Route grid (recorrido + distancia/tipo + horarios) ── */
+.jornada-section--route-grid {
+  padding-bottom: 0;
+}
+.route-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.route-grid__block {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  border-right: 1px solid var(--border);
+}
+.route-grid__block--type {
+  background: color-mix(in srgb, var(--type-color, transparent) 10%, transparent);
+}
+.route-grid__block:last-child {
+  border-right: none;
+}
+.route-grid__title {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+.route-grid__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+.route-grid__body--route {
+  gap: 0.15rem;
+}
+.route-block__place {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+  text-align: center;
+}
+.route-block__place--solo {
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+.route-block__note {
+  font-size: 0.8rem;
+  color: var(--text);
+  text-align: center;
+}
+.route-block__note--empty {
+  font-style: italic;
+}
+.route-block__km {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 0.28rem;
+  text-align: center;
+}
+.route-block__km--empty {
+  color: var(--text-muted);
+}
+.route-block__elev {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 0.22rem;
+  text-align: center;
+}
+.route-block__type {
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.3;
+  text-align: center;
+}
+.route-arrow {
+  width: 14px;
+  height: 22px;
+  flex-shrink: 0;
+  stroke: var(--text-muted);
+  margin: 0.1rem 0;
+}
+
+@media (max-width: 480px) {
+  .route-grid {
+    grid-template-columns: 1fr;
+  }
+  .route-grid__block {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .route-grid__block:last-child {
+    border-bottom: none;
+  }
+  .route-block__km {
+    font-size: 1.4rem;
+  }
+}
+
+/* ── Guía simplificada de horarios — affordance en el bloque Horario ── */
+/* El bloque "Horario" con guía: una columna flex para anclar el botón al pie
+   sin descuadrar la altura de los 3 bloques de la rejilla en escritorio. */
+.route-grid__block--guide {
+  display: flex;
+  flex-direction: column;
+}
+.route-grid__block--guide .route-grid__body { flex: 1 1 auto; }
+
+/* Acceso a la guía: enlace secundario, icono de reloj + chevron, anclado al
+   pie del bloque. Debe quedar por debajo de los horarios, que son el dato
+   principal de esta columna. */
+.route-grid__guide-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  align-self: center;
+  margin-top: 0.6rem;
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+.route-grid__guide-btn:hover {
+  background: color-mix(in srgb, var(--accent, #1a5ca8) 8%, transparent);
+  color: var(--accent, #1a5ca8);
+}
+.route-grid__guide-btn:active { transform: translateY(0.5px); }
+.route-grid__guide-btn:focus-visible {
+  outline: 2px solid var(--accent, #1a5ca8);
+  outline-offset: 2px;
+}
+.route-grid__guide-ico { flex-shrink: 0; opacity: 0.85; }
+.route-grid__guide-chev { flex-shrink: 0; opacity: 0.7; }
+
+/* ── Modal de la guía simplificada de horarios ── */
+.sg-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+.sg-overlay.sg-overlay--open { display: flex; }
+.sg-modal {
+  background: var(--bg);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 2rem);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+.sg-modal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sg-modal__title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--header-text);
+}
+.sg-modal__close {
+  background: none;
+  border: none;
+  color: var(--header-text);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  display: flex;
+  transition: opacity var(--transition);
+}
+.sg-modal__close:hover { opacity: 1; }
+.sg-modal__body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem 0;
+}
+.sg-row {
+  display: grid;
+  grid-template-columns: 3.4rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.sg-row:last-child { border-bottom: none; }
+.sg-row--start, .sg-row--finish { background: color-mix(in srgb, var(--accent, #1a5ca8) 5%, transparent); }
+.sg-row__time {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sg-row--start .sg-row__time, .sg-row--finish .sg-row__time { color: var(--accent, #1a5ca8); }
+.sg-row__name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  min-width: 0;
+}
+.sg-row__name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-row__km {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-align: right;
+}
+.sg-marker {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  line-height: 1;
+}
+.sg-marker .sg-marker-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.sg-est {
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-left: 0.1em;
+}
+.sg-note {
+  padding: 0.65rem 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.tv-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.4rem;
+}
+.tv-entry__platform {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.tv-entry__channel { font-size: 0.8rem; color: var(--text-muted); }
+.tv-entry__time    { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; }
+
+.tv-link-btn,
+.result-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.tv-link-btn:hover,
+.result-btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+
+.yt-embed-wrap,
+.tv-embed-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+.yt-embed-wrap iframe,
+.tv-embed-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tv-embed-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.65rem;
+}
+
+
+.asset-links {
+  display: flex;
+  gap: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+.asset-links::-webkit-scrollbar { display: none; }
+.asset-links-wrap { position: relative; }
+.asset-links__prev,
+.asset-links__next {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: inline-flex;
+  width: 2.15rem;
+  height: 100%;
+  padding: 0;
+  background: linear-gradient(90deg, transparent, var(--bg-card) 34%);
+  color: var(--text-muted);
+}
+.asset-links__prev { left: 0; right: auto; background: linear-gradient(90deg, var(--bg-card) 66%, transparent); }
+.asset-links__prev[hidden],
+.asset-links__next[hidden] { display: none; }
+.asset-btn {
+  display: inline-flex;
+  flex: 0 0 104px;
+  min-height: 56px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0.42rem 0.5rem;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--transition), color var(--transition);
+  text-align: center;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.12;
+}
+.asset-btn__label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-btn:last-child { border-right: none; }
+.asset-btn:hover { color: var(--text); background: var(--accent-dim); }
+
+/* ── Botones de resultados externos (FirstCycling / PCS) ─────── */
+/* `.result-btn` hereda el look de `.tv-link-btn` (botón "Ver") y se
+   expande para que la suma de los dos botones cubra todo el ancho.
+   En modales estrechos donde "PROCYCLINGSTATS ↗" no cabe al lado de
+   "FIRSTCYCLING ↗", `flex-wrap` los apila en dos líneas en vez de
+   partir el texto de un botón en dos renglones. */
+.result-section-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.result-section-btns .result-btn {
+  flex: 1;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Resultados propios (in-house): CTA principal a ancho completo. */
+.result-btn--inhouse {
+  display: flex;
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+}
+.result-btn--inhouse:hover { background: var(--accent); filter: brightness(1.08); }
+/* FC/PCS quedan como respaldo discreto bajo el botón propio. */
+.result-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.6rem;
+}
+.result-fallback__label { font-size: 0.78rem; color: var(--text-muted); }
+.result-alt-btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+.result-alt-btn:hover { color: var(--accent-text); text-decoration: underline; }
+
+/* ── Modal de assets ──────────────────────────────────────────── */
+#assetModalOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.75);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+#assetModalOverlay.asset-modal--open {
+  display: flex;
+}
+.asset-modal {
+  background: var(--bg);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  max-height: calc(100vh - 2rem);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+/* PDFs e iframes: ocupan toda la pantalla */
+.asset-modal--document {
+  height: calc(100vh - 2rem);
+}
+/* Imágenes: solo la altura necesaria */
+.asset-modal--image {
+  height: auto;
+}
+.asset-modal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 0.75rem;
+}
+.asset-modal__title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--header-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asset-modal__external {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--header-text);
+  opacity: 0.7;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity var(--transition);
+}
+.asset-modal__external:hover { opacity: 1; }
+.asset-modal__close {
+  background: none;
+  border: none;
+  color: var(--header-text);
+  opacity: 0.7;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.asset-modal__close:hover { opacity: 1; }
+.asset-modal__body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+.asset-modal--document .asset-modal__body {
+  background: #fff;
+}
+/* Para embed/iframe que necesitan altura fija */
+.asset-modal__body embed,
+.asset-modal__body iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 6rem);
+  border: none;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  color: var(--header-text);
+  font-size: 0.9rem;
+  opacity: 0.65;
+  padding: 0.18rem 0.6rem;
+  transition: opacity var(--transition), background var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+.back-btn:hover { opacity: 1; }
+/* El .back-btn insertado en runtime por ccHeaderBack() puede ser un <button>
+   (Fichajes: vuelve a la lista sin recargar) además del <a> estático; iguala su
+   apariencia al enlace neutralizando los estilos de UA del botón. */
+button.back-btn { background: none; font: inherit; cursor: pointer; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .site-header { padding: env(safe-area-inset-top) 1rem 0; }
+  .date-bar { padding: 0.4rem 0.75rem 0.4rem 1rem; }
+  .race-list { padding: 0.5rem 1rem 1rem; }
+  .race-card { grid-template-columns: auto 1fr; row-gap: 0.3rem; }
+  .race-card__logo, .race-card__flag { grid-row: 1 / span 2; align-self: center; }
+  /* Horario apilado a la derecha, IGUAL que en escritorio (salida ↓ llegada).
+     El meta se coloca en la MISMA celda de la rejilla que el contenido (fila 1,
+     col 2) y se centra ahí, de modo que queda centrado verticalmente sobre el
+     bloque Etapa·datos·TV — NO sobre toda la card (que incluye la banda de
+     perfil al fondo). El contenido reserva su ancho a la derecha y se funde por
+     debajo. La banda de perfil ocupa su propia fila implícita, sin afectar al
+     centrado. */
+  .race-card__main { grid-row: 1; grid-column: 2; padding-right: 4rem; }
+  /* Ruta (salida › llegada) oculta en móvil SOLO en la home (#raceList): con el
+     ancho reducido + km/desnivel + iconos, la ruta colapsaba a un muñón ("Brus…")
+     o dejaba dos · seguidos. El · adyacente viaja DENTRO del wrap (ver buildCard),
+     así que ocultarlo no deja separadores huérfanos. El subtítulo queda
+     "Etapa 2 · 157,7 km · +2.090 m". En competición (y demás páginas de carrera)
+     hay sitio de sobra → se mantiene la ruta. */
+  #raceList .race-card__sub .race-card__route-wrap { display: none; }
+  /* Modo terminado: 2 iconos (copa+TV) necesitan algo más de hueco que el
+     horario apilado → reserva 4.9rem para que no rocen el texto fundido. */
+  .race-card--finished .race-card__main { padding-right: 4.9rem; }
+  .race-card__meta {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: center;
+    justify-self: end;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: flex-end;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .race-card__meta > * { pointer-events: auto; }
+  /* Sin mask de fundido al truncar: tanto el nombre (.race-card__name >
+     span:first-child) como la ruta (.race-card__route-wrap) ya recortan con
+     text-overflow: ellipsis. El mask era redundante y desvanecía el borde
+     derecho (el desnivel en el sub, el final del nombre/su badge). */
+  .jornada-hero { padding: 1.5rem 1rem 1rem; }
+  .race-header { padding: 1.5rem 1rem 1rem; }
+  .jornada-section { padding: 1rem; }
+}
+
+/* ── Race logo ────────────────────────────────────────────────── */
+.race-card__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+.race-logo-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.jornada-hero__logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.empty-state__text {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  max-width: 320px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.empty-state .btn--ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1.5rem;
+  padding: 0.55rem 1.25rem;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.empty-state .btn--ghost:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ── Reportar cambio ─────────────────────────────────────────── */
+.btn-ical--report {
+  color: var(--text-muted);
+  background: transparent;
+}
+.btn-ical--report:hover {
+  color: var(--accent-text);
+  background: var(--accent-dim);
+}
+
+/* Report modal overlay */
+.report-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0,0,0,0.55);
+}
+.report-modal-overlay.report-modal--open { display: flex; }
+
+.report-modal {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  width: 100%;
+  max-width: 440px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.report-modal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.report-modal__title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.report-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+}
+.report-modal__close:hover { color: var(--text); }
+
+.report-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.report-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+@media (max-width: 480px) {
+  .report-modal__row { grid-template-columns: 1fr; }
+}
+.report-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.report-modal__label {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: -0.35rem;
+}
+.report-modal__input,
+.report-modal__select,
+.report-modal__textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--transition);
+}
+.report-modal__input:focus,
+.report-modal__select:focus,
+.report-modal__textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.report-modal__textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+.report-modal__submit {
+  align-self: flex-end;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.55rem 1.25rem;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.report-modal__submit:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.report-modal__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.report-modal__success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0;
+  color: var(--text);
+}
+
+/* ── Navegación entre etapas ──────────────────────────────────── */
+.stage-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.stage-nav__picker {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+  transition: border-color var(--transition);
+}
+.stage-nav__picker:focus-within { border-color: var(--border-focus, #555); }
+
+.stage-nav__arrow {
+  flex-shrink: 0;
+  padding: 0 0.55rem;
+  height: 32px;
+  font-size: 1.1rem;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition), background var(--transition);
+}
+.stage-nav__arrow:first-child { border-right: 1px solid var(--border); }
+.stage-nav__arrow:last-child  { border-left:  1px solid var(--border); }
+.stage-nav__arrow:hover:not(.disabled) { color: var(--text); background: rgba(128,128,128,0.08); }
+.stage-nav__arrow.disabled { opacity: 0.3; cursor: default; }
+
+.stage-nav__select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.stage-nav__race {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+.stage-nav__race:hover { color: var(--accent-text); }
+
+@media (max-width: 480px) {
+  .stage-nav__race { display: none; }
+}
+
+/* ── Max-width centrado (escritorio) ─────────────────────────── */
+.site-header__inner {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* En páginas con botón atrás: logo pegado al botón, nav empujado a la derecha */
+.site-header__inner:has(.back-btn) {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+.site-header__inner:has(.back-btn) .site-logo { margin-right: auto; }
+
+#raceList,
+#jornadaContent,
+#competicionContent {
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Reservar el alto de la lista de la home MIENTRAS CARGA. Sin esto, el
+   contenedor mide lo que el spinner (~150px) mientras llegan los datos, así
+   que el footer nace arriba y SALTA hacia abajo al montarse las tarjetas
+   (causa del CLS 0.40 — el 99,9% del shift era body > footer.site-footer).
+   Con un alto mínimo que llega casi al borde inferior, el footer ya nace bajo
+   el pliegue y no se mueve en el swap loading→contenido. 200px ≈ cabecera +
+   cintillo + barra sticky; svh evita el salto de la barra de URL en móvil.
+
+   La reserva se ata al spinner (:has(.loading)) y NO al contenedor: una vez
+   montadas las tarjetas son ellas las que dan el alto, así que un día flojo
+   (1-2 carreras) deja de arrastrar el footer al fondo del pliegue con cientos
+   de px de vacío. El swap sigue sin salto porque el alto solo puede CRECER:
+   la reserva se suelta justo cuando el contenido ya ocupa su sitio. */
+#raceList:has(.loading) {
+  min-height: calc(100svh - 200px);
+}
+
+.date-bar {
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  :root { --primary-nav-h: 0px; }
+  /* Logo solo iconos; la lupa inline se oculta en móvil. */
+  .site-logo__text { display: none; }
+  .header-actions .nav-search-link { display: none; }
+
+  /* En móvil se convierte en la barra inferior de las apps. */
+  body { padding-bottom: calc(65px + env(safe-area-inset-bottom)); }
+  .primary-nav {
+    position: fixed;
+    inset: auto 0 0;
+    top: auto;
+    z-index: 150;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+    background: var(--bg-header);
+  }
+  .primary-nav__inner {
+    width: 100%;
+    padding: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .primary-nav__inner::-webkit-scrollbar { display: none; }
+  .primary-nav__inner a,
+  .primary-nav__inner button {
+    flex-direction: column;
+    gap: 0.12rem;
+    min-height: 64px;
+    padding: 0.45rem 0.15rem 0.35rem;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    scroll-snap-align: start;
+    background: var(--bg-header);
+  }
+  .primary-nav__inner a:not(:first-child)::before,
+  .primary-nav__inner button:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  /* Los destinos son celdas equivalentes de una sola tira. */
+  .primary-nav__inner a.primary-nav__main,
+  .primary-nav__inner a.primary-nav__secondary,
+  .primary-nav__inner button.primary-nav__secondary { flex: 0 0 25%; }
+  .primary-nav__icon { width: 21px; height: 21px; }
+  .primary-nav__divider { display: none; }
+  .primary-nav__prev,
+  .primary-nav__more {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.15rem;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(90deg, transparent, var(--bg-header) 34%);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .primary-nav__prev { left: 0; right: auto; background: linear-gradient(90deg, var(--bg-header) 66%, transparent); }
+  .primary-nav__prev[hidden],
+  .primary-nav__more[hidden] { display: none; }
+  .primary-nav__more:hover { color: var(--accent-text); background: var(--accent-dim); }
+  .primary-nav__more svg { width: 16px; height: 16px; }
+  .primary-nav a.active::after {
+    top: 0;
+    right: 22%;
+    bottom: auto;
+    left: 22%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+  }
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
+.site-footer {
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+}
+.site-footer p {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0;
+}
+.site-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+.site-footer a:hover {
+  color: var(--text);
+}
+/* Acciones del footer: bajo el copyright, con la misma estética de píldora. */
+.site-footer p.site-footer__actions {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.footer-link {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-card-hover);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+.footer-link:hover { background: var(--accent-dim); color: var(--text); }
+.footer-link--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.footer-link--icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Theme toggle SVG ─────────────────────────────────────────── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--accent-text);
+  opacity: 0.6;
+  transition: opacity var(--transition);
+  line-height: 1;
+}
+.theme-toggle:hover { opacity: 1; }
+
+/* ── Filtros de categoría (compartido: temporada + mes) ───────── */
+.temporada-filters {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h));
+  z-index: 50;
+}
+.temporada-filters__inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.temporada-filter-cats {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+/* Filtros de categoría: pastilla suave (mismo lenguaje que Hoy) en
+   TODAS las vistas — Temporada, Mes y agenda comparten ahora el look. */
+.tcat-btn {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--bg-card-hover);
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.32rem 0.8rem;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.tcat-btn:hover { color: var(--text); background: var(--accent-dim); }
+.tcat-btn--active {
+  color: var(--accent-text);
+  background: var(--accent-dim);
+  font-weight: 600;
+}
+
+/* Chincheta (pin) — fija el filtro como predeterminado */
+.tcat-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: -0.25rem;
+  color: var(--accent-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 50%;
+  transition: background var(--transition), transform var(--transition);
+}
+.tcat-pin__svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  display: block;
+  transform: rotate(35deg);
+}
+.tcat-pin--outline { opacity: 0.55; }
+.tcat-pin--outline:hover { opacity: 1; background: var(--accent-dim); }
+.tcat-pin--filled:hover { background: var(--accent-dim); }
+.tcat-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; opacity: 1; }
+
+/* ── Tooltip custom para placeholders ────────────────────────── */
+#ph-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--bg-header);
+  color: var(--header-text);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  opacity: 0.92;
+}
+
+/* ── Modal móvil para tooltips (data-ph-tooltip) ─────────────── */
+#ph-banner {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+#ph-banner-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.ph-banner__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1rem 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.ph-banner__header-text {
+  flex: 1;
+  min-width: 0;
+}
+.ph-banner__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--text);
+  display: block;
+}
+.ph-banner__sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+.ph-banner__body {
+  padding: 1rem 1.5rem;
+}
+.ph-banner__body p {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+#ph-banner button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  transition: color var(--transition);
+}
+#ph-banner button:hover { color: var(--text); }
+
+/* ── Botón Suscribirse iCal ───────────────────────────────────── */
+.btn-ical {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.34rem 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+.btn-ical:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.btn-ical svg { flex-shrink: 0; }
+
+/* Contenedor del botón bajo mes y agenda */
+.ical-bar {
+  max-width: 900px;
+  margin: 1.5rem auto 0;
+  padding: 0 1.5rem 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* ── Segunda fila filtros temporada (cats + suscribirse) ─────── */
+.temporada-filter-row2 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+/* ── Temporada: row1 con selects + botón suscribirse ─────────── */
+.temporada-filters__row1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+/* País con ancho flexible pero acotado */
+.temporada-select--country {
+  flex: 1;
+  min-width: 88px;
+  max-width: 120px;
+  flex-shrink: 0;
+}
+/* Mes: puede tener opciones largas, cede espacio si hace falta */
+.temporada-select--month {
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Escritorio: el botón inline (row1) se oculta; el de row2 se muestra */
+.btn-ical--inline { display: none; }
+.btn-ical--row2   { display: inline-flex; }
+
+/* ── Botón "Editar jornada" (solo visible si hay sesión activa) ── */
+.edit-jornada-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  background: var(--bg-card-hover);
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+.edit-jornada-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent-text);
+}
+
+/* Móvil: al revés — inline visible, row2 oculto */
+@media (max-width: 600px) {
+  .btn-ical--inline {
+    display: inline-flex;
+    padding: 0.28rem 0.5rem;
+    gap: 0.3rem;
+    flex-shrink: 0;
+  }
+  .btn-ical__label { display: none; }  /* solo icono en móvil */
+  .btn-ical--row2  { display: none; }
+  .ical-bar { justify-content: center; }
+}
+
+/* ── Modal datos carrera (mes / temporada) ───────────────────── */
+.rd-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+.rd-modal-overlay.rd-modal--open { display: flex; }
+
+.rd-modal {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+/* Variante TV: solo el embed de vídeo → modal más ancho para verlo más grande */
+.rd-modal--tv { max-width: 900px; }
+
+.rd-modal__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1rem 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.rd-modal__header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rd-modal__race-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--text);
+  display: block;
+}
+
+.rd-modal__date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.rd-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+.rd-modal__close:hover { color: var(--text); }
+
+.rd-modal__loading {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  align-items: center;
+  padding: 2.5rem;
+}
+.rd-modal__loading span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: rdModalDot 1.2s infinite ease-in-out;
+}
+.rd-modal__loading span:nth-child(2) { animation-delay: 0.2s; }
+.rd-modal__loading span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes rdModalDot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1);   }
+}
+
+/* Route grid 2 columnas (cuando no hay horarios o no hay recorrido) */
+.route-grid--2col { grid-template-columns: 1fr 1fr; }
+/* Route grid 1 columna (solo distancia/tipo, sin recorrido ni horarios) */
+.route-grid--1col { grid-template-columns: 1fr; }
+@media (max-width: 480px) {
+  .route-grid--2col,
+  .route-grid--1col { grid-template-columns: 1fr; }
+}
+
+/* ── Modal Apps ────────────────────────────────────────────────── */
+.apps-modal__header-logo {
+  display: flex;
+  align-items: center;
+  color: var(--accent-text);
+  font-size: 1.2rem;
+  flex: 1;
+  min-width: 0;
+}
+.apps-modal__header-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.apps-modal__tagline {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid var(--border);
+}
+.apps-modal__platforms {
+  display: flex;
+  flex-direction: column;
+}
+.apps-modal__card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text);
+}
+.apps-modal__platform-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: calc(var(--radius) * 1.5);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  color: var(--text);
+}
+.apps-modal__platform-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.apps-modal__platform-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.apps-modal__platform-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.apps-modal__dl-badge {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0.4rem 0.95rem;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+.apps-modal__dl-badge:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+
+/* Pie "Seguir navegando en la web" — solo en la apertura automática */
+.apps-modal__continue {
+  display: block;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: none;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+.apps-modal__continue:hover { color: var(--text); background: var(--bg); }
+.apps-modal__continue[hidden] { display: none; }
+
+/* ── Android App Banner ──────────────────────────────────────── */
+/* Hueco reservado pre-paint para el smart-banner de Android (ver el script
+   inline en <body>). Mismo alto que el banner real (56px) → cuando apps-modal.js
+   lo inserta y retira la clase, el banner ocupa exactamente este hueco: 0 CLS.
+   Si el usuario no es Android o ya lo descartó, la clase no se añade y no hay
+   hueco. El alto debe seguir a .android-app-banner (icono 36 + padding). */
+html.cc-android-banner-pending body::before {
+  content: '';
+  display: block;
+  height: 56px;
+}
+.android-app-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 90;
+}
+.android-app-banner__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 0.15rem;
+  flex-shrink: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+.android-app-banner__close:hover { color: var(--text); }
+.android-app-banner__icon {
+  flex-shrink: 0;
+  color: var(--accent-text);
+  opacity: 0.85;
+  display: flex;
+  align-items: center;
+}
+.android-app-banner__info {
+  flex: 1;
+  min-width: 0;
+}
+.android-app-banner__name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.android-app-banner__sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+.android-app-banner__btn {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0.4rem 0.95rem;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+.android-app-banner__btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+
+/* ── Cookie Consent Banner ───────────────────────────────────── */
+.cookie-banner {
+  position: relative;
+  z-index: 3000;
+  max-height: 0;
+  overflow: hidden;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  transition: max-height 0.4s ease;
+}
+.cookie-banner--visible {
+  max-height: 250px;
+}
+.cookie-banner__inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.cookie-banner__text {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.cookie-banner__buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  align-items: center;
+}
+.cookie-banner__btn {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.42rem 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+.cookie-banner__btn--accept,
+.cookie-banner__btn--reject {
+  background: var(--accent-dim);
+  color: var(--accent-text);
+}
+.cookie-banner__btn--accept:hover,
+.cookie-banner__btn--reject:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+/* Botón rueda "Elegiré más tarde" */
+.cookie-banner__btn--later {
+  background: var(--bg-card-hover);
+  padding: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.cookie-banner__btn--later:hover {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+/* Tooltip que sigue al ratón (solo desktop) */
+.cookie-tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 3100;
+}
+.cookie-tooltip--visible {
+  opacity: 1;
+}
+@media (max-width: 600px) {
+  .cookie-tooltip { display: none; }
+}
+@media (max-width: 600px) {
+  .cookie-banner__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.75rem 1rem;
+  }
+  .cookie-banner__buttons {
+    justify-content: flex-end;
+  }
+}
+
+/* ── Link "Gestión de cookies" tras el footer ────────────────── */
+
+/* ── Modal gestión de cookies ────────────────────────────────── */
+.cookie-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.cookie-modal--open { display: flex; }
+.cookie-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+.cookie-modal__box {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  width: 100%;
+  max-width: 480px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.cookie-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition);
+}
+.cookie-modal__close:hover { color: var(--text); }
+.cookie-modal__title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0;
+}
+.cookie-modal__text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.cookie-modal__buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Cursor puntero para pills/filas con modal disponible */
+.t-race--modal { cursor: pointer; }
+.race-card--has-modal { cursor: pointer; }
+
+/* ═══════════════════════════════════════════════════════════════
+   INSCRITOS — Startlist page
+   ═══════════════════════════════════════════════════════════════ */
+
+.startlist-hero {
+  padding: 2rem 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  max-width: 860px;
+  margin: 0 auto;
+  position: relative;
+}
+.startlist-hero__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.startlist-hero__subtitle {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+}
+.startlist-hero__stats {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+}
+
+.startlist-empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* Resultados de una etapa CANCELADA: la pestaña "Etapa" no tiene tabla (la
+   carrera no llegó a meta) → aviso en lugar de un "no hay datos" que se leería
+   como un volcado que falta. Mismo lenguaje que el banner de la jornada. */
+.res-cancelled-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 2.5rem auto;
+  padding: 0.55rem 0.9rem;
+  width: fit-content;
+  background: rgba(229,85,85,0.1);
+  border: 1px solid rgba(229,85,85,0.3);
+  border-radius: 6px;
+  color: var(--red);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Generales ARRASTRADAS de la etapa anterior (la cancelada no las movió). */
+.res-carried-note {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.res-carried-note svg { flex-shrink: 0; color: var(--text-dim); }
+
+/* ── Hero inner: info + PDF button en la misma fila ─────────── */
+@media (max-width: 640px) {
+}
+
+/* ── Toolbar: disclaimer para vueltas ────────────────────────── */
+.startlist-toolbar {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem 1.25rem;
+}
+.startlist-disclaimer {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-dim);
+  display: block;
+}
+.startlist-disclaimer + .startlist-disclaimer {
+  margin-top: 0.5rem;
+}
+.startlist-disclaimer--provisional {
+  color: var(--text);
+  font-style: normal;
+}
+.startlist-disclaimer--provisional strong {
+  color: var(--accent-text);
+}
+
+/* ── Team grid ─────────────────────────────────────────────────── */
+.startlist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 3rem;
+}
+.startlist-toolbar + .startlist-grid {
+  padding-top: 0;
+}
+
+.startlist-team {
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.startlist-team--white-bg {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+.startlist-team__header {
+  padding: 0.75rem 1rem;
+  background: var(--bg-card-hover);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  /* Altura uniforme: acomoda la chapa (24px) sin desfase con headers sin chapa */
+  min-height: 3rem;
+  box-sizing: border-box;
+}
+.startlist-team__header--enriched {
+  /* Fondo y color los fija el style inline por equipo */
+  transition: background 0.2s ease;
+}
+.startlist-team__badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.startlist-team__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.startlist-team__confirm {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+.startlist-team__confirm--yes {
+  /* inherited — SVG usa var(--accent) directamente */
+}
+
+/* Chapa reusable — tamaño por defecto 24px */
+.team-badge {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.startlist-team__riders {
+  padding: 0.4rem 0;
+}
+
+.startlist-rider {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.startlist-rider__dorsal {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 1.8rem;
+  min-height: 1.1rem;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  background: var(--dorsal-bg-a);
+}
+.startlist-rider__flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  flex-shrink: 0;
+}
+.startlist-rider__flag img {
+  width: 1.2em;
+  height: 0.9em;
+  display: block;
+}
+.startlist-rider__name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+/* Fila interactiva: realce sutil al pasar por encima (el tooltip cuelga de aquí). */
+.startlist-rider[data-rider-name] {
+  cursor: default;
+  border-radius: var(--radius-btn);
+  transition: background 0.12s ease;
+}
+@media (hover: hover) {
+  .startlist-rider[data-rider-name]:hover {
+    background: var(--bg-card-hover);
+  }
+}
+/* Corredor fuera de carrera (abandono/DNS/OTL/DSQ, según resultados in-house):
+   nombre tachado + fila atenuada. Opacidad (no color fijo) → respeta dark mode.
+   El motivo y la etapa se muestran en el tooltip (rider-tip__dnf). */
+.startlist-rider--out {
+  opacity: 0.55;
+}
+.startlist-rider--out .startlist-rider__name {
+  text-decoration: line-through;
+}
+.startlist-rider--out .startlist-rider__dorsal {
+  opacity: 0.7;
+}
+
+/* ── Tooltip de corredor (hover/tap) ──────────────────────── */
+.rider-tip {
+  position: absolute;
+  z-index: 1200;
+  min-width: 168px;
+  max-width: 260px;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow), 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.rider-tip--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* Puente invisible que cubre el hueco fila↔tooltip para que el ratón pueda
+   cruzar hasta el tooltip sin pasar por una zona "muerta" que lo cierre. */
+.rider-tip--visible::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+.rider-tip--visible[data-placement='top']::before { top: 100%; }
+.rider-tip--visible[data-placement='bottom']::before { bottom: 100%; }
+/* Motivo de "fuera de carrera" en el tooltip (ABN/NS/FC/EXP + etapa). */
+.rider-tip__dnf {
+  margin-top: 0.2rem;
+  color: var(--danger, #dc2626);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Enlace dentro de tablas so-table (corredor→equipo / equipo→página). */
+.so-link {
+  color: inherit;
+  text-decoration: none;
+}
+.so-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Responsive: 2 cols en tablet, 1 col en móvil ─────────── */
+@media (max-width: 1100px) {
+  .startlist-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 640px) {
+  .startlist-hero {
+    padding: 1.5rem 1rem 1rem;
+  }
+  .startlist-hero__name {
+    font-size: 1.5rem;
+  }
+  .startlist-grid {
+    grid-template-columns: 1fr;
+  }
+  .startlist-team {
+    border-right: none;
+  }
+}
+
+/* ── sus-feed: tarjetas de feed iCal (compartidas con /suscripcion/ y modal jornada) */
+.sus-feeds { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+.sus-feed { display: flex; align-items: center; gap: .3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: border-color .15s; }
+.sus-feed:hover { border-color: var(--border-light); }
+.sus-feed__link { flex: 1; display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; text-decoration: none; color: var(--text); min-width: 0; transition: background .15s; }
+.sus-feed__link:hover { background: var(--bg-card-hover); }
+.sus-feed__body { flex: 1; min-width: 0; }
+.sus-feed__label { font-family: var(--font-display); font-weight: 700; font-size: 1rem; margin: 0 0 .1rem; line-height: 1.2; }
+.sus-feed__desc { font-size: .82rem; color: var(--text-muted); margin: 0; line-height: 1.4; }
+.sus-feed__arrow { flex-shrink: 0; color: var(--text-muted); }
+.sus-feed__copy { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: .4rem; background: transparent; border: 0; border-radius: var(--radius); color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s; }
+.sus-feed__copy:hover { background: var(--bg-card-hover); color: var(--text); }
+.sus-feed__copy.copied { color: var(--accent-text); }
+.sus-feed__copy svg { width: 18px; height: 18px; }
+.sus-feed--event { border-color: var(--accent); }
+.sus-feed--event .sus-feed__link:hover { background: var(--accent-dim); }
+
+/* ── Modal suscripción iCal (jornada) */
+.ical-modal__body { padding: 1.25rem 1.5rem 1.5rem; }
+.ical-modal__section { font-family: var(--font-display); font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin: 0 0 .5rem; }
+.ical-modal__or { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); font-size: .8rem; margin: 1.25rem 0 .75rem; }
+.ical-modal__or::before, .ical-modal__or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+@media (max-width: 600px) {
+  .ical-modal__body { padding: 1rem 1rem 1.25rem; }
+  .sus-feed__link { padding: .9rem 1rem; }
+}
+
+/* ── Perfil de elevación (perfil.html / perfil/{slug}/) ── */
+.pfe-wrap { max-width: 860px; margin: 0 auto; padding: 0.5rem 1rem 4rem; }
+.pfe-svg-wrap { background: var(--bg-card); border: 1px solid var(--border);
+                border-radius: var(--radius-lg); padding: 1.25rem 0.75rem 0.75rem;
+                overflow-x: auto; margin-bottom: 1.5rem; }
+.pfe-svg-wrap svg { min-width: 320px; width: 100%; height: auto; }
+.pfe-section { margin-top: 1.5rem; }
+.pfe-section-title { font-family: var(--font-display); font-size: 0.72rem; font-weight: 700;
+                     text-transform: uppercase; letter-spacing: 0.07em;
+                     color: var(--text-muted); margin: 0 0 0.6rem; }
+.pfe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.pfe-grid--single { grid-template-columns: 1fr; }
+.pfe-box { background: var(--bg-card); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 0.75rem 1rem; }
+.pfe-grid--single .pfe-box { columns: 2; column-gap: 1.5rem; }
+.pfe-box-title { font-family: var(--font-display); font-size: 0.7rem; font-weight: 700;
+                 text-transform: uppercase; letter-spacing: 0.07em;
+                 color: var(--text-muted); margin: 0 0 0.5rem; column-span: all; }
+.pfe-item { font-size: 0.83rem; padding: 0.28rem 0;
+            border-bottom: 1px solid var(--border); color: var(--text);
+            break-inside: avoid; }
+.pfe-item:last-child { border-bottom: none; }
+.pfe-item b { color: var(--text-muted); padding-right: 0.55rem; margin-right: 0.55rem; border-right: 1px solid var(--border); }
+.pfe-loading { color: var(--text-muted); font-size: 0.9rem; padding: 3rem 0;
+               text-align: center; }
+@media (max-width: 600px) { .pfe-grid { grid-template-columns: 1fr; } .pfe-grid--single .pfe-box { columns: 1; } }
+@media (max-width: 599px) { .pfe-wrap .jornada-section--route-grid { display: none; } }
+
+/* ── Mapa del recorrido (MapLibre GL JS, terreno 3D) ───────────── */
+.cc-map-wrap { position: relative; background: var(--bg-card); border: 1px solid var(--border);
+               border-radius: var(--radius-lg); padding: 0.4rem; margin-bottom: 1.5rem; }
+.cc-map { width: 100%; height: 560px; border-radius: var(--radius);
+          overflow: hidden; background: var(--bg-subtle, var(--bg-card)); }
+@media (max-width: 599px) { .cc-map { height: 420px; } }
+.cc-map .maplibregl-map { border-radius: inherit; }
+/* Marcadores: el badge SVG del perfil dentro de un pin con sombra. En MapLibre
+   el .cc-map-pin es la RAÍZ del marcador (sin wrapper de tamaño fijo como el
+   divIcon de Leaflet) → tamaño explícito o el width:100% lo estira al mapa. */
+.cc-map-pin { width: 30px; height: 30px; cursor: pointer; }
+.cc-map-pin > svg { width: 100%; height: 100%;
+                    filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+.cc-map-flag { display: flex; align-items: center; justify-content: center;
+               width: 28px; height: 28px; border-radius: 50%; font-size: 13px;
+               border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+               background: #fff; }
+.cc-map-flag--start { background: #111; color: #fff; }
+/* Popups: heredan el tema de la app. */
+.cc-map-wrap .maplibregl-popup-content { background: var(--bg-card); color: var(--text);
+   border: 1px solid var(--border); border-radius: var(--radius);
+   box-shadow: var(--card-shadow); font-size: 0.85rem; padding: 0.55rem 0.8rem; }
+.cc-map-wrap .maplibregl-popup-content b { font-size: 0.92rem; color: var(--text); }
+.cc-map-wrap .maplibregl-popup-tip { display: none; }
+.cc-map-wrap .maplibregl-popup-close-button { color: var(--text-muted); }
+.cc-map-km { color: var(--text-muted); font-size: 0.78rem; }
+/* Barra de controles (mapa/satélite · 2D/3D · perfil). */
+.cc-map-toolbar { position: absolute; top: 14px; left: 14px; z-index: 5;
+   display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.cc-map-tbtn { font: inherit; font-size: 0.78rem; cursor: pointer; color: var(--text);
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+   padding: 0.4rem 0.65rem; box-shadow: var(--card-shadow); }
+.cc-map-tbtn.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cc-map-tbtn[disabled] { opacity: 0.4; pointer-events: none; }
+.cc-map-tsep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
+/* Perfil SVG superpuesto: a ras del borde inferior y a todo el ancho del mapa. */
+.cc-map-profile { position: absolute; left: 0.4rem; right: 0.4rem; bottom: 0.4rem; z-index: 4;
+   background: linear-gradient(to top, var(--bg-card) 72%, transparent);
+   border-radius: 0 0 var(--radius) var(--radius); pointer-events: none; }
+.cc-map-profile svg { display: block; width: 100%; height: auto; opacity: 0.94; }
+/* Botón de expandir + controles MapLibre: icono centrado, tema de la app. */
+.cc-map-expand-ctrl button { display: flex; align-items: center; justify-content: center;
+   width: 29px; height: 29px; color: var(--text); background: var(--bg-card);
+   border: none; cursor: pointer; }
+/* Modo expandido: el contenedor cubre todo el viewport del navegador. */
+.cc-map-wrap.cc-map--expanded { position: fixed; inset: 0; z-index: 1200;
+                                margin: 0; padding: 0; border: none; border-radius: 0;
+                                background: var(--bg); }
+.cc-map-wrap.cc-map--expanded .cc-map { height: 100%; border-radius: 0; }
+.cc-map-wrap.cc-map--expanded .cc-map-profile { left: 0; right: 0; bottom: 0; border-radius: 0; }
+body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expandir */
+
+/* ── Orden de Salida ───────────────────────────────────────────── */
+.so-table-wrap { max-width: 860px; margin: 1.25rem auto 2rem; padding: 0 1rem; overflow-x: auto; }
+.so-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.so-th { padding: 0.5rem 0.75rem; text-align: left; font-family: var(--font-display);
+         font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+         letter-spacing: 0.07em; color: var(--text-muted);
+         border-bottom: 2px solid var(--border); white-space: nowrap; }
+.so-th--time   { width: 6.5rem; }
+.so-th--dorsal { width: 3.5rem; text-align: center; }
+.so-th--rider  { min-width: 10rem; }
+.so-th--team   { min-width: 10rem; color: var(--text-muted); }
+.so-row { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+.so-row:hover { background: var(--bg-hover, rgba(0,0,0,0.03)); }
+.so-td { padding: 0.55rem 0.75rem; vertical-align: middle; }
+.so-td--time { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+               letter-spacing: 0.04em; color: var(--accent-text); white-space: nowrap; }
+.so-td--dorsal { text-align: center; font-weight: 600; color: var(--text-muted);
+                 font-size: 0.82rem; }
+.so-td--rider { font-weight: 500; }
+.so-td--team  { font-size: 0.82rem; color: var(--text-muted); }
+/* Chapa del equipo a la izquierda (CRE). Inline, sin elevar la altura de fila. */
+.so-team-cell { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.so-team-badge { flex: 0 0 auto; display: block; width: 16px; height: 16px; }
+.so-flag { margin-right: 0.4rem; }
+/* CRE (contrarreloj por equipos): el equipo es la columna principal, no la
+   secundaria muteada. Mismo peso/color/tamaño que el corredor en CRI. */
+.so-table--teams .so-th--team { min-width: 14rem; color: var(--text-muted); }
+.so-table--teams .so-td--team { font-size: 0.9rem; font-weight: 500; color: var(--text); }
+@media (max-width: 640px) {
+  .so-table-wrap { padding: 0 0.5rem; }
+  .so-th--dorsal, .so-td--dorsal { display: none; }
+  .so-table { table-layout: fixed; }
+  .so-th--time { width: 5.5rem; }
+  .so-th--rider { min-width: 0; }
+  .so-th--team { min-width: 0; width: 5.5rem; }
+  .so-td--time { font-size: 0.88rem; }
+  .so-td--team { font-size: 0.75rem; overflow: hidden;
+                 text-overflow: ellipsis; white-space: nowrap; }
+  /* En CRE la columna de equipo ocupa el ancho disponible (no se estrecha
+     a 5.5rem como la columna secundaria de CRI). */
+  .so-table--teams .so-th--team { width: auto; }
+  .so-table--teams .so-td--team { font-size: 0.85rem; white-space: normal; }
+}
+
+/* Panel — Orden de Salida editor */
+.so-editor-status { font-size: 0.82rem; color: var(--text-muted);
+                    margin-bottom: 0.75rem; padding: 0.5rem 0.75rem;
+                    background: var(--bg-card); border: 1px solid var(--border);
+                    border-radius: var(--radius); }
+.so-editor-status--ok { border-color: var(--green, #22c55e); color: var(--green, #22c55e); }
+.so-editor-textarea { width: 100%; min-height: 120px; font-family: var(--font-display);
+                      font-size: 0.82rem; padding: 0.5rem 0.6rem;
+                      border: 1px solid var(--border); border-radius: var(--radius);
+                      background: var(--bg-input, var(--bg)); color: var(--text);
+                      resize: vertical; box-sizing: border-box; }
+.so-editor-preview { margin-top: 0.75rem; }
+.so-editor-preview table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.so-editor-preview th { padding: 0.3rem 0.5rem; text-align: left; font-size: 0.68rem;
+                         text-transform: uppercase; letter-spacing: 0.06em;
+                         color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.so-editor-preview td { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border); }
+.so-editor-preview td:first-child { font-family: var(--font-display); font-weight: 700;
+                                     color: var(--accent-text); }
+.so-editor-preview .so-ep-unmatched { color: var(--text-muted); font-style: italic; }
+
+/* Barra de filtros en orden de salida */
+.so-filters {
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h));
+  z-index: 50;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+.so-filters__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.55rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+@media (max-width: 600px) {
+  .so-filters__inner { padding: 0.45rem 1rem; }
+}
+.so-table-wrap.so-filter--tt .so-row:not([data-is-tt]) { display: none; }
+.so-table-wrap.so-filter--gc .so-row:not([data-is-gc]) { display: none; }
+
+.so-tz-note {
+  max-width: 860px;
+  margin: 0.75rem auto -0.25rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
+.so-td--time span[title] {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 2px;
+  cursor: help;
+}
+.so-day-shift {
+  display: inline-block;
+  margin-right: 0.25em;
+  padding: 0.05em 0.3em;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-subtle, rgba(0,0,0,0.06));
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+
+/* ─── Página de resultados (/resultados/) ─────────────────────────── */
+/* Selector de etapa — botones circulares pequeños, sticky bajo el header. */
+.res-stages {
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h));
+  z-index: 51;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.res-stages__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.4rem 1.5rem;
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 1.5rem;
+}
+.res-stages__inner::-webkit-scrollbar { display: none; }
+.res-stage-btn {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-card-hover);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: color var(--transition), background var(--transition);
+}
+.res-stage-btn:hover { color: var(--text); background: var(--accent-dim); }
+.res-stage-btn--active { color: #fff; background: var(--accent); }
+
+/* Pestañas de clasificación — heredan el look de .tcat-btn. */
+/* Carril exterior a sangre: lleva el sticky y el FONDO OPACO. Sin él las filas
+   de la clasificación se transparentan bajo las pestañas y el selector de
+   equipos al scrollear. Va aquí y no en .res-tabs porque esa fila está acotada
+   a 860px y centrada: pintarle el fondo directamente deja los márgenes
+   laterales transparentes en pantallas anchas. Misma estructura que
+   .res-stages / .so-filters (contenedor full-bleed + inner centrado). */
+.res-tabs-bar {
+  position: sticky;
+  top: calc(56px + var(--primary-nav-h));
+  z-index: 50;
+  background: var(--bg);
+}
+.res-tabs {
+  /* Fila a 860px: pestañas (izq) + filtro por equipo (der), misma línea. */
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.45rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Con selector de etapas encima, el carril se ancla bajo él (no bajo el header). */
+.res-stages + .res-tabs-bar { top: calc(56px + var(--primary-nav-h) + 3rem); }
+/* Envoltura de las pestañas: posiciona el chevron de overflow sobre el borde
+   derecho sin que reste sitio al área scrolleable. */
+.res-tabs__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.res-tabs__inner {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.res-tabs__inner::-webkit-scrollbar { display: none; }
+/* Chevron "más clasificaciones": círculo anclado al borde derecho de las
+   pestañas, visible solo con overflow (lo gestiona resultados.js con [hidden]). */
+.res-tabs__more {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: -8px 0 8px -4px var(--bg);
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+.res-tabs__more:hover { color: var(--accent-text); background: var(--accent-dim); border-color: var(--accent); }
+.res-tabs__more[hidden] { display: none; }
+/* Separador vertical pestañas↔filtro de equipo. */
+.res-tabs__sep {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 0.2rem 0;
+  background: var(--border);
+}
+.res-tabs__sep[hidden] { display: none; }
+.res-tabs__filter { flex: 0 0 auto; max-width: 55%; }
+.res-tab {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: var(--bg-card-hover);
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.27rem 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+.res-tab:hover { color: var(--text); background: var(--accent-dim); }
+.res-tab--active { color: var(--accent-text); background: var(--accent-dim); font-weight: 600; }
+
+/* Filtro por equipo — dropdown discreto, alineado con las pestañas de clasif. */
+.res-teamfilter__select {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.27rem 1.65rem 0.27rem 0.72rem;
+  cursor: pointer;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+}
+.res-teamfilter__select:hover { border-color: var(--accent); }
+
+/* Tabla de resultados — extiende .so-table. */
+/* Mismo ancho/centrado que el selector de etapa y las pestañas (860px). */
+.res-table-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.4rem 1.5rem 2rem;
+  overflow-x: auto;
+}
+.res-table .so-th { padding: 0.38rem 0.55rem; }
+.res-table .so-td { padding: 0.4rem 0.55rem; }
+.res-th--rank   { width: 2.25rem; text-align: center; }
+.res-th--rider  { min-width: 10rem; }
+.res-th--team   { min-width: 8rem; color: var(--text-muted); }
+/* Slot opcional preparado para los puntos UCI. El JS no emite estas celdas
+   hasta que las filas reciban `uciPoints`; su posición queda fijada antes del
+   resultado para que UCI · Tiempo/Pts sea idéntico en web y futuras apps. */
+.res-th--uci    { width: 3.5rem; text-align: right; }
+.res-th--result { width: 5.75rem; text-align: right; }
+.res-td--rank   { text-align: center; font-family: var(--font-display); font-weight: 700;
+                  color: var(--text-muted); font-size: 0.85rem; }
+.res-td--rider  { font-weight: 500; }
+.res-rider-main { display: inline; }
+/* El equipo va como columna propia en desktop → el subtítulo se oculta. */
+.res-rider-team { display: none; }
+.res-td--team   { font-size: 0.82rem; color: var(--text-muted); }
+.res-td--uci    { text-align: right; white-space: nowrap; font-family: var(--font-display);
+                  font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+.res-td--result { text-align: right; white-space: nowrap; font-family: var(--font-display);
+                  font-size: 0.85rem; }
+.res-table .res-time { font-weight: 700; color: var(--accent-text); letter-spacing: 0.02em; }
+.res-table .res-gap  { color: var(--text-muted); }
+/* "m.t."/"s.t." se ve como un gap normal: misma tipografía, sin cursiva. */
+.res-table .res-pts  { font-weight: 600; color: var(--text); }
+.res-rank-dnf { color: var(--text-muted); font-weight: 600; }
+.res-team-link { color: var(--text-muted); }
+/* Chapa del equipo a la izquierda (columna Equipo). Inline, sin elevar la fila. */
+.res-team-cell { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.res-team-badge { flex: 0 0 auto; display: block; width: 16px; height: 16px; }
+/* Chapa del equipo junto a la bandera del corredor (en la celda Corredor), como
+   en las apps. SOLO en móvil: en desktop la columna Equipo ya muestra la chapa
+   (mostrarla también aquí la duplicaría) → oculta por defecto, se activa en la
+   media query de móvil (donde la columna Equipo se oculta). */
+.res-rider-badge {
+  display: none; width: 15px; height: 15px;
+  vertical-align: -0.18em; margin-right: 0.4rem;
+}
+
+/* ── Crono por equipos (CRE) — fila por equipo desplegable ──────── */
+.res-team-row { cursor: pointer; }
+.res-team-row:hover { background: var(--accent-dim); }
+.res-team-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.res-table--ttt .res-td--rider { font-weight: 600; }
+.res-ttt-team { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.res-ttt-team-name { min-width: 0; }
+.res-ttt-caret {
+  flex: 0 0 auto; font-size: 0.7rem; color: var(--text-muted);
+  transition: transform 0.18s ease; transform: rotate(0deg);
+}
+.res-team-row--open .res-ttt-caret { transform: rotate(180deg); color: var(--accent-text); }
+/* Sub-filas de corredores: ligeramente hundidas, tipografía menor, sangría. */
+.res-ttt-rider { background: var(--bg-subtle, rgba(127,127,127,0.04)); }
+.res-ttt-rider .res-td--rider { font-weight: 400; font-size: 0.86rem; }
+.res-ttt-rider-cell { padding-left: 1.4rem !important; }
+.res-ttt-rider .res-gap { color: var(--text-muted); font-size: 0.82rem; }
+.res-table--ttt .res-th--rider { min-width: 12rem; }
+
+@media (max-width: 640px) {
+  .res-stages__inner { padding-left: 1rem; padding-right: 1rem; scroll-padding-inline: 1rem; }
+  .res-tabs { padding: 0.4rem 1rem; gap: 0.4rem; }
+  .res-tabs__inner { gap: 0.3rem; }
+  .res-tabs__filter { max-width: 42%; }
+  .res-teamfilter__select { max-width: 7.5rem; }
+  .res-table-wrap { padding-left: 1rem; padding-right: 1rem; }
+  .res-th--team, .res-td--team { display: none; }
+  /* Anchos deterministas: el hueco restante pertenece al corredor. Así la
+     futura columna UCI cabe sin crear scroll horizontal en 360/390 px. */
+  .res-table { table-layout: fixed; }
+  .res-th--rider { min-width: 0; }
+  .res-table .so-th { padding: 0.34rem 0.35rem; }
+  .res-table .so-td { padding: 0.42rem 0.35rem; }
+  .res-th--rank { width: 2rem; }
+  .res-th--uci { width: 2.75rem; }
+  .res-th--result { width: 4.4rem; }
+  /* La columna Equipo se oculta → el equipo pasa a subtítulo bajo el corredor. */
+  .res-td--rider { display: flex; align-items: center; gap: 0; min-width: 0; overflow: hidden; }
+  .res-td--rider .so-flag {
+    margin-top: 0; margin-right: 0.3rem; flex: 0 0 auto; font-size: 0.86rem;
+  }
+  /* La chapa (junto a la bandera) reaparece aquí (la columna Equipo se oculta);
+     no se encoge ni se estira; alineada arriba. */
+  .res-rider-badge {
+    display: inline-block; flex: 0 0 auto; width: 14px; height: 14px;
+    margin: 0 0.3rem 0 0;
+  }
+  .res-rider-main {
+    display: inline-flex; flex: 1 1 auto; min-width: 0; overflow: hidden;
+    flex-direction: column; justify-content: center; line-height: 1.15;
+  }
+  .res-rider-name {
+    display: block; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .res-rider-team {
+    display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: 0.68rem; line-height: 1.1;
+    font-weight: 400; color: var(--text-muted); margin-top: 0.08rem;
+  }
+  .res-td--uci { font-size: 0.75rem; }
+  .res-td--result { font-size: 0.8rem; }
+  /* Equipos/CRE usan una sola identidad; también se mantiene en una línea. */
+  .res-team-cell,
+  .res-ttt-team { max-width: 100%; overflow: hidden; white-space: nowrap; }
+  .res-team-cell .so-link,
+  .res-ttt-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ══ Feed "Últimos resultados" (2026-06-11) ══ */
+
+/* ── Feed /resultados/ (índice de últimos resultados) ─────────────── */
+.feed-hero {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.4rem 1.5rem 0.4rem;
+}
+.feed-hero__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  margin: 0;
+}
+.feed-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+.feed-view-tab {
+  padding: 0.32rem 0.8rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-card-hover);
+  color: var(--text-muted);
+  font: 500 0.8rem/1.3 var(--font-body);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.feed-view-tab:hover,
+.feed-view-tab:focus-visible {
+  color: var(--accent-text, var(--accent));
+}
+.feed-view-tab--active {
+  background: var(--accent-dim);
+  color: var(--accent-text, var(--accent));
+  font-weight: 600;
+}
+.feed-day {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+.feed-day__hdr {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin: 1.1rem 0 0.3rem;
+}
+/* Card con el MISMO tinte que las cards de Hoy (.race-card): color de la
+   carrera (--card-color, inline por fila) al 4% sobre --bg-card + borde al
+   12%. Las generales finales, ligeramente más fuertes (8%/20%). */
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  margin: 0.35rem 0;
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 4%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.feed-row:hover {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 25%, var(--border));
+}
+button.feed-row {
+  width: 100%;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.feed-row--gc {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--card-color, var(--border)) 22%, var(--border));
+}
+.feed-row--gc:hover {
+  background: color-mix(in srgb, var(--card-color, var(--accent)) 12%, var(--bg-card));
+}
+.feed-row__gclabel {
+  font-weight: 600;
+  color: var(--text);
+}
+/* Badges de tipo (primary/secondary) en tamaño reducido. */
+.feed-row__badges {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+  vertical-align: 1px;
+}
+.feed-row__winner {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-top: 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feed-row__winner strong {
+  font-weight: 650;
+}
+.feed-row__flag {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 1.4em;
+}
+.feed-row__flag img {
+  width: 1.25em;
+  height: 0.95em;
+  display: block;
+  border-radius: 1px;
+}
+/* Columna del logo de la carrera (como en las cards de Hoy): logo 32px
+   (.race-logo-img, clase compartida con las cards) con la bandera debajo. */
+.feed-row__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+.feed-row__logo .feed-row__flag {
+  width: auto;
+}
+.feed-row__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.feed-row__race {
+  font-weight: 600;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feed-row__fem {
+  font-size: 0.75em;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.feed-row__sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "Etapa X" en negrita dentro de la línea de recorrido. */
+.feed-row__sub strong {
+  font-weight: 650;
+  color: var(--text);
+}
+.feed-row__chevron {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.feed-more-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 2rem;
+  text-align: center;
+}
+.feed-more {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent-text);
+  background: var(--accent-dim);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.55rem 1.4rem;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.feed-more:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ══ Ránking UCI de equipos ═══════════════════════════════════════ */
+.uci-ranking {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0.25rem 1.5rem 2.5rem;
+}
+.uci-ranking-heading-row {
+  position: relative;
+  width: fit-content;
+  margin-top: 0.3rem;
+}
+.uci-ranking-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.uci-ranking-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+.uci-ranking-updated {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.uci-ranking-info-button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid var(--text-muted);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font: 700 0.78rem/1 var(--font-body);
+  cursor: pointer;
+}
+.uci-ranking-info-button:hover,
+.uci-ranking-info-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.uci-ranking-info-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  left: calc(100% + 0.55rem);
+  width: min(29rem, calc(100vw - 2rem));
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--bg-card);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  color: var(--text);
+  font: 400 0.8rem/1.45 var(--font-body);
+}
+.uci-ranking-info-tooltip p {
+  margin: 0;
+}
+.uci-ranking-info-tooltip p + p,
+.uci-ranking-info-tooltip ul + p {
+  margin-top: 0.55rem;
+}
+.uci-ranking-info-tooltip a,
+.uci-ranking-info-modal__body a {
+  color: var(--accent-text);
+  text-underline-offset: 0.12em;
+}
+@media (min-width: 769px) {
+  .uci-ranking-heading-row:hover .uci-ranking-info-tooltip,
+  .uci-ranking-heading-row:focus-within .uci-ranking-info-tooltip {
+    display: block;
+  }
+}
+.uci-ranking-gender-tabs {
+  margin: 0.8rem 0 0.65rem;
+}
+.uci-ranking-table {
+  display: grid;
+  gap: 0;
+}
+.uci-ranking-table__head,
+.uci-ranking-row {
+  display: grid;
+  grid-template-columns: 2.35rem 1.55rem minmax(0, 1fr) 3.2rem 6.2rem;
+  align-items: center;
+  column-gap: 0.4rem;
+}
+.uci-ranking-table__head {
+  padding: 0.2rem 0.55rem;
+  color: var(--text-muted);
+  font: 700 0.68rem/1.2 var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.uci-ranking-table__head span:last-child {
+  text-align: right;
+}
+.uci-ranking-row {
+  position: relative;
+  min-height: 2.15rem;
+  padding: 0.25rem 0.55rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-size: 0.83rem;
+  transition: background 0.1s;
+}
+.uci-ranking-row:hover {
+  background: var(--bg-hover, rgb(0 0 0 / 3%));
+}
+.uci-ranking-row--wt {
+  border-bottom-color: color-mix(in srgb, var(--badge-wt-color) 26%, var(--border));
+  background: color-mix(in srgb, var(--badge-wt-bg) 78%, transparent);
+}
+.uci-ranking-row--orange {
+  border-bottom-color: color-mix(in srgb, var(--orange) 30%, var(--border));
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+}
+.uci-ranking-row--green {
+  border-bottom-color: color-mix(in srgb, var(--green) 30%, var(--border));
+  background: color-mix(in srgb, var(--green) 13%, transparent);
+}
+/* El tinte de estas filas aclara el fondo y deja el texto atenuado por
+   debajo de 4.5:1 en tema oscuro (WCAG 1.4.3). Se aclara solo ahí. */
+.uci-ranking-row--orange .uci-ranking-row__rank,
+.uci-ranking-row--orange .uci-ranking-row__category,
+.uci-ranking-row--green .uci-ranking-row__rank,
+.uci-ranking-row--green .uci-ranking-row__category { color: #a2a4ad; }
+html.light .uci-ranking-row--orange .uci-ranking-row__rank,
+html.light .uci-ranking-row--orange .uci-ranking-row__category,
+html.light .uci-ranking-row--green .uci-ranking-row__rank,
+html.light .uci-ranking-row--green .uci-ranking-row__category { color: var(--text-muted); }
+.uci-ranking-row--excluded {
+  border-bottom-color: color-mix(in srgb, var(--red) 30%, var(--border));
+  background: color-mix(in srgb, var(--red) 13%, transparent);
+}
+.uci-ranking-row--explained {
+  cursor: help;
+}
+.uci-ranking-row__rank {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+}
+.uci-ranking-row__flag {
+  display: inline-flex;
+  justify-content: center;
+}
+.uci-ranking-row__team {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.uci-ranking-row__category {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+.uci-ranking-row__points {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.uci-ranking-row--explained::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 60;
+  left: 2.8rem;
+  bottom: calc(100% + 0.45rem);
+  width: min(24rem, calc(100vw - 5rem));
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--bg-card);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 22%);
+  color: var(--text);
+  font: 400 0.78rem/1.4 var(--font-body);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0.2rem);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.uci-ranking-row--explained:hover::after,
+.uci-ranking-row--explained:focus-visible::after,
+.uci-ranking-row--tooltip-open::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.uci-ranking-legend {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.uci-ranking-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.uci-ranking-swatch {
+  display: inline-block;
+  flex: 0 0 1.7rem;
+  height: 0.72rem;
+  border: 1px solid var(--border);
+  border-radius: 0.2rem;
+  background: var(--bg-card);
+}
+.uci-ranking-swatch--wt {
+  border-color: color-mix(in srgb, var(--badge-wt-color) 35%, var(--border));
+  background: var(--badge-wt-bg);
+}
+.uci-ranking-swatch--orange {
+  border-color: color-mix(in srgb, var(--orange) 35%, var(--border));
+  background: color-mix(in srgb, var(--orange) 16%, var(--bg-card));
+}
+.uci-ranking-swatch--green {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--border));
+  background: color-mix(in srgb, var(--green) 15%, var(--bg-card));
+}
+.uci-ranking-swatch--excluded {
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
+  background: color-mix(in srgb, var(--red) 15%, var(--bg-card));
+}
+.uci-ranking-info-modal__body {
+  padding: 1rem 1.25rem 1.35rem;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.uci-ranking-info-modal__body p {
+  margin: 0;
+}
+.uci-ranking-info-modal__body p + p,
+.uci-ranking-info-modal__body ul + p {
+  margin-top: 0.65rem;
+}
+@media (max-width: 768px) {
+  .uci-ranking-info-tooltip {
+    display: none !important;
+  }
+  .uci-ranking-row--explained:not(.uci-ranking-row--tooltip-open)::after {
+    opacity: 0;
+    transform: translateY(0.2rem);
+  }
+  .uci-ranking-row--explained.uci-ranking-row--tooltip-open::after {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 520px) {
+  .feed-hero,
+  .feed-day,
+  .uci-ranking {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .uci-ranking-table__head,
+  .uci-ranking-row {
+    grid-template-columns: 2rem 1.35rem minmax(0, 1fr) 2.7rem 4.5rem;
+    column-gap: 0.3rem;
+  }
+  .uci-ranking-row {
+    min-height: 2.05rem;
+    padding: 0.22rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  .uci-ranking-row__category {
+    font-size: 0.62rem;
+  }
+  .uci-ranking-row__points {
+    font-size: 0.76rem;
+  }
+}

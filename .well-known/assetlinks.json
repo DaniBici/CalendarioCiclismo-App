@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.calendariociclismo.android",
+      "sha256_cert_fingerprints": [
+        "3E:D8:D2:E0:F5:B1:18:3B:BB:70:6F:04:D4:DD:4E:EE:BB:6B:18:41:D9:BE:53:FF:A8:CA:73:89:CD:51:0F:B4"
+      ]
+    }
+  }
+]

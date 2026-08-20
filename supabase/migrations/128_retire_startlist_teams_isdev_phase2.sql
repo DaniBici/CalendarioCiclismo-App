@@ -1,0 +1,44 @@
+-- Fase 2 (y última) de la retirada de la marca "Devo" en startlist_teams.
+-- Continúa 063_retire_startlist_teams_isdev_phase1.sql, que limpió los datos y
+-- dejó escrito que "cuando todas las apps en uso estén actualizadas (sin lectura
+-- de isDev), una segunda migración hará el DROP COLUMN". Esta es esa migración.
+--
+-- ⛔ NO APLICAR TODAVÍA — VA DESPUÉS DE PUBLICAR LA 4.0 Y DE SU ADOPCIÓN.
+--
+-- MOTIVO (el mismo patrón que la 125 con push_subscriptions): iOS decodifica
+-- `isDev` como Bool NO opcional (`StartlistTeamDTO`, Swift Decodable). Si se
+-- ejecuta el DROP antes de que las apps <4.0 dejen de circular, PostgREST deja
+-- de devolver el campo, el decode de la startlist FALLA y la lista de inscritos
+-- deja de cargar POR COMPLETO en esas versiones. Android es más benévolo
+-- (kotlinx.serialization con default `false`), pero iOS rompe.
+--
+-- ⚠️ OJO — lo que rompe NO es el dato, es la AUSENCIA DE LA COLUMNA. Hoy no
+-- queda ni una fila con isDev = true, y da igual: con la columna presente
+-- PostgREST emite `"isDev": false` y el decode va bien; tras el DROP la CLAVE
+-- desaparece del JSON y, para un Bool no opcional, "clave ausente" no es
+-- "false" sino `DecodingError.keyNotFound` — que tumba el decode del array
+-- ENTERO de equipos. Poner los datos a false arregla lo que se MUESTRA; quitar
+-- la columna cambia la FORMA de la respuesta, que es un contrato con clientes
+-- ya publicados.
+--
+-- VERIFICADO EJECUTANDO (2026-07-18), no deducido:
+--   iOS  — DTO 3.x + JSON sin la clave → ❌ keyNotFound("isDev")
+--          DTO 3.x + JSON con la clave → ✅ OK
+--          DTO 4.0 + JSON sin la clave → ✅ OK   (este commit)
+--   Android — `IsDevDropProbeTest` (en el repo) cubre los dos casos y pasa:
+--          kotlinx aplica el default al faltar la clave.
+--
+-- ORDEN OBLIGATORIO:
+--   1. Publicar iOS 4.0 (build 1153+) y Android 4.0 (versionCode 349+), que ya
+--      NO leen la columna (este mismo commit retira el campo de ambos modelos).
+--   2. Esperar a la adopción de esa versión.
+--   3. Aplicar esta migración.
+-- Invertir el orden rompe la lista de inscritos en las apps ya publicadas.
+--
+-- Estado de los datos a 2026-07-18: 0 filas con isDev = true (la 063 las limpió
+-- en su día; las 16 que se habían reintroducido después se barrieron junto con
+-- este commit), y 0 referencias a la columna en web, iOS, Android y panel.
+-- La condición "es un equipo filial" vive en su ficha propia del catálogo
+-- `teams` (nombre y chapa propios), que es lo que sustituyó al sufijo.
+
+ALTER TABLE public.startlist_teams DROP COLUMN IF EXISTS "isDev";

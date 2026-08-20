@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono monocromo para la barra de estado. Android usa solo el canal alfa
+  (blanco sobre el color del canal), por eso todo va en blanco.
+  Es la bici del logo de marca (la misma de launcher/web/favicon), a trazo,
+  en el grid 24×24 estándar de iconos de notificación.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Rueda trasera -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M5.5,17.5 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+    <!-- Rueda delantera -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M18.5,17.5 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+    <!-- Cabeza del ciclista (disco equivalente al círculo r=1 con trazo 2 del logo) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,5 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <!-- Cuadro + ciclista -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,17.5 L12,14 L9,11 L13,8 L15,11 L17,11" />
+</vector>
