@@ -5,6 +5,28 @@ import Supabase
 /// homónimas de Android (`SupabaseService.kt` + `CalendarRepository.kt`).
 extension SupabaseService {
 
+    private struct ResultsSourceLink: Codable {
+        let raceId: String
+        let source: String
+    }
+
+    /// Carreras con una fuente automática enlazada. Las fuentes PDF son cargas
+    /// manuales y conservan el fallback externos.
+    func automaticResultsSourceRaceIds(raceIds: [String]) async -> Set<String> {
+        let ids = Array(Set(raceIds.filter { !$0.isEmpty }))
+        guard !ids.isEmpty else { return [] }
+        do {
+            let rows: [ResultsSourceLink] = try await client.from("race_uci_links")
+                .select("raceId,source")
+                .in("raceId", values: ids)
+                .execute()
+                .value
+            return Set(rows.filter { $0.source != "pdf" }.map(\.raceId))
+        } catch {
+            return []
+        }
+    }
+
     // MARK: - Queries
 
     /// Clasificaciones keepForWeb de una carrera (clasif. de etapa + GC del día +
@@ -482,6 +504,7 @@ extension SupabaseService {
 
         let raceIds = Array(Set(stages.map(\.raceId) + days.compactMap(\.raceId)))
         let feedRaces = try await races(byIds: raceIds)
+        let automaticSourceRaceIds = await automaticResultsSourceRaceIds(raceIds: raceIds)
 
         var entries = ResultsFeedLogic.buildEntries(
             stages: stages,
@@ -489,6 +512,7 @@ extension SupabaseService {
             races: feedRaces,
             fromKey: fromKey,
             toKey: toKey,
+            automaticSourceRaceIds: automaticSourceRaceIds,
             isConcluded: { rd, race in RaceLogic.shouldShowResults(rd: rd, race: race) }
         )
         await resolveFeedWinners(&entries)

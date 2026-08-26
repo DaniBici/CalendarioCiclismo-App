@@ -31,6 +31,11 @@ import { buildExtUrlA, buildExtUrlB, isRaceConcluded, openResultsModal } from '.
 import { isAbandonIrm } from './uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
 import {
+  buildInhouseResultsMatcher,
+  resultFeedEntryKey,
+  sectorSuffixMap,
+} from './services/races.js';
+import {
   decorateUciRanking,
   formatUciRankingUpdated,
   UciRankingTier,
@@ -66,26 +71,28 @@ function safeCardColor(hex) {
   return '#' + full;
 }
 
-function stageLabel(sn, isEn) {
+export function stageLabel(sn, isEn, suffix = '') {
   if (sn === 0) return isEn ? 'Prologue' : 'Prólogo';
-  if (sn != null) return isEn ? `Stage ${sn}` : `Etapa ${sn}`;
+  if (sn != null) return isEn ? `Stage ${sn}${suffix}` : `Etapa ${sn}${suffix}`;
   return '';   // pruebas de un día: sin etiqueta (decisión 2026-06-11)
 }
-function inhouseHref(race, sn, hash, isEn) {
+export function inhouseHref(race, sn, hash, isEn, suffix = '') {
   const slug = isEn ? (race.slugEn || race.slug) : race.slug;
+  const sfx = suffix ? String(suffix).toLowerCase() : '';
   let url;
   if (!slug) {
-    const stage = sn != null ? `&stage=${sn}` : '';
+    const stage = sn != null ? `&stage=${sn}${suffix}` : '';
     url = (isEn ? `${enBase()}/results/` : '/resultados.html') + `?race=${encodeURIComponent(race.id)}${stage}`;
   } else {
     const base = isEn ? `${enBase()}/results/` : '/resultados/';
     let seg = '';
     if (sn === 0) seg = isEn ? 'prologue/' : 'prologo/';
-    else if (sn != null) seg = isEn ? `stage-${sn}/` : `etapa-${sn}/`;
+    else if (sn != null) seg = isEn ? `stage-${sn}${sfx}/` : `etapa-${sn}${sfx}/`;
     url = `${base}${encodeURIComponent(slug)}/${seg}`;
   }
   return hash ? `${url}#${hash}` : url;
 }
+
 // La UCI publica las etapas canceladas con una pseudo-fila "Cancelled Race"
 // como ganadora (pseudo-ficha race-cancelled del catálogo) → sin trofeo.
 function cleanWinner(name) {
@@ -100,7 +107,13 @@ function cleanWinner(name) {
 // la hora real de otras carreras y rompería la adyacencia con su etapa
 // (comparador no transitivo → bloques entrelazados).
 function cmpEntries(a, b) {
-  if (a.race.id === b.race.id) return a.subOrder - b.subOrder;
+  if (a.race.id === b.race.id) {
+    const sub = a.subOrder - b.subOrder;
+    if (sub) return sub;
+    const stage = (a.sn ?? Infinity) - (b.sn ?? Infinity);
+    if (stage) return stage;
+    return (a.suffix || '').localeCompare(b.suffix || '');
+  }
   const rA = a.race, rB = b.race;
   // Dos Campeonatos Nacionales: orden interno por país → línea/CRI → categoría
   // (espejo de _sortByCategory en app.js; el rd da el primaryType para el slot).
@@ -139,6 +152,8 @@ async function fetchEntries(fromKey, toKey, isEn) {
     .gte('dateKey', fromKey).lte('dateKey', toKey);
 
   const rdById = new Map((raceDays || []).map(rd => [rd.id, rd]));
+  const { suffixByDayId, sectoredNums } = sectorSuffixMap(raceDays || []);
+  (raceDays || []).forEach(rd => { rd._stageSuffix = suffixByDayId.get(rd.id) || ''; });
   const rdsByRace = new Map();
   // Jornada por `${raceId}#${stageNumber}`: fallback cuando la clasificación
   // in-house NO trae raceDayId (el volcado precedió a la creación de la jornada
@@ -167,10 +182,19 @@ async function fetchEntries(fromKey, toKey, isEn) {
       .in('id', raceIds);
     (races || []).forEach(r => raceById.set(r.id, r));
   }
+  const automaticSourceRaceIds = new Set();
+  if (raceIds.length) {
+    const { data: links } = await supabase.from('race_uci_links')
+      .select('raceId,source').in('raceId', raceIds);
+    (links || []).forEach(link => {
+      if (link.source !== 'pdf') automaticSourceRaceIds.add(link.raceId);
+    });
+  }
 
   // ── Entradas in-house ──────────────────────────────────────────
-  const key = (rid, sn) => `${rid}#${sn == null ? 'final' : sn}`;
-  const inhouseKeys = new Set((stages || []).map(s => key(s.raceId, s.stageNumber)));
+  const key = (rid, sn, raceDayId = null) =>
+    resultFeedEntryKey(rid, sn, raceDayId, suffixByDayId, sectoredNums);
+  const inhouseMatcher = buildInhouseResultsMatcher(stages || []);
   const entries = [];
   const seen = new Set();
   // Jornada de una clasificación: por raceDayId → por `${raceId}#${stageNumber}`
@@ -229,14 +253,16 @@ async function fetchEntries(fromKey, toKey, isEn) {
         href: inhouseHref(race, null, 'gc', isEn),
       });
     } else if (s.classKind === 'stage' && s.stageNumber != null) {
-      const k = key(s.raceId, s.stageNumber);
+      const k = key(s.raceId, s.stageNumber, s.raceDayId);
       if (seen.has(k)) continue;
       seen.add(k);
+      const rd = entryRd(s, race);
+      const suffix = rd?._stageSuffix || '';
       entries.push({
         _k: k, _stageRef: s.id, kind: 'inhouse',
-        date, race, sn: s.stageNumber, subOrder: 1, rd: entryRd(s, race),
+        date, race, sn: s.stageNumber, suffix, subOrder: 1, rd,
         winner: cleanWinner(s.winnerName),
-        href: inhouseHref(race, s.stageNumber, null, isEn),
+        href: inhouseHref(race, s.stageNumber, null, isEn, suffix),
       });
     }
   }
@@ -246,15 +272,16 @@ async function fetchEntries(fromKey, toKey, isEn) {
     if (rd.isRestDay || rd.isCancelledDay) continue;
     const race = raceById.get(rd.raceId);
     if (!race || (!race.extId && !race.extSlug)) continue;
+    if (automaticSourceRaceIds.has(rd.raceId)) continue;
     const isOneDay = race.raceFormat === 'one_day';
-    const covered = inhouseKeys.has(key(rd.raceId, rd.stageNumber))
-      || (isOneDay && (inhouseKeys.has(key(rd.raceId, null)) || seen.has(`${rd.raceId}#oneday`)));
+    const covered = inhouseMatcher.has(rd)
+      || (isOneDay && seen.has(`${rd.raceId}#oneday`));
     if (covered) continue;
     if (!isRaceConcluded(rd)) continue;
     const sn = isOneDay ? null : rd.stageNumber;
     entries.push({
       kind: 'ext',
-      date: rd.dateKey, race, sn, subOrder: 1, rd,
+      date: rd.dateKey, race, sn, suffix: rd._stageSuffix || '', subOrder: 1, rd,
       extUrlA: buildExtUrlA(race, sn),
       extUrlB: buildExtUrlB(race, sn),
     });
@@ -376,7 +403,7 @@ function entryRowHtml(e, isEn, locale) {
     const elevation = gain != null
       ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale)} m`
       : '';
-    const stagePart = stageLabel(e.sn, isEn);
+    const stagePart = stageLabel(e.sn, isEn, e.suffix || '');
     const seg = [];
     if (stagePart) seg.push(`<strong>${esc(stagePart)}</strong>`);
     if (km) seg.push(`<strong>${esc(km)}</strong>`);

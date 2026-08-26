@@ -11,6 +11,7 @@ import { supabase, toDateKey, formatDateLabel, formatDateLabelShort, formatTime,
          filterBroadcastsByRegion, extractYouTubeId, startlistUrl, startOrderUrl, buildTimeStack,
          enBase, setPressed, announce, makeCardActivatable }
          from './shared.js';
+import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
@@ -20,7 +21,7 @@ import { indicatorBadgeSVG, isIndicatorKind, buildElevationSparkline } from './e
 import { initCintillo } from './cintillo.js';
 import { compareChampionships, isU23Championship, isFemaleChampionship,
          isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js';
-import { pickBadgeBroadcast } from './broadcast-priority.js';
+import { isReviveBroadcast, pickBadgeBroadcast } from './broadcast-priority.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
@@ -146,11 +147,12 @@ function _raceTimeCheckCard(rd, offsetMinutes) {
 function _shouldShowResultsCard(rd, race) {
   if (rd.isRestDay || rd.isCancelledDay) return false;
   if (!race.extId && !race.extSlug) return false;
+  if (rd._allowExternalResults === false) return false;
   return _raceTimeCheckCard(rd, 30);
 }
 function _noIdsAndPastDeadline(rd, race) {
   if (rd.isRestDay || rd.isCancelledDay) return false;
-  if (race.extId || race.extSlug) return false;
+  if ((race.extId || race.extSlug) && rd._allowExternalResults !== false) return false;
   return _raceTimeCheckCard(rd, 0);
 }
 
@@ -332,6 +334,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0;
       rd._assets = assetsByRd[rd.id] || [];
       rd._hasInhouse = inhouseSet.has(rd);
+      rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId);
     });
 
     // Detectar dobles sectores (misma carrera, mismo día, mismo stageNumber).
@@ -799,6 +802,8 @@ function buildCard(rd) {
     rd.dateKey === rd._race.endDate
   );
   const stage  = stageLabel(rd.stageNumber, rd._stageSuffix, _isFinalStage);
+  const route  = rd.startLocation
+    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} > ${rdLocation(rd, 'finishLocation')}`) : '';
   const _isEn  = getLang() === 'en';
   const km     = rd.distanceKm ? `${_isEn ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')}${_isEn ? 'km' : ' km'}` : '';
   const _elevGain = rd.elevationProfile?.elevationGain;
@@ -814,15 +819,29 @@ function buildCard(rd) {
   if (!rd._broadcasts) rd._broadcasts = [];
   // El badge UCI va SIEMPRE junto al nombre, nunca en el sub
   const catBadgeHtml = categoryBadge(uci, isFemale);
-  // Sub: etapa, km y desnivel; sin ciudades de salida/llegada.
+  // Sub: etapa (sin badge), ruta truncable, km fijo, tipos inline.
   const stagePart   = stage ? `<span class="race-card__stage">${stage}</span>` : '';
+  const routePart   = route ? `<span class="race-card__route">${route}</span>` : '';
   const kmPart      = km    ? `<span class="race-card__km">${km}</span>` : '';
   const elevPart    = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
   const typeBadges  = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode) : '';
+  // La ruta (salida > llegada) se oculta en móvil (≤600px, CSS) para no quedar como
+  // muñón ni dejar separadores huérfanos. El separador adyacente viaja dentro del
+  // wrapper para desaparecer con la ruta en ese ancho.
   const sep = `<span class="race-card__sep">·</span>`;
-  const sepStageKm    = (stagePart && kmPart) ? sep : '';
+  const _routeLeadSep  = routePart && stagePart;
+  const _routeTrailSep = routePart && !stagePart && kmPart;
+  const sepLead  = `<span class="race-card__sep race-card__sep--in-route">·</span>`;
+  const sepTrail = `<span class="race-card__sep race-card__sep--in-route race-card__sep--in-route-trail">·</span>`;
+  const routeWrap = routePart
+    ? `<span class="race-card__route-wrap">${_routeLeadSep ? sepLead : ''}${routePart}${_routeTrailSep ? sepTrail : ''}</span>`
+    : '';
+  const sepRouteKm = (routePart && _routeLeadSep && kmPart) ? sep
+    : (!routePart && stagePart && kmPart) ? sep
+    : '';
+  const sepRouteElev  = (routePart && !kmPart && elevPart) ? sep : '';
   const sepKmElev     = (kmPart && elevPart) ? sep : '';
-  const sepStageElev  = (stagePart && !kmPart && elevPart) ? sep : '';
+  const sepStageElev  = (!routePart && stagePart && !kmPart && elevPart) ? sep : '';
   // Horario apilado (paridad iOS): salida ↓ meta. Helper compartido en shared.js.
   const timeStackHtml = buildTimeStack(start, finish, timeTip);
 
@@ -922,16 +941,6 @@ function buildCard(rd) {
     + _startlistBadgeHtml
     + _startOrderBadgeHtml
     + `</div>`;
-  const _noIdsReviveBcast = hideNoIds ? (rd._broadcasts || [])
-    .filter(b => b.url && (b.showInRevive || /eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be|facebook\.com/i.test(b.url)))
-    .sort((a, b) => {
-      const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-      const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-      if (aSoc !== bSoc) return aSoc - bSoc;
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    })[0] ?? null : null;
-  const noIdsReviveUrl = _noIdsReviveBcast?.url ?? null;
-
   if (rd.isRestDay) {
     card.className = 'race-card race-card--rest-day' + (_isLight ? ' race-card--light-color' : '');
     const restLabel = `<span class="race-card__stage">${t('stage.restDay')}</span>`;
@@ -995,7 +1004,7 @@ function buildCard(rd) {
       <div class="race-card__main">
         <div class="race-card__name"><span>${name}</span>${race.raceFormat === 'stage_race' && race.startDate !== race.endDate && rd.raceId && !rd._race?.isNoClickable ? `<a class="race-card__overview-btn" href="${raceUrl(rd._race || { id: rd.raceId })}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>` : ''}</div>
         <div class="race-card__sub">
-          ${stagePart}${sepStageKm}${kmPart}${sepKmElev}${sepStageElev}${elevPart}
+          ${stagePart}${routeWrap}${sepRouteKm}${sepRouteElev}${kmPart}${sepKmElev}${sepStageElev}${elevPart}
         </div>
         ${_badgeRowHtml}
       </div>
@@ -1038,7 +1047,7 @@ function buildCard(rd) {
       metaTop.appendChild(resultsBadge);
 
       const _reviveBcast = (rd._broadcasts || [])
-        .filter(b => b.url && (b.showInRevive || /eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be|facebook\.com/i.test(b.url)))
+        .filter(isReviveBroadcast)
         .sort((a, b) => {
           const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
           const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
@@ -1063,26 +1072,6 @@ function buildCard(rd) {
         }
         resultsBadge.after(reviveBadge);
       }
-    }
-
-    if (hideNoIds && noIdsReviveUrl) {
-      card.classList.add('race-card--finished');
-      const noIdsYtId = _noIdsReviveBcast?.embeddable !== false ? extractYouTubeId(noIdsReviveUrl) : null;
-      const metaTop = card.querySelector('.race-card__meta-top');
-      const reviveBadge = document.createElement('a');
-      reviveBadge.className = 'badge badge--tv badge--tv-link badge--revive badge--icon';
-      reviveBadge.href = noIdsReviveUrl;
-      reviveBadge.target = '_blank';
-      reviveBadge.rel = 'noopener';
-      reviveBadge.title = t('tv.reviveRace');
-      reviveBadge.setAttribute('aria-label', t('tv.reviveRace'));
-      reviveBadge.innerHTML = `${_tvSvg}<span class="badge__label">${t('tv.reviveRace')}</span>`;
-      if (noIdsYtId) {
-        reviveBadge.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openYoutubeTvModal(rd, race, noIdsYtId); });
-      } else {
-        reviveBadge.addEventListener('click', e => e.stopPropagation());
-      }
-      metaTop.appendChild(reviveBadge);
     }
 
   }
@@ -1226,11 +1215,16 @@ function matchesCategoryFilter(race, cat) {
   }
 
   let base = false;
-  if (cat === 'pro')    base = ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(uci);
+  if (cat === 'pro')    base = ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(uci)
+    || (['1.2U','2.2U'].includes(uci) && isTourDelPorvenir(race.name));
   if (cat === 'uwt')    base = uci === '1.UWT' || uci === '2.UWT';
   if (cat === 'wwt')    base = uci === '1.WWT' || uci === '2.WWT';
-  if (cat === 'male')   base = (gender !== 'female' || uci === 'WC' || uci === 'CC') && !['1.2','2.2','1.2U','2.2U'].includes(uci);
-  if (cat === 'female') base = (gender === 'female' || uci === 'WC' || uci === 'CC') && !['1.2U','2.2U'].includes(uci) && (uci !== '1.2' && uci !== '2.2' || EUROPE.has(cc));
+  if (cat === 'male')   base = (gender !== 'female' || uci === 'WC' || uci === 'CC')
+    && !['1.2','2.2'].includes(uci)
+    && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name));
+  if (cat === 'female') base = (gender === 'female' || uci === 'WC' || uci === 'CC')
+    && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name))
+    && (uci !== '1.2' && uci !== '2.2' || EUROPE.has(cc));
   if (!base) return false;
 
   // Ocultar CC que no sean Campeonato de Europa (igual que applyAgendaFilters)
@@ -1496,11 +1490,16 @@ function applyAgendaFilters(items) {
         if (_agendaCat === 'female') return isFemaleChampionship(r);
         return false; // uwt/wwt no aplican a CN
       }
-      if (_agendaCat === 'pro')    return ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(cat);
+      if (_agendaCat === 'pro')    return ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(cat)
+        || (['1.2U','2.2U'].includes(cat) && isTourDelPorvenir(name));
       if (_agendaCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
       if (_agendaCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-      if (_agendaCat === 'male')   return (gender !== 'female' || cat === 'WC' || cat === 'CC') && !['1.2','2.2','1.2U','2.2U'].includes(cat);
-      if (_agendaCat === 'female') return (gender === 'female' || cat === 'WC' || cat === 'CC') && !['1.2U','2.2U'].includes(cat) && (cat !== '1.2' && cat !== '2.2' || EUROPE.has(cc));
+      if (_agendaCat === 'male')   return (gender !== 'female' || cat === 'WC' || cat === 'CC')
+        && !['1.2','2.2'].includes(cat)
+        && (!['1.2U','2.2U'].includes(cat) || isTourDelPorvenir(name));
+      if (_agendaCat === 'female') return (gender === 'female' || cat === 'WC' || cat === 'CC')
+        && (!['1.2U','2.2U'].includes(cat) || isTourDelPorvenir(name))
+        && (cat !== '1.2' && cat !== '2.2' || EUROPE.has(cc));
       return true;
     });
     // Ocultar pruebas CC que no son el Campeonato de Europa

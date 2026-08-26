@@ -6,6 +6,9 @@
 import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, trapFocus, femaleMark } from './shared.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
+import { buildInhouseResultsMatcher } from './services/races.js';
+import { isReviveBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
+import { hasRenderableElevationProfile } from './profile-availability.js';
 
 const STAGE_COLORS = {
   flat:            '#3dba6f',
@@ -86,38 +89,44 @@ function _resultsButtonsHtml(inhouseUrl, extUrlA, extUrlB, race, stageNumber) {
 
 // \u00bfEsta etapa tiene clasificaciones propias (race_uci_stages.keepForWeb)?
 // stageNumber null = clasificaci\u00f3n final / carrera de un d\u00eda.
-async function _hasInhouseResults(raceId, stageNumber) {
+async function _hasInhouseResults(raceId, raceDayId, stageNumber) {
   if (!raceId) return false;
-  let q = supabase.from('race_uci_stages')
-    .select('eventId', { count: 'exact', head: true })
-    .eq('raceId', raceId).eq('keepForWeb', true);
-  q = (stageNumber == null) ? q.is('stageNumber', null) : q.eq('stageNumber', stageNumber);
-  const { count } = await q;
-  return (count || 0) > 0;
+  const { data } = await supabase.from('race_uci_stages')
+    .select('raceId,raceDayId,stageNumber')
+    .eq('raceId', raceId).eq('keepForWeb', true).gt('rowCount', 0);
+  return buildInhouseResultsMatcher(data).has({ id: raceDayId, raceId, stageNumber });
 }
 
 // Variante batched para las cards de Hoy/Competici\u00f3n: un solo SELECT para N
 // carreras. Espejo del gate de las apps (`hasInhouse || shouldShowResults`,
 // TodayScreen/RaceScreen): si la etapa de la card tiene clasificaciones propias,
 // el trofeo se muestra sin esperar a la heur\u00edstica horaria ni exigir extId/extSlug.
-// Misma clave por stageNumber que jornada.js ('final' = NULL \u2192 un d\u00eda / general),
-// de modo que badge visible \u21d4 openResultsModal redirige a /resultados/.
+// `raceDayId` distingue los sectores A/B; `stageNumber` queda como fallback
+// exclusivo para volcados antiguos que todav\u00eda no est\u00e9n enlazados a jornada.
 // Las jornadas canceladas pueden tener p\u00e1gina propia de resultados, pero no se
 // consideran resultados disponibles para las cards: no deben activar el trofeo.
 export async function loadInhouseStageSet(raceIds) {
   const ids = [...new Set((raceIds || []).filter(Boolean))];
-  const keyOf = rd => `${rd.raceId}#${rd.stageNumber == null ? 'final' : rd.stageNumber}`;
-  if (!ids.length) return { has: () => false };
+  if (!ids.length) return { has: () => false, allowsExternal: () => true };
   try {
-    const { data } = await supabase.from('race_uci_stages')
-      .select('raceId,stageNumber')
-      .eq('keepForWeb', true).gt('rowCount', 0)
-      .in('raceId', ids);
-    const keys = new Set((data || []).map(s => `${s.raceId}#${s.stageNumber == null ? 'final' : s.stageNumber}`));
-    return { has: rd => !rd?.isCancelledDay && keys.has(keyOf(rd)) };
+    const [{ data }, { data: links }] = await Promise.all([
+      supabase.from('race_uci_stages')
+        .select('raceId,raceDayId,stageNumber')
+        .eq('keepForWeb', true).gt('rowCount', 0)
+        .in('raceId', ids),
+      supabase.from('race_uci_links').select('raceId,source').in('raceId', ids),
+    ]);
+    const matcher = buildInhouseResultsMatcher(data);
+    const automaticSources = new Set((links || [])
+      .filter(link => link.source !== 'pdf')
+      .map(link => link.raceId));
+    return {
+      has: rd => !rd?.isCancelledDay && matcher.has(rd),
+      allowsExternal: raceId => !automaticSources.has(raceId),
+    };
   } catch (_) {
     // Sin red \u2192 gate horario cl\u00e1sico.
-    return { has: () => false };
+    return { has: () => false, allowsExternal: () => true };
   }
 }
 function _attachResultGaListeners(container) {
@@ -278,7 +287,7 @@ export function hasModalData(rd) {
     rd.estimatedFinishTimeUtc ||
     rd.hasAssets ||
     (rd.tvStatus && rd.tvStatus !== 'none') ||
-    (rd.elevationProfile && !rd.profileNotViewable) ||
+    hasRenderableElevationProfile(rd) ||
     rd.description ||
     rd.notes
   );
@@ -337,7 +346,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     // consulta por carrera. Va al final del array; su índice se calcula abajo.
     const _uciRaceId = rdProvided?.raceId || raceObj?.id;
     fetches.push(_uciRaceId
-      ? supabase.from('race_uci_stages').select('stageNumber').eq('raceId', _uciRaceId).eq('keepForWeb', true)
+      ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', _uciRaceId).eq('keepForWeb', true).gt('rowCount', 0)
       : Promise.resolve(null));
 
     const results = await Promise.all(fetches);
@@ -351,10 +360,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
 
     const broadcasts = filterBroadcastsByRegion(results[bIdx]?.data || []);
     const assets     = (results[aIdx]?.data || []).filter(a => a.url);
-    // Set de stageNumbers con resultados propios (null → clasificación final/un día → 'final').
-    const inhouseStages = new Set(
-      (results[results.length - 1]?.data || []).map(s => s.stageNumber == null ? 'final' : s.stageNumber)
-    );
+    const inhouseStages = buildInhouseResultsMatcher(results[results.length - 1]?.data || []);
 
     // Check startlist availability
     const raceId = rd?.raceId || raceObj?.id;
@@ -470,10 +476,13 @@ export async function openResultsModal(rdOrId, raceObj) {
     // La cancelada va SIEMPRE a nuestra página (aviso + generales arrastradas):
     // no tiene clasificaciones propias, así que `_hasInhouseResults` diría que no
     // y el trofeo caería a externos, que tampoco tienen nada que enseñar.
-    if (inhouseUrl && (rd.isCancelledDay || await _hasInhouseResults(rd.raceId || raceObj.id, rd.stageNumber))) {
+    if (inhouseUrl && (rd.isCancelledDay || await _hasInhouseResults(rd.raceId || raceObj.id, rd.id, rd.stageNumber))) {
       window.location.href = inhouseUrl;
       return;
     }
+    const { data: link } = await supabase.from('race_uci_links')
+      .select('source').eq('raceId', rd.raceId || raceObj.id).maybeSingle();
+    if (link && link.source !== 'pdf') return;
   }
 
   // ── Sin página propia → abrir el modal (fallback externos) ────────────
@@ -656,7 +665,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   const _profileBase = _isEnModal ? `${_modalEnB}/profile/` : '/perfil/';
   const _profileFallback = _isEnModal ? `${_modalEnB}/profile/?id=${rd.id}` : `/perfil.html?id=${rd.id}`;
   const _modalProfSlug = _isEnModal ? (rd.slugEn || rd.slug) : rd.slug;
-  const dynProfileUrl = (rd.elevationProfile && !rd.profileNotViewable)
+  const dynProfileUrl = hasRenderableElevationProfile(rd)
     ? (_modalProfSlug ? `${_profileBase}${encodeURIComponent(_modalProfSlug)}/` : _profileFallback)
     : null;
 
@@ -847,21 +856,17 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   // — Resultados — (in-house propio O externos clásicos). Espejo de jornada.js:
   // si hay clasificaciones propias (race_uci_stages.keepForWeb) → botón a nuestra
   // página aunque la carrera no tenga extId/extSlug; externos quedan como respaldo.
-  const _curStageKey = rd.stageNumber == null ? 'final' : rd.stageNumber;
-  const _curHasInhouse = inhouseStages.has(_curStageKey);
-  const _curResultsAvailable = _shouldShowResults(rd, race) || _curHasInhouse;
+  const _curHasInhouse = inhouseStages.has(rd);
+  const _curResultsAvailable = _curHasInhouse;
 
   // — Así está la carrera — resultados de la etapa anterior (vueltas por etapas).
   // Solo si los de la etapa ACTUAL aún no están disponibles (no duplicar con la GC del día).
-  const _prevStageKey = prevRd ? (prevRd.stageNumber == null ? 'final' : prevRd.stageNumber) : null;
-  const _prevHasInhouse = prevRd && !_curResultsAvailable && inhouseStages.has(_prevStageKey);
-  if (prevRd && (_shouldShowPreviousResults(prevRd, rd, race) || _prevHasInhouse)) {
+  const _prevHasInhouse = prevRd && !_curResultsAvailable && inhouseStages.has(prevRd);
+  if (prevRd && _prevHasInhouse) {
     // "Así está la carrera" → clasificación GENERAL (GC) de la etapa anterior,
     // no su clasificación de etapa (#gc selecciona la pestaña General en resultados.js).
     const inhouseUrl = _prevHasInhouse ? _inhouseResultsUrl(race, prevRd.stageNumber, prevRd._stageSuffix) + '#gc' : null;
-    const extUrlA  = _buildExtUrlA(race, prevRd.stageNumber, prevRd._fcStageNumber);
-    const extUrlB = _buildExtUrlB(race, prevRd.stageNumber, prevRd._stageSuffix);
-    const btns = _resultsButtonsHtml(inhouseUrl, extUrlA, extUrlB, race, prevRd.stageNumber);
+    const btns = _resultsButtonsHtml(inhouseUrl, null, null, race, prevRd.stageNumber);
     if (btns) {
       html += `<div class="jornada-section">
         <div class="jornada-section__title">${t('stage.previousResults')}</div>
@@ -873,9 +878,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   // — Resultados (etapa actual) —
   if (_curResultsAvailable) {
     const inhouseUrl = _curHasInhouse ? _inhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix) : null;
-    const extUrlA  = _buildExtUrlA(race, rd.stageNumber, rd._fcStageNumber);
-    const extUrlB = _buildExtUrlB(race, rd.stageNumber, rd._stageSuffix);
-    const btns = _resultsButtonsHtml(inhouseUrl, extUrlA, extUrlB, race, rd.stageNumber);
+    const btns = _resultsButtonsHtml(inhouseUrl, null, null, race, rd.stageNumber);
     if (btns) {
       html += `<div class="jornada-section">
         <div class="jornada-section__title">${t('stage.results')}</div>
@@ -890,18 +893,20 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   // los broadcasts (filtrados por región) hablen por sí solos.
   const _tvStatus = (_isEnModal && rd.tvStatus === 'unavailable_es') ? null : rd.tvStatus;
   const hasBroadcasts = broadcasts.length > 0;
-  const _isReviveBroadcast = b => b.url && (/eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be/i.test(b.url) || b.showInRevive === true);
+  const hasActualResults = inhouseStages.has(rd);
   const _isRaceConcluded = !!rd.estimatedFinishTimeUtc && _raceTimeCheck(rd, 30);
-  const hasReviveBroadcast = hasBroadcasts && _isRaceConcluded && broadcasts.some(_isReviveBroadcast);
+  const hasReviveBroadcast = hasBroadcasts && (rd.isCancelledDay
+    ? broadcasts.some(b => b.showInRevive === true)
+    : _isRaceConcluded && broadcasts.some(isReviveBroadcast));
   // Carrera concluida → solo mostrar sección si hay broadcasts de tipo Revive
-  const hasTvInfo = _isRaceConcluded
+  const hasTvInfo = rd.isCancelledDay ? hasReviveBroadcast : (_isRaceConcluded
     ? hasReviveBroadcast
-    : (hasBroadcasts || _tvStatus === 'pending' || _tvStatus === 'none' || _tvStatus === 'unavailable_es');
+    : (hasBroadcasts || _tvStatus === 'pending' || _tvStatus === 'none' || _tvStatus === 'unavailable_es'));
 
   if (hasTvInfo) {
     const tvSectionTitle = hasReviveBroadcast ? t('tv.reviveRaceTitle') : t('tv.title');
     const visibleBroadcasts = hasReviveBroadcast
-      ? broadcasts.filter(_isReviveBroadcast)
+      ? reviveBroadcastsForDay(broadcasts, rd.isCancelledDay)
       : broadcasts;
 
     html += `<div class="jornada-section">
@@ -916,7 +921,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
         html += `<div class="tv-entry">
           <div style="flex:1;min-width:0;padding-right:0.75rem">
             <div class="tv-entry__platform">${esc(b.channel || '—')}</div>
-            ${!hasReviveBroadcast && b.note ? `<div class="tv-entry__channel" style="font-style:italic">${esc(b.note)}</div>` : ''}
+            ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<div class="tv-entry__channel" style="font-style:italic">${esc(b.note)}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:0.75rem">
             ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}

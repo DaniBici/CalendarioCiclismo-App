@@ -80,6 +80,7 @@ const PRETTY = hasFlag('pretty');
 const DELAY = parseInt(getArg('delay') || '120', 10);
 
 const BASE = 'https://dataride.uci.ch/iframe';
+export const RESULTS_SOURCE = 'uci';
 const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -510,6 +511,7 @@ async function main() {
   }
 
   const out = {
+    source: RESULTS_SOURCE,
     competitionId: Number(COMPETITION),
     disciplineId: Number(DISCIPLINE),
     fetchedAt: new Date().toISOString(),

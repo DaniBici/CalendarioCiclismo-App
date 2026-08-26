@@ -116,11 +116,40 @@ class TransfersLogicTest {
     fun feedPrioritizesNextSeasonSigningsOverMidSeasonOnSameDay() {
         val feed = TransfersLogic.confirmedFeed(
             listOf(
-                transfer("midSeason", "r1", to = "team_b", announcedAt = "2026-08-01", createdAt = "2026-08-01T12:00:00Z", midSeason = true),
-                transfer("nextSeason", "r2", to = "team_b", announcedAt = "2026-08-01", createdAt = "2026-08-01T09:00:00Z"),
-            )
+                transfer("midSeasonWT", "r1", to = "wt", announcedAt = "2026-08-01", midSeason = true),
+                transfer("nextSeasonPTW", "r2", to = "ptw", announcedAt = "2026-08-01"),
+            ),
+            categoryByTeamId = mapOf("wt" to "WT", "ptw" to "PRW"),
+            teamNameById = mapOf("wt" to "Alfa", "ptw" to "Zeta"),
         )
-        assertEquals(listOf("nextSeason", "midSeason"), feed.map { it.id })
+        assertEquals(listOf("nextSeasonPTW", "midSeasonWT"), feed.map { it.id })
+    }
+
+    @Test
+    fun feedsSortEachDayByDestinationCategoryAndTeamName() {
+        val categories = mapOf(
+            "wt_z" to "WT", "wt_a" to "WT", "pt" to "PT",
+            "wwt" to "WWT", "ptw" to "PRW",
+        )
+        val names = mapOf(
+            "wt_z" to "Zeta", "wt_a" to "Ábaco", "pt" to "Beta",
+            "wwt" to "Alfa Women", "ptw" to "Delta Women",
+        )
+        val moves = listOf(
+            transfer("ptw", "r5", to = "ptw"),
+            transfer("wt_z", "r2", to = "wt_z"),
+            transfer("wwt", "r4", to = "wwt"),
+            transfer("pt", "r3", to = "pt"),
+            transfer("wt_a", "r1", to = "wt_a"),
+        )
+
+        val signings = TransfersLogic.confirmedFeed(moves, categories, names)
+        val renewals = TransfersLogic.renewalFeed(
+            moves.map { it.copy(type = "renewal") }, categories, names
+        )
+
+        assertEquals(listOf("wt_a", "wt_z", "pt", "wwt", "ptw"), signings.map { it.id })
+        assertEquals(signings.map { it.id }, renewals.map { it.id })
     }
 
     @Test

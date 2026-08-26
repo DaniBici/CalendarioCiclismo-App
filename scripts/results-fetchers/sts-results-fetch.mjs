@@ -33,8 +33,8 @@
  *       · "Abandon" (con tr="4") → IRM DNF · m = km/h media · b = hora de paso
  *       · g = gap ("-" líder · "+0'04" · "+1'02,00" · "+0:36" · "+16:49"
  *               · "+1h00'15" · "+ 1 tour" lapped) · p0/pb0/tt/tc/mt = parciales (ignorados).
- *   Etapa CRI: type="1" / chrono="1" → raceType='ITT' (la web aplica el
- *     truncado de CRI). CRE: type="2" / chrono="2" → raceType='TTT'; Wiclax
+ *   Etapa CRI: type="1" → raceType='ITT' (la web aplica el
+ *     truncado de CRI). CRE: type="2" → raceType='TTT'; Wiclax
  *     lista a los corredores agrupados por equipo y el fetcher deja el puesto
  *     y el tiempo solo en el primer corredor de cada equipo para que web/apps
  *     colapsen la tabla correctamente. type="0"/chrono="0" → etapa en ruta.
@@ -63,8 +63,10 @@
  *   ⚠ Al conmutar la fuente de una carrera ya volcada, la purga de gemelas del
  *   upsert (090) reemplaza los placeholders automáticamente.
  *
- * Solo se emiten etapas con <Resultats> publicado (la ventana de meta del cron lo
- * garantiza). La pseudo-etapa "Final Classification" (stageNumber NULL,
+ * Solo se emiten etapas con <Resultats> de META publicado. En etapas con circuito,
+ * Wiclax rellena <Resultats> en cada paso previo por la línea: el fetcher exige que
+ * `to` alcance `nbTours` o `ds` alcance `distance` antes de publicar la etapa. La
+ * pseudo-etapa "Final Classification" (stageNumber NULL,
  * isFinalClassification, scope='stage', quirk UCI 085) se clona de la General +
  * anexas overall de la ÚLTIMA etapa cuando la carrera ha terminado.
  *
@@ -76,6 +78,10 @@
  *
  * Args:
  *   --clax-url        URL absoluta del .clax (obligatorio).
+ *   --article-url     artículo STSport que publica los PDFs por etapa. Cuando el
+ *                     PDF supera la validación de filas, su clasificación de etapa
+ *                     tiene prioridad sobre el .clax; si no, se conserva el .clax.
+ *   --skip-clax-points omite la clasificación `pts` del .clax para esta carrera.
  *   --code            identificador estable de la edición ("LAROUTEDOCCITANIE/2026-RDO");
  *                     semilla del competitionId sintético y de la salida. Por defecto
  *                     se deriva de la URL (path tras /LIVE/, sin extensión).
@@ -97,15 +103,19 @@
  */
 'use strict';
 
-import { writeFileSync, mkdirSync } from 'fs';
+import { execFileSync } from 'child_process';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
 const hasFlag = (n) => args.includes(`--${n}`);
 
 const CLAX_URL = getArg('clax-url');
+const ARTICLE_URL = getArg('article-url');
+const SKIP_CLAX_POINTS = hasFlag('skip-clax-points');
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
 const FORCE_ONE_DAY = hasFlag('one-day');
 const PRETTY = hasFlag('pretty');
@@ -237,6 +247,22 @@ export function attrs(openTag) {
   for (const m of openTag.matchAll(/(\w+)="([^"]*)"/g)) o[m[1]] = m[2];
   return o;
 }
+// `chrono` no codifica de forma fiable la modalidad: Tour du Limousin E1 2026
+// declara type="0" (ruta) con chrono="2". Cuando hay type explícito, manda
+// siempre; chrono solo mantiene compatibilidad con ficheros antiguos sin type.
+export function stageRaceType(stageAttrs = {}) {
+  const stageType = String(stageAttrs.type ?? '');
+  if (stageType === '2') return 'TTT';
+  if (stageType === '1' || (!stageType && Number(stageAttrs.chrono) > 0)) return 'ITT';
+  return null;
+}
+// La fecha de <Etape> viaja normalmente en `dt`, no en `dt1`. El encabezado
+// <Epreuve> no es fiable para vueltas: Limousin 2026 declara dt1=dt2=2026-08-17
+// aunque sus etapas se disputan del 18 al 21. Se conserva `dt1` como compatibilidad
+// con variantes antiguas de Wiclax y el fallback solo se usa si la etapa no fecha.
+export function stageDateKey(stageAttrs = {}, fallbackDate = null) {
+  return clean(stageAttrs.dt) || clean(stageAttrs.dt1) || clean(fallbackDate) || null;
+}
 export function firstBlock(xml, tag) {
   // Devuelve el CONTENIDO del primer <tag>…</tag>, o '' si es self-closing/ausente.
   const re = new RegExp(`<${tag}\\b[^>]*?(/>|>)`, 's');
@@ -254,6 +280,44 @@ export function allStages(xml) {
   let m;
   while ((m = re.exec(xml))) out.push({ a: attrs('<Etape ' + m[1] + '>'), body: m[2] });
   return out;
+}
+
+// Wiclax reutiliza <Resultats> como clasificación provisional en cada paso por la
+// línea de un circuito. `aTours="1"` activa ese modo; `to` es el número de paso y
+// `ds` la distancia cubierta. Hasta que una fila alcanza nbTours/distance no existe
+// clasificación de meta publicable. Una vez alcanzada, se eliminan las filas
+// clasificadas de vueltas anteriores y se conservan los estados IRM, aunque hayan
+// abandonado antes de completar el circuito.
+//
+// Tour du Limousin E4 2026: nbTours=4, distance=178700. Durante el tercer paso,
+// <Resultats> ya contenía 94 clasificados con to=3/ds=166400; sin este filtro se
+// volcaban como si hubieran terminado la etapa.
+export function finishOnlyResultBlock(blockXml, stageAttrs = {}) {
+  const circuitLaps = Number(stageAttrs.nbTours);
+  const finishDistance = Number(stageAttrs.distance);
+  const isCircuit = String(stageAttrs.aTours || '') === '1' && circuitLaps > 1;
+  if (!isCircuit || (!Number.isFinite(circuitLaps) && !Number.isFinite(finishDistance))) return blockXml;
+
+  const rows = [...blockXml.matchAll(/<R\b([^>]*)\/?>/g)].map((match) => ({
+    tag: match[0],
+    a: attrs('<R ' + match[1] + '>'),
+  }));
+  const reachedFinish = ({ a }) => {
+    const lap = Number(a.to);
+    const distance = Number(a.ds);
+    return (Number.isFinite(lap) && lap >= circuitLaps)
+      || (Number.isFinite(finishDistance) && Number.isFinite(distance) && distance >= finishDistance);
+  };
+
+  // Un bloque formado solo por pasos previos o abandonos todavía no es resultado.
+  if (!rows.some((row) => reachedFinish(row) && absTime(row.a.t))) return '';
+
+  return rows
+    .filter((row) => reachedFinish(row)
+      || irmOf(row.a.t)
+      || (row.a.tr != null && String(row.a.tr) !== '0'))
+    .map((row) => row.tag)
+    .join('');
 }
 // Cuerpo del <Rush id="<id>">…</Rush> dentro de un <Clt> ('' si self-closing/ausente).
 // Robusto frente a atributos extra (nom="Général") y a la variante vacía
@@ -386,14 +450,18 @@ export function parseAnnexeRows(rushXml, riderByBib) {
   for (const m of rushXml.matchAll(/<res\b([^>]*)\/?>/g)) {
     const a = attrs('<res ' + m[1] + '>');
     const dos = Number(a.dos);
-    if (!(dos > 0)) continue;                          // <res dos="0"> = plantilla vacía
+    // Las bonificaciones de llegada se añaden al mismo Rush de puntos, pero no
+    // son una clasificación: llevan dorsal y bonif, sin pts ni tps. Publicarlas
+    // creaba puestos con puntos null (Limousin E1 2026).
+    if (!(dos > 0) || (a.pts == null && a.tps == null)) continue;
     rank += 1;
     const who = riderByBib.get(dos) || {};
     const abs = a.tps != null ? absTime(a.tps) : null;
+    const points = a.pts != null ? Number(String(a.pts).replace(',', '.')) : null;
     rows.push({ rank, rankText: String(rank), bib: String(dos),
       riderDisplay: who.display || null, teamName: who.teamName || null,
       resultValue: abs || (a.pts != null ? String(a.pts) : null), timeText: abs, gapText: null,
-      points: null, irm: null });
+      points, irm: null });
   }
   return rows;
 }
@@ -403,6 +471,7 @@ const ANNEXE_MAP = {
   gpm: { classKind: 'kom',    eventName: 'Overall Mountain Classification' },
   pts: { classKind: 'points', eventName: 'Overall Points Classification' },
   JE:  { classKind: 'youth',  eventName: 'Overall Youth Classification' },
+  1:   { classKind: 'youth',  eventName: 'Overall Youth Classification' },
 };
 
 function buildClassification(slot, classKind, scope, eventName, rows, { teamEvent = false } = {}) {
@@ -411,7 +480,7 @@ function buildClassification(slot, classKind, scope, eventName, rows, { teamEven
     eventId: synthEventId(slot, classKind, scope),
     classKind, scope, eventName,
     isTeamEvent: !!teamEvent,
-    winnerName: winner ? winner.riderDisplay : null,
+    winnerName: winner ? (teamEvent ? winner.teamName : winner.riderDisplay) : null,
     rowCount: rows.length,
     rows,
   };
@@ -424,6 +493,255 @@ async function fetchClax(url) {
   return await res.text();
 }
 
+// Los artículos STSport (SPIP) añaden un documento PDF por etapa al terminar.
+// El texto visible está en el figcaption posterior al enlace, no dentro del <a>.
+export function stagePdfLinksFromArticleHtml(html, articleUrl) {
+  const links = new Map();
+  for (const m of String(html).matchAll(/<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>[\s\S]{0,2400}?<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/gi)) {
+    const label = clean(m[2].replace(/<[^>]+>/g, ' '));
+    const source = `${label} ${decodeURIComponent(m[1]).replace(/[-_]/g, ' ')}`;
+    const stage = source.match(/\b(\d{1,2})(?:er|ère|ere|e|ème|eme)?\s+(?:étape|etape|stage)\b/i)?.[1];
+    if (!stage) continue;
+    links.set(Number(stage), { stageNumber: Number(stage), label, href: new URL(m[1], articleUrl).href });
+  }
+  return [...links.values()].sort((a, b) => a.stageNumber - b.stageNumber);
+}
+
+async function pdfToLayoutText(url) {
+  const response = await fetch(url, { headers: { 'User-Agent': UA } });
+  if (!response.ok) throw new Error(`PDF HTTP ${response.status}`);
+  const dir = mkdtempSync(join(tmpdir(), 'sts-results-pdf-'));
+  const file = join(dir, 'stage.pdf');
+  try {
+    writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+    return execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8', maxBuffer: 30 * 1024 * 1024 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const pdfGap = (value) => {
+  const text = clean(value);
+  const hms = text.match(/^à\s+(?:(\d+)h)?(?:(\d+)'\s*)?(?:(\d+)'')?$/i);
+  if (!hms) return null;
+  const hours = Number(hms[1] || 0), minutes = Number(hms[2] || 0), seconds = Number(hms[3] || 0);
+  if (hours) return `+${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  if (minutes) return `+${minutes}:${String(seconds).padStart(2, '0')}`;
+  return `+${seconds}`;
+};
+
+// El PDF STSport compone dos columnas por página. Se extraen por el par
+// puesto+dorsal, que no aparece fuera de las tablas de clasificación.
+function parsePdfIndividualRows(pdfText, riderByBib, heading, endHeading = null) {
+  const rows = [];
+  for (const originalPage of String(pdfText).split('\f').filter((p) =>
+    heading.test(p) && /Nom Prénom\s+Eq\.\s+Temps/i.test(p))) {
+    const page = endHeading ? originalPage.split(endHeading)[0] : originalPage;
+    for (const line of page.split(/\r?\n/)) {
+      const starts = [...line.matchAll(/(?:^|\s{2,})(\d+|DNS|DNF|AB|HD|DSQ)\s+(\d+)\s+/g)];
+      for (let index = 0; index < starts.length; index += 1) {
+        const current = starts[index];
+        const next = starts[index + 1];
+        const cell = line.slice(current.index, next ? next.index : undefined).trim();
+        const [, rankText, bib] = current;
+        const who = riderByBib.get(Number(bib)) || {};
+        if (/^(DNS|DNF|AB|HD|DSQ)$/i.test(rankText)) {
+          const irm = /^(DNS)$/i.test(rankText) ? 'DNS' : /^(HD)$/i.test(rankText) ? 'OTL' : /^(DSQ)$/i.test(rankText) ? 'DSQ' : 'DNF';
+          rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+            resultValue: null, timeText: null, gapText: null, points: null, irm });
+          continue;
+        }
+        const rank = Number(rankText);
+        const tail = cell.match(/(?:\d+h\d{2}'\d{2}''|à\s+(?:(?:\d+h)?(?:\d+')?\d*'')|'')\s*$/i)?.[0] || '';
+        // Un gap de más de una hora también contiene "1h02'32''". Solo es
+        // tiempo absoluto cuando la celda no lo precede con "à".
+        const absoluteMatch = /^à\s/i.test(clean(tail)) ? null : tail.match(/(\d+)h(\d{2})'(\d{2})''/);
+        const absolute = absoluteMatch ? `${Number(absoluteMatch[1])}:${absoluteMatch[2]}:${absoluteMatch[3]}` : null;
+        const sameTime = /^''$/.test(clean(tail));
+        const gap = absolute || sameTime ? null : pdfGap(tail);
+        // Algún nombre largo se parte a la línea siguiente y deja el valor de
+        // tiempo allí. Se conserva el puesto/dorsal: se completará desde .clax
+        // al aplicar el PDF, sin alterar el orden oficial del documento.
+        if (rank !== 1 && !gap && !sameTime) {
+          rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+            resultValue: null, timeText: null, gapText: null, points: null, irm: null, pdfSameTime: false });
+          continue;
+        }
+        if (rank === 1 && !absolute) continue;
+        rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+          resultValue: absolute || gap, timeText: absolute, gapText: gap, points: null, irm: null, pdfSameTime: sameTime });
+      }
+    }
+  }
+  const ranked = rows.filter((row) => row.rank != null).sort((a, b) => a.rank - b.rank);
+  // Una DSQ puede dejar un salto deliberado de puesto (Limousin E1 2026:
+  // 121, DSQ, 123). El PDF es la fuente oficial: se conserva su numeración,
+  // validando únicamente inicio, orden y unicidad.
+  if (!ranked.length || ranked[0].rank !== 1 || ranked.some((row, index) => index > 0 && row.rank <= ranked[index - 1].rank)) throw new Error('puestos no ordenados o duplicados');
+  // El PDF se extrae por líneas y las tablas llevan dos columnas: el orden de
+  // lectura es 1,34,2,35… Un marcador '' debe heredar el gap del puesto anterior,
+  // no el de la celda anterior en el texto. Se resuelve después de ordenar.
+  let previousGap = '+0';
+  const resolved = ranked.map(({ pdfSameTime, ...row }) => {
+    const gap = pdfSameTime ? previousGap : row.gapText;
+    if (gap) previousGap = gap;
+    return pdfSameTime ? { ...row, resultValue: gap, gapText: gap } : row;
+  });
+  return [...resolved, ...rows.filter((row) => row.rank == null)];
+}
+
+export function parsePdfStageRows(pdfText, riderByBib) {
+  return parsePdfIndividualRows(pdfText, riderByBib, /CLASSEMENT\s+ETAPE/i);
+}
+
+export function parsePdfYouthRows(pdfText, riderByBib) {
+  return parsePdfIndividualRows(pdfText, riderByBib, /CLASSEMENT\s+G[ÉE]N[ÉE]RAL\s+DES\s+JEUNES/i, /CLASSEMENT\s+DU\s+COMBIN[ÉE]/i);
+}
+
+function pdfGeneralSection(pdfText, heading, endHeading = null) {
+  const pages = String(pdfText).split('\f').filter((page) => heading.test(page));
+  const page = pages.at(-1) || '';
+  const headingOffset = page.search(heading);
+  const afterHeading = headingOffset < 0 ? '' : page.slice(headingOffset);
+  const generalOffset = afterHeading.search(/Classement\s+G[ée]n[ée]ral/i);
+  if (generalOffset < 0) return '';
+  const section = afterHeading.slice(generalOffset);
+  if (!endHeading) return section;
+  const end = section.search(endHeading);
+  return end < 0 ? section : section.slice(0, end);
+}
+
+function parsePdfPointRows(pdfText, riderByBib, heading, endHeading = null) {
+  const section = pdfGeneralSection(pdfText, heading, endHeading);
+  const lines = section.split(/\r?\n/);
+  const header = lines.find((line) => (line.match(/\bPl\./g) || []).length >= 2 && /\bPts\b/i.test(line));
+  const splitAt = header ? header.lastIndexOf('Pl.') : -1;
+  if (splitAt < 1) throw new Error('cabecera de puntos no reconocida');
+  const parsed = [];
+  for (const line of lines.slice(lines.indexOf(header) + 1)) {
+    for (const half of [line.slice(0, splitAt), line.slice(splitAt)]) {
+      const match = half.match(/^\s*(\d+)\s+(\d+)\s+.+?\s+(\d+)\s*$/);
+      if (!match || !riderByBib.has(Number(match[2]))) continue;
+      parsed.push({ rank: Number(match[1]), bib: match[2], points: Number(match[3]) });
+    }
+  }
+  const rows = parsed.sort((a, b) => a.rank - b.rank).map(({ rank, bib, points }) => {
+    const who = riderByBib.get(Number(bib)) || {};
+    if (!Number.isInteger(points)) throw new Error(`puntos ausentes en puesto ${rank}`);
+    return { rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+      resultValue: String(points), timeText: null, gapText: null, points, irm: null };
+  });
+  if (!rows.length || rows[0].rank !== 1 || rows.some((row, index) => row.rank !== index + 1)) throw new Error('puestos de puntos incompletos');
+  return rows;
+}
+
+export function parsePdfPointsRows(pdfText, riderByBib) {
+  return parsePdfPointRows(pdfText, riderByBib, /Classements\s+des\s+Sprint/i, /Classement\s+de\s+la\s+Montagne/i);
+}
+
+export function parsePdfMountainRows(pdfText, riderByBib) {
+  return parsePdfPointRows(pdfText, riderByBib, /Classement\s+de\s+la\s+Montagne/i);
+}
+
+function secondsFromPdfTime(value) {
+  const match = clean(value).match(/^(\d+):(\d{2}):(\d{2})$/);
+  return match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : null;
+}
+
+function pdfGapFromSeconds(value) {
+  const hours = Math.floor(value / 3600), minutes = Math.floor((value % 3600) / 60), seconds = value % 60;
+  if (hours) return `+${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  if (minutes) return `+${minutes}:${String(seconds).padStart(2, '0')}`;
+  return `+${seconds}`;
+}
+
+function pdfTeamNamesByCode(pdfText, riderByBib) {
+  const page = String(pdfText).split('\f').find((item) => /CLASSEMENT\s+ETAPE/i.test(item) && /Nom Prénom\s+Eq\.\s+Temps/i.test(item));
+  const byCode = new Map();
+  const lines = String(page || '').split(/\r?\n/);
+  const header = lines.find((line) => (line.match(/\bPl\./g) || []).length >= 2 && /Nom Prénom/i.test(line));
+  const splitAt = header ? header.lastIndexOf('Pl.') : -1;
+  if (splitAt < 1) return byCode;
+  for (const line of lines.slice(lines.indexOf(header) + 1)) {
+    for (const half of [line.slice(0, splitAt), line.slice(splitAt)]) {
+      const identity = half.match(/^\s*(?:\d+|DNS|DNF|AB|HD|DSQ)\s+(\d+)\s+/i);
+      if (!identity || !riderByBib.has(Number(identity[1]))) continue;
+      const code = half.match(/\s([A-Z0-9]{2,4})\s+(?=(?:\d+h|à\s|''))/)?.[1];
+      const teamName = riderByBib.get(Number(identity[1]))?.teamName;
+      if (code && teamName) byCode.set(code, teamName);
+    }
+  }
+  return byCode;
+}
+
+export function parsePdfTeamRows(pdfText, riderByBib) {
+  const start = String(pdfText).lastIndexOf('Classement Général par Equipe');
+  if (start < 0) return [];
+  const lines = String(pdfText).slice(start).split('\f')[0].split(/\r?\n/);
+  const header = lines.find((line) => (line.match(/\bPl\./g) || []).length >= 2);
+  const splitAt = header ? header.lastIndexOf('Pl.') : -1;
+  if (splitAt < 1) throw new Error('cabecera de equipos no reconocida');
+  const buffers = [[], []];
+  const records = [];
+  const flush = (side) => {
+    if (!buffers[side].length) return;
+    records.push(clean(buffers[side].join(' ')));
+    buffers[side] = [];
+  };
+  for (const line of lines.slice(lines.indexOf(header) + 1)) {
+    for (const [side, part] of [line.slice(0, splitAt), line.slice(splitAt)].entries()) {
+      if (/^\s*\d+\s+/.test(part)) flush(side);
+      if (clean(part)) buffers[side].push(part);
+    }
+  }
+  flush(0); flush(1);
+
+  const teamByCode = pdfTeamNamesByCode(pdfText, riderByBib);
+  const rows = records.map((record) => {
+    const rank = Number(record.match(/^(\d+)\s+/)?.[1]);
+    const code = [...teamByCode.keys()].find((candidate) => new RegExp(`\\b${candidate}`).test(record));
+    const absoluteMatch = record.match(/(\d+)h(\d{2})'(\d{2})''/);
+    const absolute = absoluteMatch ? `${Number(absoluteMatch[1])}:${absoluteMatch[2]}:${absoluteMatch[3]}` : null;
+    const gapMarker = record.match(/(?:à\s+(?:(?:\d+h)?(?:\d+')?\d*'')|'')\s*$/i)?.[0] || '';
+    return { rank, code, absolute, gapMarker };
+  }).filter((row) => Number.isInteger(row.rank) && row.code && row.absolute).sort((a, b) => a.rank - b.rank);
+  if (!rows.length || rows[0].rank !== 1 || rows.some((row, index) => row.rank !== index + 1)) throw new Error('puestos de equipos incompletos');
+  const winnerSeconds = secondsFromPdfTime(rows[0].absolute);
+  let previousGap = '+0';
+  return rows.map((source) => {
+    const teamName = teamByCode.get(source.code);
+    let gap = null;
+    if (source.rank > 1) {
+      gap = /^''$/.test(clean(source.gapMarker)) ? previousGap : pdfGap(source.gapMarker);
+      const absoluteSeconds = secondsFromPdfTime(source.absolute);
+      if (!gap && winnerSeconds != null && absoluteSeconds != null) gap = pdfGapFromSeconds(absoluteSeconds - winnerSeconds);
+      if (gap) previousGap = gap;
+    }
+    const timeText = source.rank === 1 ? source.absolute : null;
+    return { rank: source.rank, rankText: String(source.rank), bib: null, riderDisplay: teamName, teamName,
+      resultValue: timeText || gap, timeText, gapText: gap, points: null, irm: null };
+  });
+}
+
+function officialPdfRowsForStage(pdfText, riderByBib, claxRows) {
+  const claxByBib = new Map(claxRows.map((row) => [String(row.bib), row]));
+  const pdfRows = parsePdfStageRows(pdfText, riderByBib).map((row) => {
+    if (row.irm || row.timeText || row.gapText) return row;
+    const fallback = claxByBib.get(String(row.bib));
+    return fallback ? { ...row, resultValue: fallback.resultValue, timeText: fallback.timeText, gapText: fallback.gapText } : row;
+  });
+  const claxRanked = claxRows.filter((row) => row.rank != null).length;
+  const pdfRanked = pdfRows.filter((row) => row.rank != null).length;
+  if (pdfRanked < Math.max(1, Math.ceil(claxRanked * 0.9))) throw new Error(`${pdfRanked}/${claxRanked} filas clasificadas`);
+  return pdfRows;
+}
+
+function officialPdfYouthRows(pdfText, riderByBib) {
+  const rows = parsePdfYouthRows(pdfText, riderByBib);
+  if (rows.some((row) => !row.irm && !row.resultValue)) throw new Error('tiempo o diferencia ausente');
+  return rows;
+}
+
 // ── pipeline ──────────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
@@ -434,6 +752,17 @@ async function main() {
   const xml = await fetchClax(CLAX_URL);
   const ep = attrs((/<Epreuve\b[^>]*>/.exec(xml) || ['', ''])[0]);
   log(`  ${clean(ep.nom)} · ${ep.dt1 || '?'} · etapeActive=${ep.etapeActive || '?'}`);
+  const stagePdfs = new Map();
+  if (ARTICLE_URL) {
+    try {
+      const response = await fetch(ARTICLE_URL, { headers: { 'User-Agent': UA } });
+      if (!response.ok) throw new Error(`artículo HTTP ${response.status}`);
+      for (const link of stagePdfLinksFromArticleHtml(await response.text(), ARTICLE_URL)) stagePdfs.set(link.stageNumber, link);
+      log(`  PDF STSport: ${stagePdfs.size} etapa(s) publicada(s)`);
+    } catch (error) {
+      log(`  ⚠ PDF STSport no disponible (${error.message}); se usa .clax`);
+    }
+  }
 
   const stageBlocks = allStages(xml);
   if (!stageBlocks.length) { log('⚠️  0 etapas en el .clax'); }
@@ -448,7 +777,7 @@ async function main() {
     (stageBlocks.length === 1 && clean(ep.dt1) && clean(ep.dt1) === clean(ep.dt2));
 
   const stages = [];
-  let lastOveralls = null;   // {stageNumber, gcRows, annexes:[{classKind,eventName,rows}]}
+  let lastOveralls = null;   // {stageNumber, dateKey, gcRows, annexes:[{classKind,eventName,rows}]}
 
   if (ONE_DAY && stageBlocks.length) {
     const stg = stageBlocks[0];
@@ -460,11 +789,21 @@ async function main() {
       if (!(d > 0)) continue;
       riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
     }
-    const isTtt = String(stg.a.type) === '2' || Number(stg.a.chrono) === 2;
-    const isItt = !isTtt && (String(stg.a.type) === '1' || Number(stg.a.chrono) > 0);
-    const stageRows = isTtt
-      ? parseTttResultRows(firstBlock(stg.body, 'Resultats'), riderByBib)
-      : parseResultRows(firstBlock(stg.body, 'Resultats'), riderByBib);
+    const raceType = stageRaceType(stg.a);
+    const isTtt = raceType === 'TTT';
+    const resultatsXml = finishOnlyResultBlock(firstBlock(stg.body, 'Resultats'), stg.a);
+    let stageRows = isTtt
+      ? parseTttResultRows(resultatsXml, riderByBib)
+      : parseResultRows(resultatsXml, riderByBib);
+    let pdfText = null;
+    if (stagePdfs.has(1) && stageRows.length) {
+      try {
+        pdfText = await pdfToLayoutText(stagePdfs.get(1).href);
+        stageRows = officialPdfRowsForStage(pdfText, riderByBib, stageRows);
+        log('  one-day: PDF STSport prioritario');
+      }
+      catch (error) { log(`  ⚠ one-day PDF STSport ignorado (${error.message}); se usa .clax`); }
+    }
     if (!stageRows.length) {
       log('  one-day sin <Resultats> publicado (no terminada) — 0 clasificaciones');
     } else {
@@ -473,20 +812,37 @@ async function main() {
       for (const cm of annexesXml.matchAll(/<Clt\s+id="([^"]+)">(.*?)<\/Clt>/gs)) {
         const spec = ANNEXE_MAP[cm[1]];
         if (!spec) continue;
+        if (SKIP_CLAX_POINTS && spec.classKind === 'points') continue;
         const rows = parseAnnexeRows(rushBody(cm[2], 'GN'), riderByBib);
         if (rows.length) annexes.push({ classKind: spec.classKind, eventName: spec.eventName, rows });
+      }
+      if (pdfText) {
+        for (const [classKind, eventName, parser, teamEvent] of [
+          ['points', 'Overall Points Classification', parsePdfPointsRows, false],
+          ['kom', 'Overall Mountain Classification', parsePdfMountainRows, false],
+          ['teams', 'Overall Teams Classification', parsePdfTeamRows, true],
+        ]) {
+          try {
+            const rows = parser(pdfText, riderByBib);
+            if (!rows.length) continue;
+            const previous = annexes.findIndex((item) => item.classKind === classKind);
+            if (previous >= 0) annexes.splice(previous, 1);
+            annexes.push({ classKind, eventName, rows, teamEvent });
+          } catch (error) { log(`  ⚠ one-day ${classKind} PDF STSport ignorado (${error.message})`); }
+        }
       }
       // Clasificación principal = gc/stage (como las one-day de Hageland/CN) + anexas overall.
       const classifications = [buildClassification(FINAL_SLOT, 'gc', 'stage', 'Final Classification', stageRows)];
       for (const an of annexes)
-        classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'overall', an.eventName, an.rows));
+        classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }));
       stages.push({
         uciRaceId: synthRaceId(FINAL_SLOT),
         stageNumber: null,
         stageName: 'Final Classification',
         isFinalClassification: false,   // one-day: NO es "general final de vuelta"; es la prueba en sí
-        dateKey: clean(stg.a.dt1) || clean(ep.dt1) || null,
-        raceType: isTtt ? 'TTT' : isItt ? 'ITT' : null,
+        dateKey: stageDateKey(stg.a, ep.dt1),
+        sourcePdfUrl: stagePdfs.get(1)?.href || null,
+        raceType,
         startLocation: null,
         classificationCount: classifications.length,
         classifications,
@@ -497,9 +853,9 @@ async function main() {
   } else {
   let lastStageDone = false;
 
-  stageBlocks.forEach((stg, idx) => {
+  for (const [idx, stg] of stageBlocks.entries()) {
     const stageNumber = idx + 1 + STAGE_OFFSET;         // Wiclax: orden 1-based + ajuste (prólogo → 0)
-    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) return;
+    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
 
     // Índice dorsal → corredor de ESTA etapa (sus <Engages>).
     const riderByBib = new Map();
@@ -511,16 +867,25 @@ async function main() {
       riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
     }
 
-    const isTtt = String(stg.a.type) === '2' || Number(stg.a.chrono) === 2;
-    const isItt = !isTtt && (String(stg.a.type) === '1' || Number(stg.a.chrono) > 0);
-    const resultatsXml = firstBlock(stg.body, 'Resultats');
-    const stageRows = isTtt
+    const raceType = stageRaceType(stg.a);
+    const isTtt = raceType === 'TTT';
+    const resultatsXml = finishOnlyResultBlock(firstBlock(stg.body, 'Resultats'), stg.a);
+    let stageRows = isTtt
       ? parseTttResultRows(resultatsXml, riderByBib)
       : parseResultRows(resultatsXml, riderByBib);
     if (!stageRows.length) { log(`  E${stageNumber} sin <Resultats> publicado (no terminada) — omitida`); return; }
-
-    // raceType: Wiclax distingue CRI (type/chrono=1) y CRE (type/chrono=2).
-    const raceType = isTtt ? 'TTT' : isItt ? 'ITT' : null;
+    const pdfStageNumber = idx + 1;
+    const pdfLink = stagePdfs.get(pdfStageNumber);
+    let pdfText = null;
+    if (pdfLink) {
+      try {
+        pdfText = await pdfToLayoutText(pdfLink.href);
+        stageRows = officialPdfRowsForStage(pdfText, riderByBib, stageRows);
+        log(`  E${stageNumber}: PDF STSport prioritario`);
+      } catch (error) {
+        log(`  ⚠ E${stageNumber}: PDF STSport ignorado (${error.message}); se usa .clax`);
+      }
+    }
 
     const generalXml = firstBlock(stg.body, 'General');
     const gcRows = parseResultRows(generalXml, riderByBib);
@@ -531,11 +896,45 @@ async function main() {
     for (const cm of annexesXml.matchAll(/<Clt\s+id="([^"]+)">(.*?)<\/Clt>/gs)) {
       const spec = ANNEXE_MAP[cm[1]];
       if (!spec) continue;
+      if (SKIP_CLAX_POINTS && spec.classKind === 'points') continue;
       const rows = parseAnnexeRows(rushBody(cm[2], 'GN'), riderByBib);
       if (rows.length) annexes.push({ classKind: spec.classKind, eventName: spec.eventName, rows });
     }
-
     const isLast = idx === lastIdx;
+    if (pdfText) {
+      try {
+        const youthRows = officialPdfYouthRows(pdfText, riderByBib);
+        const previousYouth = annexes.findIndex((an) => an.classKind === 'youth');
+        if (previousYouth >= 0) annexes.splice(previousYouth, 1);
+        annexes.push({ classKind: 'youth', eventName: 'Overall Youth Classification', rows: youthRows });
+        log(`  E${stageNumber}: jóvenes desde PDF STSport prioritario`);
+      } catch (error) {
+        log(`  ⚠ E${stageNumber}: jóvenes PDF STSport ignorados (${error.message}); se usa .clax`);
+      }
+      // En la última etapa, el PDF oficial es la única fuente completa de las
+      // complementarias definitivas de Limousin: el .clax omite jóvenes/equipos,
+      // los puntos se desactivan por configuración y la montaña puede quedar con
+      // el tanteo anterior a la etapa.
+      if (isLast) {
+        for (const [classKind, eventName, parser, teamEvent] of [
+          ['points', 'Overall Points Classification', parsePdfPointsRows, false],
+          ['kom', 'Overall Mountain Classification', parsePdfMountainRows, false],
+          ['teams', 'Overall Teams Classification', parsePdfTeamRows, true],
+        ]) {
+          try {
+            const rows = parser(pdfText, riderByBib);
+            if (!rows.length) continue;
+            const previous = annexes.findIndex((item) => item.classKind === classKind);
+            if (previous >= 0) annexes.splice(previous, 1);
+            annexes.push({ classKind, eventName, rows, teamEvent });
+            log(`  E${stageNumber}: ${classKind} desde PDF STSport prioritario`);
+          } catch (error) {
+            log(`  ⚠ E${stageNumber}: ${classKind} PDF STSport ignorado (${error.message}); se usa .clax`);
+          }
+        }
+      }
+    }
+
     const classifications = [];
     // 1) clasificación de ETAPA (siempre).
     classifications.push(buildClassification(stageNumber, 'stage', 'stage', 'Stage Classification', stageRows));
@@ -543,9 +942,9 @@ async function main() {
     //    SOLO a la pseudo-final (evita el duplicado "general del día E_última" ≈ "final").
     if (!isLast) {
       if (gcRows.length) classifications.push(buildClassification(stageNumber, 'gc', 'stage', 'Stage General Classification', gcRows));
-      for (const an of annexes) classifications.push(buildClassification(stageNumber, an.classKind, 'overall', an.eventName, an.rows));
+      for (const an of annexes) classifications.push(buildClassification(stageNumber, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }));
     } else {
-      lastOveralls = { stageNumber, gcRows, annexes };
+      lastOveralls = { stageNumber, dateKey: stageDateKey(stg.a, ep.dt2 || ep.dt1), sourcePdfUrl: pdfLink?.href || null, gcRows, annexes };
     }
 
     stages.push({
@@ -553,7 +952,8 @@ async function main() {
       stageNumber,
       stageName: `Stage ${stageNumber}`,
       isFinalClassification: false,
-      dateKey: clean(stg.a.dt1) || clean(ep.dt1) || null,
+      dateKey: stageDateKey(stg.a, ep.dt1),
+      sourcePdfUrl: pdfLink?.href || null,
       raceType,
       startLocation: null,
       classificationCount: classifications.length,
@@ -562,7 +962,7 @@ async function main() {
     classifications.forEach((c) =>
       log(`    E${String(stageNumber).padEnd(2)} ${(c.scope + '/' + c.classKind).padEnd(14)} ${String(c.rowCount).padStart(3)} filas  (event ${c.eventId})`));
     if (isLast) lastStageDone = true;
-  });
+  }
 
   // Carrera terminada → pseudo-etapa "Final Classification" (quirk UCI 085,
   // stageNumber NULL, scope='stage', isFinalClassification).
@@ -570,16 +970,17 @@ async function main() {
     const classifications = [];
     if (lastOveralls.gcRows.length)
       classifications.push(buildClassification(FINAL_SLOT, 'gc', 'stage', 'General Classification', lastOveralls.gcRows));
-    const FINAL_NAMES = { kom: 'Mountain Classification', points: 'Points Classification', youth: 'Youth Classification' };
+    const FINAL_NAMES = { kom: 'Mountain Classification', points: 'Points Classification', youth: 'Youth Classification', teams: 'Teams Classification' };
     for (const an of lastOveralls.annexes)
-      classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'stage', FINAL_NAMES[an.classKind] || an.eventName, an.rows));
+      classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'stage', FINAL_NAMES[an.classKind] || an.eventName, an.rows, { teamEvent: an.teamEvent }));
     if (classifications.length) {
       stages.push({
         uciRaceId: synthRaceId(FINAL_SLOT),
         stageNumber: null,
         stageName: 'Final Classification',
         isFinalClassification: true,
-        dateKey: clean(ep.dt2) || clean(ep.dt1) || null,
+        dateKey: lastOveralls.dateKey || clean(ep.dt2) || clean(ep.dt1) || null,
+        sourcePdfUrl: lastOveralls.sourcePdfUrl || null,
         raceType: null,
         startLocation: null,
         classificationCount: classifications.length,

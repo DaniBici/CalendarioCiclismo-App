@@ -17,8 +17,9 @@ graph TB
     end
 
     subgraph Infra
+        RS[Fuentes oficiales de resultados\nHTML / JSON / PDF]
         R2[Cloudflare R2\nAssets estáticos]
-        VPS[Hetzner VPS\nnginx reverse proxy]
+        VPS[Hetzner VPS\nnginx + resultados + ránking UCI + emisiones]
         WK2[Worker og\nOpenGraph images]
         GHA[GitHub Actions\nCI / pre-render / feeds iCal / sitemap]
         FCM[Firebase / APNs\nPush Notifications]
@@ -34,6 +35,8 @@ graph TB
     IOS --> R2
     AND --> R2
     R2 --> VPS
+    RS --> VPS
+    VPS --> DB
     WK2 --> SB
     GHA --> SB
     GHA --> WEB
@@ -50,11 +53,11 @@ graph TB
 | Cloudflare CDN | CDN + DNS sobre GitHub Pages | Proxy transparente |
 | Supabase | PostgreSQL + REST API + Auth + Edge Functions | `bcecwlkynpgovnzhbpah.supabase.co` |
 | Cloudflare R2 | Assets de jornadas (perfiles, mapas, etc.) | `assets.calendariociclismo.app` |
-| Hetzner VPS | Nginx proxy para R2 (cabeceras custom, auth) | Acceso privado |
+| Hetzner VPS | Nginx proxy para R2, resultados, ránking UCI y observación de emisiones oficiales | Acceso privado · `/opt/calendario-ciclismo` |
 | Cloudflare Worker `og` | Generación de imágenes OpenGraph | Uso interno |
 | Firebase | Analytics + Cloud Messaging (FCM) | SDK en apps nativas |
 | APNs | Push notifications iOS | Via Supabase Edge Function |
-| GitHub Actions | Pre-render OG, feeds iCal estáticos (`feeds-ical.yml`), sitemap, releases | `.github/workflows/` |
+| GitHub Actions | CI/CD, pre-render OG, feeds iCal, sitemap, releases y fallback manual de resultados | `.github/workflows/` |
 | Xcode Cloud | Build + distribución iOS | App Store Connect |
 
 ## Flujo de datos
@@ -90,6 +93,31 @@ Panel / Supabase pg_cron
             └── Web Push (RFC 8291 + VAPID) → ServiceWorker (sw.js)
 ```
 
+### Resultado oficial → dispositivos
+
+```
+Fuentes oficiales (HTML / JSON / PDF)
+    └── Hetzner VPS: systemd timer → uci-results-cron.mjs --configured
+            └── fetcher por cronometrador → contrato JSON → upsert
+                    └── PostgreSQL (race_uci_stages + race_uci_results)
+                            ├── Web → lectura en vivo desde Supabase
+                            ├── iOS → SupabaseService
+                            └── Android → SupabaseService
+```
+
+El panel habilita y delimita las ventanas por carrera o jornada. El watcher fija
+la cadencia según la capacidad de la fuente. Los botones manuales insertan una
+solicitud en una cola privada de PostgreSQL que el mismo timer reclama. GitHub
+Actions conserva el script como fallback manual, sin programación automática.
+
+El ránking UCI de equipos usa un servicio separado del VPS. DataRide se consulta
+cada hora durante lunes y martes y una vez el miércoles; una fecha ya almacenada
+no provoca una nueva escritura.
+
+HBO Max y la guía de RTVE se consultan con un servicio y un rol PostgreSQL
+separados. El modo de aplicación exige dos observaciones estables, fuente oficial, emparejamiento
+único y ausencia de ediciones manuales concurrentes; nunca elimina emisiones.
+
 ## Estructura de código
 
 ```
@@ -104,6 +132,10 @@ calendario-ciclismo/
 ├── supabase/
 │   ├── migrations/                               SQL migrations (numeradas)
 │   └── functions/                                Edge Functions (TypeScript/Deno)
+├── scripts/results-fetchers/                      Watcher, fetchers y upsert de resultados
+├── scripts/broadcasts-sync/                       Observación y sincronización de emisiones
+├── deploy/uci-results-vps/                        Unidades systemd de resultados y ránking
+├── deploy/broadcasts-vps/                         Unidades systemd de emisiones
 ├── ios-app/CalendarioCiclismo/
 │   ├── Models/                                   Race, RaceDay, Broadcast, …
 │   ├── Services/                                 RaceLogic, DateFormatting, Supabase, Cache, …
@@ -133,6 +165,8 @@ calendario-ciclismo/
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Supabase Edge Function `send-push` | Supabase Dashboard → Edge Functions → Secrets |
 | APNs key | Supabase Edge Function `send-push` | Supabase Dashboard → Edge Functions → Secrets |
 | R2 API keys | Supabase Edge Function `r2-upload` | Supabase Dashboard → Edge Functions → Secrets |
+| `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/uci-results.env` (`0640`, fuera del repo) + copia de recuperación privada |
+| `BROADCASTS_DATABASE_URL` del rol `cc_broadcasts_login` | Sincronizador de emisiones del VPS | `/etc/calendario-ciclismo/broadcasts.env` (`0600`, fuera del repo) |
 
 ## Decisiones clave
 
@@ -141,3 +175,6 @@ Ver `docs/adr/` para el registro completo. Resumen:
 - **Base de datos**: migrado de Firestore → Supabase/PostgreSQL (ADR-0001).
 - **Apps nativas**: reescrito desde WKWebView a SwiftUI + Jetpack Compose (ADR-0002).
 - **Assets**: proxy R2 vía VPS para control de cabeceras y autenticación (ADR-0004).
+- **Resultados automáticos y manuales**: watcher y cola privada en el VPS; GitHub Actions queda como fallback manual independiente.
+- **Ránking UCI de equipos**: observación horaria lunes/martes en el VPS y pasada de seguridad el miércoles.
+- **Emisiones oficiales**: servicio aislado con escrituras protegidas para HBO Max y RTVE; toda acción queda auditada.

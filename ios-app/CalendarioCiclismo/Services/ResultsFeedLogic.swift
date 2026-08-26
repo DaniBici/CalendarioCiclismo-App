@@ -38,6 +38,8 @@ struct FeedEntry: Identifiable, Hashable {
     let race: Race
     /// nil = general final / prueba de un día (sin etiqueta de etapa).
     let stageNumber: Int?
+    /// Sufijo de doble sector (A/B); vacío en jornadas ordinarias.
+    let stageSuffix: String
     /// 0 = general final (POR DELANTE de la etapa de su carrera), 1 = resto.
     let subOrder: Int
     /// Jornada asociada (recorrido/km/tipos/hora). nil en las generales finales.
@@ -99,8 +101,8 @@ enum ResultsFeedLogic {
     // MARK: - Construcción de entradas
 
     /// Clave (carrera × etapa); nil = clasificación final (espejo de `key()`).
-    static func stageEntryKey(raceId: String, stageNumber: Int?) -> String {
-        "\(raceId)#\(stageNumber.map(String.init) ?? "final")"
+    static func stageEntryKey(raceId: String, stageNumber: Int?, stageSuffix: String = "") -> String {
+        "\(raceId)#\(stageNumber.map(String.init) ?? "final")\(stageSuffix)"
     }
 
     /// Construye las entradas del feed a partir de los datos crudos, resuelve
@@ -118,13 +120,19 @@ enum ResultsFeedLogic {
         races: [Race],
         fromKey: String,
         toKey: String,
+        automaticSourceRaceIds: Set<String> = [],
         isConcluded: (RaceDay, Race) -> Bool
     ) -> [FeedEntry] {
-        let rdById = Dictionary(uniqueKeysWithValues: raceDays.map { ($0.id, $0) })
+        // El feed recibe jornadas sin el campo transitorio stageSuffix. Se anotan
+        // sobre copias para distinguir 1A/1B sin mutar los modelos del llamador.
+        var days = raceDays
+        RaceLogic.annotateDoubleSectors(&days)
+
+        let rdById = Dictionary(uniqueKeysWithValues: days.map { ($0.id, $0) })
         // Jornadas por carrera, preservando el orden de llegada (el fallback de
         // las pruebas de un día toma la primera, como la web).
         var rdsByRace: [String: [RaceDay]] = [:]
-        for rd in raceDays {
+        for rd in days {
             guard let raceId = rd.raceId else { continue }
             rdsByRace[raceId, default: []].append(rd)
         }
@@ -138,7 +146,7 @@ enum ResultsFeedLogic {
         //    arbitrario; no importa: ambos sectores son mismo día y país, y esta
         //    rama solo actúa si falta raceDayId (el camino normal los separa).
         var rdByRaceStage: [String: RaceDay] = [:]
-        for rd in raceDays {
+        for rd in days {
             guard let raceId = rd.raceId, let sn = rd.stageNumber else { continue }
             let k = "\(raceId)#\(sn)"
             if rdByRaceStage[k] == nil { rdByRaceStage[k] = rd }
@@ -146,9 +154,24 @@ enum ResultsFeedLogic {
         let raceById = Dictionary(uniqueKeysWithValues: races.map { ($0.id, $0) })
 
         // ── Entradas in-house ──────────────────────────────────────────
-        // Claves de TODAS las clasificaciones volcadas (antes del filtro de
-        // fecha): el fallback externos no debe duplicar lo que ya tiene volcado.
-        let inhouseKeys = Set(stages.map { stageEntryKey(raceId: $0.raceId, stageNumber: $0.stageNumber) })
+        // raceDayId es la identidad canónica. El fallback raceId+stageNumber se
+        // mantiene solo para volcados antiguos sin raceDayId y se desactiva si
+        // el mismo número ya tiene una clasificación enlazada: de otro modo una
+        // 1A enlazada ocultaría el fallback externo legítimo de la 1B.
+        let inhouseDayIds = Set(stages.compactMap(\.raceDayId))
+        let linkedStageKeys = Set(stages.filter { $0.raceDayId != nil }.map {
+            stageEntryKey(raceId: $0.raceId, stageNumber: $0.stageNumber)
+        })
+        var legacyStageKeys = Set(stages.filter { $0.raceDayId == nil }.map {
+            stageEntryKey(raceId: $0.raceId, stageNumber: $0.stageNumber)
+        })
+        legacyStageKeys.subtract(linkedStageKeys)
+        func hasInhouse(_ rd: RaceDay) -> Bool {
+            inhouseDayIds.contains(rd.id)
+                || legacyStageKeys.contains(stageEntryKey(
+                    raceId: rd.raceId ?? "", stageNumber: rd.stageNumber
+                ))
+        }
         var entries: [FeedEntry] = []
         var seen = Set<String>()
         var indexByKey: [String: Int] = [:]
@@ -196,7 +219,7 @@ enum ResultsFeedLogic {
                 indexByKey[k] = entries.count
                 entries.append(FeedEntry(
                     key: k, kind: .inhouse, date: date, race: race,
-                    stageNumber: nil, subOrder: 1, rd: entryRd(s, race),
+                    stageNumber: nil, stageSuffix: "", subOrder: 1, rd: entryRd(s, race),
                     stageRefId: s.id, winner: cleanWinner(s.winnerName),
                     oneDayFinalGc: isFinalGc
                 ))
@@ -208,16 +231,18 @@ enum ResultsFeedLogic {
                 seen.insert(k)
                 entries.append(FeedEntry(
                     key: k, kind: .inhouse, isGcFinal: true, date: date, race: race,
-                    stageNumber: nil, subOrder: 0, rd: nil,
+                    stageNumber: nil, stageSuffix: "", subOrder: 0, rd: nil,
                     stageRefId: s.id, winner: cleanWinner(s.winnerName)
                 ))
             } else if s.classKind == "stage", let sn = s.stageNumber {
-                let k = stageEntryKey(raceId: s.raceId, stageNumber: sn)
+                let rd = entryRd(s, race)
+                let suffix = rd?.stageSuffix ?? ""
+                let k = stageEntryKey(raceId: s.raceId, stageNumber: sn, stageSuffix: suffix)
                 guard !seen.contains(k) else { continue }
                 seen.insert(k)
                 entries.append(FeedEntry(
                     key: k, kind: .inhouse, date: date, race: race,
-                    stageNumber: sn, subOrder: 1, rd: entryRd(s, race),
+                    stageNumber: sn, stageSuffix: suffix, subOrder: 1, rd: rd,
                     stageRefId: s.id, winner: cleanWinner(s.winnerName)
                 ))
             }
@@ -225,19 +250,19 @@ enum ResultsFeedLogic {
         }
 
         // ── Fallback externos: jornadas concluidas SIN volcado in-house ─────
-        for rd in raceDays {
+        for rd in days {
             if rd.isRestDay || rd.isCancelledDay { continue }
             guard let raceId = rd.raceId, let race = raceById[raceId] else { continue }
             guard race.extId != nil || race.extSlug != nil else { continue }
+            guard !automaticSourceRaceIds.contains(raceId) else { continue }
             let isOneDay = race.raceFormat == "one_day"
-            let covered = inhouseKeys.contains(stageEntryKey(raceId: raceId, stageNumber: rd.stageNumber))
-                || (isOneDay && (inhouseKeys.contains(stageEntryKey(raceId: raceId, stageNumber: nil))
-                    || seen.contains("\(raceId)#oneday")))
+            let covered = hasInhouse(rd) || (isOneDay && seen.contains("\(raceId)#oneday"))
             if covered { continue }
             guard isConcluded(rd, race) else { continue }
             entries.append(FeedEntry(
                 key: "ext#\(rd.id)", kind: .ext, date: rd.dateKey, race: race,
-                stageNumber: isOneDay ? nil : rd.stageNumber, subOrder: 1, rd: rd
+                stageNumber: isOneDay ? nil : rd.stageNumber,
+                stageSuffix: isOneDay ? "" : (rd.stageSuffix ?? ""), subOrder: 1, rd: rd
             ))
         }
 
@@ -281,7 +306,18 @@ enum ResultsFeedLogic {
     /// (`sortTime`, precomputada), nunca el rd de la entrada.
     /// Devuelve <0 si `a` va antes, >0 si va después, 0 si empatan.
     static func compareEntries(_ a: FeedEntry, _ b: FeedEntry) -> Int {
-        if a.race.id == b.race.id { return a.subOrder - b.subOrder }
+        if a.race.id == b.race.id {
+            let sub = a.subOrder - b.subOrder
+            if sub != 0 { return sub }
+            let stageA = a.stageNumber ?? Int.max
+            let stageB = b.stageNumber ?? Int.max
+            if stageA != stageB { return stageA < stageB ? -1 : 1 }
+            switch a.stageSuffix.compare(b.stageSuffix) {
+            case .orderedAscending: return -1
+            case .orderedDescending: return 1
+            case .orderedSame: return 0
+            }
+        }
         let rA = a.race, rB = b.race
 
         // Dos Campeonatos Nacionales: orden interno por país → línea/CRI → categoría

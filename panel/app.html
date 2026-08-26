@@ -273,6 +273,7 @@
           <div class="panel-view-title">
             Dorsales
           </div>
+          <button class="btn btn--primary" id="newStartlistBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap">+ Nueva lista de inscritos</button>
         </div>
       </div>
       <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
@@ -291,13 +292,16 @@
     <!-- Vista equipos (oculta por defecto) -->
     <div id="teamsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
       <div class="panel-section-divider">
-        <div class="panel-view-row">
+        <div class="panel-view-row panel-view-row--teams">
           <div class="panel-view-title">
             Equipos
           </div>
           <input type="search" id="teamsSearch" placeholder="Buscar equipo…" style="padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);width:200px">
-          <button class="btn btn--ghost" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap;color:#f59e0b">🔍 Duplicados</button>
-          <button class="btn btn--primary" id="addTeamPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo equipo</button>
+          <div class="panel-view-actions panel-view-actions--teams">
+            <button class="btn btn--ghost" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap;color:#f59e0b">🔍 Duplicados</button>
+            <button class="btn btn--primary" id="addRiderPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo corredor</button>
+            <button class="btn btn--primary" id="addTeamPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo equipo</button>
+          </div>
         </div>
       </div>
       <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
@@ -347,12 +351,15 @@
          setupFichajesView() en js/panel.js. -->
     <div id="fichajesView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
       <div class="panel-section-divider">
-        <div class="panel-view-row">
+        <div class="panel-view-row panel-view-row--transfers">
           <div class="panel-view-title">
             Fichajes <span id="fichajesSeason" style="color:var(--text-dim);font-weight:400;font-size:0.8em"></span>
           </div>
-          <button class="btn btn--ghost" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap">Ver todos los movimientos</button>
-          <button class="btn btn--ghost" id="newTeam27Btn" title="Crear un equipo nuevo del catálogo y darle temporada 2027 (equipos que nacen para el año que viene)" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap">+ Equipo 2027</button>
+          <div class="panel-view-actions panel-view-actions--transfers">
+            <button class="btn btn--ghost" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto">Ver todos los movimientos</button>
+            <button class="btn btn--primary" id="addTransferDirectBtn" title="Registrar directamente un movimiento de un corredor">+ Nuevo movimiento</button>
+            <button class="btn btn--primary" id="newTeam27Btn" title="Crear un equipo nuevo del catálogo y darle temporada 2027 (equipos que nacen para el año que viene)">+ Equipo 2027</button>
+          </div>
         </div>
       </div>
       <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
@@ -360,11 +367,6 @@
              desplegada por defecto) → lista de equipos → tocar un equipo abre
              su editor de temporada 2027 en drawer. -->
         <div class="u-stack" id="marketTeamsSection">
-          <div style="display:flex;align-items:center;gap:0.75rem">
-            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap" id="marketTeamsTitle">Equipos</div>
-            <div class="u-grow u-hr-line"></div>
-            <span class="u-fs-sm u-c-dim" id="marketTeamsCount"></span>
-          </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap" id="marketDivBtns"></div>
           <div class="u-stack u-stack--xs" id="marketTeamsList"></div>
         </div>

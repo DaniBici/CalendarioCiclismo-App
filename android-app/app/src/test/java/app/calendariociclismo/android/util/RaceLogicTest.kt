@@ -20,6 +20,19 @@ import java.util.Locale
 @Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
 class RaceLogicTest {
 
+    @Test
+    fun prefersNativeApp_matchesSupportedHostsAndSubdomains() {
+        assertTrue(RaceLogic.prefersNativeApp("https://www.youtube.com/watch?v=abc"))
+        assertTrue(RaceLogic.prefersNativeApp("https://play.hbomax.com/sport/abc"))
+        assertTrue(RaceLogic.prefersNativeApp("https://x.com/uci"))
+    }
+
+    @Test
+    fun prefersNativeApp_rejectsBrowserOnlyAndLookalikeHosts() {
+        assertFalse(RaceLogic.prefersNativeApp("https://www.rtve.es/play/"))
+        assertFalse(RaceLogic.prefersNativeApp("https://notyoutube.com/watch"))
+    }
+
     private val context: Context get() = ApplicationProvider.getApplicationContext()
 
     @Before
@@ -271,6 +284,63 @@ class RaceLogicTest {
     fun `reviveUrl devuelve url de YouTube`() {
         val broadcasts = listOf(broadcast(channel = "Canal", url = "https://youtube.com/watch?v=abc"))
         assertNotNull(RaceLogic.reviveUrl(broadcasts))
+    }
+
+    @Test
+    fun `reviveUrl devuelve url persistente de una red social`() {
+        val broadcasts = listOf(broadcast(channel = "Social", url = "https://www.instagram.com/reel/abc"))
+        assertNotNull(RaceLogic.reviveUrl(broadcasts))
+    }
+
+    @Test
+    fun `reviveUrl atiende flag remoto de una fuente futura`() {
+        val broadcasts = listOf(broadcast(
+            channel = "Pidcock Racing", url = "https://video.example/race", showInRevive = true,
+        ))
+        assertNotNull(RaceLogic.reviveUrl(broadcasts))
+    }
+
+    @Test
+    fun `hasReviveBroadcasts usa fallback de fecha sin hora de meta`() {
+        val rd = raceDay(dateKey = "2020-01-01", estimatedFinishTimeUtc = null)
+        val broadcasts = listOf(broadcast(
+            channel = "Pidcock Racing", url = "https://video.example/race", showInRevive = true,
+        ))
+        assertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, rd))
+    }
+
+    @Test
+    fun `shouldShowBroadcastNote oculta cualquier nota al entrar resultados`() {
+        assertFalse(RaceLogic.shouldShowBroadcastNote(true, false, false))
+        assertFalse(RaceLogic.shouldShowBroadcastNote(true, true, true))
+    }
+
+    @Test
+    fun `shouldShowBroadcastNote conserva regla revive antes de resultados`() {
+        assertTrue(RaceLogic.shouldShowBroadcastNote(false, false, false))
+        assertFalse(RaceLogic.shouldShowBroadcastNote(false, true, false))
+        assertTrue(RaceLogic.shouldShowBroadcastNote(false, true, true))
+    }
+
+    @Test
+    fun `reviveBroadcasts en cancelada conserva solo seleccion editorial`() {
+        val automatic = broadcast(channel = "Eurosport 1", url = "https://eurosport.example/live")
+        val selected = broadcast(
+            channel = "Canal", url = "https://video.example/selected", showInRevive = true,
+        )
+        assertEquals(listOf(selected), RaceLogic.reviveBroadcasts(listOf(automatic, selected), true))
+    }
+
+    @Test
+    fun `reviveUrl devuelve deep link bajo demanda de ETB ON sin flag`() {
+        val broadcasts = listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/m/txirrindularitza-itzulia-5-12345"))
+        assertNotNull(RaceLogic.reviveUrl(broadcasts))
+    }
+
+    @Test
+    fun `reviveUrl rechaza hub lineal de ETB ON sin flag`() {
+        val broadcasts = listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/ch/etb-1"))
+        assertNull(RaceLogic.reviveUrl(broadcasts))
     }
 
     @Test

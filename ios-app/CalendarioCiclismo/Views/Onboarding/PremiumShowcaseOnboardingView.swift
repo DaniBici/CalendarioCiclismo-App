@@ -86,34 +86,38 @@ struct PremiumShowcaseOnboardingView: View {
     }
 
     private var primaryTitle: String {
-        if premium.isLegacyPremiumActive || premium.isSubscribed || !premium.hasRefreshedPurchaseState {
+        if premium.isSubscribed || !premium.hasRefreshedPurchaseState {
             return LocaleService.t("Continuar", "Continue")
         }
-        return LocaleService.t("Ver formas de apoyar", "View support options")
+        return premium.legacyPremiumEntitlementActive
+            ? LocaleService.t("Ver aportaciones puntuales", "View one-time contributions")
+            : LocaleService.t("Ver formas de apoyar", "View support options")
     }
 
     private var secondaryTitle: String {
         if premium.isSubscribed {
             return LocaleService.t("Gestionar suscripción", "Manage subscription")
         }
-        if !isNewInstallation && (premium.isLegacyPremiumActive || !premium.hasRefreshedPurchaseState) {
+        if !isNewInstallation && !premium.hasRefreshedPurchaseState {
             return LocaleService.t("Conoce el cambio", "Learn about the change")
         }
         return LocaleService.t("Continuar", "Continue")
     }
 
     private func primaryAction() {
-        if premium.isLegacyPremiumActive || premium.isSubscribed || !premium.hasRefreshedPurchaseState {
+        if premium.isSubscribed || !premium.hasRefreshedPurchaseState {
             finish("continue")
         } else {
-            finish("open_support") { PremiumService.shared.presentPaywall(.general) }
+            finish(premium.legacyPremiumEntitlementActive ? "open_contributions" : "open_support") {
+                PremiumService.shared.presentPaywall(.general)
+            }
         }
     }
 
     private func secondaryAction() {
         if premium.isSubscribed {
             finish("manage_subscription") { premium.cancelSubscription() }
-        } else if !isNewInstallation && (premium.isLegacyPremiumActive || !premium.hasRefreshedPurchaseState) {
+        } else if !isNewInstallation && !premium.hasRefreshedPurchaseState {
             openURL(explanationURL)
         } else {
             finish(premium.isFounder ? "continue_founder" : "continue_free")
@@ -140,6 +144,12 @@ struct PremiumShowcaseOnboardingView: View {
                 "Made by a professional with two decades of experience in cycling"
             )
         }
+        if premium.legacyPremiumEntitlementActive {
+            return LocaleService.t(
+                "Tu Premium sigue activo hasta su vencimiento; mientras tanto puedes hacer aportaciones puntuales",
+                "Your Premium remains active until it expires; meanwhile you can make one-time contributions"
+            )
+        }
         return LocaleService.t(
             "Quien tuvo Premium recibe el icono Fundador",
             "Previous Premium users receive the Founder icon"
@@ -147,7 +157,7 @@ struct PremiumShowcaseOnboardingView: View {
     }
 
     private var shouldShowSecondaryButton: Bool {
-        !isNewInstallation || premium.isSubscribed || (premium.hasRefreshedPurchaseState && !premium.isLegacyPremiumActive)
+        !isNewInstallation || premium.isSubscribed || premium.hasRefreshedPurchaseState
     }
 
     private func featureRow(_ icon: String, _ text: String) -> some View {
@@ -164,7 +174,7 @@ struct PremiumShowcaseOnboardingView: View {
     }
 
     private func finish(_ action: String, then next: (() -> Void)? = nil) {
-        UserDefaults.standard.set(true, forKey: "support_intro_v4_3_done")
+        UserDefaults.standard.set(true, forKey: "support_intro_v4_3_1_done")
         AnalyticsService.shared.logEvent("onboarding_action", parameters: [
             "onboarding_step": "premium_showcase",
             "action": action,

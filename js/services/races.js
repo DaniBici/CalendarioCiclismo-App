@@ -55,6 +55,42 @@ export function annotateDoubleSectors(days, { skipFcNumbers = false } = {}) {
   });
 }
 
+// ── Resultados: disponibilidad por jornada ─────────────────────────
+/**
+ * Construye el detector de jornadas con resultados propios.
+ *
+ * `raceDayId` es la identidad canónica. El fallback `raceId + stageNumber` se
+ * conserva solo para clasificaciones antiguas sin `raceDayId`; no debe
+ * aplicarse a filas ya enlazadas porque dos sectores A/B comparten número.
+ */
+export function buildInhouseResultsMatcher(stages) {
+  const dayIds = new Set();
+  const linkedStageKeys = new Set();
+  const legacyStageKeys = new Set();
+  const keyOf = stage => {
+    const stageKey = stage.stageNumber == null ? 'final' : stage.stageNumber;
+    return `${stage.raceId || ''}#${stageKey}`;
+  };
+
+  for (const stage of stages || []) {
+    if (stage.raceDayId) {
+      dayIds.add(stage.raceDayId);
+      linkedStageKeys.add(keyOf(stage));
+      continue;
+    }
+    legacyStageKeys.add(keyOf(stage));
+  }
+  linkedStageKeys.forEach(key => legacyStageKeys.delete(key));
+
+  return {
+    has(rd) {
+      if (!rd) return false;
+      if (rd.id && dayIds.has(rd.id)) return true;
+      return legacyStageKeys.has(keyOf(rd));
+    },
+  };
+}
+
 // ── Resultados: agrupación por sector (dobles sectores A/B) ──────────
 /**
  * Un DOBLE SECTOR (etapa partida "3A"/"3B") son DOS jornadas (`race_days`) del
@@ -69,14 +105,14 @@ export function annotateDoubleSectors(days, { skipFcNumbers = false } = {}) {
  * `annotateDoubleSectors`, aquí las jornadas CANCELADAS SÍ cuentan (un sector
  * cancelado sigue siendo A o B y su hermano debe reconocerse como sectorizado).
  *
- * @param {Array<{id, stageNumber, dateKey, neutralStartTimeUtc, isRestDay}>} racedDays
+ * @param {Array<{id, raceId?, stageNumber, dateKey, neutralStartTimeUtc, isRestDay}>} racedDays
  * @returns {{ suffixByDayId: Map<string,string>, sectoredNums: Set<number> }}
  */
 export function sectorSuffixMap(racedDays) {
-  const groups = new Map();   // `${dateKey}|${stageNumber}` → [race_days]
+  const groups = new Map();   // `${raceId}|${dateKey}|${stageNumber}` → [race_days]
   for (const d of racedDays || []) {
     if (d.stageNumber == null || d.isRestDay) continue;
-    const key = `${d.dateKey || ''}|${d.stageNumber}`;
+    const key = `${d.raceId || ''}|${d.dateKey || ''}|${d.stageNumber}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(d);
   }
@@ -110,6 +146,11 @@ export function resultStageEntryKey(stageNumber, raceDayId, suffixByDayId, secto
     && suffixByDayId && suffixByDayId.has(raceDayId))
     ? suffixByDayId.get(raceDayId) : '';
   return `${stageNumber}${sfx}`;
+}
+
+/** Clave del feed: la carrera acota la entrada sectorizada. */
+export function resultFeedEntryKey(raceId, stageNumber, raceDayId, suffixByDayId, sectoredNums) {
+  return `${raceId || ''}#${resultStageEntryKey(stageNumber, raceDayId, suffixByDayId, sectoredNums)}`;
 }
 
 /** Descompone una clave de entrada de resultados en `{ stageNumber, suffix }`. */

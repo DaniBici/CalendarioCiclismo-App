@@ -93,10 +93,37 @@ final class TransfersLogicTests: XCTestCase {
 
     func test_feedPrioritizesNextSeasonSigningsOverMidSeasonOnSameDay() {
         let feed = TransfersLogic.confirmedFeed([
-            transfer(id: "midSeason", riderId: "r1", to: "team_b", announcedAt: "2026-08-01", createdAt: "2026-08-01T12:00:00Z", midSeason: true),
-            transfer(id: "nextSeason", riderId: "r2", to: "team_b", announcedAt: "2026-08-01", createdAt: "2026-08-01T09:00:00Z"),
-        ])
-        XCTAssertEqual(feed.map(\.id), ["nextSeason", "midSeason"])
+            transfer(id: "midSeasonWT", riderId: "r1", to: "wt", announcedAt: "2026-08-01", midSeason: true),
+            transfer(id: "nextSeasonPTW", riderId: "r2", to: "ptw", announcedAt: "2026-08-01"),
+        ], categoryByTeamId: ["wt": "WT", "ptw": "PRW"], teamNameById: ["wt": "Alfa", "ptw": "Zeta"])
+        XCTAssertEqual(feed.map(\.id), ["nextSeasonPTW", "midSeasonWT"])
+    }
+
+    func test_feedsSortEachDayByDestinationCategoryAndTeamName() {
+        let categories = [
+            "wt_z": "WT", "wt_a": "WT", "pt": "PT", "wwt": "WWT", "ptw": "PRW",
+        ]
+        let names = [
+            "wt_z": "Zeta", "wt_a": "Ábaco", "pt": "Beta",
+            "wwt": "Alfa Women", "ptw": "Delta Women",
+        ]
+        let signings = TransfersLogic.confirmedFeed([
+            transfer(id: "ptw", riderId: "r5", to: "ptw"),
+            transfer(id: "wt_z", riderId: "r2", to: "wt_z"),
+            transfer(id: "wwt", riderId: "r4", to: "wwt"),
+            transfer(id: "pt", riderId: "r3", to: "pt"),
+            transfer(id: "wt_a", riderId: "r1", to: "wt_a"),
+        ], categoryByTeamId: categories, teamNameById: names)
+        let renewals = TransfersLogic.renewalFeed([
+            transfer(id: "ptw", riderId: "r5", type: "renewal", to: "ptw"),
+            transfer(id: "wt_z", riderId: "r2", type: "renewal", to: "wt_z"),
+            transfer(id: "wwt", riderId: "r4", type: "renewal", to: "wwt"),
+            transfer(id: "pt", riderId: "r3", type: "renewal", to: "pt"),
+            transfer(id: "wt_a", riderId: "r1", type: "renewal", to: "wt_a"),
+        ], categoryByTeamId: categories, teamNameById: names)
+
+        XCTAssertEqual(signings.map(\.id), ["wt_a", "wt_z", "pt", "wwt", "ptw"])
+        XCTAssertEqual(renewals.map(\.id), signings.map(\.id))
     }
 
     func test_groupByDayKeepsOrderAndGroups() {

@@ -20,8 +20,9 @@ import WidgetKit
 /// Los usuarios que ya tenían inglés activado en 2.0 (Premium) saltan este
 /// paso automáticamente (migración en `LocaleService.init`).
 ///
-/// `premiumShowcase` anuncia la retirada definitiva de publicidad en 4.3 y el
-/// modelo voluntario Amigo. Se muestra una vez a todas las instalaciones.
+/// `premiumShowcase` anuncia la retirada definitiva de publicidad y el modelo
+/// voluntario Amigo. En 4.3.1 vuelve a mostrarse una vez para cubrir también
+/// a quienes ya completaron la primera versión del anuncio en 4.3.0.
 private enum OnboardingStep: Int, CaseIterable, Comparable {
     case language
     case notifications
@@ -37,7 +38,7 @@ private enum OnboardingStep: Int, CaseIterable, Comparable {
     static func firstPending() -> OnboardingStep {
         if !LocaleService.shared.hasShownLanguageAnnouncement { return .language }
         if !NotificationManager.shared.hasCompletedOnboarding { return .notifications }
-        if !UserDefaults.standard.bool(forKey: "support_intro_v4_3_done") {
+        if !UserDefaults.standard.bool(forKey: "support_intro_v4_3_1_done") {
             return .premiumShowcase
         }
         return .done

@@ -152,6 +152,9 @@
     <string name="stage_doc_ribinou">Ribinou</string>
     <string name="stage_doc_add_to_calendar">Add to calendar</string>
     <string name="stage_broadcast_channel_fallback">Channel</string>
+    <string name="stage_broadcast_filter_all">All</string>
+    <string name="stage_broadcast_filter_region">My region</string>
+    <string name="stage_broadcast_no_region">No TV in your region</string>
     <string name="stage_action_back_cd">Back</string>
     <string name="stage_action_open_link_cd">Open link</string>
     <string name="stage_dialog_out_of_range_title">File out of range</string>

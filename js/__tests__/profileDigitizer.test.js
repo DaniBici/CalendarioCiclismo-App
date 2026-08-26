@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildDigitizedElevationProfile, repeatControlPointRegion } from '../profile-digitizer.js';
+import {
+  buildDigitizedElevationProfile,
+  buildProfileAssetDownloadRequest,
+  repeatControlPointRegion,
+} from '../profile-digitizer.js';
 
 const controls = [
   { id: 1, x: 0.10, y: 0.70 },
@@ -7,6 +11,25 @@ const controls = [
   { id: 3, x: 0.65, y: 0.20 },
   { id: 4, x: 0.90, y: 0.55 },
 ];
+
+describe('buildProfileAssetDownloadRequest', () => {
+  it('separa en caché los perfiles de etapas distintas', () => {
+    const proxy = 'https://example.supabase.co/functions/v1/r2-upload';
+    const stage1 = buildProfileAssetDownloadRequest(
+      proxy,
+      'https://assets.calendariociclismo.app/races/la-vuelta/2026/stage-1/profile.pdf',
+    );
+    const stage2 = buildProfileAssetDownloadRequest(
+      proxy,
+      'https://assets.calendariociclismo.app/races/la-vuelta/2026/stage-2/profile.pdf',
+    );
+
+    expect(stage1.filename).toBe('races/la-vuelta/2026/stage-1/profile.pdf');
+    expect(stage2.filename).toBe('races/la-vuelta/2026/stage-2/profile.pdf');
+    expect(stage1.url).not.toBe(stage2.url);
+    expect(new URL(stage2.url).searchParams.get('asset')).toBe(stage2.filename);
+  });
+});
 
 describe('buildDigitizedElevationProfile', () => {
   it('calibra puntos interiores y genera el contrato de elevationProfile', () => {

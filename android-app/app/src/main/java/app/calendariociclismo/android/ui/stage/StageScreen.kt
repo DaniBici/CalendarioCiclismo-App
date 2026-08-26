@@ -34,7 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Grain
@@ -50,7 +50,6 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -100,6 +99,7 @@ import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.MarkdownText
 import app.calendariociclismo.android.ui.components.RaceLogo
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.StageTypeBadge
 import app.calendariociclismo.android.ui.components.TVBadge
 import app.calendariociclismo.android.ui.navigation.Routes
@@ -111,6 +111,7 @@ import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.GuideRow
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.SimplifiedGuide
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.Dispatchers
@@ -168,11 +169,10 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
     Scaffold { padding ->
         when (val s = state) {
             StageState.Loading -> {
-                val loadingCd = stringResource(R.string.loading)
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loadingCd }) }
+                RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                    modifier = Modifier.padding(padding),
+                )
             }
             is StageState.Error -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -279,17 +279,14 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     // o por hora)? Si lo están, la GC del día los recoge → no se
                     // muestra "Así está la carrera" (espejo de `_currentResultsAvailable`).
                     val hasInhouse = s.data.hasInhouseResults
-                    val currentResultsAvailable =
-                        hasInhouse || RaceLogic.shouldShowResultsDetail(raceDay, race)
+                    val currentResultsAvailable = hasInhouse
 
                     // "Así está la carrera": resultados de la etapa anterior. Si esa
                     // etapa tiene clasificaciones in-house → CTA primario a la pantalla
                     // nativa (externos de respaldo); si no, comportamiento clásico externos
                     // con el gate temporal. Espejo de jornada.js (web).
                     val showPrevInhouse = s.data.prevHasInhouse && !currentResultsAvailable
-                    val showPrevExternal = prevRd != null && race != null &&
-                        RaceLogic.shouldShowPreviousResults(prevRd, raceDay, race)
-                    if (prevRd != null && race != null && (showPrevExternal || showPrevInhouse)) {
+                    if (prevRd != null && race != null && showPrevInhouse) {
                         item {
                             PreviousResultsSection(
                                 race = race,
@@ -310,13 +307,14 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     // el CTA in-house arriba (si lo hay) y externos como "También en"
                     // debajo — mismo patrón que "Así está la carrera" y que
                     // jornada.js (web). Sin in-house → externos clásicos.
-                    val showResults = RaceLogic.shouldShowResultsDetail(raceDay, race)
-                    if (race != null && (showResults || hasInhouse)) {
+                    if (race != null && hasInhouse) {
                         item {
                             ResultsButtonsCard(
                                 titleRes = R.string.stage_section_results,
-                                extUrlA = RaceLogic.buildExtUrlA(race, raceDay.stageNumber),
-                                extUrlB = RaceLogic.buildExtUrlB(race, raceDay.stageNumber, raceDay.stageSuffix),
+                                // Una cancelación conserva el CTA nativo con su aviso,
+                                // pero no genera enlaces externos inexistentes.
+                                extUrlA = if (raceDay.isCancelledDay) null else RaceLogic.buildExtUrlA(race, raceDay.stageNumber),
+                                extUrlB = if (raceDay.isCancelledDay) null else RaceLogic.buildExtUrlB(race, raceDay.stageNumber, raceDay.stageSuffix),
                                 onInhouseTap = if (hasInhouse) {
                                     { navController.navigate(Routes.results(race.id, s.data.resultsStageNumber, suffix = raceDay.stageSuffix)) }
                                 } else null,
@@ -333,13 +331,18 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     // showInRevive curado). BroadcastSection ya se queda solo con los
                     // de Revive cuando la jornada ha concluido. Paridad con la web.
                     val cancelledWithoutRevive = s.data.raceDay.isCancelledDay &&
-                        s.data.broadcasts.none { isReviveBroadcast(it) }
-                    if (s.data.broadcasts.isNotEmpty() && !cancelledWithoutRevive) {
+                        s.data.broadcasts.none { it.showInRevive }
+                    val hasBroadcastSection = s.data.broadcasts.isNotEmpty() ||
+                        s.data.allBroadcasts.isNotEmpty() ||
+                        s.data.raceDay.tvStatus == "pending"
+                    if (hasBroadcastSection && !cancelledWithoutRevive) {
                         item {
                             BroadcastSection(
                                 raceDay = s.data.raceDay,
                                 race = race,
+                                hasResults = s.data.hasActualResults,
                                 broadcasts = s.data.broadcasts,
+                                allBroadcasts = s.data.allBroadcasts,
                                 onExternalLinkTap = { url ->
                                     openExternal(context, url) { offlineAlert = it }
                                 },
@@ -413,11 +416,14 @@ private suspend fun loadStageData(
     val latest = app.database.raceDaysDao().getById(stageId)
         ?.toModel() ?: error(app.getString(R.string.stage_label_route_unknown))
     val race = latest.raceId?.let { app.database.racesDao().getById(it)?.toModel() }
+    val allBroadcasts = app.database.broadcastsDao()
+        .getByRaceDay(stageId)
+        .map { it.toModel() }
+        .sortedBy { it.sortOrder }
     val broadcasts = RaceLogic.filterBroadcastsByRegion(
-        app.database.broadcastsDao()
-            .getByRaceDay(stageId).map { it.toModel() },
+        allBroadcasts,
         app.preferences.snapshotRegionPreference().allowedBroadcastGroups,
-    ).sortedBy { it.sortOrder }
+    )
     val stageAssets = app.database.assetsDao()
         .getByRaceDay(stageId).map { it.toModel() }
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
@@ -456,10 +462,12 @@ private suspend fun loadStageData(
         raceDay = latest,
         race = race,
         broadcasts = broadcasts,
+        allBroadcasts = allBroadcasts,
         assets = assets,
         hasStartlist = hasStartlist,
         siblings = siblings,
         hasInhouseResults = inhouseByDay.containsKey(latest.id) || latest.isCancelledDay,
+        hasActualResults = inhouseByDay.containsKey(latest.id),
         resultsStageNumber = currentInhouseStage ?: latest.stageNumber,
         prevHasInhouse = previous?.let { inhouseByDay.containsKey(it.id) } == true,
         prevResultsStageNumber = previous?.let { inhouseByDay[it.id] },
@@ -634,13 +642,6 @@ private fun openOwnAsset(
 }
 
 /** YouTube, HBO Max y X deben abrirse en su app nativa si está instalada. */
-private fun prefersNativeApp(url: String): Boolean {
-    val lower = url.lowercase()
-    return lower.contains("youtube.com") || lower.contains("youtu.be") ||
-        lower.contains("hbomax.com") || lower.contains("play.max.com") ||
-        lower.contains("x.com") || lower.contains("twitter.com")
-}
-
 private fun openExternal(
     context: Context,
     url: String,
@@ -650,18 +651,7 @@ private fun openExternal(
         showAlert(OfflineAccessAlert.ExternalLinkOffline)
         return
     }
-    runCatching {
-        val uri = url.toUri()
-        if (prefersNativeApp(url)) {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, uri).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-        } else {
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
-        }
-    }
+    openExternalUrl(context, url)
 }
 
 // ACTION_INSERT para que el evento entre al calendario primario sin permisos
@@ -1747,35 +1737,52 @@ private fun PreviousResultsSection(
 // ─── Retransmisión / Revive ───────────────────────────────────────
 
 private fun isReviveBroadcast(b: Broadcast): Boolean {
-    val url = b.url?.takeIf { it.isNotEmpty() } ?: return false
-    if (b.showInRevive) return true
-    val ch = (b.channel ?: "").lowercase()
-    return ch.contains("eurosport") || ch.contains("hbo max") ||
-        url.lowercase().contains("youtube.com") || url.lowercase().contains("youtu.be")
+    return RaceLogic.isReviveBroadcast(b)
+}
+
+private fun broadcastRegionLabel(country: String?): String? {
+    if (country == null || country == "ALL") return null
+    if (LocaleHolder.current.language != "en") {
+        return when (country) {
+            "UK_IE" -> "GB / IRL"
+            "SCANDI" -> "ESCANDI"
+            else -> country
+        }
+    }
+    return when (country) {
+        "EUROPA" -> "EUROPE"
+        "UK_IE" -> "UK / IRL"
+        "NORTEAM" -> "NORTH AM."
+        else -> country
+    }
 }
 
 @Composable
 private fun BroadcastSection(
     raceDay: RaceDay,
     race: Race?,
+    hasResults: Boolean,
     broadcasts: List<Broadcast>,
+    allBroadcasts: List<Broadcast>,
     onExternalLinkTap: (String) -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
+    var showAllBroadcasts by remember(raceDay.id) { mutableStateOf(false) }
+    val regionalIds = remember(broadcasts) { broadcasts.mapTo(mutableSetOf()) { it.id } }
+    val hasHiddenBroadcasts = allBroadcasts.any { it.id !in regionalIds }
 
-    // T+30: filtrar a Eurosport/HBO Max/YouTube y cambiar título a "Revive".
-    // Una jornada CANCELADA no espera al T+30: ya no habrá directo, así que si
-    // tiene vídeo de lo que se disputó, se muestra como "Revive" desde el
-    // momento en que se marca como cancelada (paridad con la web).
+    // T+30: filtrar a emisiones persistentes y cambiar el título a "Revive".
+    // Sin hora de meta se usa el fallback común de dateKey 18:00 UTC + 30 min.
+    // Revive conserva el filtro regional y no ofrece el selector «Todas».
     val hasReviveBroadcast = broadcasts.isNotEmpty() &&
-        (raceDay.isCancelledDay ||
-            (raceDay.estimatedFinishTimeUtc != null && RaceLogic.raceTimeCheck(raceDay, 30))) &&
-        broadcasts.any { isReviveBroadcast(it) }
+        (if (raceDay.isCancelledDay) broadcasts.any { it.showInRevive }
+        else RaceLogic.hasReviveBroadcasts(broadcasts, raceDay))
 
+    val selectedBroadcasts = if (showAllBroadcasts) allBroadcasts else broadcasts
     val visibleBroadcasts = if (hasReviveBroadcast)
-        broadcasts.filter { isReviveBroadcast(it) }
+        RaceLogic.reviveBroadcasts(broadcasts, raceDay.isCancelledDay)
     else
-        broadcasts
+        selectedBroadcasts
 
     val title = if (hasReviveBroadcast) {
         if (race?.isOneDay == true) stringResource(R.string.stage_section_broadcast_revive_one_day)
@@ -1787,17 +1794,38 @@ private fun BroadcastSection(
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 SectionTitle(title)
-                // Mismo chip de Hoy. En Jornada se mantiene visible aunque ya
-                // exista un canal provisional o Live texto.
                 if (!hasReviveBroadcast && raceDay.tvStatus == "pending") {
                     TVBadge(tvStatus = "pending", broadcasts = emptyList())
                 }
+                Spacer(Modifier.weight(1f))
+                if (hasHiddenBroadcasts && !hasReviveBroadcast) {
+                    TextButton(onClick = { showAllBroadcasts = !showAllBroadcasts }) {
+                        Text(
+                            if (showAllBroadcasts) {
+                                stringResource(R.string.stage_broadcast_filter_region)
+                            } else {
+                                stringResource(R.string.stage_broadcast_filter_all)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(4.dp))
+            if (visibleBroadcasts.isEmpty() && hasHiddenBroadcasts && !showAllBroadcasts) {
+                Text(
+                    text = stringResource(R.string.stage_broadcast_no_region),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+            }
             visibleBroadcasts.forEach { b ->
                 val url = b.url?.takeIf { it.isNotEmpty() }
                 Row(
@@ -1820,18 +1848,47 @@ private fun BroadcastSection(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         val channelFallback = stringResource(R.string.stage_broadcast_channel_fallback)
-                        val channelLine = buildString {
-                            append(b.channel ?: channelFallback)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = b.channel ?: channelFallback,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            if (showAllBroadcasts && !hasReviveBroadcast) {
+                                broadcastRegionLabel(b.country)?.let { region ->
+                                    Text(
+                                        text = region,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = primary,
+                                        modifier = Modifier
+                                            .background(
+                                                primary.copy(alpha = 0.12f),
+                                                RoundedCornerShape(3.dp),
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
                             if (!hasReviveBroadcast) {
-                                b.startTimeLocal?.let { append("  ·  $it") }
+                                b.startTimeLocal?.let { time ->
+                                    Text(
+                                        text = "·",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        text = time,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
-                        Text(
-                            text = channelLine,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        if (!hasReviveBroadcast || b.showInRevive) {
+                        if (RaceLogic.shouldShowBroadcastNote(hasResults, hasReviveBroadcast, b.showInRevive)) {
                             b.note?.takeIf { it.isNotEmpty() }?.let { note ->
                                 Text(
                                     text = note,
@@ -1843,10 +1900,10 @@ private fun BroadcastSection(
                     }
                     if (url != null) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = stringResource(R.string.stage_action_open_link_cd),
                             tint = primary,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -1950,10 +2007,12 @@ private data class StageData(
     val raceDay: RaceDay,
     val race: Race?,
     val broadcasts: List<Broadcast>,
+    val allBroadcasts: List<Broadcast>,
     val assets: List<Asset>,
     val hasStartlist: Boolean = false,
     val siblings: List<RaceDay> = emptyList(),
     val hasInhouseResults: Boolean = false,
+    val hasActualResults: Boolean = false,
     val resultsStageNumber: Int? = null,
     val prevHasInhouse: Boolean = false,
     val prevResultsStageNumber: Int? = null,

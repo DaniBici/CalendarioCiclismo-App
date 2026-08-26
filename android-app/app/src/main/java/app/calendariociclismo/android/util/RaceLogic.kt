@@ -188,16 +188,56 @@ object RaceLogic {
         return 4
     }
 
-    /** Primer URL de un broadcast Revive (Eurosport, HBO Max, YouTube, o showInRevive=true). */
+    /** Hosts que deben intentar primero una app nativa antes del Custom Tab. */
+    fun prefersNativeApp(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull() ?: return false
+        val domains = listOf(
+            "youtube.com", "youtu.be", "hbomax.com", "play.max.com",
+            "x.com", "twitter.com",
+        )
+        return domains.any { host == it || host.endsWith(".$it") }
+    }
+
+    private fun isEtbOnDemand(url: String): Boolean {
+        val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+        return uri.scheme.equals("https", ignoreCase = true) &&
+            uri.host.equals("etbon.eus", ignoreCase = true) &&
+            uri.path.orEmpty().startsWith("/m/")
+    }
+
+    private fun isSocialReplay(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull() ?: return false
+        val domains = listOf(
+            "youtube.com", "youtu.be", "facebook.com", "fb.watch", "instagram.com",
+            "tiktok.com", "twitch.tv", "kick.com", "twitter.com", "x.com",
+        )
+        return domains.any { host == it || host.endsWith(".$it") }
+    }
+
+    fun isReviveBroadcast(broadcast: Broadcast): Boolean {
+        val url = broadcast.url?.takeIf { it.isNotEmpty() } ?: return false
+        if (broadcast.showInRevive) return true
+        val channel = (broadcast.channel ?: "").lowercase()
+        return channel.contains("eurosport") || channel.contains("hbo max") ||
+            isSocialReplay(url) || isEtbOnDemand(url)
+    }
+
+    fun shouldShowBroadcastNote(hasResults: Boolean, isRevive: Boolean, showInRevive: Boolean): Boolean =
+        !hasResults && (!isRevive || showInRevive)
+
+    fun hasReviveBroadcasts(broadcasts: List<Broadcast>, rd: RaceDay): Boolean =
+        raceTimeCheck(rd, 30) && broadcasts.any(::isReviveBroadcast)
+
+    fun reviveBroadcasts(broadcasts: List<Broadcast>, isCancelled: Boolean): List<Broadcast> =
+        if (isCancelled) broadcasts.filter { it.showInRevive }
+        else broadcasts.filter(::isReviveBroadcast)
+
+    /** Primer URL Revive, incluidos los deep-links /m/ bajo demanda de ETB ON. */
     fun reviveUrl(broadcasts: List<Broadcast>): String? {
         val sorted = broadcasts.sortedBy { it.sortOrder }
         for (b in sorted) {
             val url = b.url ?: continue
-            if (b.showInRevive) return url
-            val channel = (b.channel ?: "").lowercase()
-            if (channel.contains("eurosport") || channel.contains("hbo max")
-                || url.contains("youtube.com") || url.contains("youtu.be")
-            ) return url
+            if (isReviveBroadcast(b)) return url
         }
         return null
     }

@@ -11,6 +11,8 @@ final class ChampionshipsViewModel {
     /// Claves `raceId#stage|final` de pruebas con resultados in-house (keepForWeb).
     /// Si una celda está aquí, su trofeo lleva a la pantalla NATIVA de resultados.
     var inhouseKeys: Set<String> = []
+    var automaticSourceRaceIds: Set<String> = []
+    var resultsSourceGateResolved = false
     /// Filtro local (Hoy/Todas/Pro/Masc/Fem), sin persistencia. Empieza en `today`
     /// durante su rango (24–28 jun, predeterminado); fuera de él, en `all`.
     var activeFilter: ChampionshipsConfig.Filter = ChampionshipsConfig.defaultFilter
@@ -37,6 +39,8 @@ final class ChampionshipsViewModel {
         let raceIds = countries.flatMap { $0.slots.values.compactMap { $0.race?.id } }
         if !raceIds.isEmpty {
             inhouseKeys = await SupabaseService.shared.inhouseStageKeys(raceIds: raceIds)
+            automaticSourceRaceIds = await SupabaseService.shared.automaticResultsSourceRaceIds(raceIds: raceIds)
         }
+        resultsSourceGateResolved = true
     }
 }

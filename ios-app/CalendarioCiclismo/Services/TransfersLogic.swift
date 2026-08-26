@@ -81,29 +81,64 @@ enum TransfersLogic {
         x.type == "transfer" && (x.toTeamId != nil || (x.toTeamName != nil && x.toTeamName != unknownDest))
     }
 
+    /// PRW es la clave persistida para la categoría PTW (Women's ProTeam).
+    private static let feedCategoryRank = ["WT": 0, "PT": 1, "WWT": 2, "PRW": 3, "PTW": 3]
+
+    private static func feedPrecedes(
+        _ a: RiderTransfer,
+        _ b: RiderTransfer,
+        categoryByTeamId: [String: String],
+        teamNameById: [String: String]
+    ) -> Bool {
+        let dateA = a.announcedAt ?? ""
+        let dateB = b.announcedAt ?? ""
+        if dateA != dateB { return dateA > dateB }
+
+        // Próximas temporadas primero; mitad de temporada siempre en el bloque final.
+        if a.midSeason != b.midSeason { return !a.midSeason }
+
+        let rankA = a.toTeamId.flatMap { categoryByTeamId[$0] }.flatMap { feedCategoryRank[$0] } ?? 90
+        let rankB = b.toTeamId.flatMap { categoryByTeamId[$0] }.flatMap { feedCategoryRank[$0] } ?? 90
+        if rankA != rankB { return rankA < rankB }
+
+        func teamName(_ x: RiderTransfer) -> String {
+            x.toTeamId.flatMap { teamNameById[$0] } ?? x.toTeamName ?? x.toTeamId ?? ""
+        }
+        let byTeam = teamName(a).compare(
+            teamName(b), options: [.caseInsensitive, .diacriticInsensitive],
+            range: nil, locale: Locale(identifier: "es")
+        )
+        if byTeam != .orderedSame { return byTeam == .orderedAscending }
+
+        let creationA = a.createdAt ?? ""
+        let creationB = b.createdAt ?? ""
+        if creationA != creationB { return creationA > creationB }
+        return a.id < b.id
+    }
+
     /// Feed público: solo FICHAJES confirmados CON fecha visible, cronológico
     /// inverso. `dateVisible=false` es un flag de publicación, no una fecha
     /// ausente: el movimiento sigue contando en el detalle de equipo.
-    static func confirmedFeed(_ transfers: [RiderTransfer]) -> [RiderTransfer] {
+    static func confirmedFeed(
+        _ transfers: [RiderTransfer],
+        categoryByTeamId: [String: String] = [:],
+        teamNameById: [String: String] = [:]
+    ) -> [RiderTransfer] {
         transfers.filter { $0.status == "confirmed" && $0.dateVisible && isRealSigning($0) }
             .sorted {
-                let dateA = $0.announcedAt ?? ""
-                let dateB = $1.announcedAt ?? ""
-                if dateA != dateB { return dateA > dateB }
-                // En una misma fecha, primero el mercado de la próxima temporada
-                // y después los fichajes efectivos de mitad de temporada.
-                if $0.midSeason != $1.midSeason { return !$0.midSeason }
-                return ($0.createdAt ?? "") > ($1.createdAt ?? "")
+                feedPrecedes($0, $1, categoryByTeamId: categoryByTeamId, teamNameById: teamNameById)
             }
     }
 
     /// Feed público de renovaciones confirmadas con fecha visible.
-    static func renewalFeed(_ transfers: [RiderTransfer]) -> [RiderTransfer] {
+    static func renewalFeed(
+        _ transfers: [RiderTransfer],
+        categoryByTeamId: [String: String] = [:],
+        teamNameById: [String: String] = [:]
+    ) -> [RiderTransfer] {
         transfers.filter { $0.status == "confirmed" && $0.dateVisible && $0.type == "renewal" }
             .sorted {
-                let a = ($0.announcedAt ?? "", $0.createdAt ?? "")
-                let b = ($1.announcedAt ?? "", $1.createdAt ?? "")
-                return a > b
+                feedPrecedes($0, $1, categoryByTeamId: categoryByTeamId, teamNameById: teamNameById)
             }
     }
 

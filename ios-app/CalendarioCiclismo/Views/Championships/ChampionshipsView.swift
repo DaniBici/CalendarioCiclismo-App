@@ -101,7 +101,7 @@ struct ChampionshipsView: View {
                         } else {
                             LazyVStack(spacing: 10) {
                                 ForEach(viewModel.displayCountries) { country in
-                                    ChampionshipCountryCard(country: country, filter: viewModel.activeFilter, inhouseKeys: viewModel.inhouseKeys)
+                                    ChampionshipCountryCard(country: country, filter: viewModel.activeFilter, inhouseKeys: viewModel.inhouseKeys, automaticSourceRaceIds: viewModel.automaticSourceRaceIds, resultsSourceGateResolved: viewModel.resultsSourceGateResolved)
                                 }
                             }
                             .padding(.horizontal)
@@ -167,6 +167,8 @@ private struct ChampionshipCountryCard: View {
     let country: ChampionshipCountry
     let filter: ChampionshipsConfig.Filter
     var inhouseKeys: Set<String> = []
+    var automaticSourceRaceIds: Set<String> = []
+    var resultsSourceGateResolved = false
 
     private let columns = 4
 
@@ -196,7 +198,7 @@ private struct ChampionshipCountryCard: View {
                         HStack(spacing: 6) {
                             ForEach(rows[r], id: \.self) { slot in
                                 if let enriched = country.slots[slot] {
-                                    ChampionshipEventCell(slot: slot, item: enriched, inhouseKeys: inhouseKeys)
+                                    ChampionshipEventCell(slot: slot, item: enriched, inhouseKeys: inhouseKeys, automaticSourceRaceIds: automaticSourceRaceIds, resultsSourceGateResolved: resultsSourceGateResolved)
                                 }
                             }
                             // Relleno para mantener anchos uniformes en la última fila.
@@ -225,6 +227,8 @@ private struct ChampionshipEventCell: View {
     let slot: ChampionshipsConfig.Slot
     let item: EnrichedRaceDay
     var inhouseKeys: Set<String> = []
+    var automaticSourceRaceIds: Set<String> = []
+    var resultsSourceGateResolved = false
 
     @Environment(\.openURL) private var openURL
     @State private var regionService = RegionService.shared
@@ -258,7 +262,11 @@ private struct ChampionshipEventCell: View {
     }
     /// Con resultados in-house (trofeo → nativo) o, al concluir, con ids externos →
     /// la celda muestra resultados en vez de hora/TV.
-    private var showResults: Bool { hasInhouse || (concluded && (extUrlA != nil || extUrlB != nil)) }
+    private var showResults: Bool {
+        let automaticSource = item.race.map { automaticSourceRaceIds.contains($0.id) } ?? false
+        return hasInhouse || (resultsSourceGateResolved && !automaticSource
+            && concluded && (extUrlA != nil || extUrlB != nil))
+    }
 
     var body: some View {
         // Al mostrar resultados la navegación va solo en la cabecera (etiqueta +

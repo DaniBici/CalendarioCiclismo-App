@@ -83,7 +83,7 @@ async function init() {
           supabase.from('assets').select('*').in('raceDayId', dayIds),
           loadInhouseStageSet(raceIds),
         ])
-      : [{ data: [] }, { data: [] }, { has: () => false }];
+      : [{ data: [] }, { data: [] }, { has: () => false, allowsExternal: () => true }];
     const bByRd = {}, aByRd = {};
     (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] ??= []).push(b); });
     (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] ??= []).push(a); });
@@ -96,6 +96,7 @@ async function init() {
       // ¿Clasificaciones in-house (keepForWeb)? → el trofeo abre /resultados/ (nativo
       // de la web), igual que las race cards de Hoy; si no, caemos a externos.
       rd._hasInhouse = inhouseSet.has(rd);
+      rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId);
       _rdById[rd.id] = rd;
     });
 
@@ -271,7 +272,7 @@ function eventCell(race, rd, label) {
     // El trofeo abre openResultsModal (que redirige a /resultados/ cuando hay
     // clasificaciones propias). Gestionado por delegación en el listener de la rejilla.
     timeHtml = `<button type="button" class="badge badge--results camp-inhouse-trophy" title="${esc(t('stage.results'))}" aria-label="${esc(t('stage.results'))}">${_trophySvg}</button>`;
-  } else if (concluded && (extUrlA || extUrlB)) {
+  } else if (concluded && rd._allowExternalResults !== false && (extUrlA || extUrlB)) {
     // Misma presentación que el badge de "Resultados" de las race cards (badge--results).
     timeHtml =
       (extUrlA  ? `<a class="badge badge--results" href="${extUrlA}"  target="_blank" rel="noopener" onclick="event.stopPropagation()" title="fuente externa">FC</a>` : '') +

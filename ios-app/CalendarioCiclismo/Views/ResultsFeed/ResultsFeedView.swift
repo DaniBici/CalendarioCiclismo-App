@@ -199,7 +199,11 @@ struct ResultsFeedView: View {
                             FeedRowView(entry: entry) {
                                 Haptics.play(.navigation)
                                 if entry.kind == .inhouse {
-                                    resultsRoute = ResultsRoute(raceId: entry.race.id, stageNumber: entry.stageNumber)
+                                    resultsRoute = ResultsRoute(
+                                        raceId: entry.race.id,
+                                        stageNumber: entry.stageNumber,
+                                        stageSuffix: entry.stageSuffix.isEmpty ? nil : entry.stageSuffix
+                                    )
                                 } else if let rd = entry.rd {
                                     resultsSheetItem = ResultsSheetItem(race: entry.race, raceDay: rd)
                                 }
@@ -589,7 +593,7 @@ private struct FeedRowView: View {
         if let sn = entry.stageNumber {
             return sn == 0
                 ? LocaleService.t("Prólogo", "Prologue")
-                : "\(LocaleService.t("Etapa", "Stage")) \(sn)"
+                : "\(LocaleService.t("Etapa", "Stage")) \(sn)\(entry.stageSuffix)"
         }
         return ""
     }

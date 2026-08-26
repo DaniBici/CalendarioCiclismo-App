@@ -11,6 +11,18 @@ set -e
 
 REPO="${CI_PRIMARY_REPOSITORY_PATH}"
 
+# --- Versión ---------------------------------------------------------------
+# project.yml es la fuente de verdad. El .xcodeproj está versionado para uso
+# local, pero puede quedarse desfasado entre regeneraciones con XcodeGen.
+# Sincronizamos MARKETING_VERSION antes de que Xcode Cloud compile.
+PROJECT_YML="${REPO}/ios-app/project.yml"
+PBXPROJ="${REPO}/ios-app/CalendarioCiclismo.xcodeproj/project.pbxproj"
+MARKETING_VERSION=$(awk -F'"' '/MARKETING_VERSION:/ { print $2; exit }' "${PROJECT_YML}")
+if [ -n "${MARKETING_VERSION}" ] && [ -f "${PBXPROJ}" ]; then
+  sed -E -i '' "s/MARKETING_VERSION = [0-9]+\.[0-9]+\.[0-9]+;/MARKETING_VERSION = ${MARKETING_VERSION};/g" "${PBXPROJ}"
+  echo "Synced Xcode MARKETING_VERSION to ${MARKETING_VERSION}"
+fi
+
 # --- Supabase.xcconfig -------------------------------------------------------
 
 CONFIG_DIR="${REPO}/ios-app/Config"
@@ -39,6 +51,31 @@ mkdir -p "${PLIST_DIR}"
 printf '%s' "${GOOGLE_SERVICE_INFO_PLIST_B64}" | base64 --decode > "${PLIST_FILE}"
 
 echo "Wrote ${PLIST_FILE}"
+
+
+# --- Privacy guard ----------------------------------------------------------
+# AdMob/ATT se retiraron en Calendario Ciclismo 4.3. Apple rechazó la build
+# anterior porque conservaba esta clave en el binario. El plist de Firebase llega
+# desde un secret de Xcode Cloud, así que se sanea todo el árbol iOS aquí.
+find "${REPO}/ios-app" -type f -name '*.plist' -print0 |
+while IFS= read -r -d '' privacy_plist
+do
+  if /usr/libexec/PlistBuddy -c "Print :NSUserTrackingUsageDescription" "${privacy_plist}" >/dev/null 2>&1; then
+    /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" "${privacy_plist}"
+    echo "Removed stale NSUserTrackingUsageDescription from ${privacy_plist}"
+  fi
+done
+
+if ! find "${REPO}/ios-app" -type f -name '*.plist' -exec sh -c '
+  for privacy_plist do
+    if /usr/libexec/PlistBuddy -c "Print :NSUserTrackingUsageDescription" "${privacy_plist}" >/dev/null 2>&1; then
+      echo "ERROR: NSUserTrackingUsageDescription remains in ${privacy_plist}" >&2
+      exit 1
+    fi
+  done
+' sh {} +; then
+  exit 1
+fi
 
 # --- BundledLogos ------------------------------------------------------------
 #
@@ -115,4 +152,3 @@ print(f"BundledLogos: descargados {downloaded} | en caché {skipped} | fallidos 
 PYEOF
 
 echo "BundledLogos step done"
-

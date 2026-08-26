@@ -121,6 +121,7 @@ final class ResultsFeedLogicTests: XCTestCase {
         stages: [RaceUciStage],
         raceDays: [RaceDay] = [],
         races: [Race],
+        automaticSourceRaceIds: Set<String> = [],
         isConcluded: (RaceDay, Race) -> Bool = { _, _ in false }
     ) -> [FeedEntry] {
         ResultsFeedLogic.buildEntries(
@@ -129,6 +130,7 @@ final class ResultsFeedLogicTests: XCTestCase {
             races: races,
             fromKey: fromKey,
             toKey: toKey,
+            automaticSourceRaceIds: automaticSourceRaceIds,
             isConcluded: isConcluded
         )
     }
@@ -195,6 +197,53 @@ final class ResultsFeedLogicTests: XCTestCase {
         ]
         let entries = build(stages: stages, raceDays: days, races: [race])
         XCTAssertEqual(entries.first?.rd?.id, "real")
+    }
+
+    func testDobleSectorConserva1AY1BConSuGanadorYRutaPropios() {
+        let race = makeRace(id: "baltic", name: "Baltic Chain Tour")
+        let days = [
+            makeRaceDay(id: "baltic-1a", raceId: "baltic", dateKey: "2026-06-03", stageNumber: 1,
+                        neutralStartTimeUtc: "2026-06-03T08:00:00Z"),
+            makeRaceDay(id: "baltic-1b", raceId: "baltic", dateKey: "2026-06-03", stageNumber: 1,
+                        neutralStartTimeUtc: "2026-06-03T12:00:00Z"),
+        ]
+        let stages = [
+            makeStage(id: "stage-1b", raceId: "baltic", classKind: "stage", stageNumber: 1,
+                      raceDayId: "baltic-1b", stageDate: "2026-06-03", winnerName: "Romet Pajur"),
+            makeStage(id: "stage-1a", raceId: "baltic", classKind: "stage", stageNumber: 1,
+                      raceDayId: "baltic-1a", stageDate: "2026-06-03", winnerName: "Estonia"),
+        ]
+
+        let entries = build(stages: stages, raceDays: days, races: [race])
+
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries.map(\.key), ["baltic#1A", "baltic#1B"])
+        XCTAssertEqual(entries.map(\.stageSuffix), ["A", "B"])
+        XCTAssertEqual(entries.map(\.winner), ["Estonia", "Romet Pajur"])
+        XCTAssertEqual(entries.map { $0.rd?.id }, ["baltic-1a", "baltic-1b"])
+    }
+
+    func testUnaClasificacionEnlazadaNoOcultaElFallbackDelSectorHermano() {
+        let race = makeRace(id: "baltic", name: "Baltic Chain Tour", extId: 99)
+        let days = [
+            makeRaceDay(id: "baltic-1a", raceId: "baltic", dateKey: "2026-06-03", stageNumber: 1,
+                        neutralStartTimeUtc: "2026-06-03T08:00:00Z"),
+            makeRaceDay(id: "baltic-1b", raceId: "baltic", dateKey: "2026-06-03", stageNumber: 1,
+                        neutralStartTimeUtc: "2026-06-03T12:00:00Z"),
+        ]
+        let stages = [
+            makeStage(id: "stage-1a", raceId: "baltic", classKind: "stage", stageNumber: 1,
+                      raceDayId: "baltic-1a", stageDate: "2026-06-03", winnerName: "Estonia"),
+        ]
+
+        let entries = build(
+            stages: stages, raceDays: days, races: [race],
+            isConcluded: { _, _ in true }
+        )
+
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries.map(\.kind), [.inhouse, .ext])
+        XCTAssertEqual(entries.map(\.stageSuffix), ["A", "B"])
     }
 
     // MARK: - Generales finales de vueltas
@@ -301,6 +350,12 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(ext[0].date, "2026-06-03")
         XCTAssertEqual(ext[0].stageNumber, 5)
         XCTAssertNotNil(ext[0].rd)
+
+        // Fuente automática enlazada → se espera al resultado nativo.
+        XCTAssertTrue(build(
+            stages: [], raceDays: [rd], races: [race],
+            automaticSourceRaceIds: [race.id], isConcluded: { _, _ in true }
+        ).isEmpty)
 
         // No concluida → nada.
         XCTAssertTrue(build(stages: [], raceDays: [rd], races: [race], isConcluded: { _, _ in false }).isEmpty)

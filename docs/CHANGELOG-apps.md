@@ -6,6 +6,30 @@
 
 ## Android (`versionCode` / `versionName`)
 
+**`481` / `4.3.3` = NOTAS DE EMISIÓN HASTA RESULTADOS + REVIVE EN CANCELADAS:** las notas editoriales de las emisiones dejan de mostrarse en Jornada en cuanto entran clasificaciones nativas para esa jornada, también en Revive y en el texto de accesibilidad. Las etapas canceladas conservan en Revive las emisiones marcadas explícitamente con `showInRevive`, sin depender de una hora de llegada ni promover automáticamente otras fuentes. Espejo web + iOS `1308` / `4.3.3`.**
+
+**`480` / `4.3.3` = externos JUNTO A RESULTADOS NATIVOS:** las fichas de jornada recuperan fuentes externas como enlaces secundarios bajo «También en» cuando ya existen clasificaciones nativas. Los enlaces externos no reaparecen como fallback automático si faltan resultados nativos, y las jornadas canceladas conservan únicamente el aviso propio. Espejo web + iOS `1307` / `4.3.3`.**
+
+**`479` / `4.3.3` = REVIVE LIGADO A RESULTADOS:** en Hoy y Competición, el botón de TV/Revive de una jornada terminada aparece únicamente junto al botón de Resultados. Alcanzar la hora de meta sin clasificaciones visibles ya no activa por sí solo el acceso a Revive. Espejo web + iOS `1306` / `4.3.3`.**
+
+**`478` / `4.3.3` = SÍMBOLOS NATIVOS DE MAPLIBRE:** nueva compilación de la versión 477 para sustituir el AAB ya cargado. La publicación incorpora el archivo de símbolos oficial de MapLibre 11.8.1 para las cuatro ABI, destinado a simbolizar sus fallos y ANR en Play Console. Sin cambio funcional.**
+
+**`477` / `4.3.3` = CARGA ANIMADA EN JORNADA:** el estado inicial de la ficha de jornada sustituye el spinner antiguo por el cargador de marca compartido, con identidad de Calendario Ciclismo y perfil de ruta animado. Respeta Reducir movimiento y mantiene intactos los indicadores locales de refresco, mapas, perfiles y acciones. Espejo iOS `1305` / `4.3.3`.**
+
+**`476` / `4.3.3` = RESULTADOS EXTERNOS RESTRINGIDOS:** las jornadas muestran únicamente clasificaciones nativas, sin enlaces de fuentes externas desde meta −30 ni como respaldo. El fallback automático de externos a meta +30 se conserva solo para carreras sin fuente automática enlazada —las cargas manuales PDF quedan exceptuadas— y desaparece de Hoy, Competición, Campeonatos y Últimos Resultados cuando existe esa fuente. Espejo web + iOS `1304` / `4.3.3`.**
+
+**`475` / `4.3.3` = ETB ON EN REVIVE:** los deep-links bajo demanda `etbon.eus/m/` permanecen disponibles como Revive al concluir la etapa sin depender de una marca editorial manual. Los hubs lineales `etbon.eus/ch/` quedan excluidos. Las fuentes incorporadas en el futuro podrán activar Revive desde los datos de cada emisión, sin requerir una nueva versión de la app. Espejo web + iOS `1291` / `4.3.3`.**
+
+**`474` / `4.3.2` = ENLACES DE EMISIÓN DENTRO DE LA APP:** YouTube, HBO Max, Max y X conservan la apertura en su app nativa cuando está instalada. Si el dispositivo solo puede resolver el enlace mediante un navegador, Jornada, Hoy, Competición, Revive y los badges de TV usan Custom Tabs dentro de Calendario Ciclismo. Espejo iOS `1290`.**
+
+**`473` / `4.3.2` = FICHAJES Y RENOVACIONES POR EQUIPO:** dentro de cada fecha, Últimas confirmaciones muestra primero los movimientos para próximas temporadas y deja siempre al final los de mitad de temporada. Dentro de cada bloque ordena por la categoría del equipo de destino —WT · PT · WWT · PTW— y después por el nombre alfabético de ese equipo. La categoría PTW conserva su clave interna PRW. Espejo web + iOS.**
+
+**`472` / `4.3.2` = EMISIONES SIN ESPACIO DOBLE:** Jornada presenta canal, badge regional, separador y horario como elementos independientes con un espaciado único y uniforme. Espejo iOS.**
+
+**`471` / `4.3.2` = TRANSMISIONES POR REGIÓN:** Jornada permite alternar entre la selección regional y todas las emisiones. El modo Todas identifica con badges el territorio de cada emisión y sustituye el icono de enlace externo por el chevron usado en Resultados. Las etiquetas regionales usan `GB / IRL` y `ESCANDI` en castellano, y `UK / IRL` y `SCANDI` en inglés. Espejo web + iOS `1289`.**
+
+**`468` / `4.3.0` = RESULTADOS DE DOBLE SECTOR EN EL FEED:** «Últimos Resultados» conserva por separado los sectores A/B que comparten número de etapa, muestra el ganador y la etiqueta correctos en cada fila y abre la clasificación del sector seleccionado. La disponibilidad del fallback externos usa `raceDayId` para no ocultar el sector hermano. Espejo web + iOS `1284`.**
+
 **`467` / `4.3.0` = JERARQUÍA VISUAL DEL APOYO:** el anuncio de proyecto amplía el icono de Calendario Ciclismo con corazón al mismo tamaño que la hoja de Amigo. La tarjeta «Código y cuentas públicas» añade un chevron para indicar explícitamente que abre la información de transparencia.**
 
 **`466` / `4.3.0` = PRESENTACIÓN DE AMIGO:** la hoja de apoyo amplía el icono de Calendario Ciclismo con corazón, extiende la tarjeta de ventajas a todo el ancho disponible y fija el fondo de la hoja y de las tarjetas de planes al blanco y gris neutros de la aplicación, sin los tonos de contenedor predeterminados de Material 3.**
@@ -170,6 +194,18 @@
 
 
 ## iOS (`CURRENT_PROJECT_VERSION` / `MARKETING_VERSION`)
+
+**`1306` / `MARKETING_VERSION 4.3.3` = REVIVE LIGADO A RESULTADOS:** en Hoy y Competición, el botón de TV/Revive de una jornada terminada aparece únicamente junto al botón de Resultados. Alcanzar la hora de meta sin clasificaciones visibles ya no activa por sí solo el acceso a Revive. Espejo web + Android `479` / `4.3.3`.**
+
+**`1304` / `MARKETING_VERSION 4.3.3` = RESULTADOS EXTERNOS RESTRINGIDOS:** las jornadas muestran únicamente clasificaciones nativas, sin enlaces de fuentes externas desde meta −30 ni como respaldo. El fallback automático de externos a meta +30 se conserva solo para carreras sin fuente automática enlazada —las cargas manuales PDF quedan exceptuadas— y desaparece de Hoy, Competición, Campeonatos y Últimos Resultados cuando existe esa fuente. Espejo web + Android `476` / `4.3.3`.**
+
+**`1291` / `MARKETING_VERSION 4.3.3` = ETB ON EN REVIVE:** los deep-links bajo demanda `etbon.eus/m/` permanecen disponibles como Revive al concluir la etapa sin depender de una marca editorial manual. Los hubs lineales `etbon.eus/ch/` quedan excluidos. Las fuentes incorporadas en el futuro podrán activar Revive desde los datos de cada emisión, sin requerir una nueva versión de la app. Espejo web + Android `475` / `4.3.3`.**
+
+**`1290` / `MARKETING_VERSION 4.3.2` = ENLACES DE EMISIÓN DENTRO DE LA APP:** YouTube, HBO Max, Max y X conservan la apertura en su app nativa cuando está instalada. Si no existe una app receptora del enlace universal, Jornada, Hoy, Competición, Revive y los badges de TV usan el navegador interno de Calendario Ciclismo en lugar de Safari. Espejo Android `474`.**
+
+**`1289` / `MARKETING_VERSION 4.3.2` = TRANSMISIONES POR REGIÓN:** Jornada permite alternar entre la selección regional y todas las emisiones. El modo Todas identifica con badges el territorio de cada emisión y sustituye el icono de enlace externo por el chevron usado en Resultados. Las etiquetas regionales usan `GB / IRL` y `ESCANDI` en castellano, y `UK / IRL` y `SCANDI` en inglés. Espejo web + Android `471`.**
+
+**`1284` / `MARKETING_VERSION 4.3.0` = RESULTADOS DE DOBLE SECTOR EN EL FEED:** «Últimos Resultados» conserva por separado los sectores A/B que comparten número de etapa, muestra el ganador y la etiqueta correctos en cada fila y abre la clasificación del sector seleccionado. La disponibilidad del fallback externos usa `raceDayId` para no ocultar el sector hermano. Espejo web + Android `468`.**
 
 **`1278` / `MARKETING_VERSION 4.3.0` = AVISO DE SOSTENIMIENTO TRAS EL USO:** el diálogo local que aparece tras 30 pantallas de contenido y 7 días deja de ofrecer «Sin anuncios» y de afirmar que una aportación elimina publicidad. Presenta la aplicación como gratuita y sin anuncios, abre las formas de apoyo mediante Amigo o aportaciones puntuales y actualiza su evento interno de Premium a sostenimiento. Android ya tenía el copy correcto.**
 

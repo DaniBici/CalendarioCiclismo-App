@@ -105,7 +105,7 @@ const LOCALES = {
     tv: {
       title: 'Televisión', reviveRace: 'Revive', reviveStage: 'Revive', reviveRaceTitle: 'Revive la carrera', reviveStageTitle: 'Revive la etapa',
       localTimezone: 'Horarios en tu hora local ({tz})', madridLabel: 'Madrid: {time}',
-      noInfo: 'Sin información de TV', noTvCountry: 'No hay TV en tu país', fullStage: 'Íntegra',
+      noInfo: 'Sin información de TV', noTvRegion: 'No hay TV en tu región', fullStage: 'Íntegra',
       filterAll: 'Todas', filterMine: 'Mi país',
       status: { pending: 'Sin confirmar', none: 'Sin TV', unavailable_es: 'No TV España' },
     },

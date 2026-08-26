@@ -98,6 +98,50 @@ class ResultsFeedLogicTest {
         assertEquals("real", entries.first().rd?.id)
     }
 
+    @Test
+    fun `doble sector conserva 1A y 1B con su ganador y ruta propios`() {
+        val r = race("baltic", format = "stage_race")
+        val days = listOf(
+            rd("baltic-1a", "baltic", "2026-08-21", sn = 1, start = "2026-08-21T08:00:00Z"),
+            rd("baltic-1b", "baltic", "2026-08-21", sn = 1, start = "2026-08-21T12:00:00Z"),
+        )
+        val stages = listOf(
+            stage("stage-1b", "baltic", sn = 1, date = "2026-08-21", winner = "Romet Pajur", rdId = "baltic-1b"),
+            stage("stage-1a", "baltic", sn = 1, date = "2026-08-21", winner = "Estonia", rdId = "baltic-1a"),
+        )
+
+        val entries = ResultsFeedLogic.buildEntries(
+            stages, days, listOf(r), "2026-08-21", "2026-08-21",
+        )
+
+        assertEquals(2, entries.size)
+        assertEquals(listOf("A", "B"), entries.map { it.stageSuffix })
+        assertEquals(listOf("Estonia", "Romet Pajur"), entries.map { it.winner })
+        assertEquals(listOf("baltic-1a", "baltic-1b"), entries.map { it.rd?.id })
+    }
+
+    @Test
+    fun `una clasificacion enlazada no oculta el fallback del sector hermano`() {
+        val r = race("baltic", format = "stage_race", extId = 99)
+        val days = listOf(
+            rd("baltic-1a", "baltic", "2026-08-21", sn = 1, start = "2026-08-21T08:00:00Z")
+                .copy(estimatedFinishTimeUtc = "2026-08-21T10:00:00Z"),
+            rd("baltic-1b", "baltic", "2026-08-21", sn = 1, start = "2026-08-21T12:00:00Z")
+                .copy(estimatedFinishTimeUtc = "2026-08-21T14:00:00Z"),
+        )
+        val stages = listOf(
+            stage("stage-1a", "baltic", sn = 1, date = "2026-08-21", winner = "Estonia", rdId = "baltic-1a"),
+        )
+
+        val entries = ResultsFeedLogic.buildEntries(
+            stages, days, listOf(r), "2026-08-21", "2026-08-21",
+        )
+
+        assertEquals(2, entries.size)
+        assertEquals(listOf(Kind.INHOUSE, Kind.EXT), entries.map { it.kind })
+        assertEquals(listOf("A", "B"), entries.map { it.stageSuffix })
+    }
+
     // ── Pruebas de un día ────────────────────────────────────────────
 
     @Test
@@ -266,6 +310,12 @@ class ResultsFeedLogicTest {
         )
         assertEquals(1, entries.size)
         assertEquals(Kind.EXT, entries[0].kind)
+
+        val enlazada = ResultsFeedLogic.buildEntries(
+            emptyList(), listOf(rdSin), listOf(conFc), "2026-06-01", "2026-06-30",
+            automaticSourceRaceIds = setOf(conFc.id),
+        )
+        assertTrue(enlazada.isEmpty())
 
         // Con volcado in-house de esa clave → NO hay entrada EXT duplicada.
         val cubierta = ResultsFeedLogic.buildEntries(

@@ -251,9 +251,16 @@ private fun MarketContent(
     onTeamTap: (String) -> Unit,
 ) {
     val feed = remember(data, activeFeed) {
+        val categoryByTeamId = data.seasons.mapNotNull { season ->
+            season.category?.let { season.teamId to it }
+        }.toMap()
         val moves = when (activeFeed) {
-            TransfersFeed.Signings -> TransfersLogic.confirmedFeed(data.transfers)
-            TransfersFeed.Renewals -> TransfersLogic.renewalFeed(data.transfers)
+            TransfersFeed.Signings -> TransfersLogic.confirmedFeed(
+                data.transfers, categoryByTeamId, data.teamNameById
+            )
+            TransfersFeed.Renewals -> TransfersLogic.renewalFeed(
+                data.transfers, categoryByTeamId, data.teamNameById
+            )
         }
         TransfersLogic.limitedFeed(moves)
     }

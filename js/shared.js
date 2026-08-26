@@ -4,7 +4,9 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { t, getLang, getLocale } from './i18n.js';
+import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
+import { hasRenderableElevationProfile } from './profile-availability.js';
 export { extractYouTubeId };
 
 // ── Supabase singleton ───────────────────────────────────────────
@@ -240,7 +242,7 @@ export function uciRank(cat, name, country) {
   if (/giro de italia/i.test(name || '')) return 0.1;
   if (/tour de francia/i.test(name || '')) return 0.2;
   if (/la vuelta/i.test(name || '')) return 0.3;
-  if ((cat === '1.2U' || cat === '2.2U') && /tour del porvenir/i.test(name || '')) return 8.5;
+  if ((cat === '1.2U' || cat === '2.2U') && isTourDelPorvenir(name)) return 8.5;
   if (cat === 'CC' && !/europa|europe/i.test(name || '')) return 14.5;
   if (['1.Pro','2.Pro','1.1','2.1'].includes(cat) && /^(CN|TH|JP|TW|KR|HK)$/i.test(country || '') && !/japan cup/i.test(name || '')) return 10.5;
   return UCI_ORDER[cat] ?? 99;
@@ -1248,7 +1250,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     const profileSlug = isEn ? (rd.slugEn || rd.slug) : rd.slug;
     // Existe perfil dinámico (GPX), independientemente de si esta vista ES el
     // perfil (eso solo decide si se enlaza a sí misma, más abajo).
-    const hasDynProfile = !!(rd.elevationProfile && !rd.profileNotViewable);
+    const hasDynProfile = hasRenderableElevationProfile(rd);
     // En la vista de perfil NO se ofrece el botón de perfil (es la propia vista):
     // se suprime el enlace, pero `hasDynProfile` sigue contando para saber si
     // hay que etiquetar el asset estático como "Perfil oficial".

@@ -6,7 +6,10 @@ import Foundation
 final class StageDetailViewModel {
     var raceDay: RaceDay?
     var race: Race?
+    /// Lista regional aplicada a la preferencia del usuario.
     var broadcasts: [Broadcast] = []
+    /// Lista completa, necesaria para el selector «Todas» de la jornada.
+    var allBroadcasts: [Broadcast] = []
     var assets: [Asset] = []
     var siblings: [RaceDay] = []
     var isLoading = false
@@ -14,6 +17,7 @@ final class StageDetailViewModel {
     /// Gates de resultados resueltos junto con la instantánea de la jornada. La
     /// vista no intercambia los botones externos por el CTA nativo tras pintarse.
     var hasInhouseResults = false
+    var hasActualResults = false
     var resultsStageNumber: Int?
     var prevHasInhouse = false
     var prevResultsStageNumber: Int?
@@ -38,17 +42,30 @@ final class StageDetailViewModel {
         if let cached = await Self.loadFromCache(raceDayId: raceDayId) {
             raceDay = cached.raceDay
             race = cached.race
+            allBroadcasts = cached.broadcasts.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
             broadcasts = RaceLogic.filterBroadcastsByRegion(
-                cached.broadcasts,
+                allBroadcasts,
                 allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
             )
             assets = cached.assets
-            // Pre-cargar siblings desde caché de carrera para evitar el flash al pintar
-            var cachedSiblingsReady = false
+            // Pre-cargar siblings, clasificaciones y guía como una sola
+            // instantánea. La vista solo se publica cuando puede resolver todas
+            // sus secciones sin insertar contenido tras el primer render.
+            var cachedSnapshotReady = false
             if let raceId = cached.raceDay.raceId,
                var cachedSiblings = await CacheManager.shared.load([RaceDay].self, forKey: CacheManager.siblingsKey(raceId)) {
                 RaceLogic.annotateDoubleSectors(&cachedSiblings)
                 siblings = cachedSiblings
+                let cachedResultsStages = await CacheManager.shared
+                    .load([RaceUciStage].self, forKey: CacheManager.resultsStagesKey(raceId))
+                if let cachedResultsStages {
+                    updateInhouseGates(
+                        raceDay: cached.raceDay,
+                        siblings: cachedSiblings,
+                        stages: cachedResultsStages
+                    )
+                    areInhouseGatesResolved = true
+                }
                 // La guía técnica pertenece a la carrera, no necesariamente a
                 // esta jornada. Recuperarla con los siblings evita que el chip
                 // aparezca solo cuando llegue el refresco remoto.
@@ -65,10 +82,14 @@ final class StageDetailViewModel {
                 // mantener Loading hasta la respuesta remota evita pintar la
                 // tira sin guía y añadirla unas décimas después. Una lista
                 // vacía sí es un estado cacheado válido: sabemos que no existe.
-                cachedSiblingsReady = cachedGuides != nil || localGuide != nil
+                let cachedGuideReady = cachedGuides != nil || localGuide != nil
+                cachedSnapshotReady = cachedGuideReady && cachedResultsStages != nil
             }
-            // Solo pintar desde caché si ya tenemos siblings — primera visita espera la red
-            if cachedSiblingsReady { isLoading = false }
+            // Con red se espera siempre la instantánea remota: una caché válida
+            // puede haber quedado obsoleta justo al publicarse los resultados y
+            // volvería a insertar el CTA después del primer render. Sin red sí
+            // se presenta la instantánea local completa.
+            if cachedSnapshotReady && !NetworkMonitor.shared.isOnline { isLoading = false }
         }
 
         do {
@@ -106,8 +127,9 @@ final class StageDetailViewModel {
                     rd.stageSuffix = match.stageSuffix
                 }
 
+                allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 broadcasts = RaceLogic.filterBroadcastsByRegion(
-                    b,
+                    allBroadcasts,
                     allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
                 )
                 // Se guarda una sola guía técnica por competición, pero se
@@ -122,6 +144,10 @@ final class StageDetailViewModel {
                 await CacheManager.shared.save(
                     technicalGuide.map { [$0] } ?? [],
                     forKey: CacheManager.technicalGuideKey(raceId)
+                )
+                await CacheManager.shared.save(
+                    resultsStages,
+                    forKey: CacheManager.resultsStagesKey(raceId)
                 )
             }
 
@@ -204,8 +230,9 @@ final class StageDetailViewModel {
                     rd.stageSuffix = match.stageSuffix
                 }
 
+                allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 broadcasts = RaceLogic.filterBroadcastsByRegion(
-                    b,
+                    allBroadcasts,
                     allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
                 )
                 assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
@@ -215,6 +242,10 @@ final class StageDetailViewModel {
                 await CacheManager.shared.save(
                     technicalGuide.map { [$0] } ?? [],
                     forKey: CacheManager.technicalGuideKey(raceId)
+                )
+                await CacheManager.shared.save(
+                    resultsStages,
+                    forKey: CacheManager.resultsStagesKey(raceId)
                 )
             }
 
@@ -239,6 +270,7 @@ final class StageDetailViewModel {
         }
 
         let current = matchingStage(for: raceDay)
+        hasActualResults = current != nil
         hasInhouseResults = current != nil || raceDay.isCancelledDay
         resultsStageNumber = current?.stageNumber ?? raceDay.stageNumber
 

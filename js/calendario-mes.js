@@ -13,6 +13,7 @@ import { supabase, toDateKey, stageLabel, proLevel, countryFlag, effectiveCountr
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
          from './shared.js';
+import { isTourDelPorvenir } from './category-filter.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
@@ -127,11 +128,11 @@ function passesCategoryFilter(rd) {
     if (!/europa|mundo/i.test(name)) return false;
   }
   const isAsia1 = (cat === '1.1' || cat === '2.1') && ASIA_1.test(rd._race?.countryCode || '');
-  if (activeCat === 'pro')    return !isAsia1 && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || /tour del porvenir/i.test(name));
+  if (activeCat === 'pro')    return !isAsia1 && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
   if (activeCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
   if (activeCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-  if (activeCat === 'male')   return !isAsia1 && gender !== 'female' && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || /tour del porvenir/i.test(name));
-  if (activeCat === 'female') return !isAsia1 && gender === 'female' && (cat !== '1.2U' && cat !== '2.2U' || /tour del porvenir/i.test(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
+  if (activeCat === 'male')   return !isAsia1 && gender !== 'female' && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
+  if (activeCat === 'female') return !isAsia1 && gender === 'female' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
   return true; // 'all'
 }
 

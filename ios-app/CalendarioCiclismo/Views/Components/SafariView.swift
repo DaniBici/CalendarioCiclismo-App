@@ -35,3 +35,21 @@ extension View {
         modifier(SafariSheet(url: url))
     }
 }
+
+/// Intenta una app nativa solo mediante enlace universal. Al no existir una app
+/// capaz de resolverlo, ejecuta el fallback proporcionado por la vista llamante.
+@MainActor
+enum NativeAppLinkOpener {
+    static func openIfInstalled(_ url: URL, fallback: @escaping () -> Void) {
+        guard RaceLogic.prefersNativeApp(url) else {
+            fallback()
+            return
+        }
+        UIApplication.shared.open(
+            url,
+            options: [.universalLinksOnly: true]
+        ) { opened in
+            if !opened { fallback() }
+        }
+    }
+}

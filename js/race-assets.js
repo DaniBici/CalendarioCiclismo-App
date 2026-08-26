@@ -11,6 +11,7 @@ import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildElevationProfileSVG } from './elevation-profile.js';
 import { setupElevationProfileHover } from './elevation-profile-hover.js';
+import { hasRenderableElevationProfile } from './profile-availability.js';
 
 // rd data keyed by id para el modal de perfil SVG dinámico
 const _dynPerfilRdMap = {};
@@ -93,7 +94,7 @@ export function tvBadge(tvStatus, broadcasts, neutralStartTs, liveTextUrl, rdId 
 // `colorHex` se usa para colorear el perfil dinámico en su modal.
 export function buildAssetButtons(rd, { colorHex = null } = {}) {
   const assetOrder = ['roadbook', 'profile', 'map'];
-  const hasDynProfile1  = !!(rd.elevationProfile && !rd.profileNotViewable);
+  const hasDynProfile1  = hasRenderableElevationProfile(rd);
   const hasDynMap1      = !!rd.routeGpxUrl;
   // NOTA: en la rejilla de Campeonatos (único consumidor de estos badges) el
   // perfil interactivo tiene PRIORIDAD sobre el asset estático (un solo badge),

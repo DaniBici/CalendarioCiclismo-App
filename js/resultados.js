@@ -903,9 +903,15 @@ async function init() {
         const nm = (fs && fs.name) || (fr && fr.name) || r.riderDisplay || '';
         const cc = fs ? fs.countryCode : (fr ? fr.countryCode : '');
         const flag = cc ? `<span class="so-flag">${countryFlag(cc)}</span>` : '';
+        // timing.ee separa el crono oficial del equipo (`timeText` del líder)
+        // del crono individual de TODOS sus integrantes (`resultValue`). Otras
+        // fuentes CRE conservan el contrato histórico en `timeText`.
+        const riderTimeText = /^https:\/\/timing\.ee\//i.test(stageRow?.sourcePdfUrl || '')
+          ? r.resultValue
+          : r.timeText;
         const indiv = r.irm
           ? dnfBadge(r.irm)
-          : (r.timeText ? `<span class="res-gap">${esc(r.timeText)}</span>` : '');
+          : (riderTimeText ? `<span class="res-gap">${esc(riderTimeText)}</span>` : '');
         // (El tooltip/enlace de ficha de las sub-filas CRE se retiró; nombre plano.)
         const nmInner = `<span class="res-rider-name">${esc(nm)}</span>`;
         t += `<tr class="so-row res-ttt-rider" data-ttt-member="${i}" hidden>

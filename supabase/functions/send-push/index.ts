@@ -174,6 +174,38 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
 
+// La Data API limita por defecto cada respuesta a 1.000 filas. Mantener las
+// páginas por debajo de ese umbral evita que una consulta de destinatarios se
+// trunque silenciosamente cuando la audiencia crece.
+const RECIPIENT_PAGE_SIZE = 500;
+const TOKEN_FILTER_CHUNK_SIZE = 200;
+
+type PageError = { message: string };
+type PageResult<T> = { data: T[] | null; error: PageError | null };
+
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += RECIPIENT_PAGE_SIZE) {
+    const { data, error } = await fetchPage(from, from + RECIPIENT_PAGE_SIZE - 1);
+    if (error) throw error;
+
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < RECIPIENT_PAGE_SIZE) return rows;
+  }
+}
+
+function chunksOf<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 // ── Helpers base64 ───────────────────────────────────────────────
 
 /**
@@ -954,7 +986,7 @@ async function doSend(
     const [directResult, filterResult, stageResult, allResult] = await Promise.all([
       // Grupo 1: siguen esta carrera individualmente
       raceId
-        ? (() => {
+        ? fetchAllPages<Sub>((from, to) => {
             let q = adminClient
               .from('push_subscriptions')
               .select('deviceToken, platform, push_subscription_categories!inner(category), push_race_subscriptions!inner(raceId)')
@@ -963,13 +995,13 @@ async function doSend(
               .eq('push_race_subscriptions.raceId', raceId);
             if (targetCountryGroups && targetCountryGroups.length > 0) q = q.in('countryGroup', targetCountryGroups);
             if (targetLanguages && targetLanguages.length > 0) q = q.in('language', targetLanguages);
-            return q.then(r => { if (r.error) throw r.error; return (r.data ?? []) as Sub[]; });
-          })()
+            return q.order('deviceToken').range(from, to) as unknown as PromiseLike<PageResult<Sub>>;
+          })
         : Promise.resolve([] as Sub[]),
 
       // Grupo 2: filtros de grupo que coinciden
       hasFilters && filterKeys
-        ? (() => {
+        ? fetchAllPages<Sub>((from, to) => {
             let q = adminClient
               .from('push_subscriptions')
               .select('deviceToken, platform, push_subscription_categories!inner(category), push_race_filters!inner(filterKey)')
@@ -978,13 +1010,13 @@ async function doSend(
               .in('push_race_filters.filterKey', filterKeys);
             if (targetCountryGroups && targetCountryGroups.length > 0) q = q.in('countryGroup', targetCountryGroups);
             if (targetLanguages && targetLanguages.length > 0) q = q.in('language', targetLanguages);
-            return q.then(r => { if (r.error) throw r.error; return (r.data ?? []) as Sub[]; });
-          })()
+            return q.order('deviceToken').range(from, to) as unknown as PromiseLike<PageResult<Sub>>;
+          })
         : Promise.resolve([] as Sub[]),
 
       // Grupo 3: siguen esta jornada individualmente
       raceDayId
-        ? (() => {
+        ? fetchAllPages<Sub>((from, to) => {
             let q = adminClient
               .from('push_subscriptions')
               .select('deviceToken, platform, push_subscription_categories!inner(category), push_stage_subscriptions!inner(raceDayId)')
@@ -992,33 +1024,19 @@ async function doSend(
               .eq('push_subscription_categories.category', category)
               .eq('push_stage_subscriptions.raceDayId', raceDayId);
             if (targetLanguages && targetLanguages.length > 0) q = q.in('language', targetLanguages);
-            return q.then(r => { if (r.error) throw r.error; return (r.data ?? []) as Sub[]; });
-          })()
+            return q.order('deviceToken').range(from, to) as unknown as PromiseLike<PageResult<Sub>>;
+          })
         : Promise.resolve([] as Sub[]),
 
       // Grupo 4: follow-all (sin restricción de carrera) — comportamiento actual
-      adminClient
+      fetchAllPages<Sub>((from, to) => adminClient
         .rpc('get_unrestricted_push_subscribers', {
           p_category:  category,
           p_regions:   targetRegions  && targetRegions.length  > 0 ? targetRegions  : null,
           p_platforms: targetPlatforms && targetPlatforms.length > 0 ? targetPlatforms : null,
         })
-        .then(r => {
-          if (r.error) throw r.error;
-          let rows = (r.data ?? []) as Sub[];
-          // El RPC actual no acepta countryGroup; aplicamos el filtro
-          // adicional en cliente. Cuando los suscriptores follow-all
-          // sin countryGroup poblado pasen a tener uno, este filtro
-          // los excluirá correctamente (deseado para tv_start segmentado).
-          if (targetCountryGroups && targetCountryGroups.length > 0) {
-            // get_unrestricted_push_subscribers no devuelve countryGroup,
-            // así que necesitamos una query adicional para conocer los
-            // tokens cuyo countryGroup coincide. Optimizamos pidiéndolos
-            // como SET una sola vez.
-            // (Se sobreescribe abajo cuando esté la lista.)
-          }
-          return rows;
-        }),
+        .order('deviceToken')
+        .range(from, to) as unknown as PromiseLike<PageResult<Sub>>),
     ]);
 
     // Si hay filtro de countryGroup o language, recortamos el grupo
@@ -1031,19 +1049,22 @@ async function doSend(
     const needsLanguageFilter     = targetLanguages     && targetLanguages.length     > 0;
     if ((needsCountryGroupFilter || needsLanguageFilter) && allResult.length > 0) {
       const candidateTokens = allResult.map(s => s.deviceToken);
-      let q = adminClient
-        .from('push_subscriptions')
-        .select('deviceToken')
-        .eq('isActive', true)
-        .in('deviceToken', candidateTokens);
-      if (needsCountryGroupFilter) q = q.in('countryGroup', targetCountryGroups!);
-      if (needsLanguageFilter)     q = q.in('language',     targetLanguages!);
-      const { data: filtRows, error: filtError } = await q;
-      if (filtError) {
-        console.error('[send-push] Error filtrando follow-all por countryGroup/language:', filtError.message);
-        throw filtError;
-      }
-      const allowed = new Set((filtRows ?? []).map((r: { deviceToken: string }) => r.deviceToken));
+      const filteredChunks = await Promise.all(chunksOf(candidateTokens, TOKEN_FILTER_CHUNK_SIZE).map(async tokens => {
+        let q = adminClient
+          .from('push_subscriptions')
+          .select('deviceToken')
+          .eq('isActive', true)
+          .in('deviceToken', tokens);
+        if (needsCountryGroupFilter) q = q.in('countryGroup', targetCountryGroups!);
+        if (needsLanguageFilter)     q = q.in('language',     targetLanguages!);
+        const { data: filtRows, error: filtError } = await q;
+        if (filtError) {
+          console.error('[send-push] Error filtrando follow-all por countryGroup/language:', filtError.message);
+          throw filtError;
+        }
+        return (filtRows ?? []) as Array<{ deviceToken: string }>;
+      }));
+      const allowed = new Set(filteredChunks.flat().map(r => r.deviceToken));
       allResultFiltered = allResult.filter(s => allowed.has(s.deviceToken));
     }
 
@@ -1056,31 +1077,28 @@ async function doSend(
     });
   } else {
     // ── Envío broadcast (comportamiento original sin restricción de carrera) ──
-    let query = adminClient
-      .from('push_subscriptions')
-      .select('deviceToken, platform, push_subscription_categories!inner(category)')
-      .eq('isActive', true)
-      .eq('push_subscription_categories.category', category);
+    subs = await fetchAllPages<Sub>((from, to) => {
+      let query = adminClient
+        .from('push_subscriptions')
+        .select('deviceToken, platform, push_subscription_categories!inner(category)')
+        .eq('isActive', true)
+        .eq('push_subscription_categories.category', category);
 
-    if (targetRegions && targetRegions.length > 0) {
-      query = query.in('region', targetRegions);
-    }
-    if (targetPlatforms && targetPlatforms.length > 0) {
-      query = query.in('platform', targetPlatforms);
-    }
-    if (targetCountryGroups && targetCountryGroups.length > 0) {
-      query = query.in('countryGroup', targetCountryGroups);
-    }
-    if (targetLanguages && targetLanguages.length > 0) {
-      query = query.in('language', targetLanguages);
-    }
+      if (targetRegions && targetRegions.length > 0) {
+        query = query.in('region', targetRegions);
+      }
+      if (targetPlatforms && targetPlatforms.length > 0) {
+        query = query.in('platform', targetPlatforms);
+      }
+      if (targetCountryGroups && targetCountryGroups.length > 0) {
+        query = query.in('countryGroup', targetCountryGroups);
+      }
+      if (targetLanguages && targetLanguages.length > 0) {
+        query = query.in('language', targetLanguages);
+      }
 
-    const { data: subscriptions, error: subError } = await query;
-    if (subError) {
-      console.error('[send-push] Error consultando push_subscriptions:', subError.message);
-      throw subError;
-    }
-    subs = (subscriptions ?? []) as Sub[];
+      return query.order('deviceToken').range(from, to) as unknown as PromiseLike<PageResult<Sub>>;
+    });
   }
 
   const iosTokens     = subs.filter(s => !s.platform || s.platform === 'ios').map(s => s.deviceToken);

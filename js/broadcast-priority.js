@@ -24,6 +24,22 @@ const _OTHER_SOCIAL = /facebook\.com|fb\.watch|instagram\.com|tiktok\.com|twitch
 const _RTVE = /rtve\.es/i;
 // Otras TV públicas en abierto: RTP1 (rtp.pt), CCMA / 3Cat (ccma.cat, 3cat.cat) y EITB (eitb.eus/tv).
 const _OTHER_PUBLIC_TV = /rtp\.pt|ccma\.cat|3cat\.cat|eitb\./i;
+const _REVIVE_URL = /youtube\.com|youtu\.be|facebook\.com|fb\.watch|instagram\.com|tiktok\.com|twitch\.tv|kick\.com|twitter\.com|(?:\/\/|\.)x\.com|(?:https?:\/\/)?(?:www\.)?etbon\.eus\/m\//i;
+
+export function isReviveBroadcast(broadcast) {
+  if (!broadcast?.url) return false;
+  return broadcast.showInRevive === true
+    || /eurosport|hbo max/i.test(broadcast.channel || '')
+    || _REVIVE_URL.test(broadcast.url);
+}
+
+export function shouldShowBroadcastNote(hasResults, isRevive, showInRevive) {
+  return !hasResults && (!isRevive || showInRevive === true);
+}
+
+export function reviveBroadcastsForDay(broadcasts, isCancelled) {
+  return (broadcasts || []).filter(b => isCancelled ? b.showInRevive === true : isReviveBroadcast(b));
+}
 
 export function broadcastLinkPriority(url) {
   const u = url || '';

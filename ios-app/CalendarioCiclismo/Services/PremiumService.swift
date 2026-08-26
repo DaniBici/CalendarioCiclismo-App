@@ -59,7 +59,13 @@ final class PremiumService {
     private static let previousSupporterIconKey = "supporter_icon_previous"
 
     private(set) var isSubscribed: Bool
-    private(set) var isLegacyPremiumActive: Bool
+    /// Entitlement real de Premium antiguo todavía vigente. Se usa para impedir
+    /// una doble suscripción a Amigo, pero no para ocultar las aportaciones.
+    private(set) var legacyPremiumEntitlementActive: Bool
+    /// Compatibilidad con la UI de Ajustes: desde 4.3.1 un Premium vigente ya no
+    /// debe ocupar en exclusiva la sección de apoyo. El usuario sigue siendo
+    /// Fundador y puede abrir aportaciones puntuales.
+    var isLegacyPremiumActive: Bool { false }
     private(set) var isFounder: Bool
     private(set) var contributionCount: Int
     private(set) var supporterIcon: SupporterIcon
@@ -78,7 +84,7 @@ final class PremiumService {
         let storedFriend = defaults.bool(forKey: Self.friendKey)
         let storedLegacy = defaults.bool(forKey: Self.legacyActiveKey)
         isSubscribed = storedFriend
-        isLegacyPremiumActive = storedLegacy
+        legacyPremiumEntitlementActive = storedLegacy
         isFounder = defaults.bool(forKey: Self.founderKey) || storedLegacy
         contributionCount = defaults.integer(forKey: Self.contributionCountKey)
         supporterIcon = SupporterIcon(
@@ -122,7 +128,7 @@ final class PremiumService {
     }
 
     func subscribe(plan: PremiumPlan) {
-        guard !isLegacyPremiumActive else { return }
+        guard !legacyPremiumEntitlementActive else { return }
         let id = plan == .yearly ? Self.yearlyProductID : Self.monthlyProductID
         AnalyticsService.shared.logEvent("support_subscribe_tap", parameters: [
             "plan": plan.rawValue,
@@ -198,7 +204,7 @@ final class PremiumService {
         do {
             try await AppStore.sync()
             await refreshPurchaseState()
-            return isSubscribed || isLegacyPremiumActive || isFounder
+            return isSubscribed || legacyPremiumEntitlementActive || isFounder
         } catch {
             return false
         }
@@ -318,7 +324,7 @@ final class PremiumService {
     }
 
     private func setLegacyPremiumActive(_ value: Bool) {
-        isLegacyPremiumActive = value
+        legacyPremiumEntitlementActive = value
         UserDefaults.standard.set(value, forKey: Self.legacyActiveKey)
         if value { recognizeFounder() }
     }

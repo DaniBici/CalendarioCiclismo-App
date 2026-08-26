@@ -16,7 +16,7 @@ El proyecto tiene tres clientes sobre el mismo backend. La web es un sitio está
 | iOS | SwiftUI nativa (iOS 18+) | `ios-app/` |
 | Android | Kotlin + Jetpack Compose (Android 8.0/API 26+) | `android-app/` |
 
-Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consumen directamente la API de Supabase. Todas sus funciones son gratuitas; la suscripción opcional solo elimina los anuncios y ayuda a cubrir los costes del proyecto.
+Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consumen directamente la API de Supabase. Todas sus funciones son gratuitas y no muestran anuncios. La membresía Amigo y las aportaciones puntuales son formas voluntarias de ayudar a cubrir los costes del proyecto; solo conceden reconocimiento cosmético.
 
 ## Funcionalidades
 
@@ -42,7 +42,7 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 | Assets | [Cloudflare R2](https://developers.cloudflare.com/r2/) |
 | Cartografía | MapKit en iOS; [OpenFreeMap](https://openfreemap.org) + MapLibre en web y Android |
 | Push | APNs HTTP/2 + FCM HTTP v1 (edge function `send-push`) |
-| Publicidad y pagos | AdMob + StoreKit 2 / Google Play Billing, solo para la opción sin anuncios |
+| Apoyo voluntario | StoreKit 2 / Google Play Billing para Amigo y aportaciones puntuales, sin funciones exclusivas |
 | Analytics | Firebase Analytics (GA4) — opt-in en web, opt-out en las apps |
 
 ## Estructura
@@ -101,7 +101,7 @@ La AGPL cubre **el código de este repositorio**. No cubre — ni podría, por n
 - **Datos deportivos** (resultados, startlists, recorridos, horarios) obtenidos de organizadores, cronometradores y federaciones. Los hechos no son propiedad de nadie, pero su compilación puede estar protegida en algunas jurisdicciones.
 - **Cartografía y elevación** — ver [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 - **Iconos de banderas** ([flag-icons](https://github.com/lipis/flag-icons), MIT) — compatibles con AGPL, atribuidos en el mismo fichero.
-- **SDK propietarios de Google** (Firebase Analytics, AdMob, UMP, Play Billing) — dependencias binarias bajo la [Android SDK License](https://developer.android.com/studio/terms), no redistribuibles. Detalle en [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- **SDK propietarios de Google** (Firebase Analytics y Play Billing) — dependencias binarias bajo la [Android SDK License](https://developer.android.com/studio/terms), no redistribuibles. Detalle en [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Si reutilizas este código, esos materiales son responsabilidad tuya.
 

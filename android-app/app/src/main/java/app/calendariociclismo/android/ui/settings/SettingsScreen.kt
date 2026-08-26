@@ -433,18 +433,9 @@ fun SettingsScreen(navController: NavController) {
                             if (newValue == locale) return@LocalePreferenceSelector
                             haptic(Haptics.Event.Selection)
                             scope.launch {
-                                // 1. Actualizar LocaleHolder antes de todo — es
-                                //    la fuente que leen Race.localizedName y stageLabel.
                                 LocaleHolder.current = java.util.Locale(newValue.tag)
-                                // 2. Persistir en DataStore. Suspend — esperamos a que
-                                //    termine antes de recrear la activity, eliminando
-                                //    la race condition con onCreate.snapshotAppLocale().
                                 app.preferences.setAppLocale(newValue)
-                                // 3. Sincronizar token push con nuevo idioma.
                                 app.pushManager.syncCategories()
-                                // 4. Aplicar locale al sistema en el hilo principal.
-                                //    La activity se recrea justo aquí; DataStore ya
-                                //    tiene el valor nuevo así que onCreate lo leerá bien.
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                                         context.getSystemService(android.app.LocaleManager::class.java)
@@ -476,7 +467,6 @@ fun SettingsScreen(navController: NavController) {
                         selected = region,
                         preferredCountryGroup = preferredCountryGroup,
                         onSelect = { newValue ->
-                            // Todas las regiones liberadas al plan gratuito: sin paywall.
                             if (newValue == region) return@RegionPreferenceSelector
                             haptic(Haptics.Event.Selection)
                             scope.launch { app.preferences.setRegionPreference(newValue) }
@@ -485,7 +475,6 @@ fun SettingsScreen(navController: NavController) {
                             haptic(Haptics.Event.Selection)
                             scope.launch {
                                 app.preferences.setPreferredCountryGroup(newGroup)
-                                // Re-sincroniza el push token con el nuevo grupo fino.
                                 app.pushManager.syncCategories()
                             }
                         },
@@ -541,10 +530,6 @@ fun SettingsScreen(navController: NavController) {
                                 haptic(Haptics.Event.Toggle)
                                 scope.launch { app.analytics.setEnabled(enabled) }
                             },
-                            // Colores de marca explícitos: el Switch de M3 sin
-                            // `colors` tira de roles (p. ej. primaryContainer) que
-                            // el tema no sobreescribe → el thumb salía rosado. Se
-                            // fija el azul de marca para checked/unchecked.
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                                 checkedTrackColor = MaterialTheme.colorScheme.primary,
@@ -589,8 +574,6 @@ fun SettingsScreen(navController: NavController) {
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    // Misma tarjeta neutra (gris frío) que el detalle. Antes Surface con
-    // tonalElevation, que aplicaba el tinte de elevación de M3 (rosado).
     CCCard(cornerRadius = 14) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
@@ -632,9 +615,6 @@ private fun FeedRow(label: String, description: String, onClick: () -> Unit) {
     }
 }
 
-/**
- * Selector de idioma estilo lista. Ambas opciones (es/en) son gratuitas.
- */
 @Composable
 private fun LocalePreferenceSelector(
     selected: LocalePreference,
@@ -711,11 +691,6 @@ private fun LocaleOptionRow(
     }
 }
 
-/**
- * Selector de región estilo lista. Cualquier opción es clicable: si el
- * usuario no es Premium y elige una región Premium, [onSelect] dispara
- * el paywall en lugar de cambiar la preferencia.
- */
 @Composable
 private fun RegionPreferenceSelector(
     selected: RegionPreference,
@@ -732,7 +707,6 @@ private fun RegionPreferenceSelector(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             for (option in RegionPreference.entries) {
-                // Todas las regiones liberadas al plan gratuito: nunca bloqueadas.
                 RegionOptionRow(
                     option = option,
                     flag = regionFlagEmoji(option),
@@ -741,8 +715,6 @@ private fun RegionPreferenceSelector(
                     hint = null,
                     onClick = { onSelect(option) },
                 )
-                // Sub-selector inline para el bucket activo (salvo SPAIN con un
-                // único grupo y ALL que usa siempre TZ).
                 if (selected == option && option.availableCountryGroups.size > 1) {
                     CountryGroupSubSelector(
                         bucket = option,
@@ -929,7 +901,6 @@ private fun NotificationCategorySelector(
         ) {
             val all = NotificationCategoryPreference.entries
             for ((index, option) in all.withIndex()) {
-                // Categorías enriquecidas liberadas al plan gratuito: nunca bloqueadas.
                 NotificationCategoryRow(
                     option = option,
                     enabled = enabled.contains(option),
@@ -1140,10 +1111,6 @@ private fun PremiumActiveCard(onManage: () -> Unit, onRedeemCode: () -> Unit) {
     }
 }
 
-/**
- * Solo se compila en builds Debug. Permite forzar el flag Premium para
- * validar la UI sin SDK ni compras reales.
- */
 @Composable
 private fun PremiumDebugCard(
     isSubscribed: Boolean,
@@ -1212,7 +1179,6 @@ private fun RaceFollowSection(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Segmented selector
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 listOf(
                     RaceFollowMode.FOLLOW_ALL to stringResource(R.string.race_follow_mode_all),
@@ -1303,7 +1269,6 @@ private fun RaceFollowSection(
         }
     }
 
-    // Jornadas seguidas — siempre visible (independiente del modo de carreras)
     androidx.compose.material3.Surface(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -1336,10 +1301,9 @@ private fun RaceFollowSection(
             )
         }
     }
-    } // end Column wrapper
+    }
 }
 
-/** Icono identitario de "sin anuncios": calendario + bici (paridad con paywall e iOS). */
 @Composable
 private fun AdFreeIcon() {
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1374,10 +1338,12 @@ private fun AdFreeSection(
         SupportStatus(
             title = LocaleHolder.t("Fundador", "Founder"),
             body = LocaleHolder.t(
-                "Tu Premium anterior no se convertirá en otra suscripción. Conservas para siempre el icono Fundador.",
-                "Your previous Premium plan will not become another subscription. You keep the Founder icon permanently.",
+                "Tu Premium sigue activo hasta su vencimiento. No se convertirá ni volverá a cobrarse; mientras tanto puedes hacer aportaciones puntuales.",
+                "Your Premium remains active until it expires. It will not be converted or charged again; meanwhile you can make one-time contributions.",
             ),
         )
+        Spacer(Modifier.height(8.dp))
+        SupportCTA(onSubscribe)
     } else if (isFriend) {
         Row(
             modifier = Modifier
@@ -1497,11 +1463,11 @@ private fun SupportCTA(onSubscribe: () -> Unit) {
     ) {
         AdFreeIcon()
         Column(modifier = Modifier.weight(1f)) {
-            Text(LocaleHolder.t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"))
+            Text(LocaleHolder.t("Ver formas de apoyar", "View support options"))
             Text(
                 LocaleHolder.t(
-                    "Una aportación voluntaria para sostener un proyecto abierto y gratuito.",
-                    "A voluntary contribution to sustain an open and free project.",
+                    "Suscripción Amigo o aportaciones puntuales, según tu situación actual.",
+                    "Friend membership or one-time contributions, depending on your current status.",
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

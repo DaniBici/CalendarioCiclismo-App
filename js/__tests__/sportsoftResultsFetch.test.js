@@ -46,6 +46,22 @@ CLASSIFICATION
 \fCzech Tour GENERAL TEAMS AFTER Stage 1
 CLASSIFICATION
 1. TEAM A 11:15:45 00:00:00`;
+const afterProloguePdf = `
+WEST BOHEMIA TOUR GENERAL AFTER Prologue
+CLASSIFICATION
+1. 33 PEŠEK Adam 10004772683 2006 CZE TEAM A 00:06:59 00:00:00
+2. 32 JEZEK Vaclav 10047818354 2005 CZE TEAM A 00:06:59 00:00:00
+\fWEST BOHEMIA TOUR U21 AFTER Prologue
+CLASSIFICATION
+1 33 PEŠEK Adam 10004772683 2006 CZE TEAM A 00:06:59 00:00:00
+\fWEST BOHEMIA TOUR CZECH AFTER Prologue
+CLASSIFICATION
+\fWEST BOHEMIA TOUR GENERAL TEAMS AFTER Prologue
+CLASSIFICATION
+1. TEAM A 0:21:14 00:00:00
+2. TEAM B 0:21:22 00:00:08
+\fWEST BOHEMIA TOUR AFTER Prologue
+JERSEY HOLDER`;
 
 describe('SportSoft Timing', () => {
   it('descubre etapas y general sin depender de sus ids variables', () => {
@@ -60,6 +76,15 @@ describe('SportSoft Timing', () => {
     const stage = classificationFromPage('477', 1, rows, { classKind: 'stage', scope: 'stage', eventName: 'Stage', rankKey: 'Ovl_Pos', withTime: true });
     expect(stage.rows[0]).toMatchObject({ rank: 1, bib: '15', riderDisplay: 'LAMPERTI Luke', timeText: '3:52:59', gapText: null });
     expect(stage.rows[1]).toMatchObject({ rank: null, rankText: 'DNF', irm: 'DNF', bib: '31' });
+  });
+
+  it('acepta el reloj M:SS.cc de SportSoft en una CRI', () => {
+    const stage = classificationFromPage('987', 0, [
+      { Ovl_Pos: '1', RaceNo: '41', Name: 'PEŠEK Adam', Time: '6:59.46' },
+      { Ovl_Pos: '2', RaceNo: '77', Name: 'NOVÁK Jan', Time: '6:59.77' },
+    ], { classKind: 'stage', scope: 'stage', eventName: 'Stage', rankKey: 'Ovl_Pos', withTime: true });
+
+    expect(stage.rows.map((row) => row.timeText)).toEqual(['6:59.46', '6:59.77']);
   });
 
   it('emite puntos como contador y mantiene ids sintéticos estables', () => {
@@ -125,6 +150,17 @@ describe('SportSoft Timing', () => {
     ]);
   });
 
+  it('descubre el PDF oficial del prólogo', () => {
+    expect(officialPdfLinksFromHtml(`
+      <h5>Official Results</h5>
+      <a href="https://cdn.sportsoft.cz/prologue.pdf">Prologue</a>
+      <a href="https://cdn.sportsoft.cz/after-prologue.pdf">After Prologue</a>
+      <div class="race-selection">`)).toEqual([
+      { stageNumber: 0, kind: 'stage', href: 'https://cdn.sportsoft.cz/prologue.pdf' },
+      { stageNumber: 0, kind: 'after-stage', href: 'https://cdn.sportsoft.cz/after-prologue.pdf' },
+    ]);
+  });
+
   it('prioriza el PDF oficial y propaga m.t. dentro de cada grupo', () => {
     const source = [
       { Ovl_Pos: 1, RaceNo: '24', Name: 'SHEEHAN Riley', Club: 'NSN', Time: '3:45:15' },
@@ -135,6 +171,44 @@ describe('SportSoft Timing', () => {
     const stage = classificationFromOfficialStagePdf('986', 1, officialStagePdf, source);
     expect(stage.rows.map((row) => [row.bib, row.timeText, row.gapText])).toEqual([
       ['24', '3:45:15', null], ['16', null, '+0'], ['155', null, '+0'], ['36', null, '+1:17'],
+    ]);
+  });
+
+  it('mantiene tiempos absolutos si el PDF oficial corresponde a un prólogo', () => {
+    const prologuePdf = `
+West Bohemia Tour OFFICIAL RESULTS LIST
+Prologue
+1. 41 PEŠEK Adam 10000000001 2004 CZE TEAM 00:06:59.46 00:00:00.00
+2. 77 NOVÁK Jan 10000000002 2004 CZE TEAM 00:06:59.77 00:00:00.31
+2. 12 KRÁL Petr 10000000003 2004 CZE TEAM 00:06:59.77 00:00:00.31
+Race configuration
+West Bohemia Tour OFFICIAL RESULTS LIST
+Prologue
+U21 riders standing
+1. 41 PEŠEK Adam 10000000001 2004 CZE TEAM 00:06:59 00:00:00`;
+    const stage = classificationFromOfficialStagePdf('987', 0, prologuePdf, [
+      { Ovl_Pos: 1, RaceNo: '41', Name: 'PEŠEK Adam', Time: '6:59.46' },
+      { Ovl_Pos: 2, RaceNo: '77', Name: 'NOVÁK Jan', Time: '6:59.77' },
+      { Ovl_Pos: 2, RaceNo: '12', Name: 'KRÁL Petr', Time: '6:59.77' },
+    ]);
+
+    expect(stage.rows.map((row) => [row.timeText, row.gapText])).toEqual([
+      ['6:59.46', null], ['6:59.77', null], ['6:59.77', null],
+    ]);
+  });
+
+  it('lee las acumuladas reales tras prólogo sin exigir puntos ni montaña', () => {
+    const source = [
+      { RaceNo: '33', Name: 'PEŠEK Adam', Club: 'TEAM A' },
+      { RaceNo: '32', Name: 'JEZEK Vaclav', Club: 'TEAM A' },
+    ];
+    const classes = classificationsFromOfficialAfterStagePdf('987', 0, afterProloguePdf, source);
+
+    expect(classes.map((classification) => [classification.classKind, classification.rowCount])).toEqual([
+      ['gc', 2], ['youth', 1], ['teams', 2],
+    ]);
+    expect(classes[2].rows.map((row) => [row.teamName, row.timeText, row.gapText])).toEqual([
+      ['TEAM A', '0:21:14', null], ['TEAM B', null, '+8'],
     ]);
   });
 
@@ -174,6 +248,18 @@ describe('SportSoft Timing', () => {
     ]);
     expect(stage.rows.map((r) => [r.timeText, r.gapText])).toEqual([
       ['4:00:00', null], [null, '+0'], [null, '+2'], [null, '+1:17'],
+    ]);
+  });
+
+  it('no agrupa corredores de un prólogo live y conserva sus centésimas', () => {
+    const stage = classificationFromLive('987', 0, [
+      { Ovl_Pos: 1, RaceNo: '41', Name: 'PEŠEK Adam', Time: '6:59.46', FinishStatus: 'OK' },
+      { Ovl_Pos: 2, RaceNo: '77', Name: 'NOVÁK Jan', Time: '6:59.77', FinishStatus: 'OK' },
+      { Ovl_Pos: 3, RaceNo: '12', Name: 'KRÁL Petr', Time: '7:00.01', FinishStatus: 'OK' },
+    ]);
+
+    expect(stage.rows.map((row) => [row.timeText, row.gapText])).toEqual([
+      ['6:59.46', null], ['6:59.77', null], ['7:00.01', null],
     ]);
   });
 

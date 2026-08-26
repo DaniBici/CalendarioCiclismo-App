@@ -35,6 +35,8 @@ object ResultsFeedLogic {
         val race: Race,
         /** null = prueba de un día o general final (sin etiqueta de etapa). */
         val stageNumber: Int?,
+        /** Sufijo de doble sector (A/B); vacío en jornadas ordinarias. */
+        val stageSuffix: String = "",
         /** Jornada (ruta/km/tipos/hora); null en las generales finales. */
         val rd: RaceDay?,
         /** id de race_uci_stages — para resolver el ganador (rank 1). */
@@ -74,9 +76,17 @@ object ResultsFeedLogic {
         races: List<Race>,
         fromKey: String,
         toKey: String,
+        automaticSourceRaceIds: Set<String> = emptySet(),
     ): List<FeedEntry> {
-        val rdById = raceDays.associateBy { it.id }
-        val rdsByRace = raceDays.filter { it.raceId != null }.groupBy { it.raceId!! }
+        // El feed recibe jornadas sin el campo transitorio stageSuffix. Se anotan
+        // sobre copias para distinguir 1A/1B sin mutar los modelos del llamador.
+        val days = raceDays.map { source ->
+            source.copy().also { it.stageSuffix = source.stageSuffix }
+        }.toMutableList()
+        RaceLogic.annotateDoubleSectors(days)
+
+        val rdById = days.associateBy { it.id }
+        val rdsByRace = days.filter { it.raceId != null }.groupBy { it.raceId!! }
         // Jornada por (raceId, stageNumber): fallback cuando la clasificación
         // in-house NO trae raceDayId (el volcado precedió a la creación de la
         // jornada → race_uci_stages.raceDayId NULL; documentado en el runbook de saneo).
@@ -85,13 +95,26 @@ object ResultsFeedLogic {
         // disputada en Francia, con race_days.countryCode = 'FR').
         // Un doble sector (3A/3B) comparte stageNumber → aquí ganaría uno
         // arbitrario; da igual (mismo día/país) y esta rama solo actúa sin raceDayId.
-        val rdByRaceStage = raceDays
+        val rdByRaceStage = days
             .filter { it.raceId != null && it.stageNumber != null }
             .associateBy { "${it.raceId}#${it.stageNumber}" }
         val raceById = races.associateBy { it.id }
 
-        fun key(raceId: String, sn: Int?) = "$raceId#${sn ?: "final"}"
-        val inhouseKeys = stages.map { key(it.raceId, it.stageNumber) }.toSet()
+        fun key(raceId: String, sn: Int?, suffix: String = "") =
+            "$raceId#${sn?.toString() ?: "final"}$suffix"
+
+        // raceDayId es la identidad canónica. El fallback raceId+stageNumber se
+        // mantiene solo para volcados antiguos sin raceDayId y se desactiva si
+        // el mismo número ya tiene una clasificación enlazada: de otro modo una
+        // 1A enlazada ocultaría el fallback externo legítimo de la 1B.
+        val inhouseDayIds = stages.mapNotNull { it.raceDayId }.toSet()
+        val linkedStageKeys = stages.filter { it.raceDayId != null }
+            .map { key(it.raceId, it.stageNumber) }.toSet()
+        val legacyStageKeys = stages.filter { it.raceDayId == null }
+            .map { key(it.raceId, it.stageNumber) }.toMutableSet()
+            .also { it.removeAll(linkedStageKeys) }
+        fun hasInhouse(rd: RaceDay): Boolean =
+            rd.id in inhouseDayIds || key(rd.raceId.orEmpty(), rd.stageNumber) in legacyStageKeys
 
         // Jornada de una clasificación: por raceDayId → por (raceId,stageNumber)
         // si el volcado no lo trajo → la única/primera jornada (un día). Fuente
@@ -170,13 +193,16 @@ object ResultsFeedLogic {
                     )
                 )
             } else if (s.classKind == "stage" && s.stageNumber != null) {
-                val k = key(s.raceId, s.stageNumber)
+                val rd = entryRd(s, race)
+                val suffix = rd?.stageSuffix.orEmpty()
+                val k = key(s.raceId, s.stageNumber, suffix)
                 if (k in seen) continue
                 seen.add(k)
                 entries.add(
                     FeedEntry(
                         kind = Kind.INHOUSE, date = date, race = race,
-                        stageNumber = s.stageNumber, subOrder = 1, rd = entryRd(s, race),
+                        stageNumber = s.stageNumber, stageSuffix = suffix,
+                        subOrder = 1, rd = rd,
                         stageRefId = s.id, winner = cleanWinner(s.winnerName),
                     )
                 )
@@ -185,13 +211,13 @@ object ResultsFeedLogic {
         }
 
         // ── Fallback externos: jornadas concluidas SIN volcado in-house ─────
-        for (rd in raceDays) {
+        for (rd in days) {
             if (rd.isRestDay || rd.isCancelledDay) continue
             val race = rd.raceId?.let { raceById[it] } ?: continue
             if (race.extId == null && race.extSlug == null) continue
+            if (race.id in automaticSourceRaceIds) continue
             val isOneDay = race.isOneDay
-            val covered = inhouseKeys.contains(key(race.id, rd.stageNumber)) ||
-                (isOneDay && (inhouseKeys.contains(key(race.id, null)) || "${race.id}#oneday" in seen))
+            val covered = hasInhouse(rd) || (isOneDay && "${race.id}#oneday" in seen)
             if (covered) continue
             // Concluida = heurística meta+30 con extId/extSlug (RaceLogic ya la
             // implementa; es la misma señal que el trofeo de las cards de Hoy).
@@ -200,6 +226,7 @@ object ResultsFeedLogic {
                 FeedEntry(
                     kind = Kind.EXT, date = rd.dateKey, race = race,
                     stageNumber = if (isOneDay) null else rd.stageNumber,
+                    stageSuffix = if (isOneDay) "" else rd.stageSuffix.orEmpty(),
                     subOrder = 1, rd = rd,
                 )
             )
@@ -245,7 +272,13 @@ object ResultsFeedLogic {
      * misma carrera → la general final SIEMPRE por delante de su etapa.
      */
     fun cmpEntries(a: FeedEntry, b: FeedEntry, sortTimeA: Double, sortTimeB: Double): Int {
-        if (a.race.id == b.race.id) return a.subOrder - b.subOrder
+        if (a.race.id == b.race.id) {
+            val sub = a.subOrder - b.subOrder
+            if (sub != 0) return sub
+            val stage = (a.stageNumber ?: Int.MAX_VALUE).compareTo(b.stageNumber ?: Int.MAX_VALUE)
+            if (stage != 0) return stage
+            return a.stageSuffix.compareTo(b.stageSuffix)
+        }
         val rA = a.race
         val rB = b.race
         // Dos Campeonatos Nacionales: orden interno por país → línea/CRI → categoría

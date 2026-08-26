@@ -96,6 +96,7 @@ const DELAY = parseInt(getArg('delay') || '150', 10);
 
 const BASE = 'https://api.cycling.matsport.com';
 const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
+const HTTP_TIMEOUT_MS = 20_000;
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -231,7 +232,10 @@ export function mapRows(rankings, spec, riderByBib, teamByNumber) {
 
 // ── cliente HTTP ────────────────────────────────────────────────────────────
 async function get(path) {
-  const res = await fetch(`${BASE}${path}`, { headers: { 'User-Agent': UA } });
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': UA },
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+  });
   if (!res.ok) return null;
   try { return await res.json(); } catch { return null; }
 }

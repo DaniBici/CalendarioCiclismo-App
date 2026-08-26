@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   irmOf, absTime, normGap, deriveCode, fnv1a,
   parseResultRows, parseTttResultRows, parseAnnexeRows, attrs, firstBlock, allStages, rushBody,
+  finishOnlyResultBlock,
+  stageRaceType, stageDateKey,
+  parsePdfYouthRows, parsePdfPointsRows, parsePdfMountainRows, parsePdfTeamRows,
 } from '../../scripts/results-fetchers/sts-results-fetch.mjs';
 
 // Formatos verificados contra La Route d'Occitanie 2025 y 2026 (primera carrera
@@ -361,6 +364,38 @@ describe('firstBlock — <Resultats /> self-closing = etapa NO disputada', () =>
   });
 });
 
+describe('finishOnlyResultBlock — los pasos previos por meta no son resultado de etapa', () => {
+  const limousinE4 = {
+    aTours: '1', nbTours: '4', distance: '178700', distTour1: '141800', distanceTour: '12300',
+  };
+
+  it('devuelve vacío mientras ninguna fila haya alcanzado la meta', () => {
+    const previousPass =
+      `<R d="95" t="03h51'12" to="3" ds="166400" />`
+      + `<R d="54" t="03h51'12" to="3" ds="166400" g="-" />`
+      + `<R d="82" t="Abandon" tr="4" to="2" ds="154100" />`;
+    expect(finishOnlyResultBlock(previousPass, limousinE4)).toBe('');
+  });
+
+  it('al llegar a meta conserva solo finishers y estados, no pasos anteriores', () => {
+    const block =
+      `<R d="95" t="04h06'48" to="4" ds="178700" />`
+      + `<R d="54" t="03h51'12" to="3" ds="166400" g="-" />`
+      + `<R d="57" t="04h06'48" to="4" ds="178700" g="-" />`
+      + `<R d="82" t="Abandon" tr="4" to="2" ds="154100" />`;
+    const filtered = finishOnlyResultBlock(block, limousinE4);
+    expect(filtered).toContain('d="95"');
+    expect(filtered).toContain('d="57"');
+    expect(filtered).toContain('d="82"');
+    expect(filtered).not.toContain('d="54"');
+  });
+
+  it('no altera etapas sin circuito', () => {
+    const block = `<R d="16" t="04h31'03" />`;
+    expect(finishOnlyResultBlock(block, { nbTours: '1', distance: '174900' })).toBe(block);
+  });
+});
+
 describe('rushBody — solo el <Rush id="GN"> (la acumulada) de cada anexa', () => {
   it('tolera atributos extra en el open-tag (nom="Général")', () => {
     expect(rushBody(`<Rush id="GN" nom="Général"><res dos="1" pts="5" /></Rush>`, 'GN')).toContain('dos="1"');
@@ -388,6 +423,107 @@ describe('allStages / attrs — parseo del XML', () => {
   it('attrs extrae los atributos de un open-tag', () => {
     expect(attrs(`<E d="1" n="STAUNE-MITTET Johannes" c="DECATHLON" na="NOR" />`))
       .toMatchObject({ d: '1', n: 'STAUNE-MITTET Johannes', c: 'DECATHLON', na: 'NOR' });
+  });
+});
+
+describe('stageRaceType — type prevalece sobre chrono', () => {
+  it('no convierte una etapa en ruta en CRE aunque chrono="2"', () => {
+    // Regresión de Tour du Limousin E1 2026: type="0" es la modalidad fiable.
+    expect(stageRaceType({ type: '0', chrono: '2' })).toBeNull();
+  });
+
+  it('distingue CRI y CRE mediante type', () => {
+    expect(stageRaceType({ type: '1', chrono: '2' })).toBe('ITT');
+    expect(stageRaceType({ type: '2', chrono: '0' })).toBe('TTT');
+  });
+
+  it('usa chrono como compatibilidad solo cuando type no existe', () => {
+    expect(stageRaceType({ chrono: '1' })).toBe('ITT');
+    expect(stageRaceType({ type: '0', chrono: '1' })).toBeNull();
+  });
+});
+
+describe('stageDateKey — la fecha de Etape prevalece sobre el encabezado', () => {
+  it('lee `dt`, el atributo real de las etapas Wiclax', () => {
+    expect(stageDateKey({ dt: '2026-08-21' }, '2026-08-17')).toBe('2026-08-21');
+  });
+
+  it('no hereda la fecha errónea de Epreuve en la final de Limousin', () => {
+    const epreuve = { dt1: '2026-08-17', dt2: '2026-08-17' };
+    const lastStage = { dt: '2026-08-21' };
+    expect(stageDateKey(lastStage, epreuve.dt2 || epreuve.dt1)).toBe('2026-08-21');
+  });
+
+  it('mantiene compatibilidad con `dt1` y con el fallback', () => {
+    expect(stageDateKey({ dt1: '2026-06-19' }, '2026-06-18')).toBe('2026-06-19');
+    expect(stageDateKey({}, '2026-06-18')).toBe('2026-06-18');
+  });
+});
+
+describe('PDF STSport — complementarias finales en tablas de dos columnas', () => {
+  const pdfRiders = new Map([
+    [1, { display: 'COSTIOU Ewen', teamName: 'GROUPAMA-FDJ UNITED' }],
+    [13, { display: "L'HOTE Antoine", teamName: 'DECATHLON CMA CGM TEAM' }],
+    [44, { display: 'VERSCHUREN Killian', teamName: 'UNIBET ROSE ROCKETS' }],
+    [52, { display: 'VERCHER Matteo', teamName: 'TOTALENERGIES' }],
+    [136, { display: 'HECTOR Raphaël', teamName: 'VELOCE CLUB ROUEN 76' }],
+    [182, { display: 'JUILLARD Maximilien', teamName: 'VÉLO CLUB VILLEFRANCHE BEAUJOLAIS' }],
+    [135, { display: 'LE NY Jean Louis', teamName: 'VELOCE CLUB ROUEN 76' }],
+    [71, { display: 'BASSET Pierre Henry', teamName: 'XDS ASTANA DEVELOPMENT TEAM' }],
+    [181, { display: 'BERGER Baptiste', teamName: 'VÉLO CLUB VILLEFRANCHE BEAUJOLAIS' }],
+    [25, { display: 'VEISTROFFER Baptiste', teamName: 'LOTTO INTERMARCHÉ' }],
+    [123, { display: 'DELACROIX Théo', teamName: 'ST MICHEL - PREFERENCE HOME - AUBER93' }],
+    [117, { display: 'HALL Karl', teamName: 'BIKE AID' }],
+  ]);
+
+  const youthPdf = `
+CLASSEMENT GÉNÉRAL DES JEUNES
+       Pl.        Dos         Nom Prénom          Eq.    Temps         Pl.        Dos             Nom Prénom               Eq.            Temps
+       1          1           COSTIOU Ewen        GFC     16h49'20''    3          44     VERSCHUREN Killian              URR             à 01'46''
+       2          52          VERCHER Matteo      TEN          à 35''   4          13     L'HOTE Antoine                  DCT                   ''
+       66         136         HECTOR Raphaël      VCR       à 1h02'32''
+CLASSEMENT DU COMBINÉ`;
+
+  it("resuelve '' por puesto después de ordenar las dos columnas", () => {
+    const rows = parsePdfYouthRows(youthPdf, pdfRiders);
+    expect(rows.find((row) => row.rank === 4)?.gapText).toBe('+1:46');
+    expect(rows.find((row) => row.rank === 66)?.gapText).toBe('+1:02:32');
+  });
+
+  const pointsPdf = `
+Classements des Sprint
+Classement Général
+ Pl. Dos Nom Prénom                         Eq. Pts          Pl. Dos Nom Prénom                         Eq. Pts
+ 1   182 JUILLARD M.                        VVB 14           3   71 BASSET P.                            XAD 7
+ 2   135 LE NY J.                           VCR 9            4   181 BERGER B.                           VVB 6
+Classement de la Montagne
+Classement Général
+ Pl. Dos Nom Prénom                         Eq. Pts          Pl. Dos Nom Prénom                         Eq. Pts
+ 1   25 VEISTROFFER B.                      LOI 44           3   123 DELACROIX T.                        AUB 22
+ 2   135 LE NY J.                           VCR 32           4   71 BASSET P.                            XAD 18
+`;
+
+  it('extrae puntos y montaña generales, no los pasos intermedios', () => {
+    expect(parsePdfPointsRows(pointsPdf, pdfRiders).map((row) => row.points)).toEqual([14, 9, 7, 6]);
+    expect(parsePdfMountainRows(pointsPdf, pdfRiders).map((row) => row.points)).toEqual([44, 32, 22, 18]);
+  });
+
+  const teamsPdf = `
+CLASSEMENT ETAPE
+ Pl. Dos Nom Prénom              Eq. Temps                  Pl. Dos Nom Prénom              Eq. Temps
+ 1   52 VERCHER Matteo           TEN 4h06'00''              3   13 L'HOTE Antoine            DCT à 00''
+ 2   182 JUILLARD Maximilien     VVB à 00''                 4   117 HALL Karl                 BAI à 01'00''
+\fClassement Général par Equipe
+ Pl.                      Equipe                Nat     Temps                   Temps          Pl.                 Equipe                   Nat    Temps                     Temps
+ 1             TOTALENERGIES                      TEN     50h29'28''                             3    DECATHLON CMA CGM TEAM                 DCT    50h33'36''                à 04'08''
+ 2             VÉLO CLUB VILLEFRANCHE BEAUJOLAIS VVB     50h33'17''              à 03'49''      4    BIKE AID                                BAI    50h34'28''                à 05'00''
+`;
+
+  it('extrae la general por equipos como evento de tiempo', () => {
+    const rows = parsePdfTeamRows(teamsPdf, pdfRiders);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ teamName: 'TOTALENERGIES', timeText: '50:29:28' });
+    expect(rows[3]).toMatchObject({ teamName: 'BIKE AID', gapText: '+5:00' });
   });
 });
 

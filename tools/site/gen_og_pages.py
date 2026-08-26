@@ -3,6 +3,14 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import quote
 from datetime import datetime, timezone
+from results_routes import (
+    result_entry_key,
+    result_entry_sort_key,
+    result_segment,
+    result_stage_label,
+    sector_suffixes,
+    without_ambiguous_plain_entries,
+)
 
 SUPABASE_URL = "https://bcecwlkynpgovnzhbpah.supabase.co"
 ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
@@ -717,6 +725,7 @@ except Exception as e:
 racedays_all = supabase_get(
     "race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
     "startLocationEn,finishLocationEn,dateKey,isRestDay,isCancelledDay,updatedAt,"
+    "neutralStartTimeUtc,"
     "countryCode,elevationProfile,profileNotViewable,distanceKm,primaryType,secondaryType,"
     "description,translations"
     "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc"
@@ -1339,12 +1348,20 @@ print("Generando páginas OG para resultados...")
 os.makedirs("resultados", exist_ok=True)
 os.makedirs("en/results", exist_ok=True)
 res_stages_raw = supabase_get(
-    "race_uci_stages?select=raceId,stageNumber&keepForWeb=eq.true"
+    "race_uci_stages?select=raceId,raceDayId,stageNumber&keepForWeb=eq.true"
 )
-# Agrupar stageNumbers por carrera (None = clasificación final / un día).
+res_suffix_by_day = sector_suffixes(racedays_all)
+# Agrupar entradas sectorizadas por carrera ((None, '') = final / un día).
 res_real_by_race = {}
 for st in (res_stages_raw or []):
-    res_real_by_race.setdefault(st.get("raceId"), set()).add(st.get("stageNumber"))
+    _rid = st.get("raceId")
+    if not _rid:
+        continue
+    _rf = race_map.get(_rid, {}).get("raceFormat")
+    _entry = result_entry_key(_rf, st.get("stageNumber"), st.get("raceDayId"), res_suffix_by_day)
+    res_real_by_race.setdefault(_rid, set()).add(_entry)
+for _rid, _entries in list(res_real_by_race.items()):
+    res_real_by_race[_rid] = without_ambiguous_plain_entries(_entries)
 
 # Adelantar la creación: TODA jornada publicada (no descanso) recibe ya su
 # página de resultados, tenga o no clasificación real todavía (decisión
@@ -1364,7 +1381,8 @@ for _rd in racedays_all:
     _sn = None if _rf == "one_day" else _rd.get("stageNumber")
     if _rf != "one_day" and _sn is None:
         continue
-    res_days_by_race.setdefault(_rid, set()).add(_sn)
+    _entry = result_entry_key(_rf, _sn, _rd.get("id"), res_suffix_by_day)
+    res_days_by_race.setdefault(_rid, set()).add(_entry)
 res_by_race = {
     rid: res_real_by_race.get(rid, set()) | res_days_by_race.get(rid, set())
     for rid in set(res_real_by_race) | set(res_days_by_race)
@@ -1372,37 +1390,30 @@ res_by_race = {
 print(f"  → {len(res_by_race)} carreras con página de resultados "
       f"({len(res_real_by_race)} con clasificación real)")
 
-# Índice (raceId, stageNumber) → race_day para enriquecer la descripción
+# Índice (raceId, (stageNumber, suffix)) → race_day para enriquecer la descripción
 # de resultados con ruta, km y fecha de la jornada. `racedays_all` ya está
 # en memoria. Para carreras de un día, la jornada única se indexa también
 # bajo raceId (la clasificación llega con stageNumber=None).
-rd_by_race_stage = {}
+rd_by_result_entry = {}
 rd_oneday_by_race = {}
 for _rd in racedays_all:
     _rid = _rd.get("raceId")
     if not _rid:
         continue
-    rd_by_race_stage[(_rid, _rd.get("stageNumber"))] = _rd
     _rf = race_map.get(_rid, {}).get("raceFormat")
+    _entry = result_entry_key(_rf, _rd.get("stageNumber"), _rd.get("id"), res_suffix_by_day)
+    rd_by_result_entry[(_rid, _entry)] = _rd
     if _rf == "one_day" and not _rd.get("isRestDay"):
         rd_oneday_by_race[_rid] = _rd
 
-def _res_seg_es(n):
-    if n == 0: return "prologo"
-    if n is not None: return f"etapa-{n}"
-    return ""
-def _res_seg_en(n):
-    if n == 0: return "prologue"
-    if n is not None: return f"stage-{n}"
-    return ""
-def _res_stage_label_es(n):
-    if n == 0: return "Prólogo"
-    if n is not None: return f"Etapa {n}"
-    return "Clasificación final"
-def _res_stage_label_en(n):
-    if n == 0: return "Prologue"
-    if n is not None: return f"Stage {n}"
-    return "Final classification"
+def _res_seg_es(n, suffix=""):
+    return result_segment(n, suffix, is_en=False)
+def _res_seg_en(n, suffix=""):
+    return result_segment(n, suffix, is_en=True)
+def _res_stage_label_es(n, suffix=""):
+    return result_stage_label(n, suffix, is_en=False)
+def _res_stage_label_en(n, suffix=""):
+    return result_stage_label(n, suffix, is_en=True)
 
 # Ruta «A > B» + «N km» de un race_day (o '' si no hay datos).
 def _res_route_km(_rd):
@@ -1431,10 +1442,11 @@ for race_id, stage_set in res_by_race.items():
     is_one_day_res = race.get("raceFormat") == "one_day"
     res_de_art = "del" if articulo_nombre(name_es) == "el" else "de la"
     og_image = og_image_url(race.get("logoUrl"), f"Resultados — {hero_es}")
-    for stage_num in sorted(stage_set, key=lambda x: (x is None, x)):
-        # race_day correspondiente: por (raceId, stageNumber); para un día,
+    for stage_entry in sorted(stage_set, key=result_entry_sort_key):
+        stage_num, stage_suffix = stage_entry
+        # race_day correspondiente: por entrada sectorizada; para un día,
         # la clasificación llega con stageNumber=None → jornada única.
-        res_rd = rd_by_race_stage.get((race_id, stage_num))
+        res_rd = rd_by_result_entry.get((race_id, stage_entry))
         if res_rd is None and is_one_day_res:
             res_rd = rd_oneday_by_race.get(race_id)
         res_route, res_km = _res_route_km(res_rd)
@@ -1443,21 +1455,21 @@ for race_id, stage_set in res_by_race.items():
         res_clasifs = "clasificación de etapa, general, puntos, montaña y jóvenes"
         # Clasificación real (keepForWeb) vs. jornada adelantada sin datos
         # todavía — misma URL en ambos casos, solo cambia el texto SEO.
-        has_real = stage_num in res_real_by_race.get(race_id, set())
+        has_real = stage_entry in res_real_by_race.get(race_id, set())
         # Etapa CANCELADA: no habrá clasificación oficial nunca. Su página
         # existe (aviso + generales arrastradas de la etapa anterior), pero
         # NO puede prometer "vuelve tras la etapa".
         res_cancelled = bool(res_rd and res_rd.get("isCancelledDay"))
         # Prólogo/etapa Nª (con y sin artículo) — una sola vez para las 4
         # combinaciones ES/EN × real/placeholder que lo usan más abajo.
-        et_ord_bare = "prólogo" if stage_num == 0 else (f"{stage_num}ª etapa" if stage_num is not None else None)
-        et_ord_art = "el prólogo" if stage_num == 0 else (f"la {stage_num}ª etapa" if stage_num is not None else None)
+        et_ord_bare = "prólogo" if stage_num == 0 else ((f"etapa {stage_num}{stage_suffix}" if stage_suffix else f"{stage_num}ª etapa") if stage_num is not None else None)
+        et_ord_art = "el prólogo" if stage_num == 0 else ((f"la etapa {stage_num}{stage_suffix}" if stage_suffix else f"la {stage_num}ª etapa") if stage_num is not None else None)
         et_art = "del" if stage_num == 0 else "de la"
-        et_ord_en = ("the prologue" if stage_num == 0 else f"stage {stage_num}") if stage_num is not None else None
+        et_ord_en = ("the prologue" if stage_num == 0 else f"stage {stage_num}{stage_suffix}") if stage_num is not None else None
         # ── ES ──
         if slug_es:
-            seg = _res_seg_es(stage_num)
-            res_stage_label = _res_stage_label_es(stage_num)
+            seg = _res_seg_es(stage_num, stage_suffix)
+            res_stage_label = _res_stage_label_es(stage_num, stage_suffix)
             display_title = f"Resultados — {hero_es} · {res_stage_label}"
             title = f"{display_title} — Calendario Ciclismo App"
             if res_cancelled:
@@ -1535,8 +1547,8 @@ for race_id, stage_set in res_by_race.items():
             res_count += 1
         # ── EN ──
         if slug_en:
-            seg_en = _res_seg_en(stage_num)
-            stage_label_en = _res_stage_label_en(stage_num)
+            seg_en = _res_seg_en(stage_num, stage_suffix)
+            stage_label_en = _res_stage_label_en(stage_num, stage_suffix)
             display_title_en = f"Results — {hero_en} · {stage_label_en}"
             title_en = f"{display_title_en} — Calendario Ciclismo"
             # Ruta/km/fecha EN del mismo race_day (res_rd).
@@ -1596,7 +1608,7 @@ for race_id, stage_set in res_by_race.items():
                 desc_en = (f"Final classification of the {hero_en}: "
                            "GC, points, KOM, youth and teams.")
             canonical_en = f"{BASE_URL_EN}/results/{quote(slug_en)}/" + (f"{seg_en}/" if seg_en else "")
-            canonical_es = (f"{BASE_URL}/resultados/{quote(slug_es)}/" + (f"{_res_seg_es(stage_num)}/" if _res_seg_es(stage_num) else "")) if slug_es else None
+            canonical_es = (f"{BASE_URL}/resultados/{quote(slug_es)}/" + (f"{_res_seg_es(stage_num, stage_suffix)}/" if _res_seg_es(stage_num, stage_suffix) else "")) if slug_es else None
             crumbs_en = [("Home", f"{BASE_URL_EN}/")]
             if year:
                 crumbs_en.append((f"{year} season", f"{BASE_URL_EN}/season/"))

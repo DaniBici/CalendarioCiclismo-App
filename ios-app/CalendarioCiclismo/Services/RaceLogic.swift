@@ -105,23 +105,64 @@ enum RaceLogic {
         return 4
     }
 
-    /// True si la sección de TV debe mostrarse como "Revive": la carrera terminó >=30 min
-    /// y hay al menos un broadcast de Eurosport, HBO Max o YouTube.
+    /// Dominios cuyos enlaces universales deben intentar abrir primero la app
+    /// nativa. Si no hay una app instalada, la vista llamante conserva el enlace
+    /// dentro de Calendario Ciclismo mediante `SFSafariViewController`.
+    static func prefersNativeApp(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let domains = [
+            "youtube.com", "youtu.be", "hbomax.com", "play.max.com",
+            "x.com", "twitter.com",
+        ]
+        return domains.contains { host == $0 || host.hasSuffix(".\($0)") }
+    }
+
+    /// True si la sección de TV debe mostrarse como "Revive": la carrera terminó
+    /// hace al menos 30 minutos y existe una emisión persistente. Sin hora de meta,
+    /// `raceTimeCheck` usa el cierre de seguridad de `dateKey` a las 18:00 UTC.
     static func hasReviveBroadcasts(_ broadcasts: [Broadcast], rd: RaceDay) -> Bool {
-        guard rd.estimatedFinishTimeUtc != nil else { return false }
         guard raceTimeCheck(rd: rd, offsetMinutes: 30) else { return false }
         return reviveUrl(from: broadcasts) != nil
     }
 
-    /// Filtra los broadcasts para modo Revive (Eurosport, HBO Max, YouTube, o showInRevive=true).
+    private static func isEtbOnDemand(_ value: String) -> Bool {
+        guard let components = URLComponents(string: value),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "etbon.eus" else { return false }
+        return components.path.hasPrefix("/m/")
+    }
+
+    private static func isSocialReplay(_ value: String) -> Bool {
+        guard let host = URLComponents(string: value)?.host?.lowercased() else { return false }
+        let domains = [
+            "youtube.com", "youtu.be", "facebook.com", "fb.watch", "instagram.com",
+            "tiktok.com", "twitch.tv", "kick.com", "twitter.com", "x.com",
+        ]
+        return domains.contains { host == $0 || host.hasSuffix(".\($0)") }
+    }
+
+    static func isReviveBroadcast(_ broadcast: Broadcast) -> Bool {
+        guard let url = broadcast.url, !url.isEmpty else { return false }
+        if broadcast.showInRevive == true { return true }
+        let channel = (broadcast.channel ?? "").lowercased()
+        return channel.contains("eurosport") || channel.contains("hbo max")
+            || isSocialReplay(url)
+            || isEtbOnDemand(url)
+    }
+
+    static func shouldShowBroadcastNote(hasResults: Bool, isRevive: Bool, showInRevive: Bool) -> Bool {
+        !hasResults && (!isRevive || showInRevive)
+    }
+
+    /// Filtra los broadcasts para modo Revive (incluidos deep-links /m/ de ETB ON).
     static func reviveBroadcasts(from broadcasts: [Broadcast]) -> [Broadcast] {
-        broadcasts.filter { b in
-            guard let url = b.url, !url.isEmpty else { return false }
-            if b.showInRevive == true { return true }
-            let channel = (b.channel ?? "").lowercased()
-            return channel.contains("eurosport") || channel.contains("hbo max")
-                || url.contains("youtube.com") || url.contains("youtu.be")
-        }
+        broadcasts.filter(isReviveBroadcast)
+    }
+
+    static func reviveBroadcasts(from broadcasts: [Broadcast], isCancelled: Bool) -> [Broadcast] {
+        isCancelled
+            ? broadcasts.filter { $0.showInRevive == true }
+            : reviveBroadcasts(from: broadcasts)
     }
 
     /// True si la carrera ya concluyó: >=30 min tras la hora estimada de llegada,
@@ -191,17 +232,12 @@ enum RaceLogic {
         return URL(string: "\(base)/stage-\(sn)\(suffix)/result")
     }
 
-    /// Primer URL de un broadcast Revive (Eurosport, HBO Max, YouTube, o showInRevive=true).
+    /// Primer URL de un broadcast Revive, incluidos deep-links /m/ de ETB ON.
     static func reviveUrl(from broadcasts: [Broadcast]) -> URL? {
         let sorted = broadcasts.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
         for b in sorted {
             guard let urlStr = b.url else { continue }
-            if b.showInRevive == true { return URL(string: urlStr) }
-            let channel = (b.channel ?? "").lowercased()
-            if channel.contains("eurosport") || channel.contains("hbo max")
-                || urlStr.contains("youtube.com") || urlStr.contains("youtu.be") {
-                return URL(string: urlStr)
-            }
+            if isReviveBroadcast(b) { return URL(string: urlStr) }
         }
         return nil
     }

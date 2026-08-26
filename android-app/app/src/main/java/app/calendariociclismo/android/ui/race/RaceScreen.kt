@@ -85,6 +85,7 @@ import app.calendariociclismo.android.ui.today.ResultsDialog
 import app.calendariociclismo.android.ui.today.ResultsDialogItem
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.launch
 
@@ -128,11 +129,16 @@ fun RaceScreen(raceId: String, navController: NavController) {
     // externos. Diferido y no bloqueante (sin red → vacío → modal clásico). Pasa las
     // jornadas para resolver el caso de un día/general (stage sin raceDayId).
     var inhouseByDay by remember(raceId) { mutableStateOf<Map<String, Int?>>(emptyMap()) }
+    var hasAutomaticResultsSource by remember(raceId) { mutableStateOf(false) }
+    var resultsSourceGateResolved by remember(raceId) { mutableStateOf(false) }
     LaunchedEffect(state) {
         val ready = state as? RaceState.Ready ?: return@LaunchedEffect
+        resultsSourceGateResolved = false
         val days = ready.days.map { it.raceDay.id to it.raceDay.stageNumber }
         val cancelled = ready.days.filter { it.raceDay.isCancelledDay }.map { it.raceDay.id }.toSet()
         inhouseByDay = runCatching { app.repository.inhouseStagesForDays(raceId, days, cancelled) }.getOrDefault(emptyMap())
+        hasAutomaticResultsSource = raceId in app.repository.automaticResultsSourceRaceIds(listOf(raceId))
+        resultsSourceGateResolved = true
     }
 
     Scaffold { padding ->
@@ -191,9 +197,10 @@ fun RaceScreen(raceId: String, navController: NavController) {
                         // trofeo va a la pantalla nativa (no al modal externos).
                         val inhouseStage = inhouseByDay[day.id]
                         val hasInhouse = inhouseByDay.containsKey(day.id)
-                        val showResults = hasInhouse || RaceLogic.shouldShowResults(day.raceDay, s.race)
-                        val hideNoIds = !showResults && RaceLogic.noIdsAndPastDeadline(day.raceDay, s.race)
-                        val reviveUrl = if (showResults || hideNoIds) RaceLogic.reviveUrl(day.broadcasts) else null
+                        val showResults = hasInhouse || (resultsSourceGateResolved && !hasAutomaticResultsSource && RaceLogic.shouldShowResults(day.raceDay, s.race))
+                        // Revive/TV solo acompaña a Resultados; alcanzar la hora
+                        // de meta sin clasificaciones no lo activa.
+                        val reviveUrl = if (showResults) RaceLogic.reviveUrl(day.broadcasts) else null
                         StageRow(
                                 day = day,
                                 race = s.race,
@@ -216,13 +223,7 @@ fun RaceScreen(raceId: String, navController: NavController) {
                                 } else null,
                                 onRevive = reviveUrl?.let { url ->
                                     {
-                                        runCatching {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, url.toUri()).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                            )
-                                        }
+                                        openExternalUrl(context, url)
                                     }
                                 },
                         )

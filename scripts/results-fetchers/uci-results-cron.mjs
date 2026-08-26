@@ -32,8 +32,9 @@
  *      wp-admin/admin-ajax.php, pid = domtelCode) · 'livetiming' (119) →
  *      livetiming-results-fetch (livetiming.at, cronometrador austriaco/Tour of
  *      Austria; JSON público live_links.php + live_data_all.php, un V_ID por etapa,
- *      livetimingCode = V_ID etapa 1 y se derivan los demás por fecha) · 'pdf' (090) /
- *      'sportstiming' (103) / 'manual_timing' (104) → SE SALTAN (volcado manual/local;
+ *      livetimingCode = V_ID etapa 1 y se derivan los demás por fecha) ·
+ *      'manual_timing' (104) → manual_timing-results-fetch (JSON público live por etapa) ·
+ *      'pdf' (090) / 'sportstiming' (103) → SE SALTAN (volcado manual/local;
  *      sin fetcher automático) —
  *      HÍBRIDO UCI-preferente: source='uci' + domtelCode poblado → se corren AMBOS
  *      fetchers (UCI primero, Domtel de relleno después). DataRide (oficial y completo:
@@ -56,10 +57,9 @@
  *   3. Reporta cuántas se tocaron y si hubo clasificaciones nuevas para
  *      observabilidad. Los workflows no regeneran páginas tras el volcado.
  *
- * Dos workflows lo invocan con cadencias distintas (.github/workflows/):
- *   · uci-results-today.yml   cada 30 min, solo en ventana de meta (el gate previo
- *                             vive en pg_cron, migración 087) → --scope today
- *   · uci-results-backlog.yml cada 2 h     → --scope backlog (retrasadas)
+ * La selección automática del día la invoca el timer del VPS con --configured.
+ * uci-results-today.yml queda como fallback manual y uci-results-backlog.yml
+ * conserva su circuito independiente para retrasadas.
  *
  * NO descubre carreras nuevas (el alta es curada). Solo procesa lo ya enlazado.
  *
@@ -93,6 +93,9 @@
  *                  --skip-existing` para volcar SOLO las carreras recién enlazadas del
  *                  día (las ya asentadas se saltan baratas) sin depender de la ventana
  *                  de meta (que para una carrera de la mañana ya habría cerrado).
+ *   --configured   selecciona únicamente las reglas automáticas activas y en ventana.
+ *                  Es el modo del watcher del VPS. Resuelve la jornada exacta y,
+ *                  en dobles sectores, pasa también 0=A/1=B al upsert.
  *   --dry-run      lista lo que haría, sin fetch ni escritura.
  *
  * Requiere DATABASE_URL (.env o entorno). Salida JSON de resumen en stdout (la
@@ -127,14 +130,62 @@ const ONE_RACE = getArg('race-id');
 const ONE_STAGE = (ONE_RACE && getArg('stage') != null) ? parseInt(getArg('stage'), 10) : null;
 const DRY = hasFlag('dry-run');
 const IGNORE_WINDOW = hasFlag('ignore-window');
-// Selección por las ventanas configuradas en el panel. El pg_cron solo despierta
-// este runner si existe al menos una candidata; las carreras enlazadas sin regla
-// activa no entran nunca.
+// Selección por las ventanas configuradas en el panel. El timer despierta este
+// proceso cada minuto, pero las carreras enlazadas sin regla activa no entran nunca.
 const CONFIGURED = hasFlag('configured');
+// La frecuencia ya no es configuración editorial. El panel define únicamente la
+// ventana y el servicio decide cada cuánto observar la fuente según su capacidad:
+//   · feeds live: cada minuto;
+//   · fuentes post-meta rápidas: cada 2 min alrededor de meta, luego cada 5;
+//   · DataRide/UCI: cada 5 min solo entre +30 y +120 min post-meta; 10 fuera.
+// Sigue siendo observación adaptativa, no push: los proveedores no exponen un
+// webhook común. La detección condicional por proveedor se podrá añadir donde la
+// fuente exponga metadatos fiables; nunca vuelve a ser un control del panel.
+export const LIVE_RESULT_SOURCES = Object.freeze([
+  'tissot', 'matsport', 'raceresult', 'sts', 'livetiming', 'sportsoft',
+  'timing.ee', 'evodata', 'infocity', 'ASO', 'manual_timing',
+]);
+export const COVERED_STAGE_REFRESH_SOURCES = LIVE_RESULT_SOURCES;
+export const MANUAL_RESULT_SOURCES = Object.freeze(['pdf', 'sportstiming']);
+const sqlStringList = (values) => values.map((value) => `'${value}'`).join(', ');
+export const CONFIGURED_POLL_INTERVAL_MINUTES_SQL = `CASE
+  WHEN l."source" IN (${sqlStringList(LIVE_RESULT_SOURCES)})
+    OR l."evodataCode" IS NOT NULL
+    THEN 1
+  WHEN l."source" = 'uci' THEN CASE
+    WHEN now() < d."estimatedFinishTimeUtc" + interval '30 minutes' THEN 10
+    WHEN now() <= d."estimatedFinishTimeUtc" + interval '120 minutes' THEN 5
+    ELSE 10
+  END
+  ELSE CASE
+    WHEN now() < d."estimatedFinishTimeUtc" THEN 10
+    WHEN now() <= d."estimatedFinishTimeUtc" + interval '60 minutes' THEN 2
+    ELSE 5
+  END
+END`;
+const CONFIGURED_START_AT_SQL = `CASE
+  WHEN d."resultsAutoSyncEnabled" IS NOT NULL AND d."resultsSyncStartAt" IS NOT NULL
+    THEN d."resultsSyncStartAt"
+  WHEN d."resultsAutoSyncEnabled" IS NULL AND l."syncStartTime" IS NOT NULL
+    THEN ((d."estimatedFinishTimeUtc" AT TIME ZONE 'Europe/Madrid')::date + l."syncStartTime")
+      AT TIME ZONE 'Europe/Madrid'
+  ELSE d."estimatedFinishTimeUtc"
+    + COALESCE(d."resultsSyncStartOffsetMinutes", l."syncStartOffsetMinutes") * interval '1 minute'
+END`;
+const CONFIGURED_STOP_AT_SQL = `CASE
+  WHEN d."resultsAutoSyncEnabled" IS NOT NULL AND d."resultsSyncStopAt" IS NOT NULL
+    THEN d."resultsSyncStopAt"
+  WHEN d."resultsAutoSyncEnabled" IS NULL AND l."syncStopTime" IS NOT NULL
+    THEN (((d."estimatedFinishTimeUtc" AT TIME ZONE 'Europe/Madrid')::date + l."syncStopTime")
+      + CASE WHEN l."syncStartTime" IS NOT NULL AND l."syncStopTime" <= l."syncStartTime"
+          THEN interval '1 day' ELSE interval '0 days' END) AT TIME ZONE 'Europe/Madrid'
+  ELSE d."estimatedFinishTimeUtc"
+    + COALESCE(d."resultsSyncStopOffsetMinutes", l."syncStopOffsetMinutes") * interval '1 minute'
+END`;
 // No re-volcar clasificaciones ya presentes (ver uci-results-upsert --skip-existing).
 // Activo por defecto en el volcado AUTOMÁTICO del día (scope=today, sin --race-id ni
 // --ignore-window): la UCI publica completo y definitivo, así que re-volcar las etapas
-// ya volcadas cada 30 min es trabajo en balde. SportSoft Live puede publicar la meta
+// ya volcadas en cada pasada es trabajo en balde. SportSoft Live puede publicar la meta
 // con décimas antes de incorporar grupos y bonificaciones: se reescribe durante toda
 // la ventana de meta (per-carrera abajo).
 // Se desactiva con --no-skip-existing (forzar re-volcado completo sin --race-id) y NO
@@ -165,10 +216,14 @@ const CLASSIFICACOES_FETCH = join(HERE, 'classificacoes-results-fetch.mjs');
 const INFOCITY_FETCH = join(HERE, 'infocity-results-fetch.mjs');
 const EQTIMING_FETCH = join(HERE, 'eqtiming-results-fetch.mjs');
 const ASO_FETCH = join(HERE, 'aso-results-fetch.mjs');
+const manual_timing_FETCH = join(HERE, 'manual_timing-results-fetch.mjs');
 const SPORTSOFT_FETCH = join(HERE, 'sportsoft-results-fetch.mjs');
 const COLOMBIA_FETCH = join(HERE, 'colombia-pdf-results-fetch.mjs');
 const BURGOS_FETCH = join(HERE, 'burgos-results-fetch.mjs');
 const CHRONORACE_FETCH = join(HERE, 'chronorace-results-fetch.mjs');
+const TIMING_FETCH = join(HERE, 'timing-results-fetch.mjs');
+const BELGIANCYCLING_FETCH = join(HERE, 'belgiancycling-results-fetch.mjs');
+const EVODATA_FETCH = join(HERE, 'evodata-results-fetch.mjs');
 const UPSERT = join(HERE, 'uci-results-upsert.mjs');
 
 function topologyFromPayload(kind, data) {
@@ -223,11 +278,47 @@ function loadEnv() {
 // NULL, así que `--stage N` no la trae y sin ella `--include-final` no filtra nada.
 //
 // `needsFinal` lo calcula la query --configured (mira si la general final ya está
-// cubierta); en el disparo manual llega undefined, así que hay que caer a totalStages.
-export function isFinalStageDump(targetStage, totalStages, needsFinal = false) {
+// cubierta). `isLastRaceDay`, cuando viene del timer, distingue el último sector:
+// 3A y 3B comparten el máximo stageNumber, pero solo 3B puede abrir la final. En el
+// disparo manual no existe ese dato y se conserva el fallback por totalStages.
+export function isFinalStageDump(targetStage, totalStages, needsFinal = false, isLastRaceDay = null) {
   if (needsFinal) return true;
+  if (isLastRaceDay != null) return isLastRaceDay === true;
   if (targetStage == null || totalStages == null) return false;
   return Number(targetStage) === Number(totalStages);
+}
+
+// Argumentos del filtro final de escritura. El fetcher puede devolver más de una
+// jornada (DataRide devuelve 3A y 3B al pedir --stage 3); el upsert es la frontera
+// que garantiza que solo se persista el sector cuya ventana seleccionó el timer.
+export function stageFilterArgs(targetStage, targetSectorIndex = null, includeFinal = false) {
+  if (targetStage == null) return [];
+  return [
+    '--only-stage', String(targetStage),
+    ...(targetSectorIndex == null ? [] : ['--only-sector-index', String(targetSectorIndex)]),
+    ...(includeFinal ? ['--include-final'] : []),
+  ];
+}
+
+// Toda fuente live puede publicar una llegada parcial y ampliarla o corregirla durante
+// la ventana. Una etapa con rank=1 no está cerrada para estas fuentes: debe seguir
+// seleccionándose y el upsert debe reescribirla. Compartir la lista evita que la
+// cadencia y el guard de etapa cubierta diverjan al añadir una fuente.
+export function refreshesCoveredStage(source) {
+  return COVERED_STAGE_REFRESH_SOURCES.includes(source);
+}
+
+export function manual_timingFetchArgs({ code, stage, date, competitionId, outDir, isFinalStage = false }) {
+  if (!code || stage == null) return null;
+  return [
+    '--code', String(code),
+    '--stage', String(stage),
+    '--date', String(date || ''),
+    '--competition-id', String(competitionId),
+    '--out', outDir,
+    '--require-arrivi',
+    ...(isFinalStage ? ['--final'] : []),
+  ];
 }
 
 // Ejecuta un script Node como subproceso; resuelve con su exit code. Hereda stderr.
@@ -259,14 +350,17 @@ async function main() {
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
-                COALESCE((SELECT d2."dateKey" FROM race_days d2 WHERE d2."raceId" = r.id AND d2."stageNumber" = ${LIVE_STAGE_SUBSELECT}), r."startDate") AS "scheduledDate",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
+                COALESCE((SELECT min(d2."dateKey") FROM race_days d2
+                          WHERE d2."raceId" = r.id
+                            AND d2."stageNumber" = COALESCE($2::int, ${LIVE_STAGE_SUBSELECT})),
+                         r."startDate") AS "scheduledDate",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
                 (SELECT min(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id AND d."isRestDay" = false) AS "minStage"
          FROM race_uci_links l JOIN races r ON r.id = l."raceId"
-         WHERE l."raceId" = $1`, [ONE_RACE]);
+         WHERE l."raceId" = $1`, [ONE_RACE, ONE_STAGE]);
       targets = rows;
     } else if (CONFIGURED) {
       // Cierre estricto automático: una jornada cuya llegada principal ya tiene
@@ -301,35 +395,50 @@ async function main() {
         WHERE s."raceId" = l."raceId" AND s."eventId" < 0
           AND COALESCE(s."rowCount",0) > 0
       )`;
-      const IS_LAST_STAGE = `d."stageNumber" IS NOT NULL AND d."stageNumber" = (
-        SELECT max(x."stageNumber") FROM race_days x
+      // Última JORNADA, no solo máximo stageNumber: en 3A/3B ambos comparten el 3,
+      // pero la clasificación final solo pertenece al sector B. dateKey y horas
+      // ordenan los sectores igual que el índice A/B usado por el upsert.
+      const IS_LAST_RACE_DAY = `d.id = (
+        SELECT x.id FROM race_days x
         WHERE x."raceId" = l."raceId" AND x."isRestDay" = false
+        ORDER BY x."dateKey" DESC,
+                 x."neutralStartTimeUtc" DESC NULLS LAST,
+                 x."estimatedFinishTimeUtc" DESC NULLS LAST,
+                 x.id DESC
+        LIMIT 1
       )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
                 d."dateKey" AS "scheduledDate",
                 d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
+                d."scheduledSectorIndex", (${IS_LAST_RACE_DAY}) AS "scheduledIsLastRaceDay",
                 ${MAIN_COVERED} AS "stageCovered",
-                (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_STAGE} AND NOT (${FINAL_COVERED})) AS "needsFinal",
+                (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_RACE_DAY} AND NOT (${FINAL_COVERED})) AS "needsFinal",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
+                (${CONFIGURED_POLL_INTERVAL_MINUTES_SQL})::int AS "pollIntervalMinutes",
                 d."stageNumber" AS "liveStage",
                 (SELECT max(x."stageNumber") FROM race_days x WHERE x."raceId" = r.id) AS "totalStages",
                 (SELECT min(x."stageNumber") FROM race_days x WHERE x."raceId" = r.id AND x."isRestDay" = false) AS "minStage"
          FROM race_uci_links l
          JOIN races r ON r.id = l."raceId"
-         JOIN race_days d ON d."raceId" = l."raceId"
+         JOIN (
+           SELECT d0.*,
+                  row_number() OVER (
+                    PARTITION BY d0."raceId", d0."stageNumber"
+                    ORDER BY d0."neutralStartTimeUtc" ASC NULLS LAST, d0.id ASC
+                  ) - 1 AS "scheduledSectorIndex"
+             FROM race_days d0
+         ) d ON d."raceId" = l."raceId"
          WHERE d."estimatedFinishTimeUtc" IS NOT NULL
            AND COALESCE(d."resultsAutoSyncEnabled", l."autoSyncEnabled")
-           AND l."source" NOT IN ('pdf', 'sportstiming', 'manual_timing')
-           AND now() >= d."estimatedFinishTimeUtc"
-             + COALESCE(d."resultsSyncStartOffsetMinutes", l."syncStartOffsetMinutes") * interval '1 minute'
-           AND now() <= d."estimatedFinishTimeUtc"
-             + COALESCE(d."resultsSyncStopOffsetMinutes", l."syncStopOffsetMinutes") * interval '1 minute'
+           AND l."source" NOT IN (${sqlStringList(MANUAL_RESULT_SOURCES)})
+           AND now() >= (${CONFIGURED_START_AT_SQL})
+           AND now() <= (${CONFIGURED_STOP_AT_SQL})
            AND (d."resultsLastAutoSyncAt" IS NULL OR d."resultsLastAutoSyncAt" <= now()
-             - COALESCE(d."resultsSyncIntervalMinutes", l."syncIntervalMinutes") * interval '1 minute')
-           AND (NOT (${MAIN_COVERED}) OR (${UCI_OFFICIAL_REPLACEMENT_PENDING})
-             OR (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_STAGE} AND NOT (${FINAL_COVERED})))
+             - (${CONFIGURED_POLL_INTERVAL_MINUTES_SQL}) * interval '1 minute')
+           AND (NOT (${MAIN_COVERED}) OR l."source" IN (${sqlStringList(COVERED_STAGE_REFRESH_SOURCES)}) OR (${UCI_OFFICIAL_REPLACEMENT_PENDING})
+             OR (COALESCE(r."raceFormat", 'stage_race') <> 'one_day' AND ${IS_LAST_RACE_DAY} AND NOT (${FINAL_COVERED})))
          ORDER BY l."raceId", d."estimatedFinishTimeUtc" DESC
          LIMIT $1`, [LIMIT]);
       targets = rows;
@@ -359,7 +468,7 @@ async function main() {
       //     cron propio está desactivado — lo dispara la pasada de tarde una vez al día).
       //     Excluye lo del día (lo lleva 'today') y las ok terminadas ya volcadas.
       //     EXCEPCIÓN: las carreras híbridas UCI-preferentes sin cubrir por DataRide
-      //     entran aquí AUNQUE estén 'ok' (Domtel las dejó 'ok') — ver HYBRID_UNCOVERED.
+      //     entran aquí AUNQUE estén 'ok' (el relleno las dejó 'ok') — ver HYBRID_UNCOVERED.
       const HAS_TODAY = `EXISTS (SELECT 1 FROM race_days d
                   WHERE d."raceId" = r.id AND d."dateKey" = to_char(now(), 'YYYY-MM-DD'))`;
       const HAS_PAST = `EXISTS (SELECT 1 FROM race_days d
@@ -378,8 +487,8 @@ async function main() {
                      AND (r."raceFormat" = 'one_day' OR d."stageNumber" >= 1))
                   ))`;
       const todayPred = (SCOPE === 'today' && !IGNORE_WINDOW) ? IN_WINDOW : HAS_TODAY;
-      // HÍBRIDO UCI-preferente sin cubrir: carrera con source='uci' + domtelCode (corre
-      // ambos fetchers) en la que AÚN quedan clasificaciones sintéticas de Domtel
+      // HÍBRIDO UCI-preferente sin cubrir: carrera con source='uci' y una fuente de
+      // relleno configurada en la que AÚN quedan clasificaciones sintéticas
       // (eventId < 0) sin reemplazar por el oficial de DataRide. La etapa la volcó Domtel
       // rápido (link 'ok'), pero DataRide publica horas/días después y su ventana de meta
       // ya cerró (3 h) → sin esto NADA la vuelve a mirar (el backlog solo cogía 'pending').
@@ -387,7 +496,8 @@ async function main() {
       // todas las gemelas Domtel: al hacerlo, esas filas pasan a eventId > 0 y el predicado
       // deja de casar (se AUTO-TERMINA). Solo carreras recientes (endDate en los últimos
       // 20 días) para no re-consultar indefinidamente una que DataRide nunca publicará.
-      const HYBRID_UNCOVERED = `l."source" = 'uci' AND l."domtelCode" IS NOT NULL
+      const HYBRID_UNCOVERED = `l."source" = 'uci'
+                  AND (l."domtelCode" IS NOT NULL OR l."evodataCode" IS NOT NULL)
                   AND r."endDate" >= to_char(now() - interval '20 days', 'YYYY-MM-DD')
                   AND EXISTS (SELECT 1 FROM race_uci_stages s
                               WHERE s."raceId" = r.id AND s."eventId" < 0
@@ -399,14 +509,16 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."colombiaCode", l."chronoraceCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
+                (SELECT min(d."dateKey") FROM race_days d
+                  WHERE d."raceId" = r.id AND d."stageNumber" = ${LIVE_STAGE_SUBSELECT}) AS "scheduledDate",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
                 (SELECT min(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id AND d."isRestDay" = false) AS "minStage",
                 CASE WHEN ${HAS_TODAY} THEN 0 ELSE 1 END AS sort_live
          FROM race_uci_links l JOIN races r ON r.id = l."raceId"
-         WHERE l."source" NOT IN ('pdf', 'sportstiming', 'manual_timing') AND (${where})
+         WHERE l."source" NOT IN (${sqlStringList(MANUAL_RESULT_SOURCES)}) AND (${where})
          ORDER BY sort_live ASC, r."endDate" DESC
          LIMIT $1`, [LIMIT]);
       targets = rows;
@@ -433,11 +545,18 @@ async function main() {
         : t.source === 'sportsoft' && t.sportsoftCode ? `sportsoft:${t.sportsoftCode}`
         : t.source === 'eqtiming' && t.eqtimingCode ? `eqtiming:${t.eqtimingCode}`
         : t.source === 'ASO' && t.asoUrl ? `ASO:${t.asoUrl}`
+        : t.source === 'manual_timing' && t.manual_timingCode ? `manual_timing:${t.manual_timingCode}`
         : t.source === 'colombia' && t.colombiaCode ? `colombia:${t.colombiaCode}`
         : t.source === 'chronorace' && t.chronoraceCode ? `chronorace:${t.chronoraceCode}`
-        // Híbrido UCI-preferente: source='uci' + domtelCode → UCI + relleno Domtel.
+        : t.source === 'timing.ee' && t.timingCode ? `timing.ee:${t.timingCode}`
+        : t.source === 'belgiancycling' && t.belgianCyclingCode ? `belgiancycling:${t.belgianCyclingCode}`
+        : t.source === 'evodata' && t.evodataCode ? `evodata:${t.evodataCode}`
+        // Híbridos UCI-preferentes: DataRide oficial seguido de los rellenos configurados.
+        : t.source === 'uci' && t.domtelCode && t.evodataCode ? `uci + domtel:${t.domtelCode} + evodata:${t.evodataCode} (relleno)`
+        : t.source === 'uci' && t.evodataCode ? `uci + evodata:${t.evodataCode} (relleno)`
         : t.source === 'uci' && t.domtelCode ? `uci + domtel:${t.domtelCode} (relleno)` : 'uci';
-      log(`  · ${t.raceId}  comp ${t.competitionId}  [${src}]  ${t.gender}  startlist=${t.sl > 0 ? 'sí' : 'NO→seed'}`);
+      log(`  · ${t.raceId}  comp ${t.competitionId}  [${src}]  ${t.gender}  startlist=${t.sl > 0 ? 'sí' : 'NO→seed'}`
+        + (t.pollIntervalMinutes ? `  observación=${t.pollIntervalMinutes}min` : ''));
     }
     process.stdout.write(JSON.stringify({ processed: 0, ok: 0, errored: 0, changed: false, dryRun: true, count: targets.length }) + '\n');
     return;
@@ -458,12 +577,22 @@ async function main() {
     // hace una lectura completa: varios proveedores la derivan de la última
     // etapa y no la emiten bajo --stage. Es un caso único por vuelta.
     const targetStage = ONE_STAGE != null ? ONE_STAGE : t.scheduledStage;
+    // Solo --configured conoce la jornada exacta seleccionada. Los disparos manuales
+    // por número mantienen su contrato histórico y no inventan un sector.
+    const targetSectorIndex = ONE_RACE || t.scheduledSectorIndex == null
+      ? null
+      : Number(t.scheduledSectorIndex);
     // La UCI/DataRide y algunos proveedores emiten una clasificación final
     // adicional fuera de la etapa; por eso su última etapa se lee completa. ASO
     // funciona distinto: cada página /stage-N contiene SOLO una etapa y no tiene
     // una pseudo-etapa final separada. Si se omite --stage en ASO, su URL base
     // /rankings se interpreta como etapa 1 aunque la última etapa ya esté publicada.
-    const isFinalStage = isFinalStageDump(targetStage, t.totalStages, t.needsFinal);
+    const isFinalStage = isFinalStageDump(
+      targetStage,
+      t.totalStages,
+      t.needsFinal,
+      ONE_RACE ? null : t.scheduledIsLastRaceDay,
+    );
     const fetchStageArgs = kind === 'ASO' && targetStage != null
       ? ['--stage', String(targetStage)]
       : targetStage != null && !isFinalStage
@@ -505,6 +634,8 @@ async function main() {
       // minStage - 1 (prólogo 0 → -1; carrera normal que empieza en 1 → 0).
       const stsOffset = t.minStage != null ? Number(t.minStage) - 1 : 0;
       fc = await run(STS_FETCH, ['--clax-url', stsClaxUrl, '--code', String(t.stsCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.stsArticleUrl ? ['--article-url', String(t.stsArticleUrl)] : []),
+        ...(t.stsSkipClaxPoints ? ['--skip-clax-points'] : []),
         ...(stsOffset !== 0 ? ['--stage-offset', String(stsOffset)] : []), ...fetchStageArgs]);
     } else if (kind === 'domtel') {
       // 'domtel' (118): Domtel Sport Timing (domtel-sport.pl), cronometrador polaco.
@@ -554,6 +685,22 @@ async function main() {
         ...(t.raceFormat === 'one_day' ? ['--one-day'] : []),
         ...(isFinalStage && t.raceFormat !== 'one_day' ? ['--final'] : []),
         ...fetchStageArgs]);
+    } else if (kind === 'manual_timing') {
+      const manual_timingStage = targetStage ?? t.liveStage ?? t.minStage;
+      const manual_timingArgs = manual_timingFetchArgs({
+        code: t.manual_timingCode,
+        stage: manual_timingStage,
+        date: t.scheduledDate,
+        competitionId: t.competitionId,
+        outDir,
+        isFinalStage,
+      });
+      if (!manual_timingArgs) {
+        log(`  ✗ manual_timing sin manual_timingCode o etapa seleccionable`);
+        return { status: 'error', didWrite: false };
+      }
+      srcLabel = ` ← manual_timing:${t.manual_timingCode}`;
+      fc = await run(manual_timing_FETCH, manual_timingArgs);
     } else if (kind === 'sportsoft') {
       // HTML completo y público; el fetcher descubre los competitionId en cada pasada.
       srcLabel = ` ← sportsoft:${t.sportsoftCode}`;
@@ -573,6 +720,25 @@ async function main() {
       srcLabel = ` ← chronorace:${t.chronoraceCode}`;
       fc = await run(CHRONORACE_FETCH, ['--event-id', String(t.chronoraceCode), '--race-id', String(t.raceId), '--stage', String(targetStage ?? t.minStage ?? 0), '--date', String(t.scheduledDate || t.startDate || ''), '--competition-id', String(t.competitionId), '--out', outDir,
         ...(isFinalStage ? ['--include-final'] : [])]);
+    } else if (kind === 'timing.ee') {
+      // timing.ee: un event agrupa todas las jornadas y clasificaciones. El JSON
+      // público conserva el distance_id necesario para enlazar el PDF oficial.
+      srcLabel = ` ← timing.ee:${t.timingCode}`;
+      fc = await run(TIMING_FETCH, ['--code', String(t.timingCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
+    } else if (kind === 'belgiancycling') {
+      // Belgian Cycling sustituye un PDF marcador por el resultado definitivo en
+      // la misma URL. El fetcher evita caché, rechaza el marcador y emite una sola
+      // clasificación de carrera de un día.
+      srcLabel = ` ← belgiancycling:${t.belgianCyclingCode}`;
+      fc = await run(BELGIANCYCLING_FETCH, ['--code', String(t.belgianCyclingCode), '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(t.scheduledDate || t.startDate ? ['--date', String(t.scheduledDate || t.startDate)] : [])]);
+    } else if (kind === 'evodata') {
+      // EvoData CIS: el eventId padre descubre las jornadas; cada jornada ofrece
+      // llegada y generales mediante un token público efímero de aplicación.
+      srcLabel = ` ← evodata:${t.evodataCode}`;
+      fc = await run(EVODATA_FETCH, ['--code', String(t.evodataCode), '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY,
+        ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []), ...fetchStageArgs]);
     } else {
       // 'uci' (DataRide): fuente oficial. --uci-race-id para una prueba concreta (CN).
       srcLabel = uciRaceId ? ` ← prueba ${uciRaceId}` : '';
@@ -616,15 +782,12 @@ async function main() {
     // avisar (cazado en el Tour of Kahramanmaraş 2026: las 4 finales —general, puntos,
     // montaña, jóvenes— nunca llegaron a la web). Es la MISMA etapa y el MISMO fetch:
     // que el disparo sea manual o automático no cambia que la final ya está publicada.
-    if (targetStage != null) {
-      upArgs.push('--only-stage', String(targetStage));
-      if (isFinalStage) upArgs.push('--include-final');
-    }
+    upArgs.push(...stageFilterArgs(targetStage, targetSectorIndex, isFinalStage));
     // CN: persistir el MISMO uciRaceId en el link (sin esto el upsert lo resetea a 0 y
     // choca con el índice único (competitionId, disciplineId, uciRaceId)).
     if (uciRaceId) upArgs.push('--uci-race-id', String(uciRaceId));
     if (!(t.sl > 0)) upArgs.push('--seed-startlist');   // sin startlist curada → sembrar desde UCI
-    if (SKIP_EXISTING) {
+    if (SKIP_EXISTING && !refreshesCoveredStage(kind)) {
       upArgs.push('--skip-existing');
       // SportSoft Live consolida bonificaciones tras el orden de meta. Cada
       // re-volcado refresca lastSyncedAt, por lo que el umbral cubre toda la
@@ -643,13 +806,10 @@ async function main() {
   }
 
   for (const t of targets) {
-    // 'pdf' (090) = volcado manual desde PDF (skill cc-resultados-pdf): sin fetcher
-    // automático, competitionId sintético negativo → saltar (la query auto ya los
-    // excluye; esto cubre --race-id explícito).
-    if (t.source === 'pdf') { log(`\n▸ ${t.raceId} — source='pdf' (volcado manual), se salta`); continue; }
-    // 'sportstiming' (103) y 'manual_timing' (104): volcados EN LOCAL (sin fetcher automático).
-    if (t.source === 'sportstiming' || t.source === 'manual_timing') {
-      log(`\n▸ ${t.raceId} — source='${t.source}' (volcado local), se salta`); continue;
+    // Fuentes manuales: la query automática ya las excluye; este guard cubre
+    // también los disparos dirigidos por --race-id.
+    if (MANUAL_RESULT_SOURCES.includes(t.source)) {
+      log(`\n▸ ${t.raceId} — source='${t.source}' (volcado manual), se salta`); continue;
     }
 
     // Fuente PRIMARIA según race_uci_links.source (089+).
@@ -664,10 +824,14 @@ async function main() {
       : t.source === 'infocity' && t.infocityCode ? 'infocity'
       : t.source === 'eqtiming' && t.eqtimingCode ? 'eqtiming'
       : t.source === 'ASO' && t.asoUrl ? 'ASO'
+      : t.source === 'manual_timing' && t.manual_timingCode ? 'manual_timing'
       : t.source === 'sportsoft' && t.sportsoftCode ? 'sportsoft'
       : t.source === 'colombia' && t.colombiaCode ? 'colombia'
       : t.source === 'burgos' ? 'burgos'
       : t.source === 'chronorace' && t.chronoraceCode ? 'chronorace'
+      : t.source === 'timing.ee' && t.timingCode ? 'timing.ee'
+      : t.source === 'belgiancycling' && t.belgianCyclingCode ? 'belgiancycling'
+      : t.source === 'evodata' && t.evodataCode ? 'evodata'
       : 'uci';
     const kinds = [primaryKind];
     // HÍBRIDO UCI-preferente: source='uci' (oficial, completo) + domtelCode poblado
@@ -678,6 +842,9 @@ async function main() {
     // automática y permanente. Convención sin migración: no forbidde el CHECK del
     // domtelCode (source<>'domtel' OR domtelCode NOT NULL se cumple por el OR).
     if (primaryKind === 'uci' && t.domtelCode) kinds.push('domtel');
+    // Mismo contrato híbrido para EvoData: los eventId negativos solo rellenan
+    // claves lógicas que DataRide todavía no haya publicado.
+    if (primaryKind === 'uci' && t.evodataCode) kinds.push('evodata');
 
     for (const kind of kinds) {
       const r = await processSource(t, kind);

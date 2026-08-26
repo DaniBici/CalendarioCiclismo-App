@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isFinalStageDump } from '../../scripts/results-fetchers/uci-results-cron.mjs';
+import {
+  CONFIGURED_POLL_INTERVAL_MINUTES_SQL,
+  isFinalStageDump,
+  LIVE_RESULT_SOURCES,
+  MANUAL_RESULT_SOURCES,
+  manual_timingFetchArgs,
+  refreshesCoveredStage,
+} from '../../scripts/results-fetchers/uci-results-cron.mjs';
 import { shouldPublishFinalClassification } from '../../scripts/results-fetchers/uci-results-upsert.mjs';
 
 // REGRESIÓN (2026-08-07, Tour of Kahramanmaraş 2026, comp 77813).
@@ -59,5 +66,64 @@ describe('shouldPublishFinalClassification — carreras de un día en DataRide',
   it('mantiene el guard para una vuelta cuyo payload sí contiene etapas', () => {
     expect(shouldPublishFinalClassification(false, true)).toBe(false);
     expect(shouldPublishFinalClassification(true, true)).toBe(true);
+  });
+});
+
+describe('refreshesCoveredStage — fuentes parciales en directo', () => {
+  it('las fuentes parciales siguen actualizando una etapa aunque ya tenga ganador', () => {
+    for (const source of LIVE_RESULT_SOURCES) {
+      expect(refreshesCoveredStage(source), source).toBe(true);
+    }
+  });
+
+  it('las fuentes de resultado definitivo conservan el cierre habitual', () => {
+    expect(refreshesCoveredStage('uci')).toBe(false);
+    expect(refreshesCoveredStage('belgiancycling')).toBe(false);
+  });
+});
+
+describe('cadencia configurada por fuente', () => {
+  it('trata ASO como directo cada minuto', () => {
+    expect(LIVE_RESULT_SOURCES).toContain('ASO');
+  });
+
+  it('trata manual_timing como directo cada minuto', () => {
+    expect(LIVE_RESULT_SOURCES).toContain('manual_timing');
+    expect(MANUAL_RESULT_SOURCES).not.toContain('manual_timing');
+    expect(refreshesCoveredStage('manual_timing')).toBe(true);
+  });
+
+  it('limita la cadencia alta de DataRide a T+30–T+120', () => {
+    expect(CONFIGURED_POLL_INTERVAL_MINUTES_SQL)
+      .toContain(`WHEN now() < d."estimatedFinishTimeUtc" + interval '30 minutes' THEN 10`);
+    expect(CONFIGURED_POLL_INTERVAL_MINUTES_SQL)
+      .toContain(`WHEN now() <= d."estimatedFinishTimeUtc" + interval '120 minutes' THEN 5`);
+    expect(CONFIGURED_POLL_INTERVAL_MINUTES_SQL).not.toContain("interval '90 minutes'");
+  });
+});
+
+describe('integración automática de manual_timing', () => {
+  it('invoca la etapa exacta y exige que exista llegada', () => {
+    expect(manual_timingFetchArgs({
+      code: 'gironextgen2026',
+      stage: 4,
+      date: '2026-06-17',
+      competitionId: -6123,
+      outDir: '/tmp/manual_timing-test',
+    })).toEqual([
+      '--code', 'gironextgen2026',
+      '--stage', '4',
+      '--date', '2026-06-17',
+      '--competition-id', '-6123',
+      '--out', '/tmp/manual_timing-test',
+      '--require-arrivi',
+    ]);
+  });
+
+  it('emite las clasificaciones finales en la última jornada', () => {
+    expect(manual_timingFetchArgs({
+      code: 'gironextgen2026', stage: 8, date: '2026-06-21',
+      competitionId: -6123, outDir: '/tmp/manual_timing-test', isFinalStage: true,
+    })).toContain('--final');
   });
 });

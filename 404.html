@@ -29,17 +29,17 @@
     if (m) { location.replace('/mapa.html?id=' + encodeURIComponent(m[1]) + '&lang=en'); return; }
     m = p.match(/^\/orden-salida\/([^\/?#]+)\/?$/);
     if (m) { location.replace('/orden-salida.html?slug=' + encodeURIComponent(m[1])); return; }
-    // Resultados: /resultados/<slug>/ con segmento de etapa opcional (etapa-N|prologo).
-    m = p.match(/^\/resultados\/([^\/?#]+)(?:\/(etapa-\d+|prologo))?\/?$/);
+    // Resultados: /resultados/<slug>/ con segmento opcional (etapa-N[A-Z]|prologo).
+    m = p.match(/^\/resultados\/([^\/?#]+)(?:\/(etapa-\d+[a-z]?|prologo))?\/?$/i);
     if (m) {
       var rs = '/resultados.html?slug=' + encodeURIComponent(m[1]);
-      if (m[2]) { rs += '&stage=' + (m[2] === 'prologo' ? '0' : m[2].replace('etapa-', '')); }
+      if (m[2]) { var rss = m[2].toLowerCase(); rs += '&stage=' + (rss === 'prologo' ? '0' : rss.replace('etapa-', '')); }
       location.replace(rs); return;
     }
-    m = p.match(/^\/en\/results\/([^\/?#]+)(?:\/(stage-\d+|prologue))?\/?$/);
+    m = p.match(/^\/en\/results\/([^\/?#]+)(?:\/(stage-\d+[a-z]?|prologue))?\/?$/i);
     if (m) {
       var rse = '/en/results/?slug=' + encodeURIComponent(m[1]);
-      if (m[2]) { rse += '&stage=' + (m[2] === 'prologue' ? '0' : m[2].replace('stage-', '')); }
+      if (m[2]) { var rsse = m[2].toLowerCase(); rse += '&stage=' + (rsse === 'prologue' ? '0' : rsse.replace('stage-', '')); }
       location.replace(rse); return;
     }
     m = p.match(/^\/en\/start-order\/([^\/?#]+)\/?$/);

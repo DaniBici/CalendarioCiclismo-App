@@ -9,8 +9,8 @@ struct TVBadge: View {
     var neutralStartTimeUtc: String? = nil
     var liveTextUrl: String? = nil
     @Environment(\.accessibilityShowButtonShapes) private var showButtonShapes
-    @Environment(\.openURL) private var openURL
     @State private var regionService = RegionService.shared
+    @State private var safariURL: URL?
 
     private var isHighContrast: Bool { showButtonShapes }
 
@@ -207,7 +207,7 @@ struct TVBadge: View {
             accessibilityLabel: LocaleService.t("Live texto disponible", "Live text available")
         )
         if let urlStr = liveTextUrl, let url = URL(string: urlStr) {
-            Button { openURL(url) } label: { shape }
+            Button { open(url) } label: { shape }
                 .buttonStyle(.plain)
         } else {
             shape
@@ -215,34 +215,41 @@ struct TVBadge: View {
     }
 
     var body: some View {
-        if showLiveText {
-            // Caso sin TV con live texto: el chip de live texto SUSTITUYE al badge de TV.
-            liveTextChip
-        } else {
-            let text = label
-            if !text.isEmpty {
-                let hasBroadcasts = !regionBroadcasts.isEmpty
-                let colors: AppTheme.BadgeColor = showLive
-                    ? AppTheme.tvStatusColor(for: "tv_live", hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
-                    : AppTheme.tvStatusColor(for: tvStatus, hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
-                let accessibilityLabel = showLive
-                    ? "Live"
-                    : (AccessibilityTVStatus.description(tvStatus: tvStatus, broadcasts: regionBroadcasts) ?? text)
-                let tvBadge = badgeShape(text: text, iconName: iconName, colors: colors, accessibilityLabel: accessibilityLabel)
+        Group {
+            if showLiveText {
+                // Caso sin TV con live texto: el chip de live texto SUSTITUYE al badge de TV.
+                liveTextChip
+            } else {
+                let text = label
+                if !text.isEmpty {
+                    let hasBroadcasts = !regionBroadcasts.isEmpty
+                    let colors: AppTheme.BadgeColor = showLive
+                        ? AppTheme.tvStatusColor(for: "tv_live", hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
+                        : AppTheme.tvStatusColor(for: tvStatus, hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
+                    let accessibilityLabel = showLive
+                        ? "Live"
+                        : (AccessibilityTVStatus.description(tvStatus: tvStatus, broadcasts: regionBroadcasts) ?? text)
+                    let tvBadge = badgeShape(text: text, iconName: iconName, colors: colors, accessibilityLabel: accessibilityLabel)
 
-                // Carrera empezada y TV aún en reposo → "Live texto" junto al badge de TV (paridad web).
-                HStack(spacing: 4) {
-                    if let url = tappableUrl {
-                        Button { openURL(url) } label: { tvBadge }
-                            .buttonStyle(.plain)
-                    } else {
-                        tvBadge
-                    }
-                    if showLiveTextAlongside {
-                        liveTextChip
+                    // Carrera empezada y TV aún en reposo → "Live texto" junto al badge de TV (paridad web).
+                    HStack(spacing: 4) {
+                        if let url = tappableUrl {
+                            Button { open(url) } label: { tvBadge }
+                                .buttonStyle(.plain)
+                        } else {
+                            tvBadge
+                        }
+                        if showLiveTextAlongside {
+                            liveTextChip
+                        }
                     }
                 }
             }
         }
+        .safariSheet(url: $safariURL)
+    }
+
+    private func open(_ url: URL) {
+        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
     }
 }

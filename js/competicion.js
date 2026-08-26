@@ -12,6 +12,7 @@ import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
 import { buildElevationSparkline } from './elevation-profile.js';
+import { isReviveBroadcast } from './broadcast-priority.js';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
 import { tvBadge } from './race-assets.js';
@@ -62,6 +63,7 @@ function _raceTimeCheckC(rd, offsetMinutes) {
 function _shouldShowResultsC(rd, extId, extSlug) {
   if (rd.isRestDay || rd.isCancelledDay) return false;
   if (!extId && !extSlug) return false;
+  if (rd._allowExternalResults === false) return false;
   return _raceTimeCheckC(rd, 30);
 }
 // Cablea el badge "Resultados" con un listener DIRECTO (no delegado): el badge
@@ -85,7 +87,7 @@ function _wireResultsBadges(container, rdMap, raceFor) {
 }
 function _resultsBadgesC(rd) {
   const reviveBcast = (rd._broadcasts || [])
-    .filter(b => b.url && (b.showInRevive || /eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be|facebook\.com/i.test(b.url)))
+    .filter(isReviveBroadcast)
     .sort((a, b) => {
       const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
       const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
@@ -223,11 +225,11 @@ async function init() {
           supabase.from('assets').select('*').in('raceDayId', dayIds),
           loadInhouseStageSet([id]),
         ])
-      : [{ data: [] }, { data: [] }, { has: () => false }];
+      : [{ data: [] }, { data: [] }, { has: () => false, allowsExternal: () => true }];
     const bByRd = {}, aByRd = {};
     (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] = bByRd[b.raceDayId] || []).push(b); });
     (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] = aByRd[a.raceDayId] || []).push(a); });
-    days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); });
+    days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId); });
     annotateDoubleSectors(days);
 
     const flag        = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
@@ -343,21 +345,9 @@ async function init() {
         // Con clasificaciones propias → modo terminado sin esperar a la heurística
         // horaria ni exigir extId/extSlug (paridad apps: hasInhouse || shouldShowResults)
         const showResultsC = rd._hasInhouse === true || _shouldShowResultsC(rd, race.extId, race.extSlug);
-        const hideNoIdsC = !rd._hasInhouse && !rd.isCancelledDay && !race.extId && !race.extSlug && _raceTimeCheckC(rd, 0);
-        const _noIdsReviveBcastC = hideNoIdsC ? (rd._broadcasts || [])
-          .filter(b => b.url && (b.showInRevive || /eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be|facebook\.com/i.test(b.url)))
-          .sort((a, b) => {
-            const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-            const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-            if (aSoc !== bSoc) return aSoc - bSoc;
-            return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-          })[0] ?? null : null;
-        const noIdsReviveUrlC = _noIdsReviveBcastC?.url ?? null;
-        const _noIdsReviveYtIdC = noIdsReviveUrlC && _noIdsReviveBcastC?.embeddable !== false ? extractYouTubeId(noIdsReviveUrlC) : null;
-        const noIdsReviveBadgeC = noIdsReviveUrlC
-          ? `<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${noIdsReviveUrlC}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${t('tv.reviveRace')}" aria-label="${t('tv.reviveRace')}"${_noIdsReviveYtIdC ? ` data-yt-id="${_noIdsReviveYtIdC}" data-yt-rd-id="${rd.id}"` : ''}>${_tvSvgC}<span class="badge__label">${t('tv.reviveRace')}</span></a>`
-          : '';
-
+        const hideNoIdsC = !rd._hasInhouse && !rd.isCancelledDay
+          && ((!race.extId && !race.extSlug) || rd._allowExternalResults === false)
+          && _raceTimeCheckC(rd, 0);
         // Elevation sparkline
         const _isTimeTrial1 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
         let epSvgHtml1 = null;
@@ -403,7 +393,7 @@ async function init() {
           + _tvBadgeHtml1
           + _startOrderBadgeHtml1
           + `</div>`;
-        const _finishedC1 = showResultsC || (hideNoIdsC && !!noIdsReviveUrlC);
+        const _finishedC1 = showResultsC;
         html += `<div class="race-card race-card--stage${epSvgHtml1 ? ' race-card--elevation' : ''}${rdHasModal ? ' race-card--has-modal' : ''}${_finishedC1 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml1 ? color : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal ? 'cursor:pointer' : 'cursor:default'}"
           ${rdClickable ? `onclick="location.href='${jornadaUrl(rd)}'"` : rdHasModal ? `data-rdid="${rd.id}"` : `data-ph-tooltip="${phMsg1}" data-ph-flag="${esc(flag)}" data-ph-name="${esc(getRaceName(race))}" data-ph-sub="${esc(stage ? stage + ' · ' + date : date)}"`}>
           <div class="race-card__main">
@@ -417,9 +407,7 @@ async function init() {
             <div class="race-card__meta-top">
               ${showResultsC
                 ? _resultsBadgesC(rd)
-                : hideNoIdsC
-                  ? noIdsReviveBadgeC
-                  : rd.isCancelledDay ? '' : buildTimeStack(start, finish, timeTip)}
+                : rd.isCancelledDay ? '' : buildTimeStack(start, finish, timeTip)}
             </div>
           </div>
           ${epSvgHtml1 || ''}
@@ -746,7 +734,7 @@ async function loadChallenge(slug, content, params) {
     allDays.sort((a, b) => (a.dateKey || '').localeCompare(b.dateKey || ''));
     annotateDoubleSectors(allDays);
     const inhouseSetCh = await inhousePromise;
-    allDays.forEach(rd => { rd._hasInhouse = inhouseSetCh.has(rd); });
+    allDays.forEach(rd => { rd._hasInhouse = inhouseSetCh.has(rd); rd._allowExternalResults = inhouseSetCh.allowsExternal(rd.raceId); });
 
     // Hero
     let html = `<div class="jornada-hero" style="--card-color:${color}">

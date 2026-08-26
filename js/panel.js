@@ -12,11 +12,32 @@ import { supabase, toDateKey, countryFlag, stageLabel, esc,
 import { annotateDoubleSectors } from './services/races.js';
 import { detectClimb, computeClimbStats } from './climb-detection.js';
 import { exportElevationProfilePNG } from './elevation-profile.js';
-import { mountProfileDigitizer } from './profile-digitizer.js';
+import { buildProfileAssetDownloadRequest, mountProfileDigitizer } from './profile-digitizer.js';
 import { openDrawer, closeDrawer, isDrawerOpen } from './components/drawer.js';
 import { confirmDialog, alertDialog, promptDialog } from './components/dialog.js';
 import { genderToggleHtml, setGenderToggleActive, wireGenderToggle } from './components/gender-toggle.js';
 import { compareChampionships } from './campeonatos-config.js';
+import { madridDateKey, madridTimeToTimestamp } from './services/timezone.js';
+import {
+  parseStartlistImportDocument,
+  selectUpcomingStartlistRaces,
+  uniqueExistingRiderMatchId,
+  validateStartlistImportTarget,
+} from './startlist-import.js';
+import {
+  filterStartlistRiderCandidates,
+  isFinalStageRaceDay,
+  nextResultRank,
+  normalizeResultTimeInput,
+  pairFinalClassifications,
+  resultRiderDorsalText,
+  resultRiderPickerInitialQuery,
+  resolveResultLeaderName,
+  riderMatchesSearch,
+  riderSearchLookupToken,
+  shouldMirrorFinalClassification,
+  uniqueStartlistSurnameMatch,
+} from './uci-results-panel-logic.js';
 
 // ── GPX — parseo en browser y calculo de perfil de elevacion ─────
 const _GPX_THRESHOLD_M  = 3;
@@ -1022,6 +1043,9 @@ async function buildResolvedRiderMapForRace(raceId) {
     const curTeamObj = r.currentTeamId ? (curTeamById[r.currentTeamId] || null) : null;
     const entry = {
       id: r.id,
+      dorsal: r.dorsal,
+      firstName: r.firstName || '',
+      lastName: r.lastName || '',
       name: `${r.firstName} ${r.lastName}`.trim(),
       // .team (string): equipo de la startlist por dorsal — lo consumen los
       // otros call sites (re-resolución de inscritos por dorsal). NO cambiar.
@@ -2057,13 +2081,14 @@ function renderEditor(rd, race, broadcasts, assets) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.arrayBuffer();
       }
-      const filename = decodeURIComponent(new URL(url).pathname.replace(/^\/+/, ''));
-      const response = await fetch(R2_UPLOAD_FN, {
+      const request = buildProfileAssetDownloadRequest(R2_UPLOAD_FN, url);
+      const response = await fetch(request.url, {
         method: 'GET',
+        cache: 'no-store',
         headers: {
           ...await getAuthHeaders(),
           'x-action': 'download-profile',
-          'x-filename': encodeURIComponent(filename),
+          'x-filename': encodeURIComponent(request.filename),
         },
       });
       if (!response.ok) {
@@ -2772,8 +2797,8 @@ function broadcastHTML(b, i) {
             <option value="NL"${b.country === 'NL' ? ' selected' : ''}>NL — Países Bajos</option>
             <option value="IT"${b.country === 'IT' ? ' selected' : ''}>IT — Italia</option>
             <option value="DE_AT_CH"${b.country === 'DE_AT_CH' ? ' selected' : ''}>DE_AT_CH — Alemania / Austria / Suiza</option>
-            <option value="UK_IE"${b.country === 'UK_IE' ? ' selected' : ''}>UK_IE — Reino Unido / Irlanda</option>
-            <option value="SCANDI"${b.country === 'SCANDI' ? ' selected' : ''}>SCANDI — Nórdicos</option>
+            <option value="UK_IE"${b.country === 'UK_IE' ? ' selected' : ''}>GB / IRL — Reino Unido / Irlanda</option>
+            <option value="SCANDI"${b.country === 'SCANDI' ? ' selected' : ''}>ESCANDI — Nórdicos</option>
             <option value="EE"${b.country === 'EE' ? ' selected' : ''}>EE — Europa del Este</option>
           </optgroup>
           <optgroup label="Resto del mundo">
@@ -2786,9 +2811,15 @@ function broadcastHTML(b, i) {
         </select>
       </div>
     </div>
-    <div class="field" style="display:flex;align-items:center;gap:0.5rem;padding-top:0.25rem">
-      <input type="checkbox" class="bc-show-in-revive" id="bc-revive-${b.id || i}"${b.showInRevive ? ' checked' : ''}>
-      <label for="bc-show-in-revive-${b.id || i}" style="margin:0;font-weight:normal;cursor:pointer">Mostrar en "Revive"</label>
+    <div class="field" style="display:flex;align-items:center;gap:1rem;padding-top:0.25rem;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:0.5rem">
+        <input type="checkbox" class="bc-show-in-revive" id="bc-revive-${b.id || i}"${b.showInRevive ? ' checked' : ''}>
+        <label for="bc-revive-${b.id || i}" style="margin:0;font-weight:normal;cursor:pointer">Mostrar en "Revive"</label>
+      </span>
+      <span style="display:flex;align-items:center;gap:0.5rem">
+        <input type="checkbox" class="bc-automation-locked" id="bc-automation-locked-${b.id || i}"${b.automationLocked ? ' checked' : ''}>
+        <label for="bc-automation-locked-${b.id || i}" style="margin:0;font-weight:normal;cursor:pointer" title="Impide que el sincronizador del VPS modifique esta emisión">Bloquear automatización</label>
+      </span>
     </div>
   </div>`;
 }
@@ -3056,10 +3087,9 @@ async function saveRaceDay(status) {
       if (raceInMem) upsertRaceLocal({ ...raceInMem, extId: edExtId, extSlug: edExtSlug });
     }
 
-    // Guardar broadcasts — INSERT primero + DELETE después por ID, para no
-    // perder los datos antiguos si la INSERT falla (p.ej. columna inexistente
-    // por migración pendiente). Las IDs nuevas son UUIDs frescas, así que no
-    // colisionan con las viejas durante la ventana mixta.
+    // Conservar las IDs existentes: los vínculos privados del sincronizador del
+    // VPS referencian estas filas y el bloqueo administrativo pertenece a cada
+    // emisión, no a una reconstrucción temporal del formulario.
     const { data: oldBcasts, error: oldBcErr } = await supabase
       .from('broadcasts').select('id,url,embeddable').eq('raceDayId', rdId);
     if (oldBcErr) throw oldBcErr;
@@ -3075,7 +3105,7 @@ async function saveRaceDay(status) {
       // sin rellenar). Un canal vacío con hora/nota es válido (ej: "Por confirmar").
       if (!channel && !timeVal && !url && !note) return acc;
       acc.push({
-        id:           crypto.randomUUID(),
+        id:           panel.dataset.bid || crypto.randomUUID(),
         raceDayId:    rdId,
         channel:      channel || null,
         startTimeUtc: toTimestamp(dateKey, timeVal),
@@ -3084,6 +3114,7 @@ async function saveRaceDay(status) {
         country:      country || null,
         sortOrder:    acc.length,
         showInRevive: panel.querySelector('.bc-show-in-revive').checked,
+        automationLocked: panel.querySelector('.bc-automation-locked').checked,
         embeddable:   null,
       });
       return acc;
@@ -3101,13 +3132,22 @@ async function saveRaceDay(status) {
       }
       b.embeddable = await checkYouTubeEmbeddable(b.url);
     }));
-    if (newBroadcasts.length) {
-      const { error: insBcErr } = await supabase.from('broadcasts').insert(newBroadcasts);
+    const oldBcIds = new Set((oldBcasts || []).map(b => b.id));
+    const broadcastsToInsert = newBroadcasts.filter(b => !oldBcIds.has(b.id));
+    const broadcastsToUpdate = newBroadcasts.filter(b => oldBcIds.has(b.id));
+    for (const broadcast of broadcastsToUpdate) {
+      const { id, raceDayId: _raceDayId, ...fields } = broadcast;
+      const { error: upBcErr } = await supabase.from('broadcasts').update(fields).eq('id', id);
+      if (upBcErr) throw upBcErr;
+    }
+    if (broadcastsToInsert.length) {
+      const { error: insBcErr } = await supabase.from('broadcasts').insert(broadcastsToInsert);
       if (insBcErr) throw insBcErr;
     }
-    const oldBcIds = (oldBcasts || []).map(b => b.id);
-    if (oldBcIds.length) {
-      const { error: delBcErr } = await supabase.from('broadcasts').delete().in('id', oldBcIds);
+    const retainedBcIds = new Set(newBroadcasts.map(b => b.id));
+    const obsoleteBcIds = [...oldBcIds].filter(id => !retainedBcIds.has(id));
+    if (obsoleteBcIds.length) {
+      const { error: delBcErr } = await supabase.from('broadcasts').delete().in('id', obsoleteBcIds);
       if (delBcErr) throw delBcErr;
     }
 
@@ -3191,23 +3231,10 @@ async function saveRaceDay(status) {
     // así que ...data aporta el valor correcto — no reusar el del caché previo.
     const savedRd = { ...data, id: rdId, hasAssets };
 
-    // Recoger broadcasts y assets tal como quedaron tras el guardado
-    const savedBcasts = [...document.querySelectorAll('.tv-entry-panel')].reduce((acc, panel) => {
-      const channel = panel.querySelector('.bc-channel').value.trim();
-      const timeVal = panel.querySelector('.bc-time').value;
-      const url     = panel.querySelector('.bc-url').value.trim();
-      const note    = panel.querySelector('.bc-note').value.trim();
-      if (!channel && !timeVal && !url && !note) return acc;
-      const country = panel.querySelector('.bc-country')?.value || null;
-      acc.push({ id: '', channel: channel || null,
-        startTimeUtc: toTimestamp(dateKey, timeVal),
-        url: url || null,
-        note: note || null,
-        country,
-        showInRevive: panel.querySelector('.bc-show-in-revive').checked,
-      });
-      return acc;
-    }, []);
+    // Reutilizar el estado que se acaba de persistir, incluidas sus IDs reales.
+    // Si la caché las vacía, openEditor vuelve a montar filas sin data-bid y el
+    // siguiente guardado intenta insertarlas de nuevo y borrar las originales.
+    const savedBcasts = newBroadcasts.map(({ raceDayId: _raceDayId, ...broadcast }) => broadcast);
 
     const savedAssets = [...document.querySelectorAll('.asset-url-input')].reduce((acc, input) => {
       const url = input.value.trim();
@@ -4679,10 +4706,9 @@ async function unlinkUci(raceId) {
 //       raceDayId = jornada; en la última etapa/carreras de un día, también las
 //       finales con raceDayId NULL), cada una editable en un drawer nivel 2.
 //
-//  BLOQUEO (migración 087): guardar una clasificación desde el panel fija
-//  race_uci_stages.lockedAt → el upsert del cron (uci-results-upsert.mjs) deja
-//  de tocar su cabecera y sus filas. El candado de la lista permite bloquear
-//  sin editar o desbloquear (= el siguiente volcado vuelve a mandar).
+//  BLOQUEO (migración 087): el candado de la lista fija lockedAt y hace que el
+//  upsert del cron deje de tocar la cabecera y sus filas. Guardar cambios conserva
+//  el estado actual del candado; bloquear o desbloquear es una decisión separada.
 //  resolve_uci_results sigue corriendo también sobre bloqueadas: solo re-enlaza
 //  globalRiderId por dorsal (la startlist curada es la verdad del corredor).
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4702,16 +4728,16 @@ const UCI_PANEL_OWNED_SOURCES = new Set([null, undefined, 'uci', 'pdf']);
 // Fuentes SIN fetcher automático: el cron las salta (uci-results-cron.mjs las excluye en
 // la query y con un guard en el bucle) → el volcado es manual. Se avisa en la cabecera
 // "Origen UCI" para que no parezca que el cron va a recogerlas y no lo haga en silencio.
-const UCI_MANUAL_SOURCES = new Set(['pdf', 'sportstiming', 'manual_timing']);
+const UCI_MANUAL_SOURCES = new Set(['pdf', 'sportstiming']);
 
 const UCI_SOURCE_LABELS = {
   uci: 'UCI DataRide', pdf: 'PDF (volcado manual)', tissot: 'Tissot',
   matsport: 'Matsport', sportstiming: 'Sportstiming (volcado manual)',
-  manual_timing: 'manual_timing (volcado manual)', raceresult: 'race|result',
+  manual_timing: 'manual_timing', raceresult: 'race|result',
   sts: 'STS/Wiclax', domtel: 'Domtel', livetiming: 'Livetiming.at',
   classificacoes: 'Classificações', infocity: 'InfoCity', sportsoft: 'Sportsoft',
   eqtiming: 'EQ Timing', colombia: 'Clasificaciones del Ciclismo Colombiano',
-  burgos: 'Vuelta a Burgos',
+  burgos: 'Vuelta a Burgos', 'timing.ee': 'timing.ee',
 };
 
 // La cabecera del panel debe llevar a quien realmente cronometra la carrera, no
@@ -4733,6 +4759,7 @@ const UCI_SOURCE_URLS = {
   eqtiming: 'https://live.eqtiming.com/',
   colombia: 'https://www.clasificacionesdelciclismocolombiano.com/',
   burgos: 'https://www.vueltaburgos.com/',
+  'timing.ee': 'https://timing.ee/',
 };
 
 function _ruSourceLink(source) {
@@ -4755,19 +4782,82 @@ function _ruClassLabel(st) {
   return st.isFinalClassification ? `${base} · final` : base;
 }
 
+async function _ruEnrichStageLeaders(raceId, stages) {
+  const stageIds = stages.map((stage) => stage.id).filter(Boolean);
+  if (!stageIds.length) return stages;
+  const [leadersRes, riderMap] = await Promise.all([
+    supabase.from('race_uci_results')
+      .select('stageRef,bib,riderDisplay,globalRiderId,teamId,irm,sortOrder')
+      .eq('raceId', raceId).eq('rank', 1).order('sortOrder', { ascending: true }),
+    buildResolvedRiderMapForRace(raceId),
+  ]);
+  if (leadersRes.error) throw leadersRes.error;
+
+  const leadersByStage = new Map();
+  (leadersRes.data || []).forEach((row) => {
+    if (!leadersByStage.has(row.stageRef)) leadersByStage.set(row.stageRef, []);
+    leadersByStage.get(row.stageRef).push(row);
+  });
+  // La web resuelve también líderes con ficha global aunque no aparezcan en la
+  // startlist. Completar ese mismo fallback para que ambos nombres coincidan.
+  const riderByGid = riderMap.__byGid || {};
+  const missingGids = [...new Set((leadersRes.data || [])
+    .map((row) => row.globalRiderId).filter((id) => id && !riderByGid[id]))];
+  if (missingGids.length) {
+    const [{ data: men, error: menError }, { data: women, error: womenError }] = await Promise.all([
+      supabase.from('riders_men').select('id,firstName,lastName').in('id', missingGids),
+      supabase.from('riders_women').select('id,firstName,lastName').in('id', missingGids),
+    ]);
+    if (menError) throw menError;
+    if (womenError) throw womenError;
+    [...(men || []), ...(women || [])].forEach((rider) => {
+      riderByGid[rider.id] = {
+        name: `${rider.firstName || ''} ${rider.lastName || ''}`.trim(),
+      };
+    });
+  }
+  const teamIds = [...new Set((leadersRes.data || []).map((row) => row.teamId).filter(Boolean))];
+  const teamNameById = {};
+  if (teamIds.length) {
+    const { data: teams, error } = await supabase.from('teams').select('id,name').in('id', teamIds);
+    if (error) throw error;
+    (teams || []).forEach((team) => { teamNameById[team.id] = team.name; });
+  }
+  stages.forEach((stage) => {
+    stage._leaderName = resolveResultLeaderName(
+      stage,
+      leadersByStage.get(stage.id) || [],
+      riderMap,
+      riderByGid,
+      teamNameById,
+    );
+  });
+  return stages;
+}
+
 async function setupUciResultsSection(rd, race) {
   const body = document.getElementById('ruSectionBody');
   if (!body) return;
   try {
-    const [linkRes, stagesRes] = await Promise.all([
+    const [linkRes, stagesRes, daysRes] = await Promise.all([
       supabase.from('race_uci_links').select('*').eq('raceId', rd.raceId).maybeSingle(),
       supabase.from('race_uci_stages').select('*').eq('raceId', rd.raceId).eq('keepForWeb', true),
+      supabase.from('race_days').select('id,dateKey,stageNumber,isRestDay,isCancelledDay,neutralStartTimeUtc').eq('raceId', rd.raceId),
     ]);
     if (linkRes.error) throw linkRes.error;
     if (stagesRes.error) throw stagesRes.error;
+    if (daysRes.error) throw daysRes.error;
     // Guard: el editor pudo cambiar de jornada mientras llegaba la respuesta.
     if (document.getElementById('editorArea')?.dataset.rdId !== rd.id) return;
-    _ruRenderSection(body, rd, race, linkRes.data || null, stagesRes.data || []);
+    const stages = stagesRes.data || [];
+    try {
+      await _ruEnrichStageLeaders(rd.raceId, stages);
+    } catch (leaderErr) {
+      console.warn('No se pudieron resolver los líderes del panel:', leaderErr);
+    }
+    // Segundo guard: la resolución de líderes añade lecturas asíncronas.
+    if (document.getElementById('editorArea')?.dataset.rdId !== rd.id) return;
+    _ruRenderSection(body, rd, race, linkRes.data || null, stages, daysRes.data || []);
   } catch (err) {
     console.error(err);
     body.innerHTML = `<div style="color:#e55;font-size:0.8rem">Error al cargar los resultados UCI: ${esc(err.message || String(err))}</div>`;
@@ -4789,9 +4879,9 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   const src = link.source || 'uci';
   const srcLabel = UCI_SOURCE_LABELS[src] || src;
   const lastDumpAt = _ruLastDumpAt(stageResults);
-  // Una fuente sin fetcher deja el volcado en manos del volcado manual: decirlo aquí
-  // evita que el cron parezca activo y no lo esté (fallo mudo).
-  const manualWarn = UCI_MANUAL_SOURCES.has(src)
+  // Las fuentes de cronometrador sin fetcher necesitan el aviso para evitar que el
+  // cron parezca activo. En PDF el volcado manual ya queda explícito en el origen.
+  const manualWarn = UCI_MANUAL_SOURCES.has(src) && src !== 'pdf'
     ? `<div class="ru-origin__warn" style="color:#e0a400;font-size:0.72rem;margin-top:0.3rem">
         ⚠ Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
         Sus resultados se mantienen manualmente; no se puede programar un volcado automático para esta fuente.
@@ -4823,14 +4913,19 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
 
 // Fila de una clasificación en la lista de la pestaña.
 function _ruClassRowHtml(st) {
-  const locked = !!st.lockedAt;
-  const winner = st.winnerName ? ` · 🏆 ${esc(st.winnerName)}` : '';
+  const paired = !!st._finalTwinId;
+  const locked = paired ? !!st.lockedAt && !!st._finalTwinLockedAt : !!st.lockedAt;
+  const partialLock = paired && (!!st.lockedAt !== !!st._finalTwinLockedAt);
+  const leaderName = st._leaderName || st.winnerName || '';
+  const winner = leaderName ? ` · 🏆 ${esc(leaderName)}` : '';
   return `<div class="ru-class-row${locked ? ' ru-class-row--locked' : ''}">
     <div class="ru-class-row__main">
       <span class="ru-class-row__label" title="${esc(st.eventName || '')}">${esc(_ruClassLabel(st))}</span>
       <span class="ru-class-row__meta">${st.rowCount || 0} filas${winner}</span>
     </div>
-    ${locked ? `<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(formatDateTime(st.lockedAt))} — el cron no la sobreescribe">🔒 bloqueada</span>` : ''}
+    ${paired ? '<span class="uci-chip" title="Una sola edición mantiene las clasificaciones de la última etapa y de la general final">etapa + final</span>' : ''}
+    ${partialLock ? '<span class="uci-chip ru-chip-lock" title="Solo una de las dos cabeceras emparejadas está bloqueada; usa el botón para igualarlas">🔒 parcial</span>' : ''}
+    ${locked ? `<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(formatDateTime(st.lockedAt || st._finalTwinLockedAt))} — el cron no la sobreescribe">🔒 bloqueada</span>` : ''}
     <button type="button" class="btn btn--ghost ru-lock-toggle" data-id="${esc(st.id)}" style="font-size:0.68rem;padding:0 0.55rem">${locked ? 'Desbloquear' : 'Bloquear'}</button>
     <button type="button" class="btn btn--ghost ru-edit" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>
     <button type="button" class="btn btn--ghost ru-delete" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>
@@ -4841,27 +4936,39 @@ function _ruSyncPolicyHtml(rd, link) {
   if (!link || UCI_MANUAL_SOURCES.has(link.source || 'uci')) return '';
   const dayOverride = rd.resultsAutoSyncEnabled != null;
   const enabled = dayOverride ? rd.resultsAutoSyncEnabled : link.autoSyncEnabled;
-  const startOffset = dayOverride && rd.resultsSyncStartOffsetMinutes != null
-    ? rd.resultsSyncStartOffsetMinutes : (link.syncStartOffsetMinutes ?? -15);
-  const interval = dayOverride && rd.resultsSyncIntervalMinutes != null
-    ? rd.resultsSyncIntervalMinutes : (link.syncIntervalMinutes ?? 30);
-  const stopOffset = dayOverride && rd.resultsSyncStopOffsetMinutes != null
-    ? rd.resultsSyncStopOffsetMinutes : (link.syncStopOffsetMinutes ?? 180);
+  let startTime = '';
+  if (dayOverride && rd.resultsSyncStartAt) {
+    startTime = formatTimeHHMM(rd.resultsSyncStartAt);
+  } else if (!dayOverride && link.syncStartTime) {
+    startTime = String(link.syncStartTime).slice(0, 5);
+  } else if (rd.estimatedFinishTimeUtc) {
+    const startOffset = dayOverride && rd.resultsSyncStartOffsetMinutes != null
+      ? rd.resultsSyncStartOffsetMinutes : (link.syncStartOffsetMinutes ?? -15);
+    startTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + startOffset * 60000));
+  }
+  let stopTime = '';
+  if (dayOverride && rd.resultsSyncStopAt) {
+    stopTime = formatTimeHHMM(rd.resultsSyncStopAt);
+  } else if (!dayOverride && link.syncStopTime) {
+    stopTime = String(link.syncStopTime).slice(0, 5);
+  } else if (rd.estimatedFinishTimeUtc) {
+    const stopOffset = dayOverride && rd.resultsSyncStopOffsetMinutes != null
+      ? rd.resultsSyncStopOffsetMinutes : (link.syncStopOffsetMinutes ?? 180);
+    stopTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + stopOffset * 60000));
+  }
   const stageLabel = rd.stageNumber == null ? 'esta carrera' : `esta etapa (${rd.stageNumber === 0 ? 'prólogo' : 'etapa ' + rd.stageNumber})`;
   return `<details class="ru-sync-policy" style="margin-top:0.65rem">
     <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted)">Programación automática ${enabled ? '· activa' : '· desactivada'}</summary>
     <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
-      <p style="margin:0 0 0.5rem;color:var(--text-muted)">La captación es opt-in: enlazar una fuente no la activa. Solo se crea un runner si marcas «Activar» y la jornada está dentro de esta ventana.</p>
       <div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
-        <label><input type="radio" name="ru-sync-scope" value="race" ${dayOverride ? '' : 'checked'}> Regla global de carrera</label>
+        <label><input type="radio" name="ru-sync-scope" value="race" ${dayOverride ? '' : 'checked'}> Toda la carrera</label>
         <label><input type="radio" name="ru-sync-scope" value="day" ${dayOverride ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
       </div>
       <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;margin-top:0.5rem;align-items:end">
-        <label> <span class="u-c-dim">Inicio antes de meta</span><input id="ru-sync-before" type="number" min="0" max="1440" value="${Math.max(0, -startOffset)}" style="width:4.5rem"> min</label>
-        <label> <span class="u-c-dim">Cadencia</span><input id="ru-sync-interval" type="number" min="1" max="240" value="${interval}" style="width:4.5rem"> min</label>
-        <label> <span class="u-c-dim">Parar después de meta</span><input id="ru-sync-after" type="number" min="0" max="2880" value="${Math.max(0, stopOffset)}" style="width:4.5rem"> min</label>
+        <label> <span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" style="width:7rem"></label>
+        <label> <span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" style="width:7rem"></label>
         <label style="white-space:nowrap"><input id="ru-sync-enabled" type="checkbox" ${enabled ? 'checked' : ''}> Activar</label>
-        <button type="button" class="btn btn--primary ru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar programación</button>
+        <button type="button" class="btn btn--primary ru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar ventana</button>
       </div>
     </div>
   </details>`;
@@ -4869,33 +4976,69 @@ function _ruSyncPolicyHtml(rd, link) {
 
 async function _ruSaveSyncPolicy(btn, rd, race) {
   const scope = document.querySelector('input[name="ru-sync-scope"]:checked')?.value || 'race';
-  const before = Number(document.getElementById('ru-sync-before')?.value);
-  const interval = Number(document.getElementById('ru-sync-interval')?.value);
-  const after = Number(document.getElementById('ru-sync-after')?.value);
-  if (!Number.isInteger(before) || before < 0 || !Number.isInteger(interval) || interval < 1 || !Number.isInteger(after) || after < 0) {
-    alertDialog('Revisa los minutos: inicio y fin no pueden ser negativos, y la cadencia mínima es 1 minuto.');
+  const startTime = document.getElementById('ru-sync-start-time')?.value || '';
+  const stopTime = document.getElementById('ru-sync-stop-time')?.value || '';
+  const enabled = document.getElementById('ru-sync-enabled').checked;
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [stopHour, stopMinute] = stopTime.split(':').map(Number);
+  const validStartTime = /^\d{2}:\d{2}$/.test(startTime)
+    && Number.isInteger(startHour) && startHour >= 0 && startHour <= 23
+    && Number.isInteger(startMinute) && startMinute >= 0 && startMinute <= 59;
+  const validStopTime = /^\d{2}:\d{2}$/.test(stopTime)
+    && Number.isInteger(stopHour) && stopHour >= 0 && stopHour <= 23
+    && Number.isInteger(stopMinute) && stopMinute >= 0 && stopMinute <= 59;
+  if (enabled && (!validStartTime || !validStopTime)) {
+    alertDialog('Indica horas válidas de apertura y cierre.');
+    return;
+  }
+  if (enabled && !rd.estimatedFinishTimeUtc) {
+    alertDialog('La jornada necesita una hora estimada de meta para programar la ventana.');
+    return;
+  }
+  const dateKey = madridDateKey(rd.estimatedFinishTimeUtc) || rd.dateKey;
+  const startAt = validStartTime ? madridTimeToTimestamp(dateKey, startTime) : null;
+  const stopAt = validStopTime ? madridTimeToTimestamp(dateKey, stopTime) : null;
+  const finishMs = new Date(rd.estimatedFinishTimeUtc).getTime();
+  const startMs = startAt ? new Date(startAt).getTime() : NaN;
+  let stopMs = stopAt ? new Date(stopAt).getTime() : NaN;
+  if (stopMs <= startMs) stopMs += 24 * 60 * 60 * 1000;
+  if (enabled && stopMs < finishMs) {
+    alertDialog('El cierre debe ser posterior a la apertura y a la hora estimada de meta.');
     return;
   }
   btn.disabled = true;
   const patch = {
-    "resultsAutoSyncEnabled": document.getElementById('ru-sync-enabled').checked,
-    "resultsSyncStartOffsetMinutes": -before,
-    "resultsSyncIntervalMinutes": interval,
-    "resultsSyncStopOffsetMinutes": after,
+    "resultsAutoSyncEnabled": enabled,
+    "resultsSyncStartAt": startAt,
+    "resultsSyncStopAt": stopAt ? new Date(stopMs).toISOString() : null,
+    "resultsSyncStartOffsetMinutes": null,
+    "resultsSyncIntervalMinutes": null,
+    "resultsSyncStopOffsetMinutes": null,
   };
   try {
-    const req = scope === 'day'
-      ? supabase.from('race_days').update(patch).eq('id', rd.id)
-      : supabase.from('race_uci_links').update({
-          autoSyncEnabled: patch.resultsAutoSyncEnabled,
-          syncStartOffsetMinutes: patch.resultsSyncStartOffsetMinutes,
-          syncIntervalMinutes: patch.resultsSyncIntervalMinutes,
-          syncStopOffsetMinutes: patch.resultsSyncStopOffsetMinutes,
-          updatedAt: new Date().toISOString(),
-        }).eq('raceId', rd.raceId);
-    const { error } = await req;
+    let error;
+    if (scope === 'day') {
+      ({ error } = await supabase.from('race_days').update(patch).eq('id', rd.id));
+    } else {
+      ({ error } = await supabase.from('race_uci_links').update({
+        autoSyncEnabled: enabled,
+        syncStartTime: validStartTime ? `${startTime}:00` : null,
+        syncStopTime: validStopTime ? `${stopTime}:00` : null,
+        updatedAt: new Date().toISOString(),
+      }).eq('raceId', rd.raceId));
+      if (!error) {
+        ({ error } = await supabase.from('race_days').update({
+          resultsAutoSyncEnabled: null,
+          resultsSyncStartAt: null,
+          resultsSyncStopAt: null,
+          resultsSyncStartOffsetMinutes: null,
+          resultsSyncIntervalMinutes: null,
+          resultsSyncStopOffsetMinutes: null,
+        }).eq('id', rd.id));
+      }
+    }
     if (error) throw error;
-    showToast(scope === 'day' ? 'Programación de etapa guardada.' : 'Programación global guardada.', 'success');
+    showToast(scope === 'day' ? 'Excepción de jornada guardada.' : 'Ventana de carrera guardada.', 'success');
     setupUciResultsSection(rd, race);
   } catch (err) {
     alertDialog(`No se pudo guardar la programación: ${err.message || err}`, { title: 'Error' });
@@ -4903,7 +5046,7 @@ async function _ruSaveSyncPolicy(btn, rd, race) {
   }
 }
 
-function _ruRenderSection(body, rd, race, link, stages) {
+function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // Clasificaciones de ESTA jornada: por raceDayId; fallback por stageNumber para
   // stages volcados antes de que existiera la jornada (raceDayId quedó NULL).
   const mine = stages.filter(s => s.raceDayId === rd.id
@@ -4916,22 +5059,29 @@ function _ruRenderSection(body, rd, race, link, stages) {
   const isLastDay = race?.raceFormat === 'one_day'
     || (rd.stageNumber != null && maxStage != null && rd.stageNumber >= maxStage)
     || stages.some(s => s.isFinalClassification && s.stageDate && s.stageDate === rd.dateKey);
-  const finals = isLastDay ? stages.filter(s => s.raceDayId == null && s.stageNumber == null) : [];
+  let finals = isLastDay ? stages.filter(s => s.raceDayId == null && s.stageNumber == null) : [];
+
+  // En la última jornada de una vuelta, las clasificaciones acumuladas de la etapa
+  // y sus pseudo-finales son dos cabeceras de datos, pero una sola unidad editable.
+  const finalStageDay = isFinalStageRaceDay(rd, race, raceDays);
+  const paired = pairFinalClassifications(mine, finals, finalStageDay);
+  const visibleMine = paired.mine;
+  finals = paired.finals;
 
   const ord = (s) => { const i = UCI_CLASS_ORDER.indexOf(s.classKind); return i === -1 ? 99 : i; };
-  mine.sort((a, b) => ord(a) - ord(b));
+  visibleMine.sort((a, b) => ord(a) - ord(b));
   finals.sort((a, b) => ord(a) - ord(b));
 
   // `updatedAt` vive en cada clasificación: no usar `link.lastSyncedAt`, que
   // pertenece a la carrera completa y puede corresponder a otra etapa.
-  let html = _ruOriginHtml(rd, race, link, [...mine, ...finals]);
+  let html = _ruOriginHtml(rd, race, link, [...visibleMine, ...finals]);
   html += `<div id="ruDetectPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>`;
   html += _ruSyncPolicyHtml(rd, link);
 
   // Las clasificaciones ya volcadas se muestran SIEMPRE (aunque la carrera se haya
   // desenlazado después: sin link el cron no refresca, pero los datos siguen ahí).
-  if (link && !mine.length && !finals.length) html += `<div class="ru-empty">Aún no hay clasificaciones volcadas para esta jornada.</div>`;
-  if (mine.length) html += `<div class="ru-class-list">${mine.map(_ruClassRowHtml).join('')}</div>`;
+  if (link && !visibleMine.length && !finals.length) html += `<div class="ru-empty">Aún no hay clasificaciones volcadas para esta jornada.</div>`;
+  if (visibleMine.length) html += `<div class="ru-class-list">${visibleMine.map(_ruClassRowHtml).join('')}</div>`;
   if (finals.length) {
     // En carreras de un día (p. ej. los Campeonatos Nacionales, una ficha por prueba) la
     // clasificación llega como 'gc'/final sin raceDayId → cae aquí; "finales de la carrera"
@@ -4954,8 +5104,9 @@ function _ruRenderSection(body, rd, race, link, stages) {
   body.innerHTML = html;
 
   // Cableado por render (el DOM se recrea en cada apertura).
-  const stById = new Map(stages.map(s => [s.id, s]));
-  body.querySelectorAll('.ru-new').forEach(b => b.addEventListener('click', () => _ruNewClass(rd, race, stages)));
+  const visibleStages = [...visibleMine, ...finals];
+  const stById = new Map(visibleStages.map(s => [s.id, s]));
+  body.querySelectorAll('.ru-new').forEach(b => b.addEventListener('click', () => _ruNewClass(rd, race, stages, finalStageDay)));
   body.querySelectorAll('.ru-manual-link').forEach(b => b.addEventListener('click', () => _ruOpenManualLink(rd, race)));
   body.querySelectorAll('.ru-sync-save').forEach(b => b.addEventListener('click', () => _ruSaveSyncPolicy(b, rd, race)));
   body.querySelectorAll('.ru-unlink').forEach(b => b.addEventListener('click', () => _ruUnlinkFromDay(rd, race)));
@@ -5113,13 +5264,16 @@ async function _ruUnlinkFromDay(rd, race) {
 
 // Candado de la lista: bloquear sin editar / desbloquear (volver a dejar mandar al cron).
 async function _ruToggleLock(st, rd, race) {
-  const locked = !!st.lockedAt;
+  const ids = [st.id, st._finalTwinId].filter(Boolean);
+  const locked = st._finalTwinId
+    ? !!st.lockedAt && !!st._finalTwinLockedAt
+    : !!st.lockedAt;
   const msg = locked
     ? '¿Desbloquear esta clasificación? El próximo volcado del cron la sobreescribirá con los datos de la UCI (se perderán las correcciones manuales).'
     : '¿Bloquear esta clasificación sin editarla? El cron dejará de actualizarla con los datos de la UCI.';
   if (!await confirmDialog(msg, locked ? { danger: true } : {})) return;
   const { error } = await supabase.from('race_uci_stages')
-    .update({ lockedAt: locked ? null : new Date().toISOString() }).eq('id', st.id);
+    .update({ lockedAt: locked ? null : new Date().toISOString() }).in('id', ids);
   if (error) { showToast('Error: ' + error.message); return; }
   showToast(locked ? 'Clasificación desbloqueada — el cron vuelve a sincronizarla.' : 'Clasificación bloqueada — el cron no la sobreescribirá.', 'success');
   setupUciResultsSection(rd, race);
@@ -5131,15 +5285,19 @@ async function _ruDeleteClass(st, rd, race) {
   const label = _ruClassLabel(st);
   const count = st.rowCount || 0;
   const rows = count === 1 ? '1 fila de resultado' : `${count} filas de resultados`;
-  const message = `¿Eliminar la clasificación «${label}»? Se borrarán también sus ${rows}.\n\nSi la fuente automática vuelve a publicarla, el cron podrá crearla de nuevo.`;
+  const pairedNote = st._finalTwinId
+    ? ' Se eliminarán tanto la cabecera de la etapa como su pseudo-final.'
+    : '';
+  const message = `¿Eliminar la clasificación «${label}»? Se borrarán también sus ${rows}.${pairedNote}\n\nSi la fuente automática vuelve a publicarla, el cron podrá crearla de nuevo.`;
   if (!await confirmDialog(message, {
     danger: true,
     title: 'Eliminar clasificación',
     confirmText: 'Eliminar',
   })) return;
 
+  const ids = [st.id, st._finalTwinId].filter(Boolean);
   const { error } = await supabase.from('race_uci_stages')
-    .delete().eq('id', st.id).eq('raceId', rd.raceId);
+    .delete().in('id', ids).eq('raceId', rd.raceId);
   if (error) {
     showToast('Error al eliminar la clasificación: ' + error.message);
     return;
@@ -5175,7 +5333,7 @@ function _ruScopeFor(kind, isFinal) {
 }
 
 // Diálogo: elegir tipo de clasificación (+ "es la final/de la prueba") y crear.
-async function _ruNewClass(rd, race, stages) {
+async function _ruNewClass(rd, race, stages, finalStageDay = false) {
   const isOneDay = race?.raceFormat === 'one_day';
   // En carrera de un día la clasificación es la prueba entera (final, sin etapa).
   // En carrera por etapas, por defecto cuelga de ESTA jornada (su stageNumber).
@@ -5191,8 +5349,8 @@ async function _ruNewClass(rd, race, stages) {
         <div class="ru-ed-note">
           Crea una clasificación vacía para teclear sus resultados a mano. Se crea como
           <strong>placeholder</strong>: si más tarde la UCI/PDF publica esa misma clasificación,
-          su volcado la sustituye. Para que el cron no la toque, edítala y guárdala (se bloquea)
-          o usa el candado de la lista.
+          su volcado la sustituye. Guardar no cambia el candado; si quieres impedir que el cron
+          la toque, usa «Bloquear» en la lista.
         </div>
         <label class="u-block" style="margin:0.8rem 0 0.3rem;font-size:0.8rem">Tipo de clasificación</label>
         <select id="ruNewKind" class="input u-input-block">${opts}</select>
@@ -5212,6 +5370,7 @@ async function _ruNewClass(rd, race, stages) {
         e.target.disabled = true;
         try {
           const st = await _ruCreateClass(rd, race, stages, kind, isFinal);
+          st._isFinalRaceDay = finalStageDay;
           closeDrawer(2);
           openUciClassEditor(st, rd, race);   // abre el editor de filas YA existente
         } catch (err) {
@@ -5285,10 +5444,54 @@ async function _ruCreateClass(rd, race, stages, kind, isFinal) {
   return data;
 }
 
+async function _ruMirrorFinalClassification(st, rd, race, records, headerPatch) {
+  let twin = null;
+  let created = false;
+  if (st._finalTwinId) {
+    const { data, error } = await supabase.from('race_uci_stages')
+      .select('*').eq('id', st._finalTwinId).maybeSingle();
+    if (error) throw error;
+    twin = data || null;
+  }
+
+  if (!twin) {
+    const { data: stages, error } = await supabase.from('race_uci_stages')
+      .select('*').eq('raceId', rd.raceId);
+    if (error) throw error;
+    twin = (stages || []).find((candidate) => candidate.classKind === st.classKind
+      && candidate.stageNumber == null && candidate.isFinalClassification) || null;
+    if (!twin) {
+      twin = await _ruCreateClass(rd, race, stages || [], st.classKind, true);
+      created = true;
+    }
+  }
+
+  const { error: delErr } = await supabase.from('race_uci_results')
+    .delete().eq('stageRef', twin.id);
+  if (delErr) throw delErr;
+
+  if (records.length) {
+    const mirrored = records.map((record) => ({
+      ...record,
+      stageRef: twin.id,
+      eventId: twin.eventId,
+    }));
+    const { error: insErr } = await supabase.from('race_uci_results').insert(mirrored);
+    if (insErr) throw insErr;
+  }
+
+  const twinPatch = created && st.lockedAt
+    ? { ...headerPatch, lockedAt: st.lockedAt }
+    : headerPatch;
+  const { error: updErr } = await supabase.from('race_uci_stages')
+    .update(twinPatch).eq('id', twin.id);
+  if (updErr) throw updErr;
+}
+
 // ── Editor de una clasificación (drawer nivel 2) ──────────────────────────
 // Tabla editable con las columnas CRUDAS de race_uci_results. Guardar reemplaza
-// las filas (insert tras delete, sortOrder = orden visual), BLOQUEA la
-// clasificación y re-resuelve los corredores por dorsal (RPC resolve_uci_results).
+// las filas (insert tras delete, sortOrder = orden visual), conserva el candado
+// y re-resuelve los corredores por dorsal (RPC resolve_uci_results).
 async function openUciClassEditor(st, rd, race) {
   const stageLbl = st.isFinalClassification ? 'Final' : stageLabel(st.stageNumber) || (race?.name || '');
   const h = openDrawer({
@@ -5332,12 +5535,6 @@ async function openUciClassEditor(st, rd, race) {
     const t = String(bib ?? '').trim();
     return (/^\d+$/.test(t) ? riderMap[Number(t)] : null) || (gid ? gidIndex[gid] : null) || null;
   };
-  const resolvedLabel = (bib, gid) => {
-    const r = resolvedOf(bib, gid);
-    if (!r) return '';
-    const team = r.teamDisplay || r.team || '';
-    return `→ ${r.name}${team ? ` · ${team}` : ''}`;
-  };
   // Pinta la celda Equipo de una fila:
   //   · Con override (teamId) → equipo elegido a mano, color normal.
   //   · Sin override pero con corredor casado → equipo AUTO-resuelto en gris
@@ -5346,69 +5543,56 @@ async function openUciClassEditor(st, rd, race) {
   const teamCellHtml = (teamId, bib, gid) => {
     const ovr = teamById(teamId);
     if (ovr) {
-      return `<span class="ru-team-badge">${buildTeamBadgeSvg(ovr, { size: 16 })}</span><span class="ru-team-name">${esc(ovr.name)}</span>`;
+      return `<span class="ru-team-name">${esc(ovr.name)}</span>`;
     }
     const auto = resolvedOf(bib, gid);
-    const autoTeam = auto?.teamObj || null;
     const autoName = auto?.teamDisplay || auto?.team || '';
     if (autoName) {
-      const badge = autoTeam ? `<span class="ru-team-badge">${buildTeamBadgeSvg(autoTeam, { size: 16 })}</span>` : '';
-      return `<span class="ru-team-auto" title="Equipo auto-resuelto del corredor (pulsa para fijar otro)">${badge}<span class="ru-team-name">${esc(autoName)}</span></span>`;
+      return `<span class="ru-team-auto" title="Equipo auto-resuelto del corredor (pulsa para fijar otro)"><span class="ru-team-name">${esc(autoName)}</span></span>`;
     }
     return `<span class="ru-team-name ru-team-name--empty">— equipo —</span>`;
   };
 
   // Celda de valor según el tipo: Pts (points/kom) o Tiempo/Gap (resto).
   const valueCell = (r) => isPtsClass
-    ? `<td class="ru-td-value"><input class="ru-in ru-pts" type="number" value="${r.points ?? ''}" placeholder="pts"></td>`
-    : `<td class="ru-td-value"><input class="ru-in ru-time" type="text" value="${esc(r.timeText ?? r.gapText ?? '')}" placeholder="H:MM:SS o +0:14"></td>`;
+    ? `<td class="ru-td-value"><input class="ru-in ru-pts" data-ru-field="value" type="number" value="${r.points ?? ''}" placeholder="pts"></td>`
+    : `<td class="ru-td-value"><input class="ru-in ru-time" data-ru-field="value" type="text" value="${esc(r.timeText ?? r.gapText ?? '')}" placeholder="H:MM:SS o +0:14" title="Atajos: 4.18.18 → 4:18:18 en #1 o +4:18:18 desde #2 · 33 → +0:33 · 1.18 → +1:18"></td>`;
 
-  const rowHtml = (r) => `<tr class="ru-row" draggable="true" data-gid="${esc(r.globalRiderId || '')}" data-team-id="${esc(r.teamId || '')}" data-rv="${esc(r.resultValue ?? '')}">
+  const rowHtml = (r) => {
+    const resolvedName = resolvedOf(r.bib, r.globalRiderId)?.name || '';
+    const nameValue = isTeamsClass ? (r.riderDisplay ?? '') : (resolvedName || r.riderDisplay || '');
+    return `<tr class="ru-row" draggable="true" data-gid="${esc(r.globalRiderId || '')}" data-team-id="${esc(r.teamId || '')}" data-rv="${esc(r.resultValue ?? '')}">
     <td class="ru-td-drag"><span class="ru-drag-handle" title="Arrastra para reordenar">⠿</span></td>
-    <td class="ru-td-rank"><input class="ru-in ru-rank" type="number" min="0" value="${r.rank ?? ''}" placeholder="#"></td>
-    <td class="ru-td-bib"><input class="ru-in ru-bib" type="text" inputmode="numeric" value="${esc(r.bib ?? '')}" title="Dorsal (casa el corredor por la startlist al teclearlo)"></td>
+    <td class="ru-td-rank"><input class="ru-in ru-rank" data-ru-field="rank" type="number" min="0" value="${r.rank ?? ''}" placeholder="#"></td>
+    <td class="ru-td-bib"><input class="ru-in ru-bib" data-ru-field="bib" type="text" inputmode="numeric" value="${esc(r.bib ?? '')}" title="Dorsal (casa el corredor por la startlist al teclearlo)"></td>
     <td class="ru-td-name">
       <div class="ru-name-row">
-        <input class="ru-in ru-name" type="text" value="${esc(r.riderDisplay ?? '')}">
-        ${isTeamsClass ? '' : `<button type="button" class="ru-act ru-match" title="Casar corredor con la BD">🔗</button>`}
+        <input class="ru-in ru-name" data-ru-field="name" type="text" value="${esc(nameValue)}">
+        ${isTeamsClass ? '' : `<button type="button" class="ru-act ru-match" data-ru-field="match" title="Casar corredor con la BD">🔗</button>`}
       </div>
-      <span class="ru-resolved">${esc(resolvedLabel(r.bib, r.globalRiderId))}</span>
     </td>
     <td class="ru-td-team">
-      <button type="button" class="ru-team-btn" title="Asignar equipo a mano (override)">${teamCellHtml(r.teamId, r.bib, r.globalRiderId)}</button>
+      <button type="button" class="ru-team-btn" data-ru-field="team" title="Asignar equipo a mano (override)">${teamCellHtml(r.teamId, r.bib, r.globalRiderId)}</button>
     </td>
     ${valueCell(r)}
     <td class="ru-td-irm">
-      <select class="ru-in ru-irm">
+      <select class="ru-in ru-irm" data-ru-field="irm">
         ${['', 'DNF', 'DNS', 'OTL', 'DSQ'].map(c => `<option value="${c}" ${(r.irm ?? '') === c ? 'selected' : ''}>${c || '—'}</option>`).join('')}
       </select>
     </td>
     <td class="ru-actions">
-      <button type="button" class="ru-act ru-del" title="Quitar fila">✕</button>
+      <button type="button" class="ru-act ru-del" data-ru-field="delete" title="Quitar fila">✕</button>
     </td>
   </tr>`;
-
-  const lockedBadge = st.lockedAt
-    ? `<span class="uci-chip ru-chip-lock">🔒 bloqueada desde ${esc(formatDateTime(st.lockedAt))}</span>`
-    : '';
+  };
 
   h.body.innerHTML = `
-    <div class="ru-ed-note">
-      ${lockedBadge}
-      Guardar <strong>bloquea</strong> esta clasificación: el cron dejará de sobreescribirla con los
-      datos de la UCI hasta que la desbloquees desde la lista. El corredor se resuelve por
-      <strong>dorsal</strong> contra la startlist (o por la ficha si no hay dorsal); usa
-      <strong>🔗</strong> para casarlo a mano y el botón de <strong>equipo</strong> para fijarlo a
-      mano (override; el equipo en gris es el automático). En <strong>Tiempo</strong>: escribe el
-      tiempo absoluto del ganador, o el gap del resto empezando por <strong>+</strong>. Arrastra las
-      filas (⠿) para reordenarlas.
-    </div>
     <div class="u-row" style="gap:0.5rem;flex-wrap:wrap;margin:0.6rem 0">
       <button type="button" class="btn btn--ghost" id="ruAddRow" style="font-size:0.75rem">＋ Añadir fila</button>
       <button type="button" class="btn btn--ghost" id="ruSortRank" style="font-size:0.75rem"
               title="Reordena las filas por la columna # (sin puesto → al final, en su orden actual)">Ordenar por puesto</button>
       <span style="flex:1"></span>
-      <button type="button" class="btn btn--primary ru-save" style="font-size:0.78rem">Guardar y bloquear 🔒</button>
+      <button type="button" class="btn btn--primary ru-save" style="font-size:0.78rem">Guardar</button>
     </div>
     <table class="ru-edit-table">
       <thead><tr>
@@ -5427,30 +5611,46 @@ async function openUciClassEditor(st, rd, race) {
     </table>
     <div class="u-row" style="gap:0.5rem;margin-top:0.8rem;justify-content:flex-end">
       <button type="button" class="btn btn--ghost ru-cancel">Cancelar</button>
-      <button type="button" class="btn btn--primary ru-save">Guardar y bloquear 🔒</button>
+      <button type="button" class="btn btn--primary ru-save">Guardar</button>
     </div>`;
 
   const tbody = h.body.querySelector('#ruRows');
+  const startlistRiders = Object.values(riderMap);
   const bibOf = (tr) => tr.querySelector('.ru-bib')?.value || '';
+  const appendResultRow = () => {
+    const rankValues = [...tbody.querySelectorAll('.ru-rank')].map((input) => input.value);
+    tbody.insertAdjacentHTML('beforeend', rowHtml({ rank: nextResultRank(rankValues) }));
+    return tbody.lastElementChild;
+  };
 
   // Refresca la celda de equipo (override o auto-resuelto en gris) de una fila.
   const refreshTeamCell = (tr) => {
     const btn = tr.querySelector('.ru-team-btn');
     if (btn) btn.innerHTML = teamCellHtml(tr.dataset.teamId || '', bibOf(tr), tr.dataset.gid || '');
   };
-  // Refresca el hint del corredor resuelto de una fila.
-  const refreshResolved = (tr) => {
-    const span = tr.querySelector('.ru-resolved');
-    if (span) span.textContent = resolvedLabel(bibOf(tr), tr.dataset.gid || '');
+  // Resuelve el texto ya escrito contra la startlist antes de abrir el selector.
+  // Esto cubre el flujo escribir apellido → pulsar 🔗 aunque el campo todavía no
+  // haya emitido `change` y evita una selección manual cuando el match es único.
+  const applyUniqueStartlistNameMatch = (tr) => {
+    const nameInput = tr.querySelector('.ru-name');
+    const hit = uniqueStartlistSurnameMatch(nameInput?.value, startlistRiders);
+    if (!hit) return false;
+    tr.dataset.gid = hit.globalRiderId || '';
+    nameInput.value = hit.name;
+    const bibInput = tr.querySelector('.ru-bib');
+    if (bibInput && hit.dorsal != null) bibInput.value = hit.dorsal;
+    refreshTeamCell(tr);
+    return true;
   };
-
   // Acciones de fila por delegación (sobreviven a añadir/mover filas).
   tbody.addEventListener('click', (e) => {
     const tr = e.target.closest('tr');
     if (!tr) return;
     // Casar corredor a mano (🔗): fija globalRiderId como override.
     if (e.target.closest('.ru-match')) {
-      _ruOpenRiderMatchPicker(tr, race?.gender, (b) => resolvedLabel(b, tr.dataset.gid || ''), refreshTeamCell);
+      if (startlistRiders.length && applyUniqueStartlistNameMatch(tr)) return;
+      _ruOpenRiderMatchPicker(tr, race?.gender, refreshTeamCell,
+        startlistRiders.length ? startlistRiders : null);
       return;
     }
     // Asignar equipo a mano (override): selector de equipos globales.
@@ -5468,15 +5668,45 @@ async function openUciClassEditor(st, rd, race) {
     const tr = e.target.closest('tr');
     const t = String(e.target.value ?? '').trim();
     const hit = /^\d+$/.test(t) ? riderMap[Number(t)] : null;
-    if (hit && hit.globalRiderId) {
-      tr.dataset.gid = hit.globalRiderId;
+    if (hit) {
+      tr.dataset.gid = hit.globalRiderId || '';
       const nameInput = tr.querySelector('.ru-name');
       if (nameInput && hit.name) nameInput.value = hit.name;
     } else {
       tr.dataset.gid = '';
     }
-    refreshResolved(tr);
     refreshTeamCell(tr);
+  });
+
+  // Al abandonar el campo Corredor, un apellido exacto y no ambiguo de la
+  // startlist fija dorsal, nombre canónico y globalRiderId de forma inmediata.
+  tbody.addEventListener('change', (e) => {
+    if (e.target.classList.contains('ru-time')) {
+      const rank = Number.parseInt(e.target.closest('tr')?.querySelector('.ru-rank')?.value, 10);
+      e.target.value = normalizeResultTimeInput(e.target.value, rank);
+      return;
+    }
+    if (isTeamsClass || !e.target.classList.contains('ru-name')) return;
+    const tr = e.target.closest('tr');
+    applyUniqueStartlistNameMatch(tr);
+  });
+
+  // Tab conserva la columna y avanza una fila. Si se alcanza el final, crea una
+  // fila vacía para mantener el flujo vertical; Shift+Tab recorre hacia arriba.
+  tbody.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const control = e.target.closest('[data-ru-field]');
+    const tr = control?.closest('tr.ru-row');
+    if (!control || !tr) return;
+    let targetRow = e.shiftKey ? tr.previousElementSibling : tr.nextElementSibling;
+    if (!targetRow && !e.shiftKey) {
+      targetRow = appendResultRow();
+    }
+    const target = targetRow?.querySelector(`[data-ru-field="${control.dataset.ruField}"]`);
+    if (!target) return;
+    e.preventDefault();
+    target.focus();
+    if (typeof target.select === 'function' && target.matches('input')) target.select();
   });
 
   // ── Reordenar filas arrastrando con el ratón (HTML5 drag-and-drop) ──
@@ -5504,8 +5734,7 @@ async function openUciClassEditor(st, rd, race) {
   });
 
   h.body.querySelector('#ruAddRow').addEventListener('click', () => {
-    tbody.insertAdjacentHTML('beforeend', rowHtml({}));
-    tbody.lastElementChild?.querySelector('.ru-rank')?.focus();
+    appendResultRow()?.querySelector('.ru-rank')?.focus();
   });
   h.body.querySelector('#ruSortRank').addEventListener('click', () => {
     const trs = [...tbody.children];
@@ -5519,7 +5748,7 @@ async function openUciClassEditor(st, rd, race) {
   });
   h.body.querySelector('.ru-cancel').addEventListener('click', () => closeDrawer(2));
 
-  // ── Guardado: lock → reemplazo de filas → cabecera → re-resolución por dorsal ──
+  // ── Guardado: reemplazo de filas → cabecera → pseudo-final → re-resolución ──
   const save = async () => {
     const records = [];
     for (const tr of tbody.querySelectorAll('tr.ru-row')) {
@@ -5536,7 +5765,8 @@ async function openUciClassEditor(st, rd, race) {
       const bib = txtOf('.ru-bib');
       const name = txtOf('.ru-name');
       // Columna de tiempo única: empieza por '+' → gap; si no → tiempo absoluto.
-      const timeRaw = txtOf('.ru-time');
+      const timeInput = txtOf('.ru-time');
+      const timeRaw = timeInput == null ? null : normalizeResultTimeInput(timeInput, rank);
       const isGap = timeRaw != null && timeRaw.startsWith('+');
       const timeText = isGap ? null : timeRaw;
       const gapText  = isGap ? timeRaw : null;
@@ -5568,12 +5798,8 @@ async function openUciClassEditor(st, rd, race) {
     const btns = h.body.querySelectorAll('.ru-save, .ru-cancel, #ruAddRow, #ruSortRank');
     btns.forEach(b => b.disabled = true);
     try {
-      // 1) Bloquear PRIMERO: a partir de aquí el cron ya no interfiere.
-      const { error: lockErr } = await supabase.from('race_uci_stages')
-        .update({ lockedAt: new Date().toISOString() }).eq('id', st.id);
-      if (lockErr) throw lockErr;
-      // 2) Reemplazo de filas (con el lock puesto, la ventana sin filas es segura;
-      //    si el INSERT fallara, el editor sigue abierto → reintentar Guardar).
+      // 1) Reemplazo de filas. lockedAt se conserva: el candado solo cambia
+      //    mediante el control explícito de la lista.
       const { error: delErr } = await supabase.from('race_uci_results')
         .delete().eq('stageRef', st.id);
       if (delErr) throw delErr;
@@ -5581,7 +5807,7 @@ async function openUciClassEditor(st, rd, race) {
         const { error: insErr } = await supabase.from('race_uci_results').insert(records);
         if (insErr) throw insErr;
       }
-      // 3) Cabecera coherente con lo editado (rowCount/winnerName son el resumen).
+      // 2) Cabecera coherente con lo editado (rowCount/winnerName son el resumen).
       const winner = records.find(r => r.rank === 1);
       const winnerName = winner
         ? (resolvedOf(winner.bib, winner.globalRiderId)?.name || (winner.riderDisplay !== '—' ? winner.riderDisplay : null))
@@ -5589,11 +5815,24 @@ async function openUciClassEditor(st, rd, race) {
       const { error: updErr } = await supabase.from('race_uci_stages')
         .update({ rowCount: records.length, winnerName }).eq('id', st.id);
       if (updErr) throw updErr;
+
+      // 3) En el último día de una vuelta, cualquier acumulada distinta de «Etapa»
+      //    mantiene automáticamente su pseudo-final. Son dos cabeceras y dos juegos
+      //    de filas para las rutas públicas, pero una sola unidad visible en el panel.
+      if (shouldMirrorFinalClassification(st, st._isFinalRaceDay)) {
+        await _ruMirrorFinalClassification(st, rd, race, records, {
+          rowCount: records.length,
+          winnerName,
+        });
+      }
+
       // 4) Re-resolver corredores por dorsal (no fatal: los datos ya están guardados).
       const { error: rpcErr } = await supabase.rpc('resolve_uci_results', { p_race_id: rd.raceId });
       if (rpcErr) showToast('Guardado, pero falló la re-resolución por dorsal: ' + rpcErr.message);
 
-      showToast('Clasificación guardada y bloqueada — el cron no la sobreescribirá.', 'success');
+      showToast(shouldMirrorFinalClassification(st, st._isFinalRaceDay)
+        ? 'Clasificación guardada y general final actualizada.'
+        : 'Clasificación guardada.', 'success');
       closeDrawer(2);
       setupUciResultsSection(rd, race);
     } catch (err) {
@@ -5606,23 +5845,25 @@ async function openUciClassEditor(st, rd, race) {
 }
 
 // ── Picker de corredor para una fila de la clasificación (override manual) ──
-// Variante ligera del picker de inscritos: busca por nombre en riders_men/women
-// (según el género de la carrera) y, al elegir, fija tr.dataset.gid + el nombre.
-// El gid manual sobrevive al cron porque resolve_uci_results ya no borra un
-// globalRiderId cuyo dorsal no casa con la startlist (migración 112).
+// Con startlist publicada solo permite elegir entre sus inscritos y fija dorsal,
+// nombre y, cuando existe, globalRiderId. Sin startlist conserva la búsqueda en
+// riders_men/women. El dorsal sigue siendo la autoridad en el primer caso.
 let _ruMatchPickerEl = null;
 function _ruCloseMatchPicker() { _ruMatchPickerEl?.remove(); _ruMatchPickerEl = null; }
-function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
+function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = null) {
   _ruCloseMatchPicker();
+  const restrictToStartlist = Array.isArray(startlistRiders);
   const ridersTable = gender === 'female' ? 'riders_women' : gender === 'male' ? 'riders_men' : null;
-  if (!ridersTable) { showToast('La carrera no tiene género definido', 'error'); return; }
+  if (!restrictToStartlist && !ridersTable) { showToast('La carrera no tiene género definido', 'error'); return; }
   const currentId = tr.dataset.gid || null;
+  const currentBib = String(tr.querySelector('.ru-bib')?.value || '').trim();
 
   const pop = document.createElement('div');
   pop.style.cssText = 'position:absolute;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:360px;max-height:420px;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
   pop.innerHTML = `
     ${currentId ? `<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Match actual: <code style="color:var(--text)">${esc(currentId)}</code></div>` : ''}
-    <input type="search" class="ru-pick-input" placeholder="Apellido, nombre u otherNames…"
+    ${restrictToStartlist ? '<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Solo inscritas e inscritos de esta carrera.</div>' : ''}
+    <input type="search" class="ru-pick-input" placeholder="${restrictToStartlist ? 'Dorsal o nombre…' : 'Apellido, nombre u otherNames…'}"
            style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;box-sizing:border-box;margin-bottom:0.4rem">
     <div class="ru-pick-results" style="display:flex;flex-direction:column;gap:0.2rem;min-height:1.2rem"></div>
     <div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;display:flex;justify-content:space-between;align-items:center">
@@ -5644,17 +5885,55 @@ function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
   const search = async () => {
     const q = input.value.trim();
     const myId = ++reqId;
+    if (restrictToStartlist) {
+      try {
+        const data = filterStartlistRiderCandidates(startlistRiders, q);
+        if (!data.length) {
+          results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin inscritos coincidentes.</div>';
+          return;
+        }
+        results.innerHTML = data.map((rider, index) => {
+          const isCurrent = (rider.globalRiderId && rider.globalRiderId === currentId)
+            || (currentBib && String(rider.dorsal ?? '') === currentBib);
+          return `
+            <div data-startlist-index="${index}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${isCurrent ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text);cursor:pointer">
+              <strong style="min-width:2.2rem;text-align:right">#${esc(resultRiderDorsalText(rider.dorsal))}</strong>
+              ${_slRiderFlagPreview(rider.countryCode)}
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)}${rider.teamDisplay ? ` <span class="u-c-dim u-fs-070">· ${esc(rider.teamDisplay)}</span>` : ''}</span>
+            </div>`;
+        }).join('');
+        results.querySelectorAll('[data-startlist-index]').forEach((el) => {
+          el.addEventListener('click', () => {
+            const rider = data[Number(el.dataset.startlistIndex)];
+            if (!rider) return;
+            tr.dataset.gid = rider.globalRiderId || '';
+            const bibInput = tr.querySelector('.ru-bib');
+            if (bibInput) bibInput.value = rider.dorsal ?? '';
+            const nameInput = tr.querySelector('.ru-name');
+            if (nameInput) nameInput.value = rider.name || `${rider.firstName || ''} ${rider.lastName || ''}`.trim();
+            onChange?.(tr);
+            _ruCloseMatchPicker();
+            showToast(`Corredor casado por startlist: ${rider.name || `${rider.firstName} ${rider.lastName}`}`, 'success');
+          });
+        });
+      } catch (error) {
+        console.error('[resultados] Error mostrando candidatos de la startlist', error);
+        results.innerHTML = '<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">No se han podido mostrar los inscritos.</div>';
+      }
+      return;
+    }
     if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Escribe al menos 2 letras.</div>'; return; }
     results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Buscando…</div>';
-    const safe = q.replace(/[%,()]/g, '');
+    const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
-      .select('id,firstName,lastName,otherNames,nationality,verified')
-      .or(`lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
+      .select('id,firstName,lastName,otherNames,nationality,verified,identityKey')
+      .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
     if (error) { results.innerHTML = `<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">Error: ${esc(error.message)}</div>`; return; }
-    if (!data?.length) { results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>'; return; }
-    results.innerHTML = data.map(rd2 => `
+    const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
+    if (!matchingData.length) { results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>'; return; }
+    results.innerHTML = matchingData.map(rd2 => `
       <div data-pick="${esc(rd2.id)}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${rd2.id === currentId ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text);cursor:pointer">
         ${_slRiderFlagPreview(rd2.nationality)}
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"><strong>${esc(rd2.lastName)}</strong>, ${esc(rd2.firstName)}${rd2.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd2.otherNames)})</span>` : ''}</span>
@@ -5662,13 +5941,11 @@ function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
       </div>`).join('');
     results.querySelectorAll('[data-pick]').forEach(el => {
       el.addEventListener('click', () => {
-        const rider = data.find(x => x.id === el.dataset.pick);
+        const rider = matchingData.find(x => x.id === el.dataset.pick);
         if (!rider) return;
         tr.dataset.gid = rider.id;
         const nameInput = tr.querySelector('.ru-name');
         if (nameInput) nameInput.value = `${rider.firstName || ''} ${rider.lastName || ''}`.trim();
-        const span = tr.querySelector('.ru-resolved');
-        if (span) span.textContent = `→ ${rider.firstName || ''} ${rider.lastName || ''}`.trim() + ' (manual)';
         onChange?.(tr);   // refresca la celda de equipo auto-resuelto
         _ruCloseMatchPicker();
         showToast(`Corredor casado: ${rider.firstName} ${rider.lastName}`, 'success');
@@ -5680,19 +5957,24 @@ function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
   input.addEventListener('keydown', (e) => { if (e.key === 'Escape') _ruCloseMatchPicker(); });
   pop.querySelector('[data-action="unlink"]')?.addEventListener('click', () => {
     tr.dataset.gid = '';
-    const span = tr.querySelector('.ru-resolved');
-    if (span) span.textContent = resolvedLabel(tr.querySelector('.ru-bib')?.value || '');
     onChange?.(tr);   // refresca la celda de equipo auto-resuelto
     _ruCloseMatchPicker();
     showToast('Match eliminado', 'success');
   });
   pop.querySelector('[data-action="close"]').addEventListener('click', _ruCloseMatchPicker);
-  // Precarga: buscar ya por el nombre que hay en la fila (espejo de inscritos),
-  // para mostrar candidatos + resaltar el match actual sin teclear nada. El
-  // último token suele ser el apellido (la búsqueda casa mejor por lastName).
+  // Precarga: buscar ya por el nombre que hay en la fila. En la startlist se
+  // conserva el texto completo para que partículas como «van den» y nombres con
+  // caracteres especiales filtren al inscrito correcto. En la búsqueda global
+  // se mantiene el último token, optimizado para la consulta por apellido.
   const seedName = (tr.querySelector('.ru-name')?.value || '').trim();
-  const seed = seedName.split(/\s+/).filter(Boolean).pop() || seedName;
-  if (seed.length >= 2) { input.value = seed; search(); }
+  const seed = resultRiderPickerInitialQuery(seedName, restrictToStartlist);
+  if (restrictToStartlist) {
+    input.value = seed;
+    search();
+  } else if (seed.length >= 2) {
+    input.value = seed;
+    search();
+  }
   setTimeout(() => input.focus(), 0);
 }
 
@@ -5708,12 +5990,13 @@ function _ruOpenRiderMatchPicker(tr, gender, resolvedLabel, onChange) {
 //   currentId,            // id preseleccionado (o '')
 //   suggestionId,         // id a resaltar como sugerencia (opcional)
 //   allowNone,            // muestra opción «— Ninguno —» (default true)
+//   showBadges,           // muestra chapas en las opciones (default true)
 //   validate,             // (team) => {ok, reason}; bloquea al confirmar (opcional)
 //   onPick,               // (teamIdOrEmpty) => void
 // }
 function _openTeamCombo(opts) {
   const { title = 'Asignar equipo', teams = [], currentId = '',
-          suggestionId = '', allowNone = true, validate, onPick } = opts;
+          suggestionId = '', allowNone = true, showBadges = true, validate, onPick } = opts;
   const sorted = [...teams].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   const overlay = document.createElement('div');
@@ -5746,7 +6029,7 @@ function _openTeamCombo(opts) {
   const rowHtml = (t, idx, isActive) => {
     const selected = t.id === currentId;
     const isSug = t.id && t.id === suggestionId;
-    const badge = t._none ? '' : `<span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 20 })}</span>`;
+    const badge = t._none || !showBadges ? '' : `<span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 20 })}</span>`;
     const special = t.specialEdition
       ? '<span style="font-size:0.66rem;color:var(--text-dim);white-space:nowrap;margin-left:auto">Ed. especial</span>' : '';
     const sug = isSug ? '<span style="font-size:0.62rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-left:0.35rem">sugerido</span>' : '';
@@ -5830,6 +6113,7 @@ function _ruOpenTeamPicker(tr, race, onPicked) {
     title: 'Equipo (override)',
     teams: genderTeams,
     currentId: current,
+    showBadges: false,
     validate: (team) => {
       const v = _validateSpecialEditionForRace(team, race);
       if (!v.ok) return v;
@@ -5883,9 +6167,9 @@ async function setupUciView() {
   await renderUciReview();
 }
 
-// Botón de volcado a mano del cron de resultados (RPC admin_trigger_uci_results_workflow,
-// migraciones 088/099/134). La RPC solo ENCOLA el workflow_dispatch (pg_net es asíncrono):
-// aquí se confirma el encolado; el run tarda ~1-3 min en verse reflejado en la web.
+// Botón de volcado a mano del cron de resultados (RPC admin_trigger_uci_results_workflow).
+// La RPC encola una solicitud privada en Postgres; el timer del VPS la reclama en
+// menos de un minuto. GitHub Actions queda fuera de este circuito.
 //   · Sin raceId → "▶ Volcar hoy ahora" (vista global): ignore_window=true,
 //     procesa TODO lo que tenga etapa HOY sin esperar la ventana de meta (087).
 //   · Con raceId → "▶ Volcar esta carrera" (pestaña Resultados de la jornada):
@@ -5904,7 +6188,7 @@ async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
   // queda reservada para la acción global, que afecta a todas las carreras de hoy.
   if (!raceId) {
     const ok = await confirmDialog(
-      '¿Disparar ahora el volcado de resultados UCI? Procesa todas las carreras con etapa hoy (sin esperar la ventana de meta); los resultados tardan 1-3 min en verse reflejados.'
+      '¿Encolar ahora el volcado de resultados UCI en el VPS? Procesa todas las carreras con etapa hoy sin esperar la ventana de meta.'
     );
     if (!ok) return;
   }
@@ -5916,7 +6200,7 @@ async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
       ? await supabase.rpc('admin_trigger_uci_results_workflow', { p_race_id: raceId })
       : await supabase.rpc('admin_trigger_uci_results_workflow');
     if (error) throw error;
-    showToast('Volcado disparado — visible en la web en 1-3 min', 'success', 6000);
+    showToast('Volcado encolado en el VPS — comenzará en menos de 1 min', 'success', 6000);
   } catch (err) {
     showToast('No se pudo disparar el volcado: ' + (err.message || err), 'error');
   } finally {
@@ -8132,9 +8416,130 @@ let _startlistsInitialized = false;
 function setupStartlistsView() {
   if (_startlistsInitialized) { loadExistingStartlists(); return; }
   _startlistsInitialized = true;
+  document.getElementById('newStartlistBtn')?.addEventListener('click', openNewStartlistImport);
   // El editor de inscritos se renderiza en el drawer; sus listeners se cablean
   // por apertura en wireStartlistEditor() (ver openStartlistEditor).
   loadExistingStartlists();
+}
+
+function _newStartlistRaceOptions(query = '') {
+  return selectUpcomingStartlistRaces(allRaces, madridDateKey(new Date()), query);
+}
+
+function openNewStartlistImport() {
+  let parsedDocument = null;
+
+  openDrawer({
+    title: 'Nueva lista de inscritos',
+    level: 1,
+    render: (body) => {
+      body.innerHTML = `
+        <div class="u-stack" style="gap:1rem">
+          <div>
+            <label for="newStartlistRaceSearch" class="panel-view-label" style="display:block;margin-bottom:0.4rem">Carrera</label>
+            <input id="newStartlistRaceSearch" type="search" placeholder="Buscar por nombre, fecha o ID…" autocomplete="off"
+                   style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-bottom:0.5rem">
+            <select id="newStartlistRace" size="10" aria-label="Carrera de destino"
+                    style="width:100%;box-sizing:border-box;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)"></select>
+            <div id="newStartlistRaceCount" class="u-fs-xs u-c-dim" style="margin-top:0.35rem"></div>
+          </div>
+          <div>
+            <label for="newStartlistFile" class="panel-view-label" style="display:block;margin-bottom:0.4rem">Archivo JSON (opcional)</label>
+            <input id="newStartlistFile" type="file" accept="application/json,.json" style="width:100%">
+          </div>
+          <div id="newStartlistImportStatus" class="u-fs-md u-c-dim" role="status">Selecciona una carrera. Después puedes crear la lista manualmente o importar un JSON.</div>
+          <div class="u-row" style="justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;padding-top:0.75rem;border-top:1px solid var(--border)">
+            <button class="btn btn--ghost" id="cancelNewStartlistBtn" type="button">Cancelar</button>
+            <button class="btn btn--ghost" id="manualNewStartlistBtn" type="button" disabled>Crear manualmente</button>
+            <button class="btn btn--primary" id="continueNewStartlistBtn" type="button" disabled>Importar JSON</button>
+          </div>
+        </div>`;
+
+      const search = body.querySelector('#newStartlistRaceSearch');
+      const select = body.querySelector('#newStartlistRace');
+      const fileInput = body.querySelector('#newStartlistFile');
+      const status = body.querySelector('#newStartlistImportStatus');
+      const count = body.querySelector('#newStartlistRaceCount');
+      const manualBtn = body.querySelector('#manualNewStartlistBtn');
+      const continueBtn = body.querySelector('#continueNewStartlistBtn');
+
+      const updateReadyState = () => {
+        const target = validateStartlistImportTarget(select.value, parsedDocument?.raceId);
+        manualBtn.disabled = !select.value;
+        continueBtn.disabled = !parsedDocument?.ok || !target.ok;
+        if (parsedDocument?.ok) {
+          status.textContent = target.ok
+            ? `JSON válido: ${parsedDocument.summary.teams} equipos y ${parsedDocument.summary.riders} corredores.`
+            : target.error;
+        } else if (select.value) {
+          status.textContent = 'Carrera seleccionada. Puedes crear la lista manualmente o elegir un JSON.';
+        } else {
+          status.textContent = 'Selecciona una carrera. Después puedes crear la lista manualmente o importar un JSON.';
+        }
+      };
+
+      const renderRaces = () => {
+        const previous = select.value;
+        const races = _newStartlistRaceOptions(search.value);
+        select.innerHTML = races.map(race => {
+          const date = race.startDate ? `${race.startDate} · ` : '';
+          const existing = race.startlistImportedAt ? ' · lista existente' : '';
+          return `<option value="${esc(race.id)}">${esc(`${date}${race.name || race.id}${existing}`)}</option>`;
+        }).join('');
+        if (races.some(race => race.id === previous)) select.value = previous;
+        else select.selectedIndex = -1;
+        count.textContent = races.length === 250
+          ? 'Se muestran los primeros 250 resultados. Usa el buscador para acotar.'
+          : `${races.length} carreras`;
+        updateReadyState();
+      };
+
+      search.addEventListener('input', renderRaces);
+      select.addEventListener('change', updateReadyState);
+      fileInput.addEventListener('change', async () => {
+        parsedDocument = null;
+        continueBtn.disabled = true;
+        const file = fileInput.files?.[0];
+        if (!file) {
+          updateReadyState();
+          return;
+        }
+        try {
+          const parsed = parseStartlistImportDocument(JSON.parse(await file.text()));
+          if (!parsed.ok) {
+            throw new Error(parsed.errors.slice(0, 4).map(({ path, message }) => `${path}: ${message}`).join(' · '));
+          }
+          parsedDocument = parsed;
+          updateReadyState();
+        } catch (error) {
+          status.textContent = `Error de importación: ${error.message}`;
+        }
+      });
+      body.querySelector('#cancelNewStartlistBtn').addEventListener('click', () => closeDrawer(1));
+      manualBtn.addEventListener('click', async () => {
+        const target = validateStartlistImportTarget(select.value, null);
+        if (!target.ok) {
+          status.textContent = target.error;
+          return;
+        }
+        manualBtn.disabled = true;
+        manualBtn.textContent = 'Abriendo…';
+        await window.openStartlistEditor(target.raceId, { manualCreation: true });
+      });
+      continueBtn.addEventListener('click', async () => {
+        const target = validateStartlistImportTarget(select.value, parsedDocument?.raceId);
+        if (!parsedDocument?.ok || !target.ok) {
+          status.textContent = target.error || 'Selecciona un JSON válido.';
+          return;
+        }
+        continueBtn.disabled = true;
+        continueBtn.textContent = 'Abriendo…';
+        await window.openStartlistEditor(target.raceId, { importedDocument: parsedDocument });
+      });
+
+      renderRaces();
+    },
+  });
 }
 
 async function loadExistingStartlists() {
@@ -8228,11 +8633,8 @@ let _editingRaceEnriched = false;   // estado del toggle del editor abierto
 let _editingRaceProvisional = false; // toggle "Lista provisional"
 
 // ─── Rider matching ───────────────────────────────────────────────
-// Fase 4: el matching automático orden-dependiente (normalizeTeamName + score)
-// se eliminó. La resolución contra el catálogo la hace el RPC resolve_riders al
-// GUARDAR la startlist (por identityKey, invariante al orden apellido/nombre,
-// y crea las fichas faltantes). El editor conserva el vínculo MANUAL por corredor
-// (botón "Buscar/Vincular" → _slOpenMatchPicker) y la creación inline.
+// No se crean identidades. El editor puede enlazar solo coincidencias exactas
+// existentes; los casos ausentes o ambiguos quedan para el selector manual.
 
 function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip */) {
   const btn = riderEl.querySelector('.sl-rider-match-btn');
@@ -8248,6 +8650,53 @@ function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip */) {
     btn.textContent = '🔗';
     btn.style.color = 'var(--text-dim)';
     btn.title = 'Buscar o forzar un match en la BD de corredores';
+  }
+}
+
+// Consulta batch de SOLO LECTURA. La RPC compara identityKey exacto y aliases
+// de fusiones; no crea ni actualiza fichas. Una clave ambigua queda desligada.
+async function _slMatchExistingRiders(riderEls) {
+  const gender = _slEditingRaceGender();
+  const rows = [...riderEls]
+    .filter(riderEl => !riderEl.dataset.globalRiderId)
+    .map((riderEl, idx) => ({
+      idx,
+      riderEl,
+      firstName: riderEl.querySelector('.sl-firstname')?.value.trim() || '',
+      lastName: riderEl.querySelector('.sl-lastname')?.value.trim() || '',
+    }))
+    .filter(row => row.firstName || row.lastName);
+  if (!gender || rows.length === 0) {
+    return { matched: 0, ambiguous: 0, unmatched: rows.length, skipped: true };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('match_existing_riders', {
+      p_gender: gender,
+      p_rows: rows.map(({ idx, firstName, lastName }) => ({ idx, firstName, lastName })),
+    });
+    if (error) throw error;
+    const results = new Map((data || []).map(result => [Number(result.idx), result]));
+    let matched = 0;
+    let ambiguous = 0;
+    let unmatched = 0;
+    for (const row of rows) {
+      const result = results.get(row.idx);
+      const matchedId = uniqueExistingRiderMatchId(result);
+      if (matchedId) {
+        row.riderEl.dataset.globalRiderId = matchedId;
+        _slRefreshRiderMatchBtn(row.riderEl);
+        matched++;
+      } else if (Number(result?.match_count) > 1) {
+        ambiguous++;
+      } else {
+        unmatched++;
+      }
+    }
+    return { matched, ambiguous, unmatched, skipped: false };
+  } catch (error) {
+    console.warn('[startlist exact match]', error);
+    return { matched: 0, ambiguous: 0, unmatched: rows.length, error, skipped: false };
   }
 }
 
@@ -8352,18 +8801,19 @@ async function _slOpenRiderMatchPicker(riderEl) {
       return;
     }
     results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Buscando…</div>';
-    const safe = q.replace(/[%,()]/g, '');
+    const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
-      .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source')
-      .or(`lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
+      .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source,identityKey')
+      .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
     if (error) { results.innerHTML = `<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">Error: ${esc(error.message)}</div>`; return; }
-    if (!data?.length) {
+    const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
+    if (!matchingData.length) {
       results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>';
       return;
     }
-    results.innerHTML = data.map(rd => `
+    results.innerHTML = matchingData.map(rd => `
       <div data-rid="${esc(rd.id)}" style="display:flex;align-items:center;gap:0.35rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${rd.id === currentId ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text)">
         <div data-pick="${esc(rd.id)}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;flex:1;min-width:0;cursor:pointer">
           ${_slRiderFlagPreview(rd.nationality)}
@@ -8376,7 +8826,7 @@ async function _slOpenRiderMatchPicker(riderEl) {
     // Click sobre la zona de info → selección como match.
     results.querySelectorAll('[data-pick]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const rider = data.find(x => x.id === btn.dataset.pick);
+        const rider = matchingData.find(x => x.id === btn.dataset.pick);
         if (!rider) return;
         riderEl.dataset.globalRiderId = rider.id;
         riderEl.querySelector('.sl-firstname').value = rider.firstName;
@@ -8892,14 +9342,55 @@ function startlistEditorBodyHtml() {
   return `
     <div id="startlistEditorContent"></div>
     <div class="u-row" style="gap:0.75rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+      <label class="btn btn--ghost" for="importStartlistFile" style="cursor:pointer">Importar JSON mínimo</label>
+      <input id="importStartlistFile" type="file" accept="application/json,.json" style="display:none">
       <button class="btn btn--primary" id="saveStartlistBtn">Guardar cambios</button>
       <span class="u-fs-md u-c-dim" id="startlistSaveStatus"></span>
     </div>`;
 }
 
+async function _slApplyParsedImport(parsed) {
+  const target = validateStartlistImportTarget(_editingRaceId, parsed?.raceId);
+  if (!target.ok) throw new Error(target.error);
+  const teamsList = document.getElementById('slTeamsList');
+  if (!teamsList) throw new Error('El editor no está listo para importar.');
+  // La importación solo reemplaza el borrador visible: no escribe en Supabase.
+  // Después se enlazan únicamente coincidencias exactas existentes.
+  teamsList.innerHTML = parsed.teams.map(team => _slTeamRowHtml({
+    teamName: team.name,
+    riders: team.riders,
+  })).join('');
+  if (_editingRaceEnriched) _slAutoMatchAll();
+  _slRefreshAllEnrichUI();
+  const exact = await _slMatchExistingRiders(teamsList.querySelectorAll('.sl-edit-rider'));
+  const matchInfo = exact.error
+    ? ' No se pudieron consultar coincidencias existentes; revisa los enlaces manualmente.'
+    : ` · ${exact.matched} enlaces exactos · ${exact.ambiguous} ambiguos · ${exact.unmatched} sin match.`;
+  const status = document.getElementById('startlistSaveStatus');
+  status.textContent = `Importado en el editor: ${parsed.summary.teams} equipos, ${parsed.summary.riders} corredores.${matchInfo} Revisa y guarda.`;
+  showToast('Borrador de inscritos importado', 'success');
+}
+
 // Listeners del editor de inscritos (por apertura del drawer).
 function wireStartlistEditor() {
   document.getElementById('saveStartlistBtn').addEventListener('click', saveStartlistEdits);
+  document.getElementById('importStartlistFile').addEventListener('change', async (event) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    const status = document.getElementById('startlistSaveStatus');
+    try {
+      const parsed = parseStartlistImportDocument(JSON.parse(await file.text()));
+      if (!parsed.ok) {
+        throw new Error(parsed.errors.slice(0, 4).map(({ path, message }) => `${path}: ${message}`).join(' · '));
+      }
+      await _slApplyParsedImport(parsed);
+    } catch (err) {
+      status.textContent = `Error de importación: ${err.message}`;
+    }
+  });
   const content = document.getElementById('startlistEditorContent');
   content.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.matches('.sl-dorsal, .sl-firstname, .sl-lastname')) {
@@ -8916,7 +9407,7 @@ function wireStartlistEditor() {
   });
 }
 
-window.openStartlistEditor = async function(raceId) {
+window.openStartlistEditor = async function(raceId, { importedDocument = null, manualCreation = false } = {}) {
   _editingRaceId = raceId;
   const race = allRaces.find(r => r.id === raceId);
   _editingRaceEnriched = !!(race && race.enrichedStartlist);
@@ -8955,9 +9446,6 @@ window.openStartlistEditor = async function(raceId) {
     ridersByTeam[r.teamId].push(r);
   });
 
-  // Fase 4: no se precarga caché de matching. La resolución contra el catálogo
-  // (enlazar/crear por identityKey) la hace el RPC resolve_riders al GUARDAR.
-
   // Toolbar con toggles (Enriquecida + Provisional)
   const toolbar = `<div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:8px">
     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
@@ -8977,12 +9465,12 @@ window.openStartlistEditor = async function(raceId) {
     </div>
     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
       <span style="font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;font-size:0.78rem">BD corredores</span>
-      <span class="u-fs-xs u-c-dim u-grow">Al <strong>guardar</strong>, cada corredor se enlaza al catálogo por identityKey (o se crea la ficha si no existe). Botón manual «Buscar» por corredor para casos dudosos.</span>
+      <span class="u-fs-xs u-c-dim u-grow">Al importar o guardar se enlazan solo coincidencias exactas ya existentes. Nunca se crean fichas; usa «🔗» para revisar casos sin match o ambiguos.</span>
       <button class="btn btn--ghost" id="slSyncCanonicalBtn" type="button" style="padding:0.25rem 0.6rem;font-size:0.72rem" title="Sobreescribe firstName/lastName/countryCode en startlist_riders con los valores canónicos de riders_men/women (para corredores ya enlazados). Propaga también a start_order_entries.">Re-sync canónico</button>
     </div>
   </div>`;
 
-  let html = toolbar;
+  let html = `${toolbar}<div id="slTeamsList">`;
   (teams || []).forEach(team => {
     html += _slTeamRowHtml({
       teamName:    team.teamName,
@@ -8991,10 +9479,14 @@ window.openStartlistEditor = async function(raceId) {
       riders:      ridersByTeam[team.id] || [],
     });
   });
-  html += `<button class="btn btn--ghost" id="addTeamBtn" style="padding:0.35rem 0.75rem;font-size:0.75rem;margin-top:0.25rem">+ Añadir equipo</button>`;
+  if (manualCreation && !(teams || []).length) {
+    html += _slTeamRowHtml({ teamName: '', teamId: null, riders: [] });
+  }
+  html += `</div><button class="btn btn--ghost" id="addTeamBtn" style="padding:0.35rem 0.75rem;font-size:0.75rem;margin-top:0.25rem">+ Añadir equipo</button>`;
   content.innerHTML = html;
 
-  // Auto-match inicial de EQUIPOS si enriched está activo y hay filas sin teamId
+  // Auto-match inicial de EQUIPOS si enriched está activo y hay filas sin teamId.
+  // Las identidades se enlazan únicamente con coincidencias exactas existentes.
   if (_editingRaceEnriched) _slAutoMatchAll();
   _slRefreshAllEnrichUI();
 
@@ -9061,9 +9553,7 @@ window.openStartlistEditor = async function(raceId) {
       if (preview) preview.innerHTML = _slRiderFlagPreview(code);
       return;
     }
-    // Al editar nombre/apellido a mano, se invalida el enlace previo (ya no
-    // corresponde). La resolución se rehace al guardar vía RPC. (El matching
-    // automático as-you-type se eliminó en la Fase 4.)
+    // Al editar nombre/apellido a mano, se invalida el enlace previo.
     if (ev.target.matches('.sl-firstname') || ev.target.matches('.sl-lastname')) {
       const riderEl = ev.target.closest('.sl-edit-rider');
       if (!riderEl) return;
@@ -9089,11 +9579,12 @@ window.openStartlistEditor = async function(raceId) {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = _slTeamRowHtml({ teamName: '', teamId: null, riders: [] });
     const teamDiv = wrapper.firstElementChild;
-    content.insertBefore(teamDiv, document.getElementById('addTeamBtn'));
+    document.getElementById('slTeamsList').appendChild(teamDiv);
     _slUpdateRowEnrichUI(teamDiv);
   });
 
-  editor.scrollIntoView({ behavior: 'smooth' });
+  if (importedDocument) await _slApplyParsedImport(importedDocument);
+  content.scrollIntoView({ behavior: 'smooth' });
 };
 
 window.addRiderRow = function(btn) {
@@ -9128,6 +9619,9 @@ async function saveStartlistEdits() {
   status.textContent = 'Guardando…';
 
   const teamEls = document.querySelectorAll('#startlistEditorContent .sl-edit-team');
+  // Segundo pase para filas nuevas o editadas desde la importación. No toca las
+  // asociaciones manuales existentes ni crea identidades.
+  const exact = await _slMatchExistingRiders(document.querySelectorAll('#startlistEditorContent .sl-edit-rider'));
   const teamsData = [];
   teamEls.forEach((el) => {
     const name = el.querySelector('.sl-team-name').value.trim();
@@ -9154,72 +9648,6 @@ async function saveStartlistEdits() {
     return minA - minB;
   });
   teamsData.forEach((t, i) => t.sortOrder = i);
-
-  // ── Fase 4: resolución de la startlist contra el catálogo vía RPC ──
-  // El RPC resolve_riders resuelve TODA la startlist por identityKey (token-set del
-  // nombre plegado, invariante al orden apellido/nombre — mata la causa raíz del
-  // matcher antiguo) en un solo round-trip, y CREA las fichas faltantes
-  // (verified=false, source='startlist_resolve'; el identityKey lo pone el trigger).
-  // Cada fila sin globalRiderId queda enlazada a una ficha (existente o nueva).
-  const race = allRaces.find(r => r.id === raceId);
-  const raceGender = race?.gender;
-  const pGender = raceGender === 'female' ? 'female' : raceGender === 'male' ? 'male' : null;
-  let autoMatchedCount = 0;
-  let autoCreatedCount = 0;
-  let canonicalSyncedCount = 0;
-  if (pGender) {
-    try {
-      // Filas sin link, con nombre+apellido. Indexamos por (teamIdx, riderIdx) para
-      // aplicar el resultado del RPC de vuelta a cada rider.
-      const pRows = [];
-      const rowRefs = [];
-      for (const t of teamsData) {
-        for (const r of t.riders) {
-          if (r.globalRiderId || !r.firstName || !r.lastName) continue;
-          const idx = pRows.length;
-          pRows.push({ idx, firstName: r.firstName, lastName: r.lastName, countryCode: r.countryCode || null });
-          rowRefs.push(r);
-        }
-      }
-
-      if (pRows.length) {
-        const { data: resolved, error: resErr } = await supabase
-          .rpc('resolve_riders', { p_gender: pGender, p_rows: pRows });
-        if (resErr) throw resErr;
-        for (const res of (resolved || [])) {
-          const r = rowRefs[res.idx];
-          if (r && res.matched_id) {
-            r.globalRiderId = res.matched_id;
-            if (res.created) autoCreatedCount++; else autoMatchedCount++;
-          }
-        }
-      }
-
-      // Sincronizar el snapshot (nombre/apellido/nacionalidad) de TODOS los riders
-      // linkados con su ficha canónica, para que el INSERT a startlist_riders quede
-      // consistente con riders_*. Una sola lectura de los ids implicados.
-      const linkedIds = [...new Set(teamsData.flatMap(t => t.riders.map(r => r.globalRiderId).filter(Boolean)))];
-      if (linkedIds.length) {
-        const ridersTable = pGender === 'female' ? 'riders_women' : 'riders_men';
-        const { data: canonRows } = await supabase
-          .from(ridersTable).select('id,firstName,lastName,nationality').in('id', linkedIds);
-        const canonById = new Map((canonRows || []).map(c => [c.id, c]));
-        for (const t of teamsData) {
-          for (const r of t.riders) {
-            const canon = r.globalRiderId ? canonById.get(r.globalRiderId) : null;
-            if (!canon) continue;
-            let touched = false;
-            if (canon.firstName && r.firstName !== canon.firstName) { r.firstName = canon.firstName; touched = true; }
-            if (canon.lastName  && r.lastName  !== canon.lastName)  { r.lastName  = canon.lastName;  touched = true; }
-            if (canon.nationality && !r.countryCode) { r.countryCode = canon.nationality; touched = true; }
-            if (touched) canonicalSyncedCount++;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('[saveStartlistEdits] resolución RPC fallida', err);
-    }
-  }
 
   try {
     const { error: delR } = await supabase.from('startlist_riders').delete().eq('raceId', raceId);
@@ -9273,13 +9701,9 @@ async function saveStartlistEdits() {
       race.startlistProvisional = _editingRaceProvisional;
     }
 
-    const matchInfo = (autoMatchedCount || autoCreatedCount || canonicalSyncedCount)
-      ? ` · auto-match: ${autoMatchedCount} · auto-creados en BD: ${autoCreatedCount} · sync canónico: ${canonicalSyncedCount}`
-      : '';
+    const matchInfo = exact.error ? '' : ` · ${exact.matched} enlaces exactos`;
     status.textContent = `Guardado: ${teamRows.length} equipos, ${riderRows.length} corredores${matchInfo}.`;
-    showToast(autoCreatedCount
-      ? `Inscritos actualizados (${autoCreatedCount} corredores nuevos en BD pendientes de verificar)`
-      : 'Inscritos actualizados', 'success');
+    showToast('Inscritos actualizados', 'success');
     loadExistingStartlists();
   } catch (err) {
     console.error('[startlist save]', err);
@@ -9360,6 +9784,7 @@ async function setupTeamsView() {
       if (el) el.addEventListener(event, handler);
       else console.warn(`[setupTeamsView] #${id} no existe en el DOM — listener omitido (¿app.html cacheado?)`);
     };
+    bind('addRiderPanelBtn', 'click', openNewRiderFromTeams);
     bind('addTeamPanelBtn', 'click', () => openTeamEditor(null));
     bind('teamsSearch', 'input', () => renderTeamsList());
     // Los listeners del editor de equipo (form, colores, specialEdition,
@@ -10446,7 +10871,7 @@ async function openRosterRiderEditor(riderId, riderGender) {
     const { data } = await supabase.from(table).select('*').eq('id', riderId).maybeSingle();
     if (data) {
       _ridersAllCache = [data];
-      openRiderEditor(riderId);
+      openRiderEditor(riderId, { level: 2 });
     }
   } catch (err) {
     console.error('[openRosterRiderEditor]', err);
@@ -10784,6 +11209,7 @@ function setupSeason27Panel() {
 let _ridersGender     = 'male';
 let _editingRiderId   = null;
 let _ridersAllCache   = [];          // ficha(s) en memoria que el editor puede leer
+let _riderEditorLevel = 2;           // 1 = alta directa; 2 = sobre equipo/movimiento
 // Callback de UN SOLO USO que dispara saveRider al guardar. Lo arma quien abre
 // el editor desde otro flujo y necesita la ficha recién creada (hoy: el editor
 // de un movimiento del mercado, que la deja seleccionada). Se limpia al usarse
@@ -10885,14 +11311,15 @@ function _populateRiderEditorTeams() {
   }
 }
 
-function openRiderEditor(riderId) {
+function openRiderEditor(riderId, { level = _riderEditorLevel } = {}) {
+  _riderEditorLevel = level;
   _editingRiderId = riderId;
   const rider = riderId ? _ridersAllCache.find(r => r.id === riderId) : null;
 
-  // Ficha en drawer NIVEL 2 (apilada sobre el editor de equipo, si lo hay).
+  // El alta directa usa el nivel 1; desde un equipo o movimiento se apila en el 2.
   openDrawer({
     title: rider ? 'Editar corredor' : 'Nuevo corredor',
-    level: 2,
+    level,
     render: (body) => {
       body.innerHTML = riderEditorBodyHtml();
       wireRiderEditor();
@@ -10932,7 +11359,16 @@ function openRiderEditor(riderId) {
 
 function closeRiderEditor() {
   _editingRiderId = null;
-  closeDrawer(2);
+  closeDrawer(_riderEditorLevel);
+}
+
+// Alta independiente desde la cabecera de Equipos. El editor estándar ya
+// incluye sexo y equipo actual, por lo que no necesita una plantilla abierta.
+function openNewRiderFromTeams() {
+  _ridersGender = 'male';
+  _onRiderSavedOnce = null;
+  _ridersAllCache = [];
+  openRiderEditor(null, { level: 1 });
 }
 
 async function saveRider() {
@@ -13388,8 +13824,12 @@ let _marketDiv            = 'WT';    // división activa en la lista de equipos
 let _trTeamNamePrev       = new Map();  // teamId → nombre 2026 (origen)
 let _trTeamNameById       = new Map();  // teamId → nombre 2027 (destino)
 let _editingTransferId    = null;
+let _trAutoResolvedExisting = false;
 let _trSelectedRider      = null;    // { id, gender, firstName, lastName, nationality, currentTeamId }
 let _trSearchDebounce     = null;
+let _trSituationState     = 'undecided';
+let _trYearUnknown        = false;
+let _trLifetime           = false;
 
 function _localDateKey() {
   const d = new Date();
@@ -13408,6 +13848,7 @@ async function setupFichajesView() {
     // editor de temporada 2027. La lista plana de TODOS los movimientos queda
     // como herramienta de auditoría en un drawer aparte.
     bind('newTeam27Btn', 'click', openTeamEditorForMarket);
+    bind('addTransferDirectBtn', 'click', () => openTransferEditor(null));
     bind('allTransfersBtn', 'click', openAllTransfersDrawer);
     const seasonEl = document.getElementById('fichajesSeason');
     if (seasonEl) seasonEl.textContent = `· temporada ${MARKET_SEASON}`;
@@ -13422,15 +13863,12 @@ async function setupFichajesView() {
 // Es el atajo para renombrar un equipo 2027 (sponsor nuevo), moverlo de
 // división, activar su chapa o marcar su continuidad en duda sin salir a la
 // vista Equipos.
-const MARKET_DIVISIONS = ['WT', 'WWT', 'PT', 'PRW'];
+const MARKET_DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
 
 function renderMarketTeams() {
   const btns = document.getElementById('marketDivBtns');
   const list = document.getElementById('marketTeamsList');
-  const countEl = document.getElementById('marketTeamsCount');
-  const titleEl = document.getElementById('marketTeamsTitle');
   if (!btns || !list) return;
-  if (titleEl) titleEl.textContent = `Equipos ${MARKET_SEASON}`;
 
   btns.innerHTML = MARKET_DIVISIONS.map(d => {
     const active = d === _marketDiv;
@@ -13445,8 +13883,6 @@ function renderMarketTeams() {
   const teams = _marketSeasons
     .filter(s => s.category === _marketDiv)
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
-
-  if (countEl) countEl.textContent = teams.length ? `${teams.length} equipo${teams.length === 1 ? '' : 's'}` : '';
 
   if (teams.length === 0) {
     list.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.5rem 0">Sin equipos en esta división. Usa <strong>+ Equipo ${MARKET_SEASON}</strong> para crear uno que nazca este año.</div>`;
@@ -13603,16 +14039,16 @@ async function openTeamSituationEditor(teamId) {
         outByRider.set(t.riderId, t);
       }
     });
-    const doubtByRider = new Map(); // renovaciones en duda con este equipo
+    const renewalByRider = new Map(); // renovaciones confirmadas/rumor/duda con este equipo
     _transfersCache.forEach(t => {
-      if (t.type === 'renewal' && t.status === 'doubt' && t.toTeamId === teamId) doubtByRider.set(t.riderId, t);
+      if (t.type === 'renewal' && t.toTeamId === teamId) renewalByRider.set(t.riderId, t);
     });
 
     // Estado inicial por corredor de la plantilla 2026.
     _tseSituations = new Map();
     roster.forEach(r => {
       const out = outByRider.get(r.id);
-      const doubt = doubtByRider.get(r.id);
+      const renewal = renewalByRider.get(r.id);
       const aff = affByRider.get(r.id);
       let state = 'undecided', year = null, yearUnknown = false, newTeamId = null, retired = false;
       let rumor = false, announcedAt = _localDateKey(), lifetime = false;
@@ -13624,13 +14060,16 @@ async function openTeamSituationEditor(teamId) {
           rumor = out.status === 'rumor';
           announcedAt = out.announcedAt || _localDateKey();
         }
-      } else if (doubt) {
-        state = 'doubt'; year = doubt.contractUntil || null;
-      } else if (aff) {
-        const affYear = _affYear(aff.dateTo);
+      } else if (renewal?.status === 'doubt') {
+        state = 'doubt'; year = renewal.contractUntil || null;
+      } else if (aff || renewal) {
+        const affYear = _affYear(aff?.dateTo);
+        const effectiveYear = renewal?.contractUntil ?? affYear;
         state = 'stay';
-        if (affYear === TSE_LIFETIME_YEAR) { lifetime = true; year = null; yearUnknown = false; }
-        else { year = affYear; yearUnknown = affYear == null; }
+        rumor = renewal?.status === 'rumor';
+        announcedAt = renewal?.announcedAt || _localDateKey();
+        if (effectiveYear === TSE_LIFETIME_YEAR) { lifetime = true; year = null; yearUnknown = false; }
+        else { year = effectiveYear; yearUnknown = effectiveYear == null; }
       }
       const init = { state, year, yearUnknown, lifetime, newTeamId, retired, rumor, announcedAt };
       _tseSituations.set(r.id, { rider: r, ...init, initial: { ...init } });
@@ -13803,6 +14242,7 @@ function _tseRenderRiderExtra(s) {
       ${yearInput(s.yearUnknown || s.lifetime)}
       ${chk('tse-yearunknown', s.yearUnknown, 'No se sabe el año')}
       ${chk('tse-lifetime', s.lifetime, 'Vitalicio ∞')}
+      ${chk('tse-stay-rumor', s.rumor, 'Rumor (continuidad sin confirmar)')}
     </div>`;
   } else if (s.state === 'doubt') {
     html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
@@ -13860,6 +14300,7 @@ function _tseRenderRiderExtra(s) {
     if (s.lifetime) { s.year = null; s.yearUnknown = false; }
     _tseRenderRiderExtra(s);
   });
+  wrap.querySelector('.tse-stay-rumor')?.addEventListener('change', (e) => { s.rumor = e.target.checked; });
   wrap.querySelector('.tse-newteam')?.addEventListener('change', (e) => { s.newTeamId = e.target.value || null; });
   wrap.querySelector('.tse-retired')?.addEventListener('change', (e) => { s.retired = e.target.checked; _tseRenderRiderExtra(s); });
   wrap.querySelector('.tse-rumor')?.addEventListener('change', (e) => { s.rumor = e.target.checked; _tseRenderRiderExtra(s); });
@@ -13981,6 +14422,22 @@ async function _syncSigningAffiliation(t) {
   }
 }
 
+// Sincronización común del editor individual de Fichajes. Primero elimina la
+// materialización previa de la temporada y después aplica exactamente el estado
+// guardado: continuidad/duda en el equipo asociado, cambio confirmado en el
+// destino, o ninguna afiliación para cambio rumoreado/fin de contrato.
+async function _syncMarketSituationAffiliation(t) {
+  if (!t || t.midSeason) return;
+  const { error: clearErr } = await supabase.from('rider_team_affiliations')
+    .delete().eq('riderId', t.riderId).eq('year', MARKET_SEASON);
+  if (clearErr) throw clearErr;
+  if (t.type === 'renewal' && t.toTeamId) {
+    await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
+  } else if (t.type === 'transfer' && t.status === 'confirmed' && t.toTeamId) {
+    await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
+  }
+}
+
 // Borra las filas rider_transfers de T (from=T, o renewal+doubt to=T) de un
 // corredor: se usa al cambiar su estado (p. ej. de "cambio"/"duda" a "continúa").
 async function _tseClearRiderTransfersForTeam(riderId, teamId) {
@@ -14044,6 +14501,15 @@ async function _tseSaveTeam() {
         // Vitalicio → año centinela 9999; "sin año" → null; si no, el año.
         const year = s.lifetime ? TSE_LIFETIME_YEAR : (s.yearUnknown ? null : s.year);
         await _upsertAffiliation2027(r.id, r.gender, teamId, year);
+        if (s.rumor) {
+          const { error } = await supabase.from('rider_transfers').insert({
+            id: _tseNewId('tr'),
+            season: MARKET_SEASON, riderId: r.id, riderGender: r.gender,
+            toTeamId: teamId, type: 'renewal', status: 'rumor',
+            contractUntil: year, announcedAt: s.announcedAt || _localDateKey(), dateVisible: true,
+          });
+          if (error) throw error;
+        }
         // Sync opcional del año a la ficha (no el centinela ni el desconocido).
         if (year && year !== TSE_LIFETIME_YEAR) await _syncTransferContractToRider({ status: 'confirmed', type: 'renewal', contractUntil: year, riderGender: r.gender, riderId: r.id });
       } else if (s.state === 'doubt') {
@@ -14110,6 +14576,7 @@ function _tseSameSituation(a, b) {
   if ((yearA || null) !== (yearB || null)) return false;
   if (a.state === 'stay' && a.yearUnknown !== b.yearUnknown) return false;
   if (a.state === 'stay' && !!a.lifetime !== !!b.lifetime) return false;
+  if (a.state === 'stay' && !!a.rumor !== !!b.rumor) return false;
   if (a.state === 'change') {
     if ((a.newTeamId || null) !== (b.newTeamId || null)) return false;
     if (!!a.rumor !== !!b.rumor) return false;
@@ -14215,6 +14682,27 @@ function _trRiderLabel(t) {
   return r ? `${r.lastName}, ${r.firstName}` : t.riderId;
 }
 
+// El volcado inicial asignó 20/07/2026 a las filas sin fecha editorial. Sus
+// timestamps de creación/actualización difieren como máximo unas décimas por
+// los defaults y triggers del lote; cualquier diferencia >= 1 s indica edición.
+function _trIsDefaultImport(t) {
+  if (t.announcedAt !== '2026-07-20') return false;
+  const created = Date.parse(t.createdAt || '');
+  const updated = Date.parse(t.updatedAt || '');
+  if (!Number.isFinite(created) || !Number.isFinite(updated)) return false;
+
+  const unchangedSinceImport = Math.abs(updated - created) < 1000;
+  // Ocho bajas sin destino de UAE Team L'IMAD recibieron juntas una actualización
+  // técnica el 27/07, sin edición editorial. Una edición posterior cambia updatedAt.
+  const uaeLegacyBatchUpdate =
+    created === Date.parse('2026-07-20T13:00:57.868Z') &&
+    updated === Date.parse('2026-07-27T09:52:12.424Z') &&
+    t.type === 'transfer' && t.status === 'confirmed' &&
+    !t.toTeamId && t.toTeamName === TSE_UNKNOWN_DEST;
+
+  return unchangedSinceImport || uaeLegacyBatchUpdate;
+}
+
 function renderTransfersList() {
   const container = document.getElementById('transfersList');
   const countEl = document.getElementById('transfersCount');
@@ -14224,6 +14712,9 @@ function renderTransfersList() {
   const q = (document.getElementById('transfersSearch')?.value || '').toLowerCase().trim();
 
   const filtered = (_transfersCache || []).filter(t => {
+    // Las filas del volcado inicial sin edición manual no aportan una novedad
+    // editorial. Aparecen en cuanto se modifica cualquier campo o su fecha.
+    if (_trIsDefaultImport(t)) return false;
     // 'hidden' no es un status: cruza los tres (lo que no sale en el feed).
     if (statusFilter === 'hidden') {
       if (t.dateVisible !== false) return false;
@@ -14268,7 +14759,9 @@ function renderTransfersList() {
     } else {
       movement = `${esc(_trTeamLabel(t.fromTeamId, t.fromTeamName, 'from'))} <span class="u-c-dim">→</span> <strong>${esc(_trTeamLabel(t.toTeamId, t.toTeamName))}</strong>`;
     }
-    const contractBit = t.contractUntil ? `<span class="u-c-dim" style="white-space:nowrap">hasta ${esc(String(t.contractUntil))}</span>` : '';
+    const contractBit = t.contractUntil
+      ? `<span class="u-c-dim" style="white-space:nowrap">${t.contractUntil === TSE_LIFETIME_YEAR ? 'vitalicio ∞' : `hasta ${esc(String(t.contractUntil))}`}</span>`
+      : '';
     const chipCss = 'font-size:0.64rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:0.12rem 0.4rem;border-radius:4px;white-space:nowrap';
     const statusChip = isRumor
       ? `<span style="${chipCss};background:rgba(245,158,11,0.15);color:#f59e0b">Rumor</span>`
@@ -14337,7 +14830,7 @@ async function confirmTransferQuick(t) {
 // contrato. Ni un rumor ni una DUDA tocan la ficha (no son hechos: no pueden
 // pisar el contrato conocido); una retirada tampoco.
 async function _syncTransferContractToRider(t) {
-  if (t.status !== 'confirmed' || !t.contractUntil || t.type === 'retirement') return;
+  if (t.status !== 'confirmed' || !t.contractUntil || t.contractUntil === TSE_LIFETIME_YEAR || t.type === 'retirement') return;
   const table = t.riderGender === 'male' ? 'riders_men' : 'riders_women';
   const { error } = await supabase.from(table)
     .update({ contractUntil: t.contractUntil, updatedAt: new Date().toISOString() })
@@ -14362,43 +14855,48 @@ function transferEditorBodyHtml() {
       </div>
 
       <div>
-        <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Tipo de movimiento</label>
-        <div style="display:flex;gap:1rem;flex-wrap:wrap">
-          <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem"><input type="radio" name="tr-type" value="transfer" checked><span>Fichaje</span></label>
-          <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem"><input type="radio" name="tr-type" value="renewal"><span>Renovación</span></label>
-          <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem"><input type="radio" name="tr-type" value="retirement"><span>Retirada</span></label>
+        <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Situación ${MARKET_SEASON}</label>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+          ${TSE_STATES.map(st => `<button type="button" class="tr-situation-btn" data-state="${st.key}"
+            style="padding:0.3rem 0.65rem;font-size:0.78rem;font-weight:600;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:transparent;color:var(--text-muted)">${st.label}</button>`).join('')}
         </div>
       </div>
 
       <div class="field" id="tr-from-row">
-        <label>Equipo de origen <span class="u-dim">— si no está en el catálogo, usa el texto libre</span></label>
-        <div class="u-row u-row--gap-sm">
+        <label>Equipo de origen <span class="u-dim" id="tr-from-hint">— solo editable si el corredor no tiene equipo asociado</span></label>
+        <div id="tr-from-associated" class="u-fs-085" style="display:none;padding:0.45rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:5px"></div>
+        <div class="u-row u-row--gap-sm" id="tr-from-inputs">
           <select id="tr-fromTeamId" style="flex:1;min-width:10rem"></select>
           <input type="text" id="tr-fromTeamName" placeholder="Texto libre (júnior, amateur…)" style="flex:1;min-width:8rem">
         </div>
       </div>
 
       <div class="field" id="tr-to-row">
-        <label id="tr-to-label">Equipo de destino <span class="u-dim">— si no está en el catálogo, usa el texto libre</span></label>
+        <label>Equipo de destino <span class="u-dim">— si no está en el catálogo, usa el texto libre</span></label>
         <div class="u-row u-row--gap-sm">
           <select id="tr-toTeamId" style="flex:1;min-width:10rem"></select>
           <input type="text" id="tr-toTeamName" placeholder="Texto libre" style="flex:1;min-width:8rem">
         </div>
       </div>
 
-      <div class="field-row field-row--3">
-        <div class="field">
-          <label>Estado</label>
-          <div style="display:flex;gap:1rem;padding-top:0.35rem">
-            <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem"><input type="radio" name="tr-status" value="confirmed" checked><span>Confirmado</span></label>
-            <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem"><input type="radio" name="tr-status" value="rumor"><span>Rumor</span></label>
-            <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.85rem" id="tr-statusDoubtLabel"><input type="radio" name="tr-status" value="doubt"><span>Duda</span></label>
-          </div>
-          <span class="u-fs-sm u-c-dim" id="tr-doubtHint" style="display:none">Solo en renovaciones: no se sabe si sigue.</span>
-        </div>
-        <div class="field">
+      <div class="field-row field-row--3" id="tr-detail-row">
+        <div class="field" id="tr-contract-row">
           <label>Contrato hasta <span class="u-dim">— año</span></label>
           <input type="number" id="tr-contractUntil" min="2026" max="2040" placeholder="2029" class="u-w-full">
+          <div id="tr-stay-contract-options" style="display:none;gap:0.8rem;flex-wrap:wrap;margin-top:0.4rem">
+            <label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer"><input type="checkbox" id="tr-yearUnknown"><span>No se sabe el año</span></label>
+            <label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer"><input type="checkbox" id="tr-lifetime"><span>Vitalicio ∞</span></label>
+          </div>
+        </div>
+        <div class="field" id="tr-flags-row">
+          <label>Condición</label>
+          <label id="tr-rumor-label" style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.82rem;padding-top:0.35rem">
+            <input type="checkbox" id="tr-rumor"><span>Rumor (sin confirmar)</span>
+          </label>
+          <label id="tr-retired-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.82rem;padding-top:0.35rem">
+            <input type="checkbox" id="tr-retired"><span>Se retira</span>
+          </label>
+          <span id="tr-doubt-label" class="u-fs-sm u-c-dim" style="display:none;padding-top:0.35rem">Duda de renovación.</span>
         </div>
         <div class="field">
           <label>Fecha del anuncio</label>
@@ -14409,7 +14907,7 @@ function transferEditorBodyHtml() {
           </label>
           <label style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.8rem;margin-top:0.35rem">
             <input type="checkbox" id="tr-midSeason">
-            <span>Fichaje de mitad de temporada <span class="u-dim">— muestra el badge Mid-Season</span></span>
+            <span>Fichaje de mitad de temporada</span>
           </label>
         </div>
       </div>
@@ -14430,40 +14928,71 @@ function wireTransferEditor() {
     clearTimeout(_trSearchDebounce);
     _trSearchDebounce = setTimeout(() => _trSearchRiders(e.target.value), 280);
   });
-  document.querySelectorAll('input[name="tr-type"]').forEach(r =>
-    r.addEventListener('change', _trRefreshTypeVisibility)
-  );
+  document.querySelectorAll('.tr-situation-btn').forEach(btn => btn.addEventListener('click', () => {
+    _trSituationState = btn.dataset.state;
+    _trRefreshTypeVisibility();
+  }));
+  document.getElementById('tr-yearUnknown')?.addEventListener('change', (e) => {
+    _trYearUnknown = e.target.checked;
+    if (_trYearUnknown) _trLifetime = false;
+    _trRefreshTypeVisibility();
+  });
+  document.getElementById('tr-lifetime')?.addEventListener('change', (e) => {
+    _trLifetime = e.target.checked;
+    if (_trLifetime) _trYearUnknown = false;
+    _trRefreshTypeVisibility();
+  });
 }
 
-// Muestra/oculta origen y destino según el tipo. La renovación exige equipo del
-// catálogo (CHECK de la 122) → sin texto libre en destino.
+// Muestra los mismos cuatro estados que el editor por equipo. El equipo asociado
+// fija origen y continuidad; un origen manual solo existe para fichas sin equipo.
 function _trRefreshTypeVisibility() {
-  const type = document.querySelector('input[name="tr-type"]:checked')?.value || 'transfer';
+  const state = _trSituationState;
+  const hasSituation = TSE_STATES.some(x => x.key === state);
   const fromRow = document.getElementById('tr-from-row');
   const toRow   = document.getElementById('tr-to-row');
-  const toLabel = document.getElementById('tr-to-label');
-  const toFree  = document.getElementById('tr-toTeamName');
-  if (fromRow) fromRow.style.display = type === 'renewal' ? 'none' : '';
-  if (toRow)   toRow.style.display   = type === 'retirement' ? 'none' : '';
-  if (toLabel) toLabel.innerHTML = type === 'renewal'
-    ? 'Equipo con el que renueva'
-    : 'Equipo de destino <span class="u-dim">— si no está en el catálogo, usa el texto libre</span>';
-  if (toFree) toFree.style.display = type === 'renewal' ? 'none' : '';
-
-  // "Duda" solo existe en renovaciones (CHECK rider_transfers_doubt_check de
-  // la 123): la duda es sobre si SIGUE. Una duda de destino se registra como
-  // fichaje + Rumor. Fuera de renewal se oculta la opción, y si estaba
-  // marcada se cae a Rumor (lo más cercano en significado).
-  const doubtLabel = document.getElementById('tr-statusDoubtLabel');
-  const doubtHint  = document.getElementById('tr-doubtHint');
-  const doubtRadio = document.querySelector('input[name="tr-status"][value="doubt"]');
-  const allowDoubt = type === 'renewal';
-  if (doubtLabel) doubtLabel.style.display = allowDoubt ? '' : 'none';
-  if (doubtHint)  doubtHint.style.display  = allowDoubt ? '' : 'none';
-  if (!allowDoubt && doubtRadio?.checked) {
-    const rumor = document.querySelector('input[name="tr-status"][value="rumor"]');
-    if (rumor) rumor.checked = true;
+  const hasAssociatedTeam = !!_trSelectedRider?.currentTeamId;
+  const needsOrigin = state === 'change' || state === 'end';
+  if (fromRow) fromRow.style.display = needsOrigin ? '' : 'none';
+  if (toRow) toRow.style.display = state === 'change' ? '' : 'none';
+  const associated = document.getElementById('tr-from-associated');
+  const inputs = document.getElementById('tr-from-inputs');
+  if (associated) {
+    associated.style.display = needsOrigin && hasAssociatedTeam ? '' : 'none';
+    const team = (_teamsCache || []).find(t => t.id === _trSelectedRider?.currentTeamId);
+    associated.textContent = team?.name || _trSelectedRider?.currentTeamId || '';
   }
+  if (inputs) inputs.style.display = needsOrigin && !hasAssociatedTeam ? 'flex' : 'none';
+
+  const contractRow = document.getElementById('tr-contract-row');
+  if (contractRow) contractRow.style.display = state === 'end' ? 'none' : '';
+  const detailRow = document.getElementById('tr-detail-row');
+  if (detailRow) detailRow.style.display = hasSituation ? '' : 'none';
+  const stayOpts = document.getElementById('tr-stay-contract-options');
+  if (stayOpts) stayOpts.style.display = state === 'stay' ? 'flex' : 'none';
+  const contractInput = document.getElementById('tr-contractUntil');
+  if (contractInput) contractInput.disabled = state === 'stay' && (_trYearUnknown || _trLifetime);
+  const unknown = document.getElementById('tr-yearUnknown');
+  const lifetime = document.getElementById('tr-lifetime');
+  if (unknown) unknown.checked = _trYearUnknown;
+  if (lifetime) lifetime.checked = _trLifetime;
+
+  const rumorLabel = document.getElementById('tr-rumor-label');
+  const retiredLabel = document.getElementById('tr-retired-label');
+  const doubtLabel = document.getElementById('tr-doubt-label');
+  if (rumorLabel) rumorLabel.style.display = state === 'stay' || state === 'change' ? 'inline-flex' : 'none';
+  if (retiredLabel) retiredLabel.style.display = state === 'end' ? 'inline-flex' : 'none';
+  if (doubtLabel) doubtLabel.style.display = state === 'doubt' ? 'block' : 'none';
+  const mid = document.getElementById('tr-midSeason')?.closest('label');
+  if (mid) mid.style.display = state === 'change' ? 'inline-flex' : 'none';
+
+  document.querySelectorAll('.tr-situation-btn').forEach(btn => {
+    const meta = TSE_STATES.find(x => x.key === btn.dataset.state);
+    const active = btn.dataset.state === state;
+    btn.style.borderColor = active ? meta.color : 'var(--border)';
+    btn.style.background = active ? meta.color + '22' : 'transparent';
+    btn.style.color = active ? meta.color : 'var(--text-muted)';
+  });
 }
 
 function _trPopulateTeamSelect(selId, selectedId) {
@@ -14561,7 +15090,7 @@ async function _trCreateRiderFromSearch(term) {
   _ridersGender = fromTeam?.gender === 'female' ? 'female' : 'male';
 
   _ridersAllCache = [];
-  openRiderEditor(null);          // nivel 2: se apila sobre el movimiento
+  openRiderEditor(null, { level: 2 }); // se apila sobre el movimiento
 
   // Precargar lo tecleado: "Apellido, Nombre" o "Nombre Apellido" → campos.
   const parts = term.split(',').map(s => s.trim()).filter(Boolean);
@@ -14618,14 +15147,98 @@ function _trSelectRider(r) {
   const prevFrom = fromSel?.value || '';
   _trPopulateTeamSelect('tr-fromTeamId', prevFrom || r.currentTeamId || '');
   _trPopulateTeamSelect('tr-toTeamId', document.getElementById('tr-toTeamId')?.value || '');
+  _trRefreshTypeVisibility();
+  if (!_editingTransferId) _trResolveSelectedRiderSituation(r);
+}
+
+// Carga en el formulario una situación ya registrada. Cuando procede de un
+// rider_transfers real, el drawer pasa a editar esa fila en lugar de crear un
+// duplicado. Una situación sintética derivada de afiliación solo precarga la UI.
+function _trApplySituation(t, { existing = false } = {}) {
+  const isContractEnd = t?.type === 'transfer' && !t?.toTeamId && t?.toTeamName === TSE_UNKNOWN_DEST;
+  _trSituationState = t?.type === 'renewal'
+    ? (t.status === 'doubt' ? 'doubt' : 'stay')
+    : (t?.type === 'retirement' || isContractEnd)
+      ? 'end'
+      : 'change';
+  _trLifetime = _trSituationState === 'stay' && t?.contractUntil === TSE_LIFETIME_YEAR;
+  _trYearUnknown = _trSituationState === 'stay' && t?.contractUntil == null;
+
+  if (existing) {
+    _editingTransferId = t.id;
+    _trAutoResolvedExisting = true;
+    const title = document.getElementById('ccDrawer1Title');
+    if (title) title.textContent = 'Editar movimiento';
+    const del = document.getElementById('deleteTransferBtn');
+    if (del) del.style.display = 'inline-block';
+  }
+
+  const presetTo = _trSituationState === 'change' ? (t?.toTeamId || '') : '';
+  _trPopulateTeamSelect('tr-fromTeamId', t?.fromTeamId || _trSelectedRider?.currentTeamId || '');
+  _trPopulateTeamSelect('tr-toTeamId', presetTo);
+  document.getElementById('tr-fromTeamName').value = t?.fromTeamName || '';
+  document.getElementById('tr-toTeamName').value = _trSituationState === 'change' ? (t?.toTeamName || '') : '';
+  document.getElementById('tr-contractUntil').value = _trLifetime ? '' : (t?.contractUntil || '');
+  document.getElementById('tr-rumor').checked = t?.status === 'rumor';
+  document.getElementById('tr-retired').checked = t?.type === 'retirement';
+  document.getElementById('tr-announcedAt').value = t?.announcedAt || _localDateKey();
+  document.getElementById('tr-dateHidden').checked = t ? t.dateVisible === false : false;
+  document.getElementById('tr-midSeason').checked = t?.midSeason === true;
+  _trRefreshTypeVisibility();
+}
+
+async function _trResolveSelectedRiderSituation(r) {
+  const existing = (_transfersCache || []).find(t =>
+    t.riderId === r.id && t.riderGender === r.gender && !t.midSeason);
+  if (existing) {
+    _trApplySituation(existing, { existing: true });
+    return;
+  }
+
+  const selectedKey = `${r.gender}:${r.id}`;
+  const status = document.getElementById('transferSaveStatus');
+  if (status) status.textContent = 'Comprobando situación registrada…';
+  const { data: aff, error } = await supabase.from('rider_team_affiliations')
+    .select('teamId, dateTo')
+    .eq('riderId', r.id)
+    .eq('riderGender', r.gender)
+    .eq('year', MARKET_SEASON)
+    .limit(1)
+    .maybeSingle();
+  if (`${_trSelectedRider?.gender}:${_trSelectedRider?.id}` !== selectedKey || _editingTransferId) return;
+  if (status) status.textContent = '';
+  if (error) {
+    console.error('[_trResolveSelectedRiderSituation]', error);
+    return;
+  }
+  if (!aff) {
+    _trSituationState = _transferEditorOpts?.presetToTeamId ? 'change' : 'undecided';
+    _trRefreshTypeVisibility();
+    return;
+  }
+
+  const contractUntil = _affYear(aff.dateTo);
+  const derived = aff.teamId === r.currentTeamId
+    ? { type: 'renewal', status: 'confirmed', toTeamId: aff.teamId, contractUntil }
+    : { type: 'transfer', status: 'confirmed', fromTeamId: r.currentTeamId, toTeamId: aff.teamId, contractUntil };
+  _trApplySituation(derived);
 }
 
 function _trClearRiderSelection() {
+  if (_trAutoResolvedExisting) {
+    _editingTransferId = null;
+    _trAutoResolvedExisting = false;
+    const title = document.getElementById('ccDrawer1Title');
+    if (title) title.textContent = 'Nuevo movimiento';
+    const del = document.getElementById('deleteTransferBtn');
+    if (del) del.style.display = 'none';
+  }
   _trSelectedRider = null;
   const search = document.getElementById('tr-rider-search');
   const sel = document.getElementById('tr-rider-selected');
   if (search) { search.style.display = ''; search.value = ''; search.focus(); }
   if (sel) sel.style.display = 'none';
+  _trRefreshTypeVisibility();
 }
 
 // opts = { presetToTeamId, onSaved } — usado por "Nueva incorporación" del
@@ -14635,6 +15248,7 @@ let _transferEditorOpts = null;
 
 function openTransferEditor(t, opts = null) {
   _editingTransferId = t?.id || null;
+  _trAutoResolvedExisting = false;
   _transferEditorOpts = opts;
 
   openDrawer({
@@ -14650,6 +15264,12 @@ function openTransferEditor(t, opts = null) {
   document.getElementById('transferSaveStatus').textContent = '';
   document.getElementById('deleteTransferBtn').style.display = t ? 'inline-block' : 'none';
 
+  // Estado base. Un movimiento nuevo no presupone un cambio: al seleccionar
+  // corredor se resuelve su situación real; si no existe, el usuario la marca.
+  _trSituationState = opts?.presetToTeamId ? 'change' : 'undecided';
+  _trLifetime = false;
+  _trYearUnknown = false;
+
   // Corredor
   _trSelectedRider = null;
   if (t) {
@@ -14659,28 +15279,21 @@ function openTransferEditor(t, opts = null) {
     _trClearRiderSelection();
   }
 
-  // Tipo + estado
-  const type = t?.type || 'transfer';
-  const status = t?.status || 'confirmed';
-  const typeRadio = document.querySelector(`input[name="tr-type"][value="${type}"]`);
-  if (typeRadio) typeRadio.checked = true;
-  const statusRadio = document.querySelector(`input[name="tr-status"][value="${status}"]`);
-  if (statusRadio) statusRadio.checked = true;
-
-  // Equipos (los selects ya están poblados si hay corredor; repoblar con valor).
-  // presetToTeamId (Nueva incorporación) prefija el destino al equipo abierto.
-  const presetTo = opts?.presetToTeamId || t?.toTeamId || '';
-  _trPopulateTeamSelect('tr-fromTeamId', t?.fromTeamId || _trSelectedRider?.currentTeamId || '');
-  _trPopulateTeamSelect('tr-toTeamId', presetTo);
-  document.getElementById('tr-fromTeamName').value = t?.fromTeamName || '';
-  document.getElementById('tr-toTeamName').value   = t?.toTeamName   || '';
-
-  document.getElementById('tr-contractUntil').value = t?.contractUntil || '';
-  document.getElementById('tr-announcedAt').value   = t?.announcedAt || _localDateKey();
-  document.getElementById('tr-dateHidden').checked  = t ? t.dateVisible === false : false;
-  document.getElementById('tr-midSeason').checked   = t?.midSeason === true;
-
-  _trRefreshTypeVisibility();
+  if (t) {
+    _trApplySituation(t);
+  } else {
+    _trPopulateTeamSelect('tr-fromTeamId', '');
+    _trPopulateTeamSelect('tr-toTeamId', opts?.presetToTeamId || '');
+    document.getElementById('tr-fromTeamName').value = '';
+    document.getElementById('tr-toTeamName').value = '';
+    document.getElementById('tr-contractUntil').value = '';
+    document.getElementById('tr-rumor').checked = false;
+    document.getElementById('tr-retired').checked = false;
+    document.getElementById('tr-announcedAt').value = _localDateKey();
+    document.getElementById('tr-dateHidden').checked = false;
+    document.getElementById('tr-midSeason').checked = false;
+    _trRefreshTypeVisibility();
+  }
 }
 
 async function saveTransfer() {
@@ -14689,36 +15302,56 @@ async function saveTransfer() {
 
   if (!_trSelectedRider) { status.style.color = 'var(--red)'; status.textContent = 'Selecciona un corredor.'; return; }
 
-  const type = document.querySelector('input[name="tr-type"]:checked')?.value || 'transfer';
-  let trStatus = document.querySelector('input[name="tr-status"]:checked')?.value || 'confirmed';
-  // La duda solo existe en renovaciones (CHECK de la 123). La UI ya lo gatea;
-  // este guard cubre el caso de editar un movimiento que era renewal/doubt y
-  // cambiarle el tipo sin volver a tocar el estado.
-  if (trStatus === 'doubt' && type !== 'renewal') trStatus = 'rumor';
-  let fromTeamId   = document.getElementById('tr-fromTeamId').value || null;
-  let fromTeamName = document.getElementById('tr-fromTeamName').value.trim() || null;
-  let toTeamId     = document.getElementById('tr-toTeamId').value || null;
-  let toTeamName   = document.getElementById('tr-toTeamName').value.trim() || null;
-
-  // Normalizar por tipo (convención de la 122).
-  if (type === 'renewal')    { fromTeamId = null; fromTeamName = null; toTeamName = null; }
-  if (type === 'retirement') { toTeamId = null; toTeamName = null; }
-  if (fromTeamId) fromTeamName = null;  // el catálogo gana al texto libre
-  if (toTeamId)   toTeamName   = null;
-
-  if (type === 'transfer' && !toTeamId && !toTeamName) {
-    status.style.color = 'var(--red)'; status.textContent = 'Un fichaje necesita equipo de destino (catálogo o texto libre).'; return;
+  const state = _trSituationState;
+  if (!TSE_STATES.some(x => x.key === state)) {
+    status.style.color = 'var(--red)'; status.textContent = 'Selecciona la situación 2027.'; return;
   }
-  if (type === 'renewal' && !toTeamId) {
-    status.style.color = 'var(--red)'; status.textContent = 'Una renovación necesita el equipo del catálogo con el que renueva.'; return;
-  }
-  if (type === 'retirement' && !fromTeamId && !fromTeamName) {
-    status.style.color = 'var(--red)'; status.textContent = 'Una retirada necesita el equipo que deja (catálogo o texto libre).'; return;
+  const associatedTeamId = _trSelectedRider.currentTeamId || null;
+  let type = null, trStatus = 'confirmed';
+  let fromTeamId = null, fromTeamName = null, toTeamId = null, toTeamName = null;
+
+  if (state === 'stay' || state === 'doubt') {
+    if (!associatedTeamId) {
+      status.style.color = 'var(--red)';
+      status.textContent = 'Para continuar o quedar en duda, el corredor necesita un equipo asociado en su ficha.';
+      return;
+    }
+    type = 'renewal';
+    trStatus = state === 'doubt' ? 'doubt' : (document.getElementById('tr-rumor').checked ? 'rumor' : 'confirmed');
+    toTeamId = associatedTeamId;
+  } else {
+    fromTeamId = associatedTeamId || document.getElementById('tr-fromTeamId').value || null;
+    fromTeamName = associatedTeamId ? null : (document.getElementById('tr-fromTeamName').value.trim() || null);
+    if (fromTeamId) fromTeamName = null;
+    if (!fromTeamId && !fromTeamName) {
+      status.style.color = 'var(--red)';
+      status.textContent = 'Indica el equipo de origen del corredor sin equipo asociado.';
+      return;
+    }
+    if (state === 'change') {
+      type = 'transfer';
+      trStatus = document.getElementById('tr-rumor').checked ? 'rumor' : 'confirmed';
+      toTeamId = document.getElementById('tr-toTeamId').value || null;
+      toTeamName = document.getElementById('tr-toTeamName').value.trim() || null;
+      if (toTeamId) toTeamName = null;
+      if (!toTeamId && !toTeamName) {
+        status.style.color = 'var(--red)'; status.textContent = 'Elige el equipo de destino (catálogo o texto libre).'; return;
+      }
+      if (toTeamId && toTeamId === fromTeamId) {
+        status.style.color = 'var(--red)'; status.textContent = 'El destino debe ser distinto del equipo de origen.'; return;
+      }
+    } else {
+      const retired = document.getElementById('tr-retired').checked;
+      type = retired ? 'retirement' : 'transfer';
+      toTeamName = retired ? null : TSE_UNKNOWN_DEST;
+    }
   }
 
-  const contractRaw = document.getElementById('tr-contractUntil').value.trim();
-  const contractUntil = contractRaw ? parseInt(contractRaw, 10) : null;
-  if (contractUntil !== null && (isNaN(contractUntil) || contractUntil < 2026 || contractUntil > 2040)) {
+  const contractRaw = state === 'end' ? '' : document.getElementById('tr-contractUntil').value.trim();
+  const contractUntil = state === 'stay' && _trLifetime
+    ? TSE_LIFETIME_YEAR
+    : (state === 'stay' && _trYearUnknown ? null : (contractRaw ? parseInt(contractRaw, 10) : null));
+  if (contractUntil !== null && contractUntil !== TSE_LIFETIME_YEAR && (isNaN(contractUntil) || contractUntil < 2026 || contractUntil > 2040)) {
     status.style.color = 'var(--red)'; status.textContent = 'El año de contrato debe estar entre 2026 y 2040.'; return;
   }
 
@@ -14732,7 +15365,7 @@ async function saveTransfer() {
     contractUntil,
     announcedAt: document.getElementById('tr-announcedAt').value || _localDateKey(),
     dateVisible: !document.getElementById('tr-dateHidden').checked,
-    midSeason: document.getElementById('tr-midSeason').checked,
+    midSeason: state === 'change' && document.getElementById('tr-midSeason').checked,
     updatedAt: new Date().toISOString(),
   };
 
@@ -14754,9 +15387,8 @@ async function saveTransfer() {
     // mismo destino). Antes de sincronizar afiliaciones para no repisar la buena.
     await _clearOtherTransfersForRider(payload.riderId, savedId);
     await _syncTransferContractToRider(payload);
-    // Mantener la plantilla 2027 coherente: un fichaje confirmado al catálogo
-    // materializa su afiliación al destino; un rumor la quita (no es plantilla).
-    await _syncSigningAffiliation(payload);
+    // Mantener la plantilla 2027 coherente con los cuatro estados del editor.
+    await _syncMarketSituationAffiliation(payload);
     const onSaved = _transferEditorOpts?.onSaved;
     showToast('Movimiento guardado', 'success', 2500);
     _transferEditorOpts = null;
@@ -14764,7 +15396,7 @@ async function saveTransfer() {
     _editingTransferId = null;
     if (onSaved) {
       // Hook de "Nueva incorporación": vuelve al editor de equipo (la afiliación
-      // ya la sincronizó _syncSigningAffiliation arriba).
+      // ya quedó sincronizada arriba).
       await onSaved({ id: savedId, ...payload });
     } else {
       await loadTransfers();

@@ -220,6 +220,10 @@ actor CacheManager {
     static func yearRacesKey(_ year: Int) -> String { "races_\(year)" }
     /// Clave para los siblings (todas las etapas) de una carrera.
     static func siblingsKey(_ raceId: String) -> String { "siblings_\(raceId)" }
+    /// Clave para las cabeceras de clasificaciones de una carrera. Una lista
+    /// vacía es un valor válido: permite saber que la jornada no tiene
+    /// resultados sin lanzar una segunda actualización visual.
+    static func resultsStagesKey(_ raceId: String) -> String { "results_stages_\(raceId)" }
     /// Clave para el Libro de Ruta común a todas las jornadas de una carrera.
     /// Se guarda como lista para poder memorizar también que no existe.
     static func technicalGuideKey(_ raceId: String) -> String { "technical_guide_\(raceId)" }

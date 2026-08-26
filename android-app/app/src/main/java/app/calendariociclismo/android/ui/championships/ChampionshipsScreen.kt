@@ -170,7 +170,7 @@ private fun ChampionshipsGrid(
                     }
                 } else {
                     items(countries, key = { it.countryCode }) { country ->
-                        CountryCard(country = country, filter = state.filter, navController = navController, inhouseKeys = state.inhouseKeys)
+                        CountryCard(country = country, filter = state.filter, navController = navController, inhouseKeys = state.inhouseKeys, automaticSourceRaceIds = state.automaticSourceRaceIds, resultsSourceGateResolved = state.resultsSourceGateResolved)
                     }
                 }
             }
@@ -211,6 +211,8 @@ private fun CountryCard(
     filter: ChampionshipsConfig.Filter,
     navController: NavController,
     inhouseKeys: Set<String> = emptySet(),
+    automaticSourceRaceIds: Set<String> = emptySet(),
+    resultsSourceGateResolved: Boolean = false,
 ) {
     val countryName = remember(country.countryCode) {
         Locale("", country.countryCode).getDisplayCountry(LocaleHolder.current)
@@ -252,6 +254,8 @@ private fun CountryCard(
                                 item = enriched,
                                 navController = navController,
                                 inhouseKeys = inhouseKeys,
+                                automaticSourceRaceIds = automaticSourceRaceIds,
+                                resultsSourceGateResolved = resultsSourceGateResolved,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -276,6 +280,8 @@ private fun EventCell(
     item: EnrichedRaceDay,
     navController: NavController,
     inhouseKeys: Set<String> = emptySet(),
+    automaticSourceRaceIds: Set<String> = emptySet(),
+    resultsSourceGateResolved: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val rd = item.raceDay
@@ -293,7 +299,9 @@ private fun EventCell(
     val extUrlB = item.race?.let { RaceLogic.buildExtUrlB(it, rd.stageNumber, rd.stageSuffix) }
     // ¿Resultados in-house? → el trofeo lleva a la pantalla NATIVA (como las race cards).
     val hasInhouse = item.race?.id?.let { inhouseKeys.contains(app.repository.inhouseKey(it, rd.stageNumber)) } ?: false
-    val showResults = hasInhouse || (concluded && (extUrlA != null || extUrlB != null))
+    val automaticSource = item.race?.id in automaticSourceRaceIds
+    val showResults = hasInhouse || (resultsSourceGateResolved && !automaticSource
+        && concluded && (extUrlA != null || extUrlB != null))
 
     Column(
         modifier = modifier

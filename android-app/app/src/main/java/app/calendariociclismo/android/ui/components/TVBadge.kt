@@ -1,8 +1,6 @@
 package app.calendariociclismo.android.ui.components
 
 import android.content.Context
-import android.content.Intent
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
+import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Broadcast
 import app.calendariociclismo.android.data.prefs.RegionPreference
@@ -289,22 +287,6 @@ private fun buildLabel(
     return null
 }
 
-/** YouTube, HBO Max y X abren en su app nativa; el resto con Custom Tabs. */
 private fun openTvUrl(context: Context, url: String) {
-    val lower = url.lowercase()
-    val prefersNative = lower.contains("youtube.com") || lower.contains("youtu.be") ||
-        lower.contains("hbomax.com") || lower.contains("play.max.com") ||
-        lower.contains("x.com") || lower.contains("twitter.com")
-    runCatching {
-        val uri = url.toUri()
-        if (prefersNative) {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, uri).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-        } else {
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
-        }
-    }
+    openExternalUrl(context, url)
 }

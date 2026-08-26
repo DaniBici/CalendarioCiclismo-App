@@ -1,0 +1,32 @@
+[Unit]
+Description=Calendario Ciclismo - observación de emisiones oficiales
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/broadcasts-vps.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cc-broadcasts
+Group=cc-broadcasts
+WorkingDirectory=/opt/calendario-ciclismo
+EnvironmentFile=/etc/calendario-ciclismo/broadcasts.env
+# Escrituras protegidas por estabilidad, procedencia, vínculo y concurrencia optimista.
+ExecStart=/usr/bin/node scripts/broadcasts-sync/broadcasts-sync.mjs --apply-sources=hbo_max,rtve,sporza
+TimeoutStartSec=10min
+RuntimeDirectory=cc-broadcasts
+RuntimeDirectoryMode=0750
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { broadcastLinkPriority, pickBadgeBroadcast } from '../broadcast-priority.js';
+import { broadcastLinkPriority, isReviveBroadcast, pickBadgeBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from '../broadcast-priority.js';
 
 // Prioridad del enlace del badge de TV en directo:
 //  -1) CyLTV embebible  0) YouTube  1) otras redes  2) RTVE.es  3) RTP1/CCMA/EITB  4) resto.
@@ -67,6 +67,57 @@ describe('broadcastLinkPriority', () => {
     expect(broadcastLinkPriority('')).toBe(4);
     expect(broadcastLinkPriority(null)).toBe(4);
     expect(broadcastLinkPriority(undefined)).toBe(4);
+  });
+});
+
+describe('isReviveBroadcast', () => {
+  it('mantiene como Revive cualquier fuente declarada por los datos', () => {
+    expect(isReviveBroadcast({
+      channel: 'Pidcock Racing', url: 'https://video.example/race', showInRevive: true,
+    })).toBe(true);
+  });
+
+  it('reconoce redes sociales con vídeo persistente sin marca manual', () => {
+    for (const url of [
+      'https://www.youtube.com/watch?v=abc', 'https://fb.watch/abc',
+      'https://www.instagram.com/reel/abc', 'https://www.tiktok.com/@race/video/1',
+      'https://www.twitch.tv/videos/1', 'https://kick.com/race',
+      'https://x.com/race/status/1',
+    ]) {
+      expect(isReviveBroadcast({ channel: 'Social', url })).toBe(true);
+    }
+  });
+
+  it('reconoce un deep-link bajo demanda de ETB ON sin showInRevive', () => {
+    expect(isReviveBroadcast({
+      channel: 'ETB1', url: 'https://etbon.eus/m/txirrindularitza-itzulia-5-12345',
+      showInRevive: false,
+    })).toBe(true);
+  });
+
+  it('no convierte el hub lineal de ETB ON en Revive', () => {
+    expect(isReviveBroadcast({ channel: 'ETB1', url: 'https://etbon.eus/ch/etb-1' })).toBe(false);
+  });
+});
+
+describe('shouldShowBroadcastNote', () => {
+  it('oculta cualquier nota cuando ya han entrado resultados', () => {
+    expect(shouldShowBroadcastNote(true, false, false)).toBe(false);
+    expect(shouldShowBroadcastNote(true, true, true)).toBe(false);
+  });
+
+  it('conserva la regla de Revive mientras aún no hay resultados', () => {
+    expect(shouldShowBroadcastNote(false, false, false)).toBe(true);
+    expect(shouldShowBroadcastNote(false, true, false)).toBe(false);
+    expect(shouldShowBroadcastNote(false, true, true)).toBe(true);
+  });
+});
+
+describe('reviveBroadcastsForDay', () => {
+  it('en una cancelada conserva solo la selección editorial explícita', () => {
+    const selected = { channel: 'Canal', url: 'https://video.example/selected', showInRevive: true };
+    const automatic = { channel: 'Eurosport 1', url: 'https://eurosport.example/live', showInRevive: false };
+    expect(reviveBroadcastsForDay([automatic, selected], true)).toEqual([selected]);
   });
 });
 

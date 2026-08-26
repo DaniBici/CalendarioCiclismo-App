@@ -16,12 +16,40 @@ describe('filtro de etapa — general final del último volcado automático', ()
   it('no admite un stageNumber null que no esté marcado como final', () => {
     expect(shouldIncludeStage(null, false, 3, true)).toBe(false);
   });
+
+  it('en dobles sectores incluye solo el sector seleccionado', () => {
+    expect(shouldIncludeStage(3, false, 3, false, 0, 0)).toBe(true);
+    expect(shouldIncludeStage(3, false, 3, false, 1, 0)).toBe(false);
+    expect(shouldIncludeStage(3, false, 3, false, 0, 1)).toBe(false);
+    expect(shouldIncludeStage(3, false, 3, false, 1, 1)).toBe(true);
+  });
+
+  it('la final solo entra por include-final y no hereda el sector', () => {
+    expect(shouldIncludeStage(null, true, 3, true, 0, 1)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, false, 0, 1)).toBe(false);
+  });
+
+  it('el plan no genera SQL para el sector hermano', () => {
+    const data = {
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 3, sectorIndex: 0, classifications: [clasificacion({ eventId: 78302030 })] },
+        { stageNumber: 3, sectorIndex: 1, classifications: [clasificacion({ eventId: 78302031 })] },
+      ],
+    };
+    const planA = buildPlan(data, null, null, null, { onlyStage: 3, onlySectorIndex: 0 });
+    const planB = buildPlan(data, null, null, null, { onlyStage: 3, onlySectorIndex: 1 });
+
+    expect([...planA.acceptedEventIds]).toEqual([78302030]);
+    expect([...planB.acceptedEventIds]).toEqual([78302031]);
+  });
 });
 
 // Guarda de lock ASIMÉTRICA en la purga de gemelas sintéticas.
 //
-// Contexto: una misma clasificación lógica (raceId + stageNumber + classKind +
-// scope) puede existir bajo varios eventId. Los POSITIVOS son de DataRide (fuente
+// Contexto: una misma clasificación lógica (raceId + raceDayId/sector + classKind
+// + scope) puede existir bajo varios eventId. Los POSITIVOS son de DataRide (fuente
 // oficial); los NEGATIVOS son sintéticos (cronometrador, volcado PDF, fuente externa…).
 //
 // La regla de producto (Dani, 2026-06-10) es "lo oficial pisa al placeholder": un
@@ -59,11 +87,29 @@ const planDe = (eventId) => {
   return plan;
 };
 
+const planDeSector = (eventId, sectorIndex) => {
+  const { plan } = buildPlan({
+    competitionId: -135992,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, sectorIndex, classifications: [clasificacion({ eventId })] }],
+  });
+  return plan;
+};
+
 const purgaDe = (plan) => plan.find(
   (p) => p.text.includes('DELETE FROM public.race_uci_stages') && p.text.includes('"eventId" <> '),
 );
 const insertCabeceraDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_stages'));
 const insertFilasDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_results'));
+
+describe('bloqueo del enlace durante el volcado', () => {
+  it('difiere el upsert de race_uci_links hasta el final de la transacción', () => {
+    const link = planDe(-1359920101).find((p) => p.text.includes('INSERT INTO public.race_uci_links'));
+
+    expect(link).toBeDefined();
+    expect(link.deferUntilCommit).toBe(true);
+  });
+});
 
 describe('purga de gemelas — entrante SINTÉTICA (otro cronometrador/PDF)', () => {
   it('respeta el candado: no borra una gemela bloqueada', () => {
@@ -87,6 +133,40 @@ describe('purga de gemelas — entrante SINTÉTICA (otro cronometrador/PDF)', ()
     expect(insertFilasDe(planDe(-1359920101)).text)
       .toContain('EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=$1)');
   });
+
+  it('limita la purga al raceDayId del sector entrante', () => {
+    const purgeA = purgaDe(planDeSector(-1359920101, 0));
+    const purgeB = purgaDe(planDeSector(-1359920102, 1));
+
+    expect(purgeA.text).toContain('"raceDayId" = (SELECT id');
+    expect(purgeA.text).toContain('OFFSET $6');
+    expect(purgeA.params.at(-1)).toBe(0);
+    expect(purgeB.params.at(-1)).toBe(1);
+  });
+
+  it('limita también el guard de gemelas bloqueadas al sector entrante', () => {
+    const insertB = insertCabeceraDe(planDeSector(-1359920102, 1));
+    expect(insertB.text).toContain('g."raceDayId" = (SELECT id');
+    expect(insertB.text).toContain('OFFSET $17');
+  });
+});
+
+describe('preferencia UCI por clave lógica sectorizada', () => {
+  const data = (sectorIndex) => ({
+    competitionId: -135992,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, sectorIndex, classifications: [clasificacion()] }],
+  });
+
+  it('una clasificación oficial de 1A no bloquea la sintética de 1B', () => {
+    const officialA = new Set(['1|0|stage|stage']);
+    expect(buildPlan(data(1), null, null, officialA).nStages).toBe(1);
+  });
+
+  it('una clasificación oficial del mismo sector sí bloquea su gemela sintética', () => {
+    const officialB = new Set(['1|1|stage|stage']);
+    expect(buildPlan(data(1), null, null, officialB).nStages).toBe(0);
+  });
 });
 
 describe('purga de gemelas — entrante OFICIAL (DataRide)', () => {
@@ -103,12 +183,42 @@ describe('purga de gemelas — entrante OFICIAL (DataRide)', () => {
   });
 });
 
+describe('fallback de identidad exclusivo de DataRide', () => {
+  const oneDay = (source) => buildPlan({
+    source,
+    competitionId: 78302,
+    disciplineId: 10,
+    stages: [{
+      stageNumber: null,
+      isFinalClassification: false,
+      classifications: [clasificacion({
+        eventId: 78302001,
+        classKind: 'gc',
+        scope: 'stage',
+        winnerName: 'BRAVO Henrique',
+      })],
+    }],
+  }).plan;
+
+  it('conserva riderDisplay y winnerName cuando el payload es UCI', () => {
+    const plan = oneDay('uci');
+    expect(insertFilasDe(plan).params[6]).toBe('BRAVO Henrique');
+    expect(insertCabeceraDe(plan).params[13]).toBe('BRAVO Henrique');
+  });
+
+  it('mantiene la exclusión de identidades para las demás fuentes', () => {
+    const plan = oneDay('tissot');
+    expect(insertFilasDe(plan).params[6]).toBeNull();
+    expect(insertCabeceraDe(plan).params[13]).toBeNull();
+  });
+});
+
 describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
   // El nº de $N del SQL debe cuadrar SIEMPRE con params.length, o Postgres rechaza
   // el bind y aborta el --apply entero. Se rompió con la pseudo-etapa Final
   // Classification (stageNumber null): raceDayExpr='NULL' y stageDateExpr='$12' no
-  // referencian $16, pero params seguía llevando sectorIndex → "bind message supplies
-  // 16 parameters, but prepared statement requires 15". Cazado en real volcando la
+  // referencian $17, pero params seguía llevando sectorIndex → "bind message supplies
+  // 17 parameters, but prepared statement requires 16". Cazado en real volcando la
   // etapa 4 del Giro della Valle d'Aosta 2026. --emit-sql no lo detecta (serializa
   // a literales), así que solo fallaba la ruta --apply.
   const maxPlaceholder = (sql) =>
@@ -152,10 +262,23 @@ describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
 
   it('doble sector: sectorIndex se sigue pasando cuando el SQL lo usa', () => {
     // El fix no debe llevarse por delante el soporte de doble sector (3A/3B): con
-    // stageNumber presente, $16 se referencia en el OFFSET y debe ir en params.
+    // stageNumber presente, $17 se referencia en el OFFSET y debe ir en params.
     const ins = insertCabeceraDe(planConStage(3));
-    expect(ins.text).toContain('OFFSET $16');
-    expect(ins.params).toHaveLength(16);
+    expect(ins.text).toContain('OFFSET $17');
+    expect(ins.params).toHaveLength(17);
+  });
+
+  it('conserva el PDF oficial de la clasificación', () => {
+    const stages = [{
+      stageNumber: 1,
+      dateKey: '2026-07-19',
+      sourcePdfUrl: 'https://timing.ee/resultados.pdf',
+      classifications: [clasificacion({ stageNumber: 1 })],
+    }];
+    const { plan } = buildPlan({ competitionId: 78302, disciplineId: 10, stages });
+    const ins = insertCabeceraDe(plan);
+    expect(ins.text).toContain('"sourcePdfUrl"');
+    expect(ins.params).toContain('https://timing.ee/resultados.pdf');
   });
 });
 

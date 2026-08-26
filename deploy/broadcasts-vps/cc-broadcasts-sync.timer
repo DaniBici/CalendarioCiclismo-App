@@ -1,0 +1,13 @@
+[Unit]
+Description=Calendario Ciclismo - comprobar emisiones oficiales cada 30 minutos
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/broadcasts-vps.md
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00 Europe/Madrid
+AccuracySec=1min
+RandomizedDelaySec=3min
+Persistent=true
+Unit=cc-broadcasts-sync.service
+
+[Install]
+WantedBy=timers.target

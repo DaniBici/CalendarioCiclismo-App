@@ -29,6 +29,8 @@ struct TodayView: View {
     /// Una query por carrera visible (en Hoy suelen ser pocas); diferido y no
     /// bloqueante (sin red → vacío → modal clásico). Paridad con Android.
     @State private var inhouseByDay: [String: Int?] = [:]
+    @State private var automaticSourceRaceIds: Set<String> = []
+    @State private var resultsSourceGateResolved = false
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
     /// Push programático a la pantalla de Campeonatos (cintillo). Vive en el ROOT
@@ -39,7 +41,7 @@ struct TodayView: View {
     @State private var startlistSheetRaceId: IdentifiableID?
     @State private var startOrderSheetRaceDayId: IdentifiableID?
     @State private var showSettings = false
-    @Environment(\.openURL) private var openURL
+    @State private var safariURL: URL?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     /// Semana de Campeonatos (22-28 jun): cuando la JORNADA MOSTRADA cae en la
@@ -116,6 +118,7 @@ struct TodayView: View {
                 Task { await viewModel.refreshDay() }
             }
             .allowsHitTesting(!isAnimatingNavigation)
+            .safariSheet(url: $safariURL)
     }
 
     private var withObservers: some View {
@@ -199,8 +202,11 @@ struct TodayView: View {
         let items = viewModel.displayItems.filter { $0.race != nil }
         guard !items.isEmpty else {
             inhouseByDay = [:]
+            automaticSourceRaceIds = []
+            resultsSourceGateResolved = true
             return
         }
+        resultsSourceGateResolved = false
         var merged: [String: Int?] = [:]
         let byRace = Dictionary(grouping: items) { $0.race!.id }
         for (raceId, days) in byRace {
@@ -212,6 +218,10 @@ struct TodayView: View {
             merged.merge(map) { _, new in new }
         }
         inhouseByDay = merged
+        automaticSourceRaceIds = await SupabaseService.shared.automaticResultsSourceRaceIds(
+            raceIds: Array(byRace.keys)
+        )
+        resultsSourceGateResolved = true
     }
 
     // MARK: - Configured view
@@ -592,9 +602,12 @@ struct TodayView: View {
         // pantalla nativa (no al modal externos). Presencia en el mapa = la tiene.
         let hasInhouse = inhouseByDay.index(forKey: item.id) != nil
         let inhouseStage = inhouseByDay[item.id].flatMap { $0 }
-        let showResults = hasInhouse || RaceLogic.shouldShowResults(rd: item.raceDay, race: item.race)
-        let hideNoIds = !showResults && RaceLogic.noIdsAndPastDeadline(rd: item.raceDay, race: item.race)
-        let reviveURL = (showResults || hideNoIds) ? RaceLogic.reviveUrl(from: item.broadcasts) : nil
+        let externalAllowed = resultsSourceGateResolved
+            && (item.race.map { !automaticSourceRaceIds.contains($0.id) } ?? true)
+        let showResults = hasInhouse || (externalAllowed && RaceLogic.shouldShowResults(rd: item.raceDay, race: item.race))
+        // Revive/TV forma parte del estado de resultados: nunca aparece por el
+        // mero hecho de alcanzar la hora de meta sin clasificaciones visibles.
+        let reviveURL = showResults ? RaceLogic.reviveUrl(from: item.broadcasts) : nil
         let isFinalStage = item.race?.isStageRace == true
             && !item.raceDay.isRestDay
             && !item.raceDay.isCancelledDay
@@ -642,7 +655,9 @@ struct TodayView: View {
                     } : nil,
                     onRevive: reviveURL != nil ? {
                         Haptics.play(.primaryAction)
-                        if let url = reviveURL { openURL(url) }
+                        if let url = reviveURL {
+                            NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
+                        }
                     } : nil,
                     onShowStartlist: item.race?.startlistImportedAt != nil ? {
                         if let race = item.race {

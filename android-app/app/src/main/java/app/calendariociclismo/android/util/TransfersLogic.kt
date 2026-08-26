@@ -3,6 +3,8 @@ package app.calendariociclismo.android.util
 import app.calendariociclismo.android.data.model.RiderProfile
 import app.calendariociclismo.android.data.model.RiderTransfer
 import app.calendariociclismo.android.data.model.TeamSeason
+import java.text.Normalizer
+import java.util.Locale
 
 /**
  * Lógica pura de la pantalla de Fichajes (apps 4.0) — espejo 1:1 de
@@ -83,28 +85,60 @@ object TransfersLogic {
     fun isRealSigning(x: RiderTransfer): Boolean =
         x.type == "transfer" && (x.toTeamId != null || (x.toTeamName != null && x.toTeamName != UNKNOWN_DEST))
 
+    /** PRW es la clave persistida para la categoría PTW (Women's ProTeam). */
+    private val feedCategoryRank = mapOf("WT" to 0, "PT" to 1, "WWT" to 2, "PRW" to 3, "PTW" to 3)
+
+    private fun alphabeticalKey(value: String): String = Normalizer
+        .normalize(value, Normalizer.Form.NFD)
+        .replace("\\p{M}+".toRegex(), "")
+        .lowercase(Locale.ROOT)
+
+    private fun feedComparator(
+        categoryByTeamId: Map<String, String>,
+        teamNameById: Map<String, String>,
+    ) = Comparator<RiderTransfer> { a, b ->
+        val byDate = (b.announcedAt ?: "").compareTo(a.announcedAt ?: "")
+        if (byDate != 0) return@Comparator byDate
+
+        // Próximas temporadas primero; mitad de temporada siempre en el bloque final.
+        val byMidSeason = a.midSeason.compareTo(b.midSeason)
+        if (byMidSeason != 0) return@Comparator byMidSeason
+
+        val rankA = a.toTeamId?.let(categoryByTeamId::get)?.let(feedCategoryRank::get) ?: 90
+        val rankB = b.toTeamId?.let(categoryByTeamId::get)?.let(feedCategoryRank::get) ?: 90
+        if (rankA != rankB) return@Comparator rankA.compareTo(rankB)
+
+        fun teamName(x: RiderTransfer): String =
+            x.toTeamId?.let(teamNameById::get) ?: x.toTeamName ?: x.toTeamId.orEmpty()
+        val byTeam = alphabeticalKey(teamName(a)).compareTo(alphabeticalKey(teamName(b)))
+        if (byTeam != 0) return@Comparator byTeam
+
+        val byCreation = (b.createdAt ?: "").compareTo(a.createdAt ?: "")
+        if (byCreation != 0) return@Comparator byCreation
+        a.id.compareTo(b.id)
+    }
+
     /**
      * Feed público: solo FICHAJES confirmados CON fecha visible, cronológico
      * inverso. `dateVisible=false` es un flag de publicación, no una fecha
      * ausente: el movimiento sigue contando en el detalle de equipo.
      */
-    fun confirmedFeed(transfers: List<RiderTransfer>): List<RiderTransfer> =
+    fun confirmedFeed(
+        transfers: List<RiderTransfer>,
+        categoryByTeamId: Map<String, String> = emptyMap(),
+        teamNameById: Map<String, String> = emptyMap(),
+    ): List<RiderTransfer> =
         transfers.filter { it.status == "confirmed" && it.dateVisible && isRealSigning(it) }
-            .sortedWith(
-                compareByDescending<RiderTransfer> { it.announcedAt ?: "" }
-                    // En una misma fecha, primero el mercado de la próxima temporada
-                    // y después los fichajes efectivos de mitad de temporada.
-                    .thenBy { if (it.midSeason) 1 else 0 }
-                    .thenByDescending { it.createdAt ?: "" }
-            )
+            .sortedWith(feedComparator(categoryByTeamId, teamNameById))
 
     /** Feed público de renovaciones confirmadas con fecha visible. */
-    fun renewalFeed(transfers: List<RiderTransfer>): List<RiderTransfer> =
+    fun renewalFeed(
+        transfers: List<RiderTransfer>,
+        categoryByTeamId: Map<String, String> = emptyMap(),
+        teamNameById: Map<String, String> = emptyMap(),
+    ): List<RiderTransfer> =
         transfers.filter { it.status == "confirmed" && it.dateVisible && it.type == "renewal" }
-            .sortedWith(
-                compareByDescending<RiderTransfer> { it.announcedAt ?: "" }
-                    .thenByDescending { it.createdAt ?: "" }
-            )
+            .sortedWith(feedComparator(categoryByTeamId, teamNameById))
 
     /**
      * Corte del feed "Últimas confirmaciones": hasta [FEED_MAX_DAYS] fechas

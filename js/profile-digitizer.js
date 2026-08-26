@@ -8,6 +8,19 @@ const PDFJS_MODULE_URL = new URL('./vendor/pdfjs/pdf.min.mjs', import.meta.url).
 const PDFJS_WORKER_URL = new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
 let pdfJsPromise = null;
 
+/**
+ * Genera una URL de descarga distinta para cada perfil servido por el proxy.
+ * El nombre también se sigue enviando en la cabecera autenticada; el parámetro
+ * solo evita que la caché HTTP trate todos los GET de la Edge Function como el
+ * mismo recurso.
+ */
+export function buildProfileAssetDownloadRequest(proxyUrl, assetUrl) {
+  const filename = decodeURIComponent(new URL(assetUrl).pathname.replace(/^\/+/, ''));
+  const requestUrl = new URL(proxyUrl);
+  requestUrl.searchParams.set('asset', filename);
+  return { url: requestUrl.href, filename };
+}
+
 function loadPdfJs() {
   if (!pdfJsPromise) {
     pdfJsPromise = import(PDFJS_MODULE_URL).then(pdfjs => {

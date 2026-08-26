@@ -56,6 +56,9 @@ import kotlinx.serialization.json.buildJsonObject
 @OptIn(SupabaseInternal::class)
 class SupabaseService {
 
+    @Serializable
+    private data class ResultsSourceLink(val raceId: String, val source: String)
+
     private val client = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
@@ -375,6 +378,18 @@ class SupabaseService {
         }.decodeList()
 
     // ─────────── Resultados UCI in-house ───────────
+
+    /** Carreras con fuente automática enlazada. PDF es carga manual y conserva externos. */
+    suspend fun automaticResultsSourceRaceIds(raceIds: List<String>): Set<String> {
+        val ids = raceIds.filter { it.isNotEmpty() }.distinct()
+        if (ids.isEmpty()) return emptySet()
+        return client.from("race_uci_links").select(columns = Columns.list("raceId", "source")) {
+            filter { isIn("raceId", ids) }
+        }.decodeList<ResultsSourceLink>()
+            .filter { it.source != "pdf" }
+            .map { it.raceId }
+            .toSet()
+    }
 
     // Clasificaciones keepForWeb de una carrera (clasif. de etapa + GC del día +
     // generales acumuladas). 1 fila por (etapa × clasificación).

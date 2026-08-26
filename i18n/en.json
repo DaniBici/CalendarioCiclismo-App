@@ -112,7 +112,7 @@
     "localTimezone": "Times in your local timezone ({tz})",
     "madridLabel": "Madrid: {time}",
     "noInfo": "No TV information",
-    "noTvCountry": "No TV available in your country",
+    "noTvRegion": "No TV available in your region",
     "fullStage": "Full Race",
     "filterAll": "All countries",
     "filterMine": "My country",

@@ -689,8 +689,12 @@ class CalendarRepository(
             val raceDays = daysDeferred.await()
             val raceIds = (stages.map { it.raceId } + raceDays.mapNotNull { it.raceId }).distinct()
             val races = if (raceIds.isEmpty()) emptyList() else api.racesByIds(raceIds)
-            ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey)
+            val automaticSources = runCatching { api.automaticResultsSourceRaceIds(raceIds) }.getOrDefault(emptySet())
+            ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey, automaticSources)
         }
+
+    suspend fun automaticResultsSourceRaceIds(raceIds: List<String>): Set<String> =
+        runCatching { api.automaticResultsSourceRaceIds(raceIds) }.getOrDefault(emptySet())
 
     /** Instantánea actual del ránking UCI de equipos (solo online, sin Room). */
     suspend fun loadUciTeamRankings() = api.uciTeamRankings()

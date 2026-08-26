@@ -1,0 +1,19 @@
+{
+  "raceId": "eval-results",
+  "expectedRiderCount": 3,
+  "teams": [
+    {
+      "teamName": "  TEAM   VISMA | LEASE A BIKE ",
+      "riders": [
+        { "dorsal": "001", "riderName": "MATTEO JORGENSON" },
+        { "dorsal": "2", "riderName": "SEPP KUSS" }
+      ]
+    },
+    {
+      "teamName": "UAE Team Emirates - XRG",
+      "riders": [
+        { "dorsal": "11", "riderName": "Brandon McNulty" }
+      ]
+    }
+  ]
+}

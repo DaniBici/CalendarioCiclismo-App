@@ -1,0 +1,63 @@
+{
+  "raceId": "eval-results",
+  "expectedRiderCount": 5,
+  "teams": [
+    {
+      "name": "  TEAM   VISMA | LEASE A BIKE ",
+      "sortOrder": "0",
+      "riders": [
+        {
+          "dorsal": 11,
+          "firstName": "MATTEO",
+          "lastName": "JORGENSON",
+          "countryCode": "US",
+          "resolutionAction": "EXACT",
+          "candidateCount": 0,
+          "globalRiderId": "rider-11"
+        },
+        {
+          "dorsal": "12",
+          "firstName": "sepp",
+          "lastName": "KUSS",
+          "countryCode": "US",
+          "resolutionAction": "candidate",
+          "candidateCount": 1,
+          "globalRiderId": "rider-12"
+        }
+      ]
+    },
+    {
+      "teamName": "UAE Team Emirates - XRG",
+      "sortOrder": 1,
+      "riders": [
+        {
+          "dorsal": "21",
+          "firstName": "BRANDON",
+          "lastName": "McNulty",
+          "countryCode": "us",
+          "resolutionAction": "exact",
+          "candidateCount": 0,
+          "globalRiderId": "rider-21"
+        },
+        {
+          "dorsal": "22",
+          "firstName": "tim",
+          "lastName": "WELLENS-D'HOORE",
+          "countryCode": "BE",
+          "resolutionAction": "exact",
+          "candidateCount": 0,
+          "globalRiderId": "rider-22"
+        },
+        {
+          "dorsal": "31",
+          "firstName": "CORREDOR",
+          "lastName": "RETIRADO",
+          "countryCode": "FR",
+          "resolutionAction": "exact",
+          "candidateCount": 0,
+          "globalRiderId": "rider-31"
+        }
+      ]
+    }
+  ]
+}

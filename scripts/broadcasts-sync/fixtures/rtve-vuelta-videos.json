@@ -1,0 +1,33 @@
+{
+  "page": {
+    "items": [
+      {
+        "id": "17201825",
+        "htmlUrl": "https://www.rtve.es/play/videos/vuelta-ciclista-a-espana/2026-etapa-4-andorra-vella-andorra-vella-1049-km-montana/17201825/",
+        "title": "Etapa 4: Andorra la Vella - Andorra la Vella (104,9 km) montaña",
+        "longTitle": "La Vuelta 2026 - Etapa 4: Andorra la Vella - Andorra la Vella (104,9 km) montaña",
+        "publicationDate": "25-08-2026 14:20:00",
+        "pubState": { "code": "ENPUB" },
+        "duration": 12991800
+      },
+      {
+        "id": "17201841",
+        "htmlUrl": "https://www.rtve.es/play/videos/vuelta-ciclista-a-espana/vuelta-2026-resumen-etapa-4-entre-andorra-andorra/17201841/",
+        "title": "La Vuelta 2026: resumen de la etapa 4 entre Andorra y Andorra",
+        "longTitle": "La Vuelta 2026: resumen de la etapa 4 entre Andorra y Andorra",
+        "publicationDate": "25-08-2026 19:07:36",
+        "pubState": { "code": "ENPUB" },
+        "duration": 423096
+      },
+      {
+        "id": "17200584",
+        "htmlUrl": "https://www.rtve.es/play/videos/vuelta-ciclista-a-espana/2026-etapa-3-gruissan-aude-font-romeu-1667-km-media-montana/17200584/",
+        "title": "Etapa 3: Gruissan - Aude - Font Romeu (166,7 km) media montaña",
+        "longTitle": "La Vuelta 2026 - Etapa 3: Gruissan - Aude - Font Romeu (166,7 km) media montaña",
+        "publicationDate": "24-08-2026 14:00:00",
+        "pubState": { "code": "ENPUB" },
+        "duration": 10719440
+      }
+    ]
+  }
+}

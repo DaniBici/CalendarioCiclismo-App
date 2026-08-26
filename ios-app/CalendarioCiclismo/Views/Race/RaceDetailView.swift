@@ -16,9 +16,10 @@ struct RaceDetailView: View {
     /// externos. Diferido y no bloqueante (sin red → vacío → modal clásico). Pasa las
     /// jornadas para resolver el caso de un día/general (stage sin raceDayId).
     @State private var inhouseByDay: [String: Int?] = [:]
+    @State private var hasAutomaticResultsSource = false
+    @State private var resultsSourceGateResolved = false
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Group {
@@ -67,12 +68,18 @@ struct RaceDetailView: View {
             let days = viewModel.days.map { ($0.raceDay.id, $0.raceDay.stageNumber) }
             guard !days.isEmpty else {
                 inhouseByDay = [:]
+                resultsSourceGateResolved = true
                 return
             }
+            resultsSourceGateResolved = false
             let cancelled = Set(viewModel.days.filter { $0.raceDay.isCancelledDay }.map { $0.raceDay.id })
             inhouseByDay = await SupabaseService.shared.inhouseStagesForDays(
                 raceId: raceId, days: days, cancelledDayIds: cancelled
             )
+            let automaticSources = await SupabaseService.shared
+                .automaticResultsSourceRaceIds(raceIds: [raceId])
+            hasAutomaticResultsSource = automaticSources.contains(raceId)
+            resultsSourceGateResolved = true
         }
         .onChange(of: viewModel.race) { _, newRace in
             if let race = newRace {
@@ -106,9 +113,11 @@ struct RaceDetailView: View {
         // pantalla nativa (no al modal externos).
         let hasInhouse = inhouseByDay.index(forKey: day.id) != nil
         let inhouseStage = inhouseByDay[day.id].flatMap { $0 }
-        let showResults = hasInhouse || RaceLogic.shouldShowResults(rd: day.raceDay, race: race)
-        let hideNoIds = !showResults && RaceLogic.noIdsAndPastDeadline(rd: day.raceDay, race: race)
-        let reviveURL = (showResults || hideNoIds) ? RaceLogic.reviveUrl(from: day.broadcasts) : nil
+        let showResults = hasInhouse || (resultsSourceGateResolved && !hasAutomaticResultsSource
+            && RaceLogic.shouldShowResults(rd: day.raceDay, race: race))
+        // Revive/TV solo acompaña al acceso a Resultados; la hora de meta por sí
+        // sola no activa el botón en la vista de Competición.
+        let reviveURL = showResults ? RaceLogic.reviveUrl(from: day.broadcasts) : nil
         let row = StageRowView(
             item: day,
             race: race,
@@ -122,7 +131,9 @@ struct RaceDetailView: View {
             } : nil,
             onRevive: reviveURL != nil ? {
                 Haptics.play(.primaryAction)
-                if let url = reviveURL { openURL(url) }
+                if let url = reviveURL {
+                    NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
+                }
             } : nil
         )
         // La jornada cancelada SÍ navega a su ficha (paridad con la web y

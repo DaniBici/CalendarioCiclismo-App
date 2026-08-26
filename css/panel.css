@@ -1001,7 +1001,13 @@ html.dark  .date-nav__input { color-scheme: dark; }
   border-bottom: 1px solid var(--border);
 }
 .ann-row:last-child { border-bottom: none; }
-.ann-row--header { padding-bottom: 0.2rem; display: flex; gap: 0.4rem; }
+.ann-row--header {
+  padding-bottom: 0.2rem;
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
 .ann-row input[type="number"],
 .ann-row input[type="text"] {
   background: var(--bg-input);
@@ -2482,6 +2488,51 @@ input[type="color"].u-color-dot {
   margin: 0 auto;
   width: 100%;
 }
+.panel-view-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.panel-view-actions .btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .panel-view-row--teams,
+  .panel-view-row--transfers {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .panel-view-row--teams #teamsSearch {
+    width: 100% !important;
+    min-width: 0;
+  }
+  .panel-view-actions--teams {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .panel-view-actions--teams #dupScanBtn { grid-column: 1 / -1; }
+  .panel-view-actions--teams .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+  .panel-view-actions--transfers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .panel-view-actions--transfers #allTransfersBtn { grid-column: 1 / -1; }
+  .panel-view-actions--transfers .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+}
 /* 4× etiqueta de sección (display 600 0.9rem uppercase dim) */
 .panel-view-label {
   font-family: var(--font-display);
@@ -2893,16 +2944,6 @@ input[type="color"].u-color-dot {
   color: var(--text-muted);
   padding: 0.25rem 0.1rem;
 }
-.ru-td-name .ru-resolved {
-  display: block;
-  font-size: 0.64rem;
-  color: var(--text-muted);
-  padding: 0 0.35rem 0.15rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 24rem;
-}
 .ru-actions { white-space: nowrap; }
 .ru-act {
   border: 1px solid var(--border);
@@ -2939,7 +2980,6 @@ input[type="color"].u-color-dot {
   min-height: 1.7rem;
 }
 .ru-team-btn:hover { border-color: var(--border); }
-.ru-team-badge { flex-shrink: 0; display: inline-flex; }
 .ru-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ru-team-name--empty { color: var(--text-muted); font-style: italic; }
 /* Equipo AUTO-resuelto (sin override): atenuado, para distinguirlo del manual. */
@@ -2995,7 +3035,6 @@ input[type="color"].u-color-dot {
   .ru-edit-table .ru-in,
   .ru-edit-table .ru-team-btn { border-color: var(--border); }
   .ru-td-rank .ru-rank { font-size: 0.9rem; }
-  .ru-td-name .ru-resolved { max-width: none; }
   .ru-act { margin-right: 0; }
 }
 

@@ -26,7 +26,7 @@ import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.launch
 
-/** Anuncio único de 4.3 para instalaciones nuevas y actualizaciones desde 4.2.6. */
+/** Anuncio de 4.3.1 para instalaciones nuevas y actualizaciones anteriores. */
 @Composable
 fun PremiumShowcaseOnboardingScreen(
     isNewInstallation: Boolean,
@@ -108,10 +108,17 @@ fun PremiumShowcaseOnboardingScreen(
                         FeatureRow(Icons.Filled.Code, stringResource(R.string.onboarding_premium_benefit_open))
                         FeatureRow(
                             Icons.Filled.AutoAwesome,
-                            stringResource(
-                                if (isNewInstallation) R.string.onboarding_premium_benefit_experience
-                                else R.string.onboarding_premium_benefit_founder
-                            ),
+                            if (legacyActive) {
+                                LocaleHolder.t(
+                                    "Tu Premium sigue activo hasta su vencimiento; mientras tanto puedes hacer aportaciones puntuales",
+                                    "Your Premium remains active until it expires; meanwhile you can make one-time contributions",
+                                )
+                            } else {
+                                stringResource(
+                                    if (isNewInstallation) R.string.onboarding_premium_benefit_experience
+                                    else R.string.onboarding_premium_benefit_founder
+                                )
+                            },
                         )
                     }
                 }
@@ -128,7 +135,10 @@ fun PremiumShowcaseOnboardingScreen(
                 Button(
                     onClick = {
                         when {
-                            legacyActive || friendActive || !purchaseStateReady -> finish("continue")
+                            friendActive || !purchaseStateReady -> finish("continue")
+                            legacyActive -> finish("open_contributions") {
+                                app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
+                            }
                             else -> finish("open_support") {
                                 app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
                             }
@@ -139,27 +149,27 @@ fun PremiumShowcaseOnboardingScreen(
                     contentPadding = PaddingValues(vertical = 14.dp),
                 ) {
                     Text(
-                        if (legacyActive || friendActive || !purchaseStateReady) {
-                            stringResource(R.string.onboarding_premium_cta_free)
-                        } else {
-                            stringResource(R.string.onboarding_premium_cta_try)
+                        when {
+                            friendActive || !purchaseStateReady -> stringResource(R.string.onboarding_premium_cta_free)
+                            legacyActive -> LocaleHolder.t("Ver aportaciones puntuales", "View one-time contributions")
+                            else -> stringResource(R.string.onboarding_premium_cta_try)
                         },
                         style = MaterialTheme.typography.titleSmall,
                     )
                 }
-                val showSecondaryButton = !isNewInstallation || friendActive || (purchaseStateReady && !legacyActive)
+                val showSecondaryButton = !isNewInstallation || friendActive || purchaseStateReady
                 if (showSecondaryButton) {
                     TextButton(onClick = {
                         when {
                             friendActive -> finish("manage_subscription") { app.premium.cancelSubscription() }
-                            !isNewInstallation && (legacyActive || !purchaseStateReady) -> openExplanation()
+                            !isNewInstallation && !purchaseStateReady -> openExplanation()
                             else -> finish(if (founder) "continue_founder" else "continue_free")
                         }
                     }) {
                         Text(
                             when {
                                 friendActive -> stringResource(R.string.onboarding_premium_manage)
-                                !isNewInstallation && (legacyActive || !purchaseStateReady) -> stringResource(R.string.onboarding_premium_explain)
+                                !isNewInstallation && !purchaseStateReady -> stringResource(R.string.onboarding_premium_explain)
                                 else -> stringResource(R.string.onboarding_premium_cta_free)
                             },
                             style = MaterialTheme.typography.bodySmall,

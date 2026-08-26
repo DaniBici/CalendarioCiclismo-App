@@ -40,6 +40,10 @@ const DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
 // que se alcance antes.
 const FEED_MAX_DAYS = 5;
 const FEED_MAX_ITEMS = 8;
+// Orden editorial diario del equipo de destino. La categoría femenina se
+// guarda como PRW en la base de datos; PTW se admite como alias del rótulo
+// solicitado para Women's ProTeams.
+const FEED_CATEGORY_RANK = { WT: 0, PT: 1, WWT: 2, PRW: 3, PTW: 3 };
 
 // Periodistas acreditados en /abierto.html. Se mantienen aquí para que los
 // enlaces del aviso de fuentes sean interactivos también en el modal web.
@@ -232,22 +236,41 @@ const UNKNOWN_DEST = '?';
 function isRealSigning(x) {
   return x.type === 'transfer' && (x.toTeamId || (x.toTeamName && x.toTeamName !== UNKNOWN_DEST));
 }
+
+function compareFeedMoves(a, b) {
+  const dateA = a.announcedAt || '';
+  const dateB = b.announcedAt || '';
+  if (dateA !== dateB) return dateB.localeCompare(dateA);
+
+  // Los movimientos para próximas temporadas forman el primer bloque del día;
+  // los efectivos durante la temporada en curso quedan siempre al final.
+  if (Boolean(a.midSeason) !== Boolean(b.midSeason)) return a.midSeason ? 1 : -1;
+
+  const categoryA = _seasonsByTeamId.get(a.toTeamId)?.category;
+  const categoryB = _seasonsByTeamId.get(b.toTeamId)?.category;
+  const rankA = FEED_CATEGORY_RANK[categoryA] ?? 90;
+  const rankB = FEED_CATEGORY_RANK[categoryB] ?? 90;
+  if (rankA !== rankB) return rankA - rankB;
+
+  const teamA = teamLabel(a.toTeamId, a.toTeamName);
+  const teamB = teamLabel(b.toTeamId, b.toTeamName);
+  const byTeam = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
+  if (byTeam !== 0) return byTeam;
+
+  const byCreation = (b.createdAt || '').localeCompare(a.createdAt || '');
+  return byCreation || String(a.id || '').localeCompare(String(b.id || ''));
+}
+
 function confirmedFeed() {
-  // Dentro de una misma fecha, el mercado de la próxima temporada siempre
-  // precede a los fichajes efectivos de mitad de temporada.
   return _transfers
     .filter(x => x.status === 'confirmed' && x.dateVisible !== false && isRealSigning(x))
-    .sort((a, b) => {
-      const dateA = a.announcedAt || '';
-      const dateB = b.announcedAt || '';
-      if (dateA !== dateB) return dateB.localeCompare(dateA);
-      if (Boolean(a.midSeason) !== Boolean(b.midSeason)) return a.midSeason ? 1 : -1;
-      return (b.createdAt || '').localeCompare(a.createdAt || '');
-    });
+    .sort(compareFeedMoves);
 }
 
 function renewalFeed() {
-  return _transfers.filter(x => x.status === 'confirmed' && x.dateVisible !== false && x.type === 'renewal');
+  return _transfers
+    .filter(x => x.status === 'confirmed' && x.dateVisible !== false && x.type === 'renewal')
+    .sort(compareFeedMoves);
 }
 
 function feedRowHtml(x) {

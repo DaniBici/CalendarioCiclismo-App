@@ -7,6 +7,7 @@ import { supabase, uciRank, proLevel, countryFlag, jornadaUrl, raceUrl, raceName
          bulkCacheRaces, enBase,
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
          from './shared.js';
+import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLang } from './i18n.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { hasModalData, openRaceDataModal } from './race-data-modal.js';
@@ -476,15 +477,15 @@ const _EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE',
 function _applyCategoryFilter(races) {
   races = races.filter(r => r.uciCategory !== 'CN');
   if (activeCat === 'pro') {
-    races = races.filter(r => r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || /tour del porvenir/i.test(r.name || '')));
+    races = races.filter(r => r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
   } else if (activeCat === 'uwt') {
     races = races.filter(r => r.uciCategory === '1.UWT' || r.uciCategory === '2.UWT');
   } else if (activeCat === 'wwt') {
     races = races.filter(r => r.uciCategory === '1.WWT' || r.uciCategory === '2.WWT');
   } else if (activeCat === 'male') {
-    races = races.filter(r => (r.gender !== 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || /tour del porvenir/i.test(r.name || '')));
+    races = races.filter(r => (r.gender !== 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
   } else if (activeCat === 'female') {
-    races = races.filter(r => (r.gender === 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || /tour del porvenir/i.test(r.name || '')) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
+    races = races.filter(r => (r.gender === 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
   }
   if (activeCat !== 'all') {
     races = races.filter(r => {

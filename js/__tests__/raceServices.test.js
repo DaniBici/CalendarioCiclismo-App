@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { annotateDoubleSectors } from '../services/races.js';
+import { annotateDoubleSectors, buildInhouseResultsMatcher } from '../services/races.js';
 
 // ── annotateDoubleSectors ──────────────────────────────────────────
 
@@ -112,8 +112,38 @@ describe('annotateDoubleSectors', () => {
   });
 });
 
+describe('buildInhouseResultsMatcher', () => {
+  it('distingue dos sectores con el mismo stageNumber por raceDayId', () => {
+    const matcher = buildInhouseResultsMatcher([
+      { raceId: 'r1', raceDayId: 'stage-1a', stageNumber: 1 },
+    ]);
+
+    expect(matcher.has({ id: 'stage-1a', raceId: 'r1', stageNumber: 1 })).toBe(true);
+    expect(matcher.has({ id: 'stage-1b', raceId: 'r1', stageNumber: 1 })).toBe(false);
+  });
+
+  it('conserva el fallback por número para volcados sin raceDayId', () => {
+    const matcher = buildInhouseResultsMatcher([
+      { raceId: 'r1', raceDayId: null, stageNumber: 2 },
+    ]);
+
+    expect(matcher.has({ id: 'stage-2', raceId: 'r1', stageNumber: 2 })).toBe(true);
+    expect(matcher.has({ id: 'stage-3', raceId: 'r1', stageNumber: 3 })).toBe(false);
+  });
+
+  it('no activa el fallback ambiguo si el mismo número tiene una fila enlazada', () => {
+    const matcher = buildInhouseResultsMatcher([
+      { raceId: 'r1', raceDayId: 'stage-1a', stageNumber: 1 },
+      { raceId: 'r1', raceDayId: null, stageNumber: 1 },
+    ]);
+
+    expect(matcher.has({ id: 'stage-1a', raceId: 'r1', stageNumber: 1 })).toBe(true);
+    expect(matcher.has({ id: 'stage-1b', raceId: 'r1', stageNumber: 1 })).toBe(false);
+  });
+});
+
 // ── sectorSuffixMap / resultStageEntryKey / parseResultStageKey ─────
-import { sectorSuffixMap, resultStageEntryKey, parseResultStageKey } from '../services/races.js';
+import { sectorSuffixMap, resultFeedEntryKey, resultStageEntryKey, parseResultStageKey } from '../services/races.js';
 
 describe('sectorSuffixMap', () => {
   it('no marca sectores en carrera sin dobles sectores', () => {
@@ -148,6 +178,16 @@ describe('sectorSuffixMap', () => {
     expect(suffixByDayId.get('d3a')).toBe('A');
     expect(suffixByDayId.get('d3b')).toBe('B');
   });
+
+  it('no fusiona jornadas de carreras distintas que coinciden en fecha y número', () => {
+    const days = [
+      { id: 'r1d1', raceId: 'r1', stageNumber: 1, dateKey: '2026-08-21' },
+      { id: 'r2d1', raceId: 'r2', stageNumber: 1, dateKey: '2026-08-21' },
+    ];
+    const { suffixByDayId, sectoredNums } = sectorSuffixMap(days);
+    expect(suffixByDayId.size).toBe(0);
+    expect(sectoredNums.size).toBe(0);
+  });
 });
 
 describe('resultStageEntryKey', () => {
@@ -166,6 +206,16 @@ describe('resultStageEntryKey', () => {
   });
   it('sector sin raceDayId (volcado antes de crear jornada) → número pelado', () => {
     expect(resultStageEntryKey(3, null, suffixByDayId, sectoredNums)).toBe('3');
+  });
+});
+
+describe('resultFeedEntryKey', () => {
+  const suffixByDayId = new Map([['bct-1a', 'A'], ['bct-1b', 'B']]);
+  const sectoredNums = new Set([1]);
+
+  it('mantiene dos entradas y ganadores independientes para 1A y 1B', () => {
+    expect(resultFeedEntryKey('bct', 1, 'bct-1a', suffixByDayId, sectoredNums)).toBe('bct#1A');
+    expect(resultFeedEntryKey('bct', 1, 'bct-1b', suffixByDayId, sectoredNums)).toBe('bct#1B');
   });
 });
 

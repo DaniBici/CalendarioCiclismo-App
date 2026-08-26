@@ -28,6 +28,8 @@ class ChampionshipsViewModel(
         /** Claves `raceId#stage|final` de pruebas con resultados in-house (keepForWeb):
          *  su trofeo lleva a la pantalla NATIVA de resultados. */
         val inhouseKeys: Set<String> = emptySet(),
+        val automaticSourceRaceIds: Set<String> = emptySet(),
+        val resultsSourceGateResolved: Boolean = false,
     ) {
         /** Países con al menos una prueba visible bajo el filtro activo. */
         val displayCountries: List<ChampionshipCountry>
@@ -54,7 +56,10 @@ class ChampionshipsViewModel(
                     val raceIds = countries.flatMap { c -> c.slots.values.mapNotNull { it.race?.id } }
                     if (raceIds.isNotEmpty()) {
                         val keys = repo.inhouseStageKeys(raceIds)
-                        if (keys.isNotEmpty()) _state.value = _state.value.copy(inhouseKeys = keys)
+                        val automaticSources = repo.automaticResultsSourceRaceIds(raceIds)
+                        _state.value = _state.value.copy(inhouseKeys = keys, automaticSourceRaceIds = automaticSources, resultsSourceGateResolved = true)
+                    } else {
+                        _state.value = _state.value.copy(resultsSourceGateResolved = true)
                     }
                 }
                 .onFailure { _state.value = _state.value.copy(isLoading = false, error = it.message ?: "") }

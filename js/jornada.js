@@ -11,9 +11,25 @@ import { supabase, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
          from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
-import { annotateDoubleSectors } from './services/races.js';
+import { annotateDoubleSectors, buildInhouseResultsMatcher } from './services/races.js';
 import { buildSimplifiedGuide, hasSimplifiedGuide } from './simplified-guide.js';
 import { guideMarkerSVG } from './elevation-profile.js';
+import { isReviveBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
+
+function broadcastRegionBadgeLabel(country) {
+  if (!country || country === 'ALL') return '';
+  if (getLang() !== 'en') {
+    return {
+      UK_IE: 'GB / IRL',
+      SCANDI: 'ESCANDI',
+    }[country] || country;
+  }
+  return {
+    EUROPA: 'EUROPE',
+    UK_IE: 'UK / IRL',
+    NORTEAM: 'NORTH AM.',
+  }[country] || country;
+}
 
 function descriptionHtml(str) {
   if (!str) return '';
@@ -347,11 +363,9 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const _navSiblings = siblings.filter(s => !s.isRestDay && !s.isCancelledDay);
   const _currentIdx  = _navSiblings.findIndex(s => s.id === rd.id);
   const _prevRd      = _currentIdx > 0 ? _navSiblings[_currentIdx - 1] : null;
-  const _curStageKeyForPrev = rd.stageNumber == null ? 'final' : rd.stageNumber;
-  const _currentResultsAvailable = shouldShowResults(rd, race) || inhouseStages.has(_curStageKeyForPrev);
-  const _prevStageKey = _prevRd ? (_prevRd.stageNumber == null ? 'final' : _prevRd.stageNumber) : null;
-  const _prevHasInhouse = _prevRd && !_currentResultsAvailable && inhouseStages.has(_prevStageKey);
-  if (_prevRd && (shouldShowPreviousResults(_prevRd, rd, race) || _prevHasInhouse)) {
+  const _currentResultsAvailable = inhouseStages.has(rd);
+  const _prevHasInhouse = _prevRd && !_currentResultsAvailable && inhouseStages.has(_prevRd);
+  if (_prevRd && _prevHasInhouse) {
     // "Así está la carrera" → clasificación GENERAL (GC) de la etapa anterior,
     // no su clasificación de etapa (#gc selecciona la pestaña General en resultados.js).
     const inhouseUrl = _prevHasInhouse ? buildInhouseResultsUrl(race, _prevRd.stageNumber, _prevRd._stageSuffix) + '#gc' : null;
@@ -373,11 +387,14 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   // cancelación + las generales arrastradas de la etapa anterior (js/resultados.js).
   // Su CTA no depende de que tenga clasificaciones volcadas (no las tendrá nunca),
   // y `shouldShowResults` la descarta por diseño → sin esto la sección desaparecía.
-  const hasInhouseResults = inhouseStages.has(_curStageKeyForPrev) || rd.isCancelledDay;
-  if (shouldShowResults(rd, race) || hasInhouseResults) {
+  const hasInhouseResults = inhouseStages.has(rd) || rd.isCancelledDay;
+  const hasActualResults = inhouseStages.has(rd);
+  if (hasInhouseResults) {
     const inhouseUrl = hasInhouseResults ? buildInhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix) : null;
-    const extUrlA  = buildExtUrlA(race, rd.stageNumber, rd._fcStageNumber);
-    const extUrlB = buildExtUrlB(race, rd.stageNumber, rd._stageSuffix);
+    // Los externos solo acompañan resultados nativos reales. Una cancelación
+    // conserva el CTA propio, pero no inventa enlaces de resultados externos.
+    const extUrlA  = rd.isCancelledDay ? null : buildExtUrlA(race, rd.stageNumber, rd._fcStageNumber);
+    const extUrlB = rd.isCancelledDay ? null : buildExtUrlB(race, rd.stageNumber, rd._stageSuffix);
     const btns = resultsButtonsHtml(inhouseUrl, extUrlA, extUrlB, race, rd.stageNumber);
     if (btns) {
       html += `<div class="jornada-section">
@@ -394,9 +411,10 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const _tvStatus = (_isEn && rd.tvStatus === 'unavailable_es') ? null : rd.tvStatus;
   const tvLabel = TV_STATUS_LABELS[_tvStatus];
   const hasBroadcasts = broadcasts && broadcasts.length > 0;
-  const isReviveBroadcast = b => b.url && (/eurosport|hbo max/i.test(b.channel || '') || /youtube\.com|youtu\.be/i.test(b.url) || b.showInRevive === true);
   const isRaceConcluded = !!rd.estimatedFinishTimeUtc && raceTimeCheck(rd, 30);
-  const hasReviveBroadcast = hasBroadcasts && isRaceConcluded && broadcasts.some(isReviveBroadcast);
+  const hasReviveBroadcast = hasBroadcasts && (rd.isCancelledDay
+    ? broadcasts.some(b => b.showInRevive === true)
+    : isRaceConcluded && broadcasts.some(isReviveBroadcast));
   // Carrera concluida → solo mostrar sección si hay broadcasts de tipo Revive.
   // Jornada CANCELADA → nada de emisión EN DIRECTO (no se corrió), pero SÍ el
   // "Revive" si existe: una etapa cancelada en carrera puede tener vídeo de lo
@@ -432,14 +450,14 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
 
     if (hasBroadcasts || hasHiddenBroadcasts) {
       const visibleBroadcasts = hasReviveBroadcast
-        ? broadcasts.filter(isReviveBroadcast)
+        ? reviveBroadcastsForDay(broadcasts, rd.isCancelledDay)
         : broadcasts;
 
       // Si el filtro regional dejó sin broadcasts visibles, avisar al usuario antes
       // de listar los que están ocultos (los muestra al pulsar el toggle "Todas").
       if (!hasReviveBroadcast && visibleBroadcasts.length === 0 && hasHiddenBroadcasts) {
-        html += `<div class="info-row tv-no-country-msg">
-          <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noTvCountry')}</span>
+        html += `<div class="info-row tv-no-region-msg">
+          <span class="info-row__value" style="color:var(--text-muted);font-size:0.9rem">${t('tv.noTvRegion')}</span>
         </div>`;
       }
 
@@ -447,12 +465,16 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
         const bTimeTU = formatTimeUser(b.startTimeUtc);
         const bTime   = hasReviveBroadcast ? null : (bTimeTU?.display ?? null);
         const bTimeTip = bTimeTU?.tooltip ? `Madrid: ${bTimeTU.tooltip}` : null;
+        const regionLabel = broadcastRegionBadgeLabel(b.country);
         // `getBroadcastEmbed` aplica la allowlist y respeta embeddable=false.
         const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         return `<div class="tv-entry${hidden ? ' tv-entry--regional-hidden' : ''}"${hidden ? ' style="display:none"' : ''}>
           <div style="flex:1;min-width:0;padding-right:0.75rem">
-            <div class="tv-entry__platform">${b.channel || '—'}</div>
-            ${!hasReviveBroadcast && b.note ? `<div class="tv-entry__channel" style="font-style:italic">${b.note}</div>` : ''}
+            <div class="tv-entry__platform-row">
+              <div class="tv-entry__platform">${b.channel || '—'}</div>
+              ${regionLabel ? `<span class="badge badge--uci tv-region-badge">${regionLabel}</span>` : ''}
+            </div>
+            ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<div class="tv-entry__channel" style="font-style:italic">${esc(b.note)}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:0.75rem">
             ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}
@@ -1067,14 +1089,16 @@ document.addEventListener('click', e => {
     if (isShowingMine) {
       // estamos en Mi País → pasar a Todas
       content.querySelectorAll('.tv-entry--regional-hidden').forEach(el => { el.style.display = ''; });
-      content.querySelectorAll('.tv-no-country-msg').forEach(el => { el.style.display = 'none'; });
+      content.querySelectorAll('.tv-region-badge').forEach(el => { el.style.display = 'inline-flex'; });
+      content.querySelectorAll('.tv-no-region-msg').forEach(el => { el.style.display = 'none'; });
       tvBtn.dataset.tvFilter = 'all';
       tvBtn.textContent = t('tv.filterMine');
       tvBtn.classList.add('tv-filter-btn--active');
     } else {
       // estamos en Todas → volver a Mi País
       content.querySelectorAll('.tv-entry--regional-hidden').forEach(el => { el.style.display = 'none'; });
-      content.querySelectorAll('.tv-no-country-msg').forEach(el => { el.style.display = ''; });
+      content.querySelectorAll('.tv-region-badge').forEach(el => { el.style.display = 'none'; });
+      content.querySelectorAll('.tv-no-region-msg').forEach(el => { el.style.display = ''; });
       tvBtn.dataset.tvFilter = 'mine';
       tvBtn.textContent = t('tv.filterAll');
       tvBtn.classList.remove('tv-filter-btn--active');
@@ -1130,6 +1154,12 @@ function setupReportModal(raceDayId, raceName, stageStr) {
         <input type="text" name="_hp" id="reportHp" autocomplete="off"
                style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"
                tabindex="-1" aria-hidden="true">
+
+        <p style="font-size:0.75rem;line-height:1.45;color:var(--text-muted);margin:0.75rem 0 0">
+          ${document.documentElement.lang === 'en'
+            ? 'We use your contact and technical data to review this report and keep it for up to 12 months. <a href="/en/privacy/">Privacy policy</a>.'
+            : 'Usamos tus datos de contacto y técnicos para revisar este aviso y los conservamos hasta 12 meses. <a href="/privacidad.html">Política de privacidad</a>.'}
+        </p>
 
         <button class="report-modal__submit" type="submit">${t('report.submit')}</button>
       </form>
@@ -1321,7 +1351,7 @@ async function init() {
       // Resultados in-house: qué etapas de esta carrera tienen clasificaciones
       // propias (race_uci_stages.keepForWeb). Una sola consulta por carrera.
       rd.raceId
-        ? supabase.from('race_uci_stages').select('stageNumber').eq('raceId', rd.raceId).eq('keepForWeb', true)
+        ? supabase.from('race_uci_stages').select('raceId,raceDayId,stageNumber').eq('raceId', rd.raceId).eq('keepForWeb', true).gt('rowCount', 0)
         : Promise.resolve(null),
     ]);
     const race = raceResult.data || {};
@@ -1334,10 +1364,7 @@ async function init() {
     const allBroadcasts = bcastResult.data || [];
     const broadcasts = filterBroadcastsByRegion(allBroadcasts);
     const assets     = assetsResult.data || [];
-    // Set de stageNumbers con resultados propios (null → clasificación final/un día → 'final').
-    const inhouseStages = new Set(
-      (uciResult?.data || []).map(s => s.stageNumber == null ? 'final' : s.stageNumber)
-    );
+    const inhouseStages = buildInhouseResultsMatcher(uciResult?.data || []);
     // Derivado de `races.startlistImportedAt` (ya cargado con la carrera).
     // Evita un roundtrip extra a `startlist_teams` que retrasaba el botón.
     const hasStartlist = !!race.startlistImportedAt;

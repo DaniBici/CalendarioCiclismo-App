@@ -110,7 +110,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
 import androidx.navigation.NavController
-import android.content.Intent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.net.toUri
 import app.calendariociclismo.android.ui.components.RouteLoadingView
@@ -137,6 +136,7 @@ import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -162,6 +162,8 @@ fun TodayScreen(navController: NavController) {
     // Una query por carrera visible (en Hoy suelen ser pocas); diferido y no
     // bloqueante (sin red → vacío → modal clásico).
     var inhouseByDay by remember { mutableStateOf<Map<String, Int?>>(emptyMap()) }
+    var automaticSourceRaceIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var resultsSourceGateResolved by remember { mutableStateOf(false) }
     var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
     val pinnedFilter by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     // Semana de Campeonatos (22-28 jun): cuando la JORNADA MOSTRADA cae en la
@@ -180,7 +182,8 @@ fun TodayScreen(navController: NavController) {
     val visibleKey = visibleByRace.keys.sorted().joinToString(",") +
         "|" + (data?.raceDays?.joinToString(",") { it.id } ?: "")
     LaunchedEffect(visibleKey) {
-        if (visibleByRace.isEmpty()) { inhouseByDay = emptyMap(); return@LaunchedEffect }
+        if (visibleByRace.isEmpty()) { inhouseByDay = emptyMap(); automaticSourceRaceIds = emptySet(); resultsSourceGateResolved = true; return@LaunchedEffect }
+        resultsSourceGateResolved = false
         val merged = HashMap<String, Int?>()
         for ((rid, days) in visibleByRace) {
             val pairs = days.map { it.raceDay.id to it.raceDay.stageNumber }
@@ -188,6 +191,8 @@ fun TodayScreen(navController: NavController) {
             runCatching { app.repository.inhouseStagesForDays(rid, pairs, cancelled) }.getOrNull()?.let { merged.putAll(it) }
         }
         inhouseByDay = merged
+        automaticSourceRaceIds = app.repository.automaticResultsSourceRaceIds(visibleByRace.keys.toList())
+        resultsSourceGateResolved = true
     }
 
     // Al recuperar conectividad, recargar automáticamente si estamos mostrando
@@ -412,9 +417,11 @@ fun TodayScreen(navController: NavController) {
                                 // trofeo va a la pantalla nativa (no al modal externos).
                                 val inhouseStage = inhouseByDay[day.id]
                                 val hasInhouse = inhouseByDay.containsKey(day.id)
-                                val showResults = hasInhouse || RaceLogic.shouldShowResults(day.raceDay, day.race)
-                                val hideNoIds = !showResults && RaceLogic.noIdsAndPastDeadline(day.raceDay, day.race)
-                                val reviveUrl = if (showResults || hideNoIds) RaceLogic.reviveUrl(day.broadcasts) else null
+                                val externalAllowed = resultsSourceGateResolved && day.race?.id !in automaticSourceRaceIds
+                                val showResults = hasInhouse || (externalAllowed && RaceLogic.shouldShowResults(day.raceDay, day.race))
+                                // Revive/TV solo acompaña a Resultados: alcanzar
+                                // la hora de meta sin clasificaciones no lo activa.
+                                val reviveUrl = if (showResults) RaceLogic.reviveUrl(day.broadcasts) else null
                                 val isFinalStage = day.race?.isStageRace == true &&
                                     !day.raceDay.isRestDay &&
                                     !day.raceDay.isCancelledDay &&
@@ -433,13 +440,7 @@ fun TodayScreen(navController: NavController) {
                                     } } else null,
                                     onRevive = reviveUrl?.let { url -> {
                                         haptic(Haptics.Event.PrimaryAction)
-                                        runCatching {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, url.toUri()).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                            )
-                                        }
+                                        openExternalUrl(context, url)
                                     } },
                                     onShowStartlist = if (day.race?.startlistImportedAt != null) { {
                                         haptic(Haptics.Event.PrimaryAction)

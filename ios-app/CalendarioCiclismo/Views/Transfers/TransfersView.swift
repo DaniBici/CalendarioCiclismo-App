@@ -99,9 +99,16 @@ struct TransfersView: View {
     // MARK: - Lista principal
 
     private func marketList(_ data: TransfersLogic.MarketData) -> some View {
+        let categoryByTeamId = Dictionary(uniqueKeysWithValues: data.seasons.compactMap { season in
+            season.category.map { (season.teamId, $0) }
+        })
         let baseFeed = activeFeed == .signings
-            ? TransfersLogic.confirmedFeed(data.transfers)
-            : TransfersLogic.renewalFeed(data.transfers)
+            ? TransfersLogic.confirmedFeed(
+                data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+            )
+            : TransfersLogic.renewalFeed(
+                data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+            )
         let feed = TransfersLogic.limitedFeed(baseFeed)
         let feedByDay = TransfersLogic.groupByDay(feed)
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)

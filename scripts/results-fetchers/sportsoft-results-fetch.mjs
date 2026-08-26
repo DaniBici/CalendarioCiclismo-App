@@ -32,7 +32,17 @@ const officialRank = (v) => {
   const rank = integer(v);
   return rank != null && rank > 0 && rank < 1000 ? rank : null;
 };
-const time = (v) => { const m = clean(v).match(/^(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?$/); return m ? `${Number(m[1])}:${m[2]}:${m[3]}` : null; };
+// SportSoft usa ambos relojes: H:MM:SS en ruta y M:SS.cc en prólogos/CRI.
+// Conservar las centésimas aquí permite al render de CRI calcular el salto al
+// segundo correcto; la presentación pública las trunca después.
+function time(v, { preserveFraction = false } = {}) {
+  const text = clean(v);
+  let match = text.match(/^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/);
+  if (match && Number(match[2]) < 60 && Number(match[3]) < 60) return `${Number(match[1])}:${match[2]}:${preserveFraction ? match[3] : match[3].split('.')[0]}`;
+  match = text.match(/^(\d+):(\d{2}(?:\.\d+)?)$/);
+  if (match && Number(match[2]) < 60) return `${Number(match[1])}:${preserveFraction ? match[2] : match[2].split('.')[0]}`;
+  return null;
+}
 const gap = (v) => { const t = clean(v).replace(/^0+(?=\d)/, '').replace(/\.0$/, ''); return /^\+\d+(?::\d{2}){0,2}$/.test(t) ? t : null; };
 const irm = (...v) => { const t = v.map(clean).join(' ').toUpperCase(); return /\bDNS\b/.test(t) ? 'DNS' : /\bDSQ\b|\bDQ\b/.test(t) ? 'DSQ' : /\bOTL\b/.test(t) ? 'OTL' : /\bDNF\b/.test(t) ? 'DNF' : null; };
 
@@ -43,19 +53,21 @@ export function officialPdfLinksFromHtml(html) {
     const label = clean(match[2]);
     const stage = label.match(/^stage\s+(\d+)$/i);
     if (stage) links.push({ stageNumber: Number(stage[1]), kind: 'stage', href: match[1] });
+    else if (/^prologue$/i.test(label)) links.push({ stageNumber: 0, kind: 'stage', href: match[1] });
     else {
       const after = label.match(/^after\s+stage\s+(\d+)$/i);
       if (after) links.push({ stageNumber: Number(after[1]), kind: 'after-stage', href: match[1] });
+      else if (/^after\s+prologue$/i.test(label)) links.push({ stageNumber: 0, kind: 'after-stage', href: match[1] });
     }
   }
   return links;
 }
 
 function pdfGap(value) {
-  const m = clean(value).match(/^(\d{2}):(\d{2}):(\d{2})$/);
+  const m = clean(value).match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
   if (!m) return null;
   const seconds = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
-  return gapFromTenths(seconds * 10);
+  return gapFromCentiseconds(seconds * 100);
 }
 
 // El listado de etapa de SportSoft deja vacías las columnas Time/Gap de cada
@@ -69,7 +81,7 @@ export function officialStageRowsFromPdfText(text) {
     const line = clean(rawLine);
     if (/OFFICIAL RESULTS LIST/i.test(line)) active = true;
     if (!active) continue;
-    if (/POINTS CLASSIFICATION|MOUNTAINS CLASSIFICATION|U23 riders standing|STAGE TEAMS|Race configuration/i.test(line)) { flush(); active = false; continue; }
+    if (/POINTS CLASSIFICATION|MOUNTAINS CLASSIFICATION|U(?:21|23) riders standing|STAGE TEAMS|Race configuration/i.test(line)) { flush(); active = false; continue; }
     const direct = line.match(/^(\d{1,3})\.\s+(\d{1,3})\s+/);
     const rankOnly = line.match(/^(\d{1,3})\.\s+\d{11}\b/);
     const continuation = pendingRank != null ? line.match(/^(\d{1,3})\s+\p{L}/u) : null;
@@ -86,15 +98,24 @@ export function officialStageRowsFromPdfText(text) {
       continue;
     }
     if (!current) continue;
-    const values = line.match(/(\d{2}:\d{2}:\d{2})\s+(\d{2}:\d{2}:\d{2})(?:\s|$)/);
+    const values = line.match(/(\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(?:\s|$)/);
     if (values) { current.timeText = time(values[1]); current.gapText = pdfGap(values[2]); }
   }
   flush();
-  if (!rows.length || rows[0].rank !== 1 || rows.some((row, index) => row.rank !== index + 1 || !row.bib)) throw new Error('PDF SportSoft: puestos o dorsales incompletos en la clasificación de etapa');
+  // El prólogo de West Bohemia 2026 publicó un empate exacto en el puesto 90
+  // (90, 90, 92). Es numeración de competición válida: tras N filas, el puesto
+  // puede repetirse por empate o avanzar a N+1, pero nunca retroceder ni saltar
+  // por delante de la posición física de la fila.
+  const invalid = rows.find((row, index) => !row.bib
+    || !Number.isInteger(row.rank)
+    || row.rank < 1
+    || (index > 0 && row.rank !== rows[index - 1].rank && row.rank !== index + 1));
+  if (!rows.length || rows[0].rank !== 1 || invalid) throw new Error('PDF SportSoft: puestos o dorsales incompletos en la clasificación de etapa');
   return rows;
 }
 
 export function classificationFromOfficialStagePdf(code, stageNumber, pdfText, sourceRows) {
+  const individualTimeTrial = stageNumber === 0;
   const sourceByBib = new Map(sourceRows.map((row) => [clean(row.RaceNo), row]));
   let groupGap = '+0';
   const rows = officialStageRowsFromPdfText(pdfText).map((official) => {
@@ -103,12 +124,14 @@ export function classificationFromOfficialStagePdf(code, stageNumber, pdfText, s
     if (official.rank === 1 && !official.timeText) throw new Error('PDF SportSoft: el ganador no tiene tiempo oficial');
     if (official.gapText) groupGap = official.gapText;
     const sameOrGap = official.rank === 1 ? null : groupGap;
+    const absoluteTime = individualTimeTrial ? time(source.Time, { preserveFraction: true }) : null;
+    if (individualTimeTrial && !absoluteTime) throw new Error(`PDF SportSoft: CRI sin tiempo de dorsal ${official.bib} en la fuente de resultados`);
     return {
       rank: official.rank, rankText: String(official.rank), bib: official.bib,
       riderDisplay: clean(source.Name) || null, teamName: clean(source.Club) || null,
-      resultValue: official.rank === 1 ? official.timeText : sameOrGap,
-      timeText: official.rank === 1 ? official.timeText : null,
-      gapText: sameOrGap, points: /^-?\d+(?:[.,]\d+)?$/.test(clean(source.SprintPoints)) ? Number(String(source.SprintPoints).replace(',', '.')) : null,
+      resultValue: individualTimeTrial ? absoluteTime : (official.rank === 1 ? official.timeText : sameOrGap),
+      timeText: individualTimeTrial ? absoluteTime : (official.rank === 1 ? official.timeText : null),
+      gapText: individualTimeTrial ? null : sameOrGap, points: /^-?\d+(?:[.,]\d+)?$/.test(clean(source.SprintPoints)) ? Number(String(source.SprintPoints).replace(',', '.')) : null,
       irm: null,
     };
   });
@@ -120,7 +143,7 @@ export function afterStagePages(text, heading) {
   const pages = String(text).split('\f');
   const start = pages.findIndex((page) => heading.test(page));
   if (start < 0) return [];
-  const stop = /\b(?:POINTS|MOUNTAIN|U23|CZECH|GENERAL TEAMS)\b[\s\S]{0,80}\bAFTER Stage\b/i;
+  const stop = /\b(?:POINTS|MOUNTAIN|U(?:21|23)|CZECH|GENERAL TEAMS)\b[\s\S]{0,80}\bAFTER (?:Stage|Prologue)\b/i;
   const out = [];
   for (let i = start; i < pages.length && (i === start || !stop.test(pages[i])); i++) out.push(pages[i]);
   return out;
@@ -166,11 +189,15 @@ function classificationFromAfterPdfRows(code, stageNumber, kind, sourceByBib, pd
   const spec = { gc: ['stage', 'Stage General Classification'], points: ['overall', 'Overall Points Classification'], kom: ['overall', 'Overall Mountains Classification'], youth: ['overall', 'Overall Youth Classification'] }[kind];
   return { eventId: eventId(code, stageNumber, kind, spec[0]), classKind: kind, scope: spec[0], eventName: spec[1], isTeamEvent: false, winnerName: rows[0]?.riderDisplay || null, rowCount: rows.length, rows };
 }
+function afterHeading(name, stageNumber) {
+  const suffix = stageNumber === 0 ? 'Prologue' : 'Stage';
+  return new RegExp(`${name}[\\s\\S]{0,80}AFTER ${suffix}`, 'i');
+}
 function teamsFromAfterStagePdf(code, stageNumber, text) {
-  const page = afterStagePages(text, /GENERAL TEAMS[\s\S]{0,80}AFTER Stage/i).join('\n');
+  const page = afterStagePages(text, afterHeading('GENERAL TEAMS', stageNumber)).join('\n');
   const rows = [];
   for (const rawLine of page.split(/\r?\n/)) {
-    const match = clean(rawLine).match(/^(\d{1,3})\.\s+(.+?)\s+(\d{2}:\d{2}:\d{2})\s+(\d{2}:\d{2}:\d{2})$/);
+    const match = clean(rawLine).match(/^(\d{1,3})\.\s+(.+?)\s+(\d+:\d{2}:\d{2}(?:\.\d+)?)\s+(\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/);
     if (!match) continue;
     const rank = Number(match[1]), teamName = match[2], absolute = time(match[3]), groupGap = pdfGap(match[4]);
     rows.push({ rank, rankText: String(rank), bib: null, riderDisplay: teamName, teamName, resultValue: rank === 1 ? absolute : groupGap, timeText: rank === 1 ? absolute : null, gapText: rank === 1 ? null : groupGap, points: null, irm: null });
@@ -180,13 +207,21 @@ function teamsFromAfterStagePdf(code, stageNumber, text) {
 }
 export function classificationsFromOfficialAfterStagePdf(code, stageNumber, pdfText, sourceRows) {
   const sourceByBib = new Map(sourceRows.map((row) => [clean(row.RaceNo), row]));
-  return [
-    classificationFromAfterPdfRows(code, stageNumber, 'gc', sourceByBib, afterIndividualRows(afterStagePages(pdfText, /GENERAL[\s\S]{0,80}AFTER Stage/i), 'time')),
-    classificationFromAfterPdfRows(code, stageNumber, 'points', sourceByBib, afterIndividualRows(afterStagePages(pdfText, /POINTS[\s\S]{0,80}AFTER Stage/i), 'points')),
-    classificationFromAfterPdfRows(code, stageNumber, 'kom', sourceByBib, afterIndividualRows(afterStagePages(pdfText, /MOUNTAIN[\s\S]{0,80}AFTER Stage/i), 'points')),
-    classificationFromAfterPdfRows(code, stageNumber, 'youth', sourceByBib, afterIndividualRows(afterStagePages(pdfText, /U23[\s\S]{0,80}AFTER Stage/i), 'time')),
-    teamsFromAfterStagePdf(code, stageNumber, pdfText),
-  ];
+  const classifications = [];
+  const addIndividual = (kind, heading, metric) => {
+    const pages = afterStagePages(pdfText, afterHeading(heading, stageNumber));
+    // El prólogo de West Bohemia no publica puntos ni montaña. Las secundarias
+    // ausentes se omiten; el caller conserva el fallback de la fuente live.
+    if (!pages.length) return;
+    classifications.push(classificationFromAfterPdfRows(code, stageNumber, kind, sourceByBib, afterIndividualRows(pages, metric)));
+  };
+  addIndividual('gc', 'GENERAL', 'time');
+  addIndividual('points', 'POINTS', 'points');
+  addIndividual('kom', 'MOUNTAIN', 'points');
+  addIndividual('youth', 'U(?:21|23)', 'time');
+  const teamsPages = afterStagePages(pdfText, afterHeading('GENERAL TEAMS', stageNumber));
+  if (teamsPages.length) classifications.push(teamsFromAfterStagePdf(code, stageNumber, pdfText));
+  return classifications;
 }
 
 /** Descubrimiento por etiqueta: ni el orden ni los competitionId son estables entre ediciones. */
@@ -196,6 +231,7 @@ export function competitionsFromRaceHtml(html) {
     const label = clean(m[4]).replace(/\s+\d{2}\.\d{2}\.\d{4}$/, '');
     const stage = label.match(/^stage\s+(\d+)$/i);
     if (stage) out.push({ raceCode: m[2], competitionCode: m[3], stageNumber: Number(stage[1]), label });
+    else if (/^prologue$/i.test(label)) out.push({ raceCode: m[2], competitionCode: m[3], stageNumber: 0, label: 'Prologue' });
     else if (/^general classification$/i.test(label)) out.push({ raceCode: m[2], competitionCode: m[3], stageNumber: null, label: 'GENERAL CLASSIFICATION' });
   }
   return [...new Map(out.map((x) => [`${x.competitionCode}:${x.stageNumber ?? 'gc'}`, x])).values()];
@@ -214,16 +250,16 @@ export function rowsFromCompetitionHtml(html) {
   return rows;
 }
 
-function result(row, rankKey, pointsKey = null, withTime = false) {
+function result(row, rankKey, pointsKey = null, withTime = false, preserveFraction = false) {
   const rankText = clean(row[rankKey]), code = irm(rankText, row.Time, row.Ovl_Behind), rank = officialRank(rankText);
   if (!rank && !code) return null;
   const value = pointsKey ? clean(row[pointsKey]) : clean(row.Time);
   return { rank: rank || null, rankText: rank ? String(rank) : code, bib: clean(row.RaceNo) || null, riderDisplay: clean(row.Name) || null,
-    teamName: clean(row.Club) || null, resultValue: value || clean(row.Ovl_Behind) || null, timeText: withTime && !pointsKey ? time(row.Time) : null,
+    teamName: clean(row.Club) || null, resultValue: value || clean(row.Ovl_Behind) || null, timeText: withTime && !pointsKey ? time(row.Time, { preserveFraction }) : null,
     gapText: withTime && !pointsKey ? gap(row.Ovl_Behind) : null, points: pointsKey && /^-?\d+(?:[.,]\d+)?$/.test(value) ? Number(value.replace(',', '.')) : null, irm: code };
 }
 export function classificationFromPage(code, stageNumber, pageRows, spec) {
-  const rows = pageRows.map((row) => result(row, spec.rankKey, spec.pointsKey, spec.withTime)).filter(Boolean)
+  const rows = pageRows.map((row) => result(row, spec.rankKey, spec.pointsKey, spec.withTime, stageNumber === 0 && spec.classKind === 'stage')).filter(Boolean)
     .filter((row) => row.rank != null || (spec.classKind === 'stage' && row.irm))
     .filter((row) => spec.classKind === 'stage' || !row.irm)
     .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER));
@@ -254,16 +290,23 @@ const liveRaceUrl = (code) => `${LIVE_BASE}/race/${code}`;
 const liveCompetitionPageUrl = (code, competition) => `${LIVE_BASE}/race/${code}/competition/${competition}`;
 const liveCompetitionUrl = (competition) => `${LIVE_BASE}/ajax/live/competition/${competition}/desktop`;
 
-// SportSoft Live expone el paso de meta con décimas. La etapa se construye solo
+// SportSoft Live expone el paso de meta con décimas o centésimas. La etapa se construye solo
 // con esa lectura, agrupando corredores consecutivos separados por menos de 1 s.
 // La general incorpora bonificaciones y no puede modificar tiempos ni cortes de
 // etapa, tampoco en la primera jornada.
-function tenths(value) {
-  const m = /^(\d+):(\d{2}):(\d{2})(?:\.(\d))?$/.exec(clean(value));
-  return m ? ((Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 10 + Number(m[4] || 0)) : null;
+function centiseconds(value) {
+  const normalized = time(value, { preserveFraction: true });
+  if (!normalized) return null;
+  const parts = normalized.split(':');
+  const secondsPart = parts.pop();
+  const [secondsText, fraction = ''] = secondsPart.split('.');
+  const seconds = Number(secondsText);
+  const minutes = Number(parts.pop());
+  const hours = parts.length ? Number(parts.pop()) : 0;
+  return ((hours * 3600 + minutes * 60 + seconds) * 100) + Number(fraction.padEnd(2, '0').slice(0, 2));
 }
-function gapFromTenths(value) {
-  const seconds = Math.round(value / 10);
+function gapFromCentiseconds(value) {
+  const seconds = Math.round(value / 100);
   if (seconds < 60) return `+${seconds}`;
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -272,7 +315,7 @@ function gapFromTenths(value) {
     ? `+${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
     : `+${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
-function liveRow(row, { previousTenths, groupTenths, winnerTenths }) {
+function liveRow(row, { previousCentiseconds, groupCentiseconds, winnerCentiseconds, individualTimeTrial }) {
   // El endpoint automático mezcla clasificados en meta con corredores todavía
   // situados en el último punto intermedio. Sus puestos parciales vuelven a
   // empezar por 1 y, si se ingieren, duplican rangos de la clasificación final.
@@ -281,34 +324,39 @@ function liveRow(row, { previousTenths, groupTenths, winnerTenths }) {
   const rank = officialRank(row.Ovl_Pos), code = irm(row.FinishStatus, row.Time, row.Ovl_Behind);
   if (!rank && !code) return null;
   const bib = clean(row.RaceNo) || null;
-  const rawTenths = tenths(row.Time);
-  const nextGroupTenths = rawTenths != null && previousTenths != null && rawTenths - previousTenths < 10
-    ? groupTenths : rawTenths;
-  const nextWinnerTenths = winnerTenths ?? nextGroupTenths;
+  const rawCentiseconds = centiseconds(row.Time);
+  const nextGroupCentiseconds = individualTimeTrial
+    ? rawCentiseconds
+    : (rawCentiseconds != null && previousCentiseconds != null && rawCentiseconds - previousCentiseconds < 100
+      ? groupCentiseconds : rawCentiseconds);
+  const nextWinnerCentiseconds = winnerCentiseconds ?? nextGroupCentiseconds;
   let timeText = null, gapText = null;
-  if (rank === 1) {
-    timeText = time(row.Time) || null;
-  } else if (rawTenths != null && nextWinnerTenths != null && nextGroupTenths != null) {
-    const gapTenths = nextGroupTenths - nextWinnerTenths;
+  if (rank === 1 || (individualTimeTrial && rank != null)) {
+    timeText = time(row.Time, { preserveFraction: individualTimeTrial }) || null;
+  } else if (rawCentiseconds != null && nextWinnerCentiseconds != null && nextGroupCentiseconds != null) {
+    const gapCentiseconds = nextGroupCentiseconds - nextWinnerCentiseconds;
     // El render identifica el grupo de cabeza por '+0' y lo presenta como m.t.
     // Los miembros de cualquier grupo posterior heredan el corte de su cabeza.
-    gapText = gapTenths >= 10 ? gapFromTenths(gapTenths) : '+0';
+    gapText = gapCentiseconds >= 100 ? gapFromCentiseconds(gapCentiseconds) : '+0';
   }
   return {
     row: { rank: rank || null, rankText: rank ? String(rank) : code, bib, riderDisplay: clean(row.Name) || null,
       teamName: clean(row.Club) || null, resultValue: rank === 1 ? (clean(row.Time) || clean(row.Ovl_Behind) || null) : (gapText || clean(row.Time) || clean(row.Ovl_Behind) || null),
       timeText, gapText, points: /^-?\d+(?:[.,]\d+)?$/.test(clean(row.SprintPoints)) ? Number(String(row.SprintPoints).replace(',', '.')) : null, irm: code },
-    previousTenths: rawTenths ?? previousTenths, groupTenths: nextGroupTenths, winnerTenths: nextWinnerTenths,
+    previousCentiseconds: rawCentiseconds ?? previousCentiseconds, groupCentiseconds: nextGroupCentiseconds, winnerCentiseconds: nextWinnerCentiseconds,
   };
 }
 export function classificationFromLive(code, stageNumber, liveRows) {
-  let previousTenths = null, groupTenths = null, winnerTenths = null;
+  // Un prólogo es una CRI: no existen grupos de llegada. Cada corredor conserva
+  // su tiempo absoluto y el render deriva la diferencia oficial al segundo.
+  const individualTimeTrial = stageNumber === 0;
+  let previousCentiseconds = null, groupCentiseconds = null, winnerCentiseconds = null;
   const rows = [];
   for (const source of liveRows) {
-    const normalized = liveRow(source, { previousTenths, groupTenths, winnerTenths });
+    const normalized = liveRow(source, { previousCentiseconds, groupCentiseconds, winnerCentiseconds, individualTimeTrial });
     if (!normalized) continue;
     rows.push(normalized.row);
-    ({ previousTenths, groupTenths, winnerTenths } = normalized);
+    ({ previousCentiseconds, groupCentiseconds, winnerCentiseconds } = normalized);
   }
   return { eventId: eventId(code, stageNumber, 'stage', 'stage'), classKind: 'stage', scope: 'stage', eventName: 'Stage Classification',
     isTeamEvent: false, winnerName: rows.find((r) => r.rank === 1)?.riderDisplay || null, rowCount: rows.length, rows };

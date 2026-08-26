@@ -1,0 +1,18 @@
+[Unit]
+Description=Calendario Ciclismo - observar el ránking UCI lunes y martes
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/uci-results-vps.md
+
+[Timer]
+# Barrido horario completo de lunes y martes en horario peninsular. La ejecución
+# del miércoles cubre publicaciones retrasadas. El script no reescribe la tabla
+# cuando DataRide conserva la misma fecha de instantánea.
+OnCalendar=Mon,Tue *-*-* *:00:00 Europe/Madrid
+OnCalendar=Wed *-*-* 08:30:00 Europe/Madrid
+AccuracySec=1min
+RandomizedDelaySec=3min
+Persistent=true
+Unit=cc-uci-team-ranking.service
+
+[Install]
+WantedBy=timers.target
+

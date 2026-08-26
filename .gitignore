@@ -1,5 +1,6 @@
 # Estado local de Claude Code (el repositorio usa Codex).
 .claude/
+.mcp.json
 
 # macOS
 .DS_Store

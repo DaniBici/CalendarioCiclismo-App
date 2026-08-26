@@ -262,7 +262,11 @@ fun ResultsFeedScreen(navController: NavController) {
                                             if (entry.kind == ResultsFeedLogic.Kind.INHOUSE) {
                                                 haptic(Haptics.Event.Navigation)
                                                 navController.navigate(
-                                                    Routes.results(entry.race.id, entry.stageNumber)
+                                                    Routes.results(
+                                                        entry.race.id,
+                                                        entry.stageNumber,
+                                                        suffix = entry.stageSuffix,
+                                                    )
                                                 )
                                             } else {
                                                 val rd = entry.rd ?: return@FeedList
@@ -963,7 +967,10 @@ private fun feedSubtitle(entry: ResultsFeedLogic.FeedEntry): AnnotatedString {
         }
         val stageLabel = when {
             entry.stageNumber == 0 -> LocaleHolder.t("Prólogo", "Prologue")
-            entry.stageNumber != null -> LocaleHolder.t("Etapa ${entry.stageNumber}", "Stage ${entry.stageNumber}")
+            entry.stageNumber != null -> LocaleHolder.t(
+                "Etapa ${entry.stageNumber}${entry.stageSuffix}",
+                "Stage ${entry.stageNumber}${entry.stageSuffix}",
+            )
             else -> ""
         }
         if (stageLabel.isNotEmpty()) {

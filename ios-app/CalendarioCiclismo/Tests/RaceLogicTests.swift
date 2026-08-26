@@ -132,6 +132,17 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertEqual(RaceLogic.broadcastLinkPriority(""), 4)
     }
 
+    func test_prefersNativeApp_matchesSupportedHostsAndSubdomains() {
+        XCTAssertTrue(RaceLogic.prefersNativeApp(URL(string: "https://www.youtube.com/watch?v=abc")!))
+        XCTAssertTrue(RaceLogic.prefersNativeApp(URL(string: "https://play.hbomax.com/sport/abc")!))
+        XCTAssertTrue(RaceLogic.prefersNativeApp(URL(string: "https://x.com/uci")!))
+    }
+
+    func test_prefersNativeApp_rejectsBrowserOnlyAndLookalikeHosts() {
+        XCTAssertFalse(RaceLogic.prefersNativeApp(URL(string: "https://www.rtve.es/play/")!))
+        XCTAssertFalse(RaceLogic.prefersNativeApp(URL(string: "https://notyoutube.com/watch")!))
+    }
+
     // MARK: - typeLabel
 
     func test_typeLabel_nonEmptyForKnownType() {
@@ -314,6 +325,52 @@ final class RaceLogicTests: XCTestCase {
     func test_reviveUrl_returnsYouTubeUrl() {
         let broadcasts = [makeBroadcast(channel: "Canal", url: "https://youtube.com/watch?v=abc")]
         XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
+    }
+
+    func test_reviveUrl_returnsSocialReplayUrl() {
+        let broadcasts = [makeBroadcast(channel: "Social", url: "https://www.instagram.com/reel/abc")]
+        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
+    }
+
+    func test_reviveUrl_usesRemoteFlagForUnknownFutureSource() {
+        let broadcasts = [makeBroadcast(channel: "Pidcock Racing", url: "https://video.example/race", showInRevive: true)]
+        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
+    }
+
+    func test_hasReviveBroadcasts_usesDateFallbackWithoutFinishTime() {
+        let rd = makeRaceDay(dateKey: "2020-01-01", estimatedFinishTimeUtc: nil)
+        let broadcasts = [makeBroadcast(channel: "Pidcock Racing", url: "https://video.example/race", showInRevive: true)]
+        XCTAssertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, rd: rd))
+    }
+
+    func test_shouldShowBroadcastNote_hidesEveryNoteOnceResultsExist() {
+        XCTAssertFalse(RaceLogic.shouldShowBroadcastNote(hasResults: true, isRevive: false, showInRevive: false))
+        XCTAssertFalse(RaceLogic.shouldShowBroadcastNote(hasResults: true, isRevive: true, showInRevive: true))
+    }
+
+    func test_shouldShowBroadcastNote_preservesReviveRuleBeforeResults() {
+        XCTAssertTrue(RaceLogic.shouldShowBroadcastNote(hasResults: false, isRevive: false, showInRevive: false))
+        XCTAssertFalse(RaceLogic.shouldShowBroadcastNote(hasResults: false, isRevive: true, showInRevive: false))
+        XCTAssertTrue(RaceLogic.shouldShowBroadcastNote(hasResults: false, isRevive: true, showInRevive: true))
+    }
+
+    func test_reviveBroadcasts_cancelledDayKeepsOnlyExplicitSelection() {
+        let automatic = makeBroadcast(channel: "Eurosport 1", url: "https://eurosport.example/live")
+        let selected = makeBroadcast(channel: "Canal", url: "https://video.example/selected", showInRevive: true)
+        XCTAssertEqual(
+            RaceLogic.reviveBroadcasts(from: [automatic, selected], isCancelled: true).map(\.id),
+            [selected.id]
+        )
+    }
+
+    func test_reviveUrl_returnsEtbOnDemandWithoutFlag() {
+        let broadcasts = [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/m/txirrindularitza-itzulia-5-12345")]
+        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
+    }
+
+    func test_reviveUrl_rejectsEtbOnLinearHubWithoutFlag() {
+        let broadcasts = [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/ch/etb-1")]
+        XCTAssertNil(RaceLogic.reviveUrl(from: broadcasts))
     }
 
     func test_reviveUrl_returnsShowInReviveUrl() {

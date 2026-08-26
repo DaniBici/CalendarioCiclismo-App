@@ -18,7 +18,7 @@ struct PaywallView: View {
                     guaranteeCard
                     transparencyCard
 
-                    if premium.isLegacyPremiumActive {
+                    if premium.legacyPremiumEntitlementActive {
                         legacyPremiumCard
                     } else {
                         planSelector
@@ -150,8 +150,8 @@ struct PaywallView: View {
             Text(LocaleService.t("Eres Fundador", "You are a Founder"))
                 .font(.headline)
             Text(LocaleService.t(
-                "Tu Premium anterior no se convertirá ni volverá a cobrarse. Cuando termine podrás hacerte Amigo si quieres seguir contribuyendo.",
-                "Your previous Premium plan will not be converted or charged again. When it ends, you can become a Friend if you wish to continue supporting the project."
+                "Tu Premium sigue activo hasta su vencimiento y no volverá a renovarse. Cuando termine podrás hacerte Amigo. Mientras tanto, si quieres seguir apoyando el proyecto, puedes hacer una aportación puntual.",
+                "Your Premium remains active until it expires and will not renew again. Once it ends, you can become a Friend. In the meantime, if you want to keep supporting the project, you can make a one-time contribution."
             ))
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -260,10 +260,15 @@ struct PaywallView: View {
     }
 
     private var legalText: some View {
-        Text(LocaleService.t(
-            "La membresía se renueva automáticamente al precio indicado hasta que la canceles desde tu cuenta de Apple. Todas las funciones permanecen gratuitas.",
-            "The membership renews automatically at the displayed price until you cancel it from your Apple account. All features remain free."
-        ))
+        Text(premium.legacyPremiumEntitlementActive
+             ? LocaleService.t(
+                "Las aportaciones puntuales se cobran una sola vez. Tu Premium anterior conserva su vigencia ya pagada y no se renovará de nuevo.",
+                "One-time contributions are charged only once. Your previous Premium keeps its already-paid validity and will not renew again."
+             )
+             : LocaleService.t(
+                "La membresía se renueva automáticamente al precio indicado hasta que la canceles desde tu cuenta de Apple. Todas las funciones permanecen gratuitas.",
+                "The membership renews automatically at the displayed price until you cancel it from your Apple account. All features remain free."
+             ))
         .font(.caption2)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)

@@ -7,9 +7,69 @@
 - **Guardado seguro en `saveRaceDay` (`js/panel.js`):** leer IDs antiguas → `INSERT` nuevas (UUIDs frescas) → `DELETE` antiguas por ID. Nunca `DELETE` antes del `INSERT` (si la INSERT falla, se pierden los datos). Mismo patrón para `assets`.
 - **Canal opcional al guardar:** descartar solo filas completamente vacías. Un canal vacío con solo hora o nota es válido ("Por confirmar").
 
-## Hosts nativos (no SFSafariViewController/CustomTabs)
+## Automatización desde el VPS
 
-`youtube.com`, `youtu.be`, `hbomax.com`, `play.max.com` → abrir con `UIApplication.shared.open` (iOS) / `Intent.ACTION_VIEW` (Android). Añadir host nuevo → actualizar `prefersNativeApp` en iOS **y** Android.
+Fuentes oficiales públicas verificadas el 2026-08-25:
+
+- HBO Max: las páginas SSR de deportes y ciclismo exponen UUID, título y
+  `eventScheduleDates.startDate` UTC sin login. La reproducción sí requiere cuenta,
+  pero la captación de programación no debe almacenar una sesión personal.
+- RTVE: programación pública de Teledeporte, La 2 y La 1, con hora peninsular y
+  enlace. En La Vuelta se conserva una sola fila `TDP / RTVE Play` desde el inicio
+  de Teledeporte y los cambios posteriores se expresan en `note`, por ejemplo
+  `Pasa a La 2 a las 16:15.`. No se crean filas separadas para La 1 o La 2.
+  A partir de meta estimada +90 minutos, el VPS busca la etapa íntegra en el
+  catálogo público de RTVE Play. Cuando la encuentra, esa fila pasa a `RTVE`,
+  recibe el enlace específico, `showInRevive=true` y `automationLocked=true`.
+- EITB: programación pública de siete días y endpoints HTML por canal/fecha. Puede
+  automatizar hora y canal; un deep-link no inequívoco queda en revisión.
+- Sporza: páginas estables por ID y texto editorial de hora/canal. Las altas empiezan
+  revisadas; una emisión ya vinculada puede actualizarse automáticamente cuando la
+  página declara de forma explícita la nueva hora y dos observaciones coinciden.
+
+La automatización necesita tablas separadas de procedencia/vínculo y auditoría. Una
+fila solo puede darse de alta automáticamente con host oficial, fecha, hora, canal,
+territorio y jornada inequívocos. Las actualizaciones operan únicamente sobre campos
+marcados como gestionados, con concurrencia optimista: si la fila ya no coincide con
+el último valor aplicado, se interpreta como edición manual y pasa a revisión.
+
+HBO Max crea en una transacción la pareja `Eurosport (HBO Max)`/`EUROPA` y
+`TNT Sports (HBO Max)`/`UK_IE`, con la misma hora. Dos observaciones iguales separadas
+10–15 minutos confirman un cambio. Nunca borrar automáticamente una emisión que
+desaparece de la fuente; marcarla como ausente y revisar. Toda escritura registra
+fuente, URL, parser, hash, evidencia de matching y valores anterior/posterior. El
+rollback solo se aplica si la fila continúa igual al estado escrito por el sistema.
+La nota `La Montonera al terminar.` no se infiere: solo se añade a `EUROPA` cuando
+el catálogo contiene un evento independiente de La Montonera para la misma fecha,
+carrera y etapa, limitado a Giro, Tour, La Vuelta, Mundial de ruta, Milán-San
+Remo, Tour de Flandes y París-Roubaix masculinos. Su ausencia elimina únicamente
+esa frase y conserva otras notas.
+
+El servicio y su auditoría privada se validaron en sombra y HBO Max/RTVE operan en
+modo de aplicación desde el 2026-08-25. EITB se incorporará bajo coincidencia
+inequívoca y Sporza solo para
+actualizaciones previamente vinculadas. Servicio, usuario y rol de base de datos
+separados del watcher de resultados.
+
+## Hosts con app nativa preferida
+
+`youtube.com`, `youtu.be`, `hbomax.com`, `play.max.com`, `x.com`, `twitter.com` → intentar primero la app instalada. Sin app receptora, abrir siempre dentro de Calendario Ciclismo mediante `SFSafariViewController` (iOS) o Custom Tabs (Android). iOS usa `.universalLinksOnly`; Android exige una actividad que no sea navegador. Añadir host nuevo → actualizar `prefersNativeApp` en iOS **y** Android.
+
+## Fuentes automáticas
+
+El VPS observa HBO Max, RTVE, EITB y Sporza. HBO Max, RTVE y Sporza tienen
+escritura; EITB usa la parrilla lineal y permanece en sombra hasta disponer de
+corroboración ETB ON para altas y diferencias de horario. Sporza separa la hora
+deportiva del calendario de la hora editorial de emisión y solo acepta esta
+última cuando la página oficial declara también el canal. EITB no escribe sin
+deep-link de ETB ON y Sporza guarda la ruta estable `~matchId` de la etapa.
+Los enlaces `https://etbon.eus/m/...` se consideran `Revive` automáticamente en
+web, Android e iOS; los hubs `/ch/` no. HBO Max y las redes sociales con vídeo
+persistente también son Revive por tipo de enlace. `broadcasts.showInRevive=true`
+es la regla remota autoritativa para RTVE, Eurovision Sport y cualquier fuente
+presente o futura que no pueda inferirse por URL. El sincronizador acepta
+`reviveCapable=true` en una observación y lo materializa en `showInRevive` al
+crear o actualizar la emisión; nunca retira una marca Revive existente.
 
 ## Embed YouTube en web (`broadcasts.embeddable`)
 
@@ -57,6 +117,8 @@ Filtro estricto por TZ del usuario:
 ### Apps iOS/Android (`RaceLogic.filterBroadcastsByRegion`)
 
 Por defecto: `ALL + ES + EUROPA`. La preferencia regional del usuario amplía ese conjunto y es gratuita desde 4.3. Ver `docs/memory/i18n-region.md`.
+
+Jornada conserva además la lista completa sin filtrar para el selector «Todas». El modo regional es el estado inicial; «Todas» muestra las emisiones restantes y añade un badge territorial a toda emisión restringida, incluidas las que ya pertenecían a la región elegida. `ALL` no lleva badge. La web aplica la misma regla al activar su selector existente. Los badges traducen sus códigos de presentación sin alterar los valores almacenados: en castellano, `UK_IE` → `GB / IRL` y `SCANDI` → `ESCANDI`; en inglés, `EUROPA` → `EUROPE`, `UK_IE` → `UK / IRL` y `NORTEAM` → `NORTH AM.`.
 
 ### Reglas al modificar
 

@@ -207,6 +207,7 @@ struct StageDetailView: View {
     @State private var quickLookURL: URL?
     @State private var offlineAlert: OfflineAccessAlert?
     @State private var guideExpanded = false
+    @State private var showAllBroadcasts = false
     @State private var actionStripAtStart = true
     @State private var actionStripAtEnd = false
     private let network  = NetworkMonitor.shared
@@ -217,7 +218,7 @@ struct StageDetailView: View {
     var body: some View {
         Group {
             if viewModel.isLoading || (viewModel.raceDay == nil && viewModel.error == nil) {
-                LoadingView()
+                LoadingView(branded: true)
             } else if let error = viewModel.error {
                 ErrorView(message: error) {
                     Task { await viewModel.load(raceDayId: raceDayId) }
@@ -462,7 +463,7 @@ struct StageDetailView: View {
     @ViewBuilder
     private func guideRowView(_ row: GuideRow) -> some View {
         let timeStr = row.timeUtc.flatMap { DateFormatting.formatTimeLocal($0) }
-        return HStack(spacing: 10) {
+        HStack(spacing: 10) {
             HStack(spacing: 1) {
                 Text(timeStr ?? "—")
                     .font(.callout.weight(.semibold))
@@ -535,10 +536,8 @@ struct StageDetailView: View {
             // por hora)? Si lo están, la GC del día los recoge → no se muestra
             // "Así está la carrera" (espejo de `_currentResultsAvailable`).
             let currentResultsAvailable = viewModel.hasInhouseResults
-                || RaceLogic.shouldShowResultsDetail(rd: rd, race: race)
             let showPrevInhouse = viewModel.prevHasInhouse && !currentResultsAvailable
-            let showPrevExternal = RaceLogic.shouldShowPreviousResults(prevRd: prevRd, currentRd: rd, race: race)
-            if viewModel.areInhouseGatesResolved && (showPrevExternal || showPrevInhouse) {
+            if viewModel.areInhouseGatesResolved && showPrevInhouse {
                 ResultsButtonsCard(
                     title: localeService.t("Así está la carrera", "Race standings"),
                     extUrlA: RaceLogic.buildExtUrlA(race: race, stageNumber: prevRd.stageNumber),
@@ -562,12 +561,13 @@ struct StageDetailView: View {
     private func resultsSection(_ rd: RaceDay) -> some View {
         let race = viewModel.race
         if let race {
-            let showResults = RaceLogic.shouldShowResultsDetail(rd: rd, race: race)
-            if viewModel.areInhouseGatesResolved && (showResults || viewModel.hasInhouseResults) {
+            if viewModel.areInhouseGatesResolved && viewModel.hasInhouseResults {
                 ResultsButtonsCard(
                     title: localeService.t("Resultados", "Results"),
-                    extUrlA: RaceLogic.buildExtUrlA(race: race, stageNumber: rd.stageNumber),
-                    extUrlB: RaceLogic.buildExtUrlB(race: race, stageNumber: rd.stageNumber, stageSuffix: rd.stageSuffix),
+                    // Una cancelación conserva el CTA nativo con su aviso, pero
+                    // no genera enlaces externos de resultados inexistentes.
+                    extUrlA: rd.isCancelledDay ? nil : RaceLogic.buildExtUrlA(race: race, stageNumber: rd.stageNumber),
+                    extUrlB: rd.isCancelledDay ? nil : RaceLogic.buildExtUrlB(race: race, stageNumber: rd.stageNumber, stageSuffix: rd.stageSuffix),
                     inhouseRoute: viewModel.hasInhouseResults
                         ? ResultsRoute(raceId: race.id, stageNumber: viewModel.resultsStageNumber, stageSuffix: rd.stageSuffix)
                         : nil,
@@ -582,13 +582,21 @@ struct StageDetailView: View {
         // Cancelada → nada de emisión EN DIRECTO (no se corrió), pero SÍ el
         // "Revive" si existe: una etapa cancelada en carrera puede tener vídeo de
         // lo que sí se disputó (Qinghai E6 y su broadcast showInRevive curado).
-        // Además no espera al T+30: ya no habrá directo que esperar.
-        let cancelledRevive = rd.isCancelledDay
-            && !RaceLogic.reviveBroadcasts(from: viewModel.broadcasts).isEmpty
+        let cancelledReviveBroadcasts = rd.isCancelledDay
+            ? RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: true)
+            : []
+        let cancelledRevive = !cancelledReviveBroadcasts.isEmpty
         let isRevive = cancelledRevive || RaceLogic.hasReviveBroadcasts(viewModel.broadcasts, rd: rd)
+        let regionalBroadcasts = rd.isCancelledDay ? [] : viewModel.broadcasts
+        let completeBroadcasts = rd.isCancelledDay ? [] : viewModel.allBroadcasts
+        let regionalIds = Set(regionalBroadcasts.map(\.id))
+        let hasHiddenBroadcasts = completeBroadcasts.contains { !regionalIds.contains($0.id) }
+        let selectedBroadcasts = showAllBroadcasts ? completeBroadcasts : regionalBroadcasts
         let visibleBroadcasts = isRevive
-            ? RaceLogic.reviveBroadcasts(from: viewModel.broadcasts)
-            : (rd.isCancelledDay ? [] : viewModel.broadcasts)
+            ? (rd.isCancelledDay
+                ? cancelledReviveBroadcasts
+                : RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: false))
+            : selectedBroadcasts
         let race = viewModel.race
         let sectionTitle: String = {
             if isRevive {
@@ -599,28 +607,55 @@ struct StageDetailView: View {
             return LocaleService.t("Retransmisión", "Broadcast")
         }()
 
-        if !visibleBroadcasts.isEmpty || (!isRevive && rd.tvStatus == "pending") {
+        if !visibleBroadcasts.isEmpty || hasHiddenBroadcasts || (!isRevive && rd.tvStatus == "pending") {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Text(sectionTitle)
                         .font(.headline)
                         .accessibilityAddTraits(.isHeader)
 
-                    // Mismo chip de Hoy. En Jornada se mantiene visible incluso
-                    // si ya hay un canal provisional o Live texto.
                     if !isRevive && rd.tvStatus == "pending" {
                         TVBadge(tvStatus: "pending", broadcasts: [])
                     }
+
+                    Spacer()
+
+                    if hasHiddenBroadcasts && !isRevive {
+                        Button {
+                            showAllBroadcasts.toggle()
+                        } label: {
+                            Text(showAllBroadcasts
+                                 ? localeService.t("Mi región", "My region")
+                                 : localeService.t("Todas", "All"))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule().fill(showAllBroadcasts
+                                        ? Color.accentColor.opacity(0.14)
+                                        : Color.secondary.opacity(0.10))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(showAllBroadcasts ? Color.accentColor : Color.secondary)
+                    }
+                }
+
+                if visibleBroadcasts.isEmpty && hasHiddenBroadcasts && !showAllBroadcasts {
+                    Text(localeService.t("No hay TV en tu región", "No TV in your region"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
                 ForEach(visibleBroadcasts) { broadcast in
-                    BroadcastRowView(broadcast: broadcast, isRevive: isRevive) { url in
-                        if isRevive {
-                            // Revive: abrir la app externa (YouTube, HBO Max…)
-                            UIApplication.shared.open(url)
-                        } else {
-                            tapBroadcast(url: url)
-                        }
+                    BroadcastRowView(
+                        broadcast: broadcast,
+                        isRevive: isRevive,
+                        hasResults: viewModel.hasActualResults,
+                        showsRegion: showAllBroadcasts && !isRevive
+                    ) { url in
+                        tapBroadcast(url: url)
                     }
                 }
             }
@@ -995,6 +1030,13 @@ struct StageDetailView: View {
                 disableAncestorBounceIfNeeded()
             }
 
+            override func willMove(toSuperview newSuperview: UIView?) {
+                if newSuperview == nil {
+                    restoreBounce()
+                }
+                super.willMove(toSuperview: newSuperview)
+            }
+
             func disableAncestorBounceIfNeeded() {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
@@ -1015,8 +1057,6 @@ struct StageDetailView: View {
                     }
                 }
             }
-
-            deinit { restoreBounce() }
 
             private func restoreBounce() {
                 guard let scrollView else { return }
@@ -1145,18 +1185,14 @@ struct StageDetailView: View {
 
     /// Abre una URL externa (web oficial, broadcast TV, live_text, inscritos web).
     /// Sin red, siempre modal "Enlace externo". Si el host tiene app nativa
-    /// preferida (X, YouTube, HBO Max…) se delega a `UIApplication.shared.open`
-    /// para que iOS enrute vía universal links.
+    /// preferida (X, YouTube, HBO Max…) intenta su enlace universal. Si la app
+    /// correspondiente no está instalada, permanece en el navegador interno.
     private func tapExternal(url: URL) {
         if !network.isOnline {
             offlineAlert = .externalLinkOffline
             return
         }
-        if prefersNativeApp(url: url) {
-            UIApplication.shared.open(url)
-        } else {
-            safariURL = url
-        }
+        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
     }
 
     /// Tap en el chip "Perfil" cuando la jornada tiene perfil SVG web. Con red,
@@ -1183,28 +1219,14 @@ struct StageDetailView: View {
         tapExternal(url: url)
     }
 
-    /// Abre el enlace de una retransmisión en vivo. YouTube y HBO Max se
-    /// delegan a `UIApplication.shared.open` para que iOS enrute al app
-    /// nativo vía universal links cuando está instalado; el resto usa
-    /// `SFSafariViewController` in-app.
+    /// Abre una retransmisión en su app nativa cuando está instalada; si el
+    /// enlace universal no tiene receptor, usa `SFSafariViewController` in-app.
     private func tapBroadcast(url: URL) {
         if !network.isOnline {
             offlineAlert = .externalLinkOffline
             return
         }
-        if prefersNativeApp(url: url) {
-            UIApplication.shared.open(url)
-        } else {
-            safariURL = url
-        }
-    }
-
-    /// YouTube, HBO Max y X deben abrirse en su app nativa si está instalada.
-    private func prefersNativeApp(url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return host.contains("youtube.com") || host.contains("youtu.be") ||
-            host.contains("hbomax.com") || host.contains("play.max.com") ||
-            host.contains("x.com") || host.contains("twitter.com")
+        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
     }
 
     private func assetIcon(for type: String?) -> String {
@@ -1303,6 +1325,8 @@ struct ResultsButtonsCard: View {
 struct BroadcastRowView: View {
     let broadcast: Broadcast
     var isRevive: Bool = false
+    var hasResults: Bool = false
+    var showsRegion: Bool = false
     /// Callback para abrir la URL externa. Delegado al padre para centralizar
     /// la lógica de red/offline y mostrar modales cuando corresponda.
     let onTap: (URL) -> Void
@@ -1316,10 +1340,29 @@ struct BroadcastRowView: View {
         } else {
             parts.append(channel)
         }
-        if (!isRevive || broadcast.showInRevive == true), let note = broadcast.note, !note.isEmpty {
+        if RaceLogic.shouldShowBroadcastNote(
+            hasResults: hasResults,
+            isRevive: isRevive,
+            showInRevive: broadcast.showInRevive == true
+        ), let note = broadcast.note, !note.isEmpty {
             parts.append(note)
         }
         return parts.joined(separator: ". ")
+    }
+
+    private var regionLabel: String? {
+        guard showsRegion, let country = broadcast.country, country != "ALL" else { return nil }
+        if LocaleService.isEnglish {
+            return [
+                "EUROPA": "EUROPE",
+                "UK_IE": "UK / IRL",
+                "NORTEAM": "NORTH AM.",
+            ][country] ?? country
+        }
+        return [
+            "UK_IE": "GB / IRL",
+            "SCANDI": "ESCANDI",
+        ][country] ?? country
     }
 
     var body: some View {
@@ -1333,19 +1376,38 @@ struct BroadcastRowView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 0) {
+                HStack(spacing: 6) {
                     Text(broadcast.channel ?? "Canal")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
+                    if let regionLabel {
+                        Text(regionLabel)
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .textCase(.uppercase)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.12))
+                            .foregroundStyle(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+
                     if !isRevive, let time = broadcast.startTimeLocal {
-                        Text("  ·  \(time)")
+                        Text("·")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(time)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                if (!isRevive || broadcast.showInRevive == true), let note = broadcast.note, !note.isEmpty {
+                if RaceLogic.shouldShowBroadcastNote(
+                    hasResults: hasResults,
+                    isRevive: isRevive,
+                    showInRevive: broadcast.showInRevive == true
+                ), let note = broadcast.note, !note.isEmpty {
                     Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1355,7 +1417,7 @@ struct BroadcastRowView: View {
             Spacer()
 
             if url != nil {
-                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "chevron.right")
                     .foregroundStyle(colorScheme == .dark ? .white : Color.accentColor)
             }
         }

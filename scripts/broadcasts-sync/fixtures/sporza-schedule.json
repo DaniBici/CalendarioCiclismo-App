@@ -1,0 +1,45 @@
+{
+  "componentType": "calendar",
+  "componentProps": {
+    "date": "2026-08-25",
+    "data": [
+      {
+        "label": "Wielrennen",
+        "items": [
+          {
+            "componentProps": {
+              "matchId": 3305262,
+              "sport": "cycling",
+              "status": "NOT_STARTED",
+              "ariaLabel": "Vuelta a España Etappe 4, Bergetappe, vandaag om 14:53",
+              "url": "https://sporza.be/nl/sport/wielrennen/~3305262/",
+              "sportApiUrl": "https://api.sporza.be/web/content/cycling/matches/3305262",
+              "competitionName": "Vuelta a España",
+              "stage": "Etappe 4",
+              "startLabel": "14:53 Andorra la Vella"
+            }
+          },
+          {
+            "componentProps": {
+              "matchId": 3305262,
+              "sport": "cycling",
+              "competitionName": "Vuelta a España"
+            }
+          }
+        ]
+      },
+      {
+        "label": "Voetbal",
+        "items": [
+          {
+            "componentProps": {
+              "matchId": 999,
+              "sport": "soccer",
+              "competitionName": "Competición ajena"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, _toSeconds, _pressToSeconds }
+import { fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, RESULTS_SOURCE, _toSeconds, _pressToSeconds }
   from '../../scripts/results-fetchers/uci-results-fetch.mjs';
+
+describe('contrato del fetcher UCI', () => {
+  it('identifica explícitamente el payload como DataRide', () => {
+    expect(RESULTS_SOURCE).toBe('uci');
+  });
+});
 
 // Filas en la forma que produce normalizeRow (solo los campos que tocan estas funciones).
 const row = (rank, gapText, extra = {}) => ({

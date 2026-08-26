@@ -15,8 +15,10 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "4.3.0"
-    CURRENT_PROJECT_VERSION: 1276
+    MARKETING_VERSION: "4.3.3"
+    CURRENT_PROJECT_VERSION: 1308
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
 
 packages:
   Supabase:
@@ -49,19 +51,9 @@ targets:
           # referencias a archivos inexistentes y el build falla con "The file
           # logo_….webp couldn't be opened because there is no such file".
           - BundledLogos
-      # Logos empaquetados: carpeta gitignored que se rellena en local/CI con
-      # `node scripts/fetch-logos.mjs`. Como REFERENCIA DE CARPETA, Xcode
-      # empaqueta lo que haya en disco al compilar (o nada si está vacía → los
-      # logos se cargan de red), sin listar archivos concretos en el proyecto.
       - path: CalendarioCiclismo/BundledLogos
         type: folder
         buildPhase: resources
-      # GoogleService-Info.plist (gitignored). Se referencia SIEMPRE de forma
-      # explícita para que sobreviva a `setup.sh`/xcodegen aunque el archivo no
-      # exista en disco en el momento de generar (lo materializa
-      # ci_pre_xcodebuild.sh en Xcode Cloud / setup local). Sin esto, regenerar
-      # el proyecto sin el plist presente lo deja fuera del bundle → crash en
-      # el arranque (splash colgado).
       - path: CalendarioCiclismo/GoogleService-Info.plist
         optional: true
       - path: IconComposer/AppIcon.icon
@@ -78,9 +70,6 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: "public.app-category.sports"
-        # Scheme propio para deep links (`calendariociclismo://...`): notificaciones
-        # push, enlaces internos y verificación local con `simctl openurl`. Lo
-        # consume `NotificationManager.DeepLink.fromURL` + `onOpenURL` de la app.
         CFBundleURLTypes:
           - CFBundleURLName: app.calendariociclismo
             CFBundleURLSchemes:
@@ -122,8 +111,8 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconFounder AppIconFriend"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: "4.3.0"
-        CURRENT_PROJECT_VERSION: 1276
+        MARKETING_VERSION: "4.3.3"
+        CURRENT_PROJECT_VERSION: 1308
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         CODE_SIGN_ENTITLEMENTS: CalendarioCiclismo/CalendarioCiclismo.entitlements
@@ -200,8 +189,6 @@ targets:
       - path: CalendarioCiclismo/Tests
     settings:
       base:
-        # Sin esto, xcodebuild no puede firmar el bundle de tests ("does not
-        # have an Info.plist") y la suite no corre fuera de Xcode.
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo.tests
         SWIFT_VERSION: "6.0"

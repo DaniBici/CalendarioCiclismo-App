@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { fileURLToPath } from 'node:url';
+
 /**
  * Sincroniza la instantánea vigente del ránking UCI de equipos.
  *
@@ -372,6 +374,23 @@ async function replaceSnapshot(client, rows) {
   }
 }
 
+export function snapshotIsCurrent(rows, storedDates) {
+  const fetchedDates = new Map();
+  for (const row of rows) fetchedDates.set(row.gender, row.rankingDate);
+  return fetchedDates.size > 0 && [...fetchedDates].every(
+    ([gender, date]) => storedDates.get(gender) === date,
+  );
+}
+
+async function loadStoredDates(client) {
+  const { rows } = await client.query(
+    `select gender, max("rankingDate")::text as "rankingDate"
+     from public.uci_team_rankings
+     group by gender`,
+  );
+  return new Map(rows.map((row) => [row.gender, row.rankingDate]));
+}
+
 async function main() {
   const seasons = await fetchJson(`/GetDisciplineSeasons/?disciplineId=${DISCIPLINE_ID}`);
   const season = currentSeason(seasons);
@@ -413,7 +432,10 @@ async function main() {
         unmatched.map((row) => `- ${row.gender} #${row.rank} ${row.sourceName} (${row.matchIssue})`).join('\n'),
       );
     }
-    if (shouldApply) await replaceSnapshot(client, rows);
+    const alreadyCurrent = shouldApply
+      ? snapshotIsCurrent(rows, await loadStoredDates(client))
+      : false;
+    if (shouldApply && !alreadyCurrent) await replaceSnapshot(client, rows);
 
     console.log(JSON.stringify({
       ok: true,
@@ -425,14 +447,17 @@ async function main() {
       })),
       matched: rows.length - unmatched.length,
       unmatched: unmatched.length,
-      applied: shouldApply,
+      applied: shouldApply && !alreadyCurrent,
+      alreadyCurrent,
     }));
   } finally {
     await client.end();
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

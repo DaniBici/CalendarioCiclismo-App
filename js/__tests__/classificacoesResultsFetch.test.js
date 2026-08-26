@@ -101,14 +101,31 @@ describe('Classificações.net', () => {
     ]);
   });
 
-  it('no manda el fallback de una IRM sin nombre a la resolución nominal', () => {
+  it('limita la resolución nominal a excepciones sin dorsal', () => {
     const riders = extractRidersForNameResolve({ stages: [{ classifications: [{
       eventId: -1,
       rows: [
         { bib: '26', riderDisplay: 'Sin identificar', irm: 'DNF' },
         { bib: '27', riderDisplay: 'RIDER Real' },
+        { bib: null, riderDisplay: 'SIN DORSAL Real' },
       ],
     }] }] });
-    expect(riders).toEqual([expect.objectContaining({ bib: '27', display: 'RIDER Real' })]);
+    expect(riders).toEqual([expect.objectContaining({ bib: '', display: 'SIN DORSAL Real' })]);
+  });
+
+  it('permite a DataRide conservar filas con dorsal para sembrar nombres y equipos', () => {
+    const riders = extractRidersForNameResolve({ stages: [{ classifications: [{
+      eventId: 382181,
+      rows: [{
+        bib: '54', riderDisplay: 'GOMEZ JARAMILLO Nicolas David',
+        teamName: 'GW ERCO SPORTFITNES', isoCode2: 'co', birthDate: '2000-05-27',
+      }],
+    }] }] }, null, { includeBib: true });
+
+    expect(riders).toEqual([expect.objectContaining({
+      bib: '54', display: 'GOMEZ JARAMILLO Nicolas David',
+      firstName: 'Nicolas David', lastName: 'Gomez Jaramillo',
+      teamName: 'GW ERCO SPORTFITNES',
+    })]);
   });
 });

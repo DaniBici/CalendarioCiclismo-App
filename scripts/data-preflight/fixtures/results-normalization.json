@@ -1,0 +1,57 @@
+{
+  "raceId": "eval-results",
+  "stages": [
+    {
+      "stageNumber": 1,
+      "raceType": "RR",
+      "classifications": [
+        {
+          "eventId": -173001,
+          "classKind": "stage",
+          "scope": "stage",
+          "eventName": "Stage Classification",
+          "isTeamEvent": false,
+          "winnerName": null,
+          "rowCount": 999,
+          "expectedRowCount": 5,
+          "rows": [
+            {
+              "rankText": "1.",
+              "bib": 11,
+              "riderDisplay": "Matteo Jorgenson",
+              "isoCode2": "US",
+              "timeText": "4h 32' 54\""
+            },
+            {
+              "rankText": "2",
+              "bib": "12",
+              "riderDisplay": "Sepp Kuss",
+              "isoCode2": "US",
+              "timeText": "m.t."
+            },
+            {
+              "rankText": "3.",
+              "bib": "21",
+              "riderDisplay": "Brandon McNulty",
+              "isoCode2": "US",
+              "gapText": "+8\""
+            },
+            {
+              "rankText": "4",
+              "bib": "22",
+              "riderDisplay": "Tim Wellens-D'Hoore",
+              "isoCode2": "BE",
+              "timeText": "4:33:56"
+            },
+            {
+              "rankText": "Abandon",
+              "bib": "31",
+              "riderDisplay": "Corredor Retirado",
+              "isoCode2": "FR"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
