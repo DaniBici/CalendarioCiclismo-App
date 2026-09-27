@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -27,8 +26,8 @@ android {
         applicationId = "app.calendariociclismo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 481
-        versionName = "4.3.3"
+        versionCode = 608
+        versionName = "5.0.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -86,10 +85,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -100,6 +95,8 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    sourceSets.getByName("test").resources.directories += "schemas"
 
     packaging {
         resources {
@@ -127,6 +124,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.material3.adaptive)
+    implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.google.android.material)
     debugImplementation(libs.androidx.compose.ui.tooling)
@@ -153,6 +152,7 @@ dependencies {
     implementation(libs.firebase.analytics)
 
     implementation(libs.billing.ktx)
+    implementation(libs.play.review)
     implementation(libs.maplibre.android.sdk)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)

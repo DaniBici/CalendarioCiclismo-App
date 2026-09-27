@@ -26,6 +26,18 @@ Fuentes oficiales públicas verificadas el 2026-08-25:
 - Sporza: páginas estables por ID y texto editorial de hora/canal. Las altas empiezan
   revisadas; una emisión ya vinculada puede actualizarse automáticamente cuando la
   página declara de forma explícita la nueva hora y dos observaciones coinciden.
+- Caracol: la guía oficial de Gol Caracol y los artículos diarios de La Vuelta
+  publican etapa, fecha y hora colombiana para Caracol TV/HD2, Caracol Sports y
+  Ditu. El horario explícito diario prevalece sobre la guía. Ni la hora deportiva
+  ni las marcas temporales de un live se aceptan como inicio de emisión. Se
+  representa con una fila `Caracol / Ditu`; un relevo posterior a Caracol TV se
+  conserva como nota editorial. Retirada del VPS el 2026-09-25: solo se
+  ejecuta a mano con `--source=caracol`.
+- RTBF: el endpoint público de programación de La Une y Tipik publica hora con
+  offset belga, etapa, duración, tipo/estado y enlace Auvio. Se representa con una
+  sola fila `La Une / RTBF Auvio` o `Tipik / RTBF Auvio` en `BE`; los relevos se
+  guardan en `note` como `HH:MM > La Une`. RAI usa el mismo formato para el paso
+  entre canales (`HH:MM > RAI 2`). Solo `VIDEO/AVAILABLE` íntegro activa Revive y bloqueo.
 
 La automatización necesita tablas separadas de procedencia/vínculo y auditoría. Una
 fila solo puede darse de alta automáticamente con host oficial, fecha, hora, canal,
@@ -45,11 +57,10 @@ carrera y etapa, limitado a Giro, Tour, La Vuelta, Mundial de ruta, Milán-San
 Remo, Tour de Flandes y París-Roubaix masculinos. Su ausencia elimina únicamente
 esa frase y conserva otras notas.
 
-El servicio y su auditoría privada se validaron en sombra y HBO Max/RTVE operan en
-modo de aplicación desde el 2026-08-25. EITB se incorporará bajo coincidencia
-inequívoca y Sporza solo para
-actualizaciones previamente vinculadas. Servicio, usuario y rol de base de datos
-separados del watcher de resultados.
+El servicio y su auditoría privada se validaron en sombra. HBO Max y RTVE operan
+en modo de aplicación desde el 2026-08-25; Sporza y RTBF también tienen escritura
+habilitada. EITB se incorporará bajo coincidencia inequívoca. Servicio, usuario y
+rol de base de datos separados del watcher de resultados.
 
 ## Hosts con app nativa preferida
 
@@ -57,12 +68,17 @@ separados del watcher de resultados.
 
 ## Fuentes automáticas
 
-El VPS observa HBO Max, RTVE, EITB y Sporza. HBO Max, RTVE y Sporza tienen
-escritura; EITB usa la parrilla lineal y permanece en sombra hasta disponer de
-corroboración ETB ON para altas y diferencias de horario. Sporza separa la hora
+El VPS observa HBO Max, RTVE, EITB, Sporza y RTBF. HBO Max, RTVE,
+Sporza y RTBF tienen escritura; EITB usa la parrilla lineal y permanece
+en sombra hasta disponer de corroboración ETB ON para altas y diferencias de horario. Sporza separa la hora
 deportiva del calendario de la hora editorial de emisión y solo acepta esta
 última cuando la página oficial declara también el canal. EITB no escribe sin
 deep-link de ETB ON y Sporza guarda la ruta estable `~matchId` de la etapa.
+Caracol está retirada del VPS desde el 2026-09-25; en una ejecución manual
+gestiona la hora inicial y el paso posterior a la señal principal permanece como
+nota editorial manual.
+RTBF consulta La Une y Tipik con paginación completa en una ventana -7/+8 días, descarta
+resúmenes cortos y reconoce los vídeos íntegros de Auvio como cierre Revive.
 Los enlaces `https://etbon.eus/m/...` se consideran `Revive` automáticamente en
 web, Android e iOS; los hubs `/ch/` no. HBO Max y las redes sociales con vídeo
 persistente también son Revive por tipo de enlace. `broadcasts.showInRevive=true`

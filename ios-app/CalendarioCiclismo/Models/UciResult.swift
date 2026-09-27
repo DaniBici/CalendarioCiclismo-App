@@ -30,6 +30,10 @@ struct RaceUciStage: Codable, Identifiable, Hashable {
     /// Ganador crudo de la fuente (la pantalla lo refina por dorsal; el feed lo
     /// usa como fallback cuando no resuelve el nombre canónico).
     let winnerName: String?
+    let publicationStatus: String
+    let lastSyncedAt: String?
+    let updating: Bool
+    let updatingUntil: String?
 
     // ── Campos SINTÉTICOS (etapa cancelada) — no existen en BD ─────────────
     // Los pone UciResultsLogic.applyCancelledStages. Fuera de CodingKeys: ni se
@@ -42,11 +46,13 @@ struct RaceUciStage: Codable, Identifiable, Hashable {
     var carriedFromStage: Int?
     /// Sufijo de sector (A/B) de la etapa arrastrada, para el aviso ("tras la 3A").
     var carriedFromSuffix: String?
+    /// Pestaña declarada en el inventario editorial sin filas publicadas aún.
+    var isPendingClassification: Bool = false
 
     private enum CodingKeys: String, CodingKey {
         case id, raceId, raceDayId, classKind, eventName, isTeamEvent
         case stageNumber, isFinalClassification, keepForWeb, rowCount, raceType
-        case stageDate, winnerName
+        case stageDate, winnerName, publicationStatus, lastSyncedAt, updating, updatingUntil
     }
 
     init(from decoder: Decoder) throws {
@@ -64,6 +70,10 @@ struct RaceUciStage: Codable, Identifiable, Hashable {
         raceType = try c.decodeIfPresent(String.self, forKey: .raceType)
         stageDate = try c.decodeIfPresent(String.self, forKey: .stageDate)
         winnerName = try c.decodeIfPresent(String.self, forKey: .winnerName)
+        publicationStatus = try c.decodeIfPresent(String.self, forKey: .publicationStatus) ?? "provisional"
+        lastSyncedAt = try c.decodeIfPresent(String.self, forKey: .lastSyncedAt)
+        updating = try c.decodeIfPresent(Bool.self, forKey: .updating) ?? false
+        updatingUntil = try c.decodeIfPresent(String.self, forKey: .updatingUntil)
     }
 
     init(
@@ -71,7 +81,10 @@ struct RaceUciStage: Codable, Identifiable, Hashable {
         eventName: String? = nil, isTeamEvent: Bool = false, stageNumber: Int? = nil,
         isFinalClassification: Bool = false, keepForWeb: Bool = false, rowCount: Int = 0,
         raceType: String? = nil, stageDate: String? = nil, winnerName: String? = nil,
-        isCancelledStage: Bool = false, carriedFromStage: Int? = nil, carriedFromSuffix: String? = nil
+        publicationStatus: String = "provisional", lastSyncedAt: String? = nil,
+        updating: Bool = false, updatingUntil: String? = nil,
+        isCancelledStage: Bool = false, carriedFromStage: Int? = nil, carriedFromSuffix: String? = nil,
+        isPendingClassification: Bool = false
     ) {
         self.id = id
         self.raceId = raceId
@@ -86,9 +99,14 @@ struct RaceUciStage: Codable, Identifiable, Hashable {
         self.raceType = raceType
         self.stageDate = stageDate
         self.winnerName = winnerName
+        self.publicationStatus = publicationStatus
+        self.lastSyncedAt = lastSyncedAt
+        self.updating = updating
+        self.updatingUntil = updatingUntil
         self.isCancelledStage = isCancelledStage
         self.carriedFromStage = carriedFromStage
         self.carriedFromSuffix = carriedFromSuffix
+        self.isPendingClassification = isPendingClassification
     }
 }
 
@@ -230,4 +248,18 @@ struct UciResultsData {
     /// La pantalla agrupa las clasificaciones con esto para separar 3A de 3B.
     var sectorSuffixByRaceDayId: [String: String] = [:]
     var sectoredStageNumbers: Set<Int> = []
+    var classificationConfig: [RaceClassificationConfig] = []
+    var assets: [Asset] = []
+}
+
+/// Inventario editorial de clasificaciones de una carrera.
+struct RaceClassificationConfig: Codable, Hashable, Identifiable {
+    let raceId: String
+    let classKind: String
+    let position: Int
+    let labelEs: String?
+    let labelEn: String?
+    let colorHex: String?
+
+    var id: String { "\(raceId)-\(classKind)" }
 }

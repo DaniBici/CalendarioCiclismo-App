@@ -1,3 +1,5 @@
+import { arrowHtml, installScrollRail } from './scroll-rail.js';
+import { flagIconUrl } from './flag-url.js';
 // ─────────────────────────────────────────────────────────────────
 //  SHARED — funciones y constantes compartidas entre módulos
 // ─────────────────────────────────────────────────────────────────
@@ -7,7 +9,9 @@ import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './profile-availability.js';
+import { hasCustomTeamBadgeColors } from './team-badge.js';
 export { extractYouTubeId };
+export { hasCustomTeamBadgeColors } from './team-badge.js';
 
 // ── Supabase singleton ───────────────────────────────────────────
 // SUPABASE_URL y SUPABASE_ANON_KEY son globals definidos en js/config.js
@@ -262,10 +266,12 @@ export function genderRank(g) { return g === 'female' ? 2 : 1; }
 export function grandTourRank(race) { return race?.isGrandTour ? 0 : 1; }
 
 // ── Bandera desde código ISO ─────────────────────────────────────
-export function countryFlag(code) {
+// Las banderas de las comunidades autónomas españolas no existen en
+// flag-icons; se sirven autoalojadas desde /flags/ (ver js/flag-url.js).
+export function countryFlag(code, { lazy = false } = {}) {
   if (!code) return '';
   const c = code.toLowerCase();
-  return `<img src="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/${c}.svg" alt="${c}" style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;vertical-align:-0.05em;display:inline-block">`;
+  return `<img src="${flagIconUrl(c)}" alt="${c}"${lazy ? ' loading="lazy"' : ''} style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;vertical-align:-0.05em;display:inline-block">`;
 }
 
 // ── País efectivo (override de jornada > carrera) ────────────────
@@ -522,16 +528,6 @@ export function riderAge(birthDate, ref = new Date()) {
 export function teamLinkUrl(_team) { return null; }
 export function riderLinkUrl(_riderId, _team) { return null; }
 
-// Equipo ficticio "Individual" de una startlist: lo siembra resolve_uci_startlist
-// (migración 084) para los corredores cuya fila de resultados UCI no trae equipo
-// (típicamente DNF que lo pierden en la GC). teamId NULL + nombre 'Individual'.
-// La web/apps lo OCULTAN cosméticamente: sus corredores se muestran, pero sin
-// cabecera de equipo en inscritos y sin equipo/chapa/filtro en resultados.
-export function isIndividualPlaceholderTeam(slTeam) {
-  return !!slTeam && !slTeam.teamId
-    && String(slTeam.teamName || '').trim().toLowerCase() === 'individual';
-}
-
 // Fecha de nacimiento localizada en formato numérico corto (DD/MM/YYYY según
 // locale). Devuelve '' si no hay fecha válida. Se combina con riderAge() para
 // mostrar "DD/MM/YYYY (edad)".
@@ -628,6 +624,19 @@ export function setMetaProperty(property, content) {
   let el = document.querySelector(`meta[property="${property}"]`);
   if (!el) { el = document.createElement('meta'); el.setAttribute('property', property); document.head.appendChild(el); }
   el.content = content;
+}
+
+// Temporadas 2020-2025 archivadas: noindex en todas las páginas de carrera.
+// Espejo de tools/site/archived_seasons.py (páginas pre-renderizadas).
+const ROBOTS_INDEX = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+export function isArchivedSeason(year) {
+  const y = Number(year);
+  return Number.isInteger(y) && y >= 2020 && y <= 2025;
+}
+export function setRaceRobots(race) {
+  let el = document.querySelector('meta[name="robots"]');
+  if (!el) { el = document.createElement('meta'); el.name = 'robots'; document.head.appendChild(el); }
+  el.content = isArchivedSeason(race?.year) ? 'noindex, follow' : ROBOTS_INDEX;
 }
 
 // JSON-LD: en EN conservamos el bloque estático en castellano y no dejamos que
@@ -923,17 +932,17 @@ function _showPhTooltipFor(el) {
 const PIN_STORAGE_KEY = 'cc_default_filter';
 const VALID_PIN_CATS  = ['pro', 'uwt', 'wwt', 'male', 'female'];
 
-export function getPinnedFilter() {
+export function getPinnedFilter(storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
   try {
-    const v = localStorage.getItem(PIN_STORAGE_KEY);
-    return VALID_PIN_CATS.includes(v) ? v : null;
+    const v = localStorage.getItem(storageKey);
+    return valid.includes(v) ? v : null;
   } catch { return null; }
 }
 
-export function setPinnedFilter(cat) {
+export function setPinnedFilter(cat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
   try {
-    if (VALID_PIN_CATS.includes(cat)) localStorage.setItem(PIN_STORAGE_KEY, cat);
-    else localStorage.removeItem(PIN_STORAGE_KEY);
+    if (valid.includes(cat)) localStorage.setItem(storageKey, cat);
+    else localStorage.removeItem(storageKey);
   } catch { /* storage no disponible */ }
 }
 
@@ -942,9 +951,9 @@ const PIN_SVG_OUTLINE = '<svg class="tcat-pin__svg" viewBox="0 0 24 24" aria-hid
 
 /** Re-renderiza las chinchetas en los `.tcat-btn` del contenedor según el
  *  filtro activo y el fijado. No toca la clase `.tcat-btn--active`. */
-export function renderFilterPins(container, activeCat) {
+export function renderFilterPins(container, activeCat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
   if (!container) return;
-  const pinned = getPinnedFilter();
+  const pinned = getPinnedFilter(storageKey, valid);
   container.querySelectorAll('.tcat-btn').forEach(btn => {
     const existing = btn.querySelector('.tcat-pin');
     if (existing) existing.remove();
@@ -970,7 +979,7 @@ export function renderFilterPins(container, activeCat) {
  *    { type: 'pin', cat }    → pin togglado (el estado ya está persistido)
  *    { type: 'filter', cat } → el caller debe cambiar el filtro activo
  *    null                    → evento irrelevante */
-export function handleFilterEvent(event) {
+export function handleFilterEvent(event, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
   if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return null;
   const btn = event.target.closest('.tcat-btn');
   if (!btn) return null;
@@ -979,8 +988,8 @@ export function handleFilterEvent(event) {
   if (pinEl) {
     event.stopPropagation();
     event.preventDefault();
-    const current = getPinnedFilter();
-    setPinnedFilter(current === cat ? null : cat);
+    const current = getPinnedFilter(storageKey, valid);
+    setPinnedFilter(current === cat ? null : cat, storageKey, valid);
     return { type: 'pin', cat };
   }
   return { type: 'filter', cat };
@@ -1005,6 +1014,37 @@ export function normalizeTeamName(s) {
   if (!base) return '';
   const tokens = base.split(' ').filter(t => t && !TEAM_STOPWORDS.has(t));
   return tokens.join(' ').trim();
+}
+
+// Estados emitidos por fuentes UCI para corredores sin equipo. No son equipos
+// de catálogo: la fila de startlist se conserva para mantener el vínculo con
+// sus corredores, pero la presentación no debe mostrarla como una formación.
+const NO_TEAM_PLACEHOLDER_FOLDS = new Set([
+  'individual',
+  'private member',
+  'sin equipo',
+  'un',
+  'un attached leinster',
+]);
+
+function normalizeNoTeamPlaceholderName(value) {
+  return String(value || '')
+    .replace(/-/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+export function isNoTeamPlaceholderTeam(slTeam) {
+  return !!slTeam && !slTeam.teamId
+    && NO_TEAM_PLACEHOLDER_FOLDS.has(normalizeNoTeamPlaceholderName(slTeam.teamName));
+}
+
+// Compatibilidad para consumidores externos; el tratamiento común se aplica
+// mediante isNoTeamPlaceholderTeam().
+export function isIndividualPlaceholderTeam(slTeam) {
+  return isNoTeamPlaceholderTeam(slTeam)
+    && normalizeNoTeamPlaceholderName(slTeam.teamName) === 'individual';
 }
 
 /** Busca un equipo en `teams` que corresponda al nombre `teamName`.
@@ -1121,6 +1161,7 @@ const _ACT_SVGS = {
   ribinou:    _ACT_STERRATO_SVG,
   map:        '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.645v12.21a1 1 0 0 1-.553.894l-4 2a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.355V7.145a1 1 0 0 1 .553-.894l4-2a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15M9 3.236v15"/></svg>',
   live_text:  '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>',
+  classifications: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>',
 };
 // Las dos variantes de mapa comparten el mismo pictograma, como los perfiles.
 _ACT_SVGS.mapOfficial = _ACT_SVGS.map;
@@ -1152,14 +1193,28 @@ function _startlistHref(race) {
  *                  etapa/carrera"): sin inscritos ni botones de recorrido.
  *                  Lo usa Resultados.
  * @param {string}  o.style       estilos inline extra para el contenedor
+ * @param {string}  o.resultsUrl  URL de clasificaciones propias (in-house) de la
+ *                  jornada. Solo se usa en la vista de jornada: añade el botón
+ *                  "Clasificaciones" como PRIMER botón de la barra.
+ * @param {boolean} o.resultsHighlighted  si el botón de clasificaciones debe
+ *                  usar el destacado azul; la general arrastrada de la jornada
+ *                  anterior se muestra como acción secundaria.
  */
-export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '' } = {}) {
+export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartlist = false, navOnly = false, style = '', standalone = false, resultsUrl = null, resultsHighlighted = true } = {}) {
   const isEn = getLang() === 'en';
   const isOneDay = race?.raceFormat === 'one_day';
   const isJornada = view === 'jornada';
   // Salvedad de inscritos en vueltas por etapas: sin botones de recorrido.
   // navOnly (Resultados): nunca botones de recorrido.
   const showRouteButtons = !navOnly && (view !== 'inscritos' || isOneDay || assets.some(asset => asset.type === 'technicalGuide'));
+
+  // ── Clasificaciones propias (in-house) — primer botón de la jornada ──
+  // El fondo azul de marca lo aplica `.asset-btn--results` (claro y oscuro).
+  let resultsBtn = '';
+  if (resultsUrl && isJornada) {
+    const resultsClass = resultsHighlighted ? ' asset-btn--results' : '';
+    resultsBtn = `<a class="asset-btn${resultsClass}" href="${esc(resultsUrl)}">${_ACT_SVGS.classifications}<span class="asset-btn__label">${t('assets.classifications')}</span></a>`;
+  }
 
   // ── Web oficial — siempre primero si existe ──
   let websiteBtn = '';
@@ -1217,7 +1272,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     // Jornada cancelada: no hay carrera que seguir en directo → fuera el Live
     // Texto. La documentación del recorrido (rutómetro/perfil/mapa) SÍ se
     // conserva: describe la etapa que estaba trazada, no su seguimiento.
-    if (rd.isCancelledDay) validAssets = validAssets.filter(a => a.type !== 'live_text');
+    if (rd.isCancelledDay || isJornada || view === 'resultados') validAssets = validAssets.filter(a => a.type !== 'live_text');
     // Orden de salida: deriva de startOrderImportedAt aunque falte la fila asset.
     if (view !== 'startOrder' && rd.startOrderImportedAt && !validAssets.some(a => a.type === 'startOrder')) {
       validAssets.push({ type: 'startOrder', sourceType: 'external' });
@@ -1276,8 +1331,8 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
     // de perfil el estático se siga etiquetando "Perfil oficial" aunque el
     // interactivo no se enlace a sí mismo.
     const bothProfiles = !!(hasDynProfile && profileAsset);
-    const dynKey    = bothProfiles ? 'profileInteractive' : 'profile';
-    const staticKey = bothProfiles ? 'profileOfficial'    : 'profile';
+    const dynKey    = 'profileInteractive';
+    const staticKey = 'profile';
 
     const isSterrato = rd.primaryType === 'sterrato';
     const isFrance   = race?.countryCode?.toLowerCase() === 'fr';
@@ -1299,7 +1354,7 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
       ? `<a class="asset-btn" href="${dynProfileUrl}">${_actLabel(dynKey)}</a>`
       : '';
     // `officialProfileHtml`: el asset estático "Perfil oficial" (solo si ambos).
-    const officialProfileHtml = bothProfiles ? staticProfileBtn('profileOfficial') : '';
+    const officialProfileHtml = bothProfiles ? staticProfileBtn('profile') : '';
 
     // `profileHtml` = botón principal en la posición 'profile':
     //   - ambos → el interactivo (el oficial se inyecta como entrada aparte)
@@ -1375,72 +1430,29 @@ export function buildActionButtons({ race, rd = {}, view, assets = [], hasStartl
   // navegación y a los demás assets: inmediatamente después de la web oficial.
   const hasTechnicalGuide = (assets || []).some(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
   const technicalGuideBtn = hasTechnicalGuide ? (routeBtns.shift() || '') : '';
-  const all = `${websiteBtn}${technicalGuideBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
+  const all = `${resultsBtn}${websiteBtn}${technicalGuideBtn}${raceBtn}${startlistBtn}${routeBtns.join('')}`;
   if (!all) return '';
   const styleAttr = style ? ` style="${style}"` : '';
   const nextLabel = isEn ? 'More actions' : 'Más acciones';
-  return `<div class="asset-links-wrap"><div class="asset-links"${styleAttr}>${all}</div><button class="date-week-arrow asset-links__prev" type="button" aria-label="${isEn ? 'Previous actions' : 'Acciones anteriores'}" hidden onclick="this.previousElementSibling.scrollTo({left:0,behavior:'smooth'})">‹</button><button class="date-week-arrow asset-links__next" type="button" aria-label="${nextLabel}" hidden onclick="this.previousElementSibling.previousElementSibling.scrollTo({left:this.previousElementSibling.previousElementSibling.scrollWidth,behavior:'smooth'})">›</button></div>`;
-}
-
-// La flecha solo se enseña cuando quedan acciones fuera del área visible. La
-// instalación es delegada porque las filas se insertan después de cargar datos.
-function _syncAssetLinksNext(wrapper) {
-  const rail = wrapper.querySelector('.asset-links');
-  const prev = wrapper.querySelector('.asset-links__prev');
-  const next = wrapper.querySelector('.asset-links__next');
-  if (!rail || !prev || !next) return;
-  prev.hidden = rail.scrollLeft <= 1;
-  next.hidden = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 1;
-}
-
-// Algunas vistas insertan la tira directamente en un <main> de ancho completo
-// y centran solo `.asset-links` con max-width (inscritos, orden de salida,
-// resultados). Las flechas son hijas del wrapper, así que `left/right: 0` las
-// llevaba a los bordes de la pantalla. Calculamos los insets contra la caja real
-// de la tira para que el componente funcione igual dentro y fuera de una card.
-function _positionAssetLinksArrows(wrapper) {
-  const rail = wrapper.querySelector('.asset-links');
-  const prev = wrapper.querySelector('.asset-links__prev');
-  const next = wrapper.querySelector('.asset-links__next');
-  if (!rail || !prev || !next) return;
-  const wrapperRect = wrapper.getBoundingClientRect();
-  const railRect = rail.getBoundingClientRect();
-  prev.style.left = `${Math.max(0, railRect.left - wrapperRect.left)}px`;
-  next.style.right = `${Math.max(0, wrapperRect.right - railRect.right)}px`;
-}
-
-function _installAssetLinksNext(wrapper) {
-  if (wrapper.dataset.assetLinksNextReady) return;
-  wrapper.dataset.assetLinksNextReady = 'true';
-  const rail = wrapper.querySelector('.asset-links');
-  if (!rail) return;
-  const sync = () => _syncAssetLinksNext(wrapper);
-  const positionAndSync = () => {
-    _positionAssetLinksArrows(wrapper);
-    sync();
-  };
-  rail.addEventListener('scroll', sync, { passive: true });
-  const resizeObserver = new ResizeObserver(positionAndSync);
-  resizeObserver.observe(wrapper);
-  resizeObserver.observe(rail);
-  requestAnimationFrame(positionAndSync);
+  return `<div class="asset-links-wrap${standalone ? ' cc-assets-standalone' : ''}"${styleAttr}><div class="asset-links" data-scroll-rail>${all}</div>${arrowHtml('prev', isEn ? 'Previous actions' : 'Acciones anteriores', 'hidden')}${arrowHtml('next', nextLabel, 'hidden')}</div>`;
 }
 
 if (typeof document !== 'undefined') {
-  const installAssetLinksNext = root => {
-    if (root.matches?.('.asset-links-wrap')) _installAssetLinksNext(root);
-    root.querySelectorAll?.('.asset-links-wrap').forEach(_installAssetLinksNext);
+  const install = root => {
+    if (root.matches?.('.asset-links-wrap')) installScrollRail(root);
+    root.querySelectorAll?.('.asset-links-wrap').forEach(node => installScrollRail(node));
   };
-  installAssetLinksNext(document);
+  install(document);
   new MutationObserver(records => {
-    records.forEach(record => record.addedNodes.forEach(node => {
-      if (node.nodeType === Node.ELEMENT_NODE) installAssetLinksNext(node);
-    }));
-  }).observe(document.body, { childList: true, subtree: true });
-  window.addEventListener('resize', () => document.querySelectorAll('.asset-links-wrap').forEach(wrapper => {
-    _positionAssetLinksArrows(wrapper);
-    _syncAssetLinksNext(wrapper);
-  }), { passive: true });
+    for (const record of records) {
+      record.addedNodes.forEach(node => { if (node.nodeType === 1) install(node); });
+      record.removedNodes.forEach(node => {
+        if (node.isConnected) return;
+        node._ccRailCleanup?.();
+        node.querySelectorAll?.('.asset-links-wrap').forEach(el => el._ccRailCleanup?.());
+      });
+    }
+  }).observe(document.body, { childList:true, subtree:true });
 }
 
 // ── Detecta si el nombre de la carrera ya implica género femenino ─
@@ -1560,11 +1572,12 @@ export function buildRaceHeader({
   </div>`;
 }
 
-/** Genera el SVG de la chapa de un equipo.
+/** Genera el SVG de la chapa de un equipo con colores de equipación curados.
+ *  Devuelve una cadena vacía para la paleta por defecto.
  *  - Polígono exterior gris (22 lados) simulando la chapa ciclista.
  *  - Interior con torso (sides + stripe central + círculo opcional) y culotte plano. */
 export function buildTeamBadgeSvg(team, { size = 24, className = 'team-badge' } = {}) {
-  if (!team) return '';
+  if (!hasCustomTeamBadgeColors(team)) return '';
   const s = size;
   const cx = s / 2, cy = s / 2;
   const rOuter = s * 0.48;

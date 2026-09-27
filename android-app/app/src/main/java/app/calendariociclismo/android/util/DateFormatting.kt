@@ -79,6 +79,15 @@ object DateFormatting {
 
     // ── Etiquetas de fecha ──────────────────────────────────────
 
+    /** "Miércoles, 8 de abril" / "Wednesday, 8 April", como Hoy en iOS. */
+    fun formatDateLabel(dateKey: String): String {
+        val date = parseLocalDate(dateKey) ?: return dateKey
+        val locale = uiLocale
+        val pattern = if (locale.language == "es") "EEEE, d 'de' MMMM" else "EEEE, d MMMM"
+        return date.format(DateTimeFormatter.ofPattern(pattern, locale))
+            .replaceFirstChar { it.uppercase(locale) }
+    }
+
     /** "Mié 8 abr" / "Wed 8 Apr". */
     fun formatDateShort(dateKey: String): String {
         val date = parseDateKey(dateKey) ?: return dateKey

@@ -1,0 +1,3962 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline_official_cotejo_only",
+  "checkedAt": "2026-09-12",
+  "seasonKey": "2025-26",
+  "category": "ME",
+  "rulesSourceUrl": "https://www.superprestigecyclocross.be/nl/reglement",
+  "roundColumns": [
+    "rank",
+    "bib",
+    "name",
+    "nation",
+    "irm"
+  ],
+  "rounds": [
+    {
+      "race": "Ruddervoorde",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/2d876c04-ad06-11f0-9f83-0050569301fd/1760890249",
+      "sha256": "7c12915af22ab3a22e9c6169c95dd4fce490d9144bc8f68e3ff4b4a6464dd9f6",
+      "dateKey": "2025-10-19",
+      "rows": [
+        [
+          1,
+          "1",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "11",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "10",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          5,
+          "6",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "16",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "12",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "5",
+          "SWEECK Laurens",
+          "BEL",
+          null
+        ],
+        [
+          9,
+          "8",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "22",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "2",
+          "AERTS Toon",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "9",
+          "RONHAAR Pim",
+          "NED",
+          null
+        ],
+        [
+          13,
+          "28",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "4",
+          "VAN DER HAAR Lars",
+          "NED",
+          null
+        ],
+        [
+          15,
+          "20",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null
+        ],
+        [
+          16,
+          "23",
+          "VAN DEN EIJNDEN Guus",
+          "NED",
+          null
+        ],
+        [
+          17,
+          "21",
+          "HAVERDINGS David",
+          "NED",
+          null
+        ],
+        [
+          18,
+          "19",
+          "DE BRUYCKERE Kay",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "14",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          20,
+          "15",
+          "KAMP Ryan",
+          "NED",
+          null
+        ],
+        [
+          21,
+          "56",
+          "VAN DEN BOER Arthur",
+          "BEL",
+          null
+        ],
+        [
+          22,
+          "18",
+          "CORSUS Yordi",
+          "BEL",
+          null
+        ],
+        [
+          23,
+          "34",
+          "JANSSEN Wout",
+          "BEL",
+          null
+        ],
+        [
+          24,
+          "27",
+          "VANDENBERGHE Viktor",
+          "BEL",
+          null
+        ],
+        [
+          25,
+          "29",
+          "DE BRAUWERE Sil",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "26",
+          "DE MOYER Kenay",
+          "BEL",
+          null
+        ],
+        [
+          27,
+          "30",
+          "DUBAU Lucas",
+          "FRA",
+          null
+        ],
+        [
+          28,
+          "24",
+          "VAN LIEROP Danny",
+          "NED",
+          null
+        ],
+        [
+          29,
+          "32",
+          "GEVAERT Miles",
+          "BEL",
+          null
+        ],
+        [
+          30,
+          "7",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          31,
+          "51",
+          "MAES Fabian",
+          "BEL",
+          null
+        ],
+        [
+          32,
+          "45",
+          "MEEUSEN Tom",
+          "BEL",
+          null
+        ],
+        [
+          33,
+          "55",
+          "VANLAERE Loïc",
+          "BEL",
+          null
+        ],
+        [
+          34,
+          "39",
+          "JOCHEMS Jelte",
+          "NED",
+          null
+        ],
+        [
+          35,
+          "46",
+          "MARCHAND Robbe",
+          "BEL",
+          null
+        ],
+        [
+          36,
+          "50",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          null
+        ],
+        [
+          37,
+          "25",
+          "ANANIE Ugo",
+          "FRA",
+          null
+        ],
+        [
+          38,
+          "17",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          null
+        ],
+        [
+          39,
+          "48",
+          "NUYENS Wies",
+          "BEL",
+          null
+        ],
+        [
+          40,
+          "68",
+          "LOETE Hippolyte",
+          "FRA",
+          null
+        ],
+        [
+          41,
+          "35",
+          "AMEY Oscar",
+          "GBR",
+          null
+        ],
+        [
+          42,
+          "41",
+          "SPRANGERS Bram",
+          "BEL",
+          null
+        ],
+        [
+          43,
+          "53",
+          "VAN LOOCKE Lars",
+          "BEL",
+          null
+        ],
+        [
+          44,
+          "52",
+          "VILLAR THIERY Aubin",
+          "FRA",
+          "LAP"
+        ],
+        [
+          45,
+          "31",
+          "GILLES Cyprien",
+          "FRA",
+          "LAP"
+        ],
+        [
+          46,
+          "33",
+          "WALTER Luke",
+          "USA",
+          "LAP"
+        ],
+        [
+          47,
+          "57",
+          "DELBARGE Victor",
+          "BEL",
+          "LAP"
+        ],
+        [
+          48,
+          "62",
+          "JOIJE Joppe",
+          "BEL",
+          "LAP"
+        ],
+        [
+          49,
+          "36",
+          "GIBSON Luke",
+          "GBR",
+          "LAP"
+        ],
+        [
+          50,
+          "42",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "LAP"
+        ],
+        [
+          51,
+          "72",
+          "JACOBY François",
+          "BEL",
+          "LAP"
+        ],
+        [
+          52,
+          "47",
+          "CECCHI Filippo",
+          "ITA",
+          "LAP"
+        ],
+        [
+          53,
+          "44",
+          "PARENTI Nicola",
+          "ITA",
+          "LAP"
+        ],
+        [
+          54,
+          "67",
+          "BLANPAIN Kévin",
+          "FRA",
+          "LAP"
+        ],
+        [
+          55,
+          "65",
+          "REGOST Thibaut",
+          "FRA",
+          "LAP"
+        ],
+        [
+          56,
+          "60",
+          "PARNABY Jack",
+          "GBR",
+          "LAP"
+        ],
+        [
+          57,
+          "54",
+          "LARDENOIT Lennert",
+          "BEL",
+          "LAP"
+        ],
+        [
+          58,
+          "71",
+          "MEYLENDER Rick",
+          "LUX",
+          "LAP"
+        ],
+        [
+          null,
+          "13",
+          "HENDRIKX Mees",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "38",
+          "HAVERDINGS Floris",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "61",
+          "ALLAER Thorben",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "70",
+          "DOLLÉ Gabriel",
+          "FRA",
+          "DNF"
+        ]
+      ],
+      "dnf": 4,
+      "dns": 0,
+      "participants": 62
+    },
+    {
+      "race": "Overijse",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/e6ceb27b-b283-11f0-9f83-0050569301fd/1761494003",
+      "sha256": "957df219c3df103247e2537609eefc706e9743b9040eb04dc4b5f98d655ce48d",
+      "dateKey": "2025-10-26",
+      "rows": [
+        [
+          1,
+          "1",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "9",
+          "RONHAAR Pim",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "8",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "6",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "11",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          7,
+          "13",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "4",
+          "VAN DER HAAR Lars",
+          "NED",
+          null
+        ],
+        [
+          9,
+          "22",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "15",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          11,
+          "26",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "17",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null
+        ],
+        [
+          13,
+          "20",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "14",
+          "HENDRIKX Mees",
+          "NED",
+          null
+        ],
+        [
+          15,
+          "10",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          16,
+          "19",
+          "DE BRUYCKERE Kay",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "2",
+          "AERTS Toon",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "25",
+          "VANDENBERGHE Viktor",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "21",
+          "HAVERDINGS David",
+          "NED",
+          null
+        ],
+        [
+          20,
+          "24",
+          "HORNY Clement",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "7",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          22,
+          "44",
+          "VAN DEN BOER Arthur",
+          "BEL",
+          null
+        ],
+        [
+          23,
+          "18",
+          "VIEZZI Stefano",
+          "ITA",
+          null
+        ],
+        [
+          24,
+          "16",
+          "KAMP Ryan",
+          "NED",
+          null
+        ],
+        [
+          25,
+          "40",
+          "MAES Fabian",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "23",
+          "DE MOYER Kenay",
+          "BEL",
+          null
+        ],
+        [
+          27,
+          "27",
+          "DE BRAUWERE Sil",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "39",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          null
+        ],
+        [
+          29,
+          "31",
+          "DE VET Sander",
+          "BEL",
+          null
+        ],
+        [
+          30,
+          "30",
+          "JAMIN Antoine",
+          "BEL",
+          null
+        ],
+        [
+          31,
+          "36",
+          "RIJVERS Max",
+          "NED",
+          null
+        ],
+        [
+          32,
+          "28",
+          "WALTER Luke",
+          "USA",
+          null
+        ],
+        [
+          33,
+          "35",
+          "MARCHAND Robbe",
+          "BEL",
+          null
+        ],
+        [
+          34,
+          "45",
+          "VANLAERE Loïc",
+          "BEL",
+          null
+        ],
+        [
+          35,
+          "43",
+          "VANDEN EYNDE Mats",
+          "BEL",
+          null
+        ],
+        [
+          36,
+          "32",
+          "OLDHAM Declan",
+          "GBR",
+          null
+        ],
+        [
+          37,
+          "46",
+          "VAN DEN BERGH Toon",
+          "BEL",
+          "LAP"
+        ],
+        [
+          38,
+          "37",
+          "CECCHI Filippo",
+          "ITA",
+          "LAP"
+        ],
+        [
+          39,
+          "41",
+          "DRAKE Giles",
+          "GBR",
+          "LAP"
+        ],
+        [
+          40,
+          "42",
+          "HURT Joel Darren",
+          "GBR",
+          "LAP"
+        ],
+        [
+          41,
+          "49",
+          "DEVALLEE Matheo",
+          "BEL",
+          "LAP"
+        ],
+        [
+          42,
+          "48",
+          "BARKER Oliver",
+          "GBR",
+          "LAP"
+        ],
+        [
+          null,
+          "5",
+          "SWEECK Laurens",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "12",
+          "MEIN Thomas",
+          "GBR",
+          "DNF"
+        ],
+        [
+          null,
+          "29",
+          "GEVAERT Miles",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "34",
+          "PARENTI Nicola",
+          "ITA",
+          "DNF"
+        ]
+      ],
+      "dnf": 4,
+      "dns": 0,
+      "participants": 46
+    },
+    {
+      "race": "Niel",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/28e0eb88-bf14-11f0-9f83-0050569301fd/1762875375",
+      "sha256": "cdcce44d0627357997eb53a039d82b7618135329313a60ab87ce02a1c8df15a5",
+      "dateKey": "2025-11-11",
+      "rows": [
+        [
+          1,
+          "4",
+          "SWEECK Laurens",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "1",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "8",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "6",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          6,
+          "16",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "13",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "10",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          9,
+          "19",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "9",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          11,
+          "25",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "2",
+          "AERTS Toon",
+          "BEL",
+          null
+        ],
+        [
+          13,
+          "17",
+          "JEŽEK Václav",
+          "CZE",
+          null
+        ],
+        [
+          14,
+          "11",
+          "BOROŠ Michael",
+          "CZE",
+          null
+        ],
+        [
+          15,
+          "12",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          16,
+          "7",
+          "RONHAAR Pim",
+          "NED",
+          null
+        ],
+        [
+          17,
+          "28",
+          "JANSSEN Wout",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "20",
+          "VAN GRIEKEN Stan",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "47",
+          "HORNY Clement",
+          "BEL",
+          null
+        ],
+        [
+          20,
+          "27",
+          "JAMIN Antoine",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "34",
+          "JACOBS Lennes",
+          "BEL",
+          null
+        ],
+        [
+          22,
+          "33",
+          "MEEUSEN Tom",
+          "BEL",
+          null
+        ],
+        [
+          23,
+          "30",
+          "BOSSAERTS Senn",
+          "BEL",
+          null
+        ],
+        [
+          24,
+          "22",
+          "KERL Maximilian",
+          "CZE",
+          null
+        ],
+        [
+          25,
+          "37",
+          "MARCHAND Robbe",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "24",
+          "MARASCO Lorenzo",
+          "FRA",
+          null
+        ],
+        [
+          27,
+          "36",
+          "DE VET Sander",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "18",
+          "TAKÁCS Zsombor",
+          "HUN",
+          "LAP"
+        ],
+        [
+          29,
+          "39",
+          "CROKET Maxime",
+          "BEL",
+          "LAP"
+        ],
+        [
+          30,
+          "35",
+          "DRAKE Giles",
+          "GBR",
+          "LAP"
+        ],
+        [
+          31,
+          "44",
+          "JACOBY François",
+          "BEL",
+          "LAP"
+        ],
+        [
+          32,
+          "46",
+          "DOLLÉ Gabriel",
+          "FRA",
+          "LAP"
+        ],
+        [
+          33,
+          "32",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP"
+        ],
+        [
+          34,
+          "31",
+          "LUKŠAS Dovydas",
+          "LTU",
+          "LAP"
+        ],
+        [
+          null,
+          "5",
+          "WYSEURE Joran",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "14",
+          "HENDRIKX Mees",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "23",
+          "KUYPERS Gerben",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "26",
+          "GEVAERT Miles",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 4,
+      "dns": 0,
+      "participants": 38
+    },
+    {
+      "race": "Merksplas",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/2710beeb-c23a-11f0-9f83-0050569301fd/1763221546",
+      "sha256": "38f5be8ff3dacbe3ab022303770d3ce019a908512e52c80a367dc54d3b799742",
+      "dateKey": "2025-11-15",
+      "rows": [
+        [
+          1,
+          "11",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "4",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "41",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "13",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "12",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          6,
+          "7",
+          "VAN DER HAAR Lars",
+          "NED",
+          null
+        ],
+        [
+          7,
+          "2",
+          "NYS Thibau",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "3",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          9,
+          "9",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          10,
+          "16",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "21",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "5",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          13,
+          "6",
+          "SWEECK Laurens",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "8",
+          "RONHAAR Pim",
+          "NED",
+          null
+        ],
+        [
+          15,
+          "14",
+          "HENDRIKX Mees",
+          "NED",
+          null
+        ],
+        [
+          16,
+          "26",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "10",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          18,
+          "30",
+          "JANSSEN Wout",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "29",
+          "LOOCKX Lander",
+          "BEL",
+          null
+        ],
+        [
+          20,
+          "1",
+          "AERTS Toon",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "17",
+          "CORSUS Yordi",
+          "BEL",
+          null
+        ],
+        [
+          22,
+          "15",
+          "KAMP Ryan",
+          "NED",
+          null
+        ],
+        [
+          23,
+          "23",
+          "VAN LIEROP Danny",
+          "NED",
+          null
+        ],
+        [
+          24,
+          "34",
+          "MEEUSEN Tom",
+          "BEL",
+          null
+        ],
+        [
+          25,
+          "22",
+          "HORNY Clement",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "19",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          null
+        ],
+        [
+          27,
+          "35",
+          "RIJVERS Max",
+          "NED",
+          null
+        ],
+        [
+          28,
+          "38",
+          "MOURIS Michiel",
+          "NED",
+          null
+        ],
+        [
+          29,
+          "40",
+          "DAELMANS Lars",
+          "BEL",
+          null
+        ],
+        [
+          30,
+          "24",
+          "MARASCO Lorenzo",
+          "FRA",
+          null
+        ],
+        [
+          31,
+          "31",
+          "DELNOIJE Remon",
+          "NED",
+          null
+        ],
+        [
+          32,
+          "39",
+          "MEEUSEN Lennert",
+          "BEL",
+          null
+        ],
+        [
+          33,
+          "37",
+          "VERHEYEN Thomas",
+          "BEL",
+          "LAP"
+        ],
+        [
+          34,
+          "32",
+          "KING Carden",
+          "USA",
+          "LAP"
+        ],
+        [
+          35,
+          "33",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP"
+        ],
+        [
+          null,
+          "18",
+          "DE BRUYCKERE Kay",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "36",
+          "DAELMANS Bengt",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 2,
+      "dns": 0,
+      "participants": 37
+    },
+    {
+      "race": "Heusden-Zolder",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/e16cad74-e017-11f0-9f83-0050569301fd/1766505361",
+      "sha256": "7d8df5adbc1fd5459141c4f7fb63979c4b5bd35e376b792a9e4087cc17193d50",
+      "dateKey": "2025-12-23",
+      "rows": [
+        [
+          1,
+          "10",
+          "DEL GROSSO Tibor",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "13",
+          "VAN AERT Wout",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "2",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "6",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "7",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          7,
+          "11",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          8,
+          "15",
+          "HENDRIKX Mees",
+          "NED",
+          null
+        ],
+        [
+          9,
+          "26",
+          "FONTANA Filippo",
+          "ITA",
+          null
+        ],
+        [
+          10,
+          "44",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "54",
+          "DOCKX Aaron",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "42",
+          "JAMIN Antoine",
+          "BEL",
+          null
+        ],
+        [
+          13,
+          "35",
+          "JANSSEN Wout",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "1",
+          "NYS Thibau",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "17",
+          "BERTOLINI Gioele",
+          "ITA",
+          null
+        ],
+        [
+          16,
+          "38",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "30",
+          "BISIAUX Léo",
+          "FRA",
+          null
+        ],
+        [
+          18,
+          "27",
+          "AGOSTINACCHIO Mattia",
+          "ITA",
+          null
+        ],
+        [
+          19,
+          "9",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          20,
+          "16",
+          "MEIN Thomas",
+          "GBR",
+          null
+        ],
+        [
+          21,
+          "67",
+          "MEEUSEN Tom",
+          "BEL",
+          null
+        ],
+        [
+          22,
+          "36",
+          "LAURYSSEN Yorben",
+          "BEL",
+          null
+        ],
+        [
+          23,
+          "66",
+          "VANHOUDT Yoren",
+          "BEL",
+          null
+        ],
+        [
+          24,
+          "64",
+          "SOETE Daan",
+          "BEL",
+          null
+        ],
+        [
+          25,
+          "39",
+          "MARASCO Lorenzo",
+          "FRA",
+          null
+        ],
+        [
+          26,
+          "29",
+          "MIRA BONASTRE Raul",
+          "ESP",
+          null
+        ],
+        [
+          27,
+          "25",
+          "HORNY Clement",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "53",
+          "DE LONGHI Lorenzo",
+          "ITA",
+          null
+        ],
+        [
+          29,
+          "47",
+          "SHELTON Noah",
+          "USA",
+          null
+        ],
+        [
+          30,
+          "76",
+          "RIJVERS Max",
+          "NED",
+          null
+        ],
+        [
+          31,
+          "19",
+          "CLARK Tyler",
+          "CAN",
+          null
+        ],
+        [
+          32,
+          "65",
+          "BAERS Arne",
+          "BEL",
+          null
+        ],
+        [
+          33,
+          "31",
+          "SCAPPINI Samuele",
+          "ITA",
+          null
+        ],
+        [
+          34,
+          "56",
+          "VOLLMUTH Aidan",
+          "USA",
+          null
+        ],
+        [
+          35,
+          "41",
+          "BETTENDORFF Loïc",
+          "LUX",
+          null
+        ],
+        [
+          36,
+          "49",
+          "DELNOIJE Remon",
+          "NED",
+          null
+        ],
+        [
+          37,
+          "43",
+          "CAFUERI Tommaso",
+          "ITA",
+          null
+        ],
+        [
+          38,
+          "71",
+          "VILLAR THIERY Aubin",
+          "FRA",
+          null
+        ],
+        [
+          39,
+          "40",
+          "GEVAERT Miles",
+          "BEL",
+          null
+        ],
+        [
+          40,
+          "21",
+          "GABRIEL Timothé",
+          "FRA",
+          null
+        ],
+        [
+          41,
+          "34",
+          "HERRMANN Lukas",
+          "GER",
+          null
+        ],
+        [
+          42,
+          "87",
+          "SMITS Rune",
+          "BEL",
+          null
+        ],
+        [
+          43,
+          "60",
+          "DE CLERCQ Naud",
+          "BEL",
+          null
+        ],
+        [
+          44,
+          "32",
+          "DAVID Alexis",
+          "FRA",
+          null
+        ],
+        [
+          45,
+          "46",
+          "HAMM Florian",
+          "GER",
+          null
+        ],
+        [
+          46,
+          "50",
+          "BATES Rhett",
+          "CAN",
+          null
+        ],
+        [
+          47,
+          "23",
+          "ODA Hijiri",
+          "JPN",
+          null
+        ],
+        [
+          48,
+          "95",
+          "CROKET Maxime",
+          "BEL",
+          null
+        ],
+        [
+          49,
+          "79",
+          "SAVIGNARD Mael",
+          "FRA",
+          null
+        ],
+        [
+          50,
+          "58",
+          "LIENERT Patrik",
+          "CZE",
+          null
+        ],
+        [
+          51,
+          "55",
+          "SARGENT Liam",
+          "CAN",
+          null
+        ],
+        [
+          52,
+          "33",
+          "CONAWAY Calvin",
+          "USA",
+          null
+        ],
+        [
+          53,
+          "78",
+          "FERY Florian",
+          "FRA",
+          null
+        ],
+        [
+          54,
+          "88",
+          "GEENS Keano",
+          "BEL",
+          "LAP"
+        ],
+        [
+          55,
+          "61",
+          "WESTOVER Finn",
+          "USA",
+          "LAP"
+        ],
+        [
+          56,
+          "57",
+          "ZANOLINI Alan",
+          "ITA",
+          "LAP"
+        ],
+        [
+          57,
+          "80",
+          "ROMAIN Emilien",
+          "FRA",
+          "LAP"
+        ],
+        [
+          58,
+          "51",
+          "GASSNER Michael",
+          "GER",
+          "LAP"
+        ],
+        [
+          59,
+          "75",
+          "GUÉRIN Morgan",
+          "SUI",
+          "LAP"
+        ],
+        [
+          60,
+          "85",
+          "LOETE Hippolyte",
+          "FRA",
+          "LAP"
+        ],
+        [
+          61,
+          "48",
+          "HEIGL Philipp",
+          "AUT",
+          "LAP"
+        ],
+        [
+          62,
+          "63",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "LAP"
+        ],
+        [
+          63,
+          "94",
+          "IVENS Vince",
+          "BEL",
+          "LAP"
+        ],
+        [
+          64,
+          "89",
+          "CARDIJN Jorre",
+          "BEL",
+          "LAP"
+        ],
+        [
+          65,
+          "81",
+          "FERNANDEZ DE LA PEÑA AGUIRRE Beñat",
+          "ESP",
+          "LAP"
+        ],
+        [
+          66,
+          "86",
+          "TAJIMA Ayato",
+          "JPN",
+          "LAP"
+        ],
+        [
+          67,
+          "91",
+          "MERTENS Jonas",
+          "BEL",
+          "LAP"
+        ],
+        [
+          68,
+          "83",
+          "GARNIER Léo",
+          "SUI",
+          "LAP"
+        ],
+        [
+          69,
+          "73",
+          "MAILLEFER Simon",
+          "SUI",
+          "LAP"
+        ],
+        [
+          70,
+          "82",
+          "GÓMEZ VEGA Marcos",
+          "ESP",
+          "LAP"
+        ],
+        [
+          71,
+          "72",
+          "BRISEBOIS Remi",
+          "CAN",
+          "LAP"
+        ],
+        [
+          72,
+          "98",
+          "SYDLIK Benjamin",
+          "GER",
+          "LAP"
+        ],
+        [
+          73,
+          "62",
+          "LUKŠAS Dovydas",
+          "LTU",
+          "LAP"
+        ],
+        [
+          null,
+          "4",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "5",
+          "SWEECK Laurens",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "8",
+          "RONHAAR Pim",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "12",
+          "STROHMEYER Andrew",
+          "USA",
+          "DNF"
+        ],
+        [
+          null,
+          "20",
+          "INGUANZO MACHO Gonzalo",
+          "ESP",
+          "DNF"
+        ],
+        [
+          null,
+          "24",
+          "SCOTT Cody",
+          "CAN",
+          "DNF"
+        ],
+        [
+          null,
+          "28",
+          "COOTE Henry",
+          "USA",
+          "DNF"
+        ],
+        [
+          null,
+          "37",
+          "AGOSTINACCHIO Filippo",
+          "ITA",
+          "DNF"
+        ],
+        [
+          null,
+          "59",
+          "GAMBORG Jonas Posselt",
+          "DEN",
+          "DNF"
+        ],
+        [
+          null,
+          "69",
+          "SOONTJENS Arthur",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "74",
+          "GOOVAERTS Jarne",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "92",
+          "JACOBY François",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "70",
+          "OKAYAMA Yuta",
+          "JPN",
+          "DNS"
+        ]
+      ],
+      "dnf": 12,
+      "dns": 1,
+      "participants": 86
+    },
+    {
+      "race": "Diegem",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/91520c08-e5be-11f0-9f83-0050569301fd/1767126709",
+      "sha256": "3c50ce7f04130f5bcf9fd93196dd4f650358704f063c648f4e47b681a49892b6",
+      "dateKey": "2025-12-30",
+      "rows": [
+        [
+          1,
+          "9",
+          "DEL GROSSO Tibor",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "6",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "1",
+          "NYS Thibau",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "13",
+          "HENDRIKX Mees",
+          "NED",
+          null
+        ],
+        [
+          5,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "2",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "48",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "8",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          9,
+          "28",
+          "FONTANA Filippo",
+          "ITA",
+          null
+        ],
+        [
+          10,
+          "16",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "20",
+          "CORSUS Yordi",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "11",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          13,
+          "33",
+          "LOOCKX Lander",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "36",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "17",
+          "BERTOLINI Gioele",
+          "ITA",
+          null
+        ],
+        [
+          16,
+          "45",
+          "LAURYSSEN Yorben",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "35",
+          "AGOSTINACCHIO Filippo",
+          "ITA",
+          null
+        ],
+        [
+          18,
+          "32",
+          "HORNY Clement",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "15",
+          "BOROŠ Michael",
+          "CZE",
+          null
+        ],
+        [
+          20,
+          "42",
+          "REMIJN Senna",
+          "NED",
+          null
+        ],
+        [
+          21,
+          "25",
+          "GROSLAMBERT Martin",
+          "FRA",
+          null
+        ],
+        [
+          22,
+          "10",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          23,
+          "53",
+          "JAMIN Antoine",
+          "BEL",
+          null
+        ],
+        [
+          24,
+          "37",
+          "ANANIE Ugo",
+          "FRA",
+          null
+        ],
+        [
+          25,
+          "39",
+          "OERTZEN Max Heiner",
+          "GER",
+          null
+        ],
+        [
+          26,
+          "54",
+          "AMEY Oscar",
+          "GBR",
+          null
+        ],
+        [
+          27,
+          "99",
+          "BERCKMOES Jenno",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "38",
+          "SCAPPINI Samuele",
+          "ITA",
+          null
+        ],
+        [
+          29,
+          "95",
+          "FERY Florian",
+          "FRA",
+          null
+        ],
+        [
+          30,
+          "73",
+          "LIENERT Patrik",
+          "CZE",
+          null
+        ],
+        [
+          31,
+          "88",
+          "VILLAR THIERY Aubin",
+          "FRA",
+          null
+        ],
+        [
+          32,
+          "46",
+          "BARD Nicolas",
+          "SUI",
+          null
+        ],
+        [
+          33,
+          "58",
+          "MARASCO Lorenzo",
+          "FRA",
+          null
+        ],
+        [
+          34,
+          "56",
+          "REMONDET Valentin",
+          "FRA",
+          null
+        ],
+        [
+          35,
+          "40",
+          "BETON Damien",
+          "FRA",
+          null
+        ],
+        [
+          36,
+          "97",
+          "NUYENS Wies",
+          "BEL",
+          null
+        ],
+        [
+          37,
+          "57",
+          "ASKEY Ben",
+          "GBR",
+          null
+        ],
+        [
+          38,
+          "94",
+          "LEMARDELE Maxence",
+          "FRA",
+          null
+        ],
+        [
+          39,
+          "50",
+          "GEVAERT Miles",
+          "BEL",
+          "LAP"
+        ],
+        [
+          40,
+          "51",
+          "CAFUERI Tommaso",
+          "ITA",
+          "LAP"
+        ],
+        [
+          41,
+          "72",
+          "VOLLMUTH Aidan",
+          "USA",
+          "LAP"
+        ],
+        [
+          42,
+          "34",
+          "SIMON Jules",
+          "FRA",
+          "LAP"
+        ],
+        [
+          43,
+          "77",
+          "TANGUY Louis",
+          "FRA",
+          "LAP"
+        ],
+        [
+          44,
+          "52",
+          "FERRI Tommaso",
+          "ITA",
+          "LAP"
+        ],
+        [
+          45,
+          "69",
+          "JANSE Stef",
+          "BEL",
+          "LAP"
+        ],
+        [
+          46,
+          "59",
+          "GAILLARD Florian",
+          "FRA",
+          "LAP"
+        ],
+        [
+          47,
+          "22",
+          "CLARK Tyler",
+          "CAN",
+          "LAP"
+        ],
+        [
+          48,
+          "85",
+          "BOLZAN Edoardo",
+          "ITA",
+          "LAP"
+        ],
+        [
+          49,
+          "100",
+          "VAN DEN BROEK Axel",
+          "BEL",
+          "LAP"
+        ],
+        [
+          50,
+          "41",
+          "CONAWAY Calvin",
+          "USA",
+          "LAP"
+        ],
+        [
+          51,
+          "74",
+          "GAMBORG Jonas Posselt",
+          "DEN",
+          "LAP"
+        ],
+        [
+          52,
+          "90",
+          "AMEY Alfie",
+          "GBR",
+          "LAP"
+        ],
+        [
+          53,
+          "67",
+          "KOCKELMANN Raphaël",
+          "LUX",
+          "LAP"
+        ],
+        [
+          54,
+          "96",
+          "CHISHOLM Sam",
+          "GBR",
+          "LAP"
+        ],
+        [
+          55,
+          "75",
+          "WESTOVER Finn",
+          "USA",
+          "LAP"
+        ],
+        [
+          56,
+          "70",
+          "ZANOLINI Alan",
+          "ITA",
+          "LAP"
+        ],
+        [
+          57,
+          "76",
+          "FRANK Patrick",
+          "USA",
+          "LAP"
+        ],
+        [
+          58,
+          "68",
+          "HÖDLMOSER Dominik",
+          "AUT",
+          "LAP"
+        ],
+        [
+          59,
+          "31",
+          "SCOTT Cody",
+          "CAN",
+          "LAP"
+        ],
+        [
+          60,
+          "92",
+          "GUÉRIN Morgan",
+          "SUI",
+          "LAP"
+        ],
+        [
+          61,
+          "62",
+          "BATES Rhett",
+          "CAN",
+          "LAP"
+        ],
+        [
+          62,
+          "93",
+          "HURT Joel Darren",
+          "GBR",
+          "LAP"
+        ],
+        [
+          63,
+          "87",
+          "GOERTZ Lucas",
+          "CAN",
+          "LAP"
+        ],
+        [
+          64,
+          "19",
+          "JUNQUERA SAN MILLAN Mario",
+          "ESP",
+          "LAP"
+        ],
+        [
+          65,
+          "49",
+          "SCOTT Tom",
+          "GBR",
+          "LAP"
+        ],
+        [
+          66,
+          "60",
+          "HEIGL Philipp",
+          "AUT",
+          "LAP"
+        ],
+        [
+          67,
+          "89",
+          "MAILLEFER Simon",
+          "SUI",
+          "LAP"
+        ],
+        [
+          68,
+          "82",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "LAP"
+        ],
+        [
+          69,
+          "83",
+          "BRISEBOIS Remi",
+          "CAN",
+          "LAP"
+        ],
+        [
+          70,
+          "79",
+          "LUKŠAS Dovydas",
+          "LTU",
+          "LAP"
+        ],
+        [
+          71,
+          "78",
+          "KAJI Tetsuki",
+          "JPN",
+          "LAP"
+        ],
+        [
+          72,
+          "65",
+          "SARGENT Liam",
+          "CAN",
+          "LAP"
+        ],
+        [
+          73,
+          "63",
+          "JUNGE Frederick",
+          "USA",
+          "LAP"
+        ],
+        [
+          74,
+          "84",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP"
+        ],
+        [
+          null,
+          "23",
+          "DE BRUYCKERE Kay",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "47",
+          "BARNES Daniel",
+          "GBR",
+          "DNF"
+        ],
+        [
+          null,
+          "64",
+          "DE LONGHI Lorenzo",
+          "ITA",
+          "DNF"
+        ],
+        [
+          null,
+          "66",
+          "BERNHARD Jack",
+          "USA",
+          "DNF"
+        ],
+        [
+          null,
+          "71",
+          "RISBERG David",
+          "SWE",
+          "DNF"
+        ],
+        [
+          null,
+          "80",
+          "GUENTHER Beau",
+          "USA",
+          "DNF"
+        ]
+      ],
+      "dnf": 6,
+      "dns": 0,
+      "participants": 80
+    },
+    {
+      "race": "Gullegem",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/e5181cac-e8bc-11f0-9f83-0050569301fd/1767455844",
+      "sha256": "0428eccdaf685d14f7e54b0530d482a986e670c6dc134bc9bd8d6437ae853613",
+      "dateKey": "2026-01-03",
+      "rows": [
+        [
+          1,
+          "3",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "1",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "2",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "4",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "24",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "7",
+          "KUHN Kevin",
+          "SUI",
+          null
+        ],
+        [
+          7,
+          "5",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          8,
+          "23",
+          "LOOCKX Lander",
+          "BEL",
+          null
+        ],
+        [
+          9,
+          "20",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "65",
+          "HERMANS Quinten",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "12",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "8",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          13,
+          "14",
+          "VANDENBERGHE Viktor",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "51",
+          "VERMEERSCH Gianni",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "25",
+          "ANANIE Ugo",
+          "FRA",
+          null
+        ],
+        [
+          16,
+          "9",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "15",
+          "DE MOYER Kenay",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "13",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          null
+        ],
+        [
+          19,
+          "22",
+          "JOT Matéo",
+          "FRA",
+          null
+        ],
+        [
+          20,
+          "28",
+          "BETON Damien",
+          "FRA",
+          null
+        ],
+        [
+          21,
+          "30",
+          "EDER Fabian",
+          "GER",
+          null
+        ],
+        [
+          22,
+          "27",
+          "BISIAUX Léo",
+          "FRA",
+          null
+        ],
+        [
+          23,
+          "63",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          null
+        ],
+        [
+          24,
+          "40",
+          "JOT Hugo",
+          "FRA",
+          null
+        ],
+        [
+          25,
+          "57",
+          "NUYENS Wies",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "16",
+          "ODA Hijiri",
+          "JPN",
+          null
+        ],
+        [
+          27,
+          "31",
+          "ASKEY Ben",
+          "GBR",
+          null
+        ],
+        [
+          28,
+          "58",
+          "DE NYS Milan",
+          "BEL",
+          null
+        ],
+        [
+          29,
+          "17",
+          "DE CLERCQ Naud",
+          "BEL",
+          null
+        ],
+        [
+          30,
+          "61",
+          "MARCHAND Robbe",
+          "BEL",
+          null
+        ],
+        [
+          31,
+          "47",
+          "VANHOUDT Yoren",
+          "BEL",
+          null
+        ],
+        [
+          32,
+          "70",
+          "EKMAN Vilmer",
+          "SWE",
+          null
+        ],
+        [
+          33,
+          "59",
+          "DE VET Sander",
+          "BEL",
+          null
+        ],
+        [
+          34,
+          "87",
+          "GAUTHIER Gabin",
+          "FRA",
+          null
+        ],
+        [
+          35,
+          "78",
+          "TRIGO Florian",
+          "FRA",
+          null
+        ],
+        [
+          36,
+          "52",
+          "DE NYS Lars",
+          "BEL",
+          null
+        ],
+        [
+          37,
+          "50",
+          "MORICHON Mathieu",
+          "FRA",
+          null
+        ],
+        [
+          38,
+          "71",
+          "VAN LOOY Stan",
+          "BEL",
+          null
+        ],
+        [
+          39,
+          "62",
+          "LOETE Hippolyte",
+          "FRA",
+          null
+        ],
+        [
+          40,
+          "86",
+          "JACOBS Ieben",
+          "BEL",
+          null
+        ],
+        [
+          41,
+          "35",
+          "HAMM Florian",
+          "GER",
+          null
+        ],
+        [
+          42,
+          "85",
+          "VANLAERE Loïc",
+          "BEL",
+          null
+        ],
+        [
+          43,
+          "26",
+          "CONAWAY Calvin",
+          "USA",
+          null
+        ],
+        [
+          44,
+          "83",
+          "SALOMEZ Ydris",
+          "BEL",
+          null
+        ],
+        [
+          45,
+          "46",
+          "VIK Matj",
+          "CZE",
+          null
+        ],
+        [
+          46,
+          "67",
+          "VAN DEN BROEK Axel",
+          "BEL",
+          null
+        ],
+        [
+          47,
+          "42",
+          "WESTOVER Finn",
+          "USA",
+          null
+        ],
+        [
+          48,
+          "49",
+          "ALVARADO Salvador",
+          "NED",
+          null
+        ],
+        [
+          49,
+          "55",
+          "ROMAIN Emilien",
+          "FRA",
+          "LAP"
+        ],
+        [
+          50,
+          "72",
+          "CROKET Maxime",
+          "BEL",
+          "LAP"
+        ],
+        [
+          51,
+          "54",
+          "CHISHOLM Sam",
+          "GBR",
+          "LAP"
+        ],
+        [
+          52,
+          "76",
+          "VAN LOOCKE Lars",
+          "BEL",
+          "LAP"
+        ],
+        [
+          53,
+          "32",
+          "TURNER Jacob",
+          "NZL",
+          "LAP"
+        ],
+        [
+          54,
+          "69",
+          "BARIOT Lohan",
+          "FRA",
+          "LAP"
+        ],
+        [
+          55,
+          "75",
+          "DEPRAETERE Gust",
+          "BEL",
+          "LAP"
+        ],
+        [
+          56,
+          "64",
+          "DU MOUZA Quentin",
+          "FRA",
+          "LAP"
+        ],
+        [
+          57,
+          "33",
+          "BATES Rhett",
+          "CAN",
+          "LAP"
+        ],
+        [
+          58,
+          "36",
+          "SARGENT Liam",
+          "CAN",
+          "LAP"
+        ],
+        [
+          59,
+          "56",
+          "GUÉRIN Morgan",
+          "SUI",
+          "LAP"
+        ],
+        [
+          60,
+          "45",
+          "BRISEBOIS Remi",
+          "CAN",
+          "LAP"
+        ],
+        [
+          61,
+          "43",
+          "GUENTHER Beau",
+          "USA",
+          "LAP"
+        ],
+        [
+          62,
+          "81",
+          "MARZANI Marco",
+          "ITA",
+          "LAP"
+        ],
+        [
+          63,
+          "88",
+          "CHAUDERLOT PHULPIN Tom",
+          "FRA",
+          "LAP"
+        ],
+        [
+          64,
+          "39",
+          "FRANK Patrick",
+          "USA",
+          "LAP"
+        ],
+        [
+          65,
+          "77",
+          "POUILLARD Raphaël",
+          "FRA",
+          "LAP"
+        ],
+        [
+          66,
+          "53",
+          "SPADONI Gabriele",
+          "ITA",
+          "LAP"
+        ],
+        [
+          67,
+          "74",
+          "POUILLARD Hugo",
+          "FRA",
+          "LAP"
+        ],
+        [
+          68,
+          "84",
+          "HELIOT Martin",
+          "FRA",
+          "LAP"
+        ],
+        [
+          69,
+          "44",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP"
+        ],
+        [
+          70,
+          "82",
+          "LEMONNIER François",
+          "FRA",
+          "LAP"
+        ],
+        [
+          71,
+          "90",
+          "POUILLARD Lucas",
+          "FRA",
+          "LAP"
+        ],
+        [
+          72,
+          "68",
+          "LEZARD William",
+          "GBR",
+          "LAP"
+        ],
+        [
+          73,
+          "80",
+          "MAËS Louis",
+          "FRA",
+          "LAP"
+        ],
+        [
+          null,
+          "34",
+          "KING Carden",
+          "USA",
+          "DNF"
+        ],
+        [
+          null,
+          "60",
+          "AASTRUP Vilmar",
+          "SWE",
+          "DNF"
+        ],
+        [
+          null,
+          "89",
+          "ARYS Matisse",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 3,
+      "dns": 0,
+      "participants": 76
+    },
+    {
+      "race": "Middelkerke",
+      "category": "ME",
+      "url": "https://www.superprestigecyclocross.be/nl/files/6f301cb8-043c-11f1-9f83-0050569301fd/1770479303",
+      "sha256": "eb53937a572842e6e4ade280ec09252656df1cf219ec4e921c0916e6be517f7a",
+      "dateKey": "2026-02-07",
+      "rows": [
+        [
+          1,
+          "3",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "1",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "14",
+          "KUYPERS Gerben",
+          "BEL",
+          null
+        ],
+        [
+          4,
+          "4",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null
+        ],
+        [
+          5,
+          "7",
+          "WYSEURE Joran",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "16",
+          "MEEUSSEN Witse",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "10",
+          "MASON Cameron",
+          "GBR",
+          null
+        ],
+        [
+          8,
+          "20",
+          "VIEZZI Stefano",
+          "ITA",
+          null
+        ],
+        [
+          9,
+          "17",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "26",
+          "FERDINANDE Anton",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "25",
+          "DE BRAUWERE Sil",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "2",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null
+        ],
+        [
+          13,
+          "9",
+          "MICHELS Jente",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "5",
+          "HENDRIKX Mees",
+          "NED",
+          null
+        ],
+        [
+          15,
+          "21",
+          "BAŽANT Kryštof",
+          "CZE",
+          null
+        ],
+        [
+          16,
+          "11",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "19",
+          "DE MOYER Kenay",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "27",
+          "ANANIE Ugo",
+          "FRA",
+          null
+        ],
+        [
+          19,
+          "32",
+          "BAERS Arne",
+          "BEL",
+          null
+        ],
+        [
+          20,
+          "30",
+          "DE CLERCQ Naud",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "8",
+          "KUHN Kevin",
+          "SUI",
+          "LAP"
+        ],
+        [
+          22,
+          "24",
+          "DEGENKOLB Hannes",
+          "GER",
+          "LAP"
+        ],
+        [
+          23,
+          "38",
+          "VANLAERE Loïc",
+          "BEL",
+          "LAP"
+        ],
+        [
+          24,
+          "33",
+          "DE NYS Milan",
+          "BEL",
+          "LAP"
+        ],
+        [
+          25,
+          "29",
+          "DELNOIJE Remon",
+          "NED",
+          "LAP"
+        ],
+        [
+          26,
+          "36",
+          "MARCHAND Robbe",
+          "BEL",
+          "LAP"
+        ],
+        [
+          27,
+          "39",
+          "CLARYSSE Elio",
+          "BEL",
+          "LAP"
+        ],
+        [
+          28,
+          "41",
+          "COOPMAN Kjell",
+          "BEL",
+          "LAP"
+        ],
+        [
+          29,
+          "34",
+          "SHINDO Soma",
+          "JPN",
+          "LAP"
+        ],
+        [
+          30,
+          "44",
+          "BLANPAIN Kévin",
+          "FRA",
+          "LAP"
+        ],
+        [
+          31,
+          "43",
+          "LEZARD William",
+          "GBR",
+          "LAP"
+        ],
+        [
+          null,
+          "13",
+          "KAMP Ryan",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "18",
+          "CEOLIN Federico",
+          "ITA",
+          "DNF"
+        ],
+        [
+          null,
+          "22",
+          "VAN DEN BOER Arthur",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "31",
+          "SOONTJENS Arthur",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "35",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "37",
+          "MULON Hugo",
+          "FRA",
+          "DNF"
+        ]
+      ],
+      "dnf": 6,
+      "dns": 0,
+      "participants": 37
+    }
+  ],
+  "standings": {
+    "sourceUrl": "https://www.superprestigecyclocross.be/nl/files/485e2f0a-ad06-11f0-9f83-0050569301fd/1770635206",
+    "sha256": "8985edd53a7832323681d5732a8b45731d702b96526ea1dff5e70f1bcd977031",
+    "rows": [
+      {
+        "publishedRank": 1,
+        "name": "Niels Vandeputte",
+        "nation": "BEL",
+        "points": 105,
+        "roundPoints": [
+          13,
+          12,
+          14,
+          14,
+          12,
+          11,
+          15,
+          14
+        ]
+      },
+      {
+        "publishedRank": 2,
+        "name": "Michael Vanthourenhout",
+        "nation": "BEL",
+        "points": 103,
+        "roundPoints": [
+          15,
+          15,
+          13,
+          8,
+          13,
+          10,
+          14,
+          15
+        ]
+      },
+      {
+        "publishedRank": 3,
+        "name": "Joran Wyseure",
+        "nation": "BEL",
+        "points": 74,
+        "roundPoints": [
+          11,
+          11,
+          0,
+          4,
+          11,
+          14,
+          12,
+          11
+        ]
+      },
+      {
+        "publishedRank": 4,
+        "name": "Joris Nieuwenhuis",
+        "nation": "NED",
+        "points": 64,
+        "roundPoints": [
+          14,
+          10,
+          8,
+          15,
+          0,
+          0,
+          13,
+          4
+        ]
+      },
+      {
+        "publishedRank": 5,
+        "name": "Felipe Orts Lloret",
+        "nation": "ESP",
+        "points": 57,
+        "roundPoints": [
+          0,
+          0,
+          11,
+          7,
+          10,
+          8,
+          9,
+          12
+        ]
+      },
+      {
+        "publishedRank": 6,
+        "name": "Jente Michels",
+        "nation": "BEL",
+        "points": 52,
+        "roundPoints": [
+          9,
+          9,
+          9,
+          12,
+          0,
+          6,
+          4,
+          3
+        ]
+      },
+      {
+        "publishedRank": 7,
+        "name": "Gerben Kuypers",
+        "nation": "BEL",
+        "points": 47,
+        "roundPoints": [
+          3,
+          5,
+          0,
+          0,
+          6,
+          9,
+          11,
+          13
+        ]
+      },
+      {
+        "publishedRank": 8,
+        "name": "Emiel Verstrynge",
+        "nation": "BEL",
+        "points": 45,
+        "roundPoints": [
+          7,
+          13,
+          12,
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 9,
+        "name": "Kevin Kuhn",
+        "nation": "SUI",
+        "points": 42,
+        "roundPoints": [
+          12,
+          1,
+          6,
+          0,
+          9,
+          4,
+          10,
+          0
+        ]
+      },
+      {
+        "publishedRank": 10,
+        "name": "Witse Meeussen",
+        "nation": "BEL",
+        "points": 35,
+        "roundPoints": [
+          6,
+          7,
+          7,
+          5,
+          0,
+          0,
+          0,
+          10
+        ]
+      },
+      {
+        "publishedRank": 11,
+        "name": "Toon Vandebosch",
+        "nation": "BEL",
+        "points": 30,
+        "roundPoints": [
+          10,
+          4,
+          10,
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Tibor Del Grosso",
+        "nation": "NED",
+        "points": 30,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          15,
+          15,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 13,
+        "name": "Cameron Mason",
+        "nation": "GBR",
+        "points": 27,
+        "roundPoints": [
+          0,
+          6,
+          1,
+          11,
+          0,
+          0,
+          0,
+          9
+        ]
+      },
+      {
+        "publishedRank": 14,
+        "name": "Laurens Sweeck",
+        "nation": "BEL",
+        "points": 26,
+        "roundPoints": [
+          8,
+          0,
+          15,
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 15,
+        "name": "Mees Hendrikx",
+        "nation": "NED",
+        "points": 25,
+        "roundPoints": [
+          0,
+          2,
+          0,
+          1,
+          8,
+          12,
+          0,
+          2
+        ]
+      },
+      {
+        "publishedRank": 16,
+        "name": "Thibau Nys",
+        "nation": "BEL",
+        "points": 24,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          9,
+          2,
+          13,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 17,
+        "name": "Pim Ronhaar",
+        "nation": "NED",
+        "points": 20,
+        "roundPoints": [
+          4,
+          14,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Lars van der Haar",
+        "nation": "NED",
+        "points": 20,
+        "roundPoints": [
+          2,
+          8,
+          0,
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Anton Ferdinande",
+        "nation": "BEL",
+        "points": 20,
+        "roundPoints": [
+          0,
+          0,
+          5,
+          0,
+          0,
+          2,
+          7,
+          6
+        ]
+      },
+      {
+        "publishedRank": 20,
+        "name": "Victor Van de Putte",
+        "nation": "BEL",
+        "points": 16,
+        "roundPoints": [
+          1,
+          3,
+          0,
+          0,
+          0,
+          0,
+          5,
+          7
+        ]
+      },
+      {
+        "publishedRank": 21,
+        "name": "Wout van Aert",
+        "nation": "BEL",
+        "points": 14,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          14,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Filippo Fontana",
+        "nation": "ITA",
+        "points": 14,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          7,
+          7,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 23,
+        "name": "Lander Loockx",
+        "nation": "BEL",
+        "points": 11,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          8,
+          0
+        ]
+      },
+      {
+        "publishedRank": 24,
+        "name": "Toon Aerts",
+        "nation": "BEL",
+        "points": 9,
+        "roundPoints": [
+          5,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 25,
+        "name": "Stefano Viezzi",
+        "nation": "ITA",
+        "points": 8,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          8
+        ]
+      },
+      {
+        "publishedRank": 26,
+        "name": "Quinten Hermans",
+        "nation": "BEL",
+        "points": 6,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          0
+        ]
+      },
+      {
+        "publishedRank": 27,
+        "name": "Aaron Dockx",
+        "nation": "BEL",
+        "points": 5,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Yordi Corsus",
+        "nation": "BEL",
+        "points": 5,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Sil De Brauwere",
+        "nation": "BEL",
+        "points": 5,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ]
+      },
+      {
+        "publishedRank": 30,
+        "name": "Antoine Jamin",
+        "nation": "BEL",
+        "points": 4,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 31,
+        "name": "Vaclav Jezek",
+        "nation": "CZE",
+        "points": 3,
+        "roundPoints": [
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Wout Janssen",
+        "nation": "BEL",
+        "points": 3,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Viktor Vandenberghe",
+        "nation": "BEL",
+        "points": 3,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "publishedRank": 34,
+        "name": "Michael Boros",
+        "nation": "CZE",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Gioele Bertolini",
+        "nation": "ITA",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Gianni Vermeersch",
+        "nation": "BEL",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0
+        ]
+      },
+      {
+        "publishedRank": 37,
+        "name": "Ugo Ananie",
+        "nation": "FRA",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Krystof Bazant",
+        "nation": "CZE",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "offlineAliases": []
+}

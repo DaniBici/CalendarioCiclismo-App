@@ -1,9 +1,20 @@
 package app.calendariociclismo.android.ui.results
 
 import android.os.Bundle
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Grain
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
@@ -11,19 +22,32 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.data.model.Asset
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.UciResultsData
+import app.calendariociclismo.android.ui.components.AssetActionStrip
+import app.calendariociclismo.android.ui.components.AssetChip
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.stage.StageInfoHeaderCard
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.Constants
+import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.UciResultsLogic
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 private sealed class ResultsState {
     object Loading : ResultsState()
@@ -38,9 +62,6 @@ private fun stageKeyRank(key: String): Pair<Int, String> {
     val (n, sfx) = UciResultsLogic.parseResultStageKey(key)
     return (n ?: Int.MAX_VALUE) to sfx
 }
-
-private fun classOrderIndex(classKind: String): Int =
-    UciResultsLogic.CLASS_ORDER.indexOf(classKind).let { if (it < 0) 99 else it }
 
 /**
  * Pantalla de resultados in-house (clasificaciones UCI de una carrera).
@@ -69,17 +90,33 @@ fun ResultsScreen(
     var reloadToken by remember { mutableStateOf(0) }
     val unknownError = stringResource(R.string.startlist_error_unknown)
 
+    var loading by remember(raceId) { mutableStateOf(false) }
     suspend fun load() {
-        runCatching { app.repository.loadResultsData(raceId) }
-            .onSuccess { data ->
-                state = if (data == null) ResultsState.Empty else ResultsState.Ready(data)
-            }
-            .onFailure { error ->
-                state = ResultsState.Error(error.message ?: unknownError)
-            }
+        if (loading) return
+        loading = true
+        try {
+            runCatching { app.repository.loadResultsData(raceId) }
+                .onSuccess { data ->
+                    state = if (data == null) ResultsState.Empty else ResultsState.Ready(data)
+                    reloadToken++
+                }
+                .onFailure { error ->
+                    if (error is CancellationException) throw error
+                    if (state !is ResultsState.Ready) state = ResultsState.Error(error.message ?: unknownError)
+                }
+        } finally { loading = false }
     }
 
-    LaunchedEffect(raceId) { load() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(raceId, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            load()
+            while (true) {
+                delay(60_000)
+                load()
+            }
+        }
+    }
 
     // El screen_view de Resultados se emite dentro de `ResultsContent` (reacciona
     // a la etapa activa), para que lleve stage_name/race_day_id de la etapa
@@ -92,7 +129,6 @@ fun ResultsScreen(
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             delay(300)
-            reloadToken++
             load()
             isRefreshing = false
         }
@@ -136,6 +172,11 @@ fun ResultsScreen(
                                 onRefresh = { isRefreshing = true },
                             ),
                             onBack = { navController.popBackStack() },
+                            onProfileTap = { navController.navigate(Routes.elevationProfile(it)) },
+                            onMapTap = { navController.navigate(Routes.routeMap(it)) },
+                            onStartlistTap = { navController.navigate(Routes.startlist(it)) },
+                            onStartOrderTap = { navController.navigate(Routes.startOrder(it)) },
+                            onStageTap = { stageId -> navController.navigate(Routes.stage(stageId, raceId)) },
                         )
                         PullToRefreshDefaults.Indicator(
                             state = pullRefreshState,
@@ -149,6 +190,7 @@ fun ResultsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ResultsContent(
     data: UciResultsData,
@@ -160,8 +202,14 @@ private fun ResultsContent(
      *  enganche también sobre el header fijo). */
     rootModifier: Modifier = Modifier,
     onBack: () -> Unit,
+    onProfileTap: (String) -> Unit,
+    onMapTap: (String) -> Unit,
+    onStartlistTap: (String) -> Unit,
+    onStartOrderTap: (String) -> Unit,
+    onStageTap: (String) -> Unit,
 ) {
     val app = rememberApp()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val isEn = LocaleHolder.shouldShowEnglishContent
 
     // ── Agrupar clasificaciones por etapa ──────────────────────────
@@ -208,12 +256,20 @@ private fun ResultsContent(
     }
 
     // Etapa activa: la pedida si existe, si no la última con datos.
-    var activeStageKey by remember(data.stages) {
+    var activeStageKey by remember(data.race.id) {
         mutableStateOf(requestedEntryKey() ?: stageKeys.lastOrNull())
     }
 
-    val activeStages = (stagesByKey[activeStageKey] ?: emptyList())
-        .sortedBy { classOrderIndex(it.classKind) }
+    fun sortedStagesForKey(key: String?): List<RaceUciStage> {
+        val existing = stagesByKey[key].orEmpty()
+            .filter { key != "final" || it.classKind != "stage" }
+        return UciResultsLogic.visibleStageClassifications(data.classificationConfig, existing)
+    }
+
+    LaunchedEffect(stageKeys) {
+        if (activeStageKey !in stageKeys) activeStageKey = requestedEntryKey() ?: stageKeys.lastOrNull()
+    }
+    val activeStages = sortedStagesForKey(activeStageKey)
 
     // Clasificación activa: por defecto la primera de la etapa. Si se pidió una
     // clasificación inicial (p. ej. "gc" desde "Así está la carrera") Y seguimos
@@ -240,7 +296,8 @@ private fun ResultsContent(
         data.raceDays.filter { it.stageNumber != null }.associateBy { it.stageNumber!! }
     }
     var headerRaceDay by remember { mutableStateOf<RaceDay?>(data.raceDay) }
-    LaunchedEffect(activeStageKey) {
+    LaunchedEffect(activeStageKey, data.raceDays, data.stages) {
+        headerRaceDay = data.raceDay
         val rdId = activeStages.firstOrNull { it.raceDayId != null }?.raceDayId
         val byId = rdId?.let { daysById[it] }
         if (byId != null) {
@@ -257,7 +314,7 @@ private fun ResultsContent(
     // screen_view con el contexto de la etapa activa: mismos parámetros que
     // `stage_detail` para sumar en "etapas más vistas". Se re-emite en cada
     // cambio de etapa (clave = activeStageKey + el raceDay ya resuelto).
-    LaunchedEffect(activeStageKey, headerRaceDay) {
+    LaunchedEffect(activeStageKey, headerRaceDay?.id) {
         app.analytics.logScreenView(
             "results",
             Bundle().apply {
@@ -275,23 +332,39 @@ private fun ResultsContent(
     var selectedTeam by remember { mutableStateOf<String?>(null) }
     // Equipos disponibles en la clasificación actual (los publica ResultsTable).
     var teamsAvailable by remember { mutableStateOf<List<String>>(emptyList()) }
+    // La cabecera depende de la presencia efectiva de la columna UCI, que solo
+    // se conoce al cargar las filas. Queda fijada bajo las pestañas.
+    var tableHeader by remember(activeStage?.id) { mutableStateOf<ResultsTableHeaderSpec?>(null) }
+    val swipeState = rememberClassificationSwipeState()
+    // Precarga de las clasificaciones contiguas, como los días vecinos de Hoy:
+    // el deslizamiento las muestra ya pintadas.
+    val prefetchApp = rememberApp()
+    LaunchedEffect(activeStage?.id, reloadToken) {
+        val current = activeStage ?: return@LaunchedEffect
+        val index = activeStages.indexOfFirst { it.id == current.id }
+        listOf(index + 1, index - 1).mapNotNull { activeStages.getOrNull(it) }
+            .filterNot { it.isCancelledStage || it.isPendingClassification }
+            .forEach { ResultsRowsCache.bundle(prefetchApp.repository, it.id, reloadToken, data.byDorsal, data.race.year) }
+    }
 
-    Column(modifier = rootModifier.fillMaxSize()) {
-        // Bloque FIJO arriba (no scrollea con la tabla): cabecera de carrera +
-        // selector de etapa + barra de clasificaciones/filtro de equipo. Así,
-        // al recorrer una clasificación larga, el contexto (qué etapa y qué
-        // clasificación se miran) permanece siempre visible. Mismo inset
-        // lateral/superior que el contentPadding de la tabla; el `spacedBy`
-        // reproduce la separación que tenían como items de la lista.
-        // Fondo opaco + padding inferior generoso: forma un "colchón" bajo el
-        // filtro/pestañas para que las filas de la tabla se deslicen por debajo
-        // con aire en vez de rozar el filtro al scrollear.
+    BoxWithConstraints(modifier = rootModifier.fillMaxSize()) {
+        val contextDay = headerRaceDay
+        val hasStageContext = contextDay?.let {
+            it.hasElevationProfile || it.distanceKm != null || it.elevationProfile?.elevationGain != null
+                || it.neutralStartTimeUtc != null || it.averageSpeedKmh != null
+                || it.hasValidTimeLimit
+        } == true
+        val showSideContext = maxWidth >= 700.dp && hasStageContext
+        Row(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        // La ficha general permanece fuera del scroll. Documentación y selector
+        // de etapas se desplazan; las pestañas de clasificación, el estado de
+        // publicación y la fila de columnas forman una única cabecera sticky.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
         ) {
             val rd = headerRaceDay
             if (rd != null) {
@@ -299,58 +372,331 @@ private fun ResultsContent(
             } else {
                 ResultsPlainHeader(race = data.race, onBack = onBack)
             }
-
-            if (stageKeys.size > 1) {
-                ResultsStageSelector(
-                    stageKeys = stageKeys,
-                    activeKey = activeStageKey,
-                    isEn = isEn,
-                    onSelect = { key ->
-                        activeStageKey = key
-                        activeClassKind = (stagesByKey[key] ?: emptyList())
-                            .sortedBy { classOrderIndex(it.classKind) }
-                            .firstOrNull()?.classKind
-                    },
-                )
-            }
-
-            if (activeStage != null) {
-                ResultsClassTabsBar(
-                    stages = activeStages,
-                    activeClassKind = activeStage.classKind,
-                    isEn = isEn,
-                    teamsAvailable = teamsAvailable,
-                    selectedTeam = selectedTeam,
-                    onSelectClass = { activeClassKind = it },
-                    onSelectTeam = { selectedTeam = it },
-                )
-            }
         }
 
         if (activeStage != null) {
             LazyColumn(
-                // weight(1f): ocupa el espacio restante bajo el bloque fijo.
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
             ) {
-                item {
+                headerRaceDay?.let { rd ->
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        ResultsAssetStrip(
+                            data = data,
+                            raceDay = rd,
+                            onProfileTap = onProfileTap,
+                            onMapTap = onMapTap,
+                            onStartlistTap = onStartlistTap,
+                            onStartOrderTap = onStartOrderTap,
+                            onStageTap = onStageTap,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                if (stageKeys.size > 1) {
+                    item {
+                        ResultsStageSelector(
+                            stageKeys = stageKeys,
+                            activeKey = activeStageKey,
+                            isEn = isEn,
+                            onSelect = { key ->
+                                activeStageKey = key
+                                activeClassKind = sortedStagesForKey(key).firstOrNull()?.classKind
+                            },
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+
+                stickyHeader {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        ) {
+                            ResultsClassTabsBar(
+                                stages = activeStages,
+                                classificationConfig = data.classificationConfig,
+                                activeClassKind = activeStage.classKind,
+                                isEn = isEn,
+                                teamsAvailable = teamsAvailable,
+                                selectedTeam = selectedTeam,
+                                onSelectClass = { activeClassKind = it },
+                                onSelectTeam = { selectedTeam = it },
+                            )
+                        }
+                        val config = data.classificationConfig.firstOrNull { it.classKind == activeStage.classKind }
+                        val classificationLabel = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
+                            ?: classLabel(activeStage.classKind)
+                        ResultsPublicationStatus(
+                            stage = activeStage,
+                            classificationLabel = classificationLabel,
+                            showClassificationLabel = !data.race.isOneDay,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        tableHeader?.let { header ->
+                            ResultsTableHeader(
+                                showTeam = header.primaryColumnIsRider,
+                                showUciPoints = header.showUciPoints,
+                                valueHeader = stringResource(
+                                    if (header.isPoints) R.string.results_col_points
+                                    else R.string.results_col_time,
+                                ),
+                            )
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            )
+                        }
+                    }
+                }
+
+                val classKinds = activeStages.map { it.classKind }
+
+                if (activeStage.isPendingClassification) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                            .classificationSwipe(classKinds, activeStage.classKind, swipeState) { activeClassKind = it },
+                            contentAlignment = Alignment.Center) {
+                            Text(
+                                if (isEn) "Pending publication" else "Pendiente de publicación",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else item {
                     // key() fuerza recomposición limpia de la tabla al cambiar de
                     // clasificación o etapa (recarga de filas + reset de estado CRE).
                     key(activeStage.id) {
-                        ResultsTable(
-                            stage = activeStage,
-                            byDorsal = data.byDorsal,
-                            raceTeams = data.raceTeams,
-                            raceDayPrimaryType = headerRaceDay?.primaryType,
-                            isOneDay = data.race.isOneDay,
-                            isEn = isEn,
-                            selectedTeam = selectedTeam,
-                            reloadToken = reloadToken,
-                            onTeamsResolved = { teamsAvailable = it },
-                        )
+                        Box(Modifier.classificationSwipe(classKinds, activeStage.classKind, swipeState) { activeClassKind = it }) {
+                            ResultsTable(
+                                stage = activeStage,
+                                byDorsal = data.byDorsal,
+                                raceTeams = data.raceTeams,
+                                raceDayPrimaryType = headerRaceDay?.primaryType,
+                                raceYear = data.race.year,
+                                isOneDay = data.race.isOneDay,
+                                isEn = isEn,
+                                selectedTeam = selectedTeam,
+                                reloadToken = reloadToken,
+                                showTableHeader = false,
+                                onTeamsResolved = { teamsAvailable = it },
+                                onHeaderResolved = { tableHeader = it },
+                            )
+                        }
+                    }
+                }
+                if (!showSideContext && contextDay != null && hasStageContext) {
+                    item {
+                        Spacer(Modifier.height(12.dp))
+                        ResultsStageContextCard(
+                            raceDay = contextDay,
+                            race = data.race,
+                        ) { onProfileTap(contextDay.id) }
                     }
                 }
             }
         }
+        }
+        contextDay?.takeIf { showSideContext }?.let { sideDay ->
+            Box(
+                modifier = Modifier
+                    .width(320.dp)
+                    .fillMaxHeight()
+                    .padding(top = 16.dp, end = 16.dp),
+            ) {
+                ResultsStageContextCard(
+                    raceDay = sideDay,
+                    race = data.race,
+                ) { onProfileTap(sideDay.id) }
+            }
+        }
+        }
     }
+}
+
+/** Barra documental de la jornada activa, sin el perfil oficial externo. */
+@Composable
+private fun ResultsAssetStrip(
+    data: UciResultsData,
+    raceDay: RaceDay,
+    onProfileTap: (String) -> Unit,
+    onMapTap: (String) -> Unit,
+    onStartlistTap: (String) -> Unit,
+    onStartOrderTap: (String) -> Unit,
+    onStageTap: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val technicalGuide = data.assets.firstOrNull {
+        it.type == "technicalGuide" && !it.url.isNullOrEmpty()
+    }
+    val stageAssets = data.assets.filter {
+        it.raceDayId == raceDay.id && it.type != "technicalGuide" && it.type != "live_text"
+            && (it.type == "startOrder" || !it.url.isNullOrEmpty())
+    }
+    val assets = (listOfNotNull(technicalGuide) + stageAssets)
+        .distinctBy { it.type ?: it.id }
+        .sortedBy { asset ->
+            Constants.ASSET_ORDER.indexOf(asset.type.orEmpty()).let { if (it < 0) Int.MAX_VALUE else it }
+        }
+    val profileIndex = Constants.ASSET_ORDER.indexOf("profile").let {
+        if (it < 0) Constants.ASSET_ORDER.size else it
+    }
+    val hasInteractiveProfile = raceDay.hasElevationProfile
+    val hasStaticProfile = assets.any { it.type == "profile" }
+    val hasInteractiveMap = !raceDay.routeGpxUrl.isNullOrEmpty()
+    val hasStaticMap = assets.any { it.type == "map" }
+    val bothMaps = hasInteractiveMap && hasStaticMap
+    val assetsBeforeProfile = assets.filter { asset ->
+        asset.type != "technicalGuide" &&
+            Constants.ASSET_ORDER.indexOf(asset.type.orEmpty()).let { if (it < 0) Int.MAX_VALUE else it } < profileIndex
+    }
+    val officialMap = if (bothMaps) assets.firstOrNull { it.type == "map" } else null
+    val assetsFromProfile = assets.filter { asset ->
+        if (asset.type == "profile") return@filter false
+        if (asset.type == "map" && bothMaps) return@filter false
+        Constants.ASSET_ORDER.indexOf(asset.type.orEmpty()).let { if (it < 0) Int.MAX_VALUE else it } >= profileIndex
+    }
+
+    AssetActionStrip {
+        data.race.websiteUrl?.takeUnless { it.isEmpty() }?.let { url ->
+            AssetChip(
+                icon = Icons.Outlined.Language,
+                label = LocaleHolder.t("Web oficial", "Official website"),
+                onClick = { openExternalUrl(context, url) },
+            )
+        }
+
+        technicalGuide?.let { asset ->
+            AssetChip(
+                icon = resultsAssetIcon(asset.type),
+                label = asset.typeLabel(context),
+                onClick = { asset.url?.let { openExternalUrl(context, it) } },
+            )
+        }
+
+        AssetChip(
+            iconPainter = painterResource(R.drawable.ic_action_cursor),
+            label = if (data.race.isOneDay) {
+                LocaleHolder.t("Ir a la carrera", "Go to the race")
+            } else {
+                LocaleHolder.t("Ir a la etapa", "Go to the stage")
+            },
+            onClick = { onStageTap(raceDay.id) },
+        )
+
+        if (data.race.startlistImportedAt != null) {
+            AssetChip(
+                icon = Icons.Filled.Group,
+                label = if (data.race.startlistProvisional) {
+                    LocaleHolder.t("Lista provisional", "Provisional Startlist")
+                } else {
+                    LocaleHolder.t("Dorsales", "Startlist")
+                },
+                onClick = { onStartlistTap(data.race.id) },
+            )
+        }
+
+        assetsBeforeProfile.forEach { asset ->
+            if (asset.type == "startOrder") {
+                AssetChip(
+                    icon = Icons.Filled.Timer,
+                    label = LocaleHolder.t("Orden de salida", "Start order"),
+                    onClick = { onStartOrderTap(raceDay.id) },
+                )
+            } else {
+                val effectiveType = resultsEffectiveAssetType(
+                    asset = asset,
+                    raceCountryCode = data.race.countryCode,
+                    raceDay = raceDay,
+                    hasProfile = hasInteractiveProfile || hasStaticProfile,
+                )
+                AssetChip(
+                    icon = resultsAssetIcon(effectiveType),
+                    label = resultsAssetLabel(effectiveType),
+                    onClick = { asset.url?.let { openExternalUrl(context, it) } },
+                )
+            }
+        }
+
+        if (hasInteractiveProfile) {
+            AssetChip(
+                icon = Icons.AutoMirrored.Filled.ShowChart,
+                label = LocaleHolder.t("Perfil", "Profile"),
+                onClick = { onProfileTap(raceDay.id) },
+            )
+        }
+
+        officialMap?.let { asset ->
+            AssetChip(
+                icon = Icons.Filled.Map,
+                label = LocaleHolder.t("Mapa", "Map"),
+                onClick = { asset.url?.let { openExternalUrl(context, it) } },
+            )
+        }
+
+        if (hasInteractiveMap) {
+            AssetChip(
+                icon = Icons.Filled.Map,
+                label = if (bothMaps) {
+                    LocaleHolder.t("Mapa 3D", "3D Map")
+                } else {
+                    LocaleHolder.t("Mapa", "Map")
+                },
+                onClick = { onMapTap(raceDay.id) },
+            )
+        }
+
+        assetsFromProfile.forEach { asset ->
+            val effectiveType = resultsEffectiveAssetType(
+                asset = asset,
+                raceCountryCode = data.race.countryCode,
+                raceDay = raceDay,
+                hasProfile = hasInteractiveProfile || hasStaticProfile,
+            )
+            AssetChip(
+                icon = resultsAssetIcon(effectiveType),
+                label = resultsAssetLabel(effectiveType),
+                onClick = { asset.url?.let { openExternalUrl(context, it) } },
+            )
+        }
+    }
+}
+
+private fun resultsEffectiveAssetType(
+    asset: Asset,
+    raceCountryCode: String?,
+    raceDay: RaceDay,
+    hasProfile: Boolean,
+): String? {
+    if (asset.type != "ports" || hasProfile || raceDay.primaryType != "sterrato") return asset.type
+    return if (raceCountryCode.equals("FR", ignoreCase = true)) "ribinou" else "sterrato"
+}
+
+@Composable
+private fun resultsAssetLabel(type: String?): String {
+    val context = LocalContext.current
+    return when (type) {
+        "sterrato" -> stringResource(R.string.stage_doc_sterrato)
+        "ribinou" -> stringResource(R.string.stage_doc_ribinou)
+        else -> Constants.assetLabel(context, type)
+    }
+}
+
+private fun resultsAssetIcon(type: String?): ImageVector = when (type) {
+    "technicalGuide" -> Icons.AutoMirrored.Outlined.InsertDriveFile
+    "startOrder" -> Icons.Filled.Timer
+    "profile" -> Icons.AutoMirrored.Filled.ShowChart
+    "map" -> Icons.Filled.Map
+    "roadbook" -> Icons.Filled.Description
+    "ports", "pave" -> Icons.Filled.Terrain
+    "sterrato", "ribinou" -> Icons.Filled.Grain
+    else -> Icons.AutoMirrored.Outlined.InsertDriveFile
 }

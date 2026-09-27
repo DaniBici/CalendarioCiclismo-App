@@ -1,12 +1,39 @@
 import Foundation
 import SwiftUI
-import WidgetKit
+
+/// Último día de la temporada de carretera en Hoy, por año natural. Desde el
+/// día siguiente y hasta el 31 de diciembre de ese año, Hoy no muestra ni
+/// permite alcanzar fechas posteriores: el selector termina en este día y la
+/// vista se queda en él. Un año sin entrada no tiene límite.
+/// Espejo de `js/services/today-season.js` y de `TodaySeason` en Android.
+enum TodaySeason {
+    static let lastDayByYear: [Int: String] = [
+        2026: "2026-10-18",
+    ]
+
+    /// Último día navegable según la fecha local actual, o nil.
+    static func lastDay(today: String = DateFormatting.todayKey()) -> String? {
+        guard let year = Int(today.prefix(4)) else { return nil }
+        return lastDayByYear[year]
+    }
+
+    /// La propia fecha o, si lo supera, el último día de temporada.
+    static func clamp(_ dateKey: String, today: String = DateFormatting.todayKey()) -> String {
+        guard let last = lastDay(today: today), dateKey > last else { return dateKey }
+        return last
+    }
+
+    static func contains(_ dateKey: String, today: String = DateFormatting.todayKey()) -> Bool {
+        guard let last = lastDay(today: today) else { return true }
+        return dateKey <= last
+    }
+}
 
 /// ViewModel para la vista de agenda del día — equivalente a `js/app.js`.
 @MainActor
 @Observable
 final class TodayViewModel {
-    var dateKey: String = DateFormatting.todayKey()
+    var dateKey: String = TodaySeason.clamp(DateFormatting.todayKey())
     var items: [EnrichedRaceDay] = []
     var allRaces: [Race] = []
     var isLoading = false
@@ -31,6 +58,7 @@ final class TodayViewModel {
     /// el item.id en el .id() de cada card, garantiza que SwiftUI destruya y
     /// recree las vistas en lugar de reutilizar instancias con datos obsoletos.
     var refreshToken: Int = 0
+    var featuredRaceIds: Set<String> = []
     /// Identifica la última carga solicitada. Las respuestas de peticiones
     /// anteriores no deben poder repintar un día que el usuario ya abandonó ni
     /// apagar el indicador de una recarga más reciente.
@@ -48,6 +76,10 @@ final class TodayViewModel {
             case .finishTime: return LocaleService.t("Hora meta", "Finish time")
             }
         }
+    }
+
+    static func shouldRenderAsFeatured(_ isFeatured: Bool, sortMode: SortMode) -> Bool {
+        sortMode == .category && isFeatured
     }
 
     /// Pin del usuario (UserDefaults), independiente del filtro mostrado. Dentro
@@ -77,14 +109,12 @@ final class TodayViewModel {
         pinnedFilter = filter
         activeFilter = filter
         UserDefaults.standard.set(filter.rawValue, forKey: "defaultFilter")
-        refreshWidgetForFilterChange()
     }
 
     func clearDefaultFilter() {
         pinnedFilter = .all
         activeFilter = .all
         UserDefaults.standard.removeObject(forKey: "defaultFilter")
-        refreshWidgetForFilterChange()
     }
 
     /// Registra un cambio MANUAL de filtro hecho desde la vista. Dentro de la
@@ -102,26 +132,17 @@ final class TodayViewModel {
         if !isChampWeekLock { activeFilter = filter }
     }
 
-    private func refreshWidgetForFilterChange() {
-        guard isToday, !items.isEmpty else { return }
-        let widgetFiltered = RaceLogic.filterByCategory(items, category: activeFilter)
-        let capturedNextKey = nextDayWithRaces
-        let capturedDateKey = dateKey
-        let capturedRaceName = nextRaceName(for: capturedNextKey)
-        Task { @MainActor in
-            let (nextBroadcast, nextTvStatus) = await fetchNextRaceInfo(nextDateKey: capturedNextKey)
-            writeWidgetPayload(items: widgetFiltered, nextDateKey: capturedNextKey, nextRaceName: capturedRaceName, nextRaceBroadcastStartTimeUtc: nextBroadcast, nextRaceTvStatus: nextTvStatus, dateKey: capturedDateKey)
-        }
-    }
-
     /// Items filtrados y ordenados.
     var displayItems: [EnrichedRaceDay] {
         let filtered = RaceLogic.filterByCategory(items, category: activeFilter)
         return filtered.sorted { a, b in
+            let af = Self.shouldRenderAsFeatured(a.race.map { featuredRaceIds.contains($0.id) } ?? false, sortMode: sortMode)
+            let bf = Self.shouldRenderAsFeatured(b.race.map { featuredRaceIds.contains($0.id) } ?? false, sortMode: sortMode)
+            if af != bf { return af }
             switch sortMode {
-            case .category: RaceLogic.sortByCategory(a, b)
-            case .tvTime: RaceLogic.sortByTvTime(a, b)
-            case .finishTime: RaceLogic.sortByFinishTime(a, b)
+            case .category: return RaceLogic.sortByCategory(a, b)
+            case .tvTime: return RaceLogic.sortByTvTime(a, b)
+            case .finishTime: return RaceLogic.sortByFinishTime(a, b)
             }
         }
     }
@@ -134,16 +155,31 @@ final class TodayViewModel {
         dateKey == DateFormatting.todayKey()
     }
 
+    /// Día al que lleva «Hoy»: la fecha actual o, tras el cierre de temporada,
+    /// el último día navegable.
+    var currentDayKey: String {
+        TodaySeason.clamp(DateFormatting.todayKey())
+    }
+
+    var isShowingCurrentDay: Bool {
+        dateKey == currentDayKey
+    }
+
+    /// False en el último día de temporada: no hay día siguiente navegable.
+    var canGoToNextDay: Bool {
+        DateFormatting.nextDay(dateKey).map { TodaySeason.contains($0) } ?? false
+    }
+
     // Última fecha local que se mostró COMO "hoy". Permite distinguir "el usuario
     // está en hoy y ha cruzado la medianoche local" (→ auto-avanzar) de "navegó a
     // otro día a mano" (→ no tocar). Se sincroniza cuando el día mostrado es hoy.
-    private var lastTodayKey: String = DateFormatting.todayKey()
+    private var lastTodayKey: String = TodaySeason.clamp(DateFormatting.todayKey())
 
     // Auto-avance de medianoche: si el día mostrado seguía siendo el "hoy" anterior
     // y la fecha local ya cambió, salta al nuevo hoy. Si el usuario navegó a otro
     // día, NO se le mueve. Lo invocan los ciclos de refresco / vuelta a primer plano.
     func advanceIfNewLocalDay() {
-        let nowKey = DateFormatting.todayKey()
+        let nowKey = currentDayKey
         if dateKey == nowKey { lastTodayKey = nowKey; return }   // ya estamos en hoy
         guard dateKey == lastTodayKey else { return }            // navegación manual: respetar
         lastTodayKey = nowKey
@@ -154,13 +190,14 @@ final class TodayViewModel {
     /// carga. Es la semántica del pull-to-refresh y de los refrescos silenciosos
     /// al volver a primer plano: el indicador nativo acompaña a las cards, no
     /// las reemplaza.
-    func refreshDay() async {
-        await loadDay(preservingContent: true)
+    func refreshDay(force: Bool = false) async {
+        if force { ImageRefresh.shared.refresh() }
+        await loadDay(preservingContent: true, forceRaceRefresh: force)
     }
 
     /// Carga un día. Al navegar sí se limpia el contenido anterior; al refrescar
     /// el mismo día se conserva hasta que llegue una respuesta nueva.
-    func loadDay(preservingContent: Bool = false) async {
+    func loadDay(preservingContent: Bool = false, forceRaceRefresh: Bool = false) async {
         loadGeneration &+= 1
         let generation = loadGeneration
         let capturedKey = dateKey
@@ -189,6 +226,7 @@ final class TodayViewModel {
         if !retainsContent, let cached: DayData = await cache.load(DayData.self, forKey: cacheKey) {
             guard dateKey == capturedKey, generation == loadGeneration else { return }
             items = cached.raceDays
+            featuredRaceIds = cached.featuredRaceIds
             isFromCache = true
             cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
             isLoading = false
@@ -198,27 +236,39 @@ final class TodayViewModel {
         do {
             let data = try await SupabaseService.shared.loadDayComplete(dateKey: dateKey)
             guard dateKey == capturedKey, generation == loadGeneration else { return }
-            items = data.raceDays
-            isFromCache = false
-            cacheAgeLabel = nil
-            refreshToken &+= 1
-            lastNetworkLoadAt = Date()
+            // Construir la respuesta fuera del estado visible. Durante un pull
+            // refresh hay placeholders en `items`; sustituirlos antes de acabar
+            // la consulta anual los hace desaparecer mientras la petición sigue
+            // pendiente y los pierde definitivamente si esa petición falla.
+            var refreshedItems = data.raceDays
+            let refreshedFeaturedRaceIds = data.featuredRaceIds
 
             // Cargar todas las carreras del año para placeholders
             let year = Int(dateKey.prefix(4)) ?? 2026
-            if allRaces.isEmpty {
-                let yearKey = CacheManager.yearRacesKey(year)
-                if let cachedRaces: [Race] = await cache.load([Race].self, forKey: yearKey) {
+            let yearKey = CacheManager.yearRacesKey(year)
+            let racesAge = await cache.age(forKey: yearKey)
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
+            if forceRaceRefresh || allRaces.isEmpty || allRaces.first?.year != year || (racesAge ?? .infinity) >= 3600 {
+                if allRaces.isEmpty, let cachedRaces: [Race] = await cache.load([Race].self, forKey: yearKey) {
                     guard dateKey == capturedKey, generation == loadGeneration else { return }
                     allRaces = cachedRaces
                 }
-                allRaces = try await SupabaseService.shared.racesByYear(year)
-                guard dateKey == capturedKey, generation == loadGeneration else { return }
-                await cache.save(allRaces, forKey: yearKey)
+                do {
+                    let freshRaces = try await SupabaseService.shared.racesByYear(year)
+                    guard dateKey == capturedKey, generation == loadGeneration else { return }
+                    allRaces = freshRaces
+                    await cache.save(freshRaces, forKey: yearKey)
+                } catch {
+                    guard dateKey == capturedKey, generation == loadGeneration else { return }
+                    if Task.isCancelled { throw error }
+                    // Una respuesta anual fallida no invalida la instantánea
+                    // local: conservarla permite reconstruir las tarjetas
+                    // placeholder y mostrar el día recién descargado.
+                }
             }
 
             // Añadir placeholders para carreras sin etapa publicada
-            let coveredIds = Set(items.compactMap(\.raceDay.raceId))
+            let coveredIds = Set(refreshedItems.compactMap(\.raceDay.raceId))
             let placeholders = allRaces.filter { race in
                 guard !race.isCancelled,
                       !coveredIds.contains(race.id),
@@ -258,30 +308,33 @@ final class TodayViewModel {
                     assets: []
                 )
                 enriched.isPlaceholder = true
-                items.append(enriched)
+                refreshedItems.append(enriched)
             }
 
             // Guardar en caché el resultado completo del día (con placeholders)
-            let relevantRaceIds = Set(items.compactMap { $0.race?.id })
+            let relevantRaceIds = Set(refreshedItems.compactMap { $0.race?.id })
             let relevantRaces = allRaces.filter { relevantRaceIds.contains($0.id) }
             let fullData = DayData(
-                raceDays: items,
-                raceMap: Dictionary(uniqueKeysWithValues: relevantRaces.map { ($0.id, $0) })
+                raceDays: refreshedItems,
+                raceMap: Dictionary(uniqueKeysWithValues: relevantRaces.map { ($0.id, $0) }),
+                featuredRaceIds: refreshedFeaturedRaceIds
             )
             await cache.save(fullData, forKey: cacheKey)
+            guard dateKey == capturedKey, generation == loadGeneration else { return }
+
+            // Publicar la lista completa de una vez, ya con placeholders.
+            items = refreshedItems
+            featuredRaceIds = refreshedFeaturedRaceIds
+            isFromCache = false
+            cacheAgeLabel = nil
+            refreshToken &+= 1
+            lastNetworkLoadAt = Date()
 
             // Pre-cachear +1 y +2 en background
             prefetchNearbyDays()
 
             // Buscar siguiente día con carreras (respetando filtro activo)
             nextDayWithRaces = nextDayMatchingFilter(after: dateKey)
-
-            // Actualizar snapshot del widget si estamos viendo hoy, respetando filtro activo
-            if isToday {
-                let widgetFiltered = RaceLogic.filterByCategory(items, category: activeFilter)
-                let (nextBroadcast, nextTvStatus) = await fetchNextRaceInfo(nextDateKey: nextDayWithRaces)
-                writeWidgetPayload(items: widgetFiltered, nextDateKey: nextDayWithRaces, nextRaceName: nextRaceName(for: nextDayWithRaces), nextRaceBroadcastStartTimeUtc: nextBroadcast, nextRaceTvStatus: nextTvStatus, dateKey: dateKey)
-            }
 
             // Auto-navegar si no hay items visibles. Solo con el filtro "Todas"
             // (evita saltos sorpresa cuando el usuario filtra a propósito), CON UNA
@@ -319,15 +372,14 @@ final class TodayViewModel {
         isNetworkLoading = false
     }
 
-    /// Pre-cachea días cercanos en background:
+    /// Pre-cachea días cercanos al día mostrado (no solo hoy) en background:
     /// -1, +1, +2 completos; +3…+7 solo si hay carreras UWT o WWT.
     private func prefetchNearbyDays() {
-        guard dateKey == DateFormatting.todayKey() else { return }
         let racesSnapshot = allRaces
-        let today = DateFormatting.todayKey()
+        let anchor = dateKey
         Task.detached(priority: .utility) {
             for offset in ([-1] + Array(1...7)) {
-                guard let targetDate = DateFormatting.dayOffset(from: today, by: offset) else { continue }
+                guard let targetDate = DateFormatting.dayOffset(from: anchor, by: offset) else { continue }
 
                 // +3…+7: solo prefetchear si hay alguna carrera UWT/WWT ese día
                 if offset >= 3 {
@@ -355,7 +407,10 @@ final class TodayViewModel {
 
     /// Ajusta `dateKey` y `activeFilter` según el bloqueo de Campeonatos de la
     /// jornada destino (entrar/salir de la ventana). NO dispara la carga.
-    func applyDateForChampLock(_ newDate: String) {
+    func applyDateForChampLock(_ requestedDate: String) {
+        // Ninguna ruta de navegación (flechas, gestos, selector, deep links)
+        // supera el último día de temporada.
+        let newDate = TodaySeason.clamp(requestedDate)
         let wasLock = ChampionshipsConfig.isChampWeekFilterLock(today: dateKey)
         let nowLock = ChampionshipsConfig.isChampWeekFilterLock(today: newDate)
         if nowLock && !wasLock {
@@ -374,35 +429,65 @@ final class TodayViewModel {
         Task { await loadDay() }
     }
 
-    func goToToday() {
-        goToDate(DateFormatting.todayKey())
+    func goToToday() async {
+        await navigate(to: currentDayKey)
     }
 
-    func goToPreviousDay() {
+    func goToPreviousDay() async {
         if let prev = previousDayMatchingFilter(before: dateKey) {
-            goToDate(prev)
+            await navigate(to: prev)
         } else if let prev = DateFormatting.previousDay(dateKey) {
-            goToDate(prev)
+            await navigate(to: prev)
         }
     }
 
-    func goToNextDay() {
+    func goToNextDay() async {
+        guard canGoToNextDay else { return }
         if let next = nextDayMatchingFilter(after: dateKey) {
-            goToDate(next)
+            await navigate(to: next)
         } else if let next = DateFormatting.nextDay(dateKey) {
-            goToDate(next)
+            await navigate(to: next)
         }
+    }
+
+    /// Navega a otra fecha para la animación de Hoy (mismo patrón que el cambio
+    /// de mes de Ciclocross): mantiene el contenido saliente en pantalla y
+    /// cambia a la caché del día destino en cuanto está disponible; el refresco
+    /// de red continúa después sin pantalla de carga. Sin caché cae a la carga
+    /// normal (pantalla de marca durante la entrada).
+    func navigate(to newDate: String) async {
+        applyDateForChampLock(newDate)
+        let key = CacheManager.dayKey(dateKey)
+        if let cached: DayData = await CacheManager.shared.load(DayData.self, forKey: key) {
+            items = cached.raceDays
+            featuredRaceIds = cached.featuredRaceIds
+            isFromCache = true
+            // Marcamos la red en vuelo ANTES del primer await (ageLabel): cada
+            // await contra CacheManager es una suspensión real del actor y en
+            // esa ventana SwiftUI puede pintar un frame. Si isNetworkLoading
+            // seguiera en false, el banner "Sin conexión"
+            // (isFromCache && !isNetworkLoading) destellaría un frame.
+            isNetworkLoading = true
+            refreshToken &+= 1
+            cacheAgeLabel = await CacheManager.shared.ageLabel(forKey: key)
+            hasLoaded = true
+            isUncachedOffline = false
+            error = nil
+        } else {
+            items = []
+        }
+        await loadDay(preservingContent: !items.isEmpty)
     }
 
     // MARK: - Filter-aware day scanning
 
     /// Busca el siguiente día con carreras que coincidan con el filtro activo.
-    /// Escanea hasta 180 días hacia delante.
+    /// Escanea hasta 180 días hacia delante, sin pasar del último día de temporada.
     func nextDayMatchingFilter(after dateKey: String) -> String? {
         guard !allRaces.isEmpty else { return nil }
         var candidate = dateKey
         for _ in 0..<180 {
-            guard let next = DateFormatting.nextDay(candidate) else { break }
+            guard let next = DateFormatting.nextDay(candidate), TodaySeason.contains(next) else { break }
             candidate = next
             if hasMatchingRaces(on: candidate, filter: activeFilter) {
                 return candidate
@@ -426,35 +511,6 @@ final class TodayViewModel {
         return nil
     }
 
-    /// Info de TV de la jornada concreta que nextRaceName() devolvería para esa fecha.
-    /// Usa el mismo race ID para garantizar coherencia entre nombre y datos de TV.
-    func fetchNextRaceInfo(nextDateKey: String?) async -> (broadcastTime: String?, tvStatus: String?) {
-        guard let key = nextDateKey else { return (nil, nil) }
-        guard let nextRace = allRaces.first(where: { race in
-            guard !race.isCancelled else { return false }
-            guard RaceLogic.isRaceDay(race: race, dateKey: key) else { return false }
-            return RaceLogic.matchesCategory(race, filter: activeFilter)
-        }) else { return (nil, nil) }
-        guard let cached: DayData = await CacheManager.shared.load(DayData.self, forKey: CacheManager.dayKey(key)) else { return (nil, nil) }
-        guard let enriched = cached.raceDays.first(where: { $0.race?.id == nextRace.id && !$0.isPlaceholder }) else { return (nil, nil) }
-        let broadcastTime = enriched.broadcasts
-            .filter { !($0.channel?.isEmpty ?? true) }
-            .compactMap { $0.startTimeUtc }
-            .sorted()
-            .first
-        return (broadcastTime, enriched.raceDay.tvStatus)
-    }
-
-    /// Nombre de la primera carrera del filtro activo en la fecha dada.
-    func nextRaceName(for dateKey: String?) -> String? {
-        guard let key = dateKey else { return nil }
-        return allRaces.first { race in
-            guard !race.isCancelled else { return false }
-            guard RaceLogic.isRaceDay(race: race, dateKey: key) else { return false }
-            return RaceLogic.matchesCategory(race, filter: activeFilter)
-        }?.name
-    }
-
     /// Comprueba si hay carreras que coincidan con el filtro en un día dado.
     private func hasMatchingRaces(on dateKey: String, filter: Constants.CategoryFilter) -> Bool {
         allRaces.contains { race in
@@ -463,163 +519,4 @@ final class TodayViewModel {
             return RaceLogic.matchesCategory(race, filter: filter)
         }
     }
-}
-
-// MARK: - Widget payload types + writer
-// Accesibles desde OfflineManager (mismo módulo) y CalendarioCiclismoApp.
-
-struct WidgetPayloadData: Codable {
-    let payloadVersion: Int
-    let generatedAtUtc: String
-    let dateKey: String
-    let items: [WidgetPayloadItem]
-    let overflowCount: Int
-    let specialState: WidgetSpecialState?
-    let nextRaceDateKey: String?
-    let nextRaceName: String?
-    let nextRaceBroadcastStartTimeUtc: String?
-    let nextRaceTvStatus: String?
-}
-
-struct WidgetPayloadItem: Codable {
-    let raceDayId: String
-    let raceId: String
-    let raceName: String
-    let countryCode: String?
-    let uciCategory: String?
-    let gender: String?
-    let stageLabel: String
-    let startLocation: String?
-    let finishLocation: String?
-    let startTimeUtc: String?
-    let estimatedFinishTimeUtc: String?
-    let primaryType: String?
-    let distanceKm: Double?
-    let typeLabel: String?
-    let hasLiveText: Bool?
-    let channels: [String]
-    let broadcastStartTimeUtc: String?
-    let tvStatus: String?
-}
-
-struct WidgetSpecialState: Codable {
-    let kind: String
-    let raceName: String
-    let countryCode: String?
-}
-
-private let _widgetAppGroupID      = "group.app.calendariociclismo"
-private let _widgetPayloadFilename = "widget_today_payload.json"
-
-/// Construye el JSON del widget a partir de los EnrichedRaceDay del día.
-/// Función top-level accesible por TodayViewModel y OfflineManager.
-func writeWidgetPayload(items: [EnrichedRaceDay], nextDateKey: String?, nextRaceName: String? = nil, nextRaceBroadcastStartTimeUtc: String? = nil, nextRaceTvStatus: String? = nil, dateKey: String) {
-    let iso = ISO8601DateFormatter()
-
-    let activeItems = items.filter { !$0.raceDay.isRestDay && !$0.raceDay.isCancelledDay && !$0.isPlaceholder }
-    let sorted = activeItems.sorted { RaceLogic.sortByCategory($0, $1) }
-    let topItems = sorted
-    let overflowCount = 0
-
-    let widgetItems = topItems.map { enriched -> WidgetPayloadItem in
-        let rd   = enriched.raceDay
-        let race = enriched.race
-
-        let countryCode: String?
-        if let c = rd.countryCode, !c.isEmpty {
-            countryCode = c
-        } else if race?.hideFlag == false {
-            countryCode = race?.countryCode
-        } else {
-            countryCode = nil
-        }
-
-        let label: String
-        if let n = rd.stageNumber {
-            if rd.primaryType == "itt" {
-                label = n == 0 ? "CRI · Prólogo" : "CRI · Etapa \(n)\(rd.stageSuffix ?? "")"
-            } else {
-                let base = n == 0 ? "Prólogo" : "Etapa \(n)"
-                label = "\(base)\(rd.stageSuffix ?? "")"
-            }
-        } else {
-            label = rd.primaryType == "itt" ? "CRI" : ""
-        }
-
-        let channels = enriched.broadcasts
-            .filter { !($0.channel?.isEmpty ?? true) }
-            .sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
-            .prefix(2)
-            .compactMap { $0.channel }
-
-        let broadcastStartTimeUtc = enriched.broadcasts
-            .filter { !($0.channel?.isEmpty ?? true) }
-            .compactMap { $0.startTimeUtc }
-            .sorted()
-            .first
-
-        return WidgetPayloadItem(
-            raceDayId:              rd.id,
-            raceId:                 race?.id ?? rd.raceId ?? rd.id,
-            raceName:               race?.name ?? "",
-            countryCode:            countryCode,
-            uciCategory:            race?.uciCategory,
-            gender:                 race?.gender,
-            stageLabel:             label,
-            startLocation:          rd.startLocation,
-            finishLocation:         rd.finishLocation,
-            startTimeUtc:           rd.neutralStartTimeUtc,
-            estimatedFinishTimeUtc: rd.estimatedFinishTimeUtc,
-            primaryType:            rd.primaryType,
-            distanceKm:             rd.distanceKm,
-            typeLabel:              {
-                // ITT ya encoda "CRI" en stageLabel; no duplicar
-                guard let p = rd.primaryType, !p.isEmpty, p != "itt" else { return nil }
-                let lbl = RaceLogic.resolveTypeLabel(primary: p, secondary: rd.secondaryType, countryCode: race?.countryCode)
-                return lbl.isEmpty ? nil : lbl
-            }(),
-            hasLiveText:            enriched.assets.contains { $0.type == "live_text" },
-            channels:               Array(channels),
-            broadcastStartTimeUtc:  broadcastStartTimeUtc,
-            tvStatus:               rd.tvStatus
-        )
-    }
-
-    // Solo mostrar en solitario si tiene TV confirmada (con o sin hora)
-    let filteredItems = widgetItems.count == 1 && widgetItems[0].channels.isEmpty && widgetItems[0].tvStatus != "confirmed"
-        ? []
-        : widgetItems
-
-    var specialState: WidgetSpecialState?
-    if activeItems.isEmpty, !items.isEmpty, let first = items.first {
-        let kind = first.raceDay.isRestDay ? "rest_day" : "cancelled"
-        specialState = WidgetSpecialState(
-            kind:        kind,
-            raceName:    first.race?.name ?? "",
-            countryCode: first.race?.countryCode
-        )
-    }
-
-    let payload = WidgetPayloadData(
-        payloadVersion:  1,
-        generatedAtUtc:  iso.string(from: Date()),
-        dateKey:         dateKey,
-        items:           filteredItems,
-        overflowCount:   overflowCount,
-        specialState:    specialState,
-        nextRaceDateKey:                nextDateKey,
-        nextRaceName:                   nextRaceName,
-        nextRaceBroadcastStartTimeUtc:  nextRaceBroadcastStartTimeUtc,
-        nextRaceTvStatus:               nextRaceTvStatus
-    )
-
-    guard let container = FileManager.default.containerURL(
-        forSecurityApplicationGroupIdentifier: _widgetAppGroupID
-    ) else { return }
-    let cacheDir = container.appendingPathComponent("Caches")
-    try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-    let fileURL = cacheDir.appendingPathComponent(_widgetPayloadFilename)
-    guard let data = try? JSONEncoder().encode(payload) else { return }
-    try? data.write(to: fileURL, options: Data.WritingOptions.atomic)
-    WidgetCenter.shared.reloadTimelines(ofKind: "TodayCyclingWidget")
 }

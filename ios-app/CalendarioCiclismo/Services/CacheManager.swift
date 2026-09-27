@@ -127,7 +127,7 @@ actor CacheManager {
     func clearOfflineData() {
         let dir = cacheDirectory
         guard let files = try? fileManager.contentsOfDirectory(atPath: dir.path) else { return }
-        let offlinePrefixes = ["day_", "month_", "monthdays_", "monthview_", "season_", "races_"]
+        let offlinePrefixes = ["day_", "month_", "monthdays_", "monthview_", "season_", "races_", "cx_"]
         for file in files {
             if offlinePrefixes.contains(where: { file.hasPrefix($0) }) {
                 try? fileManager.removeItem(at: dir.appendingPathComponent(file))
@@ -316,7 +316,7 @@ actor CacheManager {
         guard !downloadable.isEmpty else { return }
 
         var index = 0
-        await withTaskGroup(of: Void.self) { group in
+        await withTaskGroup { group in
             // Lanzar los primeros N; según terminan, añadir más.
             let initialBatch = min(maxConcurrent, downloadable.count)
             for _ in 0..<initialBatch {
@@ -394,29 +394,38 @@ actor CacheManager {
         return dir
     }
 
-    /// URL local del logo si existe. Prioridad: bundle empaquetado → caché offline. Síncrono.
+    /// URL local del logo si existe. Prioridad: caché actualizada → bundle. Síncrono.
     nonisolated static func localLogoFileURL(for remoteURL: URL) -> URL? {
         let filename = logoFilename(for: remoteURL)
-        // 1. Bundle empaquetado (sin red, disponible desde el primer arranque)
+        let cacheURL = imagesDirectoryURL().appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: cacheURL.path) { return cacheURL }
+        // Bundle empaquetado: respaldo disponible desde el primer arranque.
         let bundledURL = Bundle.main.bundleURL
             .appendingPathComponent("BundledLogos")
             .appendingPathComponent(filename)
         if FileManager.default.fileExists(atPath: bundledURL.path) {
             return bundledURL
         }
-        // 2. Caché offline descargada por el sync
-        let cacheURL = imagesDirectoryURL().appendingPathComponent(filename)
-        return FileManager.default.fileExists(atPath: cacheURL.path) ? cacheURL : nil
+        return nil
+    }
+
+    /// Sustituye atómicamente el respaldo tras una carga remota válida.
+    func saveLogoData(_ data: Data, remoteURL: URL) {
+        let destination = imagesDirectory.appendingPathComponent(Self.logoFilename(for: remoteURL))
+        try? data.write(to: destination, options: [.atomic, .completeFileProtection])
     }
 
     /// Descarga el logo de carrera desde su URL remota.
     /// Devuelve la URL local resultante, o `nil` si la descarga falla.
     func downloadLogo(remoteURL: URL) async -> URL? {
         let destURL = imagesDirectory.appendingPathComponent(Self.logoFilename(for: remoteURL))
-        if fileManager.fileExists(atPath: destURL.path) { return destURL }
+        if let attributes = try? fileManager.attributesOfItem(atPath: destURL.path),
+           let modified = attributes[.modificationDate] as? Date,
+           Date().timeIntervalSince(modified) < 3600 { return destURL }
 
         do {
-            let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
+            let request = URLRequest(url: remoteURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+            let (tempURL, response) = try await URLSession.shared.download(for: request)
             defer { try? fileManager.removeItem(at: tempURL) }
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return nil
@@ -440,7 +449,7 @@ actor CacheManager {
         guard !list.isEmpty else { return }
 
         var index = 0
-        await withTaskGroup(of: Void.self) { group in
+        await withTaskGroup { group in
             let initialBatch = min(maxConcurrent, list.count)
             for _ in 0..<initialBatch {
                 let url = list[index]

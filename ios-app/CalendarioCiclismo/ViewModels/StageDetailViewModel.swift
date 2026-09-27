@@ -15,7 +15,7 @@ final class StageDetailViewModel {
     var isLoading = false
     var error: String?
     /// Gates de resultados resueltos junto con la instantánea de la jornada. La
-    /// vista no intercambia los botones externos por el CTA nativo tras pintarse.
+    /// vista no muta al CTA nativo de resultados tras pintarse.
     var hasInhouseResults = false
     var hasActualResults = false
     var resultsStageNumber: Int?
@@ -45,7 +45,7 @@ final class StageDetailViewModel {
             allBroadcasts = cached.broadcasts.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
             broadcasts = RaceLogic.filterBroadcastsByRegion(
                 allBroadcasts,
-                allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
+                allowedGroups: RegionService.shared.allowedBroadcastGroups,
             )
             assets = cached.assets
             // Pre-cargar siblings, clasificaciones y guía como una sola
@@ -130,7 +130,7 @@ final class StageDetailViewModel {
                 allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 broadcasts = RaceLogic.filterBroadcastsByRegion(
                     allBroadcasts,
-                    allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
+                    allowedGroups: RegionService.shared.allowedBroadcastGroups,
                 )
                 // Se guarda una sola guía técnica por competición, pero se
                 // expone en cada jornada sin duplicar su fila ni su PDF.
@@ -159,7 +159,7 @@ final class StageDetailViewModel {
                 self.error = error.localizedDescription
             }
         }
-        // Ante un fallo de red mantenemos el fallback externos, pero sin enseñar
+        // Ante un fallo de red se da el gate por resuelto, sin enseñar
         // primero una barra que después pueda mutar al CTA nativo.
         areInhouseGatesResolved = true
         isLoading = false
@@ -201,6 +201,7 @@ final class StageDetailViewModel {
     /// Si la petición falla (p. ej. sin red), mantenemos los datos actuales
     /// en lugar de sobrescribir con un estado de error.
     func refresh(raceDayId: String) async {
+        ImageRefresh.shared.refresh()
         do {
             let service = SupabaseService.shared
             var rd = try await service.client.from("race_days")
@@ -233,7 +234,7 @@ final class StageDetailViewModel {
                 allBroadcasts = b.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 broadcasts = RaceLogic.filterBroadcastsByRegion(
                     allBroadcasts,
-                    allowedGroups: RegionService.shared.current.allowedBroadcastGroups,
+                    allowedGroups: RegionService.shared.allowedBroadcastGroups,
                 )
                 assets = (technicalGuide.map { [$0] } ?? []) + a.filter { $0.type != "technicalGuide" }
                 self.siblings = allDays

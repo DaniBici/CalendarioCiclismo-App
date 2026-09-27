@@ -2,8 +2,19 @@
 // dentro de un iframe. Este módulo es puro para poder probar la allowlist en Node.
 
 // Devuelve el ID del vídeo (11 chars) o null si la URL no es de YouTube.
+// El host se valida antes de aplicar los patrones: sin ese control, una URL
+// ajena con un parámetro `v=` largo (p. ej. facebook.com/watch/live/?v=...)
+// hacía extractor un ID falso de 11 chars y la web montaba un embed de YouTube.
 export function extractYouTubeId(url) {
   if (!url) return null;
+  let host;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const isYouTubeHost = host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com');
+  if (!isYouTubeHost) return null;
   let m = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
   if (m) return m[1];
   m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);

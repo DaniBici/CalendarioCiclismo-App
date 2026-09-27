@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────
 //  Códigos IRM de la UCI (irregularidades / no-clasificados) — fuente única.
 //
-//  El campo `irm` de race_uci_results marca a quien NO terminó: DNF (abandono),
-//  DNS (no tomó la salida), OTL (fuera de control / OutTimeLimit), DSQ (descalif.).
+//  El campo `irm` de race_uci_results contiene tanto estados de quien NO terminó
+//  como DF (terminó sin puesto definido) y NR (prueba sin resultado).
 //  EN = código oficial UCI; ES = abreviatura local de uso en prensa ciclista.
 //
 //  Lo consumen tanto la tabla de resultados (resultados.js) como el tachado de
@@ -15,6 +15,8 @@ export const IRM_LABELS = {
   DNS: { es: 'NS',  en: 'DNS' },
   OTL: { es: 'FC',  en: 'OTL' },
   DSQ: { es: 'EXP', en: 'DSQ' },
+  DF:  { es: 'DF',  en: 'DF' },
+  NR:  { es: 'NR',  en: 'NR' },
 };
 
 // Descripción larga de cada código, para tooltip (title) sobre la etiqueta corta.
@@ -30,6 +32,8 @@ export const IRM_DESCRIPTIONS = {
   DNS: { es: 'No tomó la salida', en: 'Did not start' },
   OTL: { es: 'Fuera de control', en: 'Outside time limit' },
   DSQ: { es: 'Expulsado', esFemale: 'Expulsada', en: 'Disqualified' },
+  DF:  { es: 'Finalizó sin puesto definido', en: 'Did finish; rank not defined' },
+  NR:  { es: 'Sin resultado', en: 'No result' },
 };
 
 // Texto del tooltip para un código IRM. Vacío si el código no se contempla
@@ -51,6 +55,13 @@ export function irmDescription(code, lang, female) {
 const ABANDON_CODES = new Set(['DNF', 'ABD', 'DNS', 'OTL', 'DSQ']);
 export function isAbandonIrm(code) {
   return !!code && ABANDON_CODES.has(code);
+}
+
+// Un IRM que invalida un posible rank 1. DF y NR no son abandonos, pero tampoco
+// pueden determinar ganador: DF carece de puesto definido y NR de resultado.
+const NON_WINNER_CODES = new Set([...ABANDON_CODES, 'DF', 'NR']);
+export function isNonWinnerIrm(code) {
+  return !!code && NON_WINNER_CODES.has(code);
 }
 
 // Etiqueta localizada de un código IRM. Fallback al propio código si es uno

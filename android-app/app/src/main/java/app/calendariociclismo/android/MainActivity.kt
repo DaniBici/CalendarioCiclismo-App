@@ -5,16 +5,15 @@ import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
-import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,8 +29,9 @@ import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.ThemePreference
 import app.calendariociclismo.android.data.repository.CalendarRepository
 import app.calendariociclismo.android.notifications.DeepLink
+import app.calendariociclismo.android.util.CyclocrossLogic
 import app.calendariociclismo.android.util.LocaleHolder
-import app.calendariociclismo.android.widget.today.TodayCyclingWidget
+import app.calendariociclismo.android.widget.today.TodayWidgetScheduler
 import app.calendariociclismo.android.ui.navigation.AppNavHost
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.onboarding.LanguageAnnouncementOnboardingScreen
@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
 
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        WindowCompat.enableEdgeToEdge(window)
 
         // Elimina la animación de salida del splash nativo para que la
         // transición al overlay Compose sea instantánea y sin parpadeo.
@@ -75,8 +75,14 @@ class MainActivity : ComponentActivity() {
         // frame pinte con el tema del sistema y luego haga flip al del usuario.
         // DataStore cachea el valor en memoria, así que el runBlocking es ~1-2 ms
         // (mismo patrón que el consentimiento de analytics en CalendarioCiclismoApp).
+        // Antes de leerla corre la migración 4.4.2: en el primer acceso de esta
+        // versión la preferencia guardada cambia a Automático y el arranque
+        // sigue el ajuste del dispositivo.
         val app = application as CalendarioCiclismoApp
-        val initialTheme = runBlocking { app.preferences.snapshotThemePreference() }
+        val initialTheme = runBlocking {
+            app.preferences.applyThemeSystemOnFirstAccess()
+            app.preferences.snapshotThemePreference()
+        }
 
         // Idioma del usuario — antes de setContent para que getResources()
         // resuelva strings desde values/ o values-en/ en el primer frame.
@@ -196,48 +202,42 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Surface a pantalla completa para que el fondo del tema
-                    // (background del colorScheme) se pinte TAMBIÉN detrás de
-                    // la status bar. Así los iconos del sistema (hora, batería)
-                    // tienen contraste correcto contra el fondo de la app y no
-                    // se ven sobre el wallpaper o el fondo del launcher.
-                    // El statusBarsPadding va en el contenido interior para que
-                    // el árbol de navegación (que pinta su propio fondo claro)
-                    // no se solape con los iconos del sistema. Pantallas sin
-                    // TopAppBar (Today, Race, Season, Stage, Startlist) reciben
-                    // así el hueco de la status bar UNA sola vez. El splash y
-                    // el onboarding siguen pintando a pantalla completa porque
-                    // están fuera de este Surface.
-                    Surface(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                    // El fondo ocupa toda la ventana. Solo el contenido interactivo
+                    // consume barras, cámara y teclado, una vez para todas las rutas
+                    // y el onboarding. Los diálogos tienen su propia ventana.
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                             AppNavHost(navController = navController)
-                        }
-                    }
 
-                    when (onboardingStep) {
-                        OnboardingStep.Language -> LanguageAnnouncementOnboardingScreen(
-                            onDismiss = {
-                                scope.launch {
-                                    onboardingStep = nextOnboardingStep(app)
-                                }
-                            },
-                        )
-                        OnboardingStep.Notifications -> NotificationOnboardingScreen(
-                            onDismiss = {
-                                scope.launch {
-                                    onboardingStep = nextOnboardingStep(app)
-                                }
-                            },
-                        )
-                        OnboardingStep.PremiumShowcase -> PremiumShowcaseOnboardingScreen(
-                            isNewInstallation = supportIntroIsNewInstallation,
-                            onDismiss = {
-                                scope.launch {
-                                    onboardingStep = nextOnboardingStep(app)
-                                }
-                            },
-                        )
-                        else -> {} // null (loading) o Done
+                            when (onboardingStep) {
+                                OnboardingStep.Language -> LanguageAnnouncementOnboardingScreen(
+                                    onDismiss = {
+                                        scope.launch {
+                                            onboardingStep = nextOnboardingStep(app)
+                                        }
+                                    },
+                                )
+                                OnboardingStep.Notifications -> NotificationOnboardingScreen(
+                                    onDismiss = {
+                                        scope.launch {
+                                            onboardingStep = nextOnboardingStep(app)
+                                        }
+                                    },
+                                )
+                                OnboardingStep.PremiumShowcase -> PremiumShowcaseOnboardingScreen(
+                                    isNewInstallation = supportIntroIsNewInstallation,
+                                    onDismiss = {
+                                        scope.launch {
+                                            onboardingStep = nextOnboardingStep(app)
+                                        }
+                                    },
+                                )
+                                else -> {} // null (loading) o Done
+                            }
+                        }
                     }
 
                     if (showSplash) {
@@ -285,13 +285,10 @@ class MainActivity : ComponentActivity() {
             // Sincronizar baja si el permiso fue revocado en ajustes del SO
             app.pushManager.syncPermissionState(this@MainActivity)
 
-            // Redibujar el widget si lleva más de 30 min sin actualizarse
+            // Refrescar el widget si lleva más de 30 min sin actualizarse
             val lastRefreshMs = app.preferences.snapshotLastWidgetRefreshAt()
             if (System.currentTimeMillis() - lastRefreshMs > 30 * 60 * 1000L) {
-                runCatching {
-                    TodayCyclingWidget().updateAll(this@MainActivity)
-                    app.preferences.setLastWidgetRefreshAt(System.currentTimeMillis())
-                }
+                TodayWidgetScheduler.refreshNow(this@MainActivity)
             }
         }
     }
@@ -310,10 +307,12 @@ class MainActivity : ComponentActivity() {
             return DeepLink.parse(raw)
         }
         val data = intent.data ?: return null
+        DeepLink.fromUri(data)?.let { return it }
         // Scheme custom del widget — delega a DeepLink.fromUri.
         if (data.scheme == "calendariociclismo") {
-            return DeepLink.fromUri(data)
+            return null
         }
+        if (data.scheme != "https" || data.host != "calendariociclismo.app") return null
         val segments = data.pathSegments
         return when {
             // Raíz `/` → pestaña Hoy.
@@ -345,6 +344,29 @@ class MainActivity : ComponentActivity() {
         when (link) {
             is DeepLink.Race -> navController.navigate(Routes.race(link.id))
             is DeepLink.Stage -> navController.navigate(Routes.stage(link.id))
+            is DeepLink.CxRace -> navController.navigate(Routes.cxRace(link.id, link.anchor))
+            is DeepLink.CxRaceSlug -> {
+                val app = application as CalendarioCiclismoApp
+                lifecycleScope.launch {
+                    val id = runCatching { app.cxRepository.raceIdForSlug(link.slug) }.getOrNull()
+                    navController.navigate(id?.let { Routes.cxRace(it, link.anchor) } ?: Routes.CYCLOCROSS) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            // Página de serie web (/ciclocross/torneos/<slug>/): el slug se
+            // resuelve a torneo en Supabase. Sin resolución, caer a la pestaña CX.
+            is DeepLink.CxTournamentSlug -> {
+                val app = application as CalendarioCiclismoApp
+                lifecycleScope.launch {
+                    val tournament = runCatching { app.cxRepository.tournamentForSlug(link.slug) }.getOrNull()
+                    val route = tournament?.let {
+                        Routes.cxTournament(it.id, it.seasonKey ?: CyclocrossLogic.season(java.time.LocalDate.now()),
+                            LocaleHolder.t(it.name, it.nameEn ?: it.name), it.logoUrl)
+                    } ?: Routes.CYCLOCROSS
+                    navController.navigate(route) { launchSingleTop = true }
+                }
+            }
             // App Link HTTPS (`/competicion/<slug>/`, `/jornada/<slug>/`): el
             // segmento es un SLUG, no un id de Room. La resolución slug → id va
             // a Supabase (suspende), así que se ejecuta en `lifecycleScope` —NO
@@ -361,6 +383,7 @@ class MainActivity : ComponentActivity() {
             is DeepLink.StartOrder -> navController.navigate(Routes.startOrder(link.id))
             is DeepLink.Profile -> navController.navigate(Routes.elevationProfile(link.id))
             is DeepLink.Team -> navController.navigate(Routes.transfersTeam(link.id))
+            is DeepLink.Results -> navController.navigate(Routes.results(link.raceId, link.stage, suffix = link.suffix))
             is DeepLink.Tab -> {
                 // Las antiguas pestañas Mes/Temporada viven ahora dentro de
                 // Calendario: el link fija primero la subvista (DataStore) y
@@ -368,6 +391,9 @@ class MainActivity : ComponentActivity() {
                 val app = application as CalendarioCiclismoApp
                 val route = when (link.name) {
                     "today" -> Routes.TODAY
+                    "results" -> Routes.RESULTS_FEED
+                    "calendar" -> Routes.CALENDAR
+                    "cyclocross" -> Routes.CYCLOCROSS
                     "month" -> {
                         app.preferences.setCalendarSubview("month")
                         Routes.CALENDAR

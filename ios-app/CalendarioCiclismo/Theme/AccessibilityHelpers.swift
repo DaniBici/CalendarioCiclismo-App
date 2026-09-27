@@ -85,7 +85,7 @@ enum AccessibilityCategoryLabel {
 
 enum AccessibilityRaceDescription {
     /// Builds a comprehensive VoiceOver description for a race card.
-    static func raceCardLabel(item: EnrichedRaceDay) -> String {
+    static func raceCardLabel(item: EnrichedRaceDay, isWaitingForResults: Bool = false) -> String {
         var parts: [String] = []
 
         if let race = item.race {
@@ -143,6 +143,10 @@ enum AccessibilityRaceDescription {
 
         if item.isPlaceholder {
             parts.append("sin información detallada")
+        }
+
+        if isWaitingForResults {
+            parts.append(LocaleService.t("esperando resultados", "awaiting results"))
         }
 
         return parts.joined(separator: ", ")
@@ -288,10 +292,11 @@ extension AppTheme {
 // MARK: - Accessibility identifiers
 
 enum AccessibilityID {
-    // Tabs (apps 4.0: Hoy · Resultados · Fichajes · Calendario)
+    // Tabs (apps 5.0: Hoy · Resultados · Fichajes · Ciclocross · Calendario)
     static let tabToday = "tab_today"
     static let tabResults = "tab_results"
     static let tabTransfers = "tab_transfers"
+    static let tabCyclocross = "tab_cyclocross"
     static let tabCalendar = "tab_calendar"
 
     // Settings

@@ -23,7 +23,7 @@ OUT=scripts/catalog-continental/_results_run/tissot-tdf2026
 JSON="$OUT/$COMPID.json"
 PART="$OUT/$COMPID.part.json"
 FETCH=scripts/results-fetchers/tissot-results-fetch.mjs
-UPSERT=scripts/results-fetchers/uci-results-upsert.mjs
+UPSERT=scripts/results-fetchers/results-upsert.mjs
 FILL=scripts/catalog-continental/_apply-ttt-individual-times.mjs
 REORDER=scripts/catalog-continental/_reorder-ttt-riders-by-time.mjs
 FAST="${FAST:-90}"; STABLE_STOP="${STABLE_STOP:-3}"; MAX_TRIES="${MAX_TRIES:-160}"

@@ -1,26 +1,39 @@
 package app.calendariociclismo.android.widget.today
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.net.Uri
-import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.datastore.preferences.core.Preferences
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.currentState
 import androidx.glance.background
+import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -31,516 +44,536 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.color.ColorProvider
+import app.calendariociclismo.android.CalendarioCiclismoApp
 import app.calendariociclismo.android.R
-import app.calendariociclismo.android.util.DateFormatting
-import app.calendariociclismo.android.widget.today.model.TodayWidgetItem
-import app.calendariociclismo.android.widget.today.model.TodayWidgetPayload
-import app.calendariociclismo.android.widget.today.model.WidgetState
+import app.calendariociclismo.android.widget.today.model.WidgetDayResponse
+import app.calendariociclismo.android.widget.today.model.WidgetItem
+import app.calendariociclismo.android.widget.today.model.WidgetNext
+import app.calendariociclismo.android.widget.today.model.parseInstant
 import coil3.SingletonImageLoader
 import coil3.asDrawable
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import java.time.Instant
+import java.time.LocalDate
 
+/**
+ * Widget «Carreras de hoy»: carretera y ciclocross del día con TV, texto en
+ * directo y accesos de Hoy (copa y TV) al terminar. Sin spoilers. Datos de la
+ * RPC `widget_day`; configuración por instancia (alcance y disciplina).
+ */
 class TodayCyclingWidget : GlanceAppWidget() {
 
+    /** Tamaño real: el número de filas se ajusta a la altura disponible. */
+    override val sizeMode = SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val payload = TodayWidgetRepository(context).buildPayload()
-        val flagBitmaps = loadFlagBitmaps(context, payload)
+        val repository = WidgetDayRepository(context)
+        val initialPrefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        val initial = loadSnapshot(context, repository, WidgetConfig.from(initialPrefs), initialPrefs[WidgetConfig.KEY_VERSION] ?: 0L)
 
         provideContent {
-            GlanceTheme {
-                WidgetRoot(context, payload, flagBitmaps)
+            // La sesión de Glance puede seguir viva entre actualizaciones: los
+            // datos se recargan al cambiar la configuración o la versión que
+            // incrementan el worker y la pantalla de configuración.
+            val prefs = currentState<Preferences>()
+            val config = WidgetConfig.from(prefs)
+            val version = prefs[WidgetConfig.KEY_VERSION] ?: 0L
+            var snapshot by remember { mutableStateOf(initial) }
+            LaunchedEffect(config, version) {
+                if (config != snapshot.config || version != snapshot.version) {
+                    snapshot = loadSnapshot(context, repository, config, version)
+                }
+            }
+            WidgetRoot(
+                context = context,
+                response = snapshot.result?.response,
+                stale = snapshot.result?.let { it.fromCache && it.fetchedAt.isBefore(Instant.now().minusSeconds(3 * 3600)) } ?: false,
+                scope = snapshot.config.scope,
+                text = snapshot.text,
+                flags = snapshot.flags,
+            )
+        }
+    }
+
+    private data class Snapshot(
+        val config: WidgetConfig,
+        val version: Long,
+        val result: WidgetDayRepository.Result?,
+        val text: WidgetText,
+        val flags: Map<String, Bitmap>,
+    )
+
+    private suspend fun loadSnapshot(context: Context, repository: WidgetDayRepository, config: WidgetConfig, version: Long): Snapshot {
+        val result = repository.load(config)
+        val localeTag = result?.response?.locale
+            ?: (context.applicationContext as? CalendarioCiclismoApp)?.preferences?.snapshotAppLocale()?.tag
+            ?: "es"
+        return Snapshot(config, version, result, WidgetText(context, localeTag), loadFlags(context, result?.response))
+    }
+
+    private suspend fun loadFlags(context: Context, response: WidgetDayResponse?): Map<String, Bitmap> {
+        val codes = response?.days.orEmpty()
+            .flatMap { day -> day.items.mapNotNull { it.countryCode } + listOfNotNull(day.next?.countryCode) }
+            .map { it.lowercase() }
+            .toSet()
+        if (codes.isEmpty()) return emptyMap()
+        val bundled = runCatching { context.assets.list("flags")?.toSet() }.getOrNull().orEmpty()
+        val loader = SingletonImageLoader.get(context)
+        val out = mutableMapOf<String, Bitmap>()
+        for (code in codes) {
+            val file = listOf(code, code.substringBefore('-')).map { "$it.svg" }.firstOrNull { it in bundled } ?: continue
+            runCatching {
+                val request = ImageRequest.Builder(context).data("file:///android_asset/flags/$file").size(80, 60).build()
+                val res = loader.execute(request)
+                if (res is SuccessResult) out[code] = res.image.asDrawable(context.resources).toBitmap(80, 60)
             }
         }
+        return out
     }
 
-    private suspend fun loadFlagBitmaps(
-        context: Context,
-        payload: TodayWidgetPayload,
-    ): Map<String, Bitmap> {
-        val codes = mutableSetOf<String>()
-        when (val s = payload.state) {
-            is WidgetState.HasRaces -> s.items.forEach { it.countryCode?.let(codes::add) }
-            is WidgetState.RestDay -> s.countryCode?.let(codes::add)
-            is WidgetState.Cancelled -> s.countryCode?.let(codes::add)
-            else -> Unit
-        }
-        val result = mutableMapOf<String, Bitmap>()
-        for (code in codes) {
-            loadFlagBitmap(context, code)?.let { result[code] = it }
-        }
-        return result
-    }
-
-    private suspend fun loadFlagBitmap(context: Context, countryCode: String): Bitmap? {
-        val code = countryCode.lowercase()
-        if (code.isEmpty()) return null
-        return try {
-            val loader = SingletonImageLoader.get(context)
-            val request = ImageRequest.Builder(context)
-                .data("file:///android_asset/flags/$code.svg")
-                .size(80, 60)
-                .build()
-            val res = loader.execute(request)
-            if (res is SuccessResult) {
-                res.image.asDrawable(context.resources).toBitmap(80, 60)
-            } else null
-        } catch (_: Exception) {
-            null
-        }
+    companion object {
+        val WIDE = DpSize(250.dp, 110.dp)
+        val LARGE = DpSize(250.dp, 260.dp)
     }
 }
 
-// ─── Paleta fija oscura — igual que iOS (siempre dark, fondo siempre negro/accent) ─
+// ─── Paleta sobre fondo de marca (igual que iOS) ─────────────────────────────
 
-// day: accentColor(#1A73E8).mix(with: .black, by: 0.15) — igual que iOS light mode
-// night: negro puro — igual que iOS dark mode
-private val WgBg = ColorProvider(
-    day   = Color(0xFF1662C5),
-    night = Color(0xFF000000),
-)
-private val WgWhite   = ColorProvider(day = Color.White,            night = Color.White)
-private val WgText    = WgWhite
-private val WgAccent  = WgWhite
-private val WgWarning = WgWhite
-private val WgDivider = ColorProvider(day = Color(0x33FFFFFF),      night = Color(0x33FFFFFF))
+private val WgBg = ColorProvider(day = Color(0xFF1662C5), night = Color(0xFF000000))
+private val WgPrimary = ColorProvider(day = Color.White, night = Color.White)
+private val WgSecondary = ColorProvider(day = Color(0xBDFFFFFF), night = Color(0xBDFFFFFF))
+private val WgTertiary = ColorProvider(day = Color(0x7AFFFFFF), night = Color(0x7AFFFFFF))
+private val WgDivider = ColorProvider(day = Color(0x2EFFFFFF), night = Color(0x2EFFFFFF))
+private val WgBadge = ColorProvider(day = Color(0x2EFFFFFF), night = Color(0x2EFFFFFF))
+private val WgLive = ColorProvider(day = Color(0xFF6DD58C), night = Color(0xFF6DD58C))
 
 // ─── Raíz ─────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WidgetRoot(context: Context, payload: TodayWidgetPayload, flags: Map<String, Bitmap>) {
+private fun WidgetRoot(
+    context: Context,
+    response: WidgetDayResponse?,
+    stale: Boolean,
+    scope: WidgetScope,
+    text: WidgetText,
+    flags: Map<String, Bitmap>,
+) {
+    val size = LocalSize.current
+    val now = Instant.now()
+    val today = LocalDate.now()
+    val day = response?.day(today.toString())
+    val items = day?.items.orEmpty()
+    val allCx = items.isNotEmpty() && items.all { it.isCx }
+    val homeLink = if (allCx) "calendariociclismo://tab/cyclocross" else "calendariociclismo://tab/today"
+
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
             .background(WgBg)
-            .padding(16.dp),
-        contentAlignment = Alignment.Center,
+            .cornerRadius(20.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        when (val s = payload.state) {
-            is WidgetState.HasRaces ->
-                if (s.items.all { it.isFinished })
-                    AllCompletedContent(context)
-                else if (s.items.size == 1)
-                    SingleRaceContent(context, s.items[0], flags)
-                else
-                    MultiRaceContent(context, s.items, s.overflowCount, flags)
-            is WidgetState.RestDay ->
-                SpecialStateContent(context, s.raceName, s.countryCode, "Jornada de descanso", flags)
-            is WidgetState.Cancelled ->
-                SpecialStateContent(context, s.raceName, s.countryCode, "Jornada anulada", flags, isWarning = true)
-            is WidgetState.Empty -> EmptyContent(context)
-            WidgetState.Syncing -> SyncingContent()
+        when {
+            day == null -> Message(context, homeLink, text.s(R.string.widget_unavailable), null, today, text, flags)
+            items.isEmpty() -> Message(
+                context,
+                homeLink,
+                text.s(if (scope == WidgetScope.FOLLOWED) R.string.widget_empty_followed else R.string.widget_empty),
+                day.next,
+                today,
+                text,
+                flags,
+            )
+            size.width < TodayCyclingWidget.WIDE.width -> SmallContent(context, items, now, text, flags, stale)
+            size.height >= TodayCyclingWidget.LARGE.height ->
+                ListContent(context, items, day.next, rowsFor(size.height.value, header = true), true, now, today, text, flags, stale)
+            items.size == 1 -> SingleContent(context, items.first(), now, text, flags, stale)
+            else -> ListContent(context, items, null, rowsFor(size.height.value, header = false), false, now, today, text, flags, stale)
         }
     }
 }
 
-// ─── Estado single (1 carrera activa con TV confirmada) ───────────────────────
+/** Filas que caben en la altura disponible (≈40 dp por fila, más cabecera o pie). */
+private fun rowsFor(heightDp: Float, header: Boolean): Int {
+    val chrome = if (header) 60f else 44f
+    return ((heightDp - chrome) / 40f).toInt().coerceIn(2, 9)
+}
+
+// ─── Pequeño: la carrera destacada ────────────────────────────────────────────
 
 @Composable
-private fun SingleRaceContent(
+private fun SmallContent(
     context: Context,
-    item: TodayWidgetItem,
+    items: List<WidgetItem>,
+    now: Instant,
+    text: WidgetText,
     flags: Map<String, Bitmap>,
+    stale: Boolean,
 ) {
-    val textColor = WgText
-    val intent = deepLinkIntent(context, "calendariociclismo://stage/${item.raceDayId}")
-
-    Column(
-        modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.Vertical.Top,
-    ) {
-        // Cabecera: bandera + nombre en mayúsculas + categoría UCI
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Vertical.CenterVertically,
-        ) {
-            FlagImage(item.countryCode, flags)
-            Spacer(GlanceModifier.width(8.dp))
-            Text(
-                text = item.raceName,
-                style = TextStyle(color = textColor, fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                maxLines = 1,
-                modifier = GlanceModifier.defaultWeight(),
-            )
-            if (!item.uciCategory.isNullOrEmpty()) {
-                Spacer(GlanceModifier.width(4.dp))
-                Text(
-                    text = item.uciCategory,
-                    style = TextStyle(color = WgAccent, fontSize = 10.sp),
-                )
+    val item = featuredItem(items, now) ?: return
+    val state = item.raceState(now)
+    Column(modifier = GlanceModifier.fillMaxSize().clickable(openLink(context, item.link))) {
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Flag(item.countryCode, flags, 20)
+            Spacer(GlanceModifier.defaultWeight())
+            if (stale) StaleDot()
+        }
+        Spacer(GlanceModifier.height(4.dp))
+        Text(item.name, style = TextStyle(color = WgPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 2)
+        Text(item.detailLine(now, text), style = TextStyle(color = WgSecondary, fontSize = 11.sp), maxLines = 2)
+        Spacer(GlanceModifier.defaultWeight())
+        val actions = item.finishedActions(now)
+        if (actions != null) {
+            FinishedActions(context, actions, text, 20)
+        } else {
+            item.badge(now, text)?.let { BadgeView(context, it, 14) }
+            if (state == WidgetRaceState.SCHEDULED || state == WidgetRaceState.LIVE) {
+                item.tv?.channel?.let { Text(it, style = TextStyle(color = WgSecondary, fontSize = 10.sp), maxLines = 1) }
             }
         }
-        Spacer(GlanceModifier.height(2.dp))
-        // Etapa + tipo completo (primary · secondary) + kilómetros a la derecha
-        val stageLine = buildStageLine(item)
-        val distanceText = item.distanceKm?.let { km ->
-            if (km % 1.0 == 0.0) "${km.toInt()} km" else String.format("%.1f km", km)
+        Spacer(GlanceModifier.height(4.dp))
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Logo(14)
+            Spacer(GlanceModifier.defaultWeight())
+            if (items.size > 1) {
+                Text("+${items.size - 1}", style = TextStyle(color = WgTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium))
+            }
         }
-        if (stageLine.isNotEmpty() || distanceText != null) {
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Vertical.CenterVertically,
-            ) {
+    }
+}
+
+// ─── Ancho con una sola carrera: ficha ampliada ──────────────────────────────
+
+@Composable
+private fun SingleContent(
+    context: Context,
+    item: WidgetItem,
+    now: Instant,
+    text: WidgetText,
+    flags: Map<String, Bitmap>,
+    stale: Boolean,
+) {
+    val state = item.raceState(now)
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight().clickable(openLink(context, item.link))) {
+            Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Flag(item.countryCode, flags, 20)
+                Spacer(GlanceModifier.width(8.dp))
                 Text(
-                    text = stageLine,
-                    style = TextStyle(color = WgText, fontSize = 11.sp),
+                    item.name,
+                    style = TextStyle(color = WgPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold),
                     maxLines = 1,
                     modifier = GlanceModifier.defaultWeight(),
                 )
-                if (distanceText != null) {
+                item.category?.let {
                     Text(
-                        text = distanceText,
-                        style = TextStyle(color = WgText, fontSize = 11.sp),
+                        it,
+                        style = TextStyle(color = WgPrimary, fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                        modifier = GlanceModifier.background(WgBadge).cornerRadius(4.dp).padding(horizontal = 5.dp, vertical = 2.dp),
+                    )
+                }
+                if (stale) {
+                    Spacer(GlanceModifier.width(6.dp))
+                    StaleDot()
+                }
+            }
+            Spacer(GlanceModifier.height(2.dp))
+            if (item.isCx) {
+                Text(item.tournament ?: "Ciclocross", style = TextStyle(color = WgSecondary, fontSize = 11.sp), maxLines = 1)
+                item.displaySessions.forEach { s ->
+                    Row(modifier = GlanceModifier.fillMaxWidth()) {
+                        Text(s.label ?: s.category, style = TextStyle(color = WgSecondary, fontSize = 11.sp), modifier = GlanceModifier.defaultWeight())
+                        val (label, color) = when {
+                            s.hasResults == true -> text.s(R.string.widget_finished) to WgSecondary
+                            s.isLive(now) -> text.s(R.string.widget_session_live) to WgLive
+                            else -> (text.time(s.start) ?: "") to WgPrimary
+                        }
+                        Text(label, style = TextStyle(color = color, fontSize = 11.sp))
+                    }
+                }
+            } else {
+                Row(modifier = GlanceModifier.fillMaxWidth()) {
+                    val line = listOfNotNull(stageTypeGlyph(item.primaryType), item.detailLine(now, text).ifEmpty { null }).joinToString(" ")
+                    Text(line, style = TextStyle(color = WgSecondary, fontSize = 11.sp), maxLines = 1, modifier = GlanceModifier.defaultWeight())
+                    text.distance(item.distanceKm)?.let { Text(it, style = TextStyle(color = WgSecondary, fontSize = 11.sp)) }
+                }
+                item.route?.let { Text(it, style = TextStyle(color = WgTertiary, fontSize = 10.sp), maxLines = 1) }
+            }
+        }
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            val actions = item.finishedActions(now)
+            if (actions != null) {
+                FinishedActions(context, actions, text, 20)
+            } else {
+                item.badge(now, text)?.let { BadgeView(context, it, 14) }
+                if (!item.isCx && (state == WidgetRaceState.SCHEDULED || state == WidgetRaceState.LIVE)) {
+                    item.tv?.channel?.let {
+                        Spacer(GlanceModifier.width(10.dp))
+                        Text(it, style = TextStyle(color = WgSecondary, fontSize = 11.sp), maxLines = 1)
+                    }
+                }
+            }
+            Spacer(GlanceModifier.defaultWeight())
+            if (!item.isCx && state != WidgetRaceState.RESULTS && state != WidgetRaceState.AWAITING) {
+                text.time(item.finish)?.let {
+                    IconView(R.drawable.ic_widget_finish, 12, WgSecondary)
+                    Spacer(GlanceModifier.width(3.dp))
+                    Text(it, style = TextStyle(color = WgSecondary, fontSize = 12.sp))
+                }
+            }
+        }
+        Spacer(GlanceModifier.height(4.dp))
+        Logo(16)
+    }
+}
+
+// ─── Lista (ancho con varias carreras y grande) ──────────────────────────────
+
+@Composable
+private fun ListContent(
+    context: Context,
+    items: List<WidgetItem>,
+    next: WidgetNext?,
+    maxRows: Int,
+    showsHeader: Boolean,
+    now: Instant,
+    today: LocalDate,
+    text: WidgetText,
+    flags: Map<String, Bitmap>,
+    stale: Boolean,
+) {
+    val rows = items.take(maxRows)
+    val overflow = items.size - rows.size
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        if (showsHeader) {
+            Row(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    (text.s(R.string.widget_today_label) + " · " + text.today(today)).uppercase(text.locale),
+                    style = TextStyle(color = WgTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                    modifier = GlanceModifier.defaultWeight(),
+                )
+                if (stale) {
+                    StaleDot()
+                    Spacer(GlanceModifier.width(6.dp))
+                }
+                Logo(16)
+            }
+        } else if (rows.size < maxRows) {
+            Spacer(GlanceModifier.defaultWeight())
+        }
+        rows.forEachIndexed { index, item ->
+            RaceRow(context, item, now, text, flags)
+            if (index < rows.size - 1) Divider()
+        }
+        Spacer(GlanceModifier.defaultWeight())
+        if (showsHeader && next != null && rows.size < maxRows) {
+            Divider()
+            NextLine(context, next, today, text, flags)
+        }
+        if (!showsHeader || overflow > 0) {
+            Row(modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!showsHeader) {
+                    Logo(16)
+                    if (stale) {
+                        Spacer(GlanceModifier.width(6.dp))
+                        StaleDot()
+                    }
+                }
+                Spacer(GlanceModifier.defaultWeight())
+                if (overflow > 0) {
+                    Text(
+                        text.s(R.string.widget_more, overflow) + " ›",
+                        style = TextStyle(color = WgSecondary, fontSize = 11.sp),
+                        modifier = GlanceModifier.clickable(openLink(context, "calendariociclismo://tab/today")),
                     )
                 }
             }
         }
-        // Ciudades de salida y llegada
-        val route = item.routeDescription
-        if (route != null) {
-            Text(
-                text = route,
-                style = TextStyle(color = WgText, fontSize = 10.sp),
-                maxLines = 1,
-            )
-        }
-        Spacer(GlanceModifier.defaultWeight())
-        // Badge de cobertura (izquierda) + hora de llegada estimada (derecha)
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Vertical.CenterVertically,
-        ) {
-            val badge = coverageBadge(item)
-            if (badge != null) {
-                Text(
-                    text = badge,
-                    style = TextStyle(color = textColor, fontSize = 14.sp),
-                )
-            }
-            Spacer(GlanceModifier.defaultWeight())
-            val finishTime = item.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
-            if (finishTime != null) {
-                Text(
-                    text = "🏁 $finishTime",
-                    style = TextStyle(color = WgText, fontSize = 14.sp),
-                )
-            }
-        }
-        Spacer(GlanceModifier.height(4.dp))
-        // Logo de la app en pie de vista
-        Row(modifier = GlanceModifier.fillMaxWidth()) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = GlanceModifier.height(22.dp).width(22.dp),
-            )
-            Spacer(GlanceModifier.defaultWeight())
-        }
-    }
-}
-
-// ─── Estado multi (2–3 carreras activas) ─────────────────────────────────────
-
-@Composable
-private fun MultiRaceContent(
-    context: Context,
-    items: List<TodayWidgetItem>,
-    overflow: Int,
-    flags: Map<String, Bitmap>,
-) {
-    Column(modifier = GlanceModifier.fillMaxSize()) {
-        // Con < 3 carreras centrar verticalmente (spacer flexible en cabeza)
-        if (items.size < 3) Spacer(GlanceModifier.defaultWeight())
-
-        items.forEachIndexed { idx, item ->
-            CompactRaceRow(context, item, flags)
-            if (idx < items.size - 1) {
-                Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(WgDivider)) {}
-            }
-        }
-
-        Spacer(GlanceModifier.defaultWeight())
-
-        // Pie: logo + contador de desbordamiento
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Vertical.CenterVertically,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = GlanceModifier.height(22.dp).width(22.dp),
-            )
-            Spacer(GlanceModifier.defaultWeight())
-            if (overflow > 0) {
-                val overflowIntent = deepLinkIntent(context, "calendariociclismo://tab/today")
-                Text(
-                    text = "+$overflow más ›",
-                    style = TextStyle(color = WgText, fontSize = 11.sp),
-                    modifier = GlanceModifier.clickable(actionStartActivity(overflowIntent)),
-                )
-            }
-        }
     }
 }
 
 @Composable
-private fun CompactRaceRow(
-    context: Context,
-    item: TodayWidgetItem,
-    flags: Map<String, Bitmap>,
-) {
-    val intent = deepLinkIntent(context, "calendariociclismo://stage/${item.raceDayId}")
-    val textColor = WgText
-    val badge = coverageBadge(item)
-    val secondLine = buildCompactSecondLine(item)
-
-    Row(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .clickable(actionStartActivity(intent))
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.Vertical.CenterVertically,
-    ) {
-        // Bandera con ancho fijo para alinear el texto de todas las filas
-        FlagFixedWidth(item.countryCode, flags)
-        Spacer(GlanceModifier.width(4.dp))
-        // Nombre + segunda línea con etapa, tipo abreviado y hora de llegada
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            Text(
-                text = item.raceName,
-                style = TextStyle(color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold),
-                maxLines = 1,
-            )
-            if (secondLine != null) {
+private fun RaceRow(context: Context, item: WidgetItem, now: Instant, text: WidgetText, flags: Map<String, Bitmap>) {
+    val state = item.raceState(now)
+    val dimmed = state == WidgetRaceState.REST || state == WidgetRaceState.CANCELLED
+    val actions = item.finishedActions(now)
+    val badge = if (actions == null) item.badge(now, text) else null
+    val nameColor = if (dimmed) WgSecondary else WgPrimary
+    Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = GlanceModifier.defaultWeight().clickable(openLink(context, item.link)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = GlanceModifier.width(24.dp)) { Flag(item.countryCode, flags, 20) }
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.name, style = TextStyle(color = nameColor, fontSize = 13.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    if (item.isCx) {
+                        Spacer(GlanceModifier.width(4.dp))
+                        Text(
+                            "CX",
+                            style = TextStyle(color = WgSecondary, fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                            modifier = GlanceModifier.background(WgBadge).cornerRadius(3.dp).padding(horizontal = 3.dp),
+                        )
+                    }
+                }
+                val glyph = if (!item.isCx && state != WidgetRaceState.REST) stageTypeGlyph(item.primaryType) else null
                 Text(
-                    text = secondLine,
-                    style = TextStyle(color = WgText, fontSize = 10.sp),
+                    listOfNotNull(glyph, item.detailLine(now, text).ifEmpty { null }).joinToString(" "),
+                    style = TextStyle(color = WgSecondary, fontSize = 11.sp),
                     maxLines = 1,
                 )
             }
+            if (badge != null && badge.url == null) {
+                Spacer(GlanceModifier.width(4.dp))
+                BadgeView(context, badge, 12)
+            }
         }
-        // Badge de cobertura TV/Live
-        if (badge != null) {
+        if (badge?.url != null) {
             Spacer(GlanceModifier.width(4.dp))
-            Text(
-                text = badge,
-                style = TextStyle(color = WgText, fontSize = 10.sp),
-            )
+            BadgeView(context, badge, 12)
         }
-        // Chevron indicador de navegación
-        Spacer(GlanceModifier.width(4.dp))
-        Text(
-            text = "›",
-            style = TextStyle(color = WgText, fontSize = 12.sp),
-        )
+        if (actions != null) FinishedActions(context, actions, text, 18)
     }
 }
 
-// ─── Estado todas completadas ─────────────────────────────────────────────────
-
 @Composable
-private fun AllCompletedContent(context: Context) {
-    val intent = deepLinkIntent(context, "calendariociclismo://tab/today")
-    Column(
-        modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.Vertical.CenterVertically,
-        horizontalAlignment = Alignment.Horizontal.CenterHorizontally,
+private fun NextLine(context: Context, next: WidgetNext, today: LocalDate, text: WidgetText, flags: Map<String, Bitmap>) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(top = 6.dp).clickable(openLink(context, next.link)),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = GlanceModifier.height(68.dp).width(68.dp),
-        )
-        Spacer(GlanceModifier.height(8.dp))
-        Text(
-            text = "Completadas todas las carreras de hoy",
-            style = TextStyle(color = WgText, fontSize = 14.sp, fontWeight = FontWeight.Bold),
-            maxLines = 2,
-        )
-    }
-}
-
-// ─── Estado vacío (sin carreras hoy) ─────────────────────────────────────────
-
-@Composable
-private fun EmptyContent(context: Context) {
-    val intent = deepLinkIntent(context, "calendariociclismo://tab/today")
-    Column(
-        modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.Vertical.CenterVertically,
-        horizontalAlignment = Alignment.Horizontal.CenterHorizontally,
-    ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = GlanceModifier.height(80.dp).width(80.dp),
-        )
-        Spacer(GlanceModifier.height(2.dp))
-        Text(
-            text = "No hay carreras hoy",
-            style = TextStyle(color = WgText, fontSize = 14.sp, fontWeight = FontWeight.Bold),
-        )
-    }
-}
-
-// ─── Estado especial (descanso / anulada) — alineado a izquierda como iOS ─────
-
-@Composable
-private fun SpecialStateContent(
-    context: Context,
-    raceName: String,
-    countryCode: String?,
-    label: String,
-    flags: Map<String, Bitmap>,
-    isWarning: Boolean = false,
-) {
-    val intent = deepLinkIntent(context, "calendariociclismo://tab/today")
-    Column(
-        modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.Vertical.Top,
-        horizontalAlignment = Alignment.Horizontal.Start,
-    ) {
-        Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
-            FlagImage(countryCode, flags)
-            Spacer(GlanceModifier.width(6.dp))
+        Box(modifier = GlanceModifier.width(24.dp)) { Flag(next.countryCode, flags, 18) }
+        Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
-                text = raceName,
-                style = TextStyle(color = WgText, fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                (text.s(R.string.widget_next) + " · " + text.day(next.date, today)).uppercase(text.locale),
+                style = TextStyle(color = WgTertiary, fontSize = 10.sp, fontWeight = FontWeight.Medium),
+            )
+            Text(
+                listOfNotNull(next.name, next.stageLabel).joinToString(" · "),
+                style = TextStyle(color = WgPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold),
                 maxLines = 1,
             )
         }
-        Spacer(GlanceModifier.height(6.dp))
-        Text(
-            text = label,
-            style = TextStyle(color = if (isWarning) WgWarning else WgText, fontSize = 13.sp),
-        )
+        val tvTime = text.time(parseInstant(next.tvStartUtc))
+        val startTime = text.time(parseInstant(next.startUtc))
+        when {
+            tvTime != null -> BadgeView(context, WidgetBadge(R.drawable.ic_widget_tv, tvTime, false), 12)
+            startTime != null -> Text(startTime, style = TextStyle(color = WgSecondary, fontSize = 12.sp))
+        }
     }
 }
 
-// ─── Estado sincronizando ─────────────────────────────────────────────────────
+// ─── Mensajes ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SyncingContent() {
-    Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Sincronizando…", style = TextStyle(color = WgText, fontSize = 12.sp))
+private fun Message(
+    context: Context,
+    homeLink: String,
+    title: String,
+    next: WidgetNext?,
+    today: LocalDate,
+    text: WidgetText,
+    flags: Map<String, Bitmap>,
+) {
+    Column(modifier = GlanceModifier.fillMaxSize().clickable(openLink(context, homeLink))) {
+        Logo(16)
+        Spacer(GlanceModifier.defaultWeight())
+        Text(title, style = TextStyle(color = WgPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 3)
+        Spacer(GlanceModifier.defaultWeight())
+        if (next != null) NextLine(context, next, today, text, flags)
     }
 }
 
-// ─── Imagen de bandera ────────────────────────────────────────────────────────
+// ─── Piezas ──────────────────────────────────────────────────────────────────
 
 @Composable
-private fun FlagImage(countryCode: String?, flags: Map<String, Bitmap>) {
-    val bitmap = countryCode?.let { flags[it] }
-    if (bitmap != null) {
-        Image(
-            provider = ImageProvider(Icon.createWithBitmap(bitmap)),
-            contentDescription = countryCode,
-            modifier = GlanceModifier.width(20.dp).height(15.dp),
-        )
-    } else if (!countryCode.isNullOrEmpty()) {
-        Text(
-            text = countryCode.uppercase().take(2),
-            style = TextStyle(color = WgText, fontSize = 9.sp),
-        )
+private fun BadgeView(context: Context, badge: WidgetBadge, fontSize: Int) {
+    val color = if (badge.emphasized) WgLive else WgSecondary
+    val modifier = badge.url?.let { GlanceModifier.clickable(openLink(context, it)) } ?: GlanceModifier
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        badge.icon?.let {
+            IconView(it, fontSize, color)
+            Spacer(GlanceModifier.width(3.dp))
+        }
+        Text(badge.text, style = TextStyle(color = color, fontSize = fontSize.sp, fontWeight = FontWeight.Medium), maxLines = 1)
     }
 }
 
-// Versión con ancho fijo para garantizar alineación en filas compactas
+/** Copa (resultados) y TV (Revive), con la iconografía de Hoy. */
 @Composable
-private fun FlagFixedWidth(countryCode: String?, flags: Map<String, Bitmap>) {
-    val bitmap = countryCode?.let { flags[it] }
-    if (bitmap != null) {
-        Image(
-            provider = ImageProvider(Icon.createWithBitmap(bitmap)),
-            contentDescription = countryCode,
-            modifier = GlanceModifier.width(22.dp).height(15.dp),
-        )
-    } else {
-        Spacer(GlanceModifier.width(22.dp))
+private fun FinishedActions(context: Context, actions: Pair<String?, String?>, text: WidgetText, size: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        actions.first?.let { link ->
+            Box(
+                modifier = GlanceModifier.size((size + 14).dp).clickable(openLink(context, link)),
+                contentAlignment = Alignment.Center,
+            ) { IconView(R.drawable.ic_widget_trophy, size, WgSecondary, text.s(R.string.widget_results)) }
+        }
+        actions.second?.let { url ->
+            Box(
+                modifier = GlanceModifier.size((size + 14).dp).clickable(openLink(context, url)),
+                contentAlignment = Alignment.Center,
+            ) { IconView(R.drawable.ic_widget_tv, size, WgSecondary, text.s(R.string.widget_revive)) }
+        }
     }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// Emojis equivalentes a los SF Symbols del widget iOS (stageTypeIcon).
-private fun stageTypeEmoji(primaryType: String?): String? = when (primaryType) {
-    "flat"                                         -> "→"
-    "rolling"                                      -> "〜"
-    "cotas"                                        -> "△"
-    "medium_mountain"                              -> "⛰"
-    "high_mountain", "summit_finish",
-    "uphill_finish", "monopuerto",
-    "chrono_climb"                                 -> "⛰"
-    "itt", "ttt"                                   -> "⏱"
-    "cobbles"                                      -> "▦"
-    "sterrato"                                     -> "≋"
-    else                                           -> null
+@Composable
+private fun IconView(res: Int, size: Int, color: androidx.glance.unit.ColorProvider, description: String? = null) {
+    Image(
+        provider = ImageProvider(res),
+        contentDescription = description,
+        colorFilter = ColorFilter.tint(color),
+        modifier = GlanceModifier.size(size.dp),
+    )
 }
 
-private fun stageTypeAbbrev(primaryType: String?): String? = when (primaryType) {
-    "flat"                                         -> "Ll"
-    "rolling"                                      -> "Sin"
-    "medium_mountain"                              -> "mM"
-    "high_mountain", "summit_finish",
-    "uphill_finish"                                -> "aM"
-    "monopuerto"                                   -> "Monop"
-    "chrono_climb"                                 -> "CREsc"
-    "cobbles"                                      -> "Pavé"
-    "sterrato"                                     -> "Strr"
-    "cotas"                                        -> "Cotas"
-    "itt"                                          -> "CRI"
-    "ttt"                                          -> "CRE"
-    else                                           -> null
+@Composable
+private fun Flag(code: String?, flags: Map<String, Bitmap>, width: Int) {
+    val bitmap = code?.lowercase()?.let { flags[it] } ?: return
+    Image(
+        provider = ImageProvider(Icon.createWithBitmap(bitmap)),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = GlanceModifier.width(width.dp).height((width * 3 / 4).dp),
+    )
 }
 
-// Línea etapa + tipo completo para vista single (con emoji de tipo antes del label)
-private fun buildStageLine(item: TodayWidgetItem): String {
-    val parts = mutableListOf<String>()
-    if (item.stageLabel.isNotEmpty()) parts += item.stageLabel
-    val emoji = stageTypeEmoji(item.primaryType)
-    item.typeLabel?.let { tl ->
-        parts += if (emoji != null) "$emoji $tl" else tl
-    }
-    return parts.joinToString(" · ")
+/** Marca de Calendario Ciclismo (calendario + bicicleta) de la cabecera de la app. */
+@Composable
+private fun Logo(height: Int) {
+    Image(
+        provider = ImageProvider(R.drawable.ic_cc_header),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        colorFilter = ColorFilter.tint(WgPrimary),
+        modifier = GlanceModifier.height(height.dp).width((height * 74 / 32).dp),
+    )
 }
 
-// Segunda línea compacta para filas multi: etapa · emoji+abbrev · 🏁 hora meta
-private fun buildCompactSecondLine(item: TodayWidgetItem): String? {
-    val parts = mutableListOf<String>()
-    if (item.stageLabel.isNotEmpty()) parts += item.stageLabel
-    val abbrev = stageTypeAbbrev(item.primaryType)
-        ?: item.typeLabel?.split(" · ")?.firstOrNull()
-    if (abbrev != null) {
-        val emoji = stageTypeEmoji(item.primaryType)
-        parts += if (emoji != null) "$emoji $abbrev" else abbrev
-    }
-    val finishTime = item.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
-    if (finishTime != null) parts += "🏁 $finishTime"
-    return if (parts.isEmpty()) null else parts.joinToString(" · ")
+@Composable
+private fun Divider() {
+    Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(WgDivider)) {}
 }
 
-// Badge de cobertura con la misma jerarquía de prioridad que el widget iOS
-private fun coverageBadge(item: TodayWidgetItem): String? {
-    if (item.tvStatus == "unavailable_es") return "NO ESP"
-    val broadcastTime = item.broadcastStartTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
-    if (broadcastTime != null) return "📺 $broadcastTime"
-    if (item.tvStatus == "pending") return "TBC"
-    if (item.channels.isNotEmpty() || item.tvStatus == "confirmed") return "TV"
-    if (item.hasLiveText) return "Live"
-    if (item.tvStatus == "none") return "Sin TV"
-    return null
+@Composable
+private fun StaleDot() {
+    Box(modifier = GlanceModifier.size(6.dp).cornerRadius(3.dp).background(WgTertiary)) {}
 }
 
-private fun deepLinkIntent(context: Context, url: String): Intent =
-    Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { setPackage(context.packageName) }
+/** Enlaces internos a la app y externos (texto en directo, Revive). */
+private fun openLink(context: Context, url: String) = actionStartActivity(
+    Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        if (url.startsWith("calendariociclismo://")) setPackage(context.packageName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    },
+)

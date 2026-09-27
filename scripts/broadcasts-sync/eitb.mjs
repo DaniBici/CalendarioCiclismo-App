@@ -181,6 +181,7 @@ export async function collectEitb({
   fetcher = globalThis.fetch,
   dateKeys,
   channels = EITB_CHANNELS,
+  todayKey = null,
 } = {}) {
   if (typeof fetcher !== 'function' || !Array.isArray(dateKeys) || !dateKeys.length) {
     throw new TypeError('collectEitb requiere fetcher y al menos una fecha');
@@ -189,13 +190,20 @@ export async function collectEitb({
   for (const dateKey of dateKeys) {
     for (const channelConfig of channels) {
       const sourceUrl = buildEitbScheduleUrl(channelConfig, dateKey);
-      const response = await fetcher(sourceUrl, { headers: { accept: 'text/html' } });
-      if (!response?.ok) {
-        throw new Error(`EITB respondió ${response?.status ?? 'sin estado'} para ${sourceUrl}`);
+      // EITB publica la parrilla con pocos días de antelación: un día futuro
+      // sin publicar no invalida la pasada.
+      const futureDay = todayKey != null && dateKey > todayKey;
+      try {
+        const response = await fetcher(sourceUrl, { headers: { accept: 'text/html' } });
+        if (!response?.ok) {
+          throw new Error(`EITB respondió ${response?.status ?? 'sin estado'} para ${sourceUrl}`);
+        }
+        events.push(...parseEitbSchedule(await response.text(), {
+          ...channelConfig, dateKey, sourceUrl,
+        }));
+      } catch (error) {
+        if (!futureDay) throw error;
       }
-      events.push(...parseEitbSchedule(await response.text(), {
-        ...channelConfig, dateKey, sourceUrl,
-      }));
     }
   }
   return events;

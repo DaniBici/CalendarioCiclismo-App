@@ -2,6 +2,47 @@
 
 Documentación técnica de la barra de estado Android.
 
+## Implementación vigente desde Android 513
+
+- `MainActivity` llama a `WindowCompat.enableEdgeToEdge(window)` (AndroidX Core
+  1.17.0). El fondo se dibuja mediante una `Surface` del color `background` que
+  ocupa toda la ventana; no se colorean las barras con `Window`.
+- El contenido de navegación y onboarding comparte un `safeDrawingPadding()`:
+  aplica y consume los insets de barras, cámara y teclado una sola vez. El
+  `Scaffold` principal solo añade el espacio de las pestañas y la barra inferior
+  ya no añade otro `navigationBarsPadding()`.
+- Los diálogos se gestionan en su propia ventana. `PaywallSheet` usa
+  `WindowInsets.safeDrawing`, sin desactivar esos márgenes, y aplica el contraste
+  mediante `SystemBarsAppearance` sobre su `DialogWindowProvider`. Esto evita que
+  el tema del sistema imponga iconos negros sobre una hoja oscura.
+- El contenido del onboarding de sostenimiento admite desplazamiento cuando no
+  cabe en horizontal; los botones de continuar permanecen fuera del desplazamiento.
+- Se conservan `windowLightStatusBar` y `windowLightNavigationBar` en los temas
+  XML claro/oscuro. El arranque aplica la apariencia sobre `decorView`; el cambio
+  dinámico de tema la reaplica con `WindowInsetsControllerCompat` y, desde API 30,
+  el controlador nativo. Las reaplicaciones pendientes se cancelan al cambiar el
+  efecto Compose.
+- No restaurar `Window.statusBarColor`, `Window.navigationBarColor` ni manipular
+  `systemUiVisibility` desde el tema. Android 15+ impone transparencia con nuestro
+  target SDK y esas llamadas no sustituyen el fondo ni la gestión de insets.
+
+Referencias: [WindowCompat](https://developer.android.com/reference/androidx/core/view/WindowCompat),
+[insets en Compose](https://developer.android.com/develop/ui/compose/system/insets).
+
+Validación de la build 513 (2026-09-06): APK release en emulador Pixel 10 Pro XL,
+Android 36.1, en vertical y horizontal, con navegación de tres botones. Se
+comprobaron las rutas principal/secundaria y el onboarding; el texto de
+sostenimiento se alcanza mediante desplazamiento. Con la app oscura y el sistema
+claro, la hoja mantiene iconos blancos y `dumpsys window` muestra una región de
+apariencia sin `LIGHT_STATUS_BARS`.
+
+La build 513 / 4.4.1 quedó instalada por USB en el Pixel 9a (API 37) el mismo
+día. La versión 510 usaba la firma de Google Play; se desinstaló con autorización
+expresa de Dani y se instaló el APK de firma local. El proceso arranca; la
+comprobación visual en el dispositivo queda pendiente de desbloquear el PIN.
+
+Los apartados siguientes documentan el diagnóstico histórico del contraste.
+
 ## El problema (versionCode 117 y anteriores)
 
 En modo claro, los iconos del sistema (hora, batería, cobertura, wifi) aparecían **claros sobre fondo claro**, prácticamente invisibles. La batería se distinguía solo porque tiene su propio fondo verde.
@@ -19,7 +60,7 @@ Lo confirmamos comparando:
 
 Los dos puntos del código que NO bastaron por sí solos:
 1. `enableEdgeToEdge(SystemBarStyle.light(...))` en `MainActivity.onCreate`
-2. `WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true` desde un `DisposableEffect` en el theme Compose
+2. `WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true` desde un `DisposableEffect` en el theme Compose histórico
 
 Triple control con `WindowInsetsController` nativo (API 30+) y `setSystemBarsAppearance` tampoco resolvió.
 

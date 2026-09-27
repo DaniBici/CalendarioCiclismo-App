@@ -3,9 +3,11 @@ package app.calendariociclismo.android.ui.transfers
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,15 +15,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,15 +60,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.components.CCHeaderMark
 import app.calendariociclismo.android.data.model.RiderTransfer
-import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.data.model.TeamSeason
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
-import app.calendariociclismo.android.ui.startlist.TeamBadgeComposable
+import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.TransfersLogic
@@ -96,8 +97,8 @@ private val transferSources = listOf(
  * Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
  * /fichajes/ web (`js/fichajes.js`): feed cronológico inverso de
  * CONFIRMACIONES + botones de división (WT·PT·WWT·PRW) + parrilla de equipos
- * 2027 (team_seasons; la chapa muestra los colores 2027 publicados, los
- * antiguos mientras no, o nada si el equipo es nuevo — ver [TransfersLogic.badgeSeason]).
+ * 2027 (team_seasons; la cabecera cromática usa los colores 2027 publicados o
+ * los de la temporada anterior mientras los nuevos no estén disponibles).
  * Tocar un equipo abre [TransfersTeamScreen] (continúan / llegan / se marchan).
  *
  * Solo-online (sin Room), como resultados/inscritos. La lógica pura vive en
@@ -142,10 +143,18 @@ fun TransfersScreen(navController: NavController, showBackArrow: Boolean) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CCHeaderMark()
+                        Text(
+                            text = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 },
                 navigationIcon = {
                     if (showBackArrow) {
@@ -250,21 +259,20 @@ private fun MarketContent(
     onFeedSelect: (TransfersFeed) -> Unit,
     onTeamTap: (String) -> Unit,
 ) {
-    val feed = remember(data, activeFeed) {
+    val feeds = remember(data) {
         val categoryByTeamId = data.seasons.mapNotNull { season ->
             season.category?.let { season.teamId to it }
         }.toMap()
-        val moves = when (activeFeed) {
-            TransfersFeed.Signings -> TransfersLogic.confirmedFeed(
+        mapOf(
+            TransfersFeed.Signings to TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(
                 data.transfers, categoryByTeamId, data.teamNameById
-            )
-            TransfersFeed.Renewals -> TransfersLogic.renewalFeed(
+            )),
+            TransfersFeed.Renewals to TransfersLogic.limitedFeed(TransfersLogic.renewalFeed(
                 data.transfers, categoryByTeamId, data.teamNameById
-            )
-        }
-        TransfersLogic.limitedFeed(moves)
+            )),
+        )
     }
-    val feedByDay = remember(feed) { TransfersLogic.groupByDay(feed) }
+    val feed = feeds[activeFeed].orEmpty()
     val teams = remember(data, activeDivision) {
         TransfersLogic.divisionTeams(data.seasons, activeDivision)
     }
@@ -279,34 +287,41 @@ private fun MarketContent(
     ) {
         // ── Confirmaciones ─────────────────────────────────────────
         SectionTitle(stringResource(R.string.transfers_feed_title), topPadding = 4.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FeedChip(stringResource(R.string.transfers_feed_signings), activeFeed == TransfersFeed.Signings) {
-                onFeedSelect(TransfersFeed.Signings)
-            }
-            FeedChip(stringResource(R.string.transfers_feed_renewals), activeFeed == TransfersFeed.Renewals) {
-                onFeedSelect(TransfersFeed.Renewals)
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-        if (feed.isEmpty()) {
-            Text(
-                text = stringResource(R.string.transfers_feed_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
-        } else {
-            feedByDay.forEach { (day, moves) ->
-                Text(
-                    text = DateFormatting.formatDateWeekdayNoYear(day),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
-                )
-                moves.forEach { move ->
-                    TransferFeedRow(transfer = move, data = data, onLinkTeam = onTeamTap)
-                    Spacer(Modifier.height(6.dp))
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth >= 700.dp) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TransferFeedColumn(
+                        title = stringResource(R.string.transfers_feed_signings),
+                        feed = feeds[TransfersFeed.Signings].orEmpty(),
+                        data = data,
+                        onTeamTap = onTeamTap,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TransferFeedColumn(
+                        title = stringResource(R.string.transfers_feed_renewals),
+                        feed = feeds[TransfersFeed.Renewals].orEmpty(),
+                        data = data,
+                        onTeamTap = onTeamTap,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FeedChip(stringResource(R.string.transfers_feed_signings), activeFeed == TransfersFeed.Signings) {
+                            onFeedSelect(TransfersFeed.Signings)
+                        }
+                        FeedChip(stringResource(R.string.transfers_feed_renewals), activeFeed == TransfersFeed.Renewals) {
+                            onFeedSelect(TransfersFeed.Renewals)
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    TransferFeedColumn(
+                        title = null,
+                        feed = feed,
+                        data = data,
+                        onTeamTap = onTeamTap,
+                    )
                 }
             }
         }
@@ -333,25 +348,78 @@ private fun MarketContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            teams.chunked(4).forEach { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    row.forEach { season ->
-                        TeamTile(
-                            season = season,
-                            prev = data.prevSeasonsByTeamId,
-                            onTap = { onTeamTap(season.teamId) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columns = when {
+                    maxWidth >= 960.dp -> 4
+                    maxWidth >= 640.dp -> 3
+                    maxWidth >= 360.dp -> 2
+                    else -> 1
                 }
-                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    teams.chunked(columns).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            row.forEach { season ->
+                                TeamTile(
+                                    season = season,
+                                    prev = data.prevSeasonsByTeamId,
+                                    onTap = { onTeamTap(season.teamId) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun TransferFeedColumn(
+    title: String?,
+    feed: List<RiderTransfer>,
+    data: TransfersLogic.MarketData,
+    onTeamTap: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        title?.let {
+            Text(
+                text = it.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+        if (feed.isEmpty()) {
+            Text(
+                text = stringResource(R.string.transfers_feed_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        } else {
+            TransfersLogic.groupByDay(feed).forEach { (day, moves) ->
+                Text(
+                    text = DateFormatting.formatDateWeekdayNoYear(day),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                )
+                moves.forEach { move ->
+                    TransferFeedRow(transfer = move, data = data, onLinkTeam = onTeamTap)
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
     }
 }
 
@@ -509,7 +577,7 @@ private fun TransferContractBadge(year: Int) {
     }
 }
 
-/** Tarjeta compacta de equipo: chapa efectiva encima del nombre de dos líneas. */
+/** Tarjeta horizontal de equipo, con la cabecera cromática usada en la web. */
 @Composable
 private fun TeamTile(
     season: TeamSeason,
@@ -517,42 +585,43 @@ private fun TeamTile(
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    CCCard(modifier = modifier.height(104.dp), cornerRadius = 12) {
+    val appearance = TransfersLogic.badgeSeason(season, prev)
+    val background = colorFromHex(appearance?.headerBg, MaterialTheme.colorScheme.surfaceVariant)
+    val foreground = colorFromHex(appearance?.headerText, MaterialTheme.colorScheme.onSurface)
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = modifier
+            .heightIn(min = 70.dp)
+            .clip(shape)
+            .background(background)
+            .border(0.5.dp, foreground.copy(alpha = 0.18f), shape)
+            .clickable(onClick = onTap)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Column(
-            modifier = Modifier.fillMaxSize().clickable(onClick = onTap).padding(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            // Sin chapa no se invoca para que el nombre no arrastre un hueco.
-            val badge = TransfersLogic.badgeSeason(season, prev)
-            if (badge != null) {
-                SeasonBadge(season = badge, size = 32)
-            }
-            Spacer(Modifier.height(5.dp))
+            Text(
+                text = season.name.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = foreground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (season.continuityDoubt) {
-                // El distintivo queda pegado al nombre; solo estas tarjetas
-                // redistribuyen su contenido dentro de la altura fija.
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TeamTileName(season.name.orEmpty())
-                    TeamDoubtBadge()
-                }
-            } else {
-                TeamTileName(season.name.orEmpty(), reserveTwoLines = true)
+                TeamDoubtBadge()
             }
         }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = foreground.copy(alpha = 0.75f),
+        )
     }
-}
-
-@Composable
-private fun TeamTileName(name: String, reserveTwoLines: Boolean = false) {
-    Text(
-        text = name,
-        style = MaterialTheme.typography.labelSmall,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        modifier = if (reserveTwoLines) Modifier.height(28.dp) else Modifier,
-    )
 }
 
 @Composable
@@ -574,37 +643,8 @@ private fun TeamDoubtBadge() {
 }
 
 /**
- * Chapa de un equipo del mercado. Se le pasa la fila (del mercado o la anterior)
- * cuyos colores hay que pintar; la decisión de CUÁL —o si no hay chapa— vive en
- * [TransfersLogic.badgeSeason]: colores del mercado publicados → 2027; sin
- * publicar pero equipo preexistente → colores antiguos (2026); equipo nuevo →
- * nada. Espejo de `badgeOrPlaceholder` (web) y `TransfersSeasonBadge` (iOS).
- *
- * ⚠️ Los call sites viven en `Row(Arrangement.spacedBy(...))`, donde un
- * composable vacío gastaría el spacing igual y dejaría un hueco. Por eso se
- * gatean con `if (badgeSeason(...) != null)` y solo invocan esto cuando hay chapa.
- */
-@Composable
-fun SeasonBadge(season: TeamSeason, size: Int) {
-    TeamBadgeComposable(team = season.toBadgeTeam(), size = size)
-}
-
-/**
  * Violeta de las DUDAS (corredor sin renovación despejada / equipo sin
  * continuidad confirmada). Espejo del `.tr-chip--doubt` de la web. Color propio
  * a propósito: el ámbar ya significa "rumor" y son estados distintos.
  */
 val TRANSFERS_DOUBT_COLOR = Color(0xFF8B5CF6)
-
-/** Team mínimo para pintar la chapa con los colores de la temporada. */
-fun TeamSeason.toBadgeTeam(): Team = Team(
-    id = teamId,
-    name = name.orEmpty(),
-    badgeTorsoCenter = badgeTorsoCenter ?: "#ffffff",
-    badgeTorsoSides = badgeTorsoSides ?: "#111111",
-    badgeShorts = badgeShorts ?: "#111111",
-    badgeInnerCircle = badgeInnerCircle,
-    headerBg = headerBg ?: "#1f2937",
-    headerText = headerText ?: "#ffffff",
-    category = category,
-)

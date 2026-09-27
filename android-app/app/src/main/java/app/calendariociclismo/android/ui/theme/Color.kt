@@ -36,10 +36,11 @@ fun colorFromHex(hex: String?, fallback: Color = Color(0xFF888888)): Color {
  */
 object CCColors {
     // ─── Dark ───
-    val DarkBg = Color(0xFF111318)
-    val DarkCard = Color(0xFF1C1E24)
-    val DarkCardHover = Color(0xFF24262D)
-    val DarkBorder = Color(0xFF2E3038)
+    val DarkBg = Color(0xFF141923)
+    val DarkCard = Color(0xFF1E2632)
+    val DarkCardHover = Color(0xFF202938)
+    val DarkSecondary = Color(0xFF293443)
+    val DarkBorder = Color(0xFF354252)
     val DarkOutline = Color(0xFF938F99)  // para Switch thumb, OutlinedTextField, etc.
     val DarkText = Color(0xFFE2E2E9)
     val DarkTextMuted = Color(0xFF8E9099)
@@ -54,15 +55,16 @@ object CCColors {
     val DarkSegmentedActive = Color(0xFF1C314F)
 
     // ─── Light ───
-    val LightBg = Color(0xFFFFFFFF)
-    val LightCard = Color(0xFFFFFFFF)
+    val LightBg = Color(0xFFF3F5F8)
+    val LightCard = Color(0xFFFAFBFC)
     // Gris neutro balanceado para superficies elevadas neutras (tarjetas de
     // detalle y Ajustes). Antes 0xFFF1F3F4, que tenía un punto cálido y, al
     // mezclarse sobre blanco, daba un tono rosado/lila perceptible. Este valor
     // tiene R=G=B equilibrados (gris puro) para que la superficie no tire ni a
     // rosa ni a azul.
-    val LightCardHover = Color(0xFFEFEFF1)
-    val LightBorder = Color(0xFFE0E0E0)
+    val LightCardHover = Color(0xFFE9EDF3)
+    val LightHeader = Color(0xFFEDF1F6)
+    val LightBorder = Color(0xFFD8DEE8)
     val LightOutline = Color(0xFF747775)  // para Switch thumb, OutlinedTextField, etc.
     val LightText = Color(0xFF1F1F1F)
     val LightTextMuted = Color(0xFF5F6368)

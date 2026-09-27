@@ -10,6 +10,14 @@ import kotlinx.serialization.Serializable
 data class DayData(
     val raceDays: List<EnrichedRaceDay>,
     val raceMap: Map<String, Race>,
+    val featuredRaceIds: Set<String> = emptySet(),
+)
+
+@Serializable
+data class FeaturedRaceSelection(
+    val dateKey: String,
+    val raceId: String,
+    val manual: Boolean,
 )
 
 @Serializable

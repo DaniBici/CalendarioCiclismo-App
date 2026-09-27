@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -42,6 +44,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import app.calendariociclismo.android.ui.components.CCHeaderMark
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -99,6 +102,7 @@ import java.util.Locale
 @Composable
 fun MonthScreen(
     navController: NavController,
+    modifier: Modifier = Modifier,
     /** Toggle Mes↔Temporada de la pestaña Calendario (apps 3.1). No-null cuando
      *  la pantalla vive dentro de CalendarScreen → añade la action de cambio. */
     onSwitchView: (() -> Unit)? = null,
@@ -193,28 +197,38 @@ fun MonthScreen(
             .collect { haptic(Haptics.Event.Navigation) }
     }
 
-    // When year changes: refresh data + scroll pager to appropriate month
+    // Al cambiar de año, situar el pager en el mes pertinente.
     LaunchedEffect(year) {
         val target = if (year == LocalDate.now().year) LocalDate.now().monthValue - 1 else 0
         pagerState.scrollToPage(target)
+    }
+
+    // La red recibe solo el intervalo del mes visible. Room conserva los meses
+    // ya visitados para que el desplazamiento horizontal siga siendo inmediato.
+    LaunchedEffect(year, pagerState.currentPage) {
+        val visibleMonth = YearMonth.of(year, pagerState.currentPage + 1)
+        val startKey = visibleMonth.atDay(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val endKey = visibleMonth.atEndOfMonth().format(DateTimeFormatter.ISO_LOCAL_DATE)
         isLoading = true
         try {
-            runCatching { app.repository.refreshRange("%04d-01-01".format(year), "%04d-12-31".format(year)) }
-            runCatching { app.repository.refreshRacesYear(year) }
+            runCatching { app.repository.refreshMonth(startKey, endKey) }
         } finally {
             isLoading = false
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = stringResource(R.string.month_title),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CCHeaderMark()
+                            Text(
+                                text = stringResource(R.string.month_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
                     },
                     actions = {
                         TextButton(onClick = {
@@ -497,6 +511,10 @@ private fun MonthDayPage(
 
         LazyColumn(
             state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 760.dp),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         ) {
             items(allDayKeys, key = { it }) { dateKey ->

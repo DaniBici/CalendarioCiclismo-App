@@ -1,16 +1,24 @@
 package app.calendariociclismo.android.ui.startlist
 
+import android.widget.Toast
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.runtime.rememberCoroutineScope
+import app.calendariociclismo.android.util.StartlistPdfExporter
+import kotlinx.coroutines.launch
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import app.calendariociclismo.android.ui.components.CCCard
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RaceLogo
 import androidx.compose.material3.*
@@ -69,6 +77,23 @@ fun StartlistScreen(
     }
 
     val app = rememberApp()
+    val scope = rememberCoroutineScope()
+    var isExportingPdf by remember { mutableStateOf(false) }
+    val pdfErrorMessage = stringResource(R.string.startlist_pdf_error)
+    fun exportPdf() {
+        if (isExportingPdf) return
+        isExportingPdf = true
+        scope.launch {
+            val english = LocaleHolder.current.language == "en"
+            runCatching { StartlistPdfExporter.export(context, raceId, english) }
+                .onSuccess { file ->
+                    StartlistPdfExporter.open(context, file)
+                    app.analytics.logEvent("startlist_pdf", Bundle().apply { putString("race_id", raceId) })
+                }
+                .onFailure { Toast.makeText(context, pdfErrorMessage, Toast.LENGTH_LONG).show() }
+            isExportingPdf = false
+        }
+    }
 
     LaunchedEffect(raceId) {
         loadStartlistData()
@@ -100,6 +125,8 @@ fun StartlistScreen(
                         isRefreshing = isRefreshing,
                         onRefresh = { state = StartlistState.Loading; state = StartlistState.Ready(currentState.data) },
                         onBack = { navController.popBackStack() },
+                        isExportingPdf = isExportingPdf,
+                        onDownloadPdf = ::exportPdf,
                     )
                 }
             }
@@ -153,8 +180,11 @@ private fun StartlistContent(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
+    isExportingPdf: Boolean,
+    onDownloadPdf: () -> Unit,
 ) {
     val pullRefreshState = rememberPullToRefreshState()
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -175,53 +205,55 @@ private fun StartlistContent(
                 .fillMaxWidth()
                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
         ) {
-            // El ficticio "Individual" no cuenta como equipo (sus corredores sí).
+            // Los estados sin equipo no cuentan como formaciones (sus corredores sí).
             StartlistHeaderCard(
                 race = data.race,
-                teamCount = data.teams.count { !it.isIndividualPlaceholder },
+                teamCount = data.teams.count { !it.isNoTeamPlaceholder },
                 riderCount = data.riders.size,
                 onBack = onBack,
+                isExportingPdf = isExportingPdf,
+                onDownloadPdf = onDownloadPdf.takeIf { data.teams.isNotEmpty() },
             )
         }
 
-        LazyColumn(
-            // weight(1f): ocupa el espacio restante bajo la cabecera fija.
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            // Sin top: la cabecera fija ya aporta el inset superior.
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (data.race.startlistProvisional == true) {
-                item {
-                    ProvisionalDisclaimerCard()
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val columns = AdaptiveLayoutPolicy.startlistColumns(maxWidth.value - 24f, adaptiveInfo)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (data.race.startlistProvisional == true) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { ProvisionalDisclaimerCard() }
                 }
-            }
 
-            if (data.teams.isEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.startlist_empty),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                items(data.teams) { team ->
-                    val teamRiders = data.riders
-                        .filter { it.teamId == team.id }
-                        .sortedWith(compareBy(nullsLast()) { it.dorsal })
-                    val globalTeam = data.globalTeams.find { it.id == team.teamId }
-                    StartlistTeamCard(
-                        team = team,
-                        riders = teamRiders,
-                        globalTeam = globalTeam,
-                        isProvisional = data.race.startlistProvisional == true,
-                        ridersOut = data.ridersOut,
-                        isOneDay = data.race.raceFormat == "one_day",
-                    )
+                if (data.teams.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            stringResource(R.string.startlist_empty),
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(count = data.teams.size, key = { index -> data.teams[index].id }) { index ->
+                        val team = data.teams[index]
+                        val teamRiders = data.riders
+                            .filter { it.teamId == team.id }
+                            .sortedWith(compareBy(nullsLast()) { it.dorsal })
+                        val globalTeam = data.globalTeams.find { it.id == team.teamId }
+                        StartlistTeamCard(
+                            team = team,
+                            riders = teamRiders,
+                            globalTeam = globalTeam,
+                            isProvisional = data.race.startlistProvisional == true,
+                            ridersOut = data.ridersOut,
+                            isOneDay = data.race.raceFormat == "one_day",
+                        )
+                    }
                 }
             }
         }
@@ -230,7 +262,14 @@ private fun StartlistContent(
 }
 
 @Composable
-private fun StartlistHeaderCard(race: Race, teamCount: Int, riderCount: Int, onBack: () -> Unit) {
+private fun StartlistHeaderCard(
+    race: Race,
+    teamCount: Int,
+    riderCount: Int,
+    onBack: () -> Unit,
+    isExportingPdf: Boolean,
+    onDownloadPdf: (() -> Unit)?,
+) {
     // Cabecera neutra en CCCard (sin tinte de marca), igual que el resto de
     // detalle. Sustituye el Card surfaceVariant 40% por la superficie pulida.
     CCCard(
@@ -284,7 +323,8 @@ private fun StartlistHeaderCard(race: Race, teamCount: Int, riderCount: Int, onB
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Sin equipos reales (startlist 100% ficticio "Individual") no se
                 // muestra "Equipos: 0": solo el total de corredores.
@@ -316,6 +356,27 @@ private fun StartlistHeaderCard(race: Race, teamCount: Int, riderCount: Int, onB
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+
+                if (onDownloadPdf != null) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    // PDF generado con el mismo código que la web (StartlistPdfExporter).
+                    // En la fila de recuentos para no restar ancho al nombre de la carrera.
+                    IconButton(
+                        onClick = onDownloadPdf,
+                        enabled = !isExportingPdf,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        if (isExportingPdf) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.FileDownload,
+                                contentDescription = stringResource(R.string.startlist_download_pdf),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -365,18 +426,17 @@ private fun StartlistTeamCard(
     val headerTextColor = globalTeam?.headerText?.let { Color(android.graphics.Color.parseColor(it)) }
         ?: MaterialTheme.colorScheme.onSurfaceVariant
 
-    // Tarjeta de equipo en CCCard: la superficie pulida (esquinas, sombra,
-    // hairline) envuelve el header con el color del equipo y la lista de
-    // corredores. CCCard recorta el contenido a la forma, así que el header
-    // coloreado queda enrasado con las esquinas redondeadas.
+    // Tarjeta de equipo recta, sin sombra y con hairline, como la web y iOS
+    // (`ccCardSurface(cornerRadius: 0, showShadow: false)`).
     CCCard(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 12,
+        cornerRadius = 0,
+        elevation = 0,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Header — el ficticio "Individual" va SIN cabecera (ocultación
-            // cosmética, espejo de la web): solo se listan sus corredores.
-            if (!team.isIndividualPlaceholder) Row(
+            // Los estados sin equipo van SIN cabecera (ocultación cosmética,
+            // espejo de la web/iOS): solo se listan sus corredores.
+            if (!team.isNoTeamPlaceholder) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(headerBgColor)
@@ -384,10 +444,6 @@ private fun StartlistTeamCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (globalTeam != null) {
-                    TeamBadgeComposable(globalTeam, size = 32)
-                }
-
                 Text(
                     globalTeam?.name ?: team.displayName,
                     modifier = Modifier.weight(1f),

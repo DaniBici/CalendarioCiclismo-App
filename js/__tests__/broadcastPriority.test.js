@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { broadcastLinkPriority, isReviveBroadcast, pickBadgeBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from '../broadcast-priority.js';
+import { broadcastLinkPriority, hasReviveBroadcastsForDay, isReviveBroadcast, pickBadgeBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from '../broadcast-priority.js';
 
 // Prioridad del enlace del badge de TV en directo:
 //  -1) CyLTV embebible  0) YouTube  1) otras redes  2) RTVE.es  3) RTP1/CCMA/EITB  4) resto.
@@ -118,6 +118,25 @@ describe('reviveBroadcastsForDay', () => {
     const selected = { channel: 'Canal', url: 'https://video.example/selected', showInRevive: true };
     const automatic = { channel: 'Eurosport 1', url: 'https://eurosport.example/live', showInRevive: false };
     expect(reviveBroadcastsForDay([automatic, selected], true)).toEqual([selected]);
+  });
+});
+
+describe('hasReviveBroadcastsForDay', () => {
+  const replay = { channel: 'Eurosport 1', url: 'https://video.example/replay' };
+
+  it('se activa con clasificaciones de la jornada sin esperar a la hora de meta', () => {
+    expect(hasReviveBroadcastsForDay([replay], true, false)).toBe(true);
+  });
+
+  it('no se activa por una general del día anterior ni por una emisión sin enlace', () => {
+    expect(hasReviveBroadcastsForDay([replay], false, false)).toBe(false);
+    expect(hasReviveBroadcastsForDay([{ ...replay, url: null }], true, false)).toBe(false);
+  });
+
+  it('en una cancelada exige clasificaciones y una selección editorial', () => {
+    expect(hasReviveBroadcastsForDay([replay], true, true)).toBe(false);
+    expect(hasReviveBroadcastsForDay([{ ...replay, showInRevive: true }], true, true)).toBe(true);
+    expect(hasReviveBroadcastsForDay([{ ...replay, showInRevive: true }], false, true)).toBe(false);
   });
 });
 

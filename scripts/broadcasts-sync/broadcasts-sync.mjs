@@ -2,22 +2,43 @@
 
 import { fileURLToPath } from 'node:url';
 import {
-  HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS, RTVE_VUELTA_VIDEOS_URL, contentHash, dateKeyInZone,
+  CARACOL_SOURCE_URL, CARACOL_VUELTA_INDEX_URL, HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
+  RTVE_LIVES_URL, RTVE_VUELTA_SCHEDULE_URL, RTVE_VUELTA_VIDEOS_URL,
+  contentHash, dateKeyInZone, fold,
   desiredBroadcasts, matchObservation, newBroadcastRow, normalizedObservation, parseHboCatalog,
-  parseHboEventStart, parseRtveStructuredGuide, parseRtveVueltaVideos,
+  parseCaracolDailyArticle, parseCaracolGuide, parseCaracolVueltaArticleUrls,
+  parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveRaceHintMatch,
+  parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveVueltaExternalEventId,
 } from './broadcasts-sync-core.mjs';
 import {
   EITB_CHANNELS, EITB_SCHEDULE_BASE_URL, collectEitb as collectEitbSource,
 } from './eitb.mjs';
 import {
-  SPORZA_SCHEDULE_BASE_URL, collectSporza as collectSporzaSource,
+  ETBON_PAGE_URLS, collectEtbon, isEtbonMediaUrl, mergeEtbonWithLinear,
+} from './etbon.mjs';
+import {
+  SPORZA_LIVESTREAM_URL, SPORZA_SCHEDULE_BASE_URL, collectSporza as collectSporzaSource,
+  parseSporzaLivestreamSchedule,
 } from './sporza-collector.mjs';
+import {
+  RTBF_CHANNELS, RTBF_SCHEDULE_BASE_URL, parseRtbfSchedules, rtbfPageInfo, rtbfScheduleUrl,
+} from './rtbf.mjs';
+
+import {
+  collectRai, RAI_PROGRAM_URL, RAI_TRANSITION_NOTE, raiUrl, classifyRaiObservation, raiMediaRank, raiKeepsCurrent, withRaiTransition,
+} from './rai.mjs';
+export { collectRai } from './rai.mjs';
+import { collectLequipe, LEQUIPE_GUIDE_URL } from './lequipe.mjs';
+export { collectLequipe } from './lequipe.mjs';
 
 const ROLLBACK_ID = process.argv.find((arg) => arg.startsWith('--rollback='))?.split('=')[1] || null;
 const SOURCE_ARG = process.argv.find((arg) => arg.startsWith('--source='))?.split('=')[1] || 'all';
-const SOURCES = SOURCE_ARG === 'all' ? new Set(['hbo_max', 'rtve', 'eitb', 'sporza']) : new Set(SOURCE_ARG.split(','));
+// Caracol queda fuera de la pasada por defecto: solo se ejecuta con --source=caracol.
+export const SOURCES = SOURCE_ARG === 'all'
+  ? new Set(['hbo_max', 'rtve', 'eitb', 'sporza', 'rtbf', 'rai', 'lequipe'])
+  : new Set(SOURCE_ARG.split(','));
 const APPLY_ARG = process.argv.find((arg) => arg.startsWith('--apply-sources='))?.split('=')[1] || null;
-const APPLY_SOURCES = APPLY_ARG
+export const APPLY_SOURCES = APPLY_ARG
   ? new Set(APPLY_ARG.split(',').filter(Boolean))
   : process.argv.includes('--apply') ? new Set(SOURCES) : new Set();
 const STABILITY_MS = Number(process.env.BROADCASTS_STABILITY_MINUTES || 10) * 60_000;
@@ -60,13 +81,124 @@ export async function collectRtve(fetcher = fetchHtml, now = new Date()) {
   const today = dateKeyInZone(now);
   const minDate = new Date(`${today}T00:00:00Z`); minDate.setUTCDate(minDate.getUTCDate() - 1);
   const maxDate = new Date(`${today}T00:00:00Z`); maxDate.setUTCDate(maxDate.getUTCDate() + 8);
-  const observations = parseRtveStructuredGuide(await fetcher(source.url))
-    .filter((event) => {
+  const [guideResult, scheduleResult, livesResult] = await Promise.allSettled([
+    fetcher(source.url),
+    fetcher(RTVE_VUELTA_SCHEDULE_URL),
+    fetcher(RTVE_LIVES_URL),
+  ]);
+  const scheduleEvents = scheduleResult.status === 'fulfilled'
+    ? parseRtveVueltaScheduleArticle(scheduleResult.value)
+    : [];
+  const livesByKey = new Map();
+  const lives = livesResult.status === 'fulfilled' ? parseRtvePlayLives(livesResult.value) : [];
+  const usedLives = new Set();
+  for (const event of lives) {
+    const key = `${event.dateKey}|${event.disciplineKey}`;
+    if (!livesByKey.has(key)) livesByKey.set(key, []);
+    livesByKey.get(key).push(event);
+  }
+  const scheduledVueltaStages = new Map(
+    scheduleEvents.map((event) => [event.stageNumber, event.dateKey]),
+  );
+  const guideEvents = guideResult.status === 'fulfilled'
+    ? parseRtveStructuredGuide(guideResult.value).filter((event) => {
+      const isVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${event.title} ${event.subtitle || ''}`));
+      const scheduledDate = isVuelta ? scheduledVueltaStages.get(event.stageNumber) : null;
+      return !scheduledDate || scheduledDate === event.dateKey;
+    }).map((event) => {
+      const isVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${event.title} ${event.subtitle || ''}`));
+      if (isVuelta || event.stageNumber != null) return event;
+      const candidates = livesByKey.get(`${event.dateKey}|${rtveDisciplineKey(`${event.title} ${event.subtitle || ''}`)}`) || [];
+      const live = candidates.find((candidate) => rtveRaceHintMatch(candidate.title, event.title));
+      if (!live) return event;
+      usedLives.add(live);
+      return { ...event, startTimeUtc: live.startTimeUtc, broadcastUrl: live.broadcastUrl };
+    })
+    : [];
+  // RTVE Play anuncia los eventos de un día antes de que la guía de
+  // Teledeporte alcance esa fecha. Esos directos se observan por sí mismos y
+  // convergen después con la guía mediante la identidad por jornada.
+  const livesOnly = lives.filter((event) => !usedLives.has(event));
+  const combined = new Map();
+  for (const event of [...scheduleEvents, ...guideEvents, ...livesOnly]) {
+    const isVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${event.title} ${event.subtitle || ''}`));
+    const identity = isVuelta ? 'la-vuelta' : event.externalEventId;
+    const canonicalEvent = isVuelta && Number.isInteger(event.stageNumber)
+      ? { ...event, externalEventId: rtveVueltaExternalEventId(event.dateKey, event.stageNumber) }
+      : event;
+    combined.set(`${identity}|${event.dateKey}|${event.stageNumber ?? 'one-day'}`, canonicalEvent);
+  }
+  const observations = [...combined.values()].filter((event) => {
       const date = new Date(`${event.dateKey}T00:00:00Z`);
       return date >= minDate && date <= maxDate;
     })
     .map(normalizedObservation);
   invariant(observations.length > 0, 'RTVE no devolvió emisiones de ciclismo en la ventana -1/+8 días');
+  return observations;
+}
+
+// Jornadas de La Vuelta masculina en la ventana; el nombre de la carrera varía por edición.
+export async function loadVueltaDateKeys(client, minDateKey, maxDateKey) {
+  const { rows } = await client.query(
+    `SELECT DISTINCT d."dateKey"
+       FROM public.race_days d JOIN public.races r ON r.id = d."raceId"
+      WHERE r.gender = 'male'
+        AND r.name ~* '^la vuelta( ciclista a españa)?$'
+        AND d."dateKey" BETWEEN $1 AND $2
+        AND d."editorialStatus" = 'published'
+        AND NOT COALESCE(d."isRestDay", false)
+        AND NOT COALESCE(d."isCancelledDay", false)
+      ORDER BY d."dateKey"`,
+    [minDateKey, maxDateKey],
+  );
+  return rows.map((row) => row.dateKey);
+}
+
+// Caracol solo cubre La Vuelta. `options.raceDateKeys(min, max)` devuelve las
+// jornadas del calendario en la ventana: sin ninguna, el vacío es un diagnóstico
+// y no se consulta la fuente. Con La Vuelta en la ventana, un error HTTP de la
+// guía o de la portada, o la ausencia de emisiones utilizables, es un fallo.
+export async function collectCaracol(fetcher = fetchHtml, now = new Date(), options = {}) {
+  const today = dateKeyInZone(now, 'America/Bogota');
+  const minDate = new Date(`${today}T00:00:00Z`); minDate.setUTCDate(minDate.getUTCDate() - 1);
+  const maxDate = new Date(`${today}T00:00:00Z`); maxDate.setUTCDate(maxDate.getUTCDate() + 8);
+  const minKey = minDate.toISOString().slice(0, 10);
+  const maxKey = maxDate.toISOString().slice(0, 10);
+  if (options.raceDateKeys && !(await options.raceDateKeys(minKey, maxKey)).length) {
+    options.diagnostics?.push({
+      source: 'caracol', action: 'outside_race_window', sourceUrl: CARACOL_SOURCE_URL,
+      detail: `La Vuelta no tiene jornadas entre ${minKey} y ${maxKey}`,
+    });
+    return [];
+  }
+  const [guideHtml, indexHtml] = await Promise.all([
+    fetcher(CARACOL_SOURCE_URL),
+    fetcher(CARACOL_VUELTA_INDEX_URL),
+  ]);
+  const events = parseCaracolGuide(guideHtml);
+  const articleUrls = parseCaracolVueltaArticleUrls(indexHtml);
+  const articleResults = await Promise.allSettled(articleUrls.map((url) => fetcher(url)));
+  articleResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      events.push(...parseCaracolDailyArticle(result.value, articleUrls[index]));
+    }
+  });
+
+  const bestByStage = new Map();
+  for (const event of events) {
+    const current = bestByStage.get(event.externalEventId);
+    if (!current || (event.evidenceRank || 0) > (current.evidenceRank || 0)) {
+      bestByStage.set(event.externalEventId, event);
+    }
+  }
+  const observations = [...bestByStage.values()]
+    .filter((event) => {
+      const date = new Date(`${event.dateKey}T00:00:00Z`);
+      return date >= minDate && date <= maxDate;
+    })
+    .map(normalizedObservation)
+    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
+  invariant(observations.length > 0, 'Caracol no devolvió emisiones utilizables en la ventana -1/+8 días');
   return observations;
 }
 
@@ -88,27 +220,45 @@ function dateWindow(now, before, after, timeZone) {
   });
 }
 
-function isDirectEitbBroadcastUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'etbon.eus' && url.pathname.startsWith('/m/');
-  } catch {
-    return false;
-  }
-}
-
+// EITB combina dos fuentes oficiales. ETB On publica cada directo con su
+// deep-link `/m/` y la hora real de inicio; es la única que habilita escritura.
+// La parrilla de ETB1/ETB2 solo aporta el relevo a la señal lineal. Un evento
+// lineal sin directo equivalente en ETB On permanece en sombra.
 export async function collectEitb(now = new Date(), options = {}) {
-  const events = await collectEitbSource({
-    dateKeys: dateWindow(now, 1, 6, 'Europe/Madrid'),
-    channels: EITB_CHANNELS,
-    ...options,
+  const dateKeys = options.dateKeys || dateWindow(now, 1, 6, 'Europe/Madrid');
+  const etbon = await collectEtbon({
+    fetcher: options.etbonFetcher || fetchHtml,
+    dateKeys,
   });
-  return events.map((event) => normalizedObservation({
-    ...event,
-    writeEligible: event.isLive === true && isDirectEitbBroadcastUrl(event.broadcastUrl),
-    reviveCapable: isDirectEitbBroadcastUrl(event.broadcastUrl),
-    insertSortOrder: -25,
-  }));
+  let linear = [];
+  try {
+    linear = await collectEitbSource({
+      dateKeys,
+      channels: options.channels || EITB_CHANNELS,
+      todayKey: dateKeyInZone(now, 'Europe/Madrid'),
+      ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    });
+  } catch (error) {
+    options.diagnostics?.push({
+      source: 'eitb', action: 'linear_schedule_failure',
+      sourceUrl: EITB_SCHEDULE_BASE_URL, detail: error.message,
+    });
+  }
+  const { events, unpairedLinear } = mergeEtbonWithLinear(etbon, linear);
+  return [
+    ...events.map((event) => normalizedObservation({
+      ...event,
+      writeEligible: isEtbonMediaUrl(event.broadcastUrl),
+      reviveCapable: isEtbonMediaUrl(event.broadcastUrl),
+      insertSortOrder: -25,
+    })),
+    ...unpairedLinear.map((event) => normalizedObservation({
+      ...event,
+      writeEligible: event.isLive === true && isEtbonMediaUrl(event.broadcastUrl),
+      reviveCapable: isEtbonMediaUrl(event.broadcastUrl),
+      insertSortOrder: -25,
+    })),
+  ];
 }
 
 function canonicalSporzaChannel(channels) {
@@ -123,11 +273,55 @@ export async function collectSporza(now = new Date(), options = {}) {
   const dateKeys = options.dateKeys || dateWindow(now, 1, 2, 'Europe/Brussels');
   const events = [];
   for (const dateKey of dateKeys) {
-    events.push(...await collectSporzaSource({ dateKey, fetcher: options.fetcher }));
+    events.push(...await collectSporzaSource({
+      dateKey,
+      fetcher: options.fetcher,
+      diagnostics: options.diagnostics,
+    }));
   }
-  return events.map((event) => ({ ...event, channel: canonicalSporzaChannel(event.sourceChannels) }))
+  // El esquema de livestreams declara directos que la parrilla deportiva no lista.
+  try {
+    const livestreamHtml = options.livestreamHtml
+      ?? await fetchHtml(SPORZA_LIVESTREAM_URL);
+    events.push(...parseSporzaLivestreamSchedule(livestreamHtml, {
+      todayKey: dateKeyInZone(now, 'Europe/Brussels'),
+    }));
+  } catch (error) {
+    options.diagnostics?.push({
+      source: 'sporza',
+      action: 'livestream_failure',
+      sourceUrl: SPORZA_LIVESTREAM_URL,
+      detail: error.message,
+    });
+  }
+  const unique = new Map();
+  for (const event of events) {
+    if (!unique.has(`${event.externalEventId}|${event.dateKey}`)) unique.set(`${event.externalEventId}|${event.dateKey}`, event);
+  }
+  return [...unique.values()]
+    .map((event) => ({ ...event, channel: canonicalSporzaChannel(event.sourceChannels) }))
     .filter((event) => event.channel)
     .map((event) => normalizedObservation({ ...event, writeEligible: true, insertSortOrder: 10 }));
+}
+
+export async function collectRtbf(now = new Date(), options = {}) {
+  const dateKeys = options.dateKeys || dateWindow(now, 7, 8, 'Europe/Brussels');
+  const scheduledAfter = `${dateKeys[0]}T00:00:00.000Z`;
+  const scheduledBefore = `${dateKeys.at(-1)}T23:59:59.999Z`;
+  const fetcher = options.fetcher || fetchHtml;
+  const payloads = [];
+  for (const channel of RTBF_CHANNELS) {
+    const first = await fetcher(rtbfScheduleUrl(channel.id, scheduledAfter, scheduledBefore));
+    payloads.push(first);
+    const { last } = rtbfPageInfo(first);
+    for (let page = 2; page <= last; page += 1) {
+      payloads.push(await fetcher(rtbfScheduleUrl(channel.id, scheduledAfter, scheduledBefore, page)));
+    }
+  }
+  const allowedDates = new Set(dateKeys);
+  return parseRtbfSchedules(payloads)
+    .filter((event) => allowedDates.has(event.dateKey))
+    .map((event) => normalizedObservation({ ...event, writeEligible: true }));
 }
 
 async function withClient(callback) {
@@ -142,10 +336,17 @@ async function withClient(callback) {
 }
 
 async function loadContext(client, observations) {
-  const dates = [...new Set(observations.map((observation) => observation.dateKey))];
+  const dates = [...new Set(observations.flatMap((observation) => {
+    if (observation.source !== 'rai') return [observation.dateKey];
+    return Array.from({ length: 15 }, (_, index) => {
+      const d = new Date(`${observation.dateKey}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - index);
+      return d.toISOString().slice(0, 10);
+    });
+  }))];
   if (!dates.length) return { raceDays: [], broadcasts: [], links: [] };
   const { rows: raceDays } = await client.query(
     `SELECT d.id AS "raceDayId", d."raceId", d."dateKey", d."stageNumber",
+            d."neutralStartTimeUtc", d."estimatedFinishTimeUtc",
             r.name, r."nameEn", r.translations, r.gender, r."raceFormat"
       FROM public.race_days d JOIN public.races r ON r.id = d."raceId"
       WHERE d."dateKey" = ANY($1::text[])
@@ -207,7 +408,8 @@ export async function loadRtveVueltaReplayCandidates(client, now = new Date()) {
 export function sameManagedState(current, applied) {
   if (!current || !applied) return false;
   return current.channel === applied.channel && current.country === applied.country
-    && new Date(current.startTimeUtc).toISOString() === new Date(applied.startTimeUtc).toISOString()
+    && (current.startTimeUtc == null ? null : new Date(current.startTimeUtc).toISOString())
+      === (applied.startTimeUtc == null ? null : new Date(applied.startTimeUtc).toISOString())
     && (current.url || null) === (applied.url || null)
     && (current.note || null) === (applied.note || null)
     && (applied.showInRevive == null
@@ -222,11 +424,26 @@ function isOfficialObservation(observation) {
       return sourceHost === 'www.hbomax.com' && broadcastHost === 'play.hbomax.com';
     }
     if (observation.source === 'rtve') {
-      return sourceHost === 'www.rtve.es' && broadcastHost.endsWith('.rtve.es');
+      return (sourceHost === 'www.rtve.es' || sourceHost === 'api.rtve.es') && broadcastHost.endsWith('.rtve.es');
     }
     if (observation.source === 'eitb') {
-      return sourceHost === 'www.eitb.eus'
-        && (broadcastHost === 'www.eitb.eus' || broadcastHost === 'eitb.eus' || broadcastHost === 'etbon.eus');
+      return (sourceHost === 'www.eitb.eus' || sourceHost === 'etbon.eus')
+        && isEtbonMediaUrl(observation.broadcastUrl);
+    }
+    if (observation.source === 'caracol') {
+      const sourceOfficial = sourceHost === 'www.noticiascaracol.com' || sourceHost === 'noticiascaracol.com';
+      const broadcastOfficial = broadcastHost === 'www.noticiascaracol.com' || broadcastHost === 'noticiascaracol.com';
+      return sourceOfficial && broadcastOfficial;
+    }
+    if (observation.source === 'rai') {
+      return !!raiUrl(observation.sourceUrl, '/') && !!raiUrl(observation.broadcastUrl,
+        ['live', 'delayed', 'scheduled'].includes(observation.mediaKind) ? '/dirette/' : '/video/');
+    }
+    if (observation.source === 'rtbf') {
+      return sourceHost === 'bff-service.rtbf.be' && broadcastHost === 'auvio.rtbf.be';
+    }
+    if (observation.source === 'lequipe') {
+      return sourceHost === 'www.lequipe.fr' && broadcastHost === 'www.lequipe.fr';
     }
     return observation.source === 'sporza'
       && (sourceHost === 'sporza.be' || sourceHost.endsWith('.sporza.be'))
@@ -238,6 +455,14 @@ function isOfficialObservation(observation) {
 
 export function adoptionCandidate(observation, desired, dayRows) {
   if (!isOfficialObservation(observation)) return { status: 'invalid_source', rows: [] };
+  if (observation.source === 'rai') {
+    const rows = dayRows.filter((row) => row.country === 'IT'
+      && /^(rai (sport|[123]|raiplay)|raiplay)( |$)/.test(fold(row.channel)));
+    if (rows.some((row) => row.automationLocked)) return { status: 'manual_lock', rows };
+    if (!rows.length) return { status: 'none', rows };
+    if (rows.length !== 1 || !(raiUrl(rows[0].url, '/dirette/') || raiUrl(rows[0].url, '/video/'))) return { status: 'conflict', rows };
+    return { status: 'adoptable', rows };
+  }
   if (observation.source === 'rtve') {
     const canonical = new Set([
       'RTVE', 'RTVE Play', 'Teledeporte', 'Teledeporte / RTVE Play',
@@ -250,6 +475,61 @@ export function adoptionCandidate(observation, desired, dayRows) {
     if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
     if (rows.length === 0) return { status: 'none', rows: [] };
     return rows.length === 1 ? { status: 'adoptable', rows } : { status: 'conflict', rows };
+  }
+  if (observation.source === 'caracol') {
+    const canonical = new Set(['Caracol', 'Caracol TV', 'Caracol / Ditu', 'Caracol Sports / Ditu']);
+    const rows = dayRows.filter((row) => {
+      if (row.country !== 'LATAM' || !canonical.has(row.channel)) return false;
+      try {
+        const host = new URL(row.url).hostname;
+        return host === 'www.noticiascaracol.com' || host === 'noticiascaracol.com';
+      } catch { return false; }
+    });
+    if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
+    if (rows.length === 0) return { status: 'none', rows: [] };
+    return rows.length === 1 ? { status: 'adoptable', rows } : { status: 'conflict', rows };
+  }
+  if (observation.source === 'rtbf') {
+    const canonical = new Set([
+      'La Une', 'Tipik', 'RTBF Auvio', 'La Une / RTBF Auvio', 'Tipik / RTBF Auvio',
+    ]);
+    const rows = dayRows.filter((row) => {
+      if (row.country !== 'BE' || !canonical.has(row.channel)) return false;
+      try { return new URL(row.url).hostname === 'auvio.rtbf.be'; } catch { return false; }
+    });
+    if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
+    if (rows.length === 0) return { status: 'none', rows: [] };
+    return rows.length === 1 ? { status: 'adoptable', rows } : { status: 'conflict', rows };
+  }
+  if (observation.source === 'eitb') {
+    // Una sola fila EITB por jornada. Un enlace ajeno a EITB, como un directo
+    // de YouTube elegido por la redacción, no se sustituye automáticamente.
+    const rows = dayRows.filter((row) => row.country === 'ES' && /^(?:eitb|etb ?[12]|etb on)\b/.test(fold(row.channel)));
+    if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
+    if (rows.length === 0) return { status: 'none', rows: [] };
+    const official = (row) => {
+      try { return ['etbon.eus', 'www.eitb.eus', 'eitb.eus'].includes(new URL(row.url).hostname); } catch { return false; }
+    };
+    return rows.length === 1 && official(rows[0]) ? { status: 'adoptable', rows } : { status: 'conflict', rows };
+  }
+  if (observation.source === 'lequipe') {
+    const rows = dayRows.filter((row) => {
+      if (row.country !== 'FR' || row.channel !== 'L\'Équipe TV') return false;
+      try { return new URL(row.url).hostname === 'www.lequipe.fr'; } catch { return false; }
+    });
+    if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
+    if (rows.length === 0) return { status: 'none', rows: [] };
+    return rows.length === 1 ? { status: 'adoptable', rows } : { status: 'conflict', rows };
+  }
+  if (observation.source === 'sporza') {
+    // El livestream solo declara «Sporza» y la parrilla puede declarar «Sporza (één)»:
+    // una fila Sporza de otro canal en la jornada impide insertar una segunda.
+    const family = dayRows.filter((row) => row.country === 'BE' && /^sporza\b/.test(fold(row.channel)));
+    const exact = family.filter((row) => row.channel === desired[0].channel);
+    if (family.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows: family };
+    if (family.length === 0) return { status: 'none', rows: [] };
+    if (exact.length === 1) return { status: 'adoptable', rows: exact };
+    return { status: 'conflict', rows: family, detail: 'La jornada ya tiene una fila Sporza con otro canal' };
   }
   const groups = desired.map((item) => dayRows.filter(
     (row) => row.country === item.country && row.channel === item.channel,
@@ -309,13 +589,41 @@ export function withMontoneraNote(note, present) {
   return remainder ? `${remainder} ${MONTONERA_NOTE}` : MONTONERA_NOTE;
 }
 
-export function mergeManagedBroadcast(current, desired, source) {
+export function withRtbfTransitionNote(note, transition) {
+  const remainder = String(note || '')
+    // Se retira también el formato anterior «Pasa a La Une a las HH:MM.».
+    .replace(/(?:^|\s+)(?:\d{2}:\d{2} > (?:La Une|Tipik)|Pasa a (?:La Une|Tipik) a las \d{2}:\d{2}\.)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!transition) return remainder || null;
+  return remainder ? `${remainder} ${transition}` : transition;
+}
+
+export function withLinearTransitionNote(note, transition) {
+  const remainder = String(note || '')
+    .replace(/(?:^|\s+)Pasa a ETB ?[12] a las \d{2}:\d{2}\.(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!transition) return remainder || null;
+  return remainder ? `${remainder} ${transition}` : transition;
+}
+
+// Una emisión ya iniciada conserva su hora: las fuentes corrigen el inicio
+// real durante el directo o lo pierden al terminar, y eso no debe reescribir
+// la fila.
+const FROZEN_AFTER_START_SOURCES = new Set(['rtve', 'eitb']);
+
+export function mergeManagedBroadcast(current, desired, source, now = new Date()) {
   const next = {
     ...current,
     ...desired,
     sortOrder: current.sortOrder,
     showInRevive: current.showInRevive === true || desired.showInRevive === true,
   };
+  if (FROZEN_AFTER_START_SOURCES.has(source) && current.startTimeUtc
+    && Date.parse(current.startTimeUtc) <= now.getTime()) {
+    next.startTimeUtc = current.startTimeUtc;
+  }
   delete next.insertSortOrder;
   delete next.hasMontonera;
   if (source === 'hbo_max') next.note = withMontoneraNote(current.note, desired.hasMontonera === true);
@@ -324,8 +632,24 @@ export function mergeManagedBroadcast(current, desired, source) {
       if (new URL(current.url).hostname.endsWith('.rtve.es')) next.url = current.url;
     } catch {}
   }
-  if (source === 'eitb' || source === 'sporza') next.note = current.note || null;
+  if (source === 'rai') {
+    const remainder = String(current.note || '')
+      .replace(/(?:Resumen(?: de \d+ minutos)?\.|Repetición de la emisión\.|Diferido\.)/g, '')
+      .replace(RAI_TRANSITION_NOTE, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    next.note = [remainder, desired.note].filter(Boolean).join(' ') || null;
+  }
+  if (source === 'rtbf') next.note = withRtbfTransitionNote(current.note, desired.note);
+  if (source === 'eitb') next.note = withLinearTransitionNote(current.note, desired.note);
+  if (source === 'sporza' || source === 'caracol' || source === 'lequipe') next.note = current.note || null;
   return next;
+}
+
+function managedFields(observation) {
+  const fields = ['startTimeUtc', 'url', 'channel', 'country', 'note', 'showInRevive'];
+  if (observation.source === 'rtbf') fields.push('automationLocked');
+  return fields;
 }
 
 export async function rollbackObservation(client, observationId) {
@@ -382,7 +706,7 @@ export async function rollbackObservation(client, observationId) {
   }
 }
 
-async function applyOne(client, observation, match, context) {
+export async function applyOne(client, observation, match, context) {
   await client.query('BEGIN');
   try {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`broadcast:${observation.source}:${observation.externalEventId}`]);
@@ -414,19 +738,38 @@ async function applyOne(client, observation, match, context) {
       }
       if (adoption.status === 'conflict' || adoption.status === 'invalid_source') {
         await recordObservation(client, observation, match, 'manual_conflict', adoption.rows, desired,
-          adoption.status === 'invalid_source' ? 'Host de fuente no autorizado' : null);
+          adoption.status === 'invalid_source' ? 'Host de fuente no autorizado' : adoption.detail || null);
         await client.query('COMMIT');
         return 'manual_conflict';
       }
       if (adoption.status === 'adoptable') {
         const adopted = adoption.rows;
+        const adoptedIds = adopted.map((row) => row.id);
+        const { rows: conflictingLinks } = await client.query(
+          `SELECT source,external_event_id,race_day_id,primary_broadcast_id,mirror_broadcast_id
+             FROM private.broadcast_source_links
+            WHERE primary_broadcast_id = ANY($1::text[])
+               OR mirror_broadcast_id = ANY($1::text[])
+            ORDER BY id
+            FOR UPDATE`,
+          [adoptedIds],
+        );
+        if (conflictingLinks.length > 0) {
+          const identities = conflictingLinks
+            .map((item) => `${item.source}:${item.external_event_id}`)
+            .join(', ');
+          await recordObservation(client, observation, match, 'manual_conflict', adopted, desired,
+            `Emisión ya vinculada a ${identities}`);
+          await client.query('COMMIT');
+          return 'manual_conflict';
+        }
         const { rows: createdLinks } = await client.query(
           `INSERT INTO private.broadcast_source_links
             (source,external_event_id,race_day_id,primary_broadcast_id,mirror_broadcast_id,
              managed_fields,last_source_hash,last_applied,last_seen_at)
            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,now()) RETURNING *`,
           [observation.source, observation.externalEventId, match.raceDayId, adopted[0].id,
-            adopted[1]?.id || null, JSON.stringify(['startTimeUtc', 'url', 'channel', 'country', 'note', 'showInRevive']),
+            adopted[1]?.id || null, JSON.stringify(managedFields(observation)),
             observation.sourceHash, JSON.stringify(adopted)],
         );
         link = createdLinks[0];
@@ -442,6 +785,13 @@ async function applyOne(client, observation, match, context) {
           [row.id, row.raceDayId, row.channel, row.country, row.startTimeUtc, row.url,
             row.note, row.sortOrder, row.showInRevive, JSON.stringify(row.translations)],
         );
+        if (observation.source === 'rtbf' && observation.finalizeReplay) {
+          await client.query(
+            `UPDATE public.broadcasts SET "automationLocked"=true WHERE id=$1`,
+            [row.id],
+          );
+          row.automationLocked = true;
+        }
         inserted.push(row);
       }
       await client.query(
@@ -450,10 +800,10 @@ async function applyOne(client, observation, match, context) {
            managed_fields,last_source_hash,last_applied,last_seen_at)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,now())`,
         [observation.source, observation.externalEventId, match.raceDayId, inserted[0].id,
-          inserted[1]?.id || null, JSON.stringify(['startTimeUtc', 'url', 'channel', 'country', 'note', 'showInRevive']),
+          inserted[1]?.id || null, JSON.stringify(managedFields(observation)),
           observation.sourceHash, JSON.stringify(inserted)],
       );
-      await confirmTvStatus(client, match.raceDayId);
+      if (observation.source !== 'rai' || observation.mediaKind === 'live') await confirmTvStatus(client, match.raceDayId);
       await recordObservation(client, observation, match, 'applied_insert', null, inserted);
       await client.query('COMMIT');
       return 'applied_insert';
@@ -476,7 +826,14 @@ async function applyOne(client, observation, match, context) {
       await client.query('COMMIT');
       return 'optimistic_conflict';
     }
-    if (current.some((row) => Math.abs(Date.parse(observation.startTimeUtc) - Date.parse(row.startTimeUtc)) > MAX_CHANGE_MS)) {
+    if (observation.source === 'rai' && raiKeepsCurrent(current, observation)) {
+      await recordObservation(client, observation, match, 'unchanged', current, current, 'Se conserva el vídeo o directo de mayor prioridad');
+      await client.query('COMMIT');
+      return 'unchanged';
+    }
+    const startedRows = FROZEN_AFTER_START_SOURCES.has(observation.source)
+      && current.every((row) => row.startTimeUtc && Date.parse(row.startTimeUtc) <= Date.now());
+    if (!startedRows && current.some((row) => Math.abs(Date.parse(observation.startTimeUtc) - Date.parse(row.startTimeUtc)) > MAX_CHANGE_MS)) {
       await recordObservation(client, observation, match, 'implausible_change', current, desired);
       await client.query('COMMIT');
       return 'implausible_change';
@@ -489,11 +846,14 @@ async function applyOne(client, observation, match, context) {
         ...mergeManagedBroadcast(old, desired[index], observation.source),
         id: ids[index], raceDayId: match.raceDayId,
       };
-      if (!sameManagedState(old, next)) {
+      if (observation.source === 'rtbf' && observation.finalizeReplay) next.automationLocked = true;
+      const lockChanged = old.automationLocked !== next.automationLocked;
+      if (!sameManagedState(old, next) || lockChanged) {
         await client.query(
-          `UPDATE public.broadcasts SET channel=$2,country=$3,"startTimeUtc"=$4,url=$5,note=$6,"sortOrder"=$7,"showInRevive"=$8 WHERE id=$1`,
+          `UPDATE public.broadcasts SET channel=$2,country=$3,"startTimeUtc"=$4,url=$5,note=$6,
+              "sortOrder"=$7,"showInRevive"=$8,"automationLocked"=$9 WHERE id=$1`,
           [next.id, next.channel, next.country, next.startTimeUtc, next.url, next.note || null, next.sortOrder,
-            next.showInRevive === true],
+            next.showInRevive === true, next.automationLocked === true],
         );
         changed = true;
       }
@@ -505,7 +865,7 @@ async function applyOne(client, observation, match, context) {
         WHERE source=$1 AND external_event_id=$2`,
       [observation.source, observation.externalEventId, observation.sourceHash, JSON.stringify(after)],
     );
-    await confirmTvStatus(client, match.raceDayId);
+    if (observation.source !== 'rai' || observation.mediaKind === 'live') await confirmTvStatus(client, match.raceDayId);
     await recordObservation(client, observation, match, changed ? 'applied_update' : 'unchanged', current, after);
     await client.query('COMMIT');
     return changed ? 'applied_update' : 'unchanged';
@@ -578,6 +938,57 @@ export async function applyRtveVueltaReplay(client, observation, match, context)
   }
 }
 
+export function rtveOneDayExternalEventId(raceDayId) {
+  return contentHash(`rtve|one-day|${raceDayId}`).slice(0, 32);
+}
+
+function isRtveVuelta(observation) {
+  return /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${observation.title} ${observation.subtitle || ''}`));
+}
+
+// Ajustes que dependen de la jornada emparejada:
+// - RTVE y EITB no escriben una emisión que empieza después de la llegada
+//   estimada: es una reposición o un diferido.
+// - Un evento RTVE de un día usa una identidad estable por jornada, común a la
+//   guía de Teledeporte y a RTVE Play, para no duplicar vínculos cuando una
+//   fuente aparece después de la otra.
+export function scopedObservation(observation, match, raceDay) {
+  if (!['rtve', 'eitb'].includes(observation.source)) return observation;
+  let next = observation;
+  if (observation.source === 'rtve' && observation.stageNumber == null && !isRtveVuelta(observation)
+    && !observation.finalizeReplay) {
+    const { sourceHash, ...event } = observation;
+    next = normalizedObservation({ ...event, externalEventId: rtveOneDayExternalEventId(match.raceDayId) });
+  }
+  const finish = raceDay?.estimatedFinishTimeUtc ? Date.parse(raceDay.estimatedFinishTimeUtc) : NaN;
+  if (Number.isFinite(finish) && next.startTimeUtc && Date.parse(next.startTimeUtc) >= finish) {
+    next = { ...next, writeEligible: false, shadowReason: 'Emisión posterior a la llegada estimada' };
+  }
+  return next;
+}
+
+function rtvePreference(a, b) {
+  const eligible = (item) => (item.observation.writeEligible === false ? 1 : 0);
+  const generic = (item) => (String(item.observation.broadcastUrl || '').includes('/play/videos/directo/') ? 0 : 1);
+  return eligible(a) - eligible(b) || generic(a) - generic(b)
+    || String(a.observation.startTimeUtc || '').localeCompare(String(b.observation.startTimeUtc || ''));
+}
+
+// Tras compartir identidad, la guía y RTVE Play pueden describir la misma
+// jornada. Se conserva el directo elegible con enlace específico de RTVE Play
+// y, a igualdad, el que empieza antes.
+export function preferredRtveOneDayObservations(items) {
+  const best = new Map();
+  for (const item of items) {
+    if (item.observation.source !== 'rtve' || item.match.status !== 'matched') continue;
+    const key = item.observation.externalEventId;
+    const current = best.get(key);
+    if (!current || rtvePreference(item, current) < 0) best.set(key, item);
+  }
+  return items.filter((item) => item.observation.source !== 'rtve' || item.match.status !== 'matched'
+    || best.get(item.observation.externalEventId) === item);
+}
+
 export async function run({ client = null, collectors = {} } = {}) {
   if (ROLLBACK_ID) {
     invariant(client || process.env.BROADCASTS_DATABASE_URL || process.env.DATABASE_URL, 'Falta BROADCASTS_DATABASE_URL');
@@ -586,6 +997,7 @@ export async function run({ client = null, collectors = {} } = {}) {
   }
   const observations = [];
   const failures = [];
+  const diagnostics = [];
   if (SOURCES.has('hbo_max')) {
     try { observations.push(...await (collectors.hbo || collectHbo)()); }
     catch (error) { failures.push({ source: 'hbo_max', sourceUrl: HBO_SOURCE_URL, error }); }
@@ -595,14 +1007,48 @@ export async function run({ client = null, collectors = {} } = {}) {
     catch (error) { failures.push({ source: 'rtve', sourceUrl: RTVE_SOURCE_URLS[0].url, error }); }
   }
   if (SOURCES.has('eitb')) {
-    try { observations.push(...await (collectors.eitb || collectEitb)()); }
-    catch (error) { failures.push({ source: 'eitb', sourceUrl: EITB_SCHEDULE_BASE_URL, error }); }
+    try {
+      observations.push(...await (collectors.eitb
+        ? collectors.eitb()
+        : collectEitb(new Date(), { diagnostics })));
+    }
+    catch (error) { failures.push({ source: 'eitb', sourceUrl: ETBON_PAGE_URLS[0], error }); }
   }
   if (SOURCES.has('sporza')) {
-    try { observations.push(...await (collectors.sporza || collectSporza)()); }
+    try {
+      observations.push(...await (collectors.sporza
+        ? collectors.sporza()
+        : collectSporza(new Date(), { diagnostics })));
+    }
     catch (error) { failures.push({ source: 'sporza', sourceUrl: SPORZA_SCHEDULE_BASE_URL, error }); }
   }
-  invariant(observations.length > 0 || failures.length > 0, 'Las fuentes seleccionadas no devolvieron observaciones');
+  if (SOURCES.has('caracol')) {
+    try {
+      observations.push(...await (collectors.caracol
+        ? collectors.caracol()
+        : collectCaracol(fetchHtml, new Date(), {
+          diagnostics,
+          raceDateKeys: (min, max) => (client
+            ? loadVueltaDateKeys(client, min, max)
+            : withClient((db) => loadVueltaDateKeys(db, min, max))),
+        })));
+    }
+    catch (error) { failures.push({ source: 'caracol', sourceUrl: CARACOL_SOURCE_URL, error }); }
+  }
+  if (SOURCES.has('rtbf')) {
+    try { observations.push(...await (collectors.rtbf || collectRtbf)()); }
+    catch (error) { failures.push({ source: 'rtbf', sourceUrl: RTBF_SCHEDULE_BASE_URL, error }); }
+  }
+  if (SOURCES.has('rai')) {
+    try { observations.push(...await (collectors.rai ? collectors.rai() : collectRai(new Date(), { diagnostics }))); }
+    catch (error) { failures.push({ source: 'rai', sourceUrl: RAI_PROGRAM_URL, error }); }
+  }
+  if (SOURCES.has('lequipe')) {
+    try { observations.push(...await (collectors.lequipe ? collectors.lequipe() : collectLequipe(new Date(), { diagnostics }))); }
+    catch (error) { failures.push({ source: 'lequipe', sourceUrl: LEQUIPE_GUIDE_URL, error }); }
+  }
+  invariant(observations.length > 0 || failures.length > 0 || diagnostics.length > 0,
+    'Las fuentes seleccionadas no devolvieron observaciones');
   invariant(client || process.env.BROADCASTS_DATABASE_URL || process.env.DATABASE_URL, 'Falta BROADCASTS_DATABASE_URL');
 
   const execute = async (db) => {
@@ -615,7 +1061,7 @@ export async function run({ client = null, collectors = {} } = {}) {
       }
     }
     const context = await loadContext(db, observations);
-    const report = [];
+    const report = [...diagnostics];
     for (const failure of failures) {
       const normalized = { source: failure.source, failedAt: new Date().toISOString(), message: failure.error.message };
       await db.query(
@@ -625,19 +1071,62 @@ export async function run({ client = null, collectors = {} } = {}) {
         [failure.source, failure.sourceUrl, PARSER_VERSION, contentHash(normalized),
           JSON.stringify(normalized), failure.error.stack || failure.error.message],
       );
-      report.push({ source: failure.source, action: 'source_failure', error: failure.error.message });
+      report.push({ source: failure.source, sourceUrl: failure.sourceUrl,
+        action: 'source_failure', error: failure.error.message });
     }
-    for (const observation of observations) {
-      const match = matchObservation(observation, context.raceDays);
+    const scoped = observations.map((observation) => {
+      let match = matchObservation(observation, context.raceDays);
+      if (observation.source === 'rai' && match.status === 'unmatched') {
+        // Las reposiciones se emiten también en días posteriores a la carrera.
+        for (let offset = 1; offset <= 14 && match.status === 'unmatched'; offset += 1) {
+          const d = new Date(`${observation.dateKey}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - offset);
+          const candidate = { ...observation, dateKey: d.toISOString().slice(0, 10) };
+          match = matchObservation(candidate, context.raceDays);
+          if (match.status !== 'unmatched') observation = candidate;
+        }
+      }
+      if (observation.source === 'rai' && match.status === 'matched') {
+        observation = classifyRaiObservation(observation, context.raceDays.find((d) => d.raceDayId === match.raceDayId));
+        observation = normalizedObservation({ ...observation,
+          externalEventId: contentHash(`rai|${match.raceDayId}`).slice(0, 32) });
+      }
+      if (match.status === 'matched') {
+        observation = scopedObservation(observation, match,
+          context.raceDays.find((d) => d.raceDayId === match.raceDayId));
+      }
+      return { observation, match };
+    });
+    const prepared = preferredRtveOneDayObservations(scoped).sort((a, b) => {
+      if (a.observation.source !== 'rai' || b.observation.source !== 'rai') return 0;
+      return raiMediaRank(b.observation.mediaKind) - raiMediaRank(a.observation.mediaKind)
+        || (a.observation.startTimeUtc || '').localeCompare(b.observation.startTimeUtc || '')
+        || (b.observation.durationSeconds || 0) - (a.observation.durationSeconds || 0);
+    });
+    const raiSeen = new Set();
+    const raiLive = new Map();
+    for (const { observation, match } of prepared) {
+      if (observation.source !== 'rai' || match.status !== 'matched' || observation.mediaKind !== 'live') continue;
+      if (!raiLive.has(match.raceDayId)) raiLive.set(match.raceDayId, []);
+      raiLive.get(match.raceDayId).push(observation);
+    }
+    for (const entry of prepared) {
+      let { observation } = entry;
+      const { match } = entry;
+      if (observation.source === 'rai' && match.status === 'matched') {
+        if (raiSeen.has(match.raceDayId)) continue;
+        raiSeen.add(match.raceDayId);
+        observation = withRaiTransition(observation, raiLive.get(match.raceDayId));
+      }
       let action = match.status;
       if (APPLY_SOURCES.has(observation.source)) {
         if (match.status === 'matched' && observation.writeEligible !== false) {
-          action = observation.finalizeReplay
+          action = observation.source === 'rtve' && observation.finalizeReplay
             ? await applyRtveVueltaReplay(db, observation, match, context)
             : await applyOne(db, observation, match, context);
         } else if (match.status === 'matched') {
           action = 'shadow_matched';
-          await recordObservation(db, observation, match, action, null, null, 'Evidencia insuficiente para escritura');
+          await recordObservation(db, observation, match, action, null, null,
+            observation.shadowReason || 'Evidencia insuficiente para escritura');
         }
         else await recordObservation(db, observation, match, match.status);
       } else {
@@ -646,7 +1135,7 @@ export async function run({ client = null, collectors = {} } = {}) {
       }
       report.push({ source: observation.source, externalEventId: observation.externalEventId,
         title: observation.title, dateKey: observation.dateKey, startTimeUtc: observation.startTimeUtc,
-        match, action });
+        sourceUrl: observation.sourceUrl, ...(observation.source === 'rai' ? { mediaKind: observation.mediaKind } : {}), match, action });
     }
     const mode = APPLY_SOURCES.size === 0 ? 'shadow'
       : [...SOURCES].every((source) => APPLY_SOURCES.has(source)) ? 'apply' : 'mixed';

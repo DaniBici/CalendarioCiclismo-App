@@ -1,7 +1,6 @@
 import FirebaseCore
 import SwiftUI
 import UserNotifications
-import WidgetKit
 
 /// Pasos del flujo de onboarding inicial. El orden refleja la prioridad: el
 /// step más temprano que no esté completo es el que se muestra. `done` indica
@@ -60,13 +59,16 @@ struct CalendarioCiclismoApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
+                // Fondo raíz canónico. Evita que cualquier pantalla transparente,
+                // transición o estado de carga deje ver el negro del hosting view.
+                AppTheme.background
+                    .ignoresSafeArea()
+
                 if let configError = SupabaseService.shared.configurationError {
                     ErrorView(message: configError, retry: nil)
-                        .preferredColorScheme(themeService.preference.colorScheme)
                         .environment(\.locale, localeService.current.locale)
                 } else {
                     ContentView()
-                        .preferredColorScheme(themeService.preference.colorScheme)
                         .environment(\.locale, localeService.current.locale)
 
                     onboardingOverlay()
@@ -77,11 +79,21 @@ struct CalendarioCiclismoApp: App {
                         showSplash = false
                         splashDismissing = false
                     }
+                    // UILaunchScreen sigue el tema del dispositivo, no la
+                    // preferencia seleccionada dentro de la app.
+                    .environment(\.colorScheme, launchColorScheme)
                     .zIndex(10)
                 }
             }
+            .preferredColorScheme(windowColorScheme)
+            .transformEnvironment(\.colorScheme) { scheme in
+                if let preference = themeService.preference.colorScheme {
+                    scheme = preference
+                }
+            }
             .task {
-                await withTaskGroup(of: Void.self) { group in
+                WidgetBridge.start()
+                await withTaskGroup { group in
                     group.addTask { await preloadTodayData() }
                     group.addTask { try? await Task.sleep(for: .seconds(0.6)) }
                     await group.waitForAll()
@@ -97,7 +109,7 @@ struct CalendarioCiclismoApp: App {
                 await OfflineManager.shared.syncIfNeeded()
             }
             // Deep links entrantes desde URLs con scheme `calendariociclismo://`
-            // (p. ej. el widget "Hoy en el ciclismo"). Se delega al mismo enum
+            // (p. ej. el widget «Carreras de hoy»). Se delega al mismo enum
             // DeepLink que usan las push; ContentView observa `pendingDeepLink`.
             .onOpenURL { url in
                 if let link = NotificationManager.DeepLink.fromURL(url) {
@@ -106,9 +118,24 @@ struct CalendarioCiclismoApp: App {
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
-                WidgetCenter.shared.reloadTimelines(ofKind: "TodayCyclingWidget")
+                WidgetBridge.appBecameActive()
             }
         }
+    }
+
+    private var windowColorScheme: ColorScheme? {
+        // Las barras del sistema conservan el contraste del lanzamiento hasta
+        // que desaparece. El contenido ya se prepara con su tema seleccionado.
+        showSplash ? launchColorScheme : themeService.preference.colorScheme
+    }
+
+    private var launchColorScheme: ColorScheme {
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }
+        // SwiftUI puede aplicar preferredColorScheme también a los traits de
+        // la escena. La pantalla conserva la apariencia elegida en el sistema.
+        return scene?.screen.traitCollection.userInterfaceStyle == .dark ? .dark : .light
     }
 
     /// Avanza al siguiente step pendiente con animación. Llamado desde el
@@ -178,7 +205,7 @@ struct CalendarioCiclismoApp: App {
         guard SupabaseService.shared.configurationError == nil else { return }
         let today = DateFormatting.todayKey()
         let year = Int(today.prefix(4)) ?? 2026
-        await withTaskGroup(of: Void.self) { group in
+        await withTaskGroup { group in
             group.addTask {
                 guard let data = try? await SupabaseService.shared.loadDayComplete(dateKey: today) else { return }
                 await CacheManager.shared.save(data, forKey: CacheManager.dayKey(today))
@@ -198,7 +225,6 @@ private struct SplashView: View {
     let onDismissed: () -> Void
 
     @State private var textOpacity: Double = 0
-    @State private var scale: CGFloat = 1.0
     @State private var opacity: Double = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -212,39 +238,36 @@ private struct SplashView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 AnimatedRouteProfile(
-                    lineColor: .white,
-                    fillColor: .white.opacity(0.15),
-                    riderColor: .white
+                    lineColor: Color(light: "1a73e8", dark: "7fcfff"),
+                    fillColor: Color(light: "1a73e8", dark: "7fcfff").opacity(0.18),
+                    riderColor: Color(light: "1a73e8", dark: "ffffff")
                 )
                 .frame(height: 230)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
 
-            // Logo al centro exacto del ZStack = misma posición que UILaunchScreen.
-            // No usamos GeometryReader para no interferir con GeometryReaders de
-            // vistas subyacentes (DateBarView) que dependen de su tamaño correcto
-            // desde el primer frame.
+            // Mismo recurso y tamaño que UILaunchScreen. El contenedor completo
+            // ignora el área segura para centrarlo sobre la pantalla física.
             Image("LaunchLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 100, height: 100)
 
-            // Texto debajo del logo mediante offset desde el centro.
-            // 50 (mitad logo) + 6 (spacing) + ~10 (mitad bloque texto) ≈ 66 pt.
+            // Bloque separado del logo central que presenta el sistema al arrancar.
             VStack(spacing: 6) {
                 Text("Calendario Ciclismo")
                     .font(.title)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(light: "1f2937", dark: "ffffff"))
                 Text("Ciclismo, al instante.")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(Color(light: "536174", dark: "c4ccd7"))
             }
-            .offset(y: 66)
+            .offset(y: 98)
             .opacity(textOpacity)
         }
-        .scaleEffect(scale)
+        .ignoresSafeArea()
         .opacity(opacity)
         .onAppear {
             if reduceMotion {
@@ -260,11 +283,10 @@ private struct SplashView: View {
             if reduceMotion {
                 onDismissed()
             } else {
-                withAnimation(.easeIn(duration: 0.4)) {
-                    scale = 1.6
+                withAnimation(.easeOut(duration: 0.3)) {
                     opacity = 0
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onDismissed()
                 }
             }

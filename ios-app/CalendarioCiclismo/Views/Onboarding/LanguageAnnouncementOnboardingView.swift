@@ -10,34 +10,37 @@ import SwiftUI
 struct LanguageAnnouncementOnboardingView: View {
     @State private var localeService = LocaleService.shared
     @State private var isAnimating = false
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 72
     let onDismiss: () -> Void
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            AppTheme.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer()
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 32)
 
                 Image(systemName: "globe")
                     .font(.system(size: iconSize))
                     .foregroundStyle(Color.accentColor)
                     .symbolEffect(.bounce, value: isAnimating)
                     .accessibilityHidden(true)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 20)
 
                 Text(localeService.t(
                     "Elige tu idioma",
                     "Choose your language"
                 ))
-                .font(.title)
-                .fontWeight(.bold)
+                .font(.title.bold())
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 32)
 
-                VStack(spacing: 12) {
+                        Spacer(minLength: 32)
+
+                        VStack(spacing: 12) {
                     Button {
                         choose(.spanish)
                     } label: {
@@ -66,20 +69,20 @@ struct LanguageAnnouncementOnboardingView: View {
                             CountryFlag(countryCode: "gb", width: 26)
                                 .accessibilityHidden(true)
                             Text("Switch to English")
-                                .font(.headline)
+                                .font(.subheadline)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
                     .accessibilityHint("Switches the app to English.")
                     .accessibilityInputLabels(["English", "Switch to English"])
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 32)
+                    }
+                    .frame(minHeight: proxy.size.height)
                 }
-                .padding(.horizontal, 32)
-
-                Spacer()
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
         .accessibilityElement(children: .contain)

@@ -19,6 +19,10 @@ describe('zonedTimeToTimestamp', () => {
     expect(zonedTimeToTimestamp('', '15:45', 'Europe/Madrid')).toBeNull();
   });
 
+  it('calcula la salida real desde la fecha civil y la zona de la jornada', () => {
+    expect(zonedTimeToTimestamp('2026-08-21', '15:45', 'Asia/Tokyo')).toBe('2026-08-21T06:45:00.000Z');
+  });
+
   it('usa la fecha civil española del instante de meta', () => {
     expect(madridDateKey('2026-08-21T23:30:00Z')).toBe('2026-08-22');
   });

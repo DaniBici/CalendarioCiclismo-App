@@ -48,14 +48,39 @@ describe('Belgian Cycling — PDF oficial', () => {
     expect(classification.rows[4]).toMatchObject({ rank: null, rankText: 'DNF', bib: '44', irm: 'DNF' });
   });
 
-  it('rechaza fecha equivocada y resultados parciales', () => {
-    expect(() => parsePdfText('2026233', result, '2026-08-21')).toThrow('no de 2026-08-21');
+  it('rechaza fechas lejanas y resultados parciales', () => {
+    expect(() => parsePdfText('2026233', result, '2026-08-22')).toThrow('no de 2026-08-22');
     expect(() => parsePdfText('2026233', result.replace('Deelnemers: 4', 'Deelnemers: 5'))).toThrow('PDF declara 6');
+  });
+
+  it('normaliza una errata de un día en la fecha impresa a la fecha de la jornada', () => {
+    const stage = parsePdfText('2026233', result, '2026-08-21');
+    expect(stage.dateKey).toBe('2026-08-21');
+    expect(stage.classifications[0].rowCount).toBe(5);
   });
 
   it('no interpreta una fila sin puesto fuera de un bloque IRM', () => {
     const line = '        44 AUT 100 098 622 54 SCHWEINBERGER Kathrin            HPH   HUMAN POWERED HEALTH';
     expect(parseResultRow(line)).toBeNull();
     expect(parseResultRow(line, 'DNF')).toMatchObject({ bib: '44', irm: 'DNF' });
+  });
+
+  it('extrae las filas de club sin código UCI de equipo', () => {
+    const clubResult = `
+                             KRINGWEDSTRIJD                                           UITSLAG - RESULTAT - RESULT
+Deelnemers: 3                                      150 km
+                                                  3:00:00                                50,000 km/u                18/09/2026
+Rang Nr UCIcode               Naam / Nom                     Ploeg / Equipe                                  Tijd/Achterstand - Temps
+
+1      11 BEL 100 111 111 11 VOS Aimee                            WCB   WIELERCLUB BRABANT                       3:00:00
+2      12 BEL 100 222 222 22 PEETERS Ward                               AARCO                            0:01:00
+DNF / Abbandons / Opgaves :
+      13 BEL 100 333 333 33 JANSSENS Kamiel                             AARCO
+`;
+    const stage = parsePdfText('2026276', clubResult, '2026-09-18');
+    const rows = stage.classifications[0].rows;
+    expect(rows).toHaveLength(3);
+    expect(rows[1]).toMatchObject({ rank: 2, bib: '12', teamCode: null, teamName: 'AARCO', gapText: '+1:00' });
+    expect(rows[2]).toMatchObject({ rank: null, rankText: 'DNF', bib: '13', teamCode: null, teamName: 'AARCO' });
   });
 });

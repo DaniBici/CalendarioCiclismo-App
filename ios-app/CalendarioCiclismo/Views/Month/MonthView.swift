@@ -6,6 +6,7 @@ struct MonthView: View {
     /// Acción del toggle Mes↔Temporada (solo cuando se renderiza dentro de
     /// `CalendarTabView`, apps 3.1). nil = sin botón de alternar.
     var switchAction: (() -> Void)? = nil
+    var embedded = false
     @State private var viewModel = MonthViewModel()
     @State private var currentMonthIndex: Int = Calendar.current.component(.month, from: Date()) - 1
     @State private var placeholderItem: PlaceholderModalItem?
@@ -19,6 +20,29 @@ struct MonthView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if embedded {
+                HStack(spacing: 10) {
+                    Text(localeService.t("Agenda", "Agenda"))
+                        .font(.headline)
+                    Spacer()
+                    if viewModel.availableYears.count > 1 {
+                        Menu {
+                            Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
+                                ForEach(viewModel.availableYears, id: \.self) { year in
+                                    Text(String(year)).tag(year)
+                                }
+                            }
+                        } label: {
+                            Label(String(viewModel.year), systemImage: "calendar")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    Button(localeService.t("Hoy", "Today")) { goToCurrentMonth() }
+                        .font(.caption.weight(.semibold))
+                }
+                .padding(.horizontal)
+                .frame(minHeight: 44)
+            }
             // Filtros de categoría
             categoryFilterBar
 
@@ -57,6 +81,7 @@ struct MonthView: View {
                 }
                 .onChange(of: currentMonthIndex) { _, newValue in
                     viewModel.month = newValue + 1
+                    Task { await viewModel.loadMonth() }
                     Haptics.play(.navigation)
                     withAnimation {
                         pillProxy.scrollTo(newValue, anchor: .center)
@@ -83,11 +108,11 @@ struct MonthView: View {
                     EmptyStateView(
                         icon: "icloud.slash",
                         title: localeService.t("Datos no disponibles offline", "Data not available offline"),
-                        subtitle: localeService.t("Este año no está guardado en tu dispositivo. Se cargará automáticamente cuando recuperes la conexión.", "This year is not saved on your device. It will load automatically when you regain connection.")
+                        subtitle: localeService.t("Este mes no está guardado en tu dispositivo. Se cargará automáticamente cuando recuperes la conexión.", "This month is not saved on your device. It will load automatically when you regain connection.")
                     )
                     .fixedSize(horizontal: false, vertical: true)
                     Button {
-                        Task { await viewModel.loadYear() }
+                        Task { await viewModel.loadMonth(force: true) }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
@@ -102,7 +127,7 @@ struct MonthView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.error {
                 ErrorView(message: error) {
-                    Task { await viewModel.loadYear() }
+                    Task { await viewModel.loadMonth(force: true) }
                 }
             } else {
                 TabView(selection: $currentMonthIndex) {
@@ -121,6 +146,7 @@ struct MonthView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
             }
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .onAppear {
             AnalyticsService.shared.logScreenView("month", parameters: [
                 "year": String(viewModel.year),
@@ -131,7 +157,7 @@ struct MonthView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            if viewModel.availableYears.count > 1 {
+            if !embedded, viewModel.availableYears.count > 1 {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
@@ -159,21 +185,11 @@ struct MonthView: View {
                     .accessibilityInputLabels(["Año", "Cambiar año", "Selector de año"])
                 }
             }
+            if !embedded {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 12) {
                     Button(localeService.t("Hoy", "Today")) {
-                        Haptics.play(.navigation)
-                        let cal = Calendar.current
-                        let todayYear = cal.component(.year, from: Date())
-                        let todayMonth = cal.component(.month, from: Date())
-
-                        if todayYear != viewModel.year {
-                            viewModel.year = todayYear
-                        }
-                        scrolledToTodayForMonth = nil
-                        scrollToTodayTrigger += 1
-                        currentMonthIndex = todayMonth - 1
-                        viewModel.month = todayMonth
+                        goToCurrentMonth()
                     }
                     .font(.subheadline)
                     .accessibilityHint("Navega al mes actual")
@@ -192,15 +208,7 @@ struct MonthView: View {
                     }
                 }
             }
-        }
-        .navigationDestination(for: String.self) { dateKey in
-            TodayView(initialDateKey: dateKey, initialFilter: viewModel.activeFilter)
-        }
-        .navigationDestination(for: RaceDay.self) { raceDay in
-            StageDetailView(raceDayId: raceDay.id)
-        }
-        .navigationDestination(for: ChampionshipsRoute.self) { _ in
-            ChampionshipsView()
+            }
         }
         .placeholderModal(item: $placeholderItem)
         .onChange(of: storedDefaultFilter) { _, newValue in
@@ -210,9 +218,10 @@ struct MonthView: View {
         }
         .onChange(of: viewModel.year) { _, _ in
             currentMonthIndex = 0
-            Task { await viewModel.loadYear() }
+            viewModel.month = 1
+            Task { await viewModel.loadMonth() }
         }
-        .task { await viewModel.loadYear() }
+        .task { await viewModel.loadMonth() }
         .onChange(of: viewModel.isLoading) { _, newValue in
             if !newValue && !viewModel.allRaceDays.isEmpty {
                 AccessibilityAnnouncement.announce(LocaleService.t("\(viewModel.title(forMonth: currentMonthIndex + 1)) cargado", "\(viewModel.title(forMonth: currentMonthIndex + 1)) loaded"))
@@ -259,6 +268,18 @@ struct MonthView: View {
                 ))
             }
         }
+    }
+
+    private func goToCurrentMonth() {
+        Haptics.play(.navigation)
+        let cal = Calendar.current
+        let todayYear = cal.component(.year, from: Date())
+        let todayMonth = cal.component(.month, from: Date())
+        if todayYear != viewModel.year { viewModel.year = todayYear }
+        scrolledToTodayForMonth = nil
+        scrollToTodayTrigger += 1
+        currentMonthIndex = todayMonth - 1
+        viewModel.month = todayMonth
     }
 
     @ViewBuilder
@@ -362,8 +383,10 @@ struct MonthView: View {
 
                     Color.clear.frame(height: 16)
                 }
+                .frame(maxWidth: 760)
                 .padding(.horizontal)
             }
+            .background(AppTheme.background)
             .accessibilityIdentifier(AccessibilityID.monthScheduleList)
             .onAppear {
                 let monthKey = "\(viewModel.year)-\(monthNum)"

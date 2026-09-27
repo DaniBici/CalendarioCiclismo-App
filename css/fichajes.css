@@ -5,7 +5,7 @@
    ───────────────────────────────────────────────────────────────── */
 
 .tr-main {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem 1rem 3.5rem;
   box-sizing: border-box;
@@ -195,7 +195,10 @@
    ya del equipo de destino, así que no hace falta divisor extra. */
 .tr-name { font-weight: 600; }
 
-.tr-arrow { color: var(--text-dim); margin-right: 0.15rem; }
+/* Sin margen propio: el espacio en blanco del marcado ya separa la flecha del
+   corredor y del equipo por igual (antes margin-right 0.15rem ensanchaba el
+   lado derecho). */
+.tr-arrow { color: var(--text-dim); }
 
 /* El año de contrato como BADGE (chip), no texto suelto: se lee de un vistazo
    junto a los chips de rumor/duda. */
@@ -306,62 +309,22 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   font-weight: 600;
 }
 
-.tr-team-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-@media (min-width: 561px) {
-  .tr-team-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-}
-
-@media (min-width: 769px) {
-  .tr-team-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); }
-}
-
+.tr-team-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .tr-team-card {
-  display: flex;
-  min-width: 0;
-  height: 6.5rem;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.6rem 0.3rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  line-height: 1.18;
-  text-align: center;
-  cursor: pointer;
-  transition: background 0.15s ease;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  min-width:0; min-height:54px; padding:10px 12px; text-align:left;
+  background:var(--team-bg,var(--bg-card)); color:var(--team-text,var(--text));
+  border:1px solid color-mix(in srgb,currentColor 20%,transparent); border-radius:8px;
+  font:600 14px/1.35 var(--font-body); cursor:pointer;
 }
-
-.tr-team-card:hover { background: var(--bg-card-hover); }
-
-.tr-team-card__name {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.tr-team-card__label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(2 * 1.18em);
-}
-.tr-team-card__label--doubt { min-height: 0; }
-.tr-team-card__label .tr-chip { margin-top: 0.1rem; }
-
-.tr-team-card .team-badge { flex-shrink: 0; }
-.tr-team-card .tr-chip { font-size: 0.52rem; padding: 0.1rem 0.25rem; }
+.tr-team-card:hover { box-shadow:inset 0 0 0 1px currentColor; }
+.tr-team-card__name { overflow-wrap:anywhere; }
+.tr-team-card__label { min-width:0; }
+.tr-team-card__label .tr-chip { margin:4px 0 0; font-size:.7rem; }
+.tr-team-chevron { flex:none; font-size:22px; }
+@media (max-width:1100px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:760px) { .tr-team-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:360px) { .tr-team-grid { grid-template-columns:1fr; } }
 
 /* ── Vista de equipo ────────────────────────────────────────────── */
 /* El "volver a todos los equipos" vive en el botón ← del header (ccHeaderBack
@@ -392,3 +355,36 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-sections section { margin-top: 0.25rem; }
 
 .tr-row--team { font-size: 0.86rem; }
+
+.tr-team-header { min-height:44px; padding:9px 12px; background:var(--team-bg,var(--bg-card)); color:var(--team-text,var(--text)); }
+.tr-team-header__text { display:flex; align-items:center; justify-content:space-between; gap:8px 16px; flex-wrap:wrap; width:100%; }
+.tr-team-header__name { font-size:18px; overflow-wrap:anywhere; }
+.tr-team-header__cat { color:inherit; font-weight:600; }
+#trTeamView { margin-inline:auto; }
+.tr-team-sections { columns:350px 2; column-gap:24px; padding-top:1.75rem; }
+.tr-team-sections>section { min-width:0; margin-top:0; }
+.tr-team-sections>section:not([hidden]) ~ section { padding-top:1.75rem; }
+.tr-team-sections .tr-section-title { break-after:avoid; margin-top:0; }
+.tr-team-sections .tr-section-title--duplicate {
+  break-before: column;
+  margin-top: 0;
+}
+.tr-team-sections .tr-row { break-inside:avoid; }
+/* Conservar el ancho de las antiguas columnas cuando cabían tres. */
+@media (min-width:1146px) {
+  .tr-main:has(#trTeamView:not([hidden])) { width:calc((var(--page-width) - 48px) / 3 * 2 + 24px); }
+}
+.tr-div-btn { font-weight:600; }
+.tr-div-btn--active { font-weight:700; }
+@media (max-width:760px) { .tr-team-sections { column-count:1; } }
+
+.tr-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }
+
+.tr-feed-column { display:none; min-width:0; }
+.tr-feed-column--active { display:block; }
+.tr-feed-title { display:none; margin:0; color:var(--text-muted); font:700 .78rem var(--font-display); text-transform:uppercase; letter-spacing:.06em; }
+@media(min-width:1100px) {
+  #trFeedBtns { display:none; }
+  #trFeed { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+  .tr-feed-column, .tr-feed-title { display:block; }
+}

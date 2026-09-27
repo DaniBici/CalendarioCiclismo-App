@@ -1,0 +1,100 @@
+{
+ "id": 319776,
+ "slug": "txirrindularitza-cro-race-5-17942714",
+ "type": "live",
+ "media_type": "video",
+ "media_format": "episode",
+ "title": "5.etapa: Karlovac-Sveta Nedelja (164.5 km)",
+ "start_date": "2026-09-26T11:00:00+00:00",
+ "end_date": "2026-09-26T13:15:00+00:00",
+ "duration": 7200,
+ "collection": "media",
+ "tags": [
+  {
+   "id": 8727,
+   "slug": "eitb-media",
+   "type": "production_company",
+   "label": "EITB Media"
+  },
+  {
+   "id": 7339,
+   "slug": "kirola",
+   "type": "genre",
+   "label": "Kirola"
+  },
+  {
+   "id": 5157,
+   "slug": "kirolak",
+   "type": "tag",
+   "label": "Kirolak"
+  },
+  {
+   "id": 4473,
+   "slug": "txirrindularitza",
+   "type": "tag",
+   "label": "Txirrindularitza"
+  },
+  {
+   "id": 20319,
+   "slug": "txirrindularitza",
+   "type": "sport",
+   "label": "Txirrindularitza"
+  },
+  {
+   "id": 7181,
+   "slug": "euskal-herria",
+   "type": "country",
+   "label": "Euskal Herria"
+  },
+  {
+   "id": 16911,
+   "slug": "alfontso-arroio",
+   "type": "presenter",
+   "label": "Alfontso Arroio"
+  },
+  {
+   "id": 19879,
+   "slug": "xabier-artetxe",
+   "type": "presenter",
+   "label": "Xabier Artetxe"
+  }
+ ],
+ "season_data": {
+  "series_id": 3413,
+  "series_slug": "cro-race",
+  "series_title": "Cro Race",
+  "season_title": "2026"
+ },
+ "siblings": [
+  {
+   "id": 319181,
+   "slug": "txirrindularitza-cro-race-4-17942713",
+   "type": "live",
+   "title": "4.etapa: Pula-Rijeka (160 km)"
+  },
+  {
+   "id": 319180,
+   "slug": "txirrindularitza-cro-race-3-17942712",
+   "type": "vod",
+   "title": "3.etapa: KRK-Labin (174.5 km)"
+  },
+  {
+   "id": 318936,
+   "slug": "txirrindularitza-cro-race-2-17942711",
+   "type": "vod",
+   "title": "2.etapa: Biogrand Na Moru-Novalja (114.5 km)"
+  },
+  {
+   "id": 318935,
+   "slug": "txirrindularitza-cro-race-1-17942710",
+   "type": "vod",
+   "title": "1. Etapa: Split- Seget (167 km)"
+  },
+  {
+   "id": 319779,
+   "slug": "txirrindularitza-cro-race-6-17942715",
+   "type": "live",
+   "title": "6.etapa: Samobor-Zagreb (159.1)"
+  }
+ ]
+}

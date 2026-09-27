@@ -1,7 +1,7 @@
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, perfilUrl, enBase,
-         seoLongDate, articuloNombre, startFinishLabels } from './shared.js';
+         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { buildElevationProfileSVG } from './elevation-profile.js';
 import { setupElevationProfileHover } from './elevation-profile-hover.js';
@@ -167,6 +167,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const canonical = profileSlug
     ? `${canonicalBase}${encodeURIComponent(profileSlug)}/`
     : canonicalFallback;
+  setRaceRobots(race);
   document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonical);
 
   // Expose cross-language alternates for lang switcher
@@ -207,7 +208,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
     hasStartlist: !!race.startlistImportedAt,
     // Margen superior (como en jornada/orden/resultados) para que el panel no se
     // pegue al separador inferior de la cabecera (.race-header border-bottom).
-    style: 'max-width:860px;padding:0 1.5rem;margin:1.25rem auto 0.85rem',
+    style: 'margin:1.25rem auto 0.85rem', standalone: true,
   }) : '';
 
   // ── Route grid (recorrido, distancia, horarios) ───────────────
@@ -287,7 +288,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   // ── SVG ───────────────────────────────────────────────────────
   // Móvil (<600 px): altura reducida un 40 % (440 → 264) para que el perfil
   // no domine la pantalla y se vea junto al route grid sin scroll.
-  const svgW = Math.min(window.innerWidth - 32, 860);
+  const svgW = Math.max(240,content.clientWidth || window.innerWidth - 32);
   const svgH = svgW < 600 ? 264 : 440;
   const { svg: svgStr, hoverData } = buildElevationProfileSVG({
     profile,
@@ -396,10 +397,18 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
 
   // Setup interactive hover effect on elevation profile
   if (profile && hoverData) {
-    const svgElement = content.querySelector('.ep-detailed');
-    if (svgElement) {
-      setupElevationProfileHover(svgElement, hoverData);
-    }
+    const wrap=content.querySelector('.pfe-svg-wrap');
+    let lastWidth=0;
+    const observer=new ResizeObserver(()=> {
+      const width=Math.round(wrap.clientWidth);
+      if (width<240 || width===lastWidth) return;
+      lastWidth=width;
+      const drawing=buildElevationProfileSVG({profile,summits,waypoints,startLocation:startName,finishLocation:finishName,width,height:width<600?264:440,color:race?.colorHex || null,lang:getLang()});
+      wrap.innerHTML=drawing.svg;
+      setupElevationProfileHover(wrap.querySelector('.ep-detailed'),drawing.hoverData);
+    });
+    observer.observe(wrap);
+    window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
   }
 }
 

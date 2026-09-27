@@ -1,0 +1,172 @@
+{
+ "id": 319786,
+ "slug": "erremontea-7-17775100",
+ "type": "live",
+ "media_type": "video",
+ "media_format": "episode",
+ "title": "Banakako Txapelketa: Finalerdiak",
+ "start_date": "2026-09-26T13:05:00+00:00",
+ "end_date": "2026-09-26T15:45:00+00:00",
+ "duration": 4500,
+ "collection": "media",
+ "tags": [
+  {
+   "id": 17934,
+   "slug": "joseba-urkiola",
+   "type": "presenter",
+   "label": "Joseba Urkiola"
+  },
+  {
+   "id": 17935,
+   "slug": "xabier-azpiroz",
+   "type": "presenter",
+   "label": "Xabier Azpiroz"
+  },
+  {
+   "id": 16778,
+   "slug": "elena-azpeitia",
+   "type": "presenter",
+   "label": "Elena Azpeitia"
+  },
+  {
+   "id": 16786,
+   "slug": "inigo-aiestaran",
+   "type": "presenter",
+   "label": "Iñigo Aiestaran"
+  },
+  {
+   "id": 16907,
+   "slug": "ibon-gaztanazpi",
+   "type": "presenter",
+   "label": "Ibon Gaztañazpi"
+  },
+  {
+   "id": 17936,
+   "slug": "manuel-agirrezabala",
+   "type": "presenter",
+   "label": "Manuel Agirrezabala"
+  },
+  {
+   "id": 17937,
+   "slug": "inaki-agirre",
+   "type": "presenter",
+   "label": "Iñaki Agirre"
+  },
+  {
+   "id": 8727,
+   "slug": "eitb-media",
+   "type": "production_company",
+   "label": "EITB Media"
+  },
+  {
+   "id": 7339,
+   "slug": "kirola",
+   "type": "genre",
+   "label": "Kirola"
+  },
+  {
+   "id": 5157,
+   "slug": "kirolak",
+   "type": "tag",
+   "label": "Kirolak"
+  },
+  {
+   "id": 17938,
+   "slug": "erremontea",
+   "type": "sport",
+   "label": "Erremontea"
+  },
+  {
+   "id": 4290,
+   "slug": "euskal-pilota",
+   "type": "tag",
+   "label": "Euskal pilota"
+  },
+  {
+   "id": 4438,
+   "slug": "pilota",
+   "type": "tag",
+   "label": "Pilota"
+  },
+  {
+   "id": 7181,
+   "slug": "euskal-herria",
+   "type": "country",
+   "label": "Euskal Herria"
+  }
+ ],
+ "season_data": {
+  "series_id": 2337,
+  "series_slug": "erremontea",
+  "series_title": "Erremontea",
+  "season_title": "2026"
+ },
+ "siblings": [
+  {
+   "id": 137420,
+   "slug": "erremontea-17775094",
+   "type": "vod",
+   "title": "Banakako Masters Txapelketa: Juanenea-Barrenetxea IV"
+  },
+  {
+   "id": 129617,
+   "slug": "erremontea-16870517",
+   "type": "vod",
+   "title": "Jabalera-BarrentxeaIV/Aldabe-Azpiroz; || Finala; AnsaII-Zubiri/EzkurraII-Larrañaga;"
+  },
+  {
+   "id": 128780,
+   "slug": "erremontea-16870516",
+   "type": "vod",
+   "title": "Erremontea"
+  },
+  {
+   "id": 92344,
+   "slug": "erremontea-banakako-finalak-9-16870514",
+   "type": "vod",
+   "title": "Erremontea. Banakako Finalak"
+  },
+  {
+   "id": 311582,
+   "slug": "erremontea-5-17775098",
+   "type": "vod",
+   "title": "Banakako Txapelketa:  Barrenetxea IV/Ezkurra II"
+  },
+  {
+   "id": 299575,
+   "slug": "erremontea-4-17775097",
+   "type": "vod",
+   "title": "Jai Alai Zarautz Torneoa: Finalak"
+  },
+  {
+   "id": 120268,
+   "slug": "erremontea-10-16870515",
+   "type": "vod",
+   "title": "Binakako Txapelketa; || 2 partida"
+  },
+  {
+   "id": 294741,
+   "slug": "erremontea-1-18042213",
+   "type": "vod",
+   "title": "San Fermin Txapelketako Finala"
+  },
+  {
+   "id": 207507,
+   "slug": "erremontea-3-17775096",
+   "type": "live",
+   "title": "Berria Txapelketako Finala: Ezkurra II-Goikoetxea VI/Arluziaga-Azpiroz"
+  },
+  {
+   "id": 139010,
+   "slug": "erremontea-2-17775095",
+   "type": "vod",
+   "title": "Banakako Masterseko finala: Barrenetxea IV - Ansa II"
+  },
+  {
+   "id": 318128,
+   "slug": "erremontea-6-17775099",
+   "type": "vod",
+   "title": "Banakako Txapelketa"
+  }
+ ]
+}

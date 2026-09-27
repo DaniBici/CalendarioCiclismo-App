@@ -8,12 +8,18 @@ enum AppTheme {
     /// Color de acento principal.
     static let accent = Color("AccentColor")
 
+    /// Azul de marca fijo (#1A73E8) para fondos destacados, idéntico en claro y
+    /// oscuro — espejo del `--accent` de la web y del `primary` de Android.
+    static let brandAccent = Color(hex: "1a73e8")
+
     /// Colores semánticos que se adaptan al modo claro/oscuro.
-    static let background = Color(.systemBackground)
-    static let cardBackground = Color(.secondarySystemBackground)
-    static let cardBackgroundHover = Color(.tertiarySystemBackground)
-    static let border = Color(.separator)
-    static let borderLight = Color(.opaqueSeparator)
+    static let background = Color(light: "eef1f5", dark: "141923")
+    static let cardBackground = Color(light: "fafbfc", dark: "1e2632")
+    static let cardBackgroundHover = Color(light: "e9edf3", dark: "202938")
+    static let headerBackground = Color(light: "edf1f6", dark: "202938")
+    static let secondaryBackground = Color(light: "e9edf3", dark: "293443")
+    static let border = Color(light: "d8dee8", dark: "354252")
+    static let borderLight = Color(light: "e4e8ef", dark: "293443")
     static let textPrimary = Color(.label)
     static let textMuted = Color(.secondaryLabel)
     static let textDim = Color(.tertiaryLabel)

@@ -31,7 +31,7 @@ struct PaywallView: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemBackground).ignoresSafeArea())
+            .background(AppTheme.background.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

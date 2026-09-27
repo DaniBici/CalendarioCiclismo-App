@@ -14,6 +14,7 @@ class NotificationCategoryPreferenceTest {
         assertEquals("race_start", NotificationCategoryPreference.RACE_START.storageValue)
         assertEquals("tv_start", NotificationCategoryPreference.TV_START.storageValue)
         assertEquals("results", NotificationCategoryPreference.RESULTS.storageValue)
+        assertEquals("cyclocross", NotificationCategoryPreference.CYCLOCROSS.storageValue)
     }
 
     // ── DEFAULT_ENABLED ────────────────────────────────────────────
@@ -134,6 +135,16 @@ class NotificationCategoryPreferenceTest {
     }
 
     // ── Round-trip ────────────────────────────────────────────────
+
+    @Test
+    fun `avisos CX son opcionales y sobreviven a la persistencia sin perder carretera`() {
+        val legacy = NotificationCategoryPreference.fromStorage("general,results")
+        assertEquals(setOf(NotificationCategoryPreference.GENERAL, NotificationCategoryPreference.RESULTS), legacy)
+        val selected = legacy + NotificationCategoryPreference.CYCLOCROSS
+        assertEquals("general,results,cyclocross", NotificationCategoryPreference.toStorage(selected))
+        assertEquals(selected, NotificationCategoryPreference.fromStorage(NotificationCategoryPreference.toStorage(selected)))
+        assertEquals(listOf("general", "results", "cyclocross"), NotificationCategoryPreference.toRawList(selected))
+    }
 
     @Test
     fun `toStorage y fromStorage son round-trip seguros`() {

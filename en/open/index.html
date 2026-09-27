@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <meta name="description" content="Cómo se hace Calendario Ciclismo: de dónde salen los datos, los materiales que usamos y a quién se los debemos. Un proyecto sin ánimo de lucro y transparente sobre sus fuentes.">
   <meta name="keywords" content="cycling calendar, open source, AGPL, data sources, transparency, attribution, UCI, timekeepers">
   <link rel="canonical" href="https://calendariociclismo.app/en/open/">
-  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/abierto.html">
+  <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/abierto/">
   <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/open/">
   <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
   <link rel="preconnect" href="https://assets.calendariociclismo.app">
@@ -36,7 +36,7 @@
   <meta name="twitter:description" content="Cómo se hace Calendario Ciclismo: fuentes de datos y atribución.">
   <meta name="twitter:image" content="https://pub-10252f2a495c488a856a619206783642.r2.dev/og-default.png">
   <script src="/js/theme.js"></script>
-  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/app.css?v=20260920tint">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -45,7 +45,7 @@
   <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
 
   <style>
-    .abierto { max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem; box-sizing: border-box; }
+    .abierto { width:var(--page-width); max-width:var(--content-max); margin:0 auto; padding:3rem 0; box-sizing: border-box; }
     .abierto__title {
       font-family: var(--font-display); font-weight: 700; font-size: 2rem;
       text-transform: uppercase; letter-spacing: -0.01em; text-align: center;
@@ -115,12 +115,13 @@
     .ledger .tot { border-top: 1px solid var(--border); padding-top: 0.55rem; margin-top: 0.2rem; }
     .ledger .tot > span { color: var(--text); font-weight: 700; }
     @media (max-width: 520px) { .ledger { grid-template-columns: 1fr; gap: 1.25rem; } }
+  .abierto > section, .abierto > p, .abierto > div { max-width:75ch; margin-inline:auto; }
   </style>
 </head>
 <body>
 
   <header class="site-header" id="siteHeader" data-back="/en/"></header>
-  <script type="module" src="/js/header.js"></script>
+  <script type="module" src="/js/header.js?v=20260914cxmenu"></script>
 
   <main class="abierto">
     <h1 class="abierto__title">How Calendario Ciclismo is made</h1>
@@ -163,7 +164,7 @@
       </p>
       <p>
         Advertising —whose removal was presented as a benefit of Premium subscriptions— generated
-        only <strong>4% of the project's income</strong>, while ads reduced visual clarity, occupied space
+        only <strong>4% of the project's income</strong> between April and July 2026, while ads reduced visual clarity, occupied space
         meant for information and added external processes that could reduce responsiveness on some
         devices or network conditions. Keeping them for those amounts made no sense, so they were
         removed permanently.
@@ -179,42 +180,46 @@
     <section>
       <h2>The project's accounts</h2>
       <p>
-        So this isn't just words, here are the accounts for a recent period
-        (April–July 2026), since the project got going.
+        So this isn't just words, here are the cumulative accounts since the project got going
+        (April–August 2026).
       </p>
       <div class="ledger">
         <div>
           <h3>Costs</h3>
           <ul>
-            <li><span>Database (Supabase)</span><span>≈ €86</span></li>
-            <li><span>Repository &amp; CI (GitHub)</span><span>≈ €62</span></li>
+            <li><span>Database (Supabase)</span><span>≈ €108</span></li>
+            <li><span>Repository &amp; CI (GitHub)</span><span>≈ €100</span></li>
             <li><span>Domains</span><span>≈ €24</span></li>
-            <li><span>Server (VPS)</span><span>≈ €18</span></li>
+            <li><span>Server (VPS)</span><span>≈ €22</span></li>
+            <li><span>Google Cloud &amp; Firebase</span><span>≈ €3</span></li>
             <li><span>CDN &amp; storage (Cloudflare)</span><span>€0</span></li>
-            <li class="tot"><span>Total</span><span>≈ €190</span></li>
+            <li class="tot"><span>Total</span><span>≈ €257</span></li>
           </ul>
         </div>
         <div>
           <h3>Income</h3>
           <ul>
-            <li><span>App Store subscriptions (iOS)</span><span>≈ €92</span></li>
-            <li><span>Google Play subscriptions (Android)</span><span>≈ €40</span></li>
-            <li><span>In-app advertising (full period)</span><span>≈ €6</span></li>
-            <li class="tot"><span>Total</span><span>≈ €138</span></li>
+            <li><span>App Store subscriptions and contributions (iOS)</span><span>≈ €135</span></li>
+            <li><span>Google Play subscriptions and contributions (Android)</span><span>≈ €48</span></li>
+            <li><span>Contributions from the website (Ko-fi)</span><span>≈ €25</span></li>
+            <li><span>In-app advertising</span><span>≈ €7</span></li>
+            <li class="tot"><span>Total</span><span>≈ €215</span></li>
           </ul>
         </div>
       </div>
       <p class="disclaimer">
-        Over this period, income covered close to 70% of the costs; Dani covers the difference
-        out of his own pocket. It's not a business: it's a project trying to sustain itself.
-        Figures are net and approximate; amounts billed in dollars (Supabase, GitHub, domains
-        and advertising) were converted to euros at the ECB's average rate for the period
-        (≈ $1.16/€).
+        Over this period, income covered close to 84% of the costs; Dani covers the difference,
+        about €40, out of his own pocket. It's not a business: it's a project trying to sustain
+        itself. In August alone, the month Friend and one-time contributions launched, costs were
+        ≈ €65 and income ≈ €64.
       </p>
       <p class="disclaimer">
-        Later AdMob reference: €2.40 in July 2026 and €0.57 from 1 to 16 August
-        2026. These are estimated earnings shown in a dashboard snapshot taken on 16 August.
-        Costs, memberships, contributions and personal funding will be updated quarterly.
+        Figures are net and approximate. App Store follows Apple's fiscal months (August is an
+        estimate pending payment); Google Play is shown excluding VAT and the store fee; GitHub by
+        charge date; the August server cost is accrued and not yet invoiced; advertising is
+        AdMob's estimated earnings. Amounts billed in dollars (Supabase, GitHub, domains and
+        Ko-fi) were converted to euros at the ECB's average rate for the period (≈ $1.16/€).
+        Last updated: 25 September 2026.
       </p>
     </section>
 

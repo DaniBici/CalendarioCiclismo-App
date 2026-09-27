@@ -2,11 +2,13 @@ package app.calendariociclismo.android.util
 
 import app.calendariociclismo.android.data.prefs.RegionPreference
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RegionDetectorTest {
 
-    // ── SPAIN ──────────────────────────────────────────────────────
+    // ── suggestedRegion (bucket de push_subscriptions.region) ──────
 
     @Test
     fun `Madrid devuelve SPAIN`() {
@@ -22,8 +24,6 @@ class RegionDetectorTest {
     fun `Ceuta devuelve SPAIN aunque empiece por Africa`() {
         assertEquals(RegionPreference.SPAIN, RegionDetector.suggestedRegion("Africa/Ceuta"))
     }
-
-    // ── EUROPE ─────────────────────────────────────────────────────
 
     @Test
     fun `Paris devuelve EUROPE`() {
@@ -45,8 +45,6 @@ class RegionDetectorTest {
         assertEquals(RegionPreference.EUROPE, RegionDetector.suggestedRegion("Atlantic/Azores"))
     }
 
-    // ── AMERICAS ───────────────────────────────────────────────────
-
     @Test
     fun `New York devuelve AMERICAS`() {
         assertEquals(RegionPreference.AMERICAS, RegionDetector.suggestedRegion("America/New_York"))
@@ -64,8 +62,6 @@ class RegionDetectorTest {
     fun `Honolulu se trata como AMERICAS aunque sea Pacific`() {
         assertEquals(RegionPreference.AMERICAS, RegionDetector.suggestedRegion("Pacific/Honolulu"))
     }
-
-    // ── ASIA ───────────────────────────────────────────────────────
 
     @Test
     fun `Tokyo devuelve ASIA`() {
@@ -87,8 +83,6 @@ class RegionDetectorTest {
         assertEquals(RegionPreference.ASIA, RegionDetector.suggestedRegion("Indian/Christmas"))
     }
 
-    // ── AFRICA ─────────────────────────────────────────────────────
-
     @Test
     fun `Lagos devuelve AFRICA`() {
         assertEquals(RegionPreference.AFRICA, RegionDetector.suggestedRegion("Africa/Lagos"))
@@ -102,10 +96,8 @@ class RegionDetectorTest {
         )
     }
 
-    // ── Fallback ───────────────────────────────────────────────────
-
     @Test
-    fun `TZ desconocida cae a SPAIN para preservar el baseline gratuito`() {
+    fun `TZ desconocida cae a SPAIN para preservar el baseline`() {
         assertEquals(RegionPreference.SPAIN, RegionDetector.suggestedRegion("UTC"))
         assertEquals(RegionPreference.SPAIN, RegionDetector.suggestedRegion("GMT"))
         assertEquals(RegionPreference.SPAIN, RegionDetector.suggestedRegion("Etc/Unknown"))
@@ -113,7 +105,7 @@ class RegionDetectorTest {
 
     @Test
     fun `Nunca devuelve ALL`() {
-        // ALL solo se elige manualmente desde Ajustes.
+        // ALL no es un bucket detectable automáticamente.
         val all = listOf(
             "Europe/Madrid", "Europe/Paris", "America/New_York",
             "Asia/Tokyo", "Africa/Lagos", "Pacific/Auckland",
@@ -126,72 +118,86 @@ class RegionDetectorTest {
         }
     }
 
-    // ── availableCountryGroups (sub-selector) ──────────────────────
+    // ── allowedBroadcastGroups (paridad con la web) ────────────────
 
     @Test
-    fun `SPAIN tiene un solo grupo fino`() {
-        assertEquals(listOf("ES"), RegionPreference.SPAIN.availableCountryGroups)
-    }
-
-    @Test
-    fun `EUROPE expone los grupos europeos finos`() {
-        val groups = RegionPreference.EUROPE.availableCountryGroups
-        for (g in listOf("ES", "PT", "FR", "BE", "NL", "IT",
-                         "DE_AT_CH", "UK_IE", "SCANDI", "EE")) {
-            assert(g in groups) { "EUROPE debería exponer $g" }
-        }
-        assert("EUROPA" !in groups) { "EUROPA (paneuropeo) no debe estar en availableCountryGroups" }
-        assert("ALL" !in groups) { "ALL no debe estar en availableCountryGroups" }
-    }
-
-    @Test
-    fun `AMERICAS expone NORTEAM y LATAM`() {
+    fun `España incluye baseline`() {
         assertEquals(
-            setOf("NORTEAM", "LATAM"),
-            RegionPreference.AMERICAS.availableCountryGroups.toSet(),
+            setOf("ALL", "ES", "EUROPA"),
+            RegionDetector.allowedBroadcastGroups("Europe/Madrid"),
         )
     }
 
     @Test
-    fun `ASIA expone ASIAPAC y MENA`() {
+    fun `Francia muestra solo su grupo fino`() {
+        // Paridad web: un usuario francés no ve los canales de Bélgica o Italia.
         assertEquals(
-            setOf("ASIAPAC", "MENA"),
-            RegionPreference.ASIA.availableCountryGroups.toSet(),
+            setOf("ALL", "FR", "EUROPA"),
+            RegionDetector.allowedBroadcastGroups("Europe/Paris"),
         )
     }
 
     @Test
-    fun `ALL no expone sub-selector`() {
-        // Por diseño: en ALL se mantiene la detección automática por TZ.
-        assert(RegionPreference.ALL.availableCountryGroups.isEmpty()) {
-            "ALL no debe exponer sub-selector"
-        }
+    fun `UK_IE excluye el paneuropeo`() {
+        assertEquals(
+            setOf("ALL", "UK_IE"),
+            RegionDetector.allowedBroadcastGroups("Europe/London"),
+        )
     }
 
     @Test
-    fun `availableCountryGroups es subset de allowedBroadcastGroups`() {
-        for (bucket in RegionPreference.entries) {
-            for (group in bucket.availableCountryGroups) {
-                assert(group in bucket.allowedBroadcastGroups) {
-                    "$group está en availableCountryGroups de $bucket pero no en allowedBroadcastGroups"
-                }
-            }
-        }
+    fun `Europa sin grupo fino muestra el paneuropeo`() {
+        assertEquals(
+            setOf("ALL", "EUROPA"),
+            RegionDetector.allowedBroadcastGroups("Europe/Moscow"),
+        )
     }
 
-    // ── countryGroupLabelRes ───────────────────────────────────────
+    @Test
+    fun `America muestra solo su grupo fino`() {
+        assertEquals(
+            setOf("ALL", "NORTEAM"),
+            RegionDetector.allowedBroadcastGroups("America/New_York"),
+        )
+        assertEquals(
+            setOf("ALL", "LATAM"),
+            RegionDetector.allowedBroadcastGroups("America/Argentina/Buenos_Aires"),
+        )
+    }
 
     @Test
-    fun `countryGroupLabelRes cubre todos los grupos finos elegibles`() {
-        // Cualquier grupo expuesto a usuarios via availableCountryGroups
-        // necesita un string resource o se rompe la UI.
-        val universe = RegionPreference.entries
-            .flatMap { it.availableCountryGroups }
-            .toSet()
-        for (group in universe) {
-            assert(RegionDetector.countryGroupLabelRes(group) != null) {
-                "Falta string resource para grupo fino '$group'"
-            }
-        }
+    fun `Asia Africa y MENA`() {
+        assertEquals(
+            setOf("ALL", "ASIAPAC"),
+            RegionDetector.allowedBroadcastGroups("Asia/Tokyo"),
+        )
+        assertEquals(
+            setOf("ALL", "AFRICA"),
+            RegionDetector.allowedBroadcastGroups("Africa/Lagos"),
+        )
+        assertEquals(
+            setOf("ALL", "MENA"),
+            RegionDetector.allowedBroadcastGroups("Africa/Cairo"),
+        )
+    }
+
+    @Test
+    fun `TZ desconocida muestra solo global`() {
+        assertEquals(
+            setOf("ALL"),
+            RegionDetector.allowedBroadcastGroups("UTC"),
+        )
+    }
+
+    // ── isEuropean ─────────────────────────────────────────────────
+
+    @Test
+    fun `isEuropean reconoce Europa cubierta y no cubierta`() {
+        assertTrue(RegionDetector.isEuropean("Europe/Madrid"))
+        assertTrue(RegionDetector.isEuropean("Atlantic/Reykjavik"))
+        assertTrue(RegionDetector.isEuropean("Asia/Istanbul"))
+        assertFalse(RegionDetector.isEuropean("America/New_York"))
+        assertFalse(RegionDetector.isEuropean("Asia/Tokyo"))
+        assertFalse(RegionDetector.isEuropean("UTC"))
     }
 }

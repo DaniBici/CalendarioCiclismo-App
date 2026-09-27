@@ -3,21 +3,19 @@
 // ─────────────────────────────────────────────────────────────────
 
 // ── Doble sector ────────────────────────────────────────────────
+export function hasCalendarForYear(year, now = new Date()) {
+  return Number.isInteger(year) && year >= now.getUTCFullYear();
+}
+
 /**
- * Detecta dobles sectores y calcula numeración secuencial fuente externa.
+ * Detecta dobles sectores.
  *
  * `_stageSuffix` ("A", "B", …): jornadas de la misma carrera, mismo día y
  * mismo stageNumber, ordenadas por hora de inicio.
  *
- * `_fcStageNumber`: posición 1-based en la lista ordenada de etapas de la
- * carrera (excluyendo prólogo/descanso/canceladas). fuente externa no cuenta
- * sectores como etapas, sino cada sector individualmente: etapa 1A=1, 1B=2,
- * etapa 2 (tras doble sector)=3, etc.
- *
  * Muta los objetos del array directamente.
  */
-export function annotateDoubleSectors(days, { skipFcNumbers = false } = {}) {
-  // — _stageSuffix —
+export function annotateDoubleSectors(days) {
   const groups = {};
   days.forEach(rd => {
     if (rd.stageNumber == null || rd.isRestDay || rd.isCancelledDay) return;
@@ -34,25 +32,18 @@ export function annotateDoubleSectors(days, { skipFcNumbers = false } = {}) {
     });
     group.forEach((rd, i) => { rd._stageSuffix = SUFFIXES[i] || ''; });
   });
+}
 
-  // — _fcStageNumber —
-  // Solo cuando se dispone de todas las etapas de la carrera. En contextos con
-  // datos parciales (un solo día, un mes) este cálculo sería erróneo porque
-  // solo hay 1 etapa por carrera y todas recibirían _fcStageNumber=1.
-  if (skipFcNumbers) return;
-
-  const raceGroups = {};
-  days.forEach(rd => {
-    if (!rd.stageNumber || rd.stageNumber === 0 || rd.isRestDay || rd.isCancelledDay) return;
-    (raceGroups[rd.raceId || ''] = raceGroups[rd.raceId || ''] || []).push(rd);
-  });
-  Object.values(raceGroups).forEach(stageDays => {
-    stageDays.sort((a, b) => {
-      if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
-      return (a._stageSuffix || '').charCodeAt(0) - (b._stageSuffix || '').charCodeAt(0);
-    });
-    stageDays.forEach((rd, i) => { rd._fcStageNumber = i + 1; });
-  });
+/**
+ * Decide si el miniperfil debe conservarse completo después de la meta cuando
+ * todavía no hay clasificaciones propias.
+ *
+ * Una fuente automática pendiente mantiene el horario visible, pero no debe
+ * dejar la tarjeta sin miniperfil al superar la hora estimada de llegada.
+ */
+export function shouldShowCompletedNoResultsProfile(rd, hasInhouseResults, isPastFinish) {
+  if (hasInhouseResults || !rd || rd.isRestDay || rd.isCancelledDay) return false;
+  return isPastFinish === true;
 }
 
 // ── Resultados: disponibilidad por jornada ─────────────────────────

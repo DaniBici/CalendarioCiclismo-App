@@ -1,0 +1,47 @@
+{
+  "channel": "Rai Sport",
+  "events": [
+    {
+      "id": "ContentItem-fa6e3c4f-89e3-4e9e-a4c3-0761da0050b2",
+      "name": "Ciclismo. Giro della Toscana",
+      "episode_title": "",
+      "description": "Ciclismo. Giro della Toscana",
+      "channel": "Rai Sport",
+      "date": "09/09/2026",
+      "hour": "17:00",
+      "duration": "00:55:00",
+      "event_weblink": "/dirette/raisport/Ciclismo-Giro-della-Toscana-fa6e3c4f-89e3-4e9e-a4c3-0761da0050b2.html",
+      "has_video": false,
+      "path_id": "",
+      "program": {
+        "id": "ContentItem-cc4463e6-d750-46aa-a569-036c2f08d469",
+        "name": "Ciclismo",
+        "path_id": "/programmi/ciclismo.json",
+        "info_url": "/programmi/info/cc4463e6-d750-46aa-a569-036c2f08d469.json",
+        "weblink": "/programmi/ciclismo",
+        "az": true
+      }
+    },
+    {
+      "id": "ContentItem-a93c6829-7574-4c40-b293-6a967ff1748a",
+      "name": "Ciclismo. Giro della Toscana",
+      "episode_title": "",
+      "description": "Ciclismo. Giro della Toscana",
+      "channel": "Rai Sport",
+      "date": "09/09/2026",
+      "hour": "19:45",
+      "duration": "02:00:00",
+      "event_weblink": "/dirette/raisport/Ciclismo-Giro-della-Toscana-a93c6829-7574-4c40-b293-6a967ff1748a.html",
+      "has_video": false,
+      "path_id": "",
+      "program": {
+        "id": "ContentItem-cc4463e6-d750-46aa-a569-036c2f08d469",
+        "name": "Ciclismo",
+        "path_id": "/programmi/ciclismo.json",
+        "info_url": "/programmi/info/cc4463e6-d750-46aa-a569-036c2f08d469.json",
+        "weblink": "/programmi/ciclismo",
+        "az": true
+      }
+    }
+  ]
+}

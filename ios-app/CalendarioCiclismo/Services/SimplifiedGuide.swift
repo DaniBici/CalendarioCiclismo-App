@@ -9,6 +9,8 @@ struct GuideRow: Identifiable {
     let type: String
     let label: String?
     let category: String?
+    let secondaryType: String?
+    let secondaryLabel: String?
     let timeUtc: String?
     let isEstimated: Bool
 
@@ -33,6 +35,8 @@ enum SimplifiedGuide {
         var type: String
         var label: String?
         var category: String?
+        var secondaryType: String? = nil
+        var secondaryLabel: String? = nil
         var timeUtc: String?
         var isEstimated: Bool
     }
@@ -111,9 +115,12 @@ enum SimplifiedGuide {
         }
 
         // — Llegada (km = distancia) —
-        if let finish = estimatedFinishTimeUtc, let dist = distanceKm {
+        // Existe aunque falte la hora prevista para poder combinarla con una
+        // cima o waypoint del kilómetro final.
+        if let dist = distanceKm {
             rows.append(MutableRow(km: dist, kmToGo: nil, type: "finish", label: nil,
-                                   category: nil, timeUtc: finish, isEstimated: false))
+                                   category: nil, timeUtc: estimatedFinishTimeUtc,
+                                   isEstimated: estimatedFinishTimeUtc == nil))
         }
 
         // — Orden por km (estable: pie < cima por construcción) —
@@ -133,6 +140,49 @@ enum SimplifiedGuide {
             }
             deduped.append(r)
         }
+
+        // — Fusionar anotaciones en el mismo km EXACTO —
+        // La meta tiene prioridad como acompañante de una cima o waypoint. Si
+        // no coincide con ninguno, se conserva la fusión cima + waypoint.
+        // Se mantiene un único punto con dos iconos, sin tolerancia decimal.
+        var merged: [MutableRow] = []
+        var consumed = Set<Int>()
+        func isMergeableWaypoint(_ type: String) -> Bool {
+            !["start", "finish", "climb_foot", "summit"].contains(type)
+        }
+        for index in deduped.indices where !consumed.contains(index) {
+            var row = deduped[index]
+            if row.type == "summit" || isMergeableWaypoint(row.type) {
+                let finishIndex = deduped.indices.first(where: { candidateIndex in
+                    candidateIndex != index && !consumed.contains(candidateIndex)
+                        && deduped[candidateIndex].type == "finish"
+                        && deduped[candidateIndex].km == row.km
+                })
+                let waypointIndex = row.type == "summit"
+                    ? deduped.indices.first(where: { candidateIndex in
+                        candidateIndex != index && !consumed.contains(candidateIndex)
+                            && isMergeableWaypoint(deduped[candidateIndex].type)
+                            && deduped[candidateIndex].km == row.km
+                    })
+                    : nil
+                if let companionIndex = finishIndex ?? waypointIndex {
+                    let companion = deduped[companionIndex]
+                    row.secondaryType = companion.type
+                    row.secondaryLabel = companion.label
+                    if row.timeUtc == nil, companion.timeUtc != nil {
+                        row.timeUtc = companion.timeUtc
+                        // La hora estimada de meta no convierte el punto en
+                        // un ancla manual ni activa por sí sola la guía.
+                        if companion.type != "finish" {
+                            row.isEstimated = companion.isEstimated
+                        }
+                    }
+                    consumed.insert(companionIndex)
+                }
+            }
+            merged.append(row)
+        }
+        deduped = merged
 
         // — kmToGo —
         for i in deduped.indices {
@@ -165,7 +215,9 @@ enum SimplifiedGuide {
 
         return deduped.map {
             GuideRow(km: $0.km, kmToGo: $0.kmToGo, type: $0.type, label: $0.label,
-                     category: $0.category, timeUtc: $0.timeUtc, isEstimated: $0.isEstimated)
+                     category: $0.category, secondaryType: $0.secondaryType,
+                     secondaryLabel: $0.secondaryLabel, timeUtc: $0.timeUtc,
+                     isEstimated: $0.isEstimated)
         }
     }
 

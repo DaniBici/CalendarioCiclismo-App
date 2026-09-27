@@ -2,6 +2,7 @@ package app.calendariociclismo.android.util
 
 import app.calendariociclismo.android.data.model.StartlistRider
 import app.calendariociclismo.android.data.model.StartlistTeam
+import app.calendariociclismo.android.data.model.Team
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -66,5 +67,34 @@ class StartlistLogicTest {
         val riders = listOf(rider("A", 0), rider("A", 40), rider("B", 12))
         val sorted = StartlistLogic.teamsByFirstDorsal(teams, riders)
         assertEquals(listOf("B", "A"), sorted.map { it.id })
+    }
+
+    @Test
+    fun `estados sin equipo no cuentan como formacion`() {
+        listOf("Individual", "Private Member", "Sin equipo", "UN", "Un-Attached Leinster")
+            .forEach { name ->
+                assertEquals(
+                    true,
+                    StartlistTeam(id = name, raceId = "r", teamName = name).isNoTeamPlaceholder,
+                )
+            }
+        assertEquals(
+            false,
+            StartlistTeam(id = "linked", raceId = "r", teamName = "Individual", teamId = "team_x")
+                .isNoTeamPlaceholder,
+        )
+    }
+
+    @Test
+    fun `chapas con paleta por defecto no se muestran`() {
+        val defaultTeam = Team(
+            id = "default", name = "Club", badgeTorsoCenter = "#fff",
+            badgeTorsoSides = "#111", badgeShorts = "#111111", badgeInnerCircle = null,
+            headerBg = "#000000", headerText = "#ffffff",
+        )
+        val curatedTeam = defaultTeam.copy(badgeTorsoCenter = "#e30613")
+
+        assertEquals(false, defaultTeam.hasVisibleBadge)
+        assertEquals(true, curatedTeam.hasVisibleBadge)
     }
 }

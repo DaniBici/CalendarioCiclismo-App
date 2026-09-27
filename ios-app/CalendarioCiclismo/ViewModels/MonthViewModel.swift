@@ -1,7 +1,7 @@
 import Foundation
 
 /// ViewModel para la vista de calendario mensual — equivalente a `js/mes.js`.
-/// Carga todos los race_days del año para permitir scroll horizontal entre meses.
+/// Carga únicamente el mes seleccionado y conserva una caché independiente por mes.
 @MainActor
 @Observable
 final class MonthViewModel {
@@ -16,9 +16,9 @@ final class MonthViewModel {
     var isFromCache = false
     /// Texto legible con la antigüedad de la caché (ej: "Hace 2 h").
     var cacheAgeLabel: String?
-    /// Indica que el año no está cacheado y no hay conexión para descargarlo.
+    /// Indica que el mes no está cacheado y no hay conexión para descargarlo.
     var isUncachedOffline = false
-    private var loadedYear: Int?
+    private var loadedMonthKey: String?
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: "defaultFilter"),
@@ -124,11 +124,6 @@ final class MonthViewModel {
 
     // MARK: - Cache
 
-    private struct YearMonthCache: Codable {
-        let raceDays: [RaceDay]
-        let races: [Race]
-    }
-
     /// Compatible con la caché per-month de OfflineManager.
     private struct PerMonthCache: Codable {
         let raceDays: [RaceDay]
@@ -137,157 +132,147 @@ final class MonthViewModel {
 
     // MARK: - Data loading
 
-    /// Carga todos los race_days y carreras del año.
-    func loadYear() async {
-        guard loadedYear != year else { return }
+    /// Carga las jornadas y carreras que se solapan con el mes seleccionado.
+    func loadMonth(force: Bool = false) async {
+        let requestedKey = String(format: "%04d-%02d", year, month)
+        guard force || loadedMonthKey != requestedKey else { return }
         isLoading = true
         error = nil
         isUncachedOffline = false
-
-        // Limpiar datos del año anterior
         allRaceDays = []
         races = []
         isFromCache = false
         cacheAgeLabel = nil
 
         let cache = CacheManager.shared
-        let cacheKey = "monthview_\(year)"
+        let cacheKey = CacheManager.monthKey(year: year, month: month)
+        let calendar = Calendar(identifier: .iso8601)
+        let firstOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1)) ?? Date()
+        let daysInMonth = calendar.range(of: .day, in: .month, for: firstOfMonth)?.count ?? 30
+        let startKey = "\(requestedKey)-01"
+        let endKey = String(format: "%@-%02d", requestedKey, daysInMonth)
 
-        // 1. Intentar caché a nivel de año
-        if let cached: YearMonthCache = await cache.load(YearMonthCache.self, forKey: cacheKey) {
-            var cachedDays = cached.raceDays
-            RaceLogic.annotateDoubleSectors(&cachedDays)
-            allRaceDays = cachedDays
+        if let cached: PerMonthCache = await cache.load(PerMonthCache.self, forKey: cacheKey) {
+            guard isCurrentRequest(requestedKey) else { return }
+            allRaceDays = displayDays(
+                publishedDays: cached.raceDays,
+                races: cached.races,
+                startKey: startKey,
+                endKey: endKey
+            )
             races = cached.races
-            loadedYear = year
+            loadedMonthKey = requestedKey
             isFromCache = true
             cacheAgeLabel = await cache.ageLabel(forKey: cacheKey)
             isLoading = false
         }
 
-        // 2. Si no hay caché de año, intentar cachés per-month (OfflineManager o sesiones previas)
-        if allRaceDays.isEmpty {
-            var combinedDays: [RaceDay] = []
-            var fallbackRaces: [Race] = []
-            for m in 1...12 {
-                let monthCacheKey = CacheManager.monthKey(year: year, month: m)
-                if let monthCached: PerMonthCache = await cache.load(PerMonthCache.self, forKey: monthCacheKey) {
-                    combinedDays.append(contentsOf: monthCached.raceDays)
-                    if fallbackRaces.isEmpty {
-                        fallbackRaces = monthCached.races
-                    }
-                }
-            }
-            if !combinedDays.isEmpty {
-                RaceLogic.annotateDoubleSectors(&combinedDays)
-                allRaceDays = combinedDays
-                races = fallbackRaces
-                loadedYear = year
-                isFromCache = true
-                cacheAgeLabel = await cache.ageLabel(forKey: CacheManager.monthKey(year: year, month: month))
-                isLoading = false
-            }
-        }
-
-        // 3. Intentar actualizar desde red
         do {
-            let startKey = "\(year)-01-01"
-            let endKey = "\(year)-12-31"
-
-            async let daysResult = SupabaseService.shared.raceDays(from: startKey, to: endKey)
-            async let racesResult = SupabaseService.shared.racesByYear(year)
-
-            let (publishedDays, loadedRaces) = try await (daysResult, racesResult)
+            let (publishedDays, loadedRaces) = try await SupabaseService.shared.calendarMonthData(
+                from: startKey,
+                to: endKey
+            )
+            guard isCurrentRequest(requestedKey) else { return }
             races = loadedRaces
-
-            // Generar placeholders para carreras sin race_days publicados
-            let coveredRaceIds = Set(publishedDays.compactMap(\.raceId))
-            var allDays = publishedDays
-            let cal = Calendar(identifier: .iso8601)
-
-            for race in races {
-                guard !race.isCancelled else { continue }
-                guard let raceStart = race.startDate, let raceEnd = race.endDate else { continue }
-                guard !coveredRaceIds.contains(race.id) else { continue }
-                guard raceEnd >= startKey, raceStart <= endKey else { continue }
-
-                let overlapStart = max(raceStart, startKey)
-                let overlapEnd = min(raceEnd, endKey)
-
-                guard var cursor = DateFormatting.date(from: overlapStart),
-                      let end = DateFormatting.date(from: overlapEnd) else { continue }
-
-                while cursor <= end {
-                    let dk = DateFormatting.toDateKey(cursor)
-                    if RaceLogic.isRaceDay(race: race, dateKey: dk) {
-                        let stageNum = RaceLogic.theoreticalStageNumber(race: race, dateKey: dk)
-                        allDays.append(RaceDay(
-                            id: "ph-\(race.id)-\(dk)",
-                            raceId: race.id,
-                            dateKey: dk,
-                            slug: nil,
-                            isRestDay: false,
-                            isCancelledDay: false,
-                            stageNumber: stageNum,
-                            startLocation: nil,
-                            finishLocation: nil,
-                            distanceKm: nil,
-                            primaryType: nil,
-                            secondaryType: nil,
-                            neutralStartTimeUtc: nil,
-                            estimatedFinishTimeUtc: nil,
-                            tvStatus: nil,
-                            description: nil,
-                            bonuses: nil,
-                            notes: nil,
-                            editorialStatus: "placeholder",
-                            hasAssets: false,
-                            updatedAt: nil,
-                            countryCode: nil
-                        ))
-                    }
-                    guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
-                    cursor = next
-                }
-            }
-
-            // Detectar dobles sectores
-            RaceLogic.annotateDoubleSectors(&allDays)
-
-            allRaceDays = allDays
-            loadedYear = year
+            allRaceDays = displayDays(
+                publishedDays: publishedDays,
+                races: loadedRaces,
+                startKey: startKey,
+                endKey: endKey
+            )
+            loadedMonthKey = requestedKey
             isFromCache = false
             cacheAgeLabel = nil
 
-            // Guardar en caché a nivel de año
-            await cache.save(YearMonthCache(raceDays: allDays, races: races), forKey: cacheKey)
+            // La caché compartida conserva solo jornadas publicadas; los
+            // placeholders se regeneran con las carreras vigentes.
+            await cache.save(PerMonthCache(raceDays: publishedDays, races: races), forKey: cacheKey)
         } catch {
-            // Si ya teníamos datos de caché, no sobreescribir con error
-            if allRaceDays.isEmpty {
+            if allRaceDays.isEmpty, isCurrentRequest(requestedKey) {
                 isUncachedOffline = true
             }
         }
-        isLoading = false
+        if isCurrentRequest(requestedKey) { isLoading = false }
     }
 
-    /// Navega al mes y año actuales. Si el año cambió, recarga datos.
+    private func isCurrentRequest(_ requestedKey: String) -> Bool {
+        requestedKey == String(format: "%04d-%02d", year, month)
+    }
+
+    private func displayDays(
+        publishedDays: [RaceDay],
+        races: [Race],
+        startKey: String,
+        endKey: String
+    ) -> [RaceDay] {
+        let coveredRaceIds = Set(publishedDays.compactMap(\.raceId))
+        var allDays = publishedDays
+        let calendar = Calendar(identifier: .iso8601)
+
+        for race in races {
+            guard !race.isCancelled else { continue }
+            guard let raceStart = race.startDate, let raceEnd = race.endDate else { continue }
+            guard !coveredRaceIds.contains(race.id) else { continue }
+            guard raceEnd >= startKey, raceStart <= endKey else { continue }
+
+            let overlapStart = max(raceStart, startKey)
+            let overlapEnd = min(raceEnd, endKey)
+            guard var cursor = DateFormatting.date(from: overlapStart),
+                  let end = DateFormatting.date(from: overlapEnd) else { continue }
+
+            while cursor <= end {
+                let dateKey = DateFormatting.toDateKey(cursor)
+                if RaceLogic.isRaceDay(race: race, dateKey: dateKey) {
+                    allDays.append(RaceDay(
+                        id: "ph-\(race.id)-\(dateKey)",
+                        raceId: race.id,
+                        dateKey: dateKey,
+                        slug: nil,
+                        isRestDay: false,
+                        isCancelledDay: false,
+                        stageNumber: RaceLogic.theoreticalStageNumber(race: race, dateKey: dateKey),
+                        startLocation: nil,
+                        finishLocation: nil,
+                        distanceKm: nil,
+                        primaryType: nil,
+                        secondaryType: nil,
+                        neutralStartTimeUtc: nil,
+                        estimatedFinishTimeUtc: nil,
+                        tvStatus: nil,
+                        description: nil,
+                        bonuses: nil,
+                        notes: nil,
+                        editorialStatus: "placeholder",
+                        hasAssets: false,
+                        updatedAt: nil,
+                        countryCode: nil
+                    ))
+                }
+                guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+                cursor = next
+            }
+        }
+
+        RaceLogic.annotateDoubleSectors(&allDays)
+        return allDays
+    }
+
+    /// Navega al mes y año actuales y recarga el intervalo correspondiente.
     func goToCurrentMonth() {
         let cal = Calendar.current
         let newYear = cal.component(.year, from: Date())
         let newMonth = cal.component(.month, from: Date())
         month = newMonth
-        if newYear != year {
-            year = newYear
-            loadedYear = nil
-            Task { await loadYear() }
-        }
+        year = newYear
+        loadedMonthKey = nil
+        Task { await loadMonth() }
     }
 
     /// Cambia de año y recarga datos.
     func setYear(_ newYear: Int) {
         guard newYear != year else { return }
         year = newYear
-        loadedYear = nil
-        Task { await loadYear() }
+        loadedMonthKey = nil
+        Task { await loadMonth() }
     }
 }

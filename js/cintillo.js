@@ -1,3 +1,6 @@
+import {CX_AGENDA_SELECT,cxHiddenClasses,cxIsHidden} from './services/cx-data.js';
+import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx-highlight.js?v=20260913cxscopes';
+import { arrowHtml } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  CINTILLO «HOY» — carrusel editorial (tabla today_highlights)
 //  Extraído de app.js para compartir con la página de Campeonatos.
@@ -57,19 +60,27 @@ function _buildHighlightAutoDetail(h, rd, isEn) {
   return isEn ? '<strong>Startlist</strong>' : '<strong>Dorsales</strong>';
 }
 
-export async function initCintillo() {
+/**
+ * @param {'road'|'cx'} [scope] Sección del cintillo. «Hoy» y el resto de
+ * superficies de carretera usan `road`; la agenda de Ciclocross usa `cx`. Cada
+ * scope tiene sus propias entradas editoriales y no ve las del otro.
+ */
+export async function initCintillo(scope = 'road') {
   const el = document.getElementById('giroCountdown');
   if (!el) return;
+  if (scope !== 'cx') scope = 'road';
 
   await initI18n();
 
   const _isEn = getLang() === 'en';
 
-  // Cintillo manual desde panel admin (tabla today_highlights).
-  // Cada entrada apunta a una jornada, startlist u orden de salida.
+  // Cintillo manual desde panel admin (tabla today_highlights), filtrado por
+  // sección. Cada entrada apunta a una jornada, startlist, orden de salida o,
+  // en Ciclocross, a una prueba o un torneo.
   const { data: highlights, error: hlErr } = await supabase
     .from('today_highlights')
     .select('*')
+    .eq('scope', scope)
     .or(`visibleFrom.is.null,visibleFrom.lte.${new Date().toISOString()}`)
     .or(`visibleUntil.is.null,visibleUntil.gte.${new Date().toISOString()}`)
     .order('position', { ascending: true });
@@ -91,14 +102,29 @@ export async function initCintillo() {
     if (h.raceDayId) raceDayIds.add(h.raceDayId);
   });
 
-  const [racesRes, rdsRes] = await Promise.all([
+  const cxIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxRace').map(h=>h.cxRaceId).filter(Boolean))];
+  const cxTournamentIds=[...new Set(webHighlights.filter(h=>h.targetType==='cxTournament').map(h=>h.cxTournamentId).filter(Boolean))];
+  const [racesRes, rdsRes, cxRes, cxTournamentsRes] = await Promise.all([
     raceIds.size
       ? supabase.from('races').select('id, name, nameEn, logoUrl, colorHex, slug, slugEn, hideFlag, countryCode, startlistImportedAt').in('id', [...raceIds])
       : Promise.resolve({ data: [] }),
     raceDayIds.size
       ? supabase.from('race_days').select('id, raceId, slug, slugEn, date, stageNumber, startLocation, finishLocation').in('id', [...raceDayIds])
       : Promise.resolve({ data: [] }),
+    cxIds.length?Promise.resolve(supabase.from('cx_races').select(CX_AGENDA_SELECT).eq('editorialStatus','published').in('id',cxIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
+    cxTournamentIds.length?Promise.resolve(supabase.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,colorHex,logoUrl').in('id',cxTournamentIds)).catch(()=>({data:[]})):Promise.resolve({data:[]}),
   ]);
+  // En inglés se descartan las carreras nacionales y los torneos solo nacionales.
+  const cxLang=_isEn?'en':'es',hiddenClasses=cxHiddenClasses(cxLang);
+  let visibleTournamentIds=null;
+  if(hiddenClasses.length&&cxTournamentIds.length){
+    let query=supabase.from('cx_races').select('tournamentId').eq('editorialStatus','published').in('tournamentId',cxTournamentIds);
+    for(const raceClass of hiddenClasses)query=query.neq('class',raceClass);
+    const {data}=await Promise.resolve(query).catch(()=>({data:null}));
+    visibleTournamentIds=data?new Set(data.map(row=>row.tournamentId)):null;
+  }
+  const cxById=Object.fromEntries((cxRes.data||[]).filter(r=>!cxIsHidden(r,cxLang)).map(r=>[r.id,r]));
+  const cxTournamentsById=Object.fromEntries((cxTournamentsRes.data||[]).filter(t=>!visibleTournamentIds||visibleTournamentIds.has(t.id)).map(t=>[t.id,t]));
   const racesById = Object.fromEntries((racesRes.data || []).map(r => [r.id, r]));
   const rdsById   = Object.fromEntries((rdsRes.data  || []).map(r => [r.id, r]));
 
@@ -112,13 +138,18 @@ export async function initCintillo() {
     }
   }
 
-  // Dismiss por hash de contenido — al cambiar el cintillo reaparece
-  const contentHash = webHighlights.map(h => `${h.id}:${h.targetType}:${h.position}:${h.updatedAt}`).join('|');
-  const dismissedHash = localStorage.getItem('cc_giro_dismissed_hash');
-  if (dismissedHash === contentHash) return;
-
   const slides = [];
   webHighlights.forEach(h => {
+    if(h.targetType==='cxRace'){
+      const slide=cxHighlightSlide(h,cxById[h.cxRaceId],_isEn?'en':'es');
+      if(slide)slides.push(_buildGcSlide({...slide,detail:slide.detail||_buildHighlightAutoDetail(h,{date:slide.date},_isEn)}));
+      return;
+    }
+    if(h.targetType==='cxTournament'){
+      const slide=cxTournamentHighlightSlide(h,cxTournamentsById[h.cxTournamentId],_isEn?'en':'es');
+      if(slide)slides.push(_buildGcSlide(slide));
+      return;
+    }
     // Mercado de fichajes: destino fijo /fichajes/ (+ EN /en/transfers/), sin
     // carrera. Las apps lo pintan con su pantalla nativa de Fichajes (4.0);
     // las versiones antiguas lo descartan solas (targetType desconocido).
@@ -188,7 +219,7 @@ export async function initCintillo() {
 
     slides.push(_buildGcSlide({
       href,
-      logoUrl: race.logoUrl,
+      logoUrl: h.customLogo || race.logoUrl,
       name: rawName,
       detail,
       colorHex: race.colorHex,
@@ -198,81 +229,49 @@ export async function initCintillo() {
   if (!slides.length) return;
 
   const multi = slides.length > 1;
-  const dotLabel = getLang() === 'en' ? 'Go to slide' : 'Ir a la diapositiva';
-  const dotsHtml = multi
-    ? `<div class="giro-countdown__dots">${slides.map((_,i) => `<button class="gc-dot${i===0?' gc-dot--active':''}" data-idx="${i}" aria-label="${dotLabel} ${i+1}"></button>`).join('')}</div>`
-    : '';
-  const closeBtn = `<button class="giro-countdown__close" aria-label="Cerrar">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
-        </button>`;
-
-  el.innerHTML =
-    `<div class="giro-card">` +
-      slides.map((s, i) => `<div class="giro-bg${i===0?' giro-bg--active':''}" style="background:${s.bg}"></div>`).join('') +
-      `<div class="giro-countdown__inner">
-        <div class="giro-text-area">
-          ${slides.map((s, i) => `<div class="giro-text${i===0?' giro-text--active':''}">${s.link}</div>`).join('')}
-        </div>
-      </div>` +
-      closeBtn +
-      dotsHtml +
-    `</div>`;
-
+  el.innerHTML = `<div class="giro-card">${multi ? arrowHtml('prev', _isEn ? 'Previous item' : 'Entrada anterior') : ''}<div class="giro-text-area"></div>${multi ? arrowHtml('next', _isEn ? 'Next item' : 'Entrada siguiente') : ''}</div>`;
   el.hidden = false;
-  document.documentElement.style.setProperty('--giro-h', el.offsetHeight + 'px');
-
-  let gcTimer;
-  if (multi) {
-    let cur = 0;
-    const bgEls   = el.querySelectorAll('.giro-bg');
-    const textEls = el.querySelectorAll('.giro-text');
-    const dotEls  = el.querySelectorAll('.gc-dot');
-    function gcGoTo(idx) {
-      bgEls[cur].classList.remove('giro-bg--active');
-      textEls[cur].classList.remove('giro-text--active');
-      dotEls[cur]?.classList.remove('gc-dot--active');
-      cur = idx;
-      bgEls[cur].classList.add('giro-bg--active');
-      textEls[cur].classList.add('giro-text--active');
-      dotEls[cur]?.classList.add('gc-dot--active');
+  const card = el.querySelector('.giro-card'), area = el.querySelector('.giro-text-area');
+  const prev = el.querySelector('[data-direction="prev"]'), next = el.querySelector('[data-direction="next"]');
+  let current = 0, manual = false, hovered = false, timer;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const syncHeight = () => document.documentElement.style.setProperty('--giro-h', el.offsetHeight + 'px');
+  const go = index => {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    card.style.background = `linear-gradient(${slides[current].bg},${slides[current].bg}),var(--bg-card)`;
+    area.innerHTML = slides[current].link;
+    if (multi) { prev.disabled = current === 0; next.disabled = current === slides.length - 1; }
+    syncHeight();
+  };
+  const stop = () => { clearInterval(timer); timer = null; };
+  const resume = () => {
+    stop();
+    if (multi && !manual && !hovered && !document.hidden && !el.contains(document.activeElement) && !reduced.matches)
+      timer = setInterval(() => go((current + 1) % slides.length), 5000);
+  };
+  const select = delta => { manual = true; stop(); go(current + delta); };
+  prev?.addEventListener('click', () => select(-1));
+  next?.addEventListener('click', () => select(1));
+  el.addEventListener('mouseenter', () => { hovered = true; stop(); });
+  el.addEventListener('mouseleave', () => { hovered = false; resume(); });
+  el.addEventListener('focusin', stop);
+  el.addEventListener('focusout', () => setTimeout(resume, 0));
+  document.addEventListener('visibilitychange', resume);
+  window.addEventListener('pagehide', stop);
+  reduced.addEventListener('change', resume);
+  let startX = 0, startY = 0, suppressClick = false;
+  area.addEventListener('touchstart', event => { startX = event.touches[0].clientX; startY = event.touches[0].clientY; }, { passive:true });
+  area.addEventListener('touchend', event => {
+    const dx = event.changedTouches[0].clientX - startX, dy = event.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      select(dx < 0 ? 1 : -1); suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 400);
     }
-    gcTimer = setInterval(() => gcGoTo((cur + 1) % slides.length), 5000);
-    dotEls.forEach(dot => dot.addEventListener('click', () => {
-      clearInterval(gcTimer);
-      gcGoTo(parseInt(dot.dataset.idx));
-    }));
-
-    // Swipe horizontal (móvil)
-    const textArea = el.querySelector('.giro-text-area');
-    let tStartX = 0, tStartY = 0, tStartTime = 0, suppressClick = false;
-    textArea.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) return;
-      tStartX = e.touches[0].clientX;
-      tStartY = e.touches[0].clientY;
-      tStartTime = Date.now();
-    }, { passive: true });
-    textArea.addEventListener('touchend', (e) => {
-      const tt = e.changedTouches[0];
-      const dx = tt.clientX - tStartX;
-      const dy = tt.clientY - tStartY;
-      const dt = Date.now() - tStartTime;
-      if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt <= 600) {
-        clearInterval(gcTimer);
-        gcGoTo(dx < 0 ? (cur + 1) % slides.length : (cur - 1 + slides.length) % slides.length);
-        suppressClick = true;
-        setTimeout(() => { suppressClick = false; }, 400);
-      }
-    }, { passive: true });
-    textArea.addEventListener('click', (e) => {
-      if (suppressClick) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
-  }
-
-  el.querySelector('.giro-countdown__close').addEventListener('click', () => {
-    clearInterval(gcTimer);
-    el.hidden = true;
-    document.documentElement.style.setProperty('--giro-h', '0px');
-    // Dismiss por hash: reaparece automáticamente cuando el admin cambie el cintillo
-    localStorage.setItem('cc_giro_dismissed_hash', contentHash);
-  });
+  }, { passive:true });
+  area.addEventListener('click', event => {
+    if (suppressClick) { event.preventDefault(); event.stopPropagation(); }
+    else { manual = true; stop(); }
+  }, true);
+  new ResizeObserver(syncHeight).observe(el);
+  go(0); resume();
 }

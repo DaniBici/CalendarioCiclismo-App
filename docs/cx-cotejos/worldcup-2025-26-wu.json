@@ -1,0 +1,8396 @@
+{
+  "scope": "offline_official_cotejo_only",
+  "seasonKey": "2025-26",
+  "category": "WU",
+  "sourceCategory": "WE",
+  "checkedAt": "2026-09-12",
+  "rulesSourceUrl": "https://assets.ctfassets.net/761l7gh5x5an/3X0PPNdbWNAhMGaZzKly8J/7cfe482b94626424f9967d6df5cb3f38/5-CRO-20250701-E.pdf",
+  "officialStandingsSourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/442/442.pdf?t=1769348896",
+  "officialStandingsSha256": "4a3be2840a872e9225d75038542e22e68c44a9512a4592a6877ce74874bbf161",
+  "officialStandingsScope": "published_we_standings_filtered_by_regulation_age_19_22",
+  "sourceNameAliases": [
+    {
+      "from": "DRAKE Ffion",
+      "to": "DRAKE Haf Ann Ffion",
+      "reason": "Correspondencia local PDF/DataRide comprobada por ronda, dorsal, puesto, nacionalidad y año de nacimiento; no modifica el catálogo."
+    },
+    {
+      "from": "ALVARADO Ceylin del Carmen",
+      "to": "ALVARADO Ceylin",
+      "reason": "Correspondencia local PDF/DataRide comprobada por ronda, dorsal, puesto, nacionalidad y año de nacimiento; no modifica el catálogo."
+    },
+    {
+      "from": "VAS Blanka",
+      "to": "VAS Kata Blanka",
+      "reason": "Correspondencia local PDF/DataRide comprobada por ronda, dorsal, puesto, nacionalidad y año de nacimiento; no modifica el catálogo."
+    },
+    {
+      "from": "HINZ Katharina Julia",
+      "to": "HINZ Katharina",
+      "reason": "Correspondencia local PDF/DataRide comprobada por ronda, dorsal, puesto, nacionalidad y año de nacimiento; no modifica el catálogo."
+    }
+  ],
+  "offlineAliases": [
+    {
+      "from": "ALVARADO Ceylin del Carmen",
+      "to": "ALVARADO Ceylin",
+      "nation": "NED",
+      "yearOfBirth": 1998,
+      "reason": "Nombre completo y abreviado del mismo dorsal/puesto; nacimiento 1998-08-06 en las rondas DataRide. Alias exclusivo del cotejo."
+    },
+    {
+      "from": "VAS Blanka",
+      "to": "VAS Kata Blanka",
+      "nation": "HUN",
+      "yearOfBirth": 2001,
+      "reason": "Nombre completo y abreviado del mismo dorsal/puesto; nacimiento 2001-09-03 en las rondas DataRide. Alias exclusivo del cotejo."
+    },
+    {
+      "from": "LOPEZ DE SAN ROMAN",
+      "to": "LOPEZ DE SAN ROMAN Vida",
+      "nation": "USA",
+      "yearOfBirth": 2006,
+      "reason": "La general abrevia el nombre; cinco rondas con nombre Vida y nacimiento 2006-01-23 en DataRide coinciden con sus cinco celdas, incluidos 13/1/6 puntos. Alias exclusivo del cotejo."
+    }
+  ],
+  "resultColumns": [
+    "rank",
+    "bib",
+    "riderDisplay",
+    "nation",
+    "yearOfBirth",
+    "irm",
+    "birthDate"
+  ],
+  "standingsColumns": [
+    "rank",
+    "riderDisplay",
+    "nation",
+    "yearOfBirth",
+    "points",
+    "roundCells"
+  ],
+  "rounds": [
+    {
+      "reportId": 441,
+      "name": "Tábor",
+      "dateKey": "2025-11-23",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/441/441.pdf?t=1763903123",
+      "reportSha256": "2df8dfefe6d0be0b0717290350d0d0cd1c3e12ba07132e852da74d70faf0ebff",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75847,
+        "seasonId": 455,
+        "uciRaceId": 244266,
+        "eventId": 352499
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "e4c7c334a30e92e1f8282ef2444e9ca39371ece4dc541f5f7382ec2f68998ddc",
+      "lapStatesFromPdfMissingInDataRide": 0,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "30",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          null,
+          "1999-11-29"
+        ],
+        [
+          3,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          4,
+          "5",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          5,
+          "6",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          6,
+          "51",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          7,
+          "13",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          8,
+          "20",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          9,
+          "14",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          10,
+          "7",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          11,
+          "4",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          12,
+          "31",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          13,
+          "8",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          14,
+          "21",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          15,
+          "27",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          16,
+          "12",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          17,
+          "34",
+          "ROCHETTE Maghalie",
+          "CAN",
+          1993,
+          null,
+          "1993-04-20"
+        ],
+        [
+          18,
+          "54",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          null,
+          "2006-11-15"
+        ],
+        [
+          19,
+          "33",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          20,
+          "16",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          21,
+          "10",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          22,
+          "39",
+          "MUSGRAVE Kaya",
+          "USA",
+          2005,
+          null,
+          "2005-10-17"
+        ],
+        [
+          23,
+          "60",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          24,
+          "37",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          25,
+          "53",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          26,
+          "11",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          27,
+          "24",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          28,
+          "18",
+          "VALADE Alexandra",
+          "FRA",
+          2005,
+          null,
+          "2005-04-30"
+        ],
+        [
+          29,
+          "26",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          30,
+          "56",
+          "GOTTWALDOVÁ Amálie",
+          "CZE",
+          2007,
+          null,
+          "2007-10-25"
+        ],
+        [
+          31,
+          "57",
+          "UNGEROVÁ Sofia",
+          "SVK",
+          2006,
+          null,
+          "2006-06-04"
+        ],
+        [
+          32,
+          "47",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          33,
+          "22",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          34,
+          "52",
+          "KAY Anna",
+          "GBR",
+          1999,
+          null,
+          "1999-05-06"
+        ],
+        [
+          35,
+          "42",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          null,
+          "2004-02-28"
+        ],
+        [
+          36,
+          "55",
+          "DOUDEROVÁ Katerina",
+          "CZE",
+          2006,
+          null,
+          "2006-03-26"
+        ],
+        [
+          37,
+          "58",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          2006,
+          null,
+          "2006-02-22"
+        ],
+        [
+          38,
+          "17",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          39,
+          "25",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          40,
+          "38",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          41,
+          "62",
+          "HRDINOVÁ Anna",
+          "CZE",
+          2007,
+          null,
+          "2007-06-01"
+        ],
+        [
+          42,
+          "59",
+          "DRBOHLAVOVÁ Eliška",
+          "CZE",
+          2003,
+          null,
+          "2003-11-24"
+        ],
+        [
+          43,
+          "61",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          44,
+          "49",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          null,
+          "2007-07-07"
+        ],
+        [
+          45,
+          "19",
+          "HURTELOUP Adèle",
+          "FRA",
+          2004,
+          null,
+          "2004-12-07"
+        ],
+        [
+          46,
+          "36",
+          "KRZYSTALA Zuzanna",
+          "POL",
+          1990,
+          null,
+          "1990-05-11"
+        ],
+        [
+          47,
+          "40",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          48,
+          "23",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          49,
+          "45",
+          "WINDELBAND Tomke",
+          "GER",
+          2006,
+          null,
+          "2006-01-09"
+        ],
+        [
+          50,
+          "41",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          null,
+          "2007-12-06"
+        ],
+        [
+          51,
+          "48",
+          "DENK Rosalie",
+          "AUT",
+          2007,
+          null,
+          "2007-01-10"
+        ],
+        [
+          52,
+          "64",
+          "JOZKOWICZ Maja",
+          "POL",
+          2006,
+          null,
+          "2006-11-29"
+        ],
+        [
+          53,
+          "35",
+          "BIALEK Antonina",
+          "POL",
+          1998,
+          null,
+          "1998-01-10"
+        ],
+        [
+          54,
+          "32",
+          "CASASOLA Nadia",
+          "ITA",
+          2007,
+          null,
+          "2007-06-24"
+        ],
+        [
+          null,
+          "50",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          "DNF",
+          "2003-04-17"
+        ],
+        [
+          null,
+          "44",
+          "KRAHL Judith",
+          "GER",
+          2001,
+          "DNF",
+          "2001-07-23"
+        ]
+      ]
+    },
+    {
+      "reportId": 448,
+      "name": "Flamanville",
+      "dateKey": "2025-11-30",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/448/448.pdf?t=1764509988",
+      "reportSha256": "2c0beac118c24651ef8f219ea8f9acc1c2b649141702172f16f7a5b2d5be3c96",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75852,
+        "seasonId": 455,
+        "uciRaceId": 244283,
+        "eventId": 352516
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "c95efdd9852be06c2f18a15edf465da953b47ad6b7c967b4bfa6cb1b64175cc5",
+      "lapStatesFromPdfMissingInDataRide": 1,
+      "rows": [
+        [
+          1,
+          "6",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          2,
+          "12",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          3,
+          "4",
+          "ALVARADO Ceylin del Carmen",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          4,
+          "2",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          5,
+          "5",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          6,
+          "11",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          7,
+          "25",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          8,
+          "13",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          9,
+          "3",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          10,
+          "32",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          11,
+          "26",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          12,
+          "7",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          13,
+          "27",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          14,
+          "14",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          15,
+          "38",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          16,
+          "20",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          17,
+          "15",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          18,
+          "47",
+          "DRAKE Haf Ann Ffion",
+          "GBR",
+          1999,
+          null,
+          "1999-03-17"
+        ],
+        [
+          19,
+          "45",
+          "KAY Anna",
+          "GBR",
+          1999,
+          null,
+          "1999-05-06"
+        ],
+        [
+          20,
+          "43",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          null,
+          "2004-02-28"
+        ],
+        [
+          21,
+          "40",
+          "MUSGRAVE Kaya",
+          "USA",
+          2005,
+          null,
+          "2005-10-17"
+        ],
+        [
+          22,
+          "30",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          23,
+          "18",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          null,
+          "2004-07-30"
+        ],
+        [
+          24,
+          "34",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          25,
+          "17",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          null,
+          "2007-08-05"
+        ],
+        [
+          26,
+          "29",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          27,
+          "39",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          28,
+          "46",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          29,
+          "31",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          30,
+          "23",
+          "DEVIGNE Camille",
+          "FRA",
+          2002,
+          null,
+          "2002-12-15"
+        ],
+        [
+          31,
+          "48",
+          "DAY Elena",
+          "GBR",
+          2004,
+          null,
+          "2004-12-27"
+        ],
+        [
+          32,
+          "37",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          33,
+          "41",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          34,
+          "52",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          35,
+          "9",
+          "MOES Noï",
+          "NED",
+          2007,
+          null,
+          "2007-05-28"
+        ],
+        [
+          36,
+          "28",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          37,
+          "16",
+          "MORICHON Anaïs",
+          "FRA",
+          1999,
+          null,
+          "1999-10-06"
+        ],
+        [
+          38,
+          "21",
+          "VALADE Alexandra",
+          "FRA",
+          2005,
+          null,
+          "2005-04-30"
+        ],
+        [
+          39,
+          "22",
+          "KLAES Lise",
+          "FRA",
+          2005,
+          null,
+          "2005-10-28"
+        ],
+        [
+          40,
+          "24",
+          "MOULIN Anaïs",
+          "FRA",
+          2006,
+          null,
+          "2006-03-13"
+        ],
+        [
+          41,
+          "50",
+          "INGLIS Hope",
+          "GBR",
+          2005,
+          null,
+          "2005-08-22"
+        ],
+        [
+          42,
+          "49",
+          "EYEINGTON Kacey",
+          "GBR",
+          2005,
+          null,
+          "2005-12-31"
+        ],
+        [
+          43,
+          "10",
+          "SONNEMANS Sara",
+          "NED",
+          2006,
+          null,
+          "2006-10-05"
+        ],
+        [
+          44,
+          "36",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          null,
+          "2007-09-03"
+        ],
+        [
+          45,
+          "42",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          "LAP",
+          "2007-12-06"
+        ],
+        [
+          null,
+          "8",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          "DNF",
+          "1995-12-19"
+        ]
+      ]
+    },
+    {
+      "reportId": 451,
+      "name": "Terralba, Sardegna",
+      "dateKey": "2025-12-07",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/451/451.pdf?t=1765124824",
+      "reportSha256": "f5566b267e4eb669534d4b7a8dbb8d06e3a5ffa46be793528897139dabb52a55",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75887,
+        "seasonId": 455,
+        "uciRaceId": 244406,
+        "eventId": 352639
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "f17e35c01ffc230f3f35c36c8c4dba0846ba8add0dae0d4879499b5edacff91e",
+      "lapStatesFromPdfMissingInDataRide": 2,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "5",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          3,
+          "10",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          4,
+          "6",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          5,
+          "18",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          null,
+          "1999-11-29"
+        ],
+        [
+          6,
+          "3",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          7,
+          "7",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          8,
+          "20",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          9,
+          "22",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          10,
+          "8",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          11,
+          "13",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          12,
+          "9",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          13,
+          "19",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          14,
+          "14",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          15,
+          "30",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          16,
+          "21",
+          "PELLIZOTTI Giorgia",
+          "ITA",
+          2008,
+          null,
+          "2008-10-02"
+        ],
+        [
+          17,
+          "17",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          18,
+          "16",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          19,
+          "15",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          20,
+          "31",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          21,
+          "23",
+          "FERRI Elisa",
+          "ITA",
+          2007,
+          null,
+          "2007-10-23"
+        ],
+        [
+          22,
+          "25",
+          "AZZETTI Nicole",
+          "ITA",
+          2008,
+          null,
+          "2008-08-23"
+        ],
+        [
+          23,
+          "24",
+          "BIANCHI Elisa",
+          "ITA",
+          2008,
+          null,
+          "2008-06-24"
+        ],
+        [
+          24,
+          "11",
+          "HURTELOUP Adèle",
+          "FRA",
+          2004,
+          null,
+          "2004-12-07"
+        ],
+        [
+          25,
+          "27",
+          "TAMBOSCO Ilaria",
+          "ITA",
+          2007,
+          null,
+          "2007-09-30"
+        ],
+        [
+          26,
+          "26",
+          "PERUTA Sara",
+          "ITA",
+          2009,
+          null,
+          "2009-08-05"
+        ],
+        [
+          27,
+          "28",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          28,
+          "29",
+          "FRANCESCHINI Emma",
+          "ITA",
+          2007,
+          "LAP",
+          "2007-01-17"
+        ],
+        [
+          null,
+          "4",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          "DNF",
+          "1998-08-06"
+        ]
+      ]
+    },
+    {
+      "reportId": 452,
+      "name": "Namur",
+      "dateKey": "2025-12-14",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/452/452.pdf?t=1765721149",
+      "reportSha256": "9b724f69e84ffe1c32900ba06f255ee3f1b6fef50fbf121e11b42100095de23d",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75890,
+        "seasonId": 455,
+        "uciRaceId": 244419,
+        "eventId": 352652
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "736b6a4cd82f2a8489dd241165d87b0d12d045344b3454fd36e16922dec54cec",
+      "lapStatesFromPdfMissingInDataRide": 14,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "6",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          3,
+          "16",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          4,
+          "5",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          5,
+          "55",
+          "NEFF Jolanda",
+          "SUI",
+          1993,
+          null,
+          "1993-01-05"
+        ],
+        [
+          6,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          7,
+          "48",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          8,
+          "8",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          9,
+          "19",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          10,
+          "18",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          11,
+          "17",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          12,
+          "7",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          13,
+          "23",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          14,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          15,
+          "20",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          null,
+          "2004-07-30"
+        ],
+        [
+          16,
+          "4",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          17,
+          "54",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          18,
+          "21",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          19,
+          "11",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          20,
+          "24",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          21,
+          "40",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          22,
+          "50",
+          "KAY Anna",
+          "GBR",
+          1999,
+          null,
+          "1999-05-06"
+        ],
+        [
+          23,
+          "41",
+          "ROCHETTE Maghalie",
+          "CAN",
+          1993,
+          null,
+          "1993-04-20"
+        ],
+        [
+          24,
+          "14",
+          "MOS Anniek",
+          "NED",
+          2001,
+          null,
+          "2001-10-13"
+        ],
+        [
+          25,
+          "44",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          26,
+          "49",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          27,
+          "35",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          28,
+          "12",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          29,
+          "57",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          30,
+          "31",
+          "DETILLEUX Emeline",
+          "BEL",
+          1999,
+          null,
+          "1999-11-08"
+        ],
+        [
+          31,
+          "29",
+          "VAN DE STEENE Kim",
+          "BEL",
+          1986,
+          null,
+          "1986-07-08"
+        ],
+        [
+          32,
+          "51",
+          "DAY Elena",
+          "GBR",
+          2004,
+          null,
+          "2004-12-27"
+        ],
+        [
+          33,
+          "38",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          null,
+          "2007-09-03"
+        ],
+        [
+          34,
+          "28",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          35,
+          "30",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          "LAP",
+          "2005-03-24"
+        ],
+        [
+          36,
+          "47",
+          "LISBYGD Ann-Dorthe",
+          "DEN",
+          1984,
+          "LAP",
+          "1984-02-16"
+        ],
+        [
+          37,
+          "56",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          "LAP",
+          "2001-11-23"
+        ],
+        [
+          38,
+          "37",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          "LAP",
+          "1994-02-16"
+        ],
+        [
+          39,
+          "32",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          "LAP",
+          "2006-12-11"
+        ],
+        [
+          40,
+          "59",
+          "BERTON Nina",
+          "LUX",
+          2001,
+          "LAP",
+          "2001-08-03"
+        ],
+        [
+          41,
+          "53",
+          "STERN Léa",
+          "SUI",
+          2001,
+          "LAP",
+          "2001-09-25"
+        ],
+        [
+          42,
+          "58",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          "LAP",
+          "2004-05-13"
+        ],
+        [
+          43,
+          "45",
+          "BUDDE Kaija",
+          "GER",
+          2006,
+          "LAP",
+          "2006-12-04"
+        ],
+        [
+          44,
+          "33",
+          "DELCOMMUNE Juline",
+          "BEL",
+          2004,
+          "LAP",
+          "2004-03-30"
+        ],
+        [
+          45,
+          "15",
+          "HOEFMANS Pem",
+          "NED",
+          2004,
+          "LAP",
+          "2004-03-05"
+        ],
+        [
+          46,
+          "43",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          47,
+          "39",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          48,
+          "36",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          null,
+          "27",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          "DNF",
+          "2003-11-26"
+        ],
+        [
+          null,
+          "46",
+          "DEHLER Viktoria",
+          "GER",
+          2002,
+          "DNS",
+          "2002-04-05"
+        ]
+      ]
+    },
+    {
+      "reportId": 459,
+      "name": "Antwerpen",
+      "dateKey": "2025-12-20",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/459/459.pdf?t=1766238571",
+      "reportSha256": "822fcbeb1d294f938418219c58d68a55aff49f2ad60e8f449fac9bbe34234461",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75891,
+        "seasonId": 455,
+        "uciRaceId": 244421,
+        "eventId": 352654
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "450b2bae2f71603c07325036535d2cadd626b5ff22d410e31b5e2f072c670f9b",
+      "lapStatesFromPdfMissingInDataRide": 15,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "8",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          3,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          4,
+          "6",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          5,
+          "74",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          6,
+          "14",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          7,
+          "38",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          null,
+          "1999-11-29"
+        ],
+        [
+          8,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          9,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          10,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          11,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          12,
+          "26",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          13,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          14,
+          "34",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          15,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          16,
+          "27",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          17,
+          "41",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          18,
+          "84",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          19,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          20,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          21,
+          "82",
+          "NEFF Jolanda",
+          "SUI",
+          1993,
+          null,
+          "1993-01-05"
+        ],
+        [
+          22,
+          "10",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          23,
+          "15",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          24,
+          "28",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          25,
+          "54",
+          "CARRIER Rafaelle",
+          "CAN",
+          2007,
+          null,
+          "2007-06-05"
+        ],
+        [
+          26,
+          "39",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          27,
+          "81",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          28,
+          "22",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          29,
+          "11",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          30,
+          "52",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          31,
+          "59",
+          "GUNSALUS Elizabeth",
+          "USA",
+          2003,
+          null,
+          "2003-05-10"
+        ],
+        [
+          32,
+          "29",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          33,
+          "63",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          34,
+          "46",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          35,
+          "47",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          36,
+          "40",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          37,
+          "31",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          38,
+          "30",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          39,
+          "62",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          40,
+          "53",
+          "ROCHETTE Maghalie",
+          "CAN",
+          1993,
+          null,
+          "1993-04-20"
+        ],
+        [
+          41,
+          "12",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          42,
+          "33",
+          "LAURIJSSEN Sanne",
+          "BEL",
+          2007,
+          null,
+          "2007-06-05"
+        ],
+        [
+          43,
+          "76",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          44,
+          "21",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          null,
+          "2004-07-30"
+        ],
+        [
+          45,
+          "86",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          46,
+          "78",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          47,
+          "32",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          48,
+          "72",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          49,
+          "60",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          50,
+          "85",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          null,
+          "2001-11-23"
+        ],
+        [
+          51,
+          "61",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          null,
+          "2003-04-04"
+        ],
+        [
+          52,
+          "48",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          null,
+          "1994-02-16"
+        ],
+        [
+          53,
+          "87",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          null,
+          "2004-05-13"
+        ],
+        [
+          54,
+          "36",
+          "BAELE Lotte",
+          "BEL",
+          2003,
+          null,
+          "2003-08-19"
+        ],
+        [
+          55,
+          "50",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          1995,
+          null,
+          "1995-05-27"
+        ],
+        [
+          56,
+          "49",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          null,
+          "2007-09-03"
+        ],
+        [
+          57,
+          "37",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          null,
+          "2006-12-11"
+        ],
+        [
+          58,
+          "80",
+          "STERN Léa",
+          "SUI",
+          2001,
+          null,
+          "2001-09-25"
+        ],
+        [
+          59,
+          "64",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          null,
+          "2007-12-06"
+        ],
+        [
+          60,
+          "35",
+          "COPPENS Nette",
+          "BEL",
+          2004,
+          null,
+          "2004-12-20"
+        ],
+        [
+          61,
+          "75",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          2006,
+          null,
+          "2006-02-22"
+        ],
+        [
+          62,
+          "88",
+          "BERTON Nina",
+          "LUX",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          63,
+          "83",
+          "GLAUS Jana",
+          "SUI",
+          2005,
+          null,
+          "2005-09-21"
+        ],
+        [
+          64,
+          "73",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          null,
+          "2007-07-07"
+        ],
+        [
+          65,
+          "66",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          null,
+          "2006-06-02"
+        ],
+        [
+          66,
+          "55",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          "LAP",
+          "2007-01-28"
+        ],
+        [
+          67,
+          "56",
+          "VERKERK Katja",
+          "CAN",
+          2003,
+          "LAP",
+          "2003-12-25"
+        ],
+        [
+          68,
+          "57",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          69,
+          "44",
+          "SANTIN Gaia",
+          "ITA",
+          2005,
+          "LAP",
+          "2005-12-10"
+        ],
+        [
+          70,
+          "42",
+          "TAMBOSCO Ilaria",
+          "ITA",
+          2007,
+          "LAP",
+          "2007-09-30"
+        ],
+        [
+          71,
+          "71",
+          "HINZ Katharina",
+          "GER",
+          1997,
+          "LAP",
+          "1997-08-06"
+        ],
+        [
+          72,
+          "58",
+          "JOZKOWICZ Maja",
+          "POL",
+          2006,
+          "LAP",
+          "2006-11-29"
+        ],
+        [
+          73,
+          "68",
+          "STEFFENHAGEN Diana",
+          "GER",
+          1985,
+          "LAP",
+          "1985-12-09"
+        ],
+        [
+          74,
+          "77",
+          "SEDLÁCKOVÁ Veronika",
+          "CZE",
+          2007,
+          "LAP",
+          "2007-08-09"
+        ],
+        [
+          75,
+          "65",
+          "BOND Jorja",
+          "USA",
+          2006,
+          "LAP",
+          "2006-01-12"
+        ],
+        [
+          76,
+          "43",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          77,
+          "45",
+          "CASASOLA Nadia",
+          "ITA",
+          2007,
+          "LAP",
+          "2007-06-24"
+        ],
+        [
+          78,
+          "69",
+          "MICHELS Friederike",
+          "GER",
+          2006,
+          "LAP",
+          "2006-05-18"
+        ],
+        [
+          79,
+          "51",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          80,
+          "70",
+          "PFEIL Julia-Katharina",
+          "GER",
+          1988,
+          "LAP",
+          "1988-02-17"
+        ],
+        [
+          null,
+          "23",
+          "VALADE Alexandra",
+          "FRA",
+          2005,
+          "DNS",
+          "2005-04-30"
+        ]
+      ]
+    },
+    {
+      "reportId": 464,
+      "name": "Koksijde",
+      "dateKey": "2025-12-21",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/464/464.pdf?t=1766325115",
+      "reportSha256": "c896dc3b94b10868d9df12686405e80e3f3f0dddbcf9dcb7c10dd176fb2774aa",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75892,
+        "seasonId": 455,
+        "uciRaceId": 244423,
+        "eventId": 352656
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "6b3f9658ffd19dddb00f0a6c24beda3e74b4119fe3228f0d499e35ebc908a1a2",
+      "lapStatesFromPdfMissingInDataRide": 20,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "14",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          3,
+          "8",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          4,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          5,
+          "6",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          6,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          7,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          8,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          9,
+          "71",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          10,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          11,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          12,
+          "42",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          13,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          14,
+          "29",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          15,
+          "30",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          16,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          17,
+          "34",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          18,
+          "11",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          19,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          20,
+          "57",
+          "GUNSALUS Elizabeth",
+          "USA",
+          2003,
+          null,
+          "2003-05-10"
+        ],
+        [
+          21,
+          "22",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          null,
+          "2004-07-30"
+        ],
+        [
+          22,
+          "28",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          23,
+          "10",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          24,
+          "15",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          25,
+          "24",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          null,
+          "2007-08-05"
+        ],
+        [
+          26,
+          "23",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          27,
+          "31",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          28,
+          "12",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          29,
+          "61",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          30,
+          "44",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          31,
+          "41",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          32,
+          "33",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          33,
+          "51",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          34,
+          "58",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          35,
+          "76",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          36,
+          "32",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          37,
+          "45",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          38,
+          "60",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          39,
+          "72",
+          "DOUDEROVÁ Katerina",
+          "CZE",
+          2006,
+          null,
+          "2006-03-26"
+        ],
+        [
+          40,
+          "74",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          41,
+          "46",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          null,
+          "1994-02-16"
+        ],
+        [
+          42,
+          "69",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          43,
+          "39",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          null,
+          "2006-12-11"
+        ],
+        [
+          44,
+          "73",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          2006,
+          null,
+          "2006-02-22"
+        ],
+        [
+          45,
+          "35",
+          "VAN DE STEENE Kim",
+          "BEL",
+          1986,
+          null,
+          "1986-07-08"
+        ],
+        [
+          46,
+          "77",
+          "GLAUS Jana",
+          "SUI",
+          2005,
+          "LAP",
+          "2005-09-21"
+        ],
+        [
+          47,
+          "36",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          "LAP",
+          "2005-03-24"
+        ],
+        [
+          48,
+          "59",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          "LAP",
+          "2003-04-04"
+        ],
+        [
+          49,
+          "37",
+          "BAELE Lotte",
+          "BEL",
+          2003,
+          "LAP",
+          "2003-08-19"
+        ],
+        [
+          50,
+          "66",
+          "PAUL Stefanie",
+          "GER",
+          1986,
+          "LAP",
+          "1986-06-10"
+        ],
+        [
+          51,
+          "48",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          1995,
+          "LAP",
+          "1995-05-27"
+        ],
+        [
+          52,
+          "70",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          "LAP",
+          "2007-07-07"
+        ],
+        [
+          53,
+          "47",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-09-03"
+        ],
+        [
+          54,
+          "75",
+          "STERN Léa",
+          "SUI",
+          2001,
+          "LAP",
+          "2001-09-25"
+        ],
+        [
+          55,
+          "62",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          "LAP",
+          "2007-12-06"
+        ],
+        [
+          56,
+          "67",
+          "WINDELBAND Tomke",
+          "GER",
+          2006,
+          "LAP",
+          "2006-01-09"
+        ],
+        [
+          57,
+          "38",
+          "DE RAEDEMAEKER Alexe",
+          "BEL",
+          2006,
+          "LAP",
+          "2006-04-26"
+        ],
+        [
+          58,
+          "63",
+          "SHIELDS Emily",
+          "USA",
+          1993,
+          "LAP",
+          "1993-09-14"
+        ],
+        [
+          59,
+          "56",
+          "JOZKOWICZ Maja",
+          "POL",
+          2006,
+          "LAP",
+          "2006-11-29"
+        ],
+        [
+          60,
+          "68",
+          "HINZ Katharina",
+          "GER",
+          1997,
+          "LAP",
+          "1997-08-06"
+        ],
+        [
+          61,
+          "49",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          62,
+          "80",
+          "MICHELS Friederike",
+          "GER",
+          2006,
+          "LAP",
+          "2006-05-18"
+        ],
+        [
+          63,
+          "43",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          64,
+          "55",
+          "VERKERK Katja",
+          "CAN",
+          2003,
+          "LAP",
+          "2003-12-25"
+        ],
+        [
+          65,
+          "50",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-11-27"
+        ],
+        [
+          null,
+          "78",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          "DNF",
+          "2003-04-17"
+        ],
+        [
+          null,
+          "79",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          "DNF",
+          "2004-01-08"
+        ],
+        [
+          null,
+          "40",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          "DNF",
+          "1999-11-29"
+        ],
+        [
+          null,
+          "53",
+          "CARRIER Rafaelle",
+          "CAN",
+          2007,
+          "DNS",
+          "2007-06-05"
+        ],
+        [
+          null,
+          "54",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          "DNS",
+          "2007-01-28"
+        ],
+        [
+          null,
+          "26",
+          "GARNIER Noemie",
+          "FRA",
+          2001,
+          "DNS",
+          "2001-08-09"
+        ]
+      ]
+    },
+    {
+      "reportId": 466,
+      "name": "Gavere",
+      "dateKey": "2025-12-26",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/466/466.pdf?t=1766757348",
+      "reportSha256": "ee1629afa010eba5d44e87a1a5f092a1d815434e47c6533950eeb6a66ff07d38",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75893,
+        "seasonId": 455,
+        "uciRaceId": 244428,
+        "eventId": 352661
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "fc9cedc5efb6d77f5b9c223d6d664a234ad008f1e7bd75ae206df7dbc2364818",
+      "lapStatesFromPdfMissingInDataRide": 6,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          3,
+          "6",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          4,
+          "62",
+          "VAS Blanka",
+          "HUN",
+          2001,
+          null,
+          "2001-09-03"
+        ],
+        [
+          5,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          6,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          7,
+          "10",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          8,
+          "8",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          9,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          10,
+          "76",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          null,
+          "2006-11-15"
+        ],
+        [
+          11,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          12,
+          "25",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          13,
+          "57",
+          "LOPEZ DE SAN ROMAN Vida",
+          "USA",
+          2006,
+          null,
+          "2006-01-23"
+        ],
+        [
+          14,
+          "29",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          15,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          16,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          17,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          18,
+          "11",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          19,
+          "54",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          20,
+          "26",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          21,
+          "59",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          null,
+          "2004-02-28"
+        ],
+        [
+          22,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          23,
+          "13",
+          "CABACA Mae",
+          "NED",
+          2007,
+          null,
+          "2007-02-10"
+        ],
+        [
+          24,
+          "77",
+          "NEFF Jolanda",
+          "SUI",
+          1993,
+          null,
+          "1993-01-05"
+        ],
+        [
+          25,
+          "31",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          26,
+          "70",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          27,
+          "39",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          28,
+          "27",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          29,
+          "32",
+          "VAN SINAEY Xaydee",
+          "BEL",
+          2005,
+          null,
+          "2005-05-16"
+        ],
+        [
+          30,
+          "55",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          31,
+          "40",
+          "BORGHESI Letizia",
+          "ITA",
+          1998,
+          null,
+          "1998-10-16"
+        ],
+        [
+          32,
+          "24",
+          "DURAFFOURG Lauriane",
+          "FRA",
+          2002,
+          null,
+          "2002-04-05"
+        ],
+        [
+          33,
+          "38",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          34,
+          "42",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          35,
+          "28",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          36,
+          "49",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          37,
+          "30",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          38,
+          "64",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          39,
+          "15",
+          "SONNEMANS Sara",
+          "NED",
+          2006,
+          null,
+          "2006-10-05"
+        ],
+        [
+          40,
+          "63",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          null,
+          "2006-06-02"
+        ],
+        [
+          41,
+          "53",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          42,
+          "36",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          null,
+          "2006-12-11"
+        ],
+        [
+          43,
+          "35",
+          "DETILLEUX Emeline",
+          "BEL",
+          1999,
+          null,
+          "1999-11-08"
+        ],
+        [
+          44,
+          "33",
+          "VAN DE STEENE Kim",
+          "BEL",
+          1986,
+          null,
+          "1986-07-08"
+        ],
+        [
+          45,
+          "71",
+          "STERN Léa",
+          "SUI",
+          2001,
+          null,
+          "2001-09-25"
+        ],
+        [
+          46,
+          "75",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          null,
+          "2004-05-13"
+        ],
+        [
+          47,
+          "45",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          1995,
+          null,
+          "1995-05-27"
+        ],
+        [
+          48,
+          "73",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          null,
+          "2001-11-23"
+        ],
+        [
+          49,
+          "14",
+          "MOES Noï",
+          "NED",
+          2007,
+          null,
+          "2007-05-28"
+        ],
+        [
+          50,
+          "34",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          null,
+          "2005-03-24"
+        ],
+        [
+          51,
+          "44",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          null,
+          "1994-02-16"
+        ],
+        [
+          52,
+          "72",
+          "GLAUS Jana",
+          "SUI",
+          2005,
+          null,
+          "2005-09-21"
+        ],
+        [
+          53,
+          "65",
+          "LISBYGD Ann-Dorthe",
+          "DEN",
+          1984,
+          null,
+          "1984-02-16"
+        ],
+        [
+          54,
+          "58",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          null,
+          "2007-12-06"
+        ],
+        [
+          55,
+          "22",
+          "HURTELOUP Adèle",
+          "FRA",
+          2004,
+          null,
+          "2004-12-07"
+        ],
+        [
+          56,
+          "51",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          57,
+          "52",
+          "KELLY Siobhan",
+          "CAN",
+          1996,
+          "LAP",
+          "1996-04-12"
+        ],
+        [
+          58,
+          "60",
+          "SHIELDS Emily",
+          "USA",
+          1993,
+          "LAP",
+          "1993-09-14"
+        ],
+        [
+          59,
+          "46",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          60,
+          "47",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-11-27"
+        ],
+        [
+          61,
+          "69",
+          "REYNOLDS Alicia",
+          "AUS",
+          2008,
+          "LAP",
+          "2008-05-20"
+        ],
+        [
+          null,
+          "56",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          "DNF",
+          "2007-06-13"
+        ],
+        [
+          null,
+          "66",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          "DNF",
+          "2007-07-07"
+        ],
+        [
+          null,
+          "43",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          "DNF",
+          "1990-07-09"
+        ],
+        [
+          null,
+          "68",
+          "KAY Anna",
+          "GBR",
+          1999,
+          "DNF",
+          "1999-05-06"
+        ],
+        [
+          null,
+          "67",
+          "CREES Xan",
+          "GBR",
+          2000,
+          "DNF",
+          "2000-12-27"
+        ],
+        [
+          null,
+          "21",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          "DNS",
+          "2004-07-30"
+        ],
+        [
+          null,
+          "41",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "DNS",
+          "2004-06-09"
+        ]
+      ]
+    },
+    {
+      "reportId": 470,
+      "name": "Dendermonde",
+      "dateKey": "2025-12-28",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/470/470.pdf?t=1766929995",
+      "reportSha256": "56e720e1a66349af339f8fdcb0e1a35018d1449cf523d4c6325a8816c2ca573b",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75894,
+        "seasonId": 455,
+        "uciRaceId": 244430,
+        "eventId": 352663
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "77137383806d3076b7f1b1b6564e6bc5a7987e8ff564833d1df26adaa530f11f",
+      "lapStatesFromPdfMissingInDataRide": 39,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "6",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          3,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          4,
+          "8",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          5,
+          "27",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          6,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          7,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          8,
+          "79",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          9,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          10,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          11,
+          "10",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          12,
+          "92",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          13,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          14,
+          "54",
+          "CARRIER Rafaelle",
+          "CAN",
+          2007,
+          null,
+          "2007-06-05"
+        ],
+        [
+          15,
+          "90",
+          "NEFF Jolanda",
+          "SUI",
+          1993,
+          null,
+          "1993-01-05"
+        ],
+        [
+          16,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          17,
+          "12",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          18,
+          "42",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          19,
+          "65",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          20,
+          "59",
+          "GUNSALUS Elizabeth",
+          "USA",
+          2003,
+          null,
+          "2003-05-10"
+        ],
+        [
+          21,
+          "28",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          22,
+          "40",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          23,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          24,
+          "82",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          25,
+          "66",
+          "LOPEZ DE SAN ROMAN Vida",
+          "USA",
+          2006,
+          null,
+          "2006-01-23"
+        ],
+        [
+          26,
+          "41",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          27,
+          "84",
+          "BACKSTEDT Zoe",
+          "GBR",
+          2004,
+          null,
+          "2004-09-24"
+        ],
+        [
+          28,
+          "14",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          29,
+          "46",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          30,
+          "44",
+          "BORGHESI Letizia",
+          "ITA",
+          1998,
+          null,
+          "1998-10-16"
+        ],
+        [
+          31,
+          "13",
+          "CABACA Mae",
+          "NED",
+          2007,
+          null,
+          "2007-02-10"
+        ],
+        [
+          32,
+          "24",
+          "BURQUIER Line",
+          "FRA",
+          2003,
+          null,
+          "2003-05-07"
+        ],
+        [
+          33,
+          "88",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          34,
+          "33",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          35,
+          "32",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          36,
+          "31",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          37,
+          "47",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          38,
+          "25",
+          "DURAFFOURG Lauriane",
+          "FRA",
+          2002,
+          null,
+          "2002-04-05"
+        ],
+        [
+          39,
+          "16",
+          "LANGENBARG Puck",
+          "NED",
+          2006,
+          null,
+          "2006-04-26"
+        ],
+        [
+          40,
+          "43",
+          "FERRI Elisa",
+          "ITA",
+          2007,
+          null,
+          "2007-10-23"
+        ],
+        [
+          41,
+          "55",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          42,
+          "85",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          43,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          44,
+          "29",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          45,
+          "61",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          46,
+          "30",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          47,
+          "38",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          null,
+          "2006-12-11"
+        ],
+        [
+          48,
+          "94",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          49,
+          "63",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          50,
+          "48",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          "LAP",
+          "1994-02-16"
+        ],
+        [
+          51,
+          "97",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          "LAP",
+          "2006-11-15"
+        ],
+        [
+          52,
+          "67",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          "LAP",
+          "2007-12-06"
+        ],
+        [
+          53,
+          "22",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          "LAP",
+          "2007-08-05"
+        ],
+        [
+          54,
+          "62",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          "LAP",
+          "2003-04-04"
+        ],
+        [
+          55,
+          "68",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          "LAP",
+          "2004-02-28"
+        ],
+        [
+          56,
+          "75",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          "LAP",
+          "1996-02-15"
+        ],
+        [
+          57,
+          "60",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          "LAP",
+          "1991-04-10"
+        ],
+        [
+          58,
+          "96",
+          "BERTON Nina",
+          "LUX",
+          2001,
+          "LAP",
+          "2001-08-03"
+        ],
+        [
+          59,
+          "83",
+          "GOTTWALDOVÁ Amálie",
+          "CZE",
+          2007,
+          "LAP",
+          "2007-10-25"
+        ],
+        [
+          60,
+          "36",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          "LAP",
+          "2005-03-24"
+        ],
+        [
+          61,
+          "37",
+          "DETILLEUX Emeline",
+          "BEL",
+          1999,
+          "LAP",
+          "1999-11-08"
+        ],
+        [
+          62,
+          "71",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          "LAP",
+          "2006-06-02"
+        ],
+        [
+          63,
+          "50",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          1995,
+          "LAP",
+          "1995-05-27"
+        ],
+        [
+          64,
+          "93",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          "LAP",
+          "2001-11-23"
+        ],
+        [
+          65,
+          "81",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          2006,
+          "LAP",
+          "2006-02-22"
+        ],
+        [
+          66,
+          "87",
+          "EYEINGTON Kacey",
+          "GBR",
+          2005,
+          "LAP",
+          "2005-12-31"
+        ],
+        [
+          67,
+          "34",
+          "VAN SINAEY Xaydee",
+          "BEL",
+          2005,
+          "LAP",
+          "2005-05-16"
+        ],
+        [
+          68,
+          "72",
+          "BUDDE Kaija",
+          "GER",
+          2006,
+          "LAP",
+          "2006-12-04"
+        ],
+        [
+          69,
+          "91",
+          "GLAUS Jana",
+          "SUI",
+          2005,
+          "LAP",
+          "2005-09-21"
+        ],
+        [
+          70,
+          "35",
+          "VAN DE STEENE Kim",
+          "BEL",
+          1986,
+          "LAP",
+          "1986-07-08"
+        ],
+        [
+          71,
+          "95",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          "LAP",
+          "2004-05-13"
+        ],
+        [
+          72,
+          "77",
+          "LISBYGD Ann-Dorthe",
+          "DEN",
+          1984,
+          "LAP",
+          "1984-02-16"
+        ],
+        [
+          73,
+          "89",
+          "STERN Léa",
+          "SUI",
+          2001,
+          "LAP",
+          "2001-09-25"
+        ],
+        [
+          74,
+          "80",
+          "DOUDEROVÁ Katerina",
+          "CZE",
+          2006,
+          "LAP",
+          "2006-03-26"
+        ],
+        [
+          75,
+          "78",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          "LAP",
+          "2007-07-07"
+        ],
+        [
+          76,
+          "49",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-09-03"
+        ],
+        [
+          77,
+          "57",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          78,
+          "76",
+          "DENK Rosalie",
+          "AUT",
+          2007,
+          "LAP",
+          "2007-01-10"
+        ],
+        [
+          79,
+          "73",
+          "WINDELBAND Tomke",
+          "GER",
+          2006,
+          "LAP",
+          "2006-01-09"
+        ],
+        [
+          80,
+          "86",
+          "DAY Elena",
+          "GBR",
+          2004,
+          "LAP",
+          "2004-12-27"
+        ],
+        [
+          81,
+          "98",
+          "PERSSON Thea",
+          "SWE",
+          2007,
+          "LAP",
+          "2007-12-20"
+        ],
+        [
+          82,
+          "58",
+          "KELLY Siobhan",
+          "CAN",
+          1996,
+          "LAP",
+          "1996-04-12"
+        ],
+        [
+          83,
+          "45",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          84,
+          "70",
+          "BOND Jorja",
+          "USA",
+          2006,
+          "LAP",
+          "2006-01-12"
+        ],
+        [
+          85,
+          "51",
+          "BETI PEREZ Marta",
+          "ESP",
+          2004,
+          "LAP",
+          "2004-04-03"
+        ],
+        [
+          86,
+          "52",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          87,
+          "53",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-11-27"
+        ],
+        [
+          88,
+          "74",
+          "DEHLER Viktoria",
+          "GER",
+          2002,
+          "LAP",
+          "2002-04-05"
+        ],
+        [
+          null,
+          "56",
+          "VERKERK Katja",
+          "CAN",
+          2003,
+          "DNS",
+          "2003-12-25"
+        ]
+      ]
+    },
+    {
+      "reportId": 474,
+      "name": "Zonhoven",
+      "dateKey": "2026-01-04",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/474/474.pdf?t=1767534492",
+      "reportSha256": "12e2f856ba9d29ea2ca5f9a86164968b0b0d8d9e6ed1c10197865bd821c4f617",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75899,
+        "seasonId": 455,
+        "uciRaceId": 244445,
+        "eventId": 352678
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "87458d884d055ad0e9bd4767c468146730edcb7826f3fdc2b20d4a4b5b644975",
+      "lapStatesFromPdfMissingInDataRide": 13,
+      "rows": [
+        [
+          1,
+          "8",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          2,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          3,
+          "5",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          4,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          5,
+          "10",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          6,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          7,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          8,
+          "61",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          9,
+          "6",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          10,
+          "62",
+          "BACKSTEDT Zoe",
+          "GBR",
+          2004,
+          null,
+          "2004-09-24"
+        ],
+        [
+          11,
+          "33",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          12,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          13,
+          "13",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          14,
+          "25",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          15,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          16,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          17,
+          "22",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          null,
+          "2007-08-05"
+        ],
+        [
+          18,
+          "72",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          19,
+          "26",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          20,
+          "75",
+          "LOPEZ DE SAN ROMAN Vida",
+          "USA",
+          2006,
+          null,
+          "2006-01-23"
+        ],
+        [
+          21,
+          "66",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          22,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          23,
+          "40",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          24,
+          "12",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          25,
+          "14",
+          "CABACA Mae",
+          "NED",
+          2007,
+          null,
+          "2007-02-10"
+        ],
+        [
+          26,
+          "65",
+          "ESTERMANN Rebekka",
+          "SUI",
+          1999,
+          null,
+          "1999-09-14"
+        ],
+        [
+          27,
+          "39",
+          "BORELLO Carlotta",
+          "ITA",
+          2002,
+          null,
+          "2002-01-07"
+        ],
+        [
+          28,
+          "21",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          29,
+          "37",
+          "TRUYEN Marthe",
+          "BEL",
+          1999,
+          null,
+          "1999-09-30"
+        ],
+        [
+          30,
+          "71",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          31,
+          "43",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          32,
+          "15",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          33,
+          "29",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          34,
+          "74",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          35,
+          "49",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          36,
+          "73",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          37,
+          "30",
+          "FRANCK Alicia",
+          "BEL",
+          1994,
+          null,
+          "1994-12-04"
+        ],
+        [
+          38,
+          "44",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          39,
+          "35",
+          "SEYNAVE Ilken",
+          "BEL",
+          2006,
+          null,
+          "2006-12-11"
+        ],
+        [
+          40,
+          "31",
+          "VERVLOET Sterre",
+          "BEL",
+          2003,
+          null,
+          "2003-11-26"
+        ],
+        [
+          41,
+          "56",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          null,
+          "2006-06-02"
+        ],
+        [
+          42,
+          "76",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          null,
+          "2007-12-06"
+        ],
+        [
+          43,
+          "60",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          null,
+          "2007-07-07"
+        ],
+        [
+          44,
+          "28",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          45,
+          "63",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          46,
+          "64",
+          "KAY Anna",
+          "GBR",
+          1999,
+          null,
+          "1999-05-06"
+        ],
+        [
+          47,
+          "45",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          null,
+          "1994-02-16"
+        ],
+        [
+          48,
+          "32",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          49,
+          "54",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          "LAP",
+          "2003-04-04"
+        ],
+        [
+          50,
+          "50",
+          "VERKERK Katja",
+          "CAN",
+          2003,
+          "LAP",
+          "2003-12-25"
+        ],
+        [
+          51,
+          "67",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          "LAP",
+          "2001-11-23"
+        ],
+        [
+          52,
+          "24",
+          "MOULIN Anaïs",
+          "FRA",
+          2006,
+          "LAP",
+          "2006-03-13"
+        ],
+        [
+          53,
+          "69",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          "LAP",
+          "2004-05-13"
+        ],
+        [
+          54,
+          "57",
+          "BUDDE Kaija",
+          "GER",
+          2006,
+          "LAP",
+          "2006-12-04"
+        ],
+        [
+          55,
+          "51",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          56,
+          "42",
+          "SECCHI Giorgia",
+          "ITA",
+          2004,
+          "LAP",
+          "2004-06-09"
+        ],
+        [
+          57,
+          "59",
+          "DENK Rosalie",
+          "AUT",
+          2007,
+          "LAP",
+          "2007-01-10"
+        ],
+        [
+          58,
+          "55",
+          "SHIELDS Emily",
+          "USA",
+          1993,
+          "LAP",
+          "1993-09-14"
+        ],
+        [
+          59,
+          "79",
+          "ELF BOBERG Saga",
+          "SWE",
+          2007,
+          "LAP",
+          "2007-11-18"
+        ],
+        [
+          60,
+          "52",
+          "KELLY Siobhan",
+          "CAN",
+          1996,
+          "LAP",
+          "1996-04-12"
+        ],
+        [
+          61,
+          "47",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-03-19"
+        ],
+        [
+          null,
+          "77",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          "DNF",
+          "2004-02-28"
+        ],
+        [
+          null,
+          "68",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          "DNF",
+          "2004-01-08"
+        ],
+        [
+          null,
+          "78",
+          "BOND Jorja",
+          "USA",
+          2006,
+          "DNF",
+          "2006-01-12"
+        ]
+      ]
+    },
+    {
+      "reportId": 479,
+      "name": "Benidorm Costa Blanca",
+      "dateKey": "2026-01-18",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/479/479.pdf?t=1768743811",
+      "reportSha256": "338478e238b96a37be7fb8de865c775b9cefc76cd18695e8b870acd6d5a088a3",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75906,
+        "seasonId": 455,
+        "uciRaceId": 244480,
+        "eventId": 352713
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "931c89c8451ae4fce76ad2490ed6c2c3858527a272063e8e0cf1a3b613b436fa",
+      "lapStatesFromPdfMissingInDataRide": 9,
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          2,
+          "6",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          3,
+          "16",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          4,
+          "18",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          5,
+          "64",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          6,
+          "9",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          7,
+          "29",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          8,
+          "69",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          9,
+          "63",
+          "VAS Kata Blanka",
+          "HUN",
+          2001,
+          null,
+          "2001-09-03"
+        ],
+        [
+          10,
+          "67",
+          "BACKSTEDT Zoe",
+          "GBR",
+          2004,
+          null,
+          "2004-09-24"
+        ],
+        [
+          11,
+          "34",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          12,
+          "35",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          13,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          14,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          15,
+          "73",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          null,
+          "2006-11-15"
+        ],
+        [
+          16,
+          "8",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          17,
+          "11",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          18,
+          "24",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          19,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          20,
+          "17",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          21,
+          "23",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          22,
+          "13",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          23,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          24,
+          "52",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          25,
+          "28",
+          "FRANCK Alicia",
+          "BEL",
+          1994,
+          null,
+          "1994-12-04"
+        ],
+        [
+          26,
+          "59",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          27,
+          "22",
+          "DURAFFOURG Lauriane",
+          "FRA",
+          2002,
+          null,
+          "2002-04-05"
+        ],
+        [
+          28,
+          "19",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          29,
+          "21",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          null,
+          "2007-08-05"
+        ],
+        [
+          30,
+          "37",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          31,
+          "36",
+          "FERRI Elisa",
+          "ITA",
+          2007,
+          null,
+          "2007-10-23"
+        ],
+        [
+          32,
+          "12",
+          "CABACA Mae",
+          "NED",
+          2007,
+          null,
+          "2007-02-10"
+        ],
+        [
+          33,
+          "20",
+          "GALLEZOT Electa",
+          "FRA",
+          2004,
+          null,
+          "2004-07-30"
+        ],
+        [
+          34,
+          "54",
+          "GUNSALUS Elizabeth",
+          "USA",
+          2003,
+          null,
+          "2003-05-10"
+        ],
+        [
+          35,
+          "27",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          36,
+          "25",
+          "VERDONSCHOT Laura",
+          "BEL",
+          1996,
+          null,
+          "1996-12-04"
+        ],
+        [
+          37,
+          "14",
+          "LANGENBARG Puck",
+          "NED",
+          2006,
+          null,
+          "2006-04-26"
+        ],
+        [
+          38,
+          "70",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          39,
+          "38",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          40,
+          "42",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          1995,
+          null,
+          "1995-05-27"
+        ],
+        [
+          41,
+          "61",
+          "NUSS Raylyn",
+          "USA",
+          1991,
+          null,
+          "1991-01-05"
+        ],
+        [
+          42,
+          "58",
+          "MUSGRAVE Kaya",
+          "USA",
+          2005,
+          null,
+          "2005-10-17"
+        ],
+        [
+          43,
+          "56",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          44,
+          "53",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          45,
+          "60",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          null,
+          "2007-12-06"
+        ],
+        [
+          46,
+          "57",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          null,
+          "2003-04-04"
+        ],
+        [
+          47,
+          "68",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          48,
+          "40",
+          "PATIÑO VILLANUEVA Lorena",
+          "ESP",
+          2007,
+          null,
+          "2007-02-13"
+        ],
+        [
+          49,
+          "71",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          null,
+          "2001-11-23"
+        ],
+        [
+          50,
+          "32",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          null,
+          "2005-03-24"
+        ],
+        [
+          51,
+          "65",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          52,
+          "39",
+          "CUETO VEGA Sara",
+          "ESP",
+          1994,
+          null,
+          "1994-02-16"
+        ],
+        [
+          53,
+          "30",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          54,
+          "47",
+          "SAN JUSTO MANTECON Claudia",
+          "ESP",
+          2003,
+          null,
+          "2003-10-03"
+        ],
+        [
+          55,
+          "72",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          "LAP",
+          "2004-05-13"
+        ],
+        [
+          56,
+          "44",
+          "BETI PEREZ Marta",
+          "ESP",
+          2004,
+          "LAP",
+          "2004-04-03"
+        ],
+        [
+          57,
+          "45",
+          "ARANA QUINTANILLA Nahia",
+          "ESP",
+          2005,
+          "LAP",
+          "2005-09-26"
+        ],
+        [
+          58,
+          "51",
+          "VELASCO GARCIA Andrea",
+          "ESP",
+          2004,
+          "LAP",
+          "2004-01-22"
+        ],
+        [
+          59,
+          "26",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          "LAP",
+          "1999-05-26"
+        ],
+        [
+          60,
+          "50",
+          "BONILLO TALENS Sara",
+          "ESP",
+          2001,
+          "LAP",
+          "2001-02-02"
+        ],
+        [
+          61,
+          "49",
+          "ELBUSTO ARTEAGA Ainara",
+          "ESP",
+          1992,
+          "LAP",
+          "1992-09-10"
+        ],
+        [
+          62,
+          "46",
+          "FILGUEIRAS BARCENILLA Maria",
+          "ESP",
+          2006,
+          "LAP",
+          "2006-10-16"
+        ],
+        [
+          63,
+          "48",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          2007,
+          "LAP",
+          "2007-11-27"
+        ],
+        [
+          null,
+          "55",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          "DNF",
+          "2007-02-18"
+        ],
+        [
+          null,
+          "41",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          2007,
+          "DNF",
+          "2007-09-03"
+        ]
+      ]
+    },
+    {
+      "reportId": 481,
+      "name": "Maasmechelen",
+      "dateKey": "2026-01-24",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/481/481.pdf?t=1769263226",
+      "reportSha256": "a4ef0febd899f33ab2f7db79066c17f0e1d4ede10e48518bd2dab03a4c2d286b",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75907,
+        "seasonId": 455,
+        "uciRaceId": 244485,
+        "eventId": 352718
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "efc62585555038c9a09355e8fc7aa69f26d21d9c28c9f3c4f92e9d2d4ded4285",
+      "lapStatesFromPdfMissingInDataRide": 3,
+      "rows": [
+        [
+          1,
+          "7",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          2,
+          "5",
+          "ALVARADO Ceylin",
+          "NED",
+          1998,
+          null,
+          "1998-08-06"
+        ],
+        [
+          3,
+          "16",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          4,
+          "32",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          null,
+          "1999-11-29"
+        ],
+        [
+          5,
+          "60",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          6,
+          "51",
+          "VAS Kata Blanka",
+          "HUN",
+          2001,
+          null,
+          "2001-09-03"
+        ],
+        [
+          7,
+          "21",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          8,
+          "62",
+          "BACKSTEDT Zoe",
+          "GBR",
+          2004,
+          null,
+          "2004-09-24"
+        ],
+        [
+          9,
+          "10",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          10,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          null,
+          "1989-07-02"
+        ],
+        [
+          11,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          12,
+          "11",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          null,
+          "1995-12-19"
+        ],
+        [
+          13,
+          "8",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          14,
+          "33",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          15,
+          "6",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          16,
+          "22",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          17,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          18,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          19,
+          "13",
+          "MOLENGRAAF Lauren",
+          "NED",
+          2005,
+          null,
+          "2005-10-05"
+        ],
+        [
+          20,
+          "65",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          21,
+          "69",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          null,
+          "2006-11-15"
+        ],
+        [
+          22,
+          "34",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          23,
+          "61",
+          "HLADÍKOVÁ Katerina",
+          "CZE",
+          2004,
+          null,
+          "2004-02-07"
+        ],
+        [
+          24,
+          "35",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          25,
+          "26",
+          "FRANCK Alicia",
+          "BEL",
+          1994,
+          null,
+          "1994-12-04"
+        ],
+        [
+          26,
+          "24",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          27,
+          "50",
+          "LOPEZ DE SAN ROMAN Vida",
+          "USA",
+          2006,
+          null,
+          "2006-01-23"
+        ],
+        [
+          28,
+          "12",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          29,
+          "23",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          30,
+          "64",
+          "KAY Anna",
+          "GBR",
+          1999,
+          null,
+          "1999-05-06"
+        ],
+        [
+          31,
+          "19",
+          "DURAFFOURG Lauriane",
+          "FRA",
+          2002,
+          null,
+          "2002-04-05"
+        ],
+        [
+          32,
+          "14",
+          "SONNEMANS Sara",
+          "NED",
+          2006,
+          null,
+          "2006-10-05"
+        ],
+        [
+          33,
+          "63",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          34,
+          "47",
+          "MUSGRAVE Kaya",
+          "USA",
+          2005,
+          null,
+          "2005-10-17"
+        ],
+        [
+          35,
+          "17",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          36,
+          "15",
+          "MOES Noï",
+          "NED",
+          2007,
+          null,
+          "2007-05-28"
+        ],
+        [
+          37,
+          "42",
+          "KRZYSTALA Zuzanna",
+          "POL",
+          1990,
+          null,
+          "1990-05-11"
+        ],
+        [
+          38,
+          "40",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          39,
+          "28",
+          "DETILLEUX Emeline",
+          "BEL",
+          1999,
+          null,
+          "1999-11-08"
+        ],
+        [
+          40,
+          "36",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          41,
+          "43",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          42,
+          "31",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          null,
+          "2005-03-24"
+        ],
+        [
+          43,
+          "30",
+          "BAELE Lotte",
+          "BEL",
+          2003,
+          null,
+          "2003-08-19"
+        ],
+        [
+          44,
+          "67",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          null,
+          "2001-11-23"
+        ],
+        [
+          45,
+          "58",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          46,
+          "59",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          null,
+          "2007-07-07"
+        ],
+        [
+          47,
+          "18",
+          "HURTELOUP Adèle",
+          "FRA",
+          2004,
+          null,
+          "2004-12-07"
+        ],
+        [
+          48,
+          "44",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          null,
+          "2003-04-04"
+        ],
+        [
+          49,
+          "46",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          50,
+          "68",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          null,
+          "2004-05-13"
+        ],
+        [
+          51,
+          "55",
+          "SCHWENK Theresia",
+          "GER",
+          1995,
+          null,
+          "1995-12-29"
+        ],
+        [
+          52,
+          "20",
+          "DEVIGNE Camille",
+          "FRA",
+          2002,
+          null,
+          "2002-12-15"
+        ],
+        [
+          53,
+          "53",
+          "BUDDE Kaija",
+          "GER",
+          2006,
+          null,
+          "2006-12-04"
+        ],
+        [
+          54,
+          "54",
+          "WINDELBAND Tomke",
+          "GER",
+          2006,
+          "LAP",
+          "2006-01-09"
+        ],
+        [
+          55,
+          "56",
+          "STEFFENHAGEN Diana",
+          "GER",
+          1985,
+          "LAP",
+          "1985-12-09"
+        ],
+        [
+          56,
+          "57",
+          "MICHELS Friederike",
+          "GER",
+          2006,
+          "LAP",
+          "2006-05-18"
+        ],
+        [
+          null,
+          "71",
+          "SONNEMANN Lyllie",
+          "USA",
+          2007,
+          "DNF",
+          "2007-12-06"
+        ],
+        [
+          null,
+          "25",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          "DNF",
+          "1999-05-26"
+        ],
+        [
+          null,
+          "66",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          "DNF",
+          "2004-01-08"
+        ],
+        [
+          null,
+          "52",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          "DNF",
+          "2006-06-02"
+        ],
+        [
+          null,
+          "49",
+          "NUSS Raylyn",
+          "USA",
+          1991,
+          "DNF",
+          "1991-01-05"
+        ]
+      ]
+    },
+    {
+      "reportId": 486,
+      "name": "Hoogerheide",
+      "dateKey": "2026-01-25",
+      "sourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/486/486.pdf?t=1769349035",
+      "reportSha256": "c037e0921f5d70b86d8f9fa40d6e1fa04af0f3607698ac6f914764386f3902d4",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 75908,
+        "seasonId": 455,
+        "uciRaceId": 244487,
+        "eventId": 352720
+      },
+      "birthDateSourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "normalizedDataRideSha256": "26312b100b9e1519505a088439541fe4d98762984128258458d733c15d45fa37",
+      "lapStatesFromPdfMissingInDataRide": 5,
+      "rows": [
+        [
+          1,
+          "6",
+          "PIETERSE Puck",
+          "NED",
+          2002,
+          null,
+          "2002-05-13"
+        ],
+        [
+          2,
+          "69",
+          "ZEMANOVÁ Kristýna",
+          "CZE",
+          2003,
+          null,
+          "2003-10-27"
+        ],
+        [
+          3,
+          "17",
+          "FOUQUENET Amandine",
+          "FRA",
+          2001,
+          null,
+          "2001-02-19"
+        ],
+        [
+          4,
+          "72",
+          "BACKSTEDT Zoe",
+          "GBR",
+          2004,
+          null,
+          "2004-09-24"
+        ],
+        [
+          5,
+          "9",
+          "VAN ANROOIJ Shirin",
+          "NED",
+          2002,
+          null,
+          "2002-02-05"
+        ],
+        [
+          6,
+          "78",
+          "CHLADONOVÁ Viktória",
+          "SVK",
+          2006,
+          null,
+          "2006-11-15"
+        ],
+        [
+          7,
+          "35",
+          "CASASOLA Sara",
+          "ITA",
+          1999,
+          null,
+          "1999-11-29"
+        ],
+        [
+          8,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          1999,
+          null,
+          "1999-08-12"
+        ],
+        [
+          9,
+          "37",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          1996,
+          null,
+          "1996-12-16"
+        ],
+        [
+          10,
+          "25",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          1999,
+          null,
+          "1999-01-07"
+        ],
+        [
+          11,
+          "29",
+          "MOORS Fleur",
+          "BEL",
+          2005,
+          null,
+          "2005-10-11"
+        ],
+        [
+          12,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          13,
+          "26",
+          "BROUWERS Julie",
+          "BEL",
+          2002,
+          null,
+          "2002-12-23"
+        ],
+        [
+          14,
+          "18",
+          "CLAUZEL Hélène",
+          "FRA",
+          1998,
+          null,
+          "1998-01-25"
+        ],
+        [
+          15,
+          "5",
+          "BAKKER Manon",
+          "NED",
+          1999,
+          null,
+          "1999-07-15"
+        ],
+        [
+          16,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          2004,
+          null,
+          "2004-04-17"
+        ],
+        [
+          17,
+          "19",
+          "GERY Célia",
+          "FRA",
+          2006,
+          null,
+          "2006-01-04"
+        ],
+        [
+          18,
+          "52",
+          "CUSACK Lidia",
+          "USA",
+          2007,
+          null,
+          "2007-02-18"
+        ],
+        [
+          19,
+          "31",
+          "FRANCK Alicia",
+          "BEL",
+          1994,
+          null,
+          "1994-12-04"
+        ],
+        [
+          20,
+          "20",
+          "MULLER Amandine",
+          "FRA",
+          2006,
+          null,
+          "2006-10-16"
+        ],
+        [
+          21,
+          "13",
+          "KALIS Bloeme",
+          "NED",
+          2006,
+          null,
+          "2006-03-27"
+        ],
+        [
+          22,
+          "28",
+          "CRABBÉ Kiona",
+          "BEL",
+          2001,
+          null,
+          "2001-02-18"
+        ],
+        [
+          23,
+          "74",
+          "SCHREIBER Marie",
+          "LUX",
+          2003,
+          null,
+          "2003-04-17"
+        ],
+        [
+          24,
+          "43",
+          "MCGILL Sidney",
+          "CAN",
+          1999,
+          null,
+          "1999-02-01"
+        ],
+        [
+          25,
+          "55",
+          "SARKISOV Alyssa",
+          "USA",
+          2007,
+          null,
+          "2007-06-13"
+        ],
+        [
+          26,
+          "8",
+          "BETSEMA Denise",
+          "NED",
+          1993,
+          null,
+          "1993-01-23"
+        ],
+        [
+          27,
+          "39",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          1999,
+          null,
+          "1999-10-21"
+        ],
+        [
+          28,
+          "22",
+          "DESPREZ Lison",
+          "FRA",
+          2007,
+          null,
+          "2007-08-05"
+        ],
+        [
+          29,
+          "11",
+          "HARTOG Larissa",
+          "NED",
+          2001,
+          null,
+          "2001-08-03"
+        ],
+        [
+          30,
+          "38",
+          "FERRI Elisa",
+          "ITA",
+          2007,
+          null,
+          "2007-10-23"
+        ],
+        [
+          31,
+          "45",
+          "CARRIER Rafaelle",
+          "CAN",
+          2007,
+          null,
+          "2007-06-05"
+        ],
+        [
+          32,
+          "58",
+          "SARKISOV Katherine",
+          "USA",
+          2004,
+          null,
+          "2004-02-28"
+        ],
+        [
+          33,
+          "59",
+          "VAS Kata Blanka",
+          "HUN",
+          2001,
+          null,
+          "2001-09-03"
+        ],
+        [
+          34,
+          "75",
+          "WENZEL Liv",
+          "LUX",
+          2004,
+          null,
+          "2004-01-08"
+        ],
+        [
+          35,
+          "50",
+          "ASELTINE Mia",
+          "USA",
+          2004,
+          null,
+          "2004-01-23"
+        ],
+        [
+          36,
+          "14",
+          "LANGENBARG Puck",
+          "NED",
+          2006,
+          null,
+          "2006-04-26"
+        ],
+        [
+          37,
+          "32",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          2006,
+          null,
+          "2006-08-01"
+        ],
+        [
+          38,
+          "44",
+          "ROCHETTE Maghalie",
+          "CAN",
+          1993,
+          null,
+          "1993-04-20"
+        ],
+        [
+          39,
+          "23",
+          "DURAFFOURG Lauriane",
+          "FRA",
+          2002,
+          null,
+          "2002-04-05"
+        ],
+        [
+          40,
+          "57",
+          "LOPEZ DE SAN ROMAN Vida",
+          "USA",
+          2006,
+          null,
+          "2006-01-23"
+        ],
+        [
+          41,
+          "36",
+          "BRAMATI Lucia",
+          "ITA",
+          2003,
+          null,
+          "2003-01-17"
+        ],
+        [
+          42,
+          "73",
+          "CREES Xan",
+          "GBR",
+          2000,
+          null,
+          "2000-12-27"
+        ],
+        [
+          43,
+          "71",
+          "GOTTWALDOVÁ Amálie",
+          "CZE",
+          2007,
+          null,
+          "2007-10-25"
+        ],
+        [
+          44,
+          "33",
+          "DETILLEUX Emeline",
+          "BEL",
+          1999,
+          null,
+          "1999-11-08"
+        ],
+        [
+          45,
+          "40",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          1990,
+          null,
+          "1990-07-09"
+        ],
+        [
+          46,
+          "48",
+          "KRZYSTALA Zuzanna",
+          "POL",
+          1990,
+          null,
+          "1990-05-11"
+        ],
+        [
+          47,
+          "54",
+          "MUSGRAVE Kaya",
+          "USA",
+          2005,
+          null,
+          "2005-10-17"
+        ],
+        [
+          48,
+          "30",
+          "PEETERS Jinse",
+          "BEL",
+          1999,
+          null,
+          "1999-05-26"
+        ],
+        [
+          49,
+          "42",
+          "PATIÑO VILLANUEVA Lorena",
+          "ESP",
+          2007,
+          null,
+          "2007-02-13"
+        ],
+        [
+          50,
+          "53",
+          "MEGALE Anna",
+          "USA",
+          1991,
+          null,
+          "1991-04-10"
+        ],
+        [
+          51,
+          "46",
+          "KNOLL Nico",
+          "CAN",
+          2007,
+          null,
+          "2007-01-28"
+        ],
+        [
+          52,
+          "76",
+          "BARTHELS Maïté",
+          "LUX",
+          2001,
+          null,
+          "2001-11-23"
+        ],
+        [
+          53,
+          "21",
+          "CLAUZEL Perrine",
+          "FRA",
+          1994,
+          null,
+          "1994-04-05"
+        ],
+        [
+          54,
+          "66",
+          "HEIGL Nadja",
+          "AUT",
+          1996,
+          null,
+          "1996-02-15"
+        ],
+        [
+          55,
+          "34",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          2005,
+          null,
+          "2005-03-24"
+        ],
+        [
+          56,
+          "68",
+          "NIELSEN Mille",
+          "DEN",
+          2007,
+          null,
+          "2007-07-07"
+        ],
+        [
+          57,
+          "67",
+          "LISBYGD Ann-Dorthe",
+          "DEN",
+          1984,
+          null,
+          "1984-02-16"
+        ],
+        [
+          58,
+          "62",
+          "WINDELBAND Tomke",
+          "GER",
+          2006,
+          null,
+          "2006-01-09"
+        ],
+        [
+          59,
+          "51",
+          "ZOERNER Lauren",
+          "USA",
+          2003,
+          null,
+          "2003-04-04"
+        ],
+        [
+          60,
+          "77",
+          "BARTHELS Layla",
+          "LUX",
+          2004,
+          null,
+          "2004-05-13"
+        ],
+        [
+          61,
+          "79",
+          "PERSSON Thea",
+          "SWE",
+          2007,
+          null,
+          "2007-12-20"
+        ],
+        [
+          62,
+          "61",
+          "BUDDE Kaija",
+          "GER",
+          2006,
+          null,
+          "2006-12-04"
+        ],
+        [
+          63,
+          "47",
+          "PERRON Dorothee",
+          "CAN",
+          2006,
+          "LAP",
+          "2006-09-04"
+        ],
+        [
+          64,
+          "63",
+          "STEFFENHAGEN Diana",
+          "GER",
+          1985,
+          "LAP",
+          "1985-12-09"
+        ],
+        [
+          65,
+          "24",
+          "DEVIGNE Camille",
+          "FRA",
+          2002,
+          "LAP",
+          "2002-12-15"
+        ],
+        [
+          66,
+          "65",
+          "PFEIL Julia-Katharina",
+          "GER",
+          1988,
+          "LAP",
+          "1988-02-17"
+        ],
+        [
+          67,
+          "64",
+          "MICHELS Friederike",
+          "GER",
+          2006,
+          "LAP",
+          "2006-05-18"
+        ],
+        [
+          null,
+          "10",
+          "WORST Annemarie",
+          "NED",
+          1995,
+          "DNF",
+          "1995-12-19"
+        ],
+        [
+          null,
+          "12",
+          "CABACA Mae",
+          "NED",
+          2007,
+          "DNF",
+          "2007-02-10"
+        ],
+        [
+          null,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          1989,
+          "DNS",
+          "1989-07-02"
+        ],
+        [
+          null,
+          "60",
+          "BRUCHNER Regina",
+          "HUN",
+          2006,
+          "DNS",
+          "2006-06-02"
+        ],
+        [
+          null,
+          "56",
+          "NUSS Raylyn",
+          "USA",
+          1991,
+          "DNS",
+          "1991-01-05"
+        ]
+      ]
+    }
+  ],
+  "officialStandings": [
+    [
+      1,
+      "BRAND Lucinda",
+      "NED",
+      1989,
+      366,
+      [
+        "40 (1)",
+        "-",
+        "40 (1)",
+        "40 (1)",
+        "40 (1)",
+        "40 (1)",
+        "40 (1)",
+        "40 (1)",
+        "30 (2)",
+        "40 (1)",
+        "16 (10)",
+        "0"
+      ]
+    ],
+    [
+      2,
+      "VAN ALPHEN Aniek",
+      "NED",
+      1999,
+      269,
+      [
+        "21 (5)",
+        "40 (1)",
+        "30 (2)",
+        "30 (2)",
+        "25 (3)",
+        "22 (4)",
+        "21 (5)",
+        "19 (7)",
+        "20 (6)",
+        "12 (14)",
+        "15 (11)",
+        "14 (12)"
+      ]
+    ],
+    [
+      3,
+      "FOUQUENET Amandine",
+      "FRA",
+      2001,
+      255,
+      [
+        "19 (7)",
+        "30 (2)",
+        "-",
+        "25 (3)",
+        "13 (13)",
+        "16 (10)",
+        "30 (2)",
+        "25 (3)",
+        "22 (4)",
+        "25 (3)",
+        "25 (3)",
+        "25 (3)"
+      ]
+    ],
+    [
+      4,
+      "ALVARADO Ceylin",
+      "NED",
+      1998,
+      234,
+      [
+        "-",
+        "25 (3)",
+        "0",
+        "14 (12)",
+        "30 (2)",
+        "25 (3)",
+        "18 (8)",
+        "22 (4)",
+        "40 (1)",
+        "30 (2)",
+        "30 (2)",
+        "-"
+      ]
+    ],
+    [
+      5,
+      "PIETERSE Puck",
+      "NED",
+      2002,
+      225,
+      [
+        "-",
+        "-",
+        "-",
+        "22 (4)",
+        "22 (4)",
+        "21 (5)",
+        "25 (3)",
+        "30 (2)",
+        "25 (3)",
+        "-",
+        "40 (1)",
+        "40 (1)"
+      ]
+    ],
+    [
+      6,
+      "VAN ANROOIJ Shirin",
+      "NED",
+      2002,
+      218,
+      [
+        "10 (16)",
+        "20 (6)",
+        "25 (3)",
+        "-",
+        "20 (6)",
+        "30 (2)",
+        "19 (7)",
+        "15 (11)",
+        "21 (5)",
+        "20 (6)",
+        "17 (9)",
+        "21 (5)"
+      ]
+    ],
+    [
+      7,
+      "BENTVELD Leonie",
+      "NED",
+      2004,
+      203,
+      [
+        "22 (4)",
+        "21 (5)",
+        "22 (4)",
+        "18 (8)",
+        "16 (10)",
+        "18 (8)",
+        "11 (15)",
+        "20 (6)",
+        "19 (7)",
+        "13 (13)",
+        "13 (13)",
+        "10 (16)"
+      ]
+    ],
+    [
+      8,
+      "ZEMANOVÁ Kristýna",
+      "CZE",
+      2003,
+      185,
+      [
+        "20 (6)",
+        "-",
+        "-",
+        "19 (7)",
+        "21 (5)",
+        "17 (9)",
+        "-",
+        "18 (8)",
+        "18 (8)",
+        "21 (5)",
+        "21 (5)",
+        "30 (2)"
+      ]
+    ],
+    [
+      9,
+      "VAN DER HEIJDEN Inge",
+      "NED",
+      1999,
+      169,
+      [
+        "25 (3)",
+        "22 (4)",
+        "-",
+        "20 (6)",
+        "18 (8)",
+        "20 (6)",
+        "17 (9)",
+        "13 (13)",
+        "-",
+        "7 (19)",
+        "9 (17)",
+        "18 (8)"
+      ]
+    ],
+    [
+      10,
+      "BAKKER Manon",
+      "NED",
+      1999,
+      157,
+      [
+        "15 (11)",
+        "17 (9)",
+        "20 (6)",
+        "10 (16)",
+        "17 (9)",
+        "15 (11)",
+        "4 (22)",
+        "17 (9)",
+        "17 (9)",
+        "3 (23)",
+        "11 (15)",
+        "11 (15)"
+      ]
+    ],
+    [
+      11,
+      "NORBERT RIBEROLLE",
+      "BEL",
+      1999,
+      155,
+      [
+        "18 (8)",
+        "19 (7)",
+        "-",
+        "13 (13)",
+        "14 (12)",
+        "4 (22)",
+        "14 (12)",
+        "21 (5)",
+        "12 (14)",
+        "5 (21)",
+        "19 (7)",
+        "16 (10)"
+      ]
+    ],
+    [
+      12,
+      "BETSEMA Denise",
+      "NED",
+      1993,
+      143,
+      [
+        "16 (10)",
+        "14 (12)",
+        "19 (7)",
+        "12 (14)",
+        "15 (11)",
+        "19 (7)",
+        "9 (17)",
+        "10 (16)",
+        "11 (15)",
+        "10 (16)",
+        "8 (18)",
+        "0 (26)"
+      ]
+    ],
+    [
+      13,
+      "GERY Célia",
+      "FRA",
+      2006,
+      129,
+      [
+        "-",
+        "12 (14)",
+        "-",
+        "16 (10)",
+        "11 (15)",
+        "13 (13)",
+        "20 (6)",
+        "16 (10)",
+        "10 (16)",
+        "22 (4)",
+        "-",
+        "9 (17)"
+      ]
+    ],
+    [
+      14,
+      "BROUWERS Julie",
+      "BEL",
+      2002,
+      119,
+      [
+        "12 (14)",
+        "15 (11)",
+        "15 (11)",
+        "6 (20)",
+        "10 (16)",
+        "12 (14)",
+        "6 (20)",
+        "5 (21)",
+        "7 (19)",
+        "8 (18)",
+        "10 (16)",
+        "13 (13)"
+      ]
+    ],
+    [
+      15,
+      "CLAUZEL Hélène",
+      "FRA",
+      1998,
+      112,
+      [
+        "17 (9)",
+        "18 (8)",
+        "-",
+        "15 (11)",
+        "7 (19)",
+        "10 (16)",
+        "10 (16)",
+        "3 (23)",
+        "14 (12)",
+        "6 (20)",
+        "-",
+        "12 (14)"
+      ]
+    ],
+    [
+      16,
+      "CASASOLA Sara",
+      "ITA",
+      1999,
+      111,
+      [
+        "30 (2)",
+        "-",
+        "21 (5)",
+        "-",
+        "19 (7)",
+        "0",
+        "-",
+        "-",
+        "-",
+        "-",
+        "22 (4)",
+        "19 (7)"
+      ]
+    ],
+    [
+      17,
+      "MOORS Fleur",
+      "BEL",
+      2005,
+      98,
+      [
+        "11 (15)",
+        "16 (10)",
+        "-",
+        "-",
+        "12 (14)",
+        "9 (17)",
+        "1 (25)",
+        "-",
+        "15 (11)",
+        "19 (7)",
+        "0 (26)",
+        "15 (11)"
+      ]
+    ],
+    [
+      18,
+      "BRAMATI Lucia",
+      "ITA",
+      2003,
+      84,
+      [
+        "14 (12)",
+        "-",
+        "17 (9)",
+        "0 (27)",
+        "9 (17)",
+        "14 (12)",
+        "-",
+        "0 (26)",
+        "3 (23)",
+        "15 (11)",
+        "12 (14)",
+        "0 (41)"
+      ]
+    ],
+    [
+      19,
+      "WORST Annemarie",
+      "NED",
+      1995,
+      74,
+      [
+        "13 (13)",
+        "0",
+        "16 (10)",
+        "-",
+        "0 (41)",
+        "0 (28)",
+        "-",
+        "9 (17)",
+        "13 (13)",
+        "9 (17)",
+        "14 (12)",
+        "0"
+      ]
+    ],
+    [
+      20,
+      "BACKSTEDT Zoe",
+      "GBR",
+      2004,
+      72,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (27)",
+        "16 (10)",
+        "16 (10)",
+        "18 (8)",
+        "22 (4)"
+      ]
+    ],
+    [
+      21,
+      "MULLER Amandine",
+      "FRA",
+      2006,
+      70,
+      [
+        "6 (20)",
+        "9 (17)",
+        "-",
+        "17 (9)",
+        "6 (20)",
+        "7 (19)",
+        "15 (11)",
+        "0 (43)",
+        "4 (22)",
+        "0 (28)",
+        "-",
+        "6 (20)"
+      ]
+    ],
+    [
+      22,
+      "GARIBOLDI Rebecca",
+      "ITA",
+      1996,
+      61,
+      [
+        "-",
+        "-",
+        "18 (8)",
+        "-",
+        "0 (36)",
+        "-",
+        "0 (27)",
+        "8 (18)",
+        "-",
+        "14 (12)",
+        "4 (22)",
+        "17 (9)"
+      ]
+    ],
+    [
+      23,
+      "CHLADONOVÁ Viktória",
+      "SVK",
+      2006,
+      60,
+      [
+        "8 (18)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "16 (10)",
+        "0 (51)",
+        "-",
+        "11 (15)",
+        "5 (21)",
+        "20 (6)"
+      ]
+    ],
+    [
+      24,
+      "VAS Kata Blanka",
+      "HUN",
+      2001,
+      59,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "22 (4)",
+        "-",
+        "-",
+        "17 (9)",
+        "20 (6)",
+        "0 (33)"
+      ]
+    ],
+    [
+      25,
+      "SCHREIBER Marie",
+      "LUX",
+      2003,
+      54,
+      [
+        "0",
+        "-",
+        "-",
+        "-",
+        "8 (18)",
+        "0",
+        "-",
+        "14 (12)",
+        "5 (21)",
+        "18 (8)",
+        "6 (20)",
+        "3 (23)"
+      ]
+    ],
+    [
+      26,
+      "NEFF Jolanda",
+      "SUI",
+      1993,
+      39,
+      [
+        "-",
+        "-",
+        "-",
+        "21 (5)",
+        "5 (21)",
+        "-",
+        "2 (24)",
+        "11 (15)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      27,
+      "VERDONSCHOT Laura",
+      "BEL",
+      1996,
+      38,
+      [
+        "0 (33)",
+        "13 (13)",
+        "12 (14)",
+        "-",
+        "2 (24)",
+        "11 (15)",
+        "0 (28)",
+        "0 (44)",
+        "-",
+        "0 (36)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      28,
+      "CUSACK Lidia",
+      "USA",
+      2007,
+      37,
+      [
+        "2 (24)",
+        "11 (15)",
+        "-",
+        "1 (25)",
+        "0 (49)",
+        "0 (34)",
+        "7 (19)",
+        "0 (45)",
+        "8 (18)",
+        "0",
+        "-",
+        "8 (18)"
+      ]
+    ],
+    [
+      29,
+      "MOLENGRAAF Lauren",
+      "NED",
+      2005,
+      36,
+      [
+        "5 (21)",
+        "-",
+        "14 (12)",
+        "0 (28)",
+        "0 (29)",
+        "8 (18)",
+        "-",
+        "-",
+        "2 (24)",
+        "-",
+        "7 (19)",
+        "-"
+      ]
+    ],
+    [
+      30,
+      "MCGILL Sidney",
+      "CAN",
+      1999,
+      27,
+      [
+        "7 (19)",
+        "0 (32)",
+        "11 (15)",
+        "5 (21)",
+        "0 (30)",
+        "0 (33)",
+        "-",
+        "-",
+        "-",
+        "2 (24)",
+        "-",
+        "2 (24)"
+      ]
+    ],
+    [
+      31,
+      "HARTOG Larissa",
+      "NED",
+      2001,
+      22,
+      [
+        "-",
+        "-",
+        "-",
+        "7 (19)",
+        "4 (22)",
+        "3 (23)",
+        "8 (18)",
+        "-",
+        "-",
+        "-",
+        "0 (28)",
+        "0 (29)"
+      ]
+    ],
+    [
+      32,
+      "LOPEZ DE SAN ROMAN",
+      "USA",
+      2006,
+      20,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "13 (13)",
+        "1 (25)",
+        "6 (20)",
+        "-",
+        "0 (27)",
+        "0 (40)"
+      ]
+    ],
+    [
+      33,
+      "GALLEZOT Electa",
+      "FRA",
+      2004,
+      19,
+      [
+        "-",
+        "3 (23)",
+        "-",
+        "11 (15)",
+        "0 (44)",
+        "5 (21)",
+        "0",
+        "-",
+        "-",
+        "0 (33)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      34,
+      "CLAUZEL Perrine",
+      "FRA",
+      1994,
+      18,
+      [
+        "0 (38)",
+        "10 (16)",
+        "-",
+        "8 (18)",
+        "0 (28)",
+        "0 (26)",
+        "-",
+        "-",
+        "0 (28)",
+        "-",
+        "0 (35)",
+        "0 (53)"
+      ]
+    ],
+    [
+      35,
+      "BORELLO Carlotta",
+      "ITA",
+      2002,
+      17,
+      [
+        "-",
+        "-",
+        "13 (13)",
+        "-",
+        "0 (26)",
+        "0 (31)",
+        "0 (33)",
+        "4 (22)",
+        "0 (27)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      36,
+      "CRABBÉ Kiona",
+      "BEL",
+      2001,
+      16,
+      [
+        "0 (27)",
+        "0 (26)",
+        "-",
+        "-",
+        "0 (38)",
+        "0 (36)",
+        "12 (14)",
+        "0 (36)",
+        "0 (33)",
+        "0 (35)",
+        "0 (29)",
+        "4 (22)"
+      ]
+    ],
+    [
+      37,
+      "KALIS Bloeme",
+      "NED",
+      2006,
+      14,
+      [
+        "0 (26)",
+        "-",
+        "-",
+        "-",
+        "3 (23)",
+        "2 (24)",
+        "-",
+        "0 (28)",
+        "0 (32)",
+        "4 (22)",
+        "-",
+        "5 (21)"
+      ]
+    ],
+    [
+      38,
+      "CARRIER Rafaelle",
+      "CAN",
+      2007,
+      13,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1 (25)",
+        "0",
+        "-",
+        "12 (14)",
+        "-",
+        "-",
+        "-",
+        "0 (31)"
+      ]
+    ],
+    [
+      39,
+      "ROCHETTE Maghalie",
+      "CAN",
+      1993,
+      12,
+      [
+        "9 (17)",
+        "-",
+        "-",
+        "3 (23)",
+        "0 (40)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (38)"
+      ]
+    ],
+    [
+      40,
+      "VERVLOET Sterre",
+      "BEL",
+      2003,
+      12,
+      [
+        "0 (39)",
+        "4 (22)",
+        "8 (18)",
+        "0",
+        "0 (37)",
+        "0 (32)",
+        "0 (37)",
+        "0 (35)",
+        "0 (40)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      41,
+      "GUNSALUS Elizabeth",
+      "USA",
+      2003,
+      12,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (31)",
+        "6 (20)",
+        "-",
+        "6 (20)",
+        "-",
+        "0 (34)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      42,
+      "DESPREZ Lison",
+      "FRA",
+      2007,
+      11,
+      [
+        "-",
+        "1 (25)",
+        "-",
+        "-",
+        "-",
+        "1 (25)",
+        "-",
+        "0 (53)",
+        "9 (17)",
+        "0 (29)",
+        "-",
+        "0 (28)"
+      ]
+    ],
+    [
+      43,
+      "KAY Anna",
+      "GBR",
+      1999,
+      11,
+      [
+        "0 (34)",
+        "7 (19)",
+        "-",
+        "4 (22)",
+        "-",
+        "-",
+        "0",
+        "-",
+        "0 (46)",
+        "-",
+        "0 (30)",
+        "-"
+      ]
+    ],
+    [
+      44,
+      "SARKISOV Katherine",
+      "USA",
+      2004,
+      11,
+      [
+        "0 (35)",
+        "6 (20)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "5 (21)",
+        "0 (56)",
+        "0",
+        "-",
+        "-",
+        "0 (32)"
+      ]
+    ],
+    [
+      45,
+      "PELLIZOTTI Giorgia",
+      "ITA",
+      2008,
+      10,
+      [
+        "-",
+        "-",
+        "10 (16)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      46,
+      "ESTERMANN Rebekka",
+      "SUI",
+      1999,
+      9,
+      [
+        "-",
+        "-",
+        "-",
+        "9 (17)",
+        "0 (27)",
+        "0 (35)",
+        "0 (26)",
+        "0 (33)",
+        "0 (26)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      47,
+      "DE SCHOESITTER Shanyl",
+      "BEL",
+      2006,
+      9,
+      [
+        "0 (29)",
+        "0 (29)",
+        "9 (17)",
+        "0 (34)",
+        "0 (47)",
+        "-",
+        "-",
+        "0 (34)",
+        "0 (48)",
+        "0 (53)",
+        "-",
+        "0 (37)"
+      ]
+    ],
+    [
+      48,
+      "FRANCK Alicia",
+      "BEL",
+      1994,
+      9,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (37)",
+        "1 (25)",
+        "1 (25)",
+        "7 (19)"
+      ]
+    ],
+    [
+      49,
+      "MUSGRAVE Kaya",
+      "USA",
+      2005,
+      9,
+      [
+        "4 (22)",
+        "5 (21)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (42)",
+        "0 (34)",
+        "0 (47)"
+      ]
+    ],
+    [
+      50,
+      "DRAKE Haf Ann Ffion",
+      "GBR",
+      1999,
+      8,
+      [
+        "-",
+        "8 (18)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      51,
+      "SARKISOV Alyssa",
+      "USA",
+      2007,
+      8,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (33)",
+        "0 (29)",
+        "0",
+        "7 (19)",
+        "0 (34)",
+        "0 (26)",
+        "-",
+        "1 (25)"
+      ]
+    ],
+    [
+      52,
+      "HLADÍKOVÁ Katerina",
+      "CZE",
+      2004,
+      8,
+      [
+        "3 (23)",
+        "-",
+        "-",
+        "-",
+        "0 (43)",
+        "-",
+        "-",
+        "2 (24)",
+        "0 (30)",
+        "0 (51)",
+        "3 (23)",
+        "-"
+      ]
+    ],
+    [
+      53,
+      "PEETERS Jinse",
+      "BEL",
+      1999,
+      7,
+      [
+        "0 (48)",
+        "0 (36)",
+        "7 (19)",
+        "-",
+        "0 (32)",
+        "0 (27)",
+        "0 (35)",
+        "0 (46)",
+        "0 (44)",
+        "0 (59)",
+        "0",
+        "0 (48)"
+      ]
+    ],
+    [
+      54,
+      "MEGALE Anna",
+      "USA",
+      1991,
+      6,
+      [
+        "0 (40)",
+        "0 (27)",
+        "6 (20)",
+        "-",
+        "-",
+        "-",
+        "0 (41)",
+        "0 (58)",
+        "-",
+        "-",
+        "0 (49)",
+        "0 (50)"
+      ]
+    ],
+    [
+      55,
+      "FERRI Elisa",
+      "ITA",
+      2007,
+      5,
+      [
+        "-",
+        "-",
+        "5 (21)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "0 (40)",
+        "-",
+        "0 (31)",
+        "-",
+        "0 (30)"
+      ]
+    ],
+    [
+      56,
+      "AZZETTI Nicole",
+      "ITA",
+      2008,
+      4,
+      [
+        "-",
+        "-",
+        "4 (22)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      57,
+      "CABACA Mae",
+      "NED",
+      2007,
+      4,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "3 (23)",
+        "0 (31)",
+        "1 (25)",
+        "0 (32)",
+        "-",
+        "0"
+      ]
+    ],
+    [
+      58,
+      "RODRIGUEZ REVERT Sofia",
+      "ESP",
+      1999,
+      4,
+      [
+        "-",
+        "2 (24)",
+        "-",
+        "-",
+        "0 (34)",
+        "0 (30)",
+        "0 (34)",
+        "0 (29)",
+        "0 (31)",
+        "0 (30)",
+        "2 (24)",
+        "0 (27)"
+      ]
+    ],
+    [
+      59,
+      "BIANCHI Elisa",
+      "ITA",
+      2008,
+      3,
+      [
+        "-",
+        "-",
+        "3 (23)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      60,
+      "MOS Anniek",
+      "NED",
+      2001,
+      2,
+      [
+        "-",
+        "-",
+        "-",
+        "2 (24)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      61,
+      "HURTELOUP Adèle",
+      "FRA",
+      2004,
+      2,
+      [
+        "0 (45)",
+        "-",
+        "2 (24)",
+        "-",
+        "-",
+        "-",
+        "0 (55)",
+        "-",
+        "-",
+        "-",
+        "0 (47)",
+        "-"
+      ]
+    ],
+    [
+      62,
+      "TAMBOSCO Ilaria",
+      "ITA",
+      2007,
+      1,
+      [
+        "-",
+        "-",
+        "1 (25)",
+        "-",
+        "0 (70)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      63,
+      "CREES Xan",
+      "GBR",
+      2000,
+      1,
+      [
+        "1 (25)",
+        "0 (28)",
+        "-",
+        "0 (26)",
+        "0 (46)",
+        "0 (40)",
+        "0",
+        "0 (42)",
+        "0 (45)",
+        "0 (47)",
+        "0 (33)",
+        "0 (42)"
+      ]
+    ]
+  ]
+}

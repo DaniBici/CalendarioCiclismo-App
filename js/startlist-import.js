@@ -1,111 +1,65 @@
-// Contrato local de importación de inscritos v1. No resuelve identidades: el
-// resultado solo alimenta el editor para que la asignación se revise a mano.
+import { normalizeStartlistSource } from './startlist-source.mjs?v=20260912120000';
+export { normalizeStartlistSource, normalizePersonName } from './startlist-source.mjs?v=20260912120000';
+const clean = value => value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
 
-function clean(value) {
-  return value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
+// PostgREST limita cada respuesta a 1.000 filas. La primera página obtiene el
+// total; las restantes se solicitan en paralelo y se exige cobertura completa.
+export async function loadCompleteStartlistCatalog(page) {
+  const size = 1000;
+  const first = await page(0, size - 1, true);
+  if (first.error) throw first.error;
+  if (!Number.isInteger(first.count) || first.count < 0) throw new Error('No se recibió el total del catálogo.');
+  const pending = [];
+  for (let from = size; from < first.count; from += size) pending.push(page(from, from + size - 1, false));
+  const remaining = await Promise.all(pending);
+  const failed = remaining.find(result => result.error);
+  if (failed) throw failed.error;
+  const rows = [...(first.data || []), ...remaining.flatMap(result => result.data || [])];
+  if (rows.length !== first.count || new Set(rows.map(row => row.id)).size !== first.count) {
+    throw new Error('El catálogo cambió durante la carga. Vuelve a abrir la lista.');
+  }
+  return rows;
 }
 
-function issue(errors, path, message) {
-  errors.push({ path, message });
-}
-
-function splitRiderName(value) {
-  const riderName = clean(value);
-  const comma = riderName.indexOf(',');
-  if (comma >= 0) {
-    return {
-      firstName: clean(riderName.slice(comma + 1)),
-      lastName: clean(riderName.slice(0, comma)),
-    };
-  }
-  const [firstName = '', ...lastName] = riderName.split(' ');
-  return { firstName, lastName: lastName.join(' ') };
-}
-
-/**
- * Valida el archivo reducido que se carga en el editor de inscritos.
- *
- * Formato emitido: { raceId, expectedRiderCount, teams:[{ teamName,
- * riders:[{ dorsal, riderName }] }] }. Se aceptan name y firstName/lastName
- * como aliases de entrada para mantener compatibilidad con los manifiestos
- * anteriores. El resultado no transporta ni genera globalRiderId.
- */
-export function parseStartlistImportDocument(document) {
-  const errors = [];
-  if (!document || typeof document !== 'object' || Array.isArray(document)) {
-    return { ok: false, errors: [{ path: '$', message: 'El archivo debe contener un objeto JSON.' }] };
-  }
-  if (!Array.isArray(document.teams) || document.teams.length === 0) {
-    return { ok: false, errors: [{ path: '$.teams', message: 'Falta una lista de equipos.' }] };
-  }
-
-  const seenBibs = new Set();
-  const teams = document.teams.map((team, teamIndex) => {
-    const teamPath = `$.teams[${teamIndex}]`;
-    const name = clean(team?.teamName ?? team?.name);
-    if (!name) issue(errors, `${teamPath}.teamName`, 'Falta el nombre del equipo.');
-    if (!Array.isArray(team?.riders) || team.riders.length === 0) {
-      issue(errors, `${teamPath}.riders`, 'El equipo debe incluir al menos un corredor.');
-    }
-
-    const riders = (team?.riders || []).map((rider, riderIndex) => {
-      const riderPath = `${teamPath}.riders[${riderIndex}]`;
-      const dorsal = clean(rider?.dorsal);
-      if (!/^[1-9]\d*$/.test(dorsal)) {
-        issue(errors, `${riderPath}.dorsal`, 'El dorsal debe ser un decimal positivo sin ceros a la izquierda.');
-      } else if (seenBibs.has(dorsal)) {
-        issue(errors, `${riderPath}.dorsal`, `Dorsal duplicado: ${dorsal}.`);
-      } else {
-        seenBibs.add(dorsal);
-      }
-
-      const riderName = clean(rider?.riderName ?? rider?.name);
-      const explicitFirstName = clean(rider?.firstName);
-      const explicitLastName = clean(rider?.lastName);
-      if (!riderName && (!explicitFirstName || !explicitLastName)) {
-        issue(errors, riderPath, 'Incluye riderName o firstName y lastName.');
-      }
-      const parsedName = riderName ? splitRiderName(riderName) : {
-        firstName: explicitFirstName,
-        lastName: explicitLastName,
-      };
-      return { dorsal, ...parsedName };
+// El estado de una preparación permite reintentar una respuesta perdida sin
+// reconstruir la lista ni repetir las altas. Vive fuera del DOM del editor.
+export async function saveEnrichedStartlist(rpc, source, provisional, previous = null, onPrepared = () => {}) {
+  const document = normalizeStartlistSource(source);
+  const key = JSON.stringify({ document, provisional });
+  let prepared = previous?.key === key ? previous : null;
+  if (!prepared) {
+    const { data, error } = await rpc('prepare_startlist_import', {
+      p_race_id: document.raceId, p_document: document, p_provisional: provisional,
     });
-    return { name, riders };
-  });
-
-  const riderCount = teams.reduce((total, team) => total + team.riders.length, 0);
-  if (document.expectedRiderCount != null && Number(document.expectedRiderCount) !== riderCount) {
-    issue(errors, '$.expectedRiderCount', `Declara ${document.expectedRiderCount} corredores, pero el archivo contiene ${riderCount}.`);
+    if (error) throw error;
+    if (!data?.importId) throw new Error('La preparación no devolvió identificador.');
+    prepared = { key, importId: data.importId, report: data };
+    onPrepared(prepared);
+    if (!data.ready) return { prepared, report: data };
   }
-
-  return {
-    ok: errors.length === 0,
-    errors,
-    raceId: clean(document.raceId) || null,
-    teams,
-    summary: { teams: teams.length, riders: riderCount },
-  };
+  const { data, error } = await rpc('apply_startlist_import', { p_import_id: prepared.importId });
+  if (error) throw error;
+  if (!data?.status) throw new Error('No se recibió el estado de la importación.');
+  return { prepared, report: data };
 }
 
-/**
- * Comprueba que el destino elegido en el panel coincide con el destino
- * declarado por el JSON. raceId es opcional en el contrato, pero la carrera
- * elegida en el panel siempre es obligatoria.
- */
-export function validateStartlistImportTarget(selectedRaceId, documentRaceId) {
-  const selected = clean(selectedRaceId);
-  const declared = clean(documentRaceId);
-  if (!selected) {
-    return { ok: false, error: 'Selecciona la carrera de destino.' };
-  }
-  if (declared && declared !== selected) {
-    return {
-      ok: false,
-      error: `El JSON corresponde a ${declared}, no a la carrera seleccionada.`,
-    };
-  }
-  return { ok: true, raceId: selected };
+export function hasAssignedStartlistDorsals(teams) {
+  return (Array.isArray(teams) ? teams : []).some(team =>
+    (Array.isArray(team?.riders) ? team.riders : []).some(rider => Number(rider?.dorsal) > 0));
+}
+
+export function orderStartlistTeamsForSave(teams) {
+  const rows = Array.isArray(teams) ? teams : [];
+  if (!hasAssignedStartlistDorsals(rows)) return [...rows];
+  const firstDorsal = team => {
+    const dorsals = (Array.isArray(team?.riders) ? team.riders : [])
+      .map(rider => Number(rider?.dorsal))
+      .filter(dorsal => dorsal > 0);
+    return dorsals.length ? Math.min(...dorsals) : Infinity;
+  };
+  return rows.map((team, index) => ({ team, index }))
+    .sort((a, b) => firstDorsal(a.team) - firstDorsal(b.team) || a.index - b.index)
+    .map(({ team }) => team);
 }
 
 /**

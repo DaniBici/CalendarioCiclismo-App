@@ -10,11 +10,11 @@ import { supabase, countryFlag, rdLocation, filterBroadcastsByRegion,
          formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
-import { openRaceDataModal, openResultsModal, hasModalData, buildExtUrlA, buildExtUrlB, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js';
+import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
 import { tvBadge, buildAssetButtons } from './race-assets.js';
-import { initCintillo } from './cintillo.js';
+import { initCintillo } from './cintillo.js?v=20260913cxscopes';
 import { CAMP, championshipSlot, slotLabels, campTitle,
-         isChampTodayFilterActive, campTodayKey } from './campeonatos-config.js';
+         isChampTodayFilterActive, campTodayKey } from './campeonatos-config.js?v=20260924sitefix';
 
 // Mapas globales para resolver el modal al hacer click en una celda.
 const _rdById   = {};
@@ -83,7 +83,7 @@ async function init() {
           supabase.from('assets').select('*').in('raceDayId', dayIds),
           loadInhouseStageSet(raceIds),
         ])
-      : [{ data: [] }, { data: [] }, { has: () => false, allowsExternal: () => true }];
+      : [{ data: [] }, { data: [] }, { has: () => false }];
     const bByRd = {}, aByRd = {};
     (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] ??= []).push(b); });
     (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] ??= []).push(a); });
@@ -94,9 +94,8 @@ async function init() {
       rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0;
       rd._assets     = aByRd[rd.id] || [];
       // ¿Clasificaciones in-house (keepForWeb)? → el trofeo abre /resultados/ (nativo
-      // de la web), igual que las race cards de Hoy; si no, caemos a externos.
+      // de la web), igual que las race cards de Hoy.
       rd._hasInhouse = inhouseSet.has(rd);
-      rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId);
       _rdById[rd.id] = rd;
     });
 
@@ -254,7 +253,7 @@ function renderGrid() {
   grid.innerHTML = html;
 }
 
-// Una celda de evento: etiqueta · día · botones de assets · horario/TV (o resultados externos).
+// Una celda de evento: etiqueta · día · botones de assets · horario/TV (o resultados).
 function eventCell(race, rd, label) {
   const liveTextUrl = rd._assets?.find(a => a.type === 'live_text')?.url || null;
   const concluded = isRaceConcluded(rd);
@@ -263,20 +262,12 @@ function eventCell(race, rd, label) {
   const assetBtns = concluded ? '' : buildAssetButtons(rd, { colorHex: race.colorHex });
 
   // Fila inferior: con resultados in-house → trofeo a /resultados/ (como las race
-  // cards de Hoy); si no, tras concluir → badges externos (sin Revive); si no,
-  // horario de llegada sustituido por el badge de TV cuando hay TV.
+  // cards de Hoy); si no, horario de llegada sustituido por el badge de TV cuando hay TV.
   let timeHtml = '';
-  const extUrlA  = buildExtUrlA(race, rd.stageNumber, rd._fcStageNumber);
-  const extUrlB = buildExtUrlB(race, rd.stageNumber, rd._stageSuffix);
   if (rd._hasInhouse) {
     // El trofeo abre openResultsModal (que redirige a /resultados/ cuando hay
     // clasificaciones propias). Gestionado por delegación en el listener de la rejilla.
     timeHtml = `<button type="button" class="badge badge--results camp-inhouse-trophy" title="${esc(t('stage.results'))}" aria-label="${esc(t('stage.results'))}">${_trophySvg}</button>`;
-  } else if (concluded && rd._allowExternalResults !== false && (extUrlA || extUrlB)) {
-    // Misma presentación que el badge de "Resultados" de las race cards (badge--results).
-    timeHtml =
-      (extUrlA  ? `<a class="badge badge--results" href="${extUrlA}"  target="_blank" rel="noopener" onclick="event.stopPropagation()" title="fuente externa">FC</a>` : '') +
-      (extUrlB ? `<a class="badge badge--results" href="${extUrlB}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="fuente externa">fuente externa</a>` : '');
   } else {
     // En la rejilla de Campeonatos nunca mostramos "TV íntegra": el badge de TV
     // siempre muestra un horario (noFullStage=true), para que cada celda tenga una
@@ -332,7 +323,7 @@ function updateSeo() {
   const desc  = isEn ? CAMP.DESC_EN : CAMP.DESC_ES;
   const url   = isEn
     ? `https://calendariociclismo.app/en/${CAMP.SLUG_EN}/`
-    : `https://calendariociclismo.app/${CAMP.SLUG_ES}/`;
+    : `https://calendariociclismo.app/${CAMP.SLUG_ES}.html`;
 
   document.title = title;
   setMeta('description', desc);

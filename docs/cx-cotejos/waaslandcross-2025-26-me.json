@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline_official_cotejo_only",
+  "checkedAt": "2026-09-12",
+  "seasonKey": "2025-26",
+  "category": "ME",
+  "dateKey": "2026-02-14",
+  "projectionNote": "DataRide: solo se conservan campos del cotejo. Los SHA-256 identifican los documentos locales originales, no esta proyección ni una captura remota.",
+  "originalOfficialFactsSha256": "0e476e634f37228c1073fa7c3f773b1e28fb8ff18da4547cc06114079fe3b6f0",
+  "originalNormalizedDataRideSha256": "682ae4317e07bca0c447ea3484689ae02362c2da0d86e5c1dfc3003a77b426dc",
+  "official": {
+    "sourceUrl": "https://www.acn-timing.com/?lng=EN#/events/2152959731400385/ctx/20260214_exact/generic/197998_31/home/RES31",
+    "organizerUrl": "https://hgcross.be/uitslagen/",
+    "competition": "Exact Cross - Sint-Niklaas",
+    "dateKey": "2026-02-14",
+    "category": "ME",
+    "columns": [
+      "rank",
+      "bib",
+      "name",
+      "value"
+    ],
+    "rows": [
+      [
+        1,
+        "1",
+        "VANDEPUTTE Niels",
+        "57:15"
+      ],
+      [
+        2,
+        "2",
+        "VANTHOURENHOUT Michael",
+        "57:15"
+      ],
+      [
+        3,
+        "11",
+        "KUYPERS Gerben",
+        "57:24"
+      ],
+      [
+        4,
+        "5",
+        "WYSEURE Joran",
+        "57:26"
+      ],
+      [
+        5,
+        "3",
+        "ORTS LLORET Felipe",
+        "57:27"
+      ],
+      [
+        6,
+        "9",
+        "KAMP Ryan",
+        "57:28"
+      ],
+      [
+        7,
+        "7",
+        "KUHN Kevin",
+        "57:28"
+      ],
+      [
+        8,
+        "8",
+        "MICHELS Jente",
+        "57:33"
+      ],
+      [
+        9,
+        "14",
+        "VAN DE PUTTE Victor",
+        "57:53"
+      ],
+      [
+        10,
+        "15",
+        "CORSUS Yordi",
+        "58:16"
+      ],
+      [
+        11,
+        "13",
+        "MEEUSSEN Witse",
+        "58:28"
+      ],
+      [
+        12,
+        "10",
+        "VANDEBOSCH Toon",
+        "58:31"
+      ],
+      [
+        13,
+        "18",
+        "VAN LIEROP Danny",
+        "58:34"
+      ],
+      [
+        14,
+        "20",
+        "VAN DEN EIJNDEN Guus",
+        "58:38"
+      ],
+      [
+        15,
+        "6",
+        "VAN DER HAAR Lars",
+        "58:55"
+      ],
+      [
+        16,
+        "4",
+        "HENDRIKX Mees",
+        "59:28"
+      ],
+      [
+        17,
+        "17",
+        "VIEZZI Stefano",
+        "59:31"
+      ],
+      [
+        18,
+        "23",
+        "OERTZEN Max Heiner",
+        "59:47"
+      ],
+      [
+        19,
+        "22",
+        "JANSSEN Wout",
+        "1:00:04"
+      ],
+      [
+        20,
+        "31",
+        "DAELMANS Lars",
+        "1:00:13"
+      ],
+      [
+        21,
+        "33",
+        "HEIRBAUT Toon",
+        "1:00:40"
+      ],
+      [
+        22,
+        "24",
+        "VAN GRIEKEN Stan",
+        "1:01:06"
+      ],
+      [
+        23,
+        "25",
+        "SPRANGERS Bram",
+        "1:01:30"
+      ],
+      [
+        24,
+        "34",
+        "DE VET Sander",
+        "1:02:00"
+      ],
+      [
+        25,
+        "28",
+        "MEEUSEN Tom",
+        "1:02:02"
+      ],
+      [
+        26,
+        "38",
+        "CLARYSSE Elio",
+        "1:03:00"
+      ],
+      [
+        27,
+        "32",
+        "DE NYS Milan",
+        "1:03:39"
+      ],
+      [
+        28,
+        "40",
+        "HEIRBAUT Dries",
+        "1:03:47"
+      ],
+      [
+        29,
+        "39",
+        "SMITS Rune",
+        "-1 LAP"
+      ],
+      [
+        30,
+        "26",
+        "KOCHANOWSKI Anton",
+        "-1 LAP"
+      ],
+      [
+        31,
+        "37",
+        "OP DE BEECK Brent",
+        "-2 LAP"
+      ],
+      [
+        32,
+        "36",
+        "JACOBY François",
+        "-4 LAP"
+      ],
+      [
+        null,
+        "35",
+        "LEZARD William",
+        "DNF"
+      ]
+    ],
+    "publicApiReadEvidence": {
+      "checkedAt": "2026-09-12T22:28:27.777452+00:00",
+      "url": "https://results.chronorace.be/api/results/table/search/20260214_exact/RES31?srch=&fromRecord=0&pageSize=100",
+      "sha256": "34b02a76d5358731e092db81a9adea598fdce46686fc31b1052fa12eb1e7bc47",
+      "rowCount": 33,
+      "discrepantBib": 14,
+      "discrepantTimeSeconds": 3473,
+      "cmsUrl": "https://results.chronorace.be/api/results/generic/uci/20260214_exact/dh?key=cms",
+      "cmsSha256": "d70c35512ee2b4ea93bbf479e9a4900d1c3d4f73806323d309115219adfa4f48"
+    }
+  },
+  "normalizedDataRide": {
+    "schemaVersion": 1,
+    "source": "dataride",
+    "disciplineId": 3,
+    "competitionId": 75880,
+    "seasonId": 455,
+    "fetchedAt": "2026-09-12T16:48:58.326Z",
+    "categories": [
+      {
+        "category": "ME",
+        "uciRaceId": 244381,
+        "eventId": 352614,
+        "eventName": "General Classification",
+        "dateKey": "2026-02-14",
+        "publicationHint": "unverified_results",
+        "rows": [
+          {
+            "rank": 1,
+            "bib": "1",
+            "riderDisplay": "VANDEPUTTE Niels",
+            "timeText": "0:57:15",
+            "gapText": null,
+            "timeSeconds": "3435",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 2,
+            "bib": "2",
+            "riderDisplay": "VANTHOURENHOUT Michael",
+            "timeText": "0:57:15",
+            "gapText": "+0",
+            "timeSeconds": "3435",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 3,
+            "bib": "11",
+            "riderDisplay": "KUYPERS Gerben",
+            "timeText": "0:57:24",
+            "gapText": "+9",
+            "timeSeconds": "3444",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 4,
+            "bib": "5",
+            "riderDisplay": "WYSEURE Joran",
+            "timeText": "0:57:26",
+            "gapText": "+11",
+            "timeSeconds": "3446",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 5,
+            "bib": "3",
+            "riderDisplay": "ORTS LLORET Felipe",
+            "timeText": "0:57:27",
+            "gapText": "+12",
+            "timeSeconds": "3447",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 6,
+            "bib": "9",
+            "riderDisplay": "KAMP Ryan",
+            "timeText": "0:57:28",
+            "gapText": "+13",
+            "timeSeconds": "3448",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 7,
+            "bib": "7",
+            "riderDisplay": "KUHN Kevin",
+            "timeText": "0:57:28",
+            "gapText": "+13",
+            "timeSeconds": "3448",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 8,
+            "bib": "8",
+            "riderDisplay": "MICHELS Jente",
+            "timeText": "0:57:33",
+            "gapText": "+18",
+            "timeSeconds": "3453",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 9,
+            "bib": "14",
+            "riderDisplay": "VAN DE PUTTE Victor",
+            "timeText": "0:57:51",
+            "gapText": "+36",
+            "timeSeconds": "3471",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 10,
+            "bib": "15",
+            "riderDisplay": "CORSUS Yordi",
+            "timeText": "0:58:16",
+            "gapText": "+61",
+            "timeSeconds": "3496",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 11,
+            "bib": "13",
+            "riderDisplay": "MEEUSSEN Witse",
+            "timeText": "0:58:28",
+            "gapText": "+73",
+            "timeSeconds": "3508",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 12,
+            "bib": "10",
+            "riderDisplay": "VANDEBOSCH Toon",
+            "timeText": "0:58:31",
+            "gapText": "+76",
+            "timeSeconds": "3511",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 13,
+            "bib": "18",
+            "riderDisplay": "VAN LIEROP Danny",
+            "timeText": "0:58:34",
+            "gapText": "+79",
+            "timeSeconds": "3514",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 14,
+            "bib": "20",
+            "riderDisplay": "VAN DEN EIJNDEN Guus",
+            "timeText": "0:58:38",
+            "gapText": "+83",
+            "timeSeconds": "3518",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 15,
+            "bib": "6",
+            "riderDisplay": "VAN DER HAAR Lars",
+            "timeText": "0:58:55",
+            "gapText": "+100",
+            "timeSeconds": "3535",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 16,
+            "bib": "4",
+            "riderDisplay": "HENDRIKX Mees",
+            "timeText": "0:59:28",
+            "gapText": "+133",
+            "timeSeconds": "3568",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 17,
+            "bib": "17",
+            "riderDisplay": "VIEZZI Stefano",
+            "timeText": "0:59:31",
+            "gapText": "+136",
+            "timeSeconds": "3571",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 18,
+            "bib": "23",
+            "riderDisplay": "OERTZEN Max Heiner",
+            "timeText": "0:59:47",
+            "gapText": "+152",
+            "timeSeconds": "3587",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 19,
+            "bib": "22",
+            "riderDisplay": "JANSSEN Wout",
+            "timeText": "1:00:04",
+            "gapText": "+169",
+            "timeSeconds": "3604",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 20,
+            "bib": "31",
+            "riderDisplay": "DAELMANS Lars",
+            "timeText": "1:00:13",
+            "gapText": "+178",
+            "timeSeconds": "3613",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 21,
+            "bib": "33",
+            "riderDisplay": "HEIRBAUT Toon",
+            "timeText": "1:00:40",
+            "gapText": "+205",
+            "timeSeconds": "3640",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 22,
+            "bib": "24",
+            "riderDisplay": "VAN GRIEKEN Stan",
+            "timeText": "1:01:06",
+            "gapText": "+231",
+            "timeSeconds": "3666",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 23,
+            "bib": "25",
+            "riderDisplay": "SPRANGERS Bram",
+            "timeText": "1:01:30",
+            "gapText": "+255",
+            "timeSeconds": "3690",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 24,
+            "bib": "34",
+            "riderDisplay": "DE VET Sander",
+            "timeText": "1:02:00",
+            "gapText": "+285",
+            "timeSeconds": "3720",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 25,
+            "bib": "28",
+            "riderDisplay": "MEEUSEN Tom",
+            "timeText": "1:02:02",
+            "gapText": "+287",
+            "timeSeconds": "3722",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 26,
+            "bib": "38",
+            "riderDisplay": "CLARYSSE Elio",
+            "timeText": "1:03:00",
+            "gapText": "+345",
+            "timeSeconds": "3780",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 27,
+            "bib": "32",
+            "riderDisplay": "DE NYS Milan",
+            "timeText": "1:03:39",
+            "gapText": "+384",
+            "timeSeconds": "3819",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 28,
+            "bib": "40",
+            "riderDisplay": "HEIRBAUT Dries",
+            "timeText": "1:03:47",
+            "gapText": "+392",
+            "timeSeconds": "3827",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 29,
+            "bib": "39",
+            "riderDisplay": "SMITS Rune",
+            "timeText": null,
+            "gapText": "-1 LAP",
+            "timeSeconds": null,
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 30,
+            "bib": "26",
+            "riderDisplay": "KOCHANOWSKI Anton",
+            "timeText": null,
+            "gapText": "-1 LAP",
+            "timeSeconds": null,
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 31,
+            "bib": "37",
+            "riderDisplay": "OP DE BEECK Brent",
+            "timeText": null,
+            "gapText": "-2 LAPS",
+            "timeSeconds": null,
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 32,
+            "bib": "36",
+            "riderDisplay": "JACOBY François",
+            "timeText": null,
+            "gapText": "-4 LAPS",
+            "timeSeconds": null,
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "35",
+            "riderDisplay": "LEZARD William",
+            "timeText": null,
+            "gapText": null,
+            "timeSeconds": null,
+            "irm": "DNF",
+            "sourceConflict": null
+          }
+        ],
+        "evidence": {
+          "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+          "inputSource": "dataride",
+          "dataRide": {
+            "disciplineId": 3,
+            "competitionId": 75880,
+            "seasonId": 455,
+            "uciRaceId": 244381,
+            "eventId": 352614
+          }
+        }
+      }
+    ],
+    "exclusions": [],
+    "seasonKey": "2025-26"
+  }
+}

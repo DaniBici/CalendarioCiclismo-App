@@ -2,7 +2,6 @@ package app.calendariociclismo.android.data.sync
 
 import android.content.Context
 import android.util.Log
-import androidx.glance.appwidget.updateAll
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -16,9 +15,11 @@ import app.calendariociclismo.android.data.model.Asset
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.prefs.AppPreferences
 import app.calendariociclismo.android.data.repository.CalendarRepository
+import app.calendariociclismo.android.data.repository.CyclocrossRepository
 import app.calendariociclismo.android.util.DateFormatting
-import app.calendariociclismo.android.widget.today.TodayCyclingWidget
+import app.calendariociclismo.android.util.CyclocrossLogic
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -49,6 +50,7 @@ class OfflineManager(
     private val appContext: Context,
     private val prefs: AppPreferences,
     private val repo: CalendarRepository,
+    private val cxRepo: CyclocrossRepository,
     private val assetCache: FileAssetCache = FileAssetCache(appContext),
     private val imageCache: ImageAssetCache = ImageAssetCache(appContext),
 ) {
@@ -70,6 +72,7 @@ class OfflineManager(
         prefs.setOfflineEnabled(false)
         cancelPeriodic()
         repo.clearAll()
+        cxRepo.clear()
         runCatching { assetCache.clear() }
             .onFailure { Log.w(TAG, "Error limpiando caché de assets: ${it.message}") }
         runCatching { imageCache.clear() }
@@ -177,6 +180,7 @@ class OfflineManager(
         // 1 purga = 19
         val totalSteps = 19f
         var completed = 0f
+        var cxError: Exception? = null
 
         try {
             val todayKey = DateFormatting.todayKey()
@@ -184,6 +188,7 @@ class OfflineManager(
             val currentYear = today.year
             val currentMonth = YearMonth.from(today)
             val nextMonth = currentMonth.plusMonths(1)
+            val cxMonths = CyclocrossLogic.offlineMonths(today)
 
             // IDs de jornadas cacheadas esta pasada (para recoger sus assets R2
             // de Room al final y purgar los ficheros huérfanos).
@@ -208,12 +213,20 @@ class OfflineManager(
             // 2. Mes actual
             setStatus("Descargando mes actual…")
             downloadMonth(currentMonth)
+            try { cxRepo.prepareOfflineMonth(cxMonths.first()) } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                cxError = error
+            }
             completed++
             publishProgress(completed / totalSteps)
 
             // 3. Mes siguiente
             setStatus("Descargando mes siguiente…")
             downloadMonth(nextMonth)
+            try { cxMonths.getOrNull(1)?.let { cxRepo.prepareOfflineMonth(it) } } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                cxError = error
+            }
             completed++
             publishProgress(completed / totalSteps)
 
@@ -251,6 +264,7 @@ class OfflineManager(
             //    Las banderas van en assets/flags/ (bundled) — no se descargan.
             setStatus("Descargando logos…")
             val retainedLogos = hashSetOf<String>()
+            retainedLogos.addAll(cxRepo.artworkUrls())
             runCatching {
                 val racesForYear = repo.cachedRacesForYear(currentYear)
                 for (r in racesForYear) collectArtwork(r, retainedLogos)
@@ -277,14 +291,12 @@ class OfflineManager(
             runCatching { imageCache.purge(retainedLogos) }
                 .onFailure { Log.w(TAG, "Error purgando imágenes: ${it.message}") }
 
+            cxError?.let { throw IllegalStateException("No se ha completado la descarga de ciclocross", it) }
             val now = System.currentTimeMillis() / 1000
             prefs.recordSync(now, "ok")
             // Marca el esquema de caché al día — los próximos arranques ya no
             // disparan la migración. Ver [CACHE_SCHEMA_VERSION] para historial.
             prefs.setOfflineCacheSchemaVersion(CACHE_SCHEMA_VERSION)
-            // Redibujar el widget con los datos recién sincronizados
-            runCatching { TodayCyclingWidget().updateAll(appContext) }
-                .onFailure { Log.w(TAG, "Error actualizando widget tras sync: ${it.message}") }
             _state.value = SyncState(
                 isSyncing = false,
                 progress = 1f,
@@ -309,8 +321,7 @@ class OfflineManager(
         val startKey = "%04d-%02d-01".format(month.year, month.monthValue)
         val endKey = "%04d-%02d-%02d".format(month.year, month.monthValue, month.lengthOfMonth())
         runCatching {
-            repo.refreshRange(startKey, endKey)
-            repo.refreshRacesYear(month.year)
+            repo.refreshMonth(startKey, endKey)
         }.onFailure { Log.w(TAG, "Error mes ${month.year}-${month.monthValue}: ${it.message}") }
     }
 
@@ -350,6 +361,6 @@ class OfflineManager(
          *         la descarga de banderas del sync. Solo se descargan logos de
          *         carreras nuevas no incluidas en el bundle empaquetado.
          */
-        const val CACHE_SCHEMA_VERSION = 3
+        const val CACHE_SCHEMA_VERSION = 4
     }
 }

@@ -1,8 +1,9 @@
-import json, os, html, sys, traceback, re, unicodedata
+import argparse, json, os, html, sys, traceback, re, unicodedata
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import quote
 from datetime import datetime, timezone
+from archived_seasons import ROBOTS_INDEX, race_robots
 from results_routes import (
     result_entry_key,
     result_entry_sort_key,
@@ -256,6 +257,10 @@ PRERENDER_LOADING_HTML = (
     '</div></div>'
 )
 
+JORNADA_SCRIPT = "/js/jornada.js"
+COMPETICION_SCRIPT = "/js/competicion.js"
+APP_STYLESHEET = "/css/app.css"
+
 # Assets de MapLibre (CSS + JS) para las páginas de /mapa/. El <script>
 # es clásico (no módulo) → define window.maplibregl antes de que el
 # módulo diferido mapa-pub.js se ejecute. Espejo de mapa.html. Sin esto,
@@ -271,11 +276,11 @@ LEAFLET_HEAD = (
 def og_page(title, description, canonical_url,
             og_image=None, og_image_alt=None,
             body_html="", json_ld_objs=None,
-            container_id="jornadaContent", spa_script="/js/jornada.js",
+            container_id="jornadaContent", spa_script=JORNADA_SCRIPT,
             main_class="",
             prerender_visible=True, show_loading=True,
             date_published=None, date_modified=None,
-            head_extra=""):
+            head_extra="", robots=ROBOTS_INDEX):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
     img_alt = og_image_alt or title
     # Asignar id estable según @type para que la SPA pueda sobrescribirlos
@@ -294,11 +299,11 @@ def og_page(title, description, canonical_url,
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="robots" content="{esc(robots)}">
 <meta name="apple-itunes-app" content="app-id=6761902611">{f'<meta name="date" content="{esc(date_published)}">' if date_published else ''}{f'<meta name="last-modified" content="{esc(date_modified)}">' if date_modified else ''}
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(description)}">
@@ -326,7 +331,7 @@ def og_page(title, description, canonical_url,
 <meta name="twitter:image" content="{esc(img)}">
 <meta name="twitter:image:alt" content="{esc(img_alt)}">{ld_tags}
 <script src="/js/theme.js"></script>
-<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="{APP_STYLESHEET}">
 {PRERENDER_STYLE}
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -475,6 +480,15 @@ def format_full_date(date_key):
 
 DIAS_SEMANA = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"]
 
+def format_weekday_full_date(date_key):
+    """Fecha SEO española con día de la semana, sin depender del locale."""
+    try:
+        from datetime import date as _dt_date
+        civil = _dt_date.fromisoformat(date_key)
+        return f"{DIAS_SEMANA[civil.weekday()]}, {format_full_date(date_key)}"
+    except (TypeError, ValueError):
+        return date_key
+
 def format_weekday_date(date_key):
     """'2026-06-20' → 'Sábado 20 de junio' (día capitalizado, sin año).
 
@@ -601,11 +615,11 @@ def og_page_en(title, description, canonical_url,
                es_url=None,
                og_image=None, og_image_alt=None,
                body_html="", json_ld_objs=None,
-               container_id="jornadaContent", spa_script="/js/jornada.js",
+               container_id="jornadaContent", spa_script=JORNADA_SCRIPT,
                main_class="",
                prerender_visible=True, show_loading=True,
                date_published=None, date_modified=None,
-               head_extra=""):
+               head_extra="", robots=ROBOTS_INDEX):
     img     = og_image if og_image and og_image.startswith("http") else DEFAULT_OG_IMAGE
     img_alt = og_image_alt or title
     ld_tags = ""
@@ -625,11 +639,11 @@ def og_page_en(title, description, canonical_url,
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="robots" content="{esc(robots)}">
 <meta name="apple-itunes-app" content="app-id=6761902611">{f'<meta name="date" content="{esc(date_published)}">' if date_published else ''}{f'<meta name="last-modified" content="{esc(date_modified)}">' if date_modified else ''}
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(description)}">
@@ -656,7 +670,7 @@ def og_page_en(title, description, canonical_url,
 <meta name="twitter:image" content="{esc(img)}">
 <meta name="twitter:image:alt" content="{esc(img_alt)}">{ld_tags}
 <script src="/js/theme.js"></script>
-<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="{APP_STYLESHEET}">
 {PRERENDER_STYLE}
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -684,15 +698,89 @@ def og_page_en(title, description, canonical_url,
 </body>
 </html>"""
 
+# El selector limita los ficheros emitidos; las consultas y los cálculos SEO
+# compartidos se mantienen idénticos entre familias.
+OG_FAMILY_DIRS = {
+    "races": ("competicion", "en/race"),
+    "stages": ("jornada", "en/stage"),
+    "results": ("resultados", "en/results"),
+    "extras": ("inscritos", "en/startlist", "orden-salida", "en/start-order",
+               "perfil", "en/profile", "mapa", "en/route-map"),
+    "cx": ("ciclocross", "en/cyclocross"),
+}
+parser = argparse.ArgumentParser()
+parser.add_argument("--family", help="Familias separadas por comas: " + ",".join(OG_FAMILY_DIRS))
+parser.add_argument("--stage-slugs", help="Slugs nuevos separados por comas para generación incremental")
+args = parser.parse_args()
+OG_FAMILIES = set(args.family.split(",")) if args.family else None
+if OG_FAMILIES is not None and not OG_FAMILIES.issubset(OG_FAMILY_DIRS):
+    parser.error(f"--family admite: {', '.join(OG_FAMILY_DIRS)}")
+SELECTED_STAGE_SLUGS = set(args.stage_slugs.split(",")) if args.stage_slugs else set()
+SELECTED_RACE_IDS = set()
+if SELECTED_STAGE_SLUGS and (not OG_FAMILIES or not OG_FAMILIES.issubset({"races", "stages", "extras"})):
+    parser.error("--stage-slugs requiere --family races, stages o extras")
+
+
+def generation_enabled(family):
+    return OG_FAMILIES is None or family in OG_FAMILIES
+
+
+def in_filter(values):
+    """Filtro PostgREST `in.(...)` con valores entrecomillados y codificados."""
+    return quote("in.(" + ",".join(f'"{value}"' for value in sorted(values)) + ")", safe="().,")
+
+
+def emit_rows(rows, family):
+    if not generation_enabled(family):
+        return ()
+    if not SELECTED_STAGE_SLUGS:
+        return rows
+    return (row for row in rows if
+            (row.get("raceId") is not None and row.get("slug") in SELECTED_STAGE_SLUGS)
+            or (row.get("raceId") is None and row.get("id") in SELECTED_RACE_IDS))
+
+
+def family_get(family, path):
+    return supabase_get(path) if generation_enabled(family) else []
+
+
+def road_get(path):
+    return supabase_get(path) if OG_FAMILIES != {"cx"} else []
+
+
+def output_open(path, *args, **kwargs):
+    relative = os.fspath(path).replace("\\", "/")
+    families = globals().get("OG_FAMILIES")
+    if families and not any(relative.startswith(prefix + "/")
+                            for family in families for prefix in OG_FAMILY_DIRS[family]):
+        return open(os.devnull, *args, **kwargs)
+    return open(path, *args, **kwargs)
+
+
+# En modo incremental las consultas de carretera se limitan a las carreras de
+# las jornadas pedidas. Las salidas de estas familias dependen solo de su
+# carrera: el grupo canónico de una jornada incluye su raceId.
+RACE_FILTER = DAY_FILTER = ""
+if SELECTED_STAGE_SLUGS:
+    _selected_refs = supabase_get(
+        "race_days?select=slug,raceId&editorialStatus=eq.published"
+        f"&slug={in_filter(SELECTED_STAGE_SLUGS)}")
+    SELECTED_RACE_IDS = {row.get("raceId") for row in _selected_refs
+                         if row.get("slug") in SELECTED_STAGE_SLUGS and row.get("raceId")}
+    if not SELECTED_RACE_IDS:
+        raise ValueError(f"Jornadas no publicadas: {sorted(SELECTED_STAGE_SLUGS)}")
+    RACE_FILTER = f"&id={in_filter(SELECTED_RACE_IDS)}"
+    DAY_FILTER = f"&raceId={in_filter(SELECTED_RACE_IDS)}"
+
 # ── COMPETICIONES ──
 print("Generando páginas OG para competiciones...")
 # NB: la tabla races no tiene updatedAt (solo createdAt). El dateModified
 # de la JSON-LD SportsEvent cae al fallback `end or start`.
-races = supabase_get(
+races = road_get(
     "races?select=id,slug,slugEn,name,nameEn,originalName,year,startDate,endDate,"
     "logoUrl,raceFormat,countryCode,uciCategory,isCancelled,websiteUrl,"
     "startlistProvisional,gender"
-    "&slug=not.is.null&order=startDate.desc"
+    "&slug=not.is.null&order=startDate.desc" + RACE_FILTER
 )
 
 # Conteos de equipos y corredores por carrera (para descripciones de inscritos).
@@ -709,7 +797,7 @@ races = supabase_get(
 sl_team_counts = {}
 sl_rider_counts = {}
 try:
-    for row in supabase_rpc("startlist_counts") or []:
+    for row in (supabase_rpc("startlist_counts") if generation_enabled("extras") else []) or []:
         rid = row.get("raceId")
         if not rid:
             continue
@@ -722,14 +810,22 @@ except Exception as e:
     print(f"  Aviso: no se pudieron cargar conteos de startlist: {e}", file=sys.stderr)
 
 # Precarga jornadas para generar ItemList en páginas de competición
-racedays_all = supabase_get(
+racedays_all = road_get(
     "race_days?select=id,slug,slugEn,raceId,stageNumber,startLocation,finishLocation,"
     "startLocationEn,finishLocationEn,dateKey,isRestDay,isCancelledDay,updatedAt,"
     "neutralStartTimeUtc,"
     "countryCode,elevationProfile,profileNotViewable,distanceKm,primaryType,secondaryType,"
     "description,translations"
-    "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc"
+    "&editorialStatus=eq.published&slug=not.is.null&order=dateKey.asc" + DAY_FILTER
 )
+if SELECTED_STAGE_SLUGS:
+    selected_days = [day for day in racedays_all if day.get("slug") in SELECTED_STAGE_SLUGS]
+    found = {day["slug"] for day in selected_days}
+    if found != SELECTED_STAGE_SLUGS or len(selected_days) != len(found):
+        raise ValueError(f"Jornadas no publicadas o slugs duplicados: {sorted(SELECTED_STAGE_SLUGS - found)}")
+    SELECTED_RACE_IDS = {day.get("raceId") for day in selected_days}
+    if None in SELECTED_RACE_IDS or not SELECTED_RACE_IDS.issubset({race.get("id") for race in races}):
+        raise ValueError("Una jornada seleccionada no tiene carrera publicada")
 stages_by_race = {}
 for _rd in racedays_all:
     _rid = _rd.get("raceId")
@@ -739,7 +835,7 @@ for _rd in racedays_all:
 # SEO ES capturado por raceId para reusarlo en las páginas EN (/en/race).
 comp_seo = {}
 race_count = 0
-for race in races:
+for race in emit_rows(races, "races"):
     slug = race.get("slug")
     if not slug:
         continue
@@ -791,7 +887,7 @@ for race in races:
     crumbs = [
         ("Inicio", f"{BASE_URL}/"),
         (f"Temporada {year}" if year else "Temporada",
-         f"{BASE_URL}/calendario.html" + (f"?year={year}" if year else "")),
+         f"{BASE_URL}/calendario/" + (f"?year={year}" if year else "")),
         (display_title, None),
     ]
 
@@ -843,7 +939,7 @@ for race in races:
     json_ld_list = [obj for obj in (competition_event, breadcrumb_list(crumbs)) if obj]
     if il_items and len(race_stages) > 1:
         json_ld_list.insert(1, item_list(f"Etapas de {display_title}", il_items))
-    if year:
+    if isinstance(race.get("year"), int) and race["year"] >= datetime.now(timezone.utc).year:
         feed_url = f"{BASE_URL}/feed/{year}.ics"
         json_ld_list.append({
             "@context": "https://schema.org",
@@ -863,14 +959,15 @@ for race in races:
 
     dir_path = f"competicion/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
                         og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="competicionContent",
-                        spa_script="/js/competicion.js",
+                        spa_script=COMPETICION_SCRIPT,
                         date_published=date_published_comp,
-                        date_modified=date_modified_comp))
+                        date_modified=date_modified_comp,
+                        robots=race_robots(race)))
     race_count += 1
 
 print(f"  → {race_count} competiciones")
@@ -903,6 +1000,10 @@ for _k, slugs in grouped.items():
         canonical_slug_by_slug[s] = master
 if alias_groups:
     print(f"  → detectados {alias_groups} grupos de alias de slug en jornadas; se consolida canonical al maestro")
+if SELECTED_STAGE_SLUGS:
+    for day in selected_days:
+        if len(set(grouped[canonical_group_key(day)])) > 1:
+            raise ValueError("Una jornada nueva comparte canonical con otra; requiere generación completa")
 
 _STAGE_TYPE_ES = {
     "mountain": "Montaña", "flat": "Llano", "hilly": "Accidentada",
@@ -916,7 +1017,7 @@ race_map = {r["id"]: r for r in races}
 # SEO ES capturado por slug para reusarlo en las páginas EN (/en/stage).
 jornada_seo = {}
 day_count = 0
-for rd in racedays:
+for rd in emit_rows(racedays, "stages"):
     slug = rd.get("slug")
     if not slug:
         continue
@@ -1004,7 +1105,7 @@ for rd in racedays:
     # Breadcrumbs
     crumbs = [("Inicio", f"{BASE_URL}/")]
     if race_year:
-        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario.html?year={race_year}"))
+        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario/?year={race_year}"))
     if race_slug and not is_one_day:
         comp_name = f"{race_name} {race_year}" if race_year else race_name
         crumbs.append((comp_name, f"{BASE_URL}/competicion/{quote(race_slug)}/"))
@@ -1074,14 +1175,15 @@ for rd in racedays:
 
     dir_path = f"jornada/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
                         og_image_alt=og_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="jornadaContent",
-                        spa_script="/js/jornada.js",
+                        spa_script=JORNADA_SCRIPT,
                         date_published=date_key or None,
-                        date_modified=rd_updated_at or date_key or None))
+                        date_modified=rd_updated_at or date_key or None,
+                        robots=race_robots(race)))
     day_count += 1
 
 print(f"  → {day_count} jornadas")
@@ -1095,7 +1197,7 @@ print("Generando páginas OG para inscritos...")
 # SEO ES capturado por raceId para reusarlo en las páginas EN (/en/startlist).
 inscritos_seo = {}
 inscritos_count = 0
-for race in races:
+for race in emit_rows(races, "extras"):
     slug = race.get("slug")
     if not slug:
         continue
@@ -1129,7 +1231,7 @@ for race in races:
     crumbs = [
         ("Inicio", f"{BASE_URL}/"),
         (f"Temporada {year}" if year else "Temporada",
-         f"{BASE_URL}/calendario.html" + (f"?year={year}" if year else "")),
+         f"{BASE_URL}/calendario/" + (f"?year={year}" if year else "")),
         (f"{name} {year}" if year else name,
          f"{BASE_URL}/competicion/{quote(slug)}/"),
         (inscritos_label, None),
@@ -1143,12 +1245,13 @@ for race in races:
 
     dir_path = f"inscritos/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page(title, description, canonical, og_image,
                         og_image_alt=f"{inscritos_label} — {name} {year}",
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="inscritosContent",
-                        spa_script="/js/inscritos.js"))
+                        spa_script="/js/inscritos.js",
+                        robots=race_robots(race)))
     inscritos_count += 1
 
 print(f"  → {inscritos_count} inscritos")
@@ -1156,19 +1259,19 @@ print(f"  → {inscritos_count} inscritos")
 # ── ORDEN DE SALIDA ──
 print("Generando páginas OG para órdenes de salida...")
 os.makedirs("orden-salida", exist_ok=True)
-so_rds_raw = supabase_get(
+so_rds_raw = family_get("extras",
     "race_days?select=id,slug,slugEn,raceId,stageNumber,primaryType,dateKey,"
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
     "distanceKm,startOrderImportedAt,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&startOrderImportedAt=not.is.null"
+    "&startOrderImportedAt=not.is.null" + DAY_FILTER
 )
 print(f"  → {len(so_rds_raw)} jornadas con orden de salida")
 # SEO ES capturado por slug para reusarlo en las páginas EN (SEO en
 # castellano, contenido visible en inglés).
 so_seo = {}
 so_count = 0
-for rd in so_rds_raw:
+for rd in emit_rows(so_rds_raw, "extras"):
     slug = rd.get("slug")
     if not slug:
         continue
@@ -1224,7 +1327,7 @@ for rd in so_rds_raw:
     crumbs = [
         ("Inicio", f"{BASE_URL}/"),
         (f"Temporada {year}" if year else "Temporada",
-         f"{BASE_URL}/calendario.html" + (f"?year={year}" if year else "")),
+         f"{BASE_URL}/calendario/" + (f"?year={year}" if year else "")),
     ]
     if race_slug:
         crumbs.append((f"{race_name} {year}" if year else race_name,
@@ -1240,20 +1343,25 @@ for rd in so_rds_raw:
     rd_updated_at = rd.get("startOrderImportedAt") or rd.get("updatedAt")
     dir_path = f"orden-salida/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
-        f.write(og_page(title, description, canonical, og_image,
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+        source = og_page(title, description, canonical, og_image,
                         og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="startOrderContent",
                         spa_script="/js/orden-salida.js",
-                        date_modified=rd_updated_at))
+                        date_modified=rd_updated_at,
+                        robots=race_robots(race))
+        if rd.get("slugEn"):
+            en_url = f"{BASE_URL_EN}/start-order/{quote(rd['slugEn'])}/"
+            source = source.replace('</head>', f'<link rel="alternate" hreflang="en" href="{esc(en_url)}">\n</head>')
+        f.write(source)
     so_count += 1
 print(f"  → {so_count} órdenes de salida")
 
 # ── ORDEN DE SALIDA (EN) ──
 os.makedirs("en/start-order", exist_ok=True)
 so_en_count = 0
-for rd in so_rds_raw:
+for rd in emit_rows(so_rds_raw, "extras"):
     slug_en = rd.get("slugEn")
     if not slug_en:
         continue
@@ -1322,7 +1430,7 @@ for rd in so_rds_raw:
     os.makedirs(dir_path, exist_ok=True)
     # SEO en CASTELLANO (del dict so_seo); contenido visible en inglés.
     _seo = so_seo.get(slug_es)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
             _seo["title"] if _seo else title_en,
             _seo["description"] if _seo else desc_en,
@@ -1335,6 +1443,7 @@ for rd in so_rds_raw:
             container_id="startOrderContent",
             spa_script="/js/orden-salida.js",
             date_modified=rd_updated_at,
+            robots=race_robots(race),
         ))
     so_en_count += 1
 print(f"  → {so_en_count} start orders EN")
@@ -1345,12 +1454,13 @@ print(f"  → {so_en_count} start orders EN")
 # slug de la CARRERA + segmento de etapa: /resultados/<slug>/etapa-N/.
 # Crear los directorios base aunque no haya filas (git add no debe fallar).
 print("Generando páginas OG para resultados...")
-os.makedirs("resultados", exist_ok=True)
-os.makedirs("en/results", exist_ok=True)
-res_stages_raw = supabase_get(
+if generation_enabled("results"):
+    os.makedirs("resultados", exist_ok=True)
+    os.makedirs("en/results", exist_ok=True)
+res_stages_raw = family_get("results",
     "race_uci_stages?select=raceId,raceDayId,stageNumber&keepForWeb=eq.true"
 )
-res_suffix_by_day = sector_suffixes(racedays_all)
+res_suffix_by_day = sector_suffixes(racedays_all) if generation_enabled("results") else {}
 # Agrupar entradas sectorizadas por carrera ((None, '') = final / un día).
 res_real_by_race = {}
 for st in (res_stages_raw or []):
@@ -1369,7 +1479,7 @@ for _rid, _entries in list(res_real_by_race.items()):
 # disputar" y, en cuanto `race_uci_stages.keepForWeb` aporte datos reales,
 # la MISMA URL pasa a servir la clasificación (sin re-crear/mover nada).
 res_days_by_race = {}
-for _rd in racedays_all:
+for _rd in emit_rows(racedays_all, "results"):
     _rid = _rd.get("raceId")
     # El descanso no tiene página de resultados. La CANCELADA sí: desde
     # 2026-07-16 su página existe y muestra el aviso de cancelación + las
@@ -1396,7 +1506,7 @@ print(f"  → {len(res_by_race)} carreras con página de resultados "
 # bajo raceId (la clasificación llega con stageNumber=None).
 rd_by_result_entry = {}
 rd_oneday_by_race = {}
-for _rd in racedays_all:
+for _rd in emit_rows(racedays_all, "results"):
     _rid = _rd.get("raceId")
     if not _rid:
         continue
@@ -1428,7 +1538,7 @@ def _res_route_km(_rd):
 
 res_count = 0
 res_en_count = 0
-for race_id, stage_set in res_by_race.items():
+for race_id, stage_set in emit_rows(res_by_race.items(), "results"):
     race = race_map.get(race_id, {})
     slug_es = race.get("slug")
     slug_en = race.get("slugEn")
@@ -1528,7 +1638,7 @@ for race_id, stage_set in res_by_race.items():
             crumbs = [
                 ("Inicio", f"{BASE_URL}/"),
                 (f"Temporada {year}" if year else "Temporada",
-                 f"{BASE_URL}/calendario.html" + (f"?year={year}" if year else "")),
+                 f"{BASE_URL}/calendario/" + (f"?year={year}" if year else "")),
             ]
             if race_slug_es:
                 crumbs.append((hero_es if year else name_es,
@@ -1537,13 +1647,19 @@ for race_id, stage_set in res_by_race.items():
             body = start_order_body(display_title, description, crumbs)
             dir_path = f"resultados/{slug_es}" + (f"/{seg}" if seg else "")
             os.makedirs(dir_path, exist_ok=True)
-            with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
-                f.write(og_page(title, description, canonical, og_image,
+            with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+                source = og_page(title, description, canonical, og_image,
                                 og_image_alt=display_title,
                                 body_html=body,
                                 json_ld_objs=[breadcrumb_list(crumbs)],
                                 container_id="resultsContent",
-                                spa_script="/js/resultados.js"))
+                                spa_script="/js/resultados.js",
+                                robots=race_robots(race))
+                if slug_en:
+                    en_seg = _res_seg_en(stage_num, stage_suffix)
+                    en_url = f"{BASE_URL_EN}/results/{quote(slug_en)}/" + (f"{en_seg}/" if en_seg else "")
+                    source = source.replace('</head>', f'<link rel="alternate" hreflang="en" href="{esc(en_url)}">\n</head>')
+                f.write(source)
             res_count += 1
         # ── EN ──
         if slug_en:
@@ -1619,7 +1735,7 @@ for race_id, stage_set in res_by_race.items():
             body_en = breadcrumb_html(crumbs_en) + f'<h1>{esc(display_title_en)}</h1><p>{esc(desc_en)}</p>'
             dir_path = f"en/results/{slug_en}" + (f"/{seg_en}" if seg_en else "")
             os.makedirs(dir_path, exist_ok=True)
-            with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+            with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
                 # SEO en CASTELLANO (reutiliza title/description/crumbs ES de
                 # esta misma iteración, calculados en el bloque `if slug_es`);
                 # contenido visible (body_en) en inglés.
@@ -1631,7 +1747,8 @@ for race_id, stage_set in res_by_race.items():
                     body_html=body_en,
                     json_ld_objs=[breadcrumb_list(crumbs)],
                     container_id="resultsContent",
-                    spa_script="/js/resultados.js"))
+                    spa_script="/js/resultados.js",
+                    robots=race_robots(race)))
             res_en_count += 1
 print(f"  → {res_count} resultados ES · {res_en_count} resultados EN")
 
@@ -1640,19 +1757,19 @@ print("Generando páginas OG para perfiles de elevación...")
 # Crear el directorio aunque no haya filas: el `git add perfil/` posterior
 # falla con bash -eo pipefail si la ruta no existe, abortando todo el commit.
 os.makedirs("perfil", exist_ok=True)
-perfil_rds_raw = supabase_get(
+perfil_rds_raw = family_get("extras",
     "race_days?select=id,slug,slugEn,raceId,stageNumber,dateKey,isRestDay,"
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
     "distanceKm,profileSummits,profileWaypoints,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&elevationProfile=not.is.null"
+    "&elevationProfile=not.is.null" + DAY_FILTER
 )
 # Filter out not-viewable in Python so the query works even before migration 026
 perfil_rds = [rd for rd in perfil_rds_raw if not rd.get("profileNotViewable")]
 # SEO ES capturado por slug para reusarlo en las páginas EN (/en/profile).
 perfil_seo = {}
 perfil_count = 0
-for rd in perfil_rds:
+for rd in emit_rows(perfil_rds, "extras"):
     slug = rd.get("slug")
     if not slug:
         continue
@@ -1717,7 +1834,7 @@ for rd in perfil_rds:
 
     crumbs = [("Inicio", f"{BASE_URL}/")]
     if race_year:
-        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario.html?year={race_year}"))
+        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario/?year={race_year}"))
     if race_slug and not is_one_day:
         comp_name = f"{race_name} {race_year}" if race_year else race_name
         crumbs.append((comp_name, f"{BASE_URL}/competicion/{quote(race_slug)}/"))
@@ -1742,15 +1859,21 @@ for rd in perfil_rds:
 
     dir_path = f"perfil/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
-        f.write(og_page(title, description, canonical, og_image,
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+        source = og_page(title, description, canonical, og_image,
                         og_image_alt=display_title,
                         body_html=body, json_ld_objs=json_ld_list,
                         container_id="perfilEtapaContent",
                         spa_script="/js/perfil-pub.js",
                         main_class="pfe-wrap",
                         date_published=date_key or None,
-                        date_modified=rd_updated_at or date_key or None))
+                        date_modified=rd_updated_at or date_key or None,
+                        robots=race_robots(race))
+        slug_en = rd.get("slugEn") or slug
+        if slug_en and (race.get("nameEn") or race.get("name")):
+            en_url = f"{BASE_URL_EN}/profile/{quote(slug_en)}/"
+            source = source.replace('</head>', f'<link rel="alternate" hreflang="en" href="{esc(en_url)}">\n</head>')
+        f.write(source)
     perfil_count += 1
 
 print(f"  → {perfil_count} perfiles")
@@ -1761,16 +1884,16 @@ print(f"  → {perfil_count} perfiles")
 print("Generando páginas OG para mapas del recorrido...")
 os.makedirs("mapa", exist_ok=True)
 os.makedirs("en/route-map", exist_ok=True)
-mapa_rds = supabase_get(
+mapa_rds = family_get("extras",
     "race_days?select=id,slug,slugEn,raceId,stageNumber,dateKey,isRestDay,"
     "startLocation,finishLocation,startLocationEn,finishLocationEn,"
     "distanceKm,profileSummits,profileWaypoints,updatedAt"
     "&editorialStatus=eq.published&slug=not.is.null"
-    "&routeGpxUrl=not.is.null"
+    "&routeGpxUrl=not.is.null" + DAY_FILTER
 )
 mapa_count = 0
 mapa_en_count = 0
-for rd in mapa_rds:
+for rd in emit_rows(mapa_rds, "extras"):
     slug = rd.get("slug")
     if not slug:
         continue
@@ -1824,7 +1947,7 @@ for rd in mapa_rds:
 
     crumbs = [("Inicio", f"{BASE_URL}/")]
     if race_year:
-        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario.html?year={race_year}"))
+        crumbs.append((f"Temporada {race_year}", f"{BASE_URL}/calendario/?year={race_year}"))
     if race_slug and not is_one_day:
         comp_name = f"{race_name} {race_year}" if race_year else race_name
         crumbs.append((comp_name, f"{BASE_URL}/competicion/{quote(race_slug)}/"))
@@ -1841,8 +1964,8 @@ for rd in mapa_rds:
 
     dir_path = f"mapa/{slug}"
     os.makedirs(dir_path, exist_ok=True)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
-        f.write(og_page(title, description, canonical, og_image,
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+        source = og_page(title, description, canonical, og_image,
                         og_image_alt=display_title,
                         body_html=body, json_ld_objs=[breadcrumb_list(crumbs)],
                         container_id="mapaEtapaContent",
@@ -1850,7 +1973,13 @@ for rd in mapa_rds:
                         main_class="pfe-wrap",
                         head_extra=LEAFLET_HEAD,
                         date_published=date_key or None,
-                        date_modified=rd_updated_at or date_key or None))
+                        date_modified=rd_updated_at or date_key or None,
+                        robots=race_robots(race))
+        slug_en = rd.get("slugEn") or slug
+        if slug_en and (race.get("nameEn") or race_name):
+            en_url = f"{BASE_URL_EN}/route-map/{quote(slug_en)}/"
+            source = source.replace('</head>', f'<link rel="alternate" hreflang="en" href="{esc(en_url)}">\n</head>')
+        f.write(source)
     mapa_count += 1
 
     # EN
@@ -1886,7 +2015,7 @@ for rd in mapa_rds:
         canonical_es = f"{BASE_URL}/mapa/{quote(slug)}/"
         dir_path_en = f"en/route-map/{slug_en}"
         os.makedirs(dir_path_en, exist_ok=True)
-        with open(f"{dir_path_en}/index.html", "w", encoding="utf-8") as f:
+        with output_open(f"{dir_path_en}/index.html", "w", encoding="utf-8") as f:
             # SEO en CASTELLANO (reutiliza title/description/og_image ES de
             # esta misma iteración); la página EN sigue cargando mapa-pub.js.
             f.write(og_page_en(
@@ -1901,7 +2030,8 @@ for rd in mapa_rds:
                 main_class="pfe-wrap",
                 head_extra=LEAFLET_HEAD,
                 date_published=date_key or None,
-                date_modified=rd_updated_at or date_key or None))
+                date_modified=rd_updated_at or date_key or None,
+                robots=race_robots(race)))
         mapa_en_count += 1
 
 print(f"  → {mapa_count} mapas ES, {mapa_en_count} mapas EN")
@@ -1916,7 +2046,7 @@ os.makedirs("en/profile", exist_ok=True)
 en_count = 0
 
 # EN — competiciones
-for race in races:
+for race in emit_rows(races, "races"):
     slug_en = race.get("slugEn")
     name_en = race.get("nameEn") or race.get("name") or ""
     if not slug_en or not name_en:
@@ -2028,7 +2158,7 @@ for race in races:
     os.makedirs(dir_path, exist_ok=True)
     # SEO en CASTELLANO (del dict comp_seo); contenido visible en inglés.
     _seo = comp_seo.get(race.get("id"))
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
             _seo["title"] if _seo else title_en,
             _seo["description"] if _seo else desc_en,
@@ -2038,10 +2168,11 @@ for race in races:
             og_image_alt=_seo["display_title"] if _seo else title_en,
             body_html=body_en,
             json_ld_objs=_seo["json_ld"] if _seo else json_ld_en,
-            spa_script="/js/competicion.js",
+            spa_script=COMPETICION_SCRIPT,
             container_id="competicionContent",
             date_published=start or None,
             date_modified=race_updated_en or end or start or None,
+            robots=race_robots(race),
         ))
     en_count += 1
 
@@ -2051,7 +2182,7 @@ _STAGE_TYPE_EN = {
     "itt": "ITT", "ttt": "TTT", "semi_classic": "Semi-classic",
     "one_day_race": "Classic", "prologue": "Prologue",
 }
-for rd in racedays:
+for rd in emit_rows(racedays, "stages"):
     slug_en = rd.get("slugEn")
     if not slug_en:
         continue
@@ -2171,7 +2302,7 @@ for rd in racedays:
     os.makedirs(dir_path, exist_ok=True)
     # SEO en CASTELLANO (del dict jornada_seo); contenido visible en inglés.
     _seo = jornada_seo.get(slug_es)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
             _seo["title"] if _seo else title_en,
             _seo["description"] if _seo else desc_en,
@@ -2181,15 +2312,16 @@ for rd in racedays:
             og_image_alt=_seo["og_title"] if _seo else title_en,
             body_html=body_en,
             json_ld_objs=_seo["json_ld"] if _seo else json_ld_list_en,
-            spa_script="/js/jornada.js",
+            spa_script=JORNADA_SCRIPT,
             container_id="jornadaContent",
             date_published=date_key_en or None,
             date_modified=rd_updated_en or date_key_en or None,
+            robots=race_robots(race),
         ))
     en_count += 1
 
 # EN — inscritos
-for race in races:
+for race in emit_rows(races, "extras"):
     slug_en = race.get("slugEn")
     name_en = race.get("nameEn") or race.get("name") or ""
     if not slug_en or not name_en:
@@ -2215,7 +2347,7 @@ for race in races:
     # SEO (decisión de Dani, reconfirmada el 2026-07-18). El desc_en de arriba
     # queda solo como respaldo para carreras sin entrada en inscritos_seo.
     _seo = inscritos_seo.get(race.get("id"))
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
             _seo["title"] if _seo else title_en,
             _seo["description"] if _seo else desc_en,
@@ -2227,12 +2359,13 @@ for race in races:
             json_ld_objs=_seo["json_ld"] if _seo else [breadcrumb_list(crumbs_sl)],
             spa_script="/js/inscritos.js",
             container_id="startlistContent",
+            robots=race_robots(race),
         ))
     en_count += 1
 
 # EN — perfiles de elevación
 en_perfil_count = 0
-for rd in perfil_rds:
+for rd in emit_rows(perfil_rds, "extras"):
     slug_es  = rd.get("slug")
     slug_en  = rd.get("slugEn") or slug_es
     if not slug_en:
@@ -2284,7 +2417,7 @@ for rd in perfil_rds:
     os.makedirs(dir_path, exist_ok=True)
     # SEO en CASTELLANO (del dict perfil_seo); contenido visible en inglés.
     _seo = perfil_seo.get(slug_es)
-    with open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
+    with output_open(f"{dir_path}/index.html", "w", encoding="utf-8") as f:
         f.write(og_page_en(
             _seo["title"] if _seo else f"Profile — {display_title_en} — Calendario Ciclismo",
             _seo["description"] if _seo else desc_en,
@@ -2296,9 +2429,292 @@ for rd in perfil_rds:
             container_id="perfilEtapaContent",
             spa_script="/js/perfil-pub.js",
             main_class="pfe-wrap",
+            robots=race_robots(race),
         ))
     en_perfil_count += 1
 
 en_count += en_perfil_count + so_en_count
 print(f"  → {en_count} páginas EN ({en_perfil_count} profiles, {so_en_count} start orders)")
 print(f"Total: {race_count + day_count + inscritos_count + so_count + perfil_count + so_en_count} páginas OG generadas")
+
+# CC-CX: páginas independientes, incluidas aunque la pestaña del menú esté oculta.
+print("Generando páginas de ciclocross...")
+cx_races = family_get("cx",
+    "cx_races?select=id,name,nameEn,slug,slugEn,seasonKey,dateKey,endDateKey,class,"
+    "countryCode,venue,websiteUrl,logoUrl,isCancelled,createdAt,updatedAt,cx_tournaments(id,name,nameEn,slug,seasonKey,logoUrl,updatedAt),"
+    "cx_race_categories(category,dateKey,startTimeUtc,isCancelled,resultsStatus),cx_videos(id,url)"
+    "&editorialStatus=eq.published&order=dateKey"
+)
+def cx_round_map(races):
+    """Mapa raceId -> (n, total) por torneo con el orden del contrato de generales CX.
+
+    Orden: coalesce(categoria.dateKey, race.dateKey), startTimeUtc NULLS LAST y
+    race.id. Una carrera con varias categorías cuenta como una sola ronda.
+    """
+    from cx_calendar import cx_date_in_season
+    groups = {}
+    for race in races:
+        tournament = race.get("cx_tournaments") or {}
+        if tournament.get("id"):
+            groups.setdefault(tournament["id"], []).append(race)
+    rounds = {}
+    for group in groups.values():
+        def round_key(race):
+            season = race.get("seasonKey")
+            entries = [((c.get("dateKey") or race["dateKey"]), c.get("startTimeUtc") or "")
+                       for c in race.get("cx_race_categories") or []]
+            entries = [entry for entry in entries if cx_date_in_season(entry[0], season)]
+            if not entries:
+                entries.append((race["dateKey"], ""))
+            date, start = min(entries, key=lambda entry: (entry[0], entry[1] == "", entry[1]))
+            return (date, start == "", start, race["id"])
+        group.sort(key=round_key)
+        total = len(group)
+        for index, race in enumerate(group):
+            rounds[race["id"]] = (index + 1, total)
+    return rounds
+
+
+def cx_round_badge(round_number, lang="es"):
+    if not round_number or round_number[1] <= 1:
+        return ""
+    n, total = round_number
+    aria = f"Round {n} of {total}" if lang == "en" else f"Prueba {n} de {total}"
+    return (f'<span class="cx-round-badge"><span aria-hidden="true">{n}/{total}</span>'
+            f'<span class="sr-only">{esc(aria)}</span></span>')
+
+
+def cx_tournament_description(tournament, races):
+    """Paridad con js/cx-tournament-seo.js; SEO castellano también en EN."""
+    import re
+    from cx_calendar import cx_date_in_season
+    name = tournament["name"].strip()
+    article = "La" if re.search(r"\b(copa|coupe|cup|taça|taca|serie|liga|challenge)\b", name, re.I) else "El"
+    subject = name if re.match(r"^(el|la)\s", name, re.I) else f"{article} {name}"
+    season = tournament["seasonKey"]
+    own = {race["id"]: race for race in races
+           if (race.get("tournamentId") or (race.get("cx_tournaments") or {}).get("id")) == tournament["id"]
+           and cx_date_in_season(race.get("dateKey"), season)}
+    dates = sorted(value for race in own.values()
+                   for value in [race.get("dateKey"), race.get("endDateKey")]
+                   + [category.get("dateKey") for category in race.get("cx_race_categories") or []]
+                   if cx_date_in_season(value, season))
+    def date_label(value):
+        return f"{int(value[8:10])} de {MESES[int(value[5:7]) - 1]}"
+    date_range = f" del {date_label(dates[0])} al {date_label(dates[-1])}" if dates else ""
+    count = len(own)
+    return (f"{subject} abarca {count} {'prueba' if count == 1 else 'pruebas'}{date_range}. "
+            "Consulta fechas, horarios, resultados y cómo ver por TV y online streaming.")
+
+
+def cx_spanish_audience_body(es_url):
+    """Página EN de una carrera o un torneo solo nacional: aviso sin contenido."""
+    from cx_calendar import CX_SPANISH_AUDIENCE_TITLE, CX_SPANISH_AUDIENCE_TEXT, CX_SPANISH_AUDIENCE_LINK
+    return (f'<header class="cx-race-header"><h1>{esc(CX_SPANISH_AUDIENCE_TITLE)}</h1>'
+            f'<p>{esc(CX_SPANISH_AUDIENCE_TEXT)}</p>'
+            f'<p><a href="{esc(es_url)}">{esc(CX_SPANISH_AUDIENCE_LINK)}</a></p></header>')
+
+
+def generate_cx_tournament_pages(races):
+    from cx_calendar import cx_date_in_season, cx_race_has_english, cx_tournament_has_english
+    rounds = cx_round_map(races)
+    tournaments = {race["cx_tournaments"]["id"]:race["cx_tournaments"] for race in races if race.get("cx_tournaments")}
+    for tournament in tournaments.values():
+        slug, season = tournament["slug"], tournament["seasonKey"]
+        es_url = f"{BASE_URL}/ciclocross/torneos/{quote(slug)}/"
+        en_url = f"{BASE_URL_EN}/cyclocross/series/{quote(slug)}/"
+        has_english = cx_tournament_has_english(tournament["id"], races)
+        for lang, canonical in [("es",es_url),("en",en_url)]:
+            name = (tournament.get("nameEn") if lang == "en" else None) or tournament["name"]
+            agenda = f"{BASE_URL_EN}/cyclocross/" if lang == "en" else f"{BASE_URL}/ciclocross/"
+            crumbs = [("Calendario Ciclismo",BASE_URL_EN if lang == "en" else BASE_URL),("Cyclocross" if lang == "en" else "Ciclocross",agenda),(name,None)]
+            body = (f'<header data-cx-tournament-id="{esc(tournament["id"])}" data-cx-tournament-name="{esc(name)}" data-cx-season="{esc(season)}" data-cx-logo="{esc(tournament.get("logoUrl"))}">'
+                    + breadcrumb_html(crumbs) + f'<h1>{esc(name)}</h1></header>')
+            days = {}
+            for race in races:
+                if (race.get("cx_tournaments") or {}).get("id") != tournament["id"]:
+                    continue
+                if lang == "en" and not cx_race_has_english(race):
+                    continue
+                dates = {category.get("dateKey") or race["dateKey"]
+                         for category in race.get("cx_race_categories") or []
+                         if cx_date_in_season(category.get("dateKey") or race["dateKey"], season)}
+                for date in dates or {race["dateKey"]}:
+                    days.setdefault(date, []).append(race)
+            body += '<div class="cx-tournament-list">'
+            for date, entries in sorted(days.items()):
+                date_label = (format_weekday_date_en if lang == "en" else format_weekday_date)(date)
+                body += (f'<section class="cx-agenda-day" data-date="{esc(date)}"><h3 class="cx-day-label">{esc(date_label)}</h3><ul>'
+                         + ''.join(f'<li><a href="{esc(agenda + quote((race.get("slugEn") if lang == "en" else None) or race["slug"]) + "/")}">{esc((race.get("nameEn") if lang == "en" else None) or race["name"])}</a> {cx_round_badge(rounds.get(race["id"]),lang)}</li>' for race in entries)
+                         + '</ul></section>')
+            body += '</div>'
+            kwargs = dict(title=f"{name} · {season} — Calendario Ciclismo",
+                description=cx_tournament_description(tournament,races),
+                canonical_url=canonical,og_image=og_image_url(tournament.get("logoUrl"),name),body_html=body,
+                json_ld_objs=[breadcrumb_list(crumbs)],container_id="cxAgendaContent",
+                spa_script="/js/ciclocross.js?v=20260927cxhidden",head_extra='<link rel="stylesheet" href="/css/ciclocross.css?v=20260927cxlaprow">')
+            if lang == "en" and not has_english:
+                # Torneo solo nacional: aviso sin contenido y fuera del índice.
+                kwargs.update(body_html=body.split('<div class="cx-tournament-list">')[0] + cx_spanish_audience_body(es_url),
+                              json_ld_objs=[], robots="noindex, follow")
+            if lang == "en":
+                source = og_page_en(es_url=es_url,**kwargs)
+            elif has_english:
+                source = og_page(**kwargs).replace('</head>',f'<link rel="alternate" hreflang="en" href="{esc(en_url)}">\n</head>')
+            else:
+                source = og_page(**kwargs)
+            path = f"en/cyclocross/series/{slug}" if lang == "en" else f"ciclocross/torneos/{slug}"
+            os.makedirs(path,exist_ok=True)
+            with output_open(f"{path}/index.html","w",encoding="utf-8") as file:
+                file.write(source)
+    return len(tournaments)
+
+def cx_race_seo(race, page="race"):
+    """Paridad con js/cx-race-seo.js; metadatos castellanos también en EN."""
+    dates = [race["dateKey"]]
+    if race.get("endDateKey") and race["endDateKey"] != race["dateKey"]:
+        dates.append(race["endDateKey"])
+    date_text = " – ".join(format_weekday_full_date(value).replace(", ", " ", 1) for value in dates)
+    category = ("de categoría nacional" if race.get("class") == "NAC" else
+                f"de categoría UCI {race['class']}" if race.get("class") else "")
+    code = (race.get("countryCode") or "").upper()
+    country = pais_es(code) or code
+    location = (f" en {race['venue']}" + (f" ({country})" if country else "")
+                if race.get("venue") else f" en {country}" if country else "")
+    tournament = race.get("cx_tournaments") or {}
+    season = f" {race['seasonKey']}" if race.get("seasonKey") and race['seasonKey'] not in tournament.get('name', '') else ""
+    membership = f" Pertenece a {tournament['name']}{season}." if tournament else ""
+    description = (f"{race['name']} ({date_text}) es una prueba de ciclocross"
+                   + (f" {category}" if category else "") + f"{location}.{membership} "
+                   + "Consulta el programa, los dorsales y resultados, cómo ver la carrera por TV y online streaming y vídeos de las carreras.")
+    prefix = "Dorsales · " if page == "startlist" else "Resultados · " if page == "results" else ""
+    title = f"{prefix}{race['name']} — Calendario Ciclismo App"
+    return title, description
+
+def generate_cx_pages(cx_races):
+    import re
+    from cx_calendar import cx_race_in_season, cx_date_in_season, cx_race_has_english
+    cx_races = [race for race in cx_races if cx_race_in_season(race)]
+    rounds = cx_round_map(cx_races)
+    cx_extra = '<link rel="stylesheet" href="/css/ciclocross.css?v=20260927cxlaprow">'
+    for race in cx_races:
+        slug_es = race.get("slug")
+        if not slug_es:
+            continue
+        slug_en = race.get("slugEn") or slug_es
+        canonical_es = f"{BASE_URL}/ciclocross/{quote(slug_es)}/"
+        canonical_en = f"{BASE_URL_EN}/cyclocross/{quote(slug_en)}/"
+        has_english = cx_race_has_english(race)
+        for lang, slug, canonical in [("es",slug_es,canonical_es),("en",slug_en,canonical_en)]:
+            name = (race.get("nameEn") if lang == "en" else None) or race["name"]
+            season = race["seasonKey"]
+            title, description = cx_race_seo(race)
+            dates = [race["dateKey"]]
+            if race.get("endDateKey") and race["endDateKey"] != race["dateKey"]:
+                dates.append(race["endDateKey"])
+            event = sports_event(name,race["dateKey"],race.get("endDateKey") or race["dateKey"],canonical,description,
+                                 image=og_image_url(race.get("logoUrl"),title),location_name=race.get("venue"),
+                                 location_country=race.get("countryCode"),cancelled=race.get("isCancelled",False),
+                                 organizer_url=race.get("websiteUrl"),same_as=race.get("websiteUrl"),
+                                 date_published=(race.get("createdAt") or "")[:10] or None,
+                                 date_modified=(race.get("updatedAt") or "")[:10] or None)
+            if event:
+                event["sport"] = "Cyclo-cross"
+                event["about"] = [{"@type":"Thing","name":
+                                   "Categoría nacional" if race.get("class") == "NAC" else f"Categoría UCI {race['class']}"}]
+                tournament = race.get("cx_tournaments") or {}
+                if tournament:
+                    event["about"].append({"@type":"Thing","name":f"{tournament['name']} {season}",
+                        "url":f"{BASE_URL}/ciclocross/torneos/{quote(tournament['slug'])}/"})
+            agenda_url = f"{BASE_URL_EN}/cyclocross/" if lang == "en" else f"{BASE_URL}/ciclocross/"
+            crumbs = [("Calendario Ciclismo",BASE_URL_EN if lang == "en" else BASE_URL),
+                      ("Cyclocross" if lang == "en" else "Ciclocross",agenda_url)]
+            tournament = race.get("cx_tournaments") or {}
+            if tournament:
+                series_url = (f"{BASE_URL_EN}/cyclocross/series/" if lang == "en" else f"{BASE_URL}/ciclocross/torneos/") + quote(tournament['slug']) + "/"
+                crumbs.append((tournament.get("nameEn" if lang == "en" else "name") or tournament['name'],series_url))
+            crumbs.append((name,None))
+            categories = [c for c in race.get("cx_race_categories") or []
+                          if cx_date_in_season(c.get("dateKey") or race["dateKey"],season)]
+            tournament = race.get("cx_tournaments") or {}
+            round_number = rounds.get(race["id"])
+            round_text = f"{round_number[0]}/{round_number[1]}" if round_number and round_number[1] > 1 else ""
+            header_detail = " · ".join(str(value) for value in [
+                race.get("class"),
+                tournament.get("nameEn" if lang == "en" else "name") or tournament.get("name"),
+                round_text,
+                race.get("venue"),
+            ] if value)
+            header_date_text = " – ".join((format_weekday_full_date_en if lang == "en" else format_weekday_full_date)(value) for value in dates)
+            if lang != "en":
+                header_date_text = header_date_text[:1].upper() + header_date_text[1:]
+            body = (f'<header class="cx-race-header" data-cx-race-id="{esc(race["id"])}" data-cx-page="race">'
+                    + breadcrumb_html(crumbs) + f'<h1>{esc(name)}</h1>'
+                    + f'<p>{esc(header_detail)}</p><p>{esc(header_date_text)}</p>'
+                    + '<ul>' + ''.join(f'<li><a href="#{esc(c["category"])}">{esc(c["category"])}</a> · '
+                                        f'{esc(c.get("dateKey") or race["dateKey"])}</li>' for c in categories)
+                    + '</ul></header>')
+            if race.get("websiteUrl"):
+                body += ('<section class="jornada-section cx-race-docs"><div class="asset-links">'
+                         + f'<a class="asset-btn" href="{esc(race["websiteUrl"])}" target="_blank" rel="noopener">'
+                         + ('Official website' if lang == 'en' else 'Web oficial') + '</a></div></section>')
+            sections = [("programme","Programme" if lang == "en" else "Programa","?view=programme"),
+                        ("startlist","Startlist" if lang == "en" else "Dorsales","startlist/" if lang == "en" else "inscritos/"),
+                        ("results","Results" if lang == "en" else "Resultados","results/" if lang == "en" else "resultados/"),
+                        ("tv","TV y streaming","?view=tv")]
+            if any(re.match(r'^https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11}$', row.get('url') or '')
+                   for row in race.get('cx_videos') or []):
+                sections.append(("videos","Videos" if lang == "en" else "Vídeos","?view=videos"))
+            body += ('<nav class="cx-section-nav" aria-label="' + esc(name) + '">'
+                     + ''.join(f'<a data-cx-section-link="{key}" href="{esc(canonical + suffix)}">{esc(label)}</a> '
+                               for key,label,suffix in sections) + '</nav>'
+                     + f'<p>{esc(description)}</p>')
+            kwargs = dict(title=title,description=description,canonical_url=canonical,
+                          og_image=og_image_url(race.get("logoUrl"),title),body_html=body,
+                          json_ld_objs=[event,breadcrumb_list(crumbs)],container_id="cxRaceContent",
+                          spa_script="/js/cx-race.js?v=20260927cxlaprow",head_extra=cx_extra,
+                          prerender_visible=False,
+                          date_published=(race.get("createdAt") or "")[:10] or None,
+                          date_modified=(race.get("updatedAt") or "")[:10] or None)
+            if lang == "en" and not has_english:
+                # Carrera nacional: la página EN solo muestra el aviso y no se indexa.
+                kwargs.update(title=f"{name} — Calendario Ciclismo", body_html=cx_spanish_audience_body(canonical_es),
+                              json_ld_objs=[], robots="noindex, follow")
+            if lang == "en":
+                source = og_page_en(es_url=canonical_es,**kwargs)
+            elif has_english:
+                source = og_page(**kwargs).replace('</head>',f'<link rel="alternate" hreflang="en" href="{esc(canonical_en)}">\n</head>')
+            else:
+                source = og_page(**kwargs)
+            path = f"en/cyclocross/{slug}" if lang == "en" else f"ciclocross/{slug}"
+            os.makedirs(path,exist_ok=True)
+            with output_open(f"{path}/index.html","w",encoding="utf-8") as f:
+                f.write(source)
+            for page, suffix_es, suffix_en, label_es, label_en in [
+                ("startlist","inscritos","startlist","Dorsales","Startlist"),
+                ("results","resultados","results","Resultados","Results"),
+            ]:
+                suffix = suffix_en if lang == "en" else suffix_es
+                label = label_en if lang == "en" else label_es
+                page_es, page_en = canonical_es + suffix_es + "/", canonical_en + suffix_en + "/"
+                page_url = page_en if lang == "en" else page_es
+                page_crumbs = crumbs[:-1] + [(name,canonical),(label,None)]
+                page_body = body.replace('data-cx-page="race"',f'data-cx-page="{page}"')
+                page_kwargs = {**kwargs,"title":cx_race_seo(race,page)[0],"canonical_url":page_url,
+                               "body_html":page_body,"json_ld_objs":[breadcrumb_list(page_crumbs)]}
+                if lang == "en" and not has_english:
+                    page_kwargs.update(title=kwargs["title"], body_html=cx_spanish_audience_body(page_es), json_ld_objs=[])
+                if lang == "en":
+                    page_source = og_page_en(es_url=page_es,**page_kwargs)
+                elif has_english:
+                    page_source = og_page(**page_kwargs).replace('</head>',f'<link rel="alternate" hreflang="en" href="{esc(page_en)}">\n</head>')
+                else:
+                    page_source = og_page(**page_kwargs)
+                os.makedirs(f"{path}/{suffix}",exist_ok=True)
+                with output_open(f"{path}/{suffix}/index.html","w",encoding="utf-8") as f:
+                    f.write(page_source)
+    generate_cx_tournament_pages(cx_races)
+    return len(cx_races)
+
+if generation_enabled("cx"):
+    print(f"  → {generate_cx_pages(cx_races)} carreras CX, ES + EN")

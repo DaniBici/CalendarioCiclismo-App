@@ -27,3 +27,23 @@ struct TeamSeason: Codable {
     /// fila, que sigue significando "no continúa". Solo Fichajes lo consume.
     let continuityDoubt: Bool?
 }
+
+extension TeamSeason {
+    /// Identidad utilizable sin consultar la fila base reservada al catálogo
+    /// histórico. Mantiene la chapa oculta cuando faltan colores verificados.
+    func asTeam() -> Team? {
+        guard let name else { return nil }
+        return Team(
+            id: teamId,
+            name: name,
+            badgeTorsoCenter: badgeTorsoCenter ?? "#ffffff",
+            badgeTorsoSides: badgeTorsoSides ?? "#000000",
+            badgeShorts: badgeShorts ?? "#000000",
+            badgeInnerCircle: badgeInnerCircle,
+            headerBg: headerBg ?? "#1f2937",
+            headerText: headerText ?? "#ffffff",
+            nameAliases: nil,
+            category: category
+        )
+    }
+}

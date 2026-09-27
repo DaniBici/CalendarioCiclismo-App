@@ -14,7 +14,7 @@
 
   // Colores de fondo base — deben coincidir con --bg de css/app.css
   // (:root oscuro / html.light claro).
-  const BG = { dark: '#111318', light: '#ffffff' };
+  const BG = { dark: '#141923', light: '#f3f5f8' };
 
   function apply(theme) {
     const root = document.documentElement;
@@ -83,7 +83,9 @@
 // ── Hover bandera regional → bandera nacional ──────────────────
 (function () {
   const FLAG_BASE = 'https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/';
-  const REGIONAL  = ['es-ct', 'es-pv'];
+  const REGIONAL  = ['es-an', 'es-ar', 'es-as', 'es-cb', 'es-ce', 'es-cl', 'es-cm', 'es-cn',
+                     'es-ct', 'es-ex', 'es-ga', 'es-ib', 'es-mc', 'es-md', 'es-ml', 'es-nc',
+                     'es-pv', 'es-ri', 'es-vc'];
   const PARENT    = 'es';
 
   document.addEventListener('mouseover', e => {

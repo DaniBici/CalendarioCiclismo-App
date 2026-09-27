@@ -23,14 +23,11 @@ struct TodayView: View {
     var navigationPath: Binding<NavigationPath>? = nil
     @State private var viewModel = TodayViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
-    @State private var resultsSheetItem: ResultsSheetItem?
     /// Jornadas visibles con resultados in-house (raceDayId → stageNumber): el
-    /// trofeo de esas etapas navega a la pantalla nativa, no al modal externos.
-    /// Una query por carrera visible (en Hoy suelen ser pocas); diferido y no
-    /// bloqueante (sin red → vacío → modal clásico). Paridad con Android.
+    /// acceso de esas etapas navega a la pantalla nativa. Sin clasificación
+    /// publicada, Hoy mantiene el estado «Esperando resultados» y no ofrece
+    /// enlaces provisionales a proveedores externos. Paridad con Android.
     @State private var inhouseByDay: [String: Int?] = [:]
-    @State private var automaticSourceRaceIds: Set<String> = []
-    @State private var resultsSourceGateResolved = false
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
     /// Push programático a la pantalla de Campeonatos (cintillo). Vive en el ROOT
@@ -38,8 +35,9 @@ struct TodayView: View {
     /// recreaba `ChampionshipsView`, rompiendo la navegación a la prueba tocada).
     @State private var championshipsRoute: ChampionshipsRoute?
     @State private var competitionRaceId: IdentifiableID?
-    @State private var startlistSheetRaceId: IdentifiableID?
-    @State private var startOrderSheetRaceDayId: IdentifiableID?
+    @State private var highlightedStageDayId: IdentifiableID?
+    @State private var startlistRouteRaceId: IdentifiableID?
+    @State private var startOrderRouteRaceDayId: IdentifiableID?
     @State private var showSettings = false
     @State private var safariURL: URL?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
@@ -49,17 +47,8 @@ struct TodayView: View {
     /// y no permite fijar otro predeterminado. Reactivo al día mostrado.
     private var champWeekLock: Bool { viewModel.isChampWeekLock }
     @State private var contentOffset: CGFloat = 0
+    @State private var contentWidth: CGFloat = 0
     @State private var isAnimatingNavigation = false
-    /// Altura del safe area inferior REAL del área de scroll (tab bar flotante de
-    /// iOS 26 + home indicator), capturada ANTES de `.ignoresSafeArea`. El scroll
-    /// se extiende bajo la barra para que las cards pasen traslúcidas (efecto
-    /// "Liquid Glass"), pero como el contenedor está envuelto en `.offset`/
-    /// `.clipped()` (para la animación de cambio de día), UIKit NO inyecta el
-    /// content inset que normalmente libraría el último ítem (sí lo hace en
-    /// Mes/Temporada, que cuelgan de un `TabView(.page)` sin esa envoltura). Por
-    /// eso lo aplicamos a mano como padding inferior del contenido, de modo que
-    /// la última card quede completa por encima de la barra al final del scroll.
-    @State private var bottomBarInset: CGFloat = 0
     /// `true` mientras el dedo está moviéndose horizontalmente lo suficiente
     /// para considerar que el gesto es un swipe de cambio de día. Se usa para
     /// desactivar las race cards (NavigationLink/Button) mientras dure el
@@ -69,9 +58,12 @@ struct TodayView: View {
     @GestureState private var isHorizontalSwipe: Bool = false
     /// Monitor de conectividad — usado para auto-recargar cuando el usuario
     /// recupera la red tras haber visto datos cacheados o un estado offline.
+    @State private var statusNow = Date()
     @State private var network = NetworkMonitor.shared
     @State private var localeService = LocaleService.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         withObservers
@@ -105,16 +97,6 @@ struct TodayView: View {
                 guard isOnline else { return }
                 let needsReload = viewModel.isFromCache || viewModel.isUncachedOffline || viewModel.error != nil
                 guard needsReload, !viewModel.isLoading else { return }
-                Task { await viewModel.refreshDay() }
-            }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                // Al volver a primer plano, primero comprobar si cruzamos la
-                // medianoche local (auto-avance al nuevo "hoy" si procede).
-                viewModel.advanceIfNewLocalDay()
-                guard !viewModel.isLoading else { return }
-                let stale = viewModel.lastNetworkLoadAt.map { Date().timeIntervalSince($0) > 300 } ?? true
-                guard stale else { return }
                 Task { await viewModel.refreshDay() }
             }
             .allowsHitTesting(!isAnimatingNavigation)
@@ -162,22 +144,19 @@ struct TodayView: View {
                 if let filter = initialFilter { viewModel.activeFilter = filter }
                 await viewModel.loadDay()
             }
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(300))
-                    // Comprobar el cruce de medianoche antes del guard isToday: si
-                    // se cruzó, isToday ya sería false y el refresco se detendría
-                    // sin avanzar nunca.
-                    viewModel.advanceIfNewLocalDay()
-                    guard viewModel.isToday, !viewModel.isLoading else { continue }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                statusNow = Date()
+                viewModel.advanceIfNewLocalDay()
+                if viewModel.hasLoaded, !viewModel.isNetworkLoading,
+                   viewModel.lastNetworkLoadAt.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
                     await viewModel.refreshDay()
                 }
-            }
-            .task(id: viewModel.dateKey) {
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(300))
-                    guard !Task.isCancelled else { break }
-                    guard !viewModel.isLoading else { continue }
+                    do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                    statusNow = Date()
+                    viewModel.advanceIfNewLocalDay()
+                    guard viewModel.isToday, !viewModel.isNetworkLoading else { continue }
                     await viewModel.refreshDay()
                 }
             }
@@ -192,7 +171,7 @@ struct TodayView: View {
         let items = viewModel.displayItems
         let raceIds = Set(items.compactMap { $0.race?.id }).sorted().joined(separator: ",")
         let dayIds = items.map(\.id).joined(separator: ",")
-        return raceIds + "|" + dayIds
+        return raceIds + "|" + dayIds + "|\(viewModel.refreshToken)"
     }
 
     /// Carga el mapa raceDayId → stageNumber de las carreras visibles. Agrupa por
@@ -202,11 +181,8 @@ struct TodayView: View {
         let items = viewModel.displayItems.filter { $0.race != nil }
         guard !items.isEmpty else {
             inhouseByDay = [:]
-            automaticSourceRaceIds = []
-            resultsSourceGateResolved = true
             return
         }
-        resultsSourceGateResolved = false
         var merged: [String: Int?] = [:]
         let byRace = Dictionary(grouping: items) { $0.race!.id }
         for (raceId, days) in byRace {
@@ -217,18 +193,16 @@ struct TodayView: View {
             )
             merged.merge(map) { _, new in new }
         }
+        guard !Task.isCancelled else { return }
         inhouseByDay = merged
-        automaticSourceRaceIds = await SupabaseService.shared.automaticResultsSourceRaceIds(
-            raceIds: Array(byRace.keys)
-        )
-        resultsSourceGateResolved = true
     }
 
     // MARK: - Configured view
 
     private var configuredView: some View {
         mainStack
-            .navigationTitle(viewModel.isToday ? localeService.t("Hoy", "Today") : viewModel.dateLabel)
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
             .navigationDestination(for: EnrichedRaceDay.self) { item in
@@ -261,43 +235,59 @@ struct TodayView: View {
                 SettingsView()
             }
             .placeholderModal(item: $placeholderItem)
-            .resultsSheet(item: $resultsSheetItem)
-            .sheet(item: $startlistSheetRaceId) { wrapper in
-                NavigationStack {
-                    StartlistView(raceId: wrapper.id, showDismissButton: true)
-                }
+            .navigationDestination(item: $highlightedStageDayId) { wrapper in
+                StageDetailView(raceDayId: wrapper.id)
             }
-            .sheet(item: $startOrderSheetRaceDayId) { wrapper in
-                NavigationStack {
-                    StartOrderView(raceDayId: wrapper.id, showDismissButton: true)
-                }
+            .navigationDestination(item: $startlistRouteRaceId) { wrapper in
+                StartlistView(raceId: wrapper.id)
+            }
+            .navigationDestination(item: $startOrderRouteRaceDayId) { wrapper in
+                StartOrderView(raceDayId: wrapper.id)
             }
     }
 
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) { leadingToolbarView }
-        ToolbarItem(placement: .topBarTrailing) { trailingToolbarView }
+        // iOS 26 envuelve automáticamente los ToolbarItem interactivos en una
+        // cápsula de Liquid Glass. El logotipo es una enseña gráfica, no un
+        // control con fondo: se conserva la interacción, pero se suprime ese
+        // contenedor del sistema únicamente para este elemento.
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                todayLogo
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                todayLogo
+            }
+        }
+        // Ajustes es una utilidad de cabecera, no un botón destacado. En iOS 26
+        // se elimina su cápsula Liquid Glass compartida, igual que en la marca de
+        // CC, conservando un área táctil de 44 puntos.
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarTrailing) {
+                todayUtilityActions
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                todayUtilityActions
+            }
+        }
     }
 
-    @ViewBuilder
-    private var leadingToolbarView: some View {
-        HStack(spacing: 8) {
-            Button {
-                Haptics.play(.navigation)
-                animateNavigation(forward: false) { viewModel.goToPreviousDay() }
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .accessibilityLabel(localeService.t("Día anterior", "Previous day"))
-            .accessibilityIdentifier(AccessibilityID.previousDayButton)
-            .accessibilityInputLabels([localeService.t("Día anterior", "Previous day"), localeService.t("Anterior", "Previous"), localeService.t("Ayer", "Yesterday")])
-
+    private var todayUtilityActions: some View {
+        HStack(spacing: 4) {
             Button {
                 showSettings = true
             } label: {
                 Image(systemName: "gearshape")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
             .accessibilityLabel(localeService.t("Ajustes", "Settings"))
             .accessibilityHint(localeService.t("Calendario iCal, notificaciones y privacidad", "iCal calendar, notifications and privacy"))
             .accessibilityInputLabels([localeService.t("Ajustes", "Settings"), localeService.t("Configuración", "Configuration"), localeService.t("Opciones", "Options")])
@@ -305,29 +295,21 @@ struct TodayView: View {
         }
     }
 
-    @ViewBuilder
-    private var trailingToolbarView: some View {
-        HStack(spacing: 12) {
-            if !viewModel.isToday {
-                Button(localeService.t("Ir al día de hoy", "Go to today")) {
-                    Haptics.play(.navigation)
-                    let forward = DateFormatting.todayKey() >= viewModel.dateKey
-                    animateNavigation(forward: forward) { viewModel.goToToday() }
-                }
-                .font(.caption)
-                .accessibilityIdentifier(AccessibilityID.todayButton)
-                .accessibilityInputLabels([localeService.t("Hoy", "Today"), localeService.t("Ir a hoy", "Go to today"), localeService.t("Día de hoy", "Today")])
-            }
-            Button {
+    private var todayLogo: some View {
+        CCHeaderBrandView()
+            .contentShape(Rectangle())
+            .onTapGesture {
                 Haptics.play(.navigation)
-                animateNavigation(forward: true) { viewModel.goToNextDay() }
-            } label: {
-                Image(systemName: "chevron.right")
+                let forward = DateFormatting.todayKey() >= viewModel.dateKey
+                animateNavigation(forward: forward) { await viewModel.goToToday() }
             }
-            .accessibilityLabel(localeService.t("Día siguiente", "Next day"))
-            .accessibilityIdentifier(AccessibilityID.nextDayButton)
-            .accessibilityInputLabels([localeService.t("Día siguiente", "Next day"), localeService.t("Siguiente", "Next"), localeService.t("Mañana", "Tomorrow")])
-        }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                let forward = DateFormatting.todayKey() >= viewModel.dateKey
+                animateNavigation(forward: forward) { await viewModel.goToToday() }
+            }
+            .accessibilityLabel(localeService.t("Ir al día de hoy", "Go to today"))
+            .accessibilityInputLabels([localeService.t("Hoy", "Today"), localeService.t("Ir a hoy", "Go to today"), localeService.t("Día de hoy", "Today")])
     }
 
     /// Navega a Campeonatos. Con `navigationPath` (tab Hoy) empuja al MISMO path
@@ -353,22 +335,14 @@ struct TodayView: View {
 
     @ViewBuilder private var normalStack: some View {
         VStack(spacing: 0) {
-            TodayHighlightsBanner(onTapChampionships: goToChampionships)
+            TodayHighlightsBanner(
+                onTapChampionships: goToChampionships,
+                onOpenTarget: openHighlightedTarget
+            )
                 .padding(.top, 8)
                 .padding(.bottom, 10)
 
-            DateBarView(
-                selectedDate: viewModel.dateKey,
-                isToday: viewModel.isToday,
-                onSelect: { newDate in
-                    let forward = newDate > viewModel.dateKey
-                    animateNavigation(forward: forward) { viewModel.goToDate(newDate) }
-                },
-                onToday: {
-                    let forward = DateFormatting.todayKey() >= viewModel.dateKey
-                    animateNavigation(forward: forward) { viewModel.goToToday() }
-                }
-            )
+            dateNavigationBar
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -394,6 +368,94 @@ struct TodayView: View {
 
             contentArea
         }
+        .background(AppTheme.background)
+    }
+
+    private func openHighlightedTarget(_ target: TodayHighlightTarget) {
+        switch target {
+        case .stage(let id):
+            highlightedStageDayId = IdentifiableID(id: id)
+        case .race(let id):
+            competitionRaceId = IdentifiableID(id: id)
+        case .startlist(let id):
+            startlistRouteRaceId = IdentifiableID(id: id)
+        case .startOrder(let id):
+            startOrderRouteRaceDayId = IdentifiableID(id: id)
+        case .championships:
+            goToChampionships()
+        case .transfers:
+            NotificationManager.shared.pendingDeepLink = .tab(2)
+        case .cxRace(let id):
+            NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
+        case .cxTournament:
+            break
+        }
+    }
+
+    /// Navegación de fecha situada bajo el cintillo: acceso a Hoy cuando procede,
+    /// selector de siete días y flechas anterior/siguiente.
+    private var dateNavigationBar: some View {
+        HStack(spacing: 0) {
+            Button {
+                Haptics.play(.navigation)
+                animateNavigation(forward: false) { await viewModel.goToPreviousDay() }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 44, height: 60)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localeService.t("Día anterior", "Previous day"))
+            .accessibilityIdentifier(AccessibilityID.previousDayButton)
+            .accessibilityInputLabels([localeService.t("Día anterior", "Previous day"), localeService.t("Anterior", "Previous"), localeService.t("Ayer", "Yesterday")])
+
+            if !viewModel.isShowingCurrentDay {
+                Button {
+                    Haptics.play(.navigation)
+                    let forward = DateFormatting.todayKey() >= viewModel.dateKey
+                    animateNavigation(forward: forward) { await viewModel.goToToday() }
+                } label: {
+                    Text(localeService.t("Hoy", "Today"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: 44, minHeight: 48)
+                        .padding(.horizontal, 4)
+                        .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localeService.t("Ir al día de hoy", "Go to today"))
+                .accessibilityIdentifier(AccessibilityID.todayButton)
+            }
+
+            DateBarView(
+                selectedDate: viewModel.dateKey,
+                lastDate: TodaySeason.lastDay(),
+                onSelect: { newDate in
+                    let forward = newDate > viewModel.dateKey
+                    animateNavigation(forward: forward) { await viewModel.navigate(to: newDate) }
+                }
+            )
+            // Al abandonar o recuperar el día actual aparece o desaparece el
+            // botón Hoy y cambia el ancho disponible. Recrear solo en esa
+            // transición evita reutilizar un offset calculado con celdas de
+            // otro ancho, que podía desplazar la selección siete u ocho días.
+            .id(viewModel.isShowingCurrentDay)
+
+            Button {
+                Haptics.play(.navigation)
+                animateNavigation(forward: true) { await viewModel.goToNextDay() }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 44, height: 60)
+            }
+            .buttonStyle(.plain)
+            .disabled(!viewModel.canGoToNextDay)
+            .opacity(viewModel.canGoToNextDay ? 1 : 0.3)
+            .accessibilityLabel(localeService.t("Día siguiente", "Next day"))
+            .accessibilityIdentifier(AccessibilityID.nextDayButton)
+            .accessibilityInputLabels([localeService.t("Día siguiente", "Next day"), localeService.t("Siguiente", "Next"), localeService.t("Mañana", "Tomorrow")])
+        }
+        .foregroundStyle(Color.accentColor)
+        .background(AppTheme.headerBackground)
     }
 
     // MARK: - Sort menu bar
@@ -440,8 +502,14 @@ struct TodayView: View {
                 ScrollView {
                     raceScrollContent
                 }
+                // Cada fecha debe empezar en la cabecera de su propia lista.
+                // Sin una identidad distinta, SwiftUI conserva el offset
+                // vertical del día anterior: al pasar de una agenda larga a
+                // otra corta, el contenido entrante puede quedar por encima
+                // del viewport y la pantalla aparece vacía.
+                .id(viewModel.dateKey)
                 .refreshable {
-                    await viewModel.refreshDay()
+                    await viewModel.refreshDay(force: true)
                     Haptics.play(.success)
                 }
             }
@@ -449,25 +517,11 @@ struct TodayView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(x: contentOffset)
         .clipped()
-        // El área de scroll llega hasta el borde inferior de la pantalla (por
-        // DEBAJO de la tab bar flotante de iOS 26): así las cards pasan
-        // traslúcidas bajo la barra "Liquid Glass" al desplazarse, en vez de
-        // cortarse en su borde.
-        //
-        // ⚠️ A diferencia de un ScrollView "pelado", aquí la envoltura
-        // `.offset(x:)` + `.clipped()` (necesaria para la animación de cambio de
-        // día) ROMPE la cadena por la que UIKit inyectaría el content inset de la
-        // tab bar: medido en simulador, `safeAreaInsets.bottom` del scroll = 0 con
-        // y sin `.ignoresSafeArea`, y el del `.background` externo también. Por eso
-        // el último ítem quedaba tapado por la barra. La barra flotante tampoco
-        // modifica el safe area de la window (solo el home indicator, 34pt). La
-        // ÚNICA medida fiable es la altura real de la `UITabBar` leída de la
-        // window (`TabBarInsetReader`), que aplicamos como colchón inferior del
-        // contenido para que la última card quede completa sobre la barra al
-        // final del scroll. (Mes/Temporada no lo necesitan: cuelgan de un
-        // `TabView(.page)` que sí recibe el inset del sistema.)
-        .ignoresSafeArea(.container, edges: .bottom)
-        .background(TabBarInsetReader(inset: $bottomBarInset))
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            contentWidth = width
+        }
         .simultaneousGesture(
             // minimumDistance bajo para que la detección de "swipe horizontal"
             // dispare en `.updating` antes de que el sistema considere que el
@@ -483,11 +537,13 @@ struct TodayView: View {
                     let h = value.translation.width
                     let v = abs(value.translation.height)
                     guard abs(h) > v, abs(h) > 60 else { return }
+                    // Último día de temporada: el gesto hacia delante no navega.
+                    if h < 0, !viewModel.canGoToNextDay { return }
                     Haptics.play(.navigation)
                     if h < 0 {
-                        animateNavigation(forward: true) { viewModel.goToNextDay() }
+                        animateNavigation(forward: true) { await viewModel.goToNextDay() }
                     } else {
-                        animateNavigation(forward: false) { viewModel.goToPreviousDay() }
+                        animateNavigation(forward: false) { await viewModel.goToPreviousDay() }
                     }
                 }
         )
@@ -532,7 +588,7 @@ struct TodayView: View {
                 if let nextDate = viewModel.nextDayWithRaces {
                     Button {
                         Haptics.play(.navigation)
-                        animateNavigation(forward: true) { viewModel.goToDate(nextDate) }
+                        animateNavigation(forward: true) { await viewModel.navigate(to: nextDate) }
                     } label: {
                         HStack(spacing: 4) {
                             Text(LocaleService.t("Ir al próximo día con carreras", "Go to next day with races"))
@@ -547,21 +603,43 @@ struct TodayView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 320)
         } else {
+            let columns = AdaptiveLayoutPolicy.feedColumns(
+                width: max(0, contentWidth - 32),
+                isRegular: horizontalSizeClass == .regular
+            )
+            let rows = AdaptiveLayoutPolicy.rows(
+                viewModel.displayItems,
+                columns: columns,
+                spansAllColumns: isDisplayedAsFeatured
+            )
             LazyVStack(spacing: 8) {
-                let items = viewModel.displayItems
-                ForEach(items) { item in
-                    raceItemView(item: item, refreshToken: String(viewModel.refreshToken))
+                ForEach(rows) { row in
+                    if row.spansAllColumns || columns == 1 {
+                        raceItemView(item: row.items[0])
+                            .frame(maxWidth: .infinity, alignment: .top)
+                    } else {
+                        HStack(alignment: .top, spacing: 8) {
+                            ForEach(row.items) { item in
+                                raceItemView(item: item)
+                                    .frame(maxWidth: .infinity, alignment: .top)
+                            }
+                            if row.items.count < columns {
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal)
             .padding(.top, 8)
-            // Colchón inferior = el aire normal (8) + el safe area que el sistema
-            // no inyecta aquí, para que la última card quede completa sobre la
-            // tab bar flotante al final del scroll (las intermedias siguen
-            // pasando traslúcidas bajo la barra al desplazarse).
-            .padding(.bottom, 8 + bottomBarInset)
+            .padding(.bottom, 8)
             .accessibilityIdentifier(AccessibilityID.raceList)
         }
+    }
+
+    private func isDisplayedAsFeatured(_ item: EnrichedRaceDay) -> Bool {
+        let selected = item.race.map { viewModel.featuredRaceIds.contains($0.id) } ?? false
+        return TodayViewModel.shouldRenderAsFeatured(selected, sortMode: viewModel.sortMode)
     }
 
     // MARK: - Filter chip
@@ -597,26 +675,28 @@ struct TodayView: View {
     // MARK: - Race item
 
     @ViewBuilder
-    private func raceItemView(item: EnrichedRaceDay, refreshToken: String) -> some View {
-        // In-house: si la jornada tiene clasificación propia, el trofeo va a la
-        // pantalla nativa (no al modal externos). Presencia en el mapa = la tiene.
+    private func raceItemView(item: EnrichedRaceDay) -> some View {
+        // In-house: si la jornada tiene clasificación propia, el acceso va a la
+        // pantalla nativa. Presencia en el mapa = la tiene.
         let hasInhouse = inhouseByDay.index(forKey: item.id) != nil
         let inhouseStage = inhouseByDay[item.id].flatMap { $0 }
-        let externalAllowed = resultsSourceGateResolved
-            && (item.race.map { !automaticSourceRaceIds.contains($0.id) } ?? true)
-        let showResults = hasInhouse || (externalAllowed && RaceLogic.shouldShowResults(rd: item.raceDay, race: item.race))
         // Revive/TV forma parte del estado de resultados: nunca aparece por el
         // mero hecho de alcanzar la hora de meta sin clasificaciones visibles.
-        let reviveURL = showResults ? RaceLogic.reviveUrl(from: item.broadcasts) : nil
+        let reviveURL = hasInhouse ? RaceLogic.reviveUrl(from: item.broadcasts) : nil
+        let raceState = RaceLogic.todayRaceState(
+            rd: item.raceDay,
+            hasInhouseResults: hasInhouse,
+            now: statusNow
+        )
+        let isWaiting = raceState == .waiting
+        let showsFinishTime = viewModel.sortMode == .finishTime || raceState == .running
+        let isFeatured = isDisplayedAsFeatured(item)
         let isFinalStage = item.race?.isStageRace == true
             && !item.raceDay.isRestDay
             && !item.raceDay.isCancelledDay
             && item.raceDay.dateKey == item.race?.endDate
-        // Identidad compuesta: SwiftUI preserva instancias de view
-        // por item.id incluso si el contenedor cambia de .id —
-        // añadir el token fuerza destrucción/creación real de cada
-        // card en cada respuesta de red fresca.
-        let viewId: String = "\(refreshToken)-\(item.id)"
+        // Identidad estable: actualizar datos sin recrear la tarjeta ni su posición.
+        let viewId: String = item.id
 
         if item.isPlaceholder {
             Button {
@@ -625,7 +705,15 @@ struct TodayView: View {
                     placeholderItem = PlaceholderModalItem(race: race, raceDay: item.raceDay)
                 }
             } label: {
-                RaceCardView(item: item, activeFilter: viewModel.activeFilter, isFinalStage: isFinalStage)
+                RaceCardView(
+                    item: item,
+                    refreshToken: viewModel.refreshToken,
+                    activeFilter: viewModel.activeFilter,
+                    isFinalStage: isFinalStage,
+                    isFeatured: isFeatured,
+                    showsFinishTimeOnly: showsFinishTime,
+                    isWaitingForResults: isWaiting
+                )
             }
             .buttonStyle(.plain)
             .disabled(isHorizontalSwipe)
@@ -636,22 +724,27 @@ struct TodayView: View {
             // La jornada cancelada SÍ navega a su ficha (paridad con la vista de
             // competición y la web): conserva recorrido, perfil y documentación.
             // La de DESCANSO no: no tiene ficha que abrir.
-            RaceCardView(item: item, activeFilter: viewModel.activeFilter, isFinalStage: isFinalStage)
+            RaceCardView(
+                item: item,
+                refreshToken: viewModel.refreshToken,
+                activeFilter: viewModel.activeFilter,
+                isFinalStage: isFinalStage,
+                isFeatured: isFeatured,
+                showsFinishTimeOnly: showsFinishTime,
+                isWaitingForResults: isWaiting
+            )
                 .accessibilityIdentifier(AccessibilityID.raceCard(item.id))
                 .id(viewId)
         } else {
             NavigationLink(value: item) {
                 RaceCardView(
                     item: item,
+                    refreshToken: viewModel.refreshToken,
                     activeFilter: viewModel.activeFilter,
-                    onShowResults: showResults ? {
+                    onShowResults: hasInhouse ? {
                         Haptics.play(.primaryAction)
                         guard let race = item.race else { return }
-                        if hasInhouse {
-                            resultsRoute = ResultsRoute(raceId: race.id, stageNumber: inhouseStage, stageSuffix: item.raceDay.stageSuffix)
-                        } else {
-                            resultsSheetItem = ResultsSheetItem(race: race, raceDay: item.raceDay)
-                        }
+                        resultsRoute = ResultsRoute(raceId: race.id, stageNumber: inhouseStage, stageSuffix: item.raceDay.stageSuffix)
                     } : nil,
                     onRevive: reviveURL != nil ? {
                         Haptics.play(.primaryAction)
@@ -661,11 +754,11 @@ struct TodayView: View {
                     } : nil,
                     onShowStartlist: item.race?.startlistImportedAt != nil ? {
                         if let race = item.race {
-                            startlistSheetRaceId = IdentifiableID(id: race.id)
+                            startlistRouteRaceId = IdentifiableID(id: race.id)
                         }
                     } : nil,
                     onStartOrderTap: {
-                        startOrderSheetRaceDayId = IdentifiableID(id: item.raceDay.id)
+                        startOrderRouteRaceDayId = IdentifiableID(id: item.raceDay.id)
                     },
                     onShowCompetition: item.race?.isStageRace == true && item.race?.startDate != item.race?.endDate ? {
                         guard let raceId = item.race?.id else { return }
@@ -675,7 +768,10 @@ struct TodayView: View {
                             competitionRaceId = IdentifiableID(id: raceId)
                         }
                     } : nil,
-                    isFinalStage: isFinalStage
+                    isFinalStage: isFinalStage,
+                    isFeatured: isFeatured,
+                    showsFinishTimeOnly: showsFinishTime,
+                    isWaitingForResults: isWaiting
                 )
             }
             .buttonStyle(.plain)
@@ -695,18 +791,24 @@ struct TodayView: View {
 
     // MARK: - Navigation animation
 
-    /// Animated day transition: slides the content out, performs the navigation, then slides new content in.
-    private func animateNavigation(forward: Bool, action: @escaping () -> Void) {
+    /// Transición animada de cambio de día, espejo de la de Ciclocross:
+    /// desliza el contenido fuera, espera a que la navegación tenga el día
+    /// listo (caché) y desliza el entrante ya con datos.
+    private func animateNavigation(forward: Bool, action: @escaping () async -> Void) {
         guard !isAnimatingNavigation else { return }
+        if reduceMotion {
+            Task { await action() }
+            return
+        }
         isAnimatingNavigation = true
-        let width = UIScreen.main.bounds.width
+        let width = max(contentWidth, 1)
         let outDir: CGFloat = forward ? -1 : 1
         withAnimation(.easeOut(duration: 0.15)) {
             contentOffset = outDir * width
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
-            action()
+            await action()
             contentOffset = -outDir * width
             withAnimation(.easeOut(duration: 0.2)) {
                 contentOffset = 0
@@ -781,66 +883,5 @@ private struct TodayFilterChip: View {
             ? LocaleService.t("Filtro activo. Mantén pulsado para establecer como filtro por defecto.", "Active filter. Long press to set as default filter.")
             : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label). Mantén pulsado para establecer como filtro por defecto.", "Double tap to filter by \(filter.label). Long press to set as default filter."))
         .accessibilityIdentifier(AccessibilityID.filterButton(filter.rawValue))
-    }
-}
-
-// MARK: - Tab bar inset reader
-
-/// Mide la altura REAL de la `UITabBar` flotante de iOS 26 leyéndola de la
-/// ventana, y la publica en un binding. Necesario porque en `TodayView` la
-/// envoltura `.offset`/`.clipped()` del área de scroll impide que UIKit propague
-/// el content inset de la tab bar al SwiftUI (medido: `safeAreaInsets.bottom` = 0
-/// en el subárbol), y la barra flotante tampoco modifica el safe area de la
-/// window. Esta vía —recorrer la jerarquía UIKit hasta la `UITabBar`— sí da la
-/// altura correcta (p. ej. 83pt en un iPhone 17 Pro = 49 de barra + 34 de home
-/// indicator; 0 cuando no hay tab bar, p. ej. en pruebas o iPad multitarea).
-///
-/// Re-mide en `updateUIView` y en cada `layoutSubviews` (rotación, cambios de
-/// safe area). El binding solo se escribe si el valor cambió, para no provocar
-/// ciclos de layout.
-private struct TabBarInsetReader: UIViewRepresentable {
-    @Binding var inset: CGFloat
-
-    func makeUIView(context: Context) -> InsetProbeView {
-        let v = InsetProbeView()
-        v.onResolve = { newValue in
-            // Diferido para no mutar estado de SwiftUI durante el ciclo de layout.
-            DispatchQueue.main.async {
-                if abs(inset - newValue) > 0.5 { inset = newValue }
-            }
-        }
-        return v
-    }
-
-    func updateUIView(_ uiView: InsetProbeView, context: Context) {
-        uiView.resolve()
-    }
-
-    final class InsetProbeView: UIView {
-        var onResolve: ((CGFloat) -> Void)?
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            resolve()
-        }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            resolve()
-        }
-
-        func resolve() {
-            guard let w = window else { return }
-            let height = Self.findTabBar(w)?.frame.height ?? 0
-            onResolve?(height)
-        }
-
-        private static func findTabBar(_ v: UIView) -> UITabBar? {
-            if let tb = v as? UITabBar { return tb }
-            for sub in v.subviews {
-                if let found = findTabBar(sub) { return found }
-            }
-            return nil
-        }
     }
 }

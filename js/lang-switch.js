@@ -59,6 +59,10 @@
           targetUrl.searchParams.set(key, value);
         }
       });
+      if (/\/(ciclocross|cyclocross)\//.test(window.location.pathname) &&
+          /^#(ME|WE|MU|WU|MJ|WJ|general(?:-(?:ME|WE|MU|WU|MJ|WJ))?)$/.test(window.location.hash)) {
+        targetUrl.hash = window.location.hash;
+      }
       return targetUrl.toString();
     } catch {
       return targetUrlStr;
@@ -80,7 +84,7 @@
         try {
           const u = new URL(url);
           const cleanPath = u.pathname.replace(/^\/en(?=\/|$)/, '') || '/';
-          return `https://${EN_DOMAIN}${cleanPath}${u.search}`;
+          return `https://${EN_DOMAIN}${cleanPath}${u.search}${u.hash}`;
         } catch { return url; }
       }
 
@@ -88,10 +92,15 @@
       const staticMap = {
         '/':             '/en/',
         '/index.html':   '/en/',
+        '/calendario/':   '/en/calendar/',
         '/calendario.html': '/en/calendar/',
+        '/ciclocross/':   '/en/cyclocross/',
+        '/ciclocross.html': '/en/cyclocross/',
         '/mes.html':     '/en/calendar/',
         '/temporada.html': '/en/calendar/',
+        '/about/':       '/en/about/',
         '/about.html':   '/en/about/',
+        '/abierto/':     '/en/open/',
         '/abierto.html': '/en/open/',
         '/apoyar/':      '/en/support/',
         '/buscar.html':  '/en/search/',
@@ -104,7 +113,7 @@
       if (staticMap[path]) return toEnDomain(window.location.origin + staticMap[path] + window.location.search);
 
       // Para rutas dinámicas: leer hreflang="en" escrito por la SPA al cargar datos
-      if (path.startsWith('/jornada/') || path.startsWith('/competicion/') || path.startsWith('/inscritos/') || path.startsWith('/orden-salida/') || path.startsWith('/resultados/')) {
+      if (path.startsWith('/jornada/') || path.startsWith('/competicion/') || path.startsWith('/inscritos/') || path.startsWith('/orden-salida/') || path.startsWith('/resultados/') || path.startsWith('/ciclocross/')) {
         const enUrl = hreflangUrl('en');
         if (enUrl) return toEnDomain(mergeSearch(enUrl));
       }
@@ -138,11 +147,11 @@
         // Mapear rutas limpias del dominio EN dedicado a sus equivalentes en ES
         const cleanPathMap = {
           '/':              '/',
-          '/calendar/':     '/calendario.html',
-          '/month/':        '/calendario.html',
-          '/season/':       '/calendario.html',
-          '/about/':        '/about.html',
-          '/open/':         '/abierto.html',
+          '/calendar/':     '/calendario/',
+          '/month/':        '/calendario/',
+          '/season/':       '/calendario/',
+          '/about/':        '/about/',
+          '/open/':         '/abierto/',
           '/support/':      '/apoyar/',
           '/search/':       '/buscar.html',
           '/results/':      '/resultados/',
@@ -156,7 +165,7 @@
       }
 
       // Para rutas dinámicas EN: leer hreflang="es" del DOM (presente en páginas pre-renderizadas)
-      if (path.startsWith('/en/stage/') || path.startsWith('/en/race/') || path.startsWith('/en/startlist/') || path.startsWith('/en/results/') || path.startsWith('/en/profile/') || path.startsWith('/en/route-map/')) {
+      if (path.startsWith('/en/stage/') || path.startsWith('/en/race/') || path.startsWith('/en/startlist/') || path.startsWith('/en/results/') || path.startsWith('/en/profile/') || path.startsWith('/en/route-map/') || path.startsWith('/en/cyclocross/')) {
         const esUrl = hreflangUrl('es');
         if (esUrl) return mergeSearch(esUrl);
       }
@@ -164,11 +173,11 @@
       // Reescribir rutas /en/* → ES equivalente
       const qs = window.location.search;
       if (path === '/en/' || path === '/en') return '/' + qs;
-      if (path.startsWith('/en/calendar/')) return '/calendario.html' + qs;
-      if (path.startsWith('/en/month/')) return '/calendario.html' + qs;
-      if (path.startsWith('/en/season/')) return '/calendario.html' + qs;
-      if (path.startsWith('/en/about/')) return '/about.html' + qs;
-      if (path.startsWith('/en/open/')) return '/abierto.html' + qs;
+      if (path.startsWith('/en/calendar/')) return '/calendario/' + qs;
+      if (path.startsWith('/en/month/')) return '/calendario/' + qs;
+      if (path.startsWith('/en/season/')) return '/calendario/' + qs;
+      if (path.startsWith('/en/about/')) return '/about/' + qs;
+      if (path.startsWith('/en/open/')) return '/abierto/' + qs;
       if (path.startsWith('/en/support/')) return '/apoyar/' + qs;
       if (path.startsWith('/en/search/')) return '/buscar.html' + qs;
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;

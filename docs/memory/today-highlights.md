@@ -2,7 +2,13 @@
 
 Carrusel editorial mostrado encima del selector de días en la vista Hoy
 (web + iOS + Android). Editable desde panel admin. Cada entrada apunta a
-**uno** de tres destinos elegibles: jornada, startlist u orden de salida.
+**uno** de los destinos elegibles: jornada, competición, dorsales, orden de
+salida, entrada personalizada (web) o, en Ciclocross, prueba o torneo.
+
+El cintillo de la sección **Ciclocross es independiente** del de carretera: la
+columna `scope` (`road`/`cx`) separa ambas fuentes editoriales. La vista Hoy y
+el resto de superficies de carretera leen `road`; la agenda de Ciclocross lee
+`cx`. Las apps guardan un dismiss por sección.
 
 Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.
 
@@ -14,9 +20,12 @@ Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.
 |------------------|-------|-----------------------------------------------------------|
 | `id`             | text  | PK (uuid generado)                                        |
 | `position`       | int   | Orden en el carrusel (drag&drop desde panel)              |
-| `targetType`     | text  | `raceDay` \| `race` \| `startlist` \| `startOrder` (CHECK) |
+| `scope`          | text  | `road` (defecto) \| `cx`. Sección del cintillo            |
+| `targetType`     | text  | `raceDay` \| `race` \| `startlist` \| `startOrder` \| `custom` \| `championships` \| `transfers` \| `cxRace` \| `cxTournament` (CHECK) |
 | `raceId`         | text? | FK → `races`. Obligatorio si `targetType` es `race` o `startlist` |
 | `raceDayId`      | text? | FK → `race_days`. Obligatorio para `raceDay`/`startOrder` |
+| `cxRaceId`       | text? | FK → `cx_races`. Obligatorio para `cxRace` (solo `scope='cx'`) |
+| `cxTournamentId` | text? | FK → `cx_tournaments`. Obligatorio para `cxTournament` (solo `scope='cx'`) |
 | `customTitle`    | text? | Override ES                                               |
 | `customTitleEn`  | text? | Override EN                                               |
 | `customDetail`   | text? | Subtítulo opcional ES                                     |
@@ -28,7 +37,10 @@ Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.
 
 **RLS:** SELECT público, INSERT/UPDATE/DELETE solo usuarios autenticados (panel admin).
 
-**Validación**: CHECK constraint exige `raceId` para `startlist` y `raceDayId` para los otros dos.
+**Validación**: CHECK condicional por `scope`. En `cx`, `cxRace` exige `cxRaceId` y
+`cxTournament` exige `cxTournamentId` (sin IDs de carretera). En `road`, se exige
+`raceId` para `startlist`/`race` y `raceDayId` para `raceDay`/`startOrder`, y ningún
+ID CX.
 
 **Precisión horaria** (migración 067): `visibleFrom` y `visibleUntil` son
 `TIMESTAMPTZ`. El panel los muestra como `<input type="datetime-local">` en la
@@ -44,8 +56,8 @@ o añade entradas en el panel, el hash cambia y el cintillo reaparece automátic
 | Plataforma | Almacenamiento                                           |
 |------------|----------------------------------------------------------|
 | Web        | `localStorage.cc_giro_dismissed_hash`                    |
-| iOS        | `UserDefaults.standard["cc_giro_dismissed_hash"]`        |
-| Android    | `SharedPreferences("today_highlights_prefs")["dismissed_hash"]` |
+| iOS        | `UserDefaults.standard["cc_giro_dismissed_hash"]` (road) / `…_cx` (Ciclocross) |
+| Android    | `SharedPreferences("today_highlights_prefs")["dismissed_hash"]` (road) / `…_cx` (Ciclocross) |
 
 ## Sin seed inicial
 
@@ -69,14 +81,20 @@ que un admin añade entradas desde el panel.
 | `startlist`   | inscritos — web: `startlistUrl(race)` / iOS: `StartlistView(raceId)` / Android: `Routes.startlist(raceId)` |
 | `startOrder`  | orden de salida — web: `startOrderUrl(rd)` / iOS: `StartOrderView(raceDayId)` / Android: `Routes.startOrder(rdId)` |
 | `custom`      | **solo web** — `customUrl`/`customUrlEn` + `customTitle`/`customLogo`. Las apps lo descartan (sin carrera). |
+| `cxRace`      | **solo `scope='cx'`** — prueba CX: web `cxRaceUrl(race)`; iOS/Android abren la ficha de la prueba. |
+| `cxTournament` | **solo `scope='cx'`** — torneo CX: web `cxTournamentUrl(tournament)` (`/ciclocross/torneos/<slug>/`, `/en/cyclocross/series/<slug>/`); apps reutilizan el deep link de serie por slug. |
 | `championships` | **solo apps** (Modo Campeonatos) — iOS: `ChampionshipsView()` / Android: `Routes.CHAMPIONSHIPS`. Sin carrera ni URL: destino fijo por config; `customTitle`/`customDetail` opcionales (si faltan, las apps usan `ChampionshipsConfig`). **La web lo IGNORA** (`js/cintillo.js` lo filtra antes de resolver/render/hash): para web se crea un slide `custom` con logo/URL propios apuntando a Campeonatos. Espejo de `custom` (solo web). `customLogo` queda inerte (las apps pintan su globo nativo). Migración `072_today_highlights_championships.sql`. El CHECK de `targetType` sigue admitiendo `championships` (lo necesitan las apps). |
 
 ## Panel admin
 
 Tab "Cintillo" en `panel/app.html` + `js/panel.js::setupHighlightsView`. CRUD completo:
+- La lista y el editor se filtran por el área activa (`panelArea()`): carretera
+  edita `scope='road'` y Ciclocross `scope='cx'`.
 - Búsqueda de carrera por nombre.
 - Selector de jornada si la carrera tiene varias.
-- Radio para elegir destino.
+- Radio para elegir destino, limitado a los destinos del área: carretera no
+  ofrece CX y Ciclocross solo ofrece prueba (`cxRace`) o torneo (`cxTournament`).
+- Selector de carrera CX y selector de torneo CX según el destino.
 - Validación visual: warning si se elige `startlist` y la carrera no tiene startlist
   importada, o `startOrder` y la jornada no tiene orden de salida importado.
 - Drag&drop para reordenar las filas existentes (persiste `position` en DB).

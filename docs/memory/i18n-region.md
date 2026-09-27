@@ -55,52 +55,50 @@ Ambas plataformas leen el locale activo en cada llamada. iOS usa `nonIsolatedUIL
 
 ---
 
-## Preferencia regional
+## Región (detección automática)
 
-Sustituye la whitelist hardcodeada `ALL + ES + EUROPA` por una preferencia elegible por el usuario. Todas las regiones son gratuitas desde 4.3.
+La región no se elige a mano: se detecta a partir de la zona horaria del
+dispositivo, igual que la web (`_detectUserGroup` y `filterBroadcastsByRegion`
+en `js/shared.js`). No hay selector en Ajustes ni preferencia persistida
+(se retiraron `region_preference` y `preferred_country_group`).
 
-### Persistencia
+### Detección por TZ
 
-| Plataforma | Servicio | Key | Storage |
-|---|---|---|---|
-| iOS | `Services/RegionService.swift` (`@Observable`, default `.spain`) | `region_preference` | `UserDefaults` |
-| Android | `data/prefs/RegionPreference.kt` (6 valores) | `region_preference` | DataStore |
-
-### Mapeo región → grupos `broadcasts.country`
-
-| Región | Grupos visibles | Tier |
+| Plataforma | API | Archivo |
 |---|---|---|
-| `SPAIN` | `ALL`, `EUROPA`, `ES` | Gratis |
-| `EUROPE` | `ALL`, `EUROPA`, `ES`, `PT`, `FR`, `BE`, `NL`, `IT`, `DE_AT_CH`, `UK_IE`, `SCANDI`, `EE` | Gratis |
-| `AMERICAS` | `ALL`, `NORTEAM`, `LATAM` | Gratis |
-| `ASIA` | `ALL`, `ASIAPAC`, `MENA` | Gratis |
-| `AFRICA` | `ALL`, `AFRICA`, `MENA` | Gratis |
-| `ALL` | Todos los grupos | Gratis |
+| iOS | `RegionService.suggestedRegion`, `detectedCountryGroup`, `allowedBroadcastGroups`, `isEuropean` | `Services/RegionService.swift` |
+| Android | `RegionDetector` equivalentes | `util/RegionDetector.kt` |
 
-### Detección por TZ (sugerida en onboarding)
+Reglas TZ → bucket (`suggestedRegion`): Madrid/Canarias/Ceuta → `SPAIN`. Resto
+Europa → `EUROPE`. America/* + Pacific/Honolulu → `AMERICAS`. Asia/* + Pacific/*
++ Australia/* + Indian/Christmas+Cocos → `ASIA`. Africa/* (no Ceuta) → `AFRICA`.
+Fallback → `SPAIN`. Nunca devuelve `ALL`. Añadir una TZ nueva → tocar **ambas**
+implementaciones.
 
-- **iOS:** `RegionService.suggestedRegion(timeZoneId:)`. Nunca devuelve `.all`.
-- **Android:** `util/RegionDetector.kt` con la misma lógica.
-- Reglas TZ → bucket: Madrid/Canarias/Ceuta → SPAIN. Resto Europa → EUROPE. America/* + Pacific/Honolulu → AMERICAS. Asia/* + Pacific/* + Australia/* + Indian/Christmas+Cocos → ASIA. Africa/* (no Ceuta) → AFRICA.
-- Añadir TZ nueva → tocar **ambas** implementaciones.
+Reglas TZ → grupo fino `broadcasts.country` (`detectedCountryGroup`): mapa de
+Europa fina (ES, PT, FR, BE, NL, IT, DE_AT_CH, UK_IE, SCANDI, EE) y prefijos
+para `NORTEAM`, `LATAM`, `MENA`, `AFRICA`, `ASIAPAC`. Paridad con
+`_COUNTRY_TZ_MAP` y `_extracontinentalGroup` de `js/shared.js`.
 
-### Sub-selector de país preferido (override manual del grupo fino)
+### Visibilidad de canales de TV
 
-Dentro de cada bucket, el usuario puede elegir un **país preferido** (grupo fino) que afina la hora del aviso de TV sin cambiar qué broadcasters son visibles.
+`allowedBroadcastGroups(TZ)` replica la web de forma exacta: siempre `ALL`; el
+grupo fino detectado; y `EUROPA` solo si el usuario es europeo y no está en
+`UK_IE`. Consumidores: iOS `TVBadge`, `StageDetailViewModel`,
+`ChampionshipsView`, `CxRaceDetailView`; Android `TVBadge`,
+`ChampionshipsScreen`, `StageScreen`, `CxRaceScreen`.
 
-- iOS: `RegionService.shared.preferredCountryGroup`, `setPreferredCountryGroup(_:)`, `effectiveCountryGroup()`.
-- Android: `AppPreferences.preferredCountryGroup` (Flow), `setPreferredCountryGroup(value)`, `snapshotPreferredCountryGroup()`.
-- `null` = automático por TZ (default).
-- **Auto-saneado:** al cambiar de bucket, si el grupo guardado no pertenece al nuevo, se limpia.
-- `availableCountryGroups` define qué grupos finos son elegibles por bucket. SPAIN expone solo `ES`. ALL no expone sub-selector.
+### Bucket para push
 
-### Onboarding paso 2 (región)
-
-Entre idioma y notificaciones. CTA "Usar mi región" solo aparece si la TZ sugiere algo distinto de `.spain`. **Migración pre-2.0:** `region_onboarding_done` se marca como `true` automáticamente si `notif_onboarding_done == true`.
+`push_subscriptions.region` conserva los seis buckets y su CHECK en la base de
+datos. La app envía `suggestedRegion(TZ).name` como `region` y
+`detectedCountryGroup(TZ)` como `countryGroup`. No hay override manual.
 
 ### Reglas al modificar
 
-- Añadir grupo fino nuevo → `allowedBroadcastGroups` iOS + Android, `countryGroupLabel`/`countryGroupEmoji` iOS + Android, strings EN/ES en Android, `Localizable.xcstrings` iOS, `availableCountryGroups`, CHECK constraints en migraciones, `VALID_COUNTRY_GROUPS` en `send-push/index.ts`, `detectedCountryGroup` en `RegionService.swift` y `RegionDetector.kt`.
+- Añadir grupo fino nuevo → mapa TZ en iOS y Android, `_COUNTRY_TZ_MAP`/
+  `_extracontinentalGroup` en web, `VALID_COUNTRY_GROUPS` en `send-push`, y
+  CHECK constraints de migraciones.
 - Ninguna región depende de una compra.
 
 ---
@@ -114,3 +112,4 @@ Entre idioma y notificaciones. CTA "Usar mi región" solo aparece si la TZ sugie
 
 - Etiquetas: "Automático" / "Claro" / "Oscuro".
 - **Anti-flicker Android:** `runBlocking` antes de `setContent` evita flash del tema opuesto.
+

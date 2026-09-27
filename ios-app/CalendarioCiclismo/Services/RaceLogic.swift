@@ -3,6 +3,40 @@ import Foundation
 /// Lógica de negocio de carreras — equivalente a `js/services/races.js`.
 enum RaceLogic {
 
+    static func calendarYear(now: Date = Date()) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar.component(.year, from: now)
+    }
+
+    static func hasCalendarForYear(_ year: Int?, now: Date = Date()) -> Bool {
+        guard let year else { return false }
+        return year >= calendarYear(now: now)
+    }
+
+    enum TodayRaceState: Equatable { case cancelled, rest, results, waiting, running, scheduled }
+
+    static func todayRaceState(rd: RaceDay, hasInhouseResults: Bool, now: Date = Date()) -> TodayRaceState {
+        if rd.isCancelledDay { return .cancelled }
+        if rd.isRestDay { return .rest }
+        if hasInhouseResults { return .results }
+        if rd.raceStatus == "finished" { return .waiting }
+        if let finish = rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO), now >= finish { return .waiting }
+        if rd.raceStatus == "running" { return .running }
+        if let start = rd.neutralStartTimeUtc.flatMap(DateFormatting.parseISO), now >= start { return .running }
+        return .scheduled
+    }
+
+    /// Carreras referenciadas por las jornadas que no estaban incluidas en la
+    /// consulta por solapamiento de fechas del mes.
+    static func missingRaceIds(raceDays: [RaceDay], races: [Race]) -> [String] {
+        let loadedIds = Set(races.map(\.id))
+        var seen = Set<String>()
+        return raceDays.compactMap(\.raceId).filter { id in
+            !loadedIds.contains(id) && seen.insert(id).inserted
+        }
+    }
+
     // MARK: - Resultados post-carrera
 
     /// Comprueba si la hora actual supera `estimatedFinishTimeUtc + offsetMinutes`.
@@ -38,29 +72,6 @@ enum RaceLogic {
         return Date() >= fallback.addingTimeInterval(Double(offsetMinutes) * 60)
     }
 
-    /// True si mostrar botones de resultados en las race cards: >=30 min DESPUÉS de la llegada.
-    static func shouldShowResults(rd: RaceDay, race: Race?) -> Bool {
-        guard !rd.isRestDay, !rd.isCancelledDay else { return false }
-        guard race?.extId != nil || race?.extSlug != nil else { return false }
-        return raceTimeCheck(rd: rd, offsetMinutes: 30)
-    }
-
-    /// True si mostrar botones de resultados en la ficha de jornada: >=30 min ANTES de la llegada.
-    static func shouldShowResultsDetail(rd: RaceDay, race: Race?) -> Bool {
-        guard !rd.isRestDay, !rd.isCancelledDay else { return false }
-        guard race?.extId != nil || race?.extSlug != nil else { return false }
-        return raceTimeCheck(rd: rd, offsetMinutes: -30)
-    }
-
-    /// True si mostrar "Así está la carrera" — resultados de la etapa anterior:
-    /// la etapa previa ha terminado y los resultados de la actual aún no están visibles.
-    static func shouldShowPreviousResults(prevRd: RaceDay, currentRd: RaceDay, race: Race?) -> Bool {
-        guard race?.raceFormat != "one_day" else { return false }
-        guard race?.extId != nil || race?.extSlug != nil else { return false }
-        guard !shouldShowResultsDetail(rd: currentRd, race: race) else { return false }
-        return raceTimeCheck(rd: prevRd, offsetMinutes: 0)
-    }
-
     /// Baseline gratuito heredado de 1.4.4 — `ALL + ES + EUROPA`. Se usa como
     /// default cuando el caller no tiene acceso a la preferencia regional del
     /// usuario, así no degradamos lo gratis (Apple Guideline 3.1.2(a)).
@@ -78,10 +89,12 @@ enum RaceLogic {
         _ broadcasts: [Broadcast],
         allowedGroups: Set<String> = defaultBroadcastGroups
     ) -> [Broadcast] {
-        broadcasts.filter { b in
-            guard let c = b.country, !c.isEmpty else { return true }
-            return allowedGroups.contains(c)
-        }
+        broadcasts.filter { broadcastMatchesRegion($0.country, allowedGroups: allowedGroups) }
+    }
+
+    static func broadcastMatchesRegion(_ country: String?, allowedGroups: Set<String>) -> Bool {
+        guard let country, !country.isEmpty else { return true }
+        return allowedGroups.contains(country)
     }
 
     /// Prioridad del enlace del badge de TV en directo (Hoy / Competición). Decide a qué
@@ -117,12 +130,11 @@ enum RaceLogic {
         return domains.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 
-    /// True si la sección de TV debe mostrarse como "Revive": la carrera terminó
-    /// hace al menos 30 minutos y existe una emisión persistente. Sin hora de meta,
-    /// `raceTimeCheck` usa el cierre de seguridad de `dateKey` a las 18:00 UTC.
-    static func hasReviveBroadcasts(_ broadcasts: [Broadcast], rd: RaceDay) -> Bool {
-        guard raceTimeCheck(rd: rd, offsetMinutes: 30) else { return false }
-        return reviveUrl(from: broadcasts) != nil
+    /// Revive requiere clasificaciones de esta jornada y una emisión recuperable.
+    static func hasReviveBroadcasts(_ broadcasts: [Broadcast], hasCurrentResults: Bool, isCancelled: Bool = false) -> Bool {
+        guard hasCurrentResults else { return false }
+        return reviveBroadcasts(from: broadcasts, isCancelled: isCancelled)
+            .contains { !($0.url ?? "").isEmpty }
     }
 
     private static func isEtbOnDemand(_ value: String) -> Bool {
@@ -167,12 +179,10 @@ enum RaceLogic {
 
     /// True si la carrera ya concluyó: >=30 min tras la hora estimada de llegada,
     /// con FALLBACK a `dateKey` 18:00 UTC cuando no hay hora de meta (lo aporta
-    /// `raceTimeCheck`). Espejo FIEL de la `isRaceConcluded(rd)` EXPORTADA en
+    /// `raceTimeCheck`). Espejo de la `isRaceConcluded(rd)` exportada en
     /// `js/race-data-modal.js`, que NO exige `estimatedFinishTimeUtc`: los
-    /// Campeonatos Nacionales no tienen hora de meta curada y aun así deben
-    /// mostrar los resultados externos al terminar (la rejilla de Campeonatos usa
-    /// esta función). El guard antiguo de `estimatedFinishTimeUtc != nil` los
-    /// dejaba como "no concluidos" para siempre → nunca aparecía el botón.
+    /// Campeonatos Nacionales no tienen hora de meta curada (la rejilla de
+    /// Campeonatos usa esta función).
     static func isRaceConcluded(rd: RaceDay) -> Bool {
         guard !rd.isRestDay, !rd.isCancelledDay else { return false }
         return raceTimeCheck(rd: rd, offsetMinutes: 30)
@@ -205,31 +215,6 @@ enum RaceLogic {
         if earliest.date <= Date() { return .live }
         guard let display = DateFormatting.formatTimeLocal(earliest.ts) else { return .label }
         return .time(display)
-    }
-
-    /// True si la carrera ya terminó pero no tiene extId/extSlug (solo Revive).
-    static func noIdsAndPastDeadline(rd: RaceDay, race: Race?) -> Bool {
-        guard !rd.isRestDay, !rd.isCancelledDay else { return false }
-        guard race?.extId == nil, race?.extSlug == nil else { return false }
-        return raceTimeCheck(rd: rd, offsetMinutes: 0)
-    }
-
-    /// URL de fuente externa para la etapa dada.
-    static func buildExtUrlA(race: Race, stageNumber: Int?) -> URL? {
-        guard let extId = race.extId, let year = race.year else { return nil }
-        var s = "https://example.invalid)&y=\(year)"
-        if let sn = stageNumber { s += "&e=\(String(format: "%02d", sn))" }
-        return URL(string: s)
-    }
-
-    /// URL de fuente externa para la etapa dada.
-    static func buildExtUrlB(race: Race, stageNumber: Int?, stageSuffix: String? = nil) -> URL? {
-        guard let slug = race.extSlug, let year = race.year else { return nil }
-        let base = "https://example.invalid)/\(year)"
-        guard let sn = stageNumber else { return URL(string: "\(base)/result") }
-        if sn == 0 { return URL(string: "\(base)/prologue/result") }
-        let suffix = stageSuffix?.lowercased() ?? ""
-        return URL(string: "\(base)/stage-\(sn)\(suffix)/result")
     }
 
     /// Primer URL de un broadcast Revive, incluidos deep-links /m/ de ETB ON.
@@ -429,6 +414,12 @@ enum RaceLogic {
         name.localizedCaseInsensitiveContains("tour del porvenir")
     }
 
+    private static func isMixedRelayChampionship(category: String, name: String) -> Bool {
+        guard category == "WC" || category == "CC" else { return false }
+        return name.localizedCaseInsensitiveContains("relevo mixto")
+            || name.localizedCaseInsensitiveContains("mixed relay")
+    }
+
     /// Comprueba si una carrera coincide con un filtro de categoría (mismas reglas que web).
     static func matchesCategory(_ race: Race, filter: Constants.CategoryFilter) -> Bool {
         guard filter != .all else { return true }
@@ -461,11 +452,11 @@ enum RaceLogic {
         case .wwt:
             baseMatch = cat == "1.WWT" || cat == "2.WWT"
         case .male:
-            baseMatch = (gender != "female" || cat == "WC" || cat == "CC")
+            baseMatch = (gender == "male" || isMixedRelayChampionship(category: cat, name: name))
                 && cat != "1.2" && cat != "2.2"
                 && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
         case .female:
-            baseMatch = (gender == "female" || cat == "WC" || cat == "CC")
+            baseMatch = (gender == "female" || isMixedRelayChampionship(category: cat, name: name))
                 && (cat != "1.2U" && cat != "2.2U" || isTourDelPorvenir(name))
                 && ((cat != "1.2" && cat != "2.2") || Constants.europeCountries.contains(cc))
         }

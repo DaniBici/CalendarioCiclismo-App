@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Bandera de país rectangular (20×15 pt). Los SVG viven empaquetados en
-/// `Assets.xcassets/Flags/<code>.imageset` con `preserves-vector-representation`
+/// `Shared/Flags.xcassets/Flags/<code>.imageset` (catálogo compartido con el widget) con `preserves-vector-representation`
 /// activado, así que iOS los renderiza nativamente como vectores a cualquier
 /// escala — sin red, sin `WKWebView`, sin rasterización manual, sin parpadeo.
 ///
@@ -16,7 +16,7 @@ struct CountryFlag: View {
     private var height: CGFloat { width * 15 / 20 }
 
     var body: some View {
-        let code = countryCode?.lowercased() ?? ""
+        let code = Self.resolvedCode(countryCode)
         if !code.isEmpty {
             Image("Flags/\(code)")
                 .resizable()
@@ -26,5 +26,18 @@ struct CountryFlag: View {
                 .clipShape(RoundedRectangle(cornerRadius: 2))
                 .accessibilityLabel(AccessibilityCountryNames.name(for: countryCode) ?? "")
         }
+    }
+
+    /// Código realmente empaquetado. Si la variante regional no existe en esta
+    /// build (p. ej. una autonomía añadida después), cae a la bandera del país
+    /// (`es-an` → `es`). Así las versiones anteriores a 5.0.1 no quedan sin
+    /// bandera ante códigos nuevos.
+    private static func resolvedCode(_ raw: String?) -> String {
+        guard let code = raw?.lowercased(), !code.isEmpty else { return "" }
+        if UIImage(named: "Flags/\(code)") != nil { return code }
+        if let base = code.split(separator: "-").first, UIImage(named: "Flags/\(base)") != nil {
+            return String(base)
+        }
+        return ""
     }
 }

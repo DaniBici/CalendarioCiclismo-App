@@ -1,43 +1,84 @@
+import {panelEditorTopbarHtml,panelEditorTabsHtml,panelClassificationRowHtml,panelTeamRowHtml,panelTeamCatalogHtml,panelRiderRowHtml} from './panel-editor-ui.js?v=20260912cxcohesion';
+import {panelDayNavigationHtml,panelCatalogHeaderHtml,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml,panelAgendaItemHtml,renderPanelCatalog} from './panel-catalog-ui.js?v=20260912cxcohesion';
+import {attachCountryAutocomplete} from './country-select.js?v=20260917cxflags';
+import { mountFeaturedEditor, mountClassificationEditor, mountDayTimingEditor, readDayTimingChanges } from './panel-race-presentation.js';
+import { mountCxPanel, showCxTab, openCxRaceEditor, areaAgenda, panelArea, loadCxCommonRaces, fillCxRaceSelect, cxCommonRaceName, loadCxCommonTournaments, fillCxTournamentSelect, cxCommonTournamentName } from './panel-cx.js?v=20260927cxbirthyear';
 // ─────────────────────────────────────────────────────────────────
 //  PANEL DE ADMINISTRACIÓN — panel/app.html
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, toDateKey, countryFlag, stageLabel, esc,
          UCI_ORDER, genderRank, grandTourRank, tsSeconds,
-         buildTeamBadgeSvg, findMatchingTeam,
+         findMatchingTeam,
          extractYouTubeId, checkYouTubeEmbeddable,
          categoryBadge, effectiveCountryCode,
-         nameImpliesFemale, normalizeTeamName }
+         nameImpliesFemale, normalizeTeamName, isNoTeamPlaceholderTeam }
   from './shared.js';
-import { annotateDoubleSectors } from './services/races.js';
+import { annotateDoubleSectors, sectorSuffixMap } from './services/races.js';
+import { fetchAllRows } from './services/paged-query.js';
+import { resolveCxPushTarget, cxPushSubscriberQuery, cxPushAudienceLabel } from './cx-push.js?v=20260912cxpush5';
+import { canHaveTeamRoster, isSelectionTeam } from './services/team-roster.js';
+import {
+  activeCatalogTeams,
+  teamGenderLabel,
+  teamListYearOptions,
+  teamsForSeasonList,
+} from './services/team-catalog.js?v=20260907144500';
 import { detectClimb, computeClimbStats } from './climb-detection.js';
 import { exportElevationProfilePNG } from './elevation-profile.js';
 import { buildProfileAssetDownloadRequest, mountProfileDigitizer } from './profile-digitizer.js';
-import { openDrawer, closeDrawer, isDrawerOpen } from './components/drawer.js';
+import { openDrawer, closeDrawer, isDrawerOpen } from './components/drawer.js?v=20260912cxsavecontext';
 import { confirmDialog, alertDialog, promptDialog } from './components/dialog.js';
 import { genderToggleHtml, setGenderToggleActive, wireGenderToggle } from './components/gender-toggle.js';
 import { compareChampionships } from './campeonatos-config.js';
-import { madridDateKey, madridTimeToTimestamp } from './services/timezone.js';
+import { automaticTeamHeaderText } from './team-appearance.js?v=20260905062000';
+import { isValidRiderSlug, homonymIdentityKey, planRenameIdentityKeyClash } from './rider-rename-logic.js?v=20260915rename1';
+import { madridDateKey, madridTimeToTimestamp, zonedTimeToTimestamp } from './services/timezone.js';
 import {
-  parseStartlistImportDocument,
+  isInitialTransferImport,
+  isMarketDestinationTeamEligible,
+  MARKET_DESTINATION_DIVISIONS,
+  marketDestinationTeamOptions,
+  riderTeamOptionLabel,
+  transferEditorAnnouncementDate,
+  transferRiderInitialGender,
+  transferRowBorderColor,
+} from './services/transfer-rider.js?v=20260908a';
+import {
+  saveEnrichedStartlist,
+  hasAssignedStartlistDorsals,
+  loadCompleteStartlistCatalog,
+  orderStartlistTeamsForSave,
   selectUpcomingStartlistRaces,
-  uniqueExistingRiderMatchId,
-  validateStartlistImportTarget,
-} from './startlist-import.js';
+} from './startlist-import.js?v=20260912120000';
 import {
+  applyPersistedResultSyncDayState,
   filterStartlistRiderCandidates,
+  findResultClassificationDuplicate,
   isFinalStageRaceDay,
   nextResultRank,
   normalizeResultTimeInput,
   pairFinalClassifications,
+  resultClassificationBelongsToDay,
+  resultClassificationOfficialState,
   resultRiderDorsalText,
   resultRiderPickerInitialQuery,
+  RESULT_SYNC_DAY_STATE_SELECT,
+  resultSyncDefaultScope,
+  resultSyncScopeOptionsVisible,
   resolveResultLeaderName,
   riderMatchesSearch,
   riderSearchLookupToken,
   shouldMirrorFinalClassification,
   uniqueStartlistSurnameMatch,
-} from './uci-results-panel-logic.js';
+  startlistRosterCandidates,
+} from './results-panel-logic.js';
+import {
+  operationSourceCatalog,
+  operationRunStatus,
+  selectOperationHistory,
+  shortOperationRevision,
+} from './services/operations-monitor.js?v=20260912cxruntime';
 
 // ── GPX — parseo en browser y calculo de perfil de elevacion ─────
 const _GPX_THRESHOLD_M  = 3;
@@ -417,9 +458,13 @@ function showToast(msg, type = 'error', duration = 4000) {
 
 // La agenda abre SIEMPRE en el día en curso (antes recordaba el último día
 // visitado vía localStorage 'panel_dateKey' y resultaba incómodo).
-let currentDateKey  = toDateKey(new Date());
+let currentDateKey  = madridDateKey(new Date());
 let currentRaceDayId    = null;
 let allRaces            = [];
+const loadedRaceYears    = new Set();
+const loadingRaceYears   = new Map();
+let allRacesFullyLoaded  = false;
+let allRacesLoadPromise  = null;
 let currentDayRaceIds   = new Set(); // raceIds que ya tienen jornada en currentDateKey
 let _editorCache = null; // { rd, broadcasts, assets } | null — evita releer Firestore tras guardar
 let _profileDigitizerCleanup = null;
@@ -483,41 +528,14 @@ function _clickEditorTab(target, tries = 20) {
 
 // ── Init panel ────────────────────────────────────────────────────
 async function initPanel() {
-  // Fecha picker
+  document.querySelector('#sidebar .sidebar__header').innerHTML=panelDayNavigationHtml({pickerId:'agendaDate',previousId:'prevDayBtn',nextId:'nextDayBtn',todayId:'todayBtn',addId:'addJornadaBtn',addLabel:'+ Añadir jornada'});
   const datePicker = document.getElementById('agendaDate');
-  datePicker.value = currentDateKey;
-  datePicker.addEventListener('change', () => {
-    currentDateKey = datePicker.value;
-    loadSidebar();
-  });
-
-  datePicker.addEventListener('keydown', e => {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault();
-    const [y, m, d] = currentDateKey.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    date.setDate(date.getDate() + (e.key === 'ArrowUp' ? -1 : 1));
-    currentDateKey = toDateKey(date);
-    datePicker.value = currentDateKey;
-    loadSidebar();
-  });
-
-  const shiftDay = (delta) => {
-    const [y, m, d] = currentDateKey.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    date.setDate(date.getDate() + delta);
-    currentDateKey = toDateKey(date);
-    datePicker.value = currentDateKey;
-    loadSidebar();
-  };
-
-  document.getElementById('prevDayBtn').addEventListener('click', () => shiftDay(-1));
-  document.getElementById('nextDayBtn').addEventListener('click', () => shiftDay(1));
-
-  document.getElementById('todayBtn').addEventListener('click', () => {
-    currentDateKey = toDateKey(new Date());
-    datePicker.value = currentDateKey;
-    loadSidebar();
+  wirePanelDayNavigation({
+    picker:datePicker, previous:document.getElementById('prevDayBtn'),
+    next:document.getElementById('nextDayBtn'), today:document.getElementById('todayBtn'),
+  }, {
+    getDate:()=>currentDateKey, todayDate:()=>madridDateKey(new Date()),
+    onChange:date=>{currentDateKey=date;loadSidebar();},
   });
 
   document.getElementById('addJornadaBtn').addEventListener('click', openRaceModal);
@@ -528,6 +546,7 @@ async function initPanel() {
   // Si venimos desde una página pública con query params, navegar a la sección correspondiente
   const _urlEdit   = new URLSearchParams(location.search);
   const _editId    = _urlEdit.get('edit');
+  const _cxEditId  = _urlEdit.get('cxEdit');
   const _startlist = _urlEdit.get('startlist');
   const _perfilId  = _urlEdit.get('perfil');
   const _teamId    = _urlEdit.get('team');
@@ -550,6 +569,13 @@ async function initPanel() {
       }
     } catch (_) {}
   }
+  if ((_editId || _perfilId) && currentDateKey) {
+    await ensureRaceYearLoaded(raceYearFromDateKey(currentDateKey));
+  }
+  if (_startlist) {
+    await ensureRaceLoadedById(_startlist);
+  }
+
   // Limpiar los query params del deep-link conservando el hash: tabFromHash()
   // se lee más abajo y los marcadores (#analytics…) deben sobrevivir.
   history.replaceState(null, '', location.pathname + location.hash);
@@ -557,7 +583,9 @@ async function initPanel() {
   setupModals();
   setupRacesView();
   loadSidebar();
-  if (_editId) {
+  if (_cxEditId) {
+    await openCxRaceEditor(_cxEditId,_tabParam||'identity');
+  } else if (_editId) {
     switchTab('agenda', { updateHash: false });
     history.replaceState(null, '', '#agenda');
     openEditor(_editId);
@@ -595,10 +623,80 @@ function sortRaces(arr) {
     || (a.name || '').localeCompare(b.name || ''));
 }
 
+function raceYearFromDateKey(dateKey = currentDateKey) {
+  const year = Number(String(dateKey || '').slice(0, 4));
+  return Number.isInteger(year) ? year : new Date().getFullYear();
+}
+
+async function ensureRaceYearLoaded(year, { force = false } = {}) {
+  const normalizedYear = Number(year);
+  if (!Number.isInteger(normalizedYear)) return [];
+  if (allRacesFullyLoaded && !force) {
+    return allRaces.filter(race => Number(race.year) === normalizedYear);
+  }
+  if (loadedRaceYears.has(normalizedYear) && !force) {
+    return allRaces.filter(race => Number(race.year) === normalizedYear);
+  }
+  if (loadingRaceYears.has(normalizedYear)) return loadingRaceYears.get(normalizedYear);
+
+  const request = fetchAllRows(() => supabase
+    .from('races')
+    .select('*')
+    .eq('year', normalizedYear)
+    .order('id'), 2000)
+    .then(rows => {
+      allRaces = allRaces.filter(race => Number(race.year) !== normalizedYear);
+      allRaces.push(...rows);
+      loadedRaceYears.add(normalizedYear);
+      sortRaces(allRaces);
+      return rows;
+    })
+    .finally(() => loadingRaceYears.delete(normalizedYear));
+
+  loadingRaceYears.set(normalizedYear, request);
+  return request;
+}
+
+async function ensureAllRacesLoaded() {
+  if (allRacesFullyLoaded) return allRaces;
+  if (allRacesLoadPromise) return allRacesLoadPromise;
+
+  allRacesLoadPromise = fetchAllRows(() => supabase
+    .from('races')
+    .select('*')
+    .order('id'), 2000)
+    .then(rows => {
+      allRaces = sortRaces(rows);
+      loadedRaceYears.clear();
+      rows.forEach(race => {
+        const year = Number(race.year);
+        if (Number.isInteger(year)) loadedRaceYears.add(year);
+      });
+      allRacesFullyLoaded = true;
+      return allRaces;
+    })
+    .finally(() => { allRacesLoadPromise = null; });
+
+  return allRacesLoadPromise;
+}
+
+async function ensureRaceLoadedById(raceId) {
+  if (!raceId) return null;
+  const cached = allRaces.find(race => race.id === raceId);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('races')
+    .select('*')
+    .eq('id', raceId)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) upsertRaceLocal(data);
+  return data || null;
+}
+
 async function loadRaces() {
-  const { data } = await supabase.from('races').select('*');
-  allRaces = data || [];
-  sortRaces(allRaces);
+  await ensureRaceYearLoaded(raceYearFromDateKey());
 }
 
 // Actualiza allRaces en memoria sin ir a Firestore
@@ -615,21 +713,39 @@ function removeRaceLocal(id) {
 }
 
 // ── Sidebar: jornadas del día ─────────────────────────────────────
+let sidebarRequest = 0;
 async function loadSidebar() {
+  const request = ++sidebarRequest, dateKey = currentDateKey;
   const list = document.getElementById('sidebarList');
+  list._featuredMount = null;
   list.innerHTML = '<div style="padding:1rem;font-size:0.8rem;color:var(--text-dim)">Cargando…</div>';
 
   try {
-    const { data: daysData } = await supabase
-      .from('race_days')
-      .select('*')
-      .eq('dateKey', currentDateKey);
+    const days = await loadPanelAgendaDay(dateKey);
+    if (request !== sidebarRequest) return;
+    currentDayRaceIds = new Set(days.map(d=>d.raceId).filter(Boolean));
+    renderRoadPanelAgenda(list,days,dateKey,{onRaceDay:openEditor,onPendingRace:createNewRaceDay});
+
+    mountFeaturedEditor(supabase,list,dateKey);
+  } catch (err) {
+    if (request !== sidebarRequest) return;
+    console.error(err);
+    list.innerHTML = `<div style="padding:1rem;color:#e84747;font-size:0.8rem">Error al cargar</div>`;
+  }
+}
+
+async function loadPanelAgendaDay(dateKey) {
+    const [, { data: daysData, error }] = await Promise.all([
+      ensureRaceYearLoaded(raceYearFromDateKey(dateKey)),
+      supabase
+        .from('race_days')
+        .select('*')
+        .eq('dateKey', dateKey),
+    ]);
+    if (error) throw error;
     let days = daysData || [];
 
-    // Actualizar raceIds con jornada en este día
-    currentDayRaceIds = new Set(days.map(d => d.raceId).filter(Boolean));
-
-    annotateDoubleSectors(days, { skipFcNumbers: true });
+    annotateDoubleSectors(days);
 
     // Enriquecer con datos de carrera
     days = days.map(rd => ({
@@ -653,9 +769,19 @@ async function loadSidebar() {
       return (a._race.name || '').localeCompare(b._race.name || '');
     });
 
+    return days;
+}
+
+function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace,onlyFirstStageDay=false,hideStageLabel=false,hideCompletenessGroups=false}) {
     list.innerHTML = '';
 
-    if (days.length === 0) {
+    const visibleDays = onlyFirstStageDay
+      ? days.filter(rd => rd._race?.raceFormat !== 'stage_race' || rd._race.startDate === dateKey)
+        .filter((rd, index, firstDayRows) => !rd.raceId
+          || firstDayRows.findIndex(candidate => candidate.raceId === rd.raceId) === index)
+      : days;
+
+    if (visibleDays.length === 0) {
       list.innerHTML = '';
     } else {
 
@@ -671,23 +797,16 @@ async function loadSidebar() {
       { key: 'draft',      label: 'Borrador'      },
     ];
 
-    groups.forEach(({ key, label }) => {
-      const groupDays = days.filter(rd => getSidebarGroup(rd) === key);
-      if (groupDays.length === 0) return;
-
-      const header = document.createElement('div');
-      header.className = 'sidebar-group-label';
-      header.textContent = label;
-      list.appendChild(header);
-
-      groupDays.forEach(rd => {
+    const renderDays = (groupDays) => groupDays.forEach(rd => {
         const item = document.createElement('div');
-        item.className = 'sidebar-item' + (rd.id === currentRaceDayId ? ' active' : '');
+        item.className = 'sidebar-item' + (onRaceDay === openEditor && rd.id === currentRaceDayId ? ' active' : '');
+        item.dataset.raceId = rd.raceId;
+        item.dataset.raceName = rd._race.name || 'Sin carrera';
 
         const cc    = effectiveCountryCode(rd, rd._race);
         const flag  = countryFlag(cc);
         const name  = rd._race.name || rd._race.abbrev || 'Sin carrera';
-        const stage = stageLabel(rd.stageNumber, rd._stageSuffix);
+        const stage = hideStageLabel ? '' : stageLabel(rd.stageNumber, rd._stageSuffix);
         const catBadge  = categoryBadge(rd._race.uciCategory, rd._race.gender === 'female' && !nameImpliesFemale(rd._race.name || ''));
         const statusBadge = rd.isRestDay
           ? '<span class="badge badge--type-rest">Descanso</span>'
@@ -695,23 +814,31 @@ async function loadSidebar() {
             ? '<span class="badge badge--type-cancelled">Cancelada</span>'
             : '';
 
-        item.innerHTML = `
-          <span class="sidebar-item__flag">${flag}</span>
-          <div class="sidebar-item__info">
-            <div class="sidebar-item__name">${name}</div>
-            ${stage ? `<div class="sidebar-item__stage">${stage}</div>` : ''}
-            <div class="sidebar-item__badges">${catBadge}${statusBadge ? ' ' + statusBadge : ''}</div>
-          </div>
-        `;
-        item.addEventListener('click', () => openEditor(rd.id));
+        item.innerHTML = panelAgendaItemHtml({flagHtml:flag,name,detailHtml:esc(stage),badgesHtml:catBadge+(statusBadge ? ' '+statusBadge : '')});
+        item.addEventListener('click', () => onRaceDay(rd.id,rd.raceId));
         list.appendChild(item);
       });
-    });
 
-    } // end if days.length > 0
+    if (hideCompletenessGroups) {
+      renderDays(visibleDays);
+    } else {
+      groups.forEach(({ key, label }) => {
+        const groupDays = visibleDays.filter(rd => getSidebarGroup(rd) === key);
+        if (groupDays.length === 0) return;
+
+        const header = document.createElement('div');
+        header.className = 'sidebar-group-label';
+        header.textContent = label;
+        list.appendChild(header);
+        renderDays(groupDays);
+      });
+    }
+
+    } // end if visibleDays.length > 0
 
     // Carreras sin jornada asignada en este día
-    const pending = getRaceSuggestionsForDate(currentDateKey);
+    const pending = getRaceSuggestionsForDate(dateKey,new Set(days.map(d=>d.raceId)))
+      .filter(race => !onlyFirstStageDay || race.raceFormat !== 'stage_race' || race.startDate === dateKey);
     if (pending.length > 0) {
       const divider = document.createElement('div');
       divider.className = 'sidebar-pending-divider';
@@ -723,6 +850,8 @@ async function loadSidebar() {
         const catBadge = categoryBadge(race.uciCategory, race.gender === 'female' && !nameImpliesFemale(race.name || ''));
         const item = document.createElement('div');
         item.className = 'sidebar-item sidebar-item--pending';
+        item.dataset.raceId = race.id;
+        item.dataset.raceName = race.name;
         item.innerHTML = `
           <span class="sidebar-item__flag">${race.hideFlag ? '' : flag}</span>
           <div class="sidebar-item__info">
@@ -730,7 +859,7 @@ async function loadSidebar() {
             <div class="sidebar-item__badges">${catBadge}</div>
           </div>
         `;
-        item.addEventListener('click', () => createNewRaceDay(race.id));
+        item.addEventListener('click', () => onPendingRace(race.id));
         list.appendChild(item);
       });
     } else if (list.innerHTML === '') {
@@ -738,10 +867,6 @@ async function loadSidebar() {
         color:var(--text-muted);font-size:0.8rem">No hay jornadas para este día</div>`;
     }
 
-  } catch (err) {
-    console.error(err);
-    list.innerHTML = `<div style="padding:1rem;color:#e84747;font-size:0.8rem">Error al cargar</div>`;
-  }
 }
 
 // ── Editor de jornada ─────────────────────────────────────────────
@@ -1004,10 +1129,10 @@ async function buildResolvedRiderMapForRace(raceId) {
   if (!data) return map;
 
   // Equipo de la STARTLIST (por dorsal): teamId aquí = PK de startlist_teams →
-  // su teamId canónico → fila de `teams` (nombre + chapa).
+  // su teamId canónico → fila de `teams` (nombre e identidad).
   const teamIds = [...new Set(data.map(r => r.teamId).filter(Boolean))];
   let teamNames = {};      // PK startlist_teams → nombre
-  let teamObjs = {};       // PK startlist_teams → fila teams (chapa)
+  let teamObjs = {};       // PK startlist_teams → fila teams (identidad)
   if (teamIds.length) {
     const { data: slTeams } = await supabase
       .from('startlist_teams').select('id, teamName, teamId').in('id', teamIds);
@@ -1051,7 +1176,7 @@ async function buildResolvedRiderMapForRace(raceId) {
       // otros call sites (re-resolución de inscritos por dorsal). NO cambiar.
       team: teamNames[r.teamId] || '',
       countryCode: r.countryCode || '',
-      // Objeto de equipo para la chapa: startlist (por dorsal) o, en su defecto,
+      // Objeto de equipo: startlist (por dorsal) o, en su defecto,
       // el equipo ACTUAL del corredor (por globalRiderId). Espejo de la cascada web.
       teamObj: slTeamObj || curTeamObj,
       // Nombre del equipo a MOSTRAR en el editor (auto-resuelto): el de startlist
@@ -1452,6 +1577,7 @@ function renderEditor(rd, race, broadcasts, assets) {
   const flag    = countryFlag(race.countryCode);
 
   const startTime  = rd.neutralStartTimeUtc   ? formatTimeHHMM(rd.neutralStartTimeUtc)   : '';
+  const realStartTime = rd.realStartTimeUtc ? formatTimeHHMM(rd.realStartTimeUtc) : '';
   const finishTime = rd.estimatedFinishTimeUtc ? formatTimeHHMM(rd.estimatedFinishTimeUtc) : '';
 
   const editorStage = stageLabel(rd.stageNumber, rd._stageSuffix);
@@ -1460,35 +1586,15 @@ function renderEditor(rd, race, broadcasts, assets) {
     : `${CONFIG.basePath}/jornada.html?id=${rd.id}`;
 
   area.innerHTML = `
-    <!-- Top bar del editor -->
-    <div class="editor-topbar">
-      <div class="editor-topbar__title">
-        <div class="editor-topbar__headline">${flag} ${race.name || 'Jornada'}${editorStage ? ` · ${editorStage}` : ''}${rd.dateKey ? ` · <span class="editor-topbar__date">${rd.dateKey}</span>` : ''}</div>
-        <div class="editor-topbar__meta">
-          <span class="editor-topbar__status ${isDraft ? '' : 'editor-topbar__status--pub'}">${isDraft ? 'Borrador' : 'Publicado'}</span>
-          ${rd.updatedAt ? `<span class="editor-topbar__updated" title="Última actualización">✎ ${formatDateTime(rd.updatedAt)}</span>` : ''}
-        </div>
-      </div>
-      <div class="editor-topbar__actions">
+    ${panelEditorTopbarHtml({name:race.name||'Jornada',flagHtml:flag,detail:editorStage,date:rd.dateKey,published:!isDraft,updated:rd.updatedAt?formatDateTime(rd.updatedAt):'',actionsHtml:`
         <a class="btn btn--ghost" href="${publicUrl}" target="_blank" rel="noopener">Ver ↗</a>
         <button class="btn btn--ghost" id="ed-startlist" data-race-id="${rd.raceId}">Dorsales</button>
         <button class="btn btn--danger" id="ed-delete">Borrar</button>
         <button class="btn btn--ghost" id="ed-duplicate">Duplicar</button>
         <button class="btn btn--ghost" id="ed-draft">Borrador</button>
-        <button class="btn btn--primary" id="ed-publish">${isDraft ? 'Publicar' : 'Actualizar'}</button>
-      </div>
-    </div>
-
+        <button class="btn btn--primary" id="ed-publish">${isDraft?'Publicar':'Actualizar'}</button>`})}
     <div class="editor-content">
-
-      <!-- Pestañas del editor -->
-      <div class="editor-tabs" id="editorTabs" role="tablist">
-        <button type="button" class="editor-tab" role="tab" data-target="general">General</button>
-        <button type="button" class="editor-tab" role="tab" data-target="tv">TV</button>
-        <button type="button" class="editor-tab" role="tab" data-target="perfil">GPX</button>
-        <button type="button" class="editor-tab" role="tab" data-target="mas">Docs</button>
-        <button type="button" class="editor-tab" role="tab" data-target="resultados">Resultados</button>
-      </div>
+      ${panelEditorTabsHtml([['general','General'],['tv','TV'],['perfil','GPX'],['mas','Docs'],['resultados','Resultados']].map(([key,label])=>({key,label})),{id:'editorTabs'})}
 
       <!-- Identidad -->
       <div class="editor-section" data-tab="general">
@@ -1650,10 +1756,14 @@ function renderEditor(rd, race, broadcasts, assets) {
           <span class="editor-section__title">Horarios (hora española)</span>
         </div>
         <div class="editor-section__body">
-          <div class="field-row field-row--2">
+          <div class="field-row field-row--3">
             <div class="field">
               <label>Salida neutralizada</label>
               <input type="time" id="ed-startTime" value="${startTime}">
+            </div>
+            <div class="field">
+              <label>Salida real</label>
+              <input type="time" id="ed-realStartTime" value="${realStartTime}">
             </div>
             <div class="field">
               <label>Llegada estimada</label>
@@ -1931,7 +2041,7 @@ function renderEditor(rd, race, broadcasts, assets) {
         </div>
       </div>
 
-      <!-- Resultados UCI in-house (pestaña Resultados) -->
+      <!-- Resultados internos (pestaña Resultados) -->
       <div class="editor-section" data-tab="resultados">
         <div class="editor-section__header">
           <span class="editor-section__title">Clasificaciones</span>
@@ -1940,60 +2050,6 @@ function renderEditor(rd, race, broadcasts, assets) {
           <div style="color:var(--text-muted);font-size:0.8rem">Cargando clasificaciones…</div>
         </div>
       </div>
-
-      <!-- Resultados externos (externos) -->
-      ${(() => {
-        const extId     = race.extId;
-        const extSlug  = race.extSlug;
-        const year     = race.year;
-        const stageNum = rd.isRestDay ? null : (rd.stageNumber !== null && rd.stageNumber !== undefined ? rd.stageNumber : null);
-        const isRest   = !!rd.isRestDay;
-
-        const extUrlA = (!isRest && extId && year)
-          ? (stageNum !== null
-              ? `https://example.invalid).padStart(2, '0')}`
-              : `https://example.invalid)
-          : null;
-        const extUrlB = (!isRest && extSlug && year)
-          ? (stageNum !== null
-              ? (stageNum === 0
-                  ? `https://example.invalid
-                  : `https://example.invalid)
-              : `https://example.invalid)
-          : null;
-
-        const fcSearchQ   = encodeURIComponent((race.name || '') + (year ? ' ' + year : ''));
-        const pcsSearchUrl = `https://www.google.com/search?q=site:fuente externa.com+${fcSearchQ}`;
-
-        // Enlaces automáticos a resultados externos. Raramente se
-        // tocan → colapsada por defecto vía <details> para despejar el form.
-        const hasIds = extId != null || (extSlug && extSlug !== '');
-        return `<details class="editor-section editor-section--advanced" data-tab="resultados" ${hasIds ? 'open' : ''}>
-          <summary class="editor-section__header editor-advanced__summary">
-            <span class="editor-section__title">Enlaces automáticos</span>
-          </summary>
-          <div class="editor-section__body">
-            <div class="field-row field-row--2">
-              <div class="field">
-                <label>ID fuente externa (extId)</label>
-                <div class="u-row u-row--gap-sm">
-                  <input class="u-grow" type="number" id="ed-extId" value="${extId != null ? extId : ''}" placeholder="—" min="1">
-                  ${extUrlA ? `<a href="${extUrlA}" target="_blank" rel="noopener noreferrer" class="btn btn--ghost u-btn-mini">Abrir ↗</a>` : ''}
-                  <a href="https://www.google.com/search?q=site:fuente externa.com+${fcSearchQ}" target="_blank" rel="noopener noreferrer" class="btn btn--ghost u-btn-mini">Buscar ↗</a>
-                </div>
-              </div>
-              <div class="field">
-                <label>Slug fuente externa (extSlug)</label>
-                <div class="u-row u-row--gap-sm">
-                  <input class="u-grow" type="text" id="ed-extSlug" value="${extSlug || ''}" placeholder="tour-de-france">
-                  ${extUrlB ? `<a href="${extUrlB}" target="_blank" rel="noopener noreferrer" class="btn btn--ghost u-btn-mini">Abrir ↗</a>` : ''}
-                  <a href="${pcsSearchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--ghost u-btn-mini">Buscar ↗</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </details>`;
-      })()}
 
       <div id="editorFeedback" style="margin-top:1rem"></div>
       <div style="height:3rem"></div>
@@ -2163,6 +2219,11 @@ function renderEditor(rd, race, broadcasts, assets) {
     }
   });
 
+  mountDayTimingEditor(
+    document.getElementById('ruSectionBody').closest('.editor-section'),
+    rd,
+  );
+
   // Eventos del editor
   document.getElementById('ed-delete').addEventListener('click', deleteRaceDay);
   document.getElementById('ed-draft').addEventListener('click',   () => saveRaceDay('draft'));
@@ -2236,7 +2297,7 @@ function renderEditor(rd, race, broadcasts, assets) {
   // Enter en campos de texto/hora/url → Publicar / Actualizar
   ['ed-stage', 'ed-start', 'ed-finish', 'ed-km', 'ed-elev',
    'ed-slug', 'ed-startTime', 'ed-finishTime',
-   'ed-bonuses', 'ed-notes', 'ed-extId', 'ed-extSlug',
+   'ed-bonuses', 'ed-notes',
    'ed-bonuses-en', 'ed-notes-en'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
@@ -2830,9 +2891,6 @@ function addBroadcastRow() {
   const tmp = document.createElement('div');
   tmp.innerHTML = broadcastHTML({}, count);
   list.appendChild(tmp.firstElementChild);
-  const newEl = list.lastElementChild;
-  bindRemoveBroadcast(newEl);
-  bindMoveBroadcast(newEl);
 }
 
 function moveBroadcastRow(el, direction) {
@@ -2849,30 +2907,6 @@ function updateBroadcastLabels() {
   document.querySelectorAll('.tv-entry-panel').forEach((panel, i) => {
     const label = panel.querySelector('.tv-entry-panel__label');
     if (label) label.textContent = `Emisión ${i + 1}`;
-  });
-}
-
-function bindRemoveBroadcast(el) {
-  el.querySelector('.remove-broadcast-btn').addEventListener('click', () => {
-    el.remove();
-    updateBroadcastLabels();
-  });
-}
-
-function bindMoveBroadcast(el) {
-  el.querySelector('.move-broadcast-up-btn').addEventListener('click', () => moveBroadcastRow(el, 'up'));
-  el.querySelector('.move-broadcast-down-btn').addEventListener('click', () => moveBroadcastRow(el, 'down'));
-}
-
-// Bind existing remove buttons after render
-function bindAllRemoveBroadcasts() {
-  document.querySelectorAll('.tv-entry-panel').forEach(panel => {
-    panel.querySelector('.remove-broadcast-btn').addEventListener('click', () => {
-      panel.remove();
-      updateBroadcastLabels();
-    });
-    panel.querySelector('.move-broadcast-up-btn').addEventListener('click', () => moveBroadcastRow(panel, 'up'));
-    panel.querySelector('.move-broadcast-down-btn').addEventListener('click', () => moveBroadcastRow(panel, 'down'));
   });
 }
 
@@ -2912,6 +2946,12 @@ async function saveRaceDay(status) {
       setRaceDaySaveInFlight(false);
       return;
     }
+  }
+
+  const timingChanges = readDayTimingChanges(_editorCache?.rd || {});
+  if (!timingChanges) {
+    setRaceDaySaveInFlight(false);
+    return;
   }
 
   // hidden.value is kept in sync by initMdToolbar (input, keydown, blur listeners).
@@ -3055,10 +3095,12 @@ async function saveRaceDay(status) {
     slugEn:               document.getElementById('ed-slug-en')?.value.trim() || null,
     countryCode:          document.getElementById('ed-country').value.trim() || null,
     distanceKm:           _distanceKm,
+    ...timingChanges.distance,
     elevationProfile:     _elevationProfile,
     primaryType:          document.getElementById('ed-type').value || null,
     secondaryType:        document.getElementById('ed-type2').value || null,
     neutralStartTimeUtc:  toTimestamp(dateKey, document.getElementById('ed-startTime').value),
+    realStartTimeUtc:     toTimestamp(dateKey, document.getElementById('ed-realStartTime').value),
     estimatedFinishTimeUtc: toTimestamp(dateKey, document.getElementById('ed-finishTime').value),
     tvStatus:             document.getElementById('ed-tvStatus').value || null,
     description:          descriptionMarkdown.trim(),
@@ -3071,21 +3113,20 @@ async function saveRaceDay(status) {
     profileNotViewable:   document.getElementById('ed-profile-not-viewable')?.checked || false,
   };
 
-  // Leer extId/extSlug del editor de jornada (se guardan en races, no en race_days)
-  const edExtId    = parseInt(document.getElementById('ed-extId')?.value) || null;
-  const edExtSlug = document.getElementById('ed-extSlug')?.value.trim() || null;
-
   try {
     const { error: rdErr } = await supabase.from('race_days').update(data).eq('id', rdId);
     if (rdErr) throw rdErr;
 
-    // Actualizar extId/extSlug en races si el editor los tiene
-    const raceInMem = allRaces.find(r => r.id === raceId);
-    if (raceId && (edExtId !== (raceInMem?.extId ?? null) || edExtSlug !== (raceInMem?.extSlug ?? null))) {
-      const { error: raceErr } = await supabase.from('races').update({ extId: edExtId, extSlug: edExtSlug }).eq('id', raceId);
-      if (raceErr) throw raceErr;
-      if (raceInMem) upsertRaceLocal({ ...raceInMem, extId: edExtId, extSlug: edExtSlug });
+    // Aplicar la verificación después del recálculo que puede invalidar la anterior.
+    if (timingChanges.timeLimit) {
+      const { error: timingError } = await supabase.from('race_days')
+        .update(timingChanges.timeLimit).eq('id', rdId);
+      if (timingError) throw timingError;
     }
+    const { data: savedTiming, error: timingReadError } = await supabase.from('race_days')
+      .select('timingPolicy,competitiveDistanceKm,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis')
+      .eq('id', rdId).single();
+    if (timingReadError) throw timingReadError;
 
     // Conservar las IDs existentes: los vínculos privados del sincronizador del
     // VPS referencian estas filas y el bloqueo administrativo pertenece a cada
@@ -3229,7 +3270,7 @@ async function saveRaceDay(status) {
     // Construir estado actualizado en memoria para pasarlo al editor sin releer Supabase.
     // `data` ya incluye el elevationProfile fusionado (desnivel manual + perfil GPX),
     // así que ...data aporta el valor correcto — no reusar el del caché previo.
-    const savedRd = { ...data, id: rdId, hasAssets };
+    const savedRd = { ...data, ...savedTiming, id: rdId, hasAssets };
 
     // Reutilizar el estado que se acaba de persistir, incluidas sus IDs reales.
     // Si la caché las vacía, openEditor vuelve a montar filas sin data-bid y el
@@ -3398,6 +3439,7 @@ function wireRaceModal() {
 let _racePickerLevel = 1;  // nivel en el que se abrió el selector de carrera
 
 async function openRaceModal() {
+  await ensureRaceYearLoaded(raceYearFromDateKey(currentDateKey));
   // Si el editor de jornada (nivel 1) está abierto, apilar en nivel 2;
   // si se abre desde la agenda (+ Añadir jornada), va en nivel 1.
   const level = document.getElementById('editorArea') ? 2 : 1;
@@ -3422,13 +3464,13 @@ async function openRaceModal() {
   renderRaceModal('');
 }
 
-function getRaceSuggestionsForDate(dateKey) {
+function getRaceSuggestionsForDate(dateKey,assignedRaceIds=currentDayRaceIds) {
   if (!dateKey) return [];
   return allRaces.filter(r => {
     const start = r.startDate || '';
     const end   = r.endDate   || '';
     if (!start || !end) return false;
-    return start <= dateKey && dateKey <= end && !currentDayRaceIds.has(r.id) && !r.isCancelled;
+    return start <= dateKey && dateKey <= end && !assignedRaceIds.has(r.id) && !r.isCancelled;
   });
 }
 
@@ -3837,19 +3879,26 @@ function formatTimeHHMM(ts) {
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 }
 
+function formatTimeHHMMInZone(ts, timeZone) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone });
+}
+
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE CARRERAS
 // ═════════════════════════════════════════════════════════════════
 
 // ── Navegación (rail lateral; antes pestañas) ─────────────────────
 function initTabs() {
+  mountCxPanel({supabase,openDrawer,closeDrawer,showToast,attachInlineUpload,countryFlag,categoryBadge,navigate:switchTab,r2PutObject,r2PutTechnicalGuide,r2PublicBase:R2_PUBLIC_BASE});
   document.querySelectorAll('.rail-item[data-tab], .panel-tab').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
   // Logo → Agenda
   const logoHome = document.getElementById('logoHome');
-  if (logoHome) logoHome.addEventListener('click', e => { e.preventDefault(); switchTab('agenda'); });
+  if (logoHome) logoHome.addEventListener('click', e => { e.preventDefault(); switchTab(areaAgenda()); });
 
   // Burger menu (mobile)
   const burger = document.getElementById('panelBurger');
@@ -3882,14 +3931,16 @@ function initTabs() {
   window.addEventListener('hashchange', () => switchTab(tabFromHash(), { updateHash: false }));
 }
 
-const VALID_TABS = new Set(['agenda', 'startlists', 'teams', 'analytics', 'races', 'notifications', 'highlights', 'fichajes']);
+const VALID_TABS = new Set(['agenda', 'startlists', 'riders', 'teams', 'analytics', 'operations', 'races', 'notifications', 'highlights', 'fichajes', 'cxAgenda', 'cxRaces', 'cxTournaments', 'cxStartlists', 'cxRiders', 'cxTeams']);
 
 function tabFromHash() {
   const hash = location.hash.slice(1);
-  return VALID_TABS.has(hash) ? hash : 'agenda';
+  return VALID_TABS.has(hash) ? hash : areaAgenda();
 }
 
 function switchTab(tab, { updateHash = true } = {}) {
+  closeDrawer(1);
+  showCxTab(tab);
   // Rail lateral (nav permanente). Se conservan los selectores antiguos
   // (.panel-tab/.panel-burger-item) por si quedan referencias; el rail usa
   // .rail-item[data-tab].
@@ -3899,7 +3950,9 @@ function switchTab(tab, { updateHash = true } = {}) {
   const isAgenda        = tab === 'agenda';
   const isRaces         = tab === 'races';
   const isAnalytics     = tab === 'analytics';
+  const isOperations    = tab === 'operations';
   const isStartlists    = tab === 'startlists';
+  const isRiders        = tab === 'riders';
   const isTeams         = tab === 'teams';
   const isNotifications = tab === 'notifications';
   const isHighlights    = tab === 'highlights';
@@ -3908,7 +3961,9 @@ function switchTab(tab, { updateHash = true } = {}) {
   document.getElementById('racesView').style.display                   = isRaces         ? 'flex' : 'none';
   document.getElementById('racesView').style.flexDirection             = 'column';
   document.getElementById('analyticsView').style.display               = isAnalytics     ? 'flex' : 'none';
+  document.getElementById('operationsView').style.display              = isOperations    ? 'flex' : 'none';
   document.getElementById('startlistsView').style.display              = isStartlists    ? 'flex' : 'none';
+  document.getElementById('ridersView').style.display                  = isRiders        ? 'flex' : 'none';
   document.getElementById('teamsView').style.display                   = isTeams         ? 'flex' : 'none';
   document.getElementById('notificationsView').style.display           = isNotifications ? 'flex' : 'none';
   document.getElementById('highlightsView').style.display              = isHighlights    ? 'flex' : 'none';
@@ -3918,12 +3973,295 @@ function switchTab(tab, { updateHash = true } = {}) {
   // propio; al entrar se renderiza la subvista activa.
   if (isRaces)         applyRacesSubview(_racesSubview);
   if (isAnalytics)     setupAnalyticsView();
+  if (isOperations)    setupOperationsView();
   if (isStartlists)    setupStartlistsView();
+  if (isRiders)        setupRidersView();
   if (isTeams)         setupTeamsView();
   if (isNotifications) setupNotificationsView();
   if (isHighlights)    setupHighlightsView();
   if (isFichajes)      setupFichajesView();
   if (updateHash) history.pushState(null, '', '#' + tab);
+}
+
+// ── Monitor de automatizaciones del VPS ─────────────────────────
+let _operationsReady = false;
+let _operationsRefreshTimer = null;
+let _operationsRefreshVersion = 0;
+let _operationsQueues = {};
+const _operationsForcing = new Set();
+
+const _OPERATIONS_JOBS = [
+  { id: 'results', label: 'Resultados', cadence: 'Cada minuto', force: true },
+  { id: 'cx_results', label: 'Resultados CX', cadence: 'Cada minuto · mangas con ventana verificada', force: true },
+  { id: 'broadcasts', label: 'Emisiones', cadence: 'Cada 30 minutos', force: true },
+  { id: 'uci_team_ranking', label: 'Ranking UCI', cadence: 'Lunes, martes y control del miércoles', force: false },
+  { id: 'uci_catalog', label: 'Catálogo UCI', cadence: 'Cada día · 07:25', force: false },
+];
+
+const _OPERATIONS_SOURCES = [
+  { id: 'dataride_cx', label: 'DataRide CX', job: 'cx_results' },
+  { id: 'cx_standings', label: 'Generales CX', job: 'cx_results' },
+  { id: 'cx_push', label: 'Avisos CX', job: 'cx_results' },
+  { id: 'hbo_max', label: 'HBO Max' },
+  { id: 'rtve', label: 'RTVE' },
+  { id: 'eitb', label: 'EITB' },
+  { id: 'sporza', label: 'Sporza' },
+  { id: 'rtbf', label: 'RTBF' },
+  { id: 'rai', label: 'RAI' },
+  { id: 'lequipe', label: "L'Équipe" },
+];
+
+const _OPERATIONS_ACTION_LABELS = {
+  source_failure: ['error al consultar la fuente', 'errores al consultar la fuente'],
+  unmatched: ['evento sin carrera asociada', 'eventos sin carrera asociada'],
+  ambiguous: ['asociación ambigua', 'asociaciones ambiguas'],
+  manual_conflict: ['conflicto con una emisión manual', 'conflictos con emisiones manuales'],
+  optimistic_conflict: ['cambio concurrente', 'cambios concurrentes'],
+  implausible_change: ['cambio horario no plausible', 'cambios horarios no plausibles'],
+  insufficient_broadcast_evidence: [
+    'evento deportivo sin hora y canal de emisión verificables',
+    'eventos deportivos sin hora y canal de emisión verificables',
+  ],
+  pending_stability: ['dato pendiente de una segunda confirmación', 'datos pendientes de una segunda confirmación'],
+  manual_lock: ['emisión protegida por bloqueo manual', 'emisiones protegidas por bloqueo manual'],
+};
+
+function _operationsActionLabel(action, count) {
+  const labels = _OPERATIONS_ACTION_LABELS[action] || [action, action];
+  return labels[count === 1 ? 0 : 1];
+}
+
+function _operationsSafeUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch { return null; }
+}
+
+function _operationsSourceIssues(item, sourceId) {
+  if(sourceId==='dataride_cx'||sourceId==='cx_standings'){
+    const issues=sourceId==='dataride_cx'?[
+      ...(item?.summary?.decisions||[]).map(issue=>`${issue.category}: ${issue.reason}`),
+      ...(item?.summary?.results||[]).flatMap(result=>[
+        ...[...(result.reviews||[]),...(result.skipped||[]),...(result.warnings||[])].map(issue=>`${issue.category||''}: ${issue.reason}`),
+        ...(result.error?[result.error]:[])
+      ])
+    ]:(item?.summary?.categories||[]).flatMap(result=>[result.reviewReason,result.error,...(result.issues||[]).map(issue=>typeof issue==='string'?issue:issue.message||issue.code||JSON.stringify(issue))].filter(Boolean));
+    return issues.length?`<details class="operations-source__details"><summary>Revisiones CX (${issues.length})</summary><ul class="operations-source__issue-list">${issues.slice(0,50).map(issue=>`<li>${esc(issue)}</li>`).join('')}</ul></details>`:'';
+  }
+  const actions = item?.summary?.actions || {};
+  const actionEntries = Object.entries(actions)
+    .filter(([action, count]) => _OPERATIONS_ACTION_LABELS[action] && Number(count) > 0)
+  const counts = actionEntries.map(([action, count]) => `${Number(count)} ${_operationsActionLabel(action, Number(count))}`);
+  const issueCount = actionEntries.reduce((total, [, count]) => total + Number(count), 0);
+  const details = Array.isArray(item?.summary?.issues) ? item.summary.issues : [];
+  if (!counts.length && !details.length) {
+    if (sourceId !== 'sporza' || Number(item?.itemsFound || 0) > 0) return '';
+    return `<div class="operations-source__note">Sin emisiones confirmadas. Sporza solo se incorpora cuando la página editorial publica hora y canal; el horario deportivo no se usa como horario de TV.</div>`;
+  }
+  const detailCount = issueCount > details.length ? `${details.length} de ${issueCount}` : String(details.length);
+  const detailHtml = details.length ? `<details class="operations-source__details"><summary>Ver detalles registrados (${detailCount})</summary><ul class="operations-source__issue-list">${details.map((issue) => {
+    const label = _operationsActionLabel(issue.action, 1);
+    const subject = [issue.title, issue.dateKey].filter(Boolean).map(esc).join(' · ') || 'Fuente completa';
+    const url = _operationsSafeUrl(issue.sourceUrl);
+    return `<li><span>${subject}: ${esc(label)}${issue.detail ? ` — ${esc(issue.detail)}` : ''}</span>${url ? ` <a href="${esc(url)}" target="_blank" rel="noopener">Abrir fuente ↗</a>` : ''}</li>`;
+  }).join('')}</ul></details>` : '';
+  return `<div class="operations-source__issues"><strong>${counts.map(esc).join(' · ')}</strong>${detailHtml}</div>`;
+}
+
+function _operationsDate(value) {
+  if (!value) return 'Sin ejecuciones';
+  return new Date(value).toLocaleString('es-ES', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZone: 'Europe/Madrid',
+  });
+}
+
+function _operationsDuration(run) {
+  if (!run?.startedAt) return '—';
+  const end = run.finishedAt ? new Date(run.finishedAt) : new Date();
+  const seconds = Math.max(0, Math.round((end - new Date(run.startedAt)) / 1000));
+  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
+}
+
+function _operationsStatusLabel(status) {
+  return ({
+    running: 'En curso', success: 'Correcto', noop: 'Sin cambios', partial: 'Parcial', error: 'Error',
+    warning: 'Aviso', pending: 'En cola', done: 'Completado', stale: 'Sin actualizar',
+  })[status] || 'Sin datos';
+}
+
+function _operationsRenderJobs(payload) {
+  const runs = payload.runs || [];
+  const queues = payload.queues || {};
+  _operationsQueues = queues;
+  document.getElementById('operationsJobs').innerHTML = _OPERATIONS_JOBS.map((job) => {
+    const run = runs.find((item) => item.job === job.id);
+    const queue = queues[job.id] || {};
+    const queued = Number(queue.pending || 0) + Number(queue.running || 0) > 0;
+    const processing = _operationsForcing.has(job.id);
+    const forced = queued || processing;
+    const catalog = job.id === 'uci_catalog' ? payload.uciCatalog : null;
+    const status = operationRunStatus(job.id, run, catalog);
+    const catalogInfo = catalog ? _operationsCatalogInfo(catalog) : '';
+    const error = run?.errorMessage
+      ? `<div class="operations-card__error">${esc(run.errorMessage)}</div>` : '';
+    const control = job.force ? `
+      <button type="button" class="btn btn--ghost operations-force" data-job="${job.id}"
+        ${forced ? 'disabled' : ''}>
+        ${processing ? 'Procesando…' : queued ? 'Pasada en cola' : 'Forzar próxima pasada'}
+      </button>` : '';
+    return `<article class="operations-card">
+      <div class="operations-card__head">
+        <div><div class="operations-card__title">${job.label}</div><div class="operations-card__cadence">${job.cadence}</div></div>
+        <span class="operations-status operations-status--${status}"><i></i>${_operationsStatusLabel(status)}</span>
+      </div>
+      <div class="operations-card__time">${_operationsDate(run?.startedAt)}</div>
+      <div class="operations-card__meta">Duración: ${_operationsDuration(run)}${run?.revision ? ` · versión ${esc(shortOperationRevision(run.revision))}` : ''}</div>
+      ${catalogInfo}${error}${control}
+    </article>`;
+  }).join('');
+
+  document.querySelectorAll('.operations-force').forEach((button) => {
+    button.addEventListener('click', () => _operationsForce(button.dataset.job, button));
+  });
+}
+
+function _operationsCatalogInfo(catalog) {
+  const openCases = Number(catalog.openCases || 0);
+  const lockedCases = Number(catalog.lockedCases || 0);
+  const breakdown = catalog.caseBreakdown || {};
+  const rows = [
+    ['Biografías con discrepancias', breakdown.biographyReview],
+    ['Equipos por asociar', breakdown.teamsToReview],
+    ['Corredores dependientes de esos equipos', breakdown.ridersWaitingForTeam],
+    ['Identidades sin resolver', breakdown.sourceIdentityConflict],
+    ['Corredores con varios equipos regulares', breakdown.multipleRegularTeams],
+    ['Otras revisiones', breakdown.otherOpen],
+  ].filter(([, count]) => Number(count || 0) > 0);
+  const detailRows = rows.length
+    ? `<dl class="operations-catalog__breakdown">${rows.map(([label, count]) => `<div><dt>${esc(label)}</dt><dd>${Number(count)}</dd></div>`).join('')}</dl>`
+    : '';
+  const resolved = Number(breakdown.resolved || 0);
+  return `<div class="operations-catalog">
+    <p>Compara a diario el catálogo oficial de la UCI con las fichas, equipos y afiliaciones. Solo aplica correcciones automáticas seguras.</p>
+    <div class="operations-catalog__mode">${catalog.enabled ? 'Correcciones automáticas seguras activadas' : 'Solo observación'}${lockedCases ? ` · ${lockedCases} bloqueos manuales` : ''}${catalog.overdue ? ' · Sin captura válida en 36 horas' : ''}</div>
+    <details class="operations-catalog__details">
+      <summary>${openCases} incidencias pendientes de revisión</summary>
+      <p>No son errores publicados: son diferencias retenidas para evitar cambios sin evidencia suficiente.</p>
+      ${detailRows}
+      ${resolved ? `<div class="operations-catalog__resolved">${resolved} incidencias resueltas</div>` : ''}
+    </details>
+  </div>`;
+}
+
+function _operationsRenderSources(payload) {
+  const sources = payload.sources || [];
+  const sourceCatalog = operationSourceCatalog(_OPERATIONS_SOURCES, sources);
+  document.getElementById('operationsSources').innerHTML = sourceCatalog.map((source) => {
+    const item = sources.find((row) => row.source === source.id);
+    const job = source.job || item?.job || (source.id==='dataride'?'results':'broadcasts');
+    const run = (payload.runs || []).find((row) => row.job === job);
+    const status = operationRunStatus(job,run) === 'stale' ? 'stale' : (item?.status || 'unknown');
+    return `<article class="operations-source">
+      <div class="operations-source__head"><strong>${esc(source.label)}</strong><span class="operations-status operations-status--${status}"><i></i>${_operationsStatusLabel(status)}</span></div>
+      <div class="operations-source__numbers">
+        <span><b>${item?.itemsFound ?? 0}</b> encontrados</span>
+        <span><b>${item?.itemsMatched ?? 0}</b> ${source.id==='dataride_cx'?'importables':source.id==='cx_standings'?'publicadas':source.id==='cx_push'?'programados':'asociados'}</span>
+        <span><b>${item?.itemsChanged ?? 0}</b> cambios</span>
+        <span><b>${item?.errors ?? 0}</b> errores</span>
+      </div>
+      ${_operationsSourceIssues(item, source.id)}
+      <div class="operations-source__time">${_operationsDate(item?.startedAt)}</div>
+    </article>`;
+  }).join('');
+}
+
+function _operationsRenderHistory(payload) {
+  const runs = selectOperationHistory(payload.runs || []);
+  const host = document.getElementById('operationsHistory');
+  if (!runs.length) {
+    host.innerHTML = '<div class="u-empty-note">Todavía no hay ejecuciones registradas.</div>';
+    return;
+  }
+  const labels = Object.fromEntries(_OPERATIONS_JOBS.map((job) => [job.id, job.label]));
+  host.innerHTML = `<table class="operations-table">
+    <caption class="sr-only">Últimas ejecuciones por trabajo</caption>
+    <thead><tr><th>Inicio</th><th>Trabajo</th><th>Origen</th><th>Estado</th><th>Duración</th></tr></thead>
+    <tbody>${runs.map((run) => `<tr>
+      <td>${_operationsDate(run.startedAt)}</td>
+      <td>${esc(labels[run.job] || run.job)}</td>
+      <td>${run.triggerKind === 'scheduled' ? 'Automático' : run.triggerKind === 'manual' ? 'Panel' : 'Automático + panel'}</td>
+      <td><span class="operations-status operations-status--${run.status}"><i></i>${_operationsStatusLabel(run.status)}</span></td>
+      <td>${_operationsDuration(run)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function refreshOperationsMonitor() {
+  const version = ++_operationsRefreshVersion;
+  const refresh = document.getElementById('operationsRefreshBtn');
+  refresh.disabled = true;
+  try {
+    const { data, error } = await supabase.rpc('admin_get_automation_monitor');
+    if (version !== _operationsRefreshVersion) return;
+    if (error) throw error;
+    _operationsRenderJobs(data || {});
+    _operationsRenderSources(data || {});
+    _operationsRenderHistory(data || {});
+    document.getElementById('operationsUpdated').textContent = `Actualizado: ${_operationsDate(data?.generatedAt)}`;
+  } catch (error) {
+    if (version !== _operationsRefreshVersion) return;
+    document.getElementById('operationsUpdated').textContent = 'No se pudo leer el estado operativo';
+    document.getElementById('operationsJobs').innerHTML = `<div class="u-empty-note">${esc(error.message || error)}</div>`;
+    document.getElementById('operationsSources').innerHTML = '<div class="u-empty-note">Datos no actualizados.</div>';
+    document.getElementById('operationsHistory').innerHTML = '<div class="u-empty-note">Datos no actualizados.</div>';
+  } finally {
+    if (version === _operationsRefreshVersion) refresh.disabled = false;
+  }
+}
+
+function _operationsUpdateForceButtons() {
+  document.querySelectorAll('.operations-force').forEach(button => {
+    const job = button.dataset.job;
+    const queue = _operationsQueues[job] || {};
+    const queued = Number(queue.pending || 0) + Number(queue.running || 0) > 0;
+    const processing = _operationsForcing.has(job);
+    button.disabled = queued || processing;
+    button.textContent = processing ? 'Procesando…' : queued ? 'Pasada en cola' : 'Forzar próxima pasada';
+  });
+}
+
+async function _operationsForce(job, button) {
+  if (button.disabled || _operationsForcing.has(job) || !_OPERATIONS_JOBS.some(item => item.id === job && item.force)) return;
+  _operationsForcing.add(job);
+  _operationsUpdateForceButtons();
+  const label = job === 'cx_results' ? 'resultados CX' : job === 'results' ? 'resultados' : 'emisiones';
+  try {
+    const ok = await confirmDialog(job==='cx_results'?'¿Consultar las mangas CX de hoy en Madrid con recogida activada? Se conservarán los resultados protegidos.':`¿Encolar una pasada completa de ${label} en el VPS?`);
+    if (!ok) return;
+    const rpc = job === 'cx_results' ? 'cx_enqueue_results_fetch' : job === 'results' ? 'admin_trigger_results_sync' : 'admin_trigger_broadcasts_sync';
+    const { error } = await supabase.rpc(rpc);
+    if (error) throw error;
+    showToast(`Pasada de ${label} encolada`, 'success', 4000);
+    await refreshOperationsMonitor();
+  } catch (error) {
+    showToast(`No se pudo encolar la pasada: ${error.message || error}`, 'error');
+  } finally {
+    _operationsForcing.delete(job);
+    _operationsUpdateForceButtons();
+  }
+}
+
+function setupOperationsView() {
+  if (!_operationsReady) {
+    _operationsReady = true;
+    document.getElementById('operationsRefreshBtn').addEventListener('click', refreshOperationsMonitor);
+    _operationsRefreshTimer = window.setInterval(() => {
+      if (document.getElementById('operationsView').style.display !== 'none') refreshOperationsMonitor();
+    }, 30_000);
+  }
+  refreshOperationsMonitor();
 }
 
 // ── Subvista de la pestaña Carreras: 'races' | 'challenges' ──────────
@@ -3976,117 +4314,28 @@ function _raceListItemHtml(race, { showTimestamp = false } = {}) {
   if (showTimestamp) {
     const tsStr = race.updatedAt || race.createdAt || null;
     const createdStr = tsStr
-      ? new Date(tsStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+      ? new Date(tsStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })
       : '';
     if (createdStr) extra = ` · <span class="u-c-accent">${createdStr}</span>`;
   }
-  return `
-    ${flag ? `<span class="race-list-item__flag">${flag}</span>` : '<span class="race-list-item__flag"></span>'}
-    <div class="race-list-item__main">
-      <div class="race-list-item__name" style="${race.isCancelled ? 'text-decoration:line-through' : ''}">${race.name}${race.isCancelled ? ' <span style="font-size:0.65rem;color:var(--red);font-family:var(--font-display);font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Cancelada</span>' : ''}</div>
-      <div class="race-list-item__sub">${gender} · ${format} · ${race.startDate || '—'} → ${race.endDate || '—'} · <strong>${race.uciCategory || '—'}</strong>${extra}</div>
-    </div>
-    <span class="race-list-item__cat">${race.uciCategory || '—'}</span>
-  `;
-}
-
-function _appendRaceRow(container, race, opts) {
-  const item = document.createElement('div');
-  item.className = 'race-list-item';
-  item.innerHTML = _raceListItemHtml(race, opts);
-  item.addEventListener('click', () => openEditRaceModal(race));
-  container.appendChild(item);
+  return panelRaceListItemHtml({flagHtml:flag,name:race.name,isCancelled:race.isCancelled,
+    metadataHtml:`${gender} · ${format} · ${esc(race.startDate || '—')} → ${esc(race.endDate || '—')} · <strong>${esc(race.uciCategory || '—')}</strong>${extra}`,
+    category:race.uciCategory});
 }
 
 function renderRacesView(searchQ) {
-  const container = document.getElementById('racesListView');
-  container.innerHTML = '';
-
-  // Mantener el desplegable de categoría en sincronía con la cuadrícula.
-  const catSel = document.getElementById('racesCatFilter');
-  if (catSel && catSel.value !== (_racesCatSelected || '')) catSel.value = _racesCatSelected || '';
-
-  // Leer búsqueda del input si no se pasa como argumento
-  const q = (searchQ !== undefined ? searchQ : (document.getElementById('racesSearch')?.value || '')).toLowerCase();
-
-  let filteredRaces = allRaces.filter(r => (r.year || new Date().getFullYear()) === _racesYear);
-  if (q) filteredRaces = filteredRaces.filter(r => r.name?.toLowerCase().includes(q));
-  const countryFilter = document.getElementById('racesCountryFilter')?.value || '';
-  if (countryFilter) filteredRaces = filteredRaces.filter(r => (r.countryCode || '').toUpperCase() === countryFilter);
-
-  const sortOrder = document.getElementById('racesSortOrder')?.value || 'cat';
-
-  // ── Búsqueda o "más recientes primero" → listado plano (sin cuadrícula) ──
-  if (q || sortOrder === 'recent') {
-    if (filteredRaces.length === 0) {
-      container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:2rem 0;text-align:center">
-        No hay carreras${q ? ' que coincidan con la búsqueda' : ` para ${_racesYear}`}.</div>`;
-      return;
-    }
-    const flat = [...filteredRaces].sort((a, b) => {
-      if (sortOrder === 'recent') {
-        const ta = a.updatedAt || a.createdAt || '';
-        const tb = b.updatedAt || b.createdAt || '';
-        return tb.localeCompare(ta);
-      }
-      return (a.name || '').localeCompare(b.name || '');
-    });
-    flat.forEach(race => _appendRaceRow(container, race, { showTimestamp: sortOrder === 'recent' }));
-    return;
-  }
-
-  // ── Modo por categoría: cuadrícula de botones ────────────────────
-  // Agrupar por categoría
-  const groups = {};
-  filteredRaces.forEach(race => {
-    const cat = race.uciCategory || 'Sin categoría';
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(race);
+  const categorySelect=document.getElementById('racesCatFilter');
+  const model=panelCatalogModel(allRaces.filter(r=>(r.year || new Date().getFullYear())===_racesYear),{
+    categoryOf:race=>race.uciCategory,categoryOrder:RACES_CAT_ORDER,
+    selectedCategory:_racesCatSelected,search:searchQ ?? document.getElementById('racesSearch')?.value ?? '',
+    country:document.getElementById('racesCountryFilter')?.value || '',sort:document.getElementById('racesSortOrder')?.value || 'cat',
   });
-
-  const sortedCats = Object.keys(groups).sort((a, b) => {
-    const ia = RACES_CAT_ORDER.indexOf(a);
-    const ib = RACES_CAT_ORDER.indexOf(b);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  _racesCatSelected=model.selectedCategory;
+  if(categorySelect)categorySelect.value=_racesCatSelected || '';
+  renderPanelCatalog(document.getElementById('racesListView'),model,{
+    onCategory:category=>{_racesCatSelected=category;renderRacesView();},onRace:openEditRaceModal,itemHtml:_raceListItemHtml,
+    emptyMessage:`No hay carreras${searchQ || document.getElementById('racesSearch')?.value ? ' que coincidan con la búsqueda' : ` para ${_racesYear}`}.`,
   });
-
-  // Si la categoría seleccionada ya no tiene carreras (cambio de año/país),
-  // volver a la cuadrícula.
-  if (_racesCatSelected && !groups[_racesCatSelected]) _racesCatSelected = null;
-
-  // ── Vista cuadrícula (ninguna categoría seleccionada) ────────────
-  if (!_racesCatSelected) {
-    if (sortedCats.length === 0) {
-      container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:2rem 0;text-align:center">
-        No hay carreras para ${_racesYear}.</div>`;
-      return;
-    }
-    const grid = document.createElement('div');
-    grid.className = 'cat-grid';
-    sortedCats.forEach(cat => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cat-grid__btn';
-      btn.innerHTML = `<span class="cat-grid__label">${esc(cat)}</span><span class="cat-grid__count">${groups[cat].length}</span>`;
-      btn.addEventListener('click', () => { _racesCatSelected = cat; renderRacesView(); });
-      grid.appendChild(btn);
-    });
-    container.appendChild(grid);
-    return;
-  }
-
-  // ── Vista de una categoría: listado alfabético ───────────────────
-  const back = document.createElement('div');
-  back.className = 'cat-back';
-  back.innerHTML = `
-    <button type="button" class="cat-back__btn">← Categorías</button>
-    <div class="cat-back__title">${esc(_racesCatSelected)} <span class="u-o60">(${groups[_racesCatSelected].length})</span></div>
-  `;
-  back.querySelector('.cat-back__btn').addEventListener('click', () => { _racesCatSelected = null; renderRacesView(); });
-  container.appendChild(back);
-
-  const sorted = [...groups[_racesCatSelected]].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  sorted.forEach(race => _appendRaceRow(container, race));
 }
 
 // ── Editor de carrera (drawer) ────────────────────────────────────
@@ -4199,24 +4448,8 @@ function raceEditorBodyHtml() {
       <label>Web oficial (URL, opcional)</label>
       <input type="url" id="er-website" placeholder="https://…">
     </div>
-    <div class="field-row field-row--2">
-      <div class="field">
-        <label>ID fuente externa (extId)</label>
-        <div class="u-row" style="gap:0.4rem">
-          <input class="u-grow" type="number" id="er-extId" placeholder="—" min="1">
-          <button type="button" class="btn btn--ghost" style="font-size:0.7rem;padding:0 0.5rem;white-space:nowrap" onclick="erDetectFc()">Buscar ↗</button>
-        </div>
-      </div>
-      <div class="field">
-        <label>Slug fuente externa (extSlug)</label>
-        <div class="u-row" style="gap:0.4rem">
-          <input class="u-grow" type="text" id="er-extSlug" placeholder="tour-de-france">
-          <button type="button" class="btn btn--ghost" style="font-size:0.7rem;padding:0 0.5rem;white-space:nowrap" onclick="erDetectPcs()">Buscar ↗</button>
-        </div>
-      </div>
-    </div>
     <div class="field">
-      <label>Resultados UCI (competitionId)</label>
+      <label>DataRide (competitionId)</label>
       <div class="u-row" style="gap:0.4rem">
         <input class="u-grow" type="number" id="er-uciCompetitionId" placeholder="—" min="1">
         <button type="button" class="btn btn--ghost" style="font-size:0.7rem;padding:0 0.6rem;white-space:nowrap" id="er-uciLinkBtn">Enlazar con UCI</button>
@@ -4323,12 +4556,11 @@ function populateRaceEditor(race) {
   document.getElementById('er-gender').value  = race.gender || 'male';
   document.getElementById('er-format').value  = race.raceFormat || 'stage_race';
   document.getElementById('er-country').value = race.countryCode || '';
+  mountClassificationEditor(supabase, document.getElementById('editRaceSaveBtn').parentElement.parentElement, race);
   document.getElementById('er-color').value     = race.colorHex || '';
   document.getElementById('er-colorPicker').value = race.colorHex || '#888888';
   document.getElementById('er-logo').value    = race.logoUrl || '';
   document.getElementById('er-website').value = race.websiteUrl || '';
-  document.getElementById('er-extId').value    = race.extId != null ? race.extId : '';
-  document.getElementById('er-extSlug').value = race.extSlug || '';
   // El enlace UCI vive en race_uci_links (no en races) → cargar async.
   document.getElementById('er-uciCompetitionId').value = '';
   document.getElementById('er-uciPanel').style.display = 'none';
@@ -4347,32 +4579,6 @@ function populateRaceEditor(race) {
 function closeEditRaceModal() {
   closeDrawer(1);
 }
-
-// ── Auto-detección FC / fuente externa desde el editor de carrera ────────────
-function _guessExtSlug(race) {
-  const name = (race.originalName || race.name || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[''`´]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
-  return name;
-}
-
-window.erDetectFc = function() {
-  const name = document.getElementById('er-name').value.trim();
-  const year = document.getElementById('er-year').value.trim();
-  const q    = encodeURIComponent((name + (year ? ' ' + year : '')));
-  window.open(`https://www.google.com/search?q=site:fuente externa.com+${q}`, '_blank', 'noopener');
-};
-
-window.erDetectPcs = function() {
-  const name = document.getElementById('er-name').value.trim();
-  const year = document.getElementById('er-year').value.trim();
-  const q    = encodeURIComponent((name + (year ? ' ' + year : '')));
-  window.open(`https://www.google.com/search?q=site:fuente externa.com+${q}`, '_blank', 'noopener');
-};
 
 // ── Enlace UCI (race_uci_links) — Fase 4b del plan de resultados ──────────────
 // El enlace carrera↔competitionId UCI lo decide el matcher offline
@@ -4586,7 +4792,7 @@ function _wireUciPanel(raceId) {
 }
 
 // ── Núcleo headless de escritura (compartido por el editor de carrera y la vista
-//    de lote "Resultados UCI"). Solo toca race_uci_links; NO toca el DOM ni muestra
+//    que usaba la vista global retirada). Solo toca race_uci_links; NO toca el DOM ni muestra
 //    diálogos — eso lo decide cada UI. autoMatched=false (lo decide un humano). ──
 
 // Devuelve { ok:true } | { ok:false, conflict:true, ownerName, ownerId } (la unicidad
@@ -4718,14 +4924,14 @@ const UCI_CLASS_LABELS = {
   stage: 'Etapa', gc: 'General', points: 'Puntos',
   kom: 'Montaña', youth: 'Jóvenes', teams: 'Equipos',
 };
-const UCI_IRM_CODES = ['DNF', 'DNS', 'OTL', 'DSQ', 'ABD', 'LAP'];
+const UCI_EDITABLE_IRM_CODES = ['', 'DNF', 'DNS', 'OTL', 'DSQ', 'DF', 'NR'];
 
 // Fuentes que el panel puede cambiar a 'uci' al (re)enlazar una competición de DataRide.
 // Las de CRONOMETRADOR quedan fuera a propósito: su competitionId es sintético y su
 // código propio (tissotCode…) manda — pasarlas a 'uci' las rompería. Ver _writeUciLink.
 const UCI_PANEL_OWNED_SOURCES = new Set([null, undefined, 'uci', 'pdf']);
 
-// Fuentes SIN fetcher automático: el cron las salta (uci-results-cron.mjs las excluye en
+// Fuentes SIN fetcher automático: el cron las salta (results-cron.mjs las excluye en
 // la query y con un guard en el bucle) → el volcado es manual. Se avisa en la cabecera
 // "Origen UCI" para que no parezca que el cron va a recogerlas y no lo haga en silencio.
 const UCI_MANUAL_SOURCES = new Set(['pdf', 'sportstiming']);
@@ -4738,6 +4944,10 @@ const UCI_SOURCE_LABELS = {
   classificacoes: 'Classificações', infocity: 'InfoCity', sportsoft: 'Sportsoft',
   eqtiming: 'EQ Timing', colombia: 'Clasificaciones del Ciclismo Colombiano',
   burgos: 'Vuelta a Burgos', 'timing.ee': 'timing.ee',
+  chronohr: 'CH:RO:NO', maneffic: 'Maneffic Timing & Results',
+  istanbul: 'Tour of Istanbul',
+  southbohemia: 'Tour of South Bohemia',
+  atresults: 'AT Results Service',
 };
 
 // La cabecera del panel debe llevar a quien realmente cronometra la carrera, no
@@ -4760,6 +4970,11 @@ const UCI_SOURCE_URLS = {
   colombia: 'https://www.clasificacionesdelciclismocolombiano.com/',
   burgos: 'https://www.vueltaburgos.com/',
   'timing.ee': 'https://timing.ee/',
+  chronohr: 'https://chrono.hr/races',
+  maneffic: 'https://www.timing-results.com/',
+  istanbul: 'https://tourofistanbul.com.tr/results/',
+  southbohemia: 'https://www.okolojiznichcech.cz/vysledky.html',
+  atresults: 'https://atresults.wixsite.com/attiming/results',
 };
 
 function _ruSourceLink(source) {
@@ -4911,74 +5126,93 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   </div>`;
 }
 
-// Fila de una clasificación en la lista de la pestaña.
+// Fila de una clasificación en la lista de la pestaña. Sin chips de estado: los
+// dos interruptores (oficialidad y bloqueo) son la única señal, y el detalle
+// (sello manual o automático, desfase del par, fecha del candado) vive en sus
+// tooltips.
 function _ruClassRowHtml(st) {
   const paired = !!st._finalTwinId;
   const locked = paired ? !!st.lockedAt && !!st._finalTwinLockedAt : !!st.lockedAt;
   const partialLock = paired && (!!st.lockedAt !== !!st._finalTwinLockedAt);
-  const leaderName = st._leaderName || st.winnerName || '';
-  const winner = leaderName ? ` · 🏆 ${esc(leaderName)}` : '';
-  return `<div class="ru-class-row${locked ? ' ru-class-row--locked' : ''}">
-    <div class="ru-class-row__main">
-      <span class="ru-class-row__label" title="${esc(st.eventName || '')}">${esc(_ruClassLabel(st))}</span>
-      <span class="ru-class-row__meta">${st.rowCount || 0} filas${winner}</span>
-    </div>
-    ${paired ? '<span class="uci-chip" title="Una sola edición mantiene las clasificaciones de la última etapa y de la general final">etapa + final</span>' : ''}
-    ${partialLock ? '<span class="uci-chip ru-chip-lock" title="Solo una de las dos cabeceras emparejadas está bloqueada; usa el botón para igualarlas">🔒 parcial</span>' : ''}
-    ${locked ? `<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(formatDateTime(st.lockedAt || st._finalTwinLockedAt))} — el cron no la sobreescribe">🔒 bloqueada</span>` : ''}
-    <button type="button" class="btn btn--ghost ru-lock-toggle" data-id="${esc(st.id)}" style="font-size:0.68rem;padding:0 0.55rem">${locked ? 'Desbloquear' : 'Bloquear'}</button>
+  const officialState = resultClassificationOfficialState(st);
+  const officialTitle = officialState.partial
+    ? 'Solo una de las dos cabeceras emparejadas es oficial; usa el interruptor para igualarlas.'
+    : (officialState.official
+        ? (officialState.pinned
+            ? `Oficializada manualmente el ${esc(formatDateTime(st.officialAt || st._finalTwinOfficialAt))} — el cron no la degrada a provisional.`
+            : 'La fuente la declaró oficial.')
+        : 'Marcar como oficial: la web y las apps la muestran como Oficial y el cron no la degradará a provisional.');
+  const officialSwitch = `<label class="ru-switch${officialState.official ? ' is-on' : ''}" title="${officialTitle}">
+    <input type="checkbox" class="ru-official-toggle" data-id="${esc(st.id)}" ${officialState.official ? 'checked' : ''} aria-label="Oficialidad de ${esc(_ruClassLabel(st))}">
+    <span class="ru-switch__track"><span class="ru-switch__knob"></span></span>
+    <span class="ru-switch__text">Oficial</span>
+  </label>`;
+  const lockTitle = partialLock
+    ? 'Solo una de las dos cabeceras emparejadas está bloqueada; usa el interruptor para igualarlas.'
+    : (locked
+        ? `Bloqueada el ${esc(formatDateTime(st.lockedAt || st._finalTwinLockedAt))} — el cron no la sobreescribe.`
+        : 'Bloquear esta clasificación: el cron dejará de actualizarla con los datos de la fuente.');
+  const lockSwitch = `<label class="ru-switch ru-switch--lock${locked ? ' is-on' : ''}" title="${lockTitle}">
+    <input type="checkbox" class="ru-lock-toggle" data-id="${esc(st.id)}" ${locked ? 'checked' : ''} aria-label="Bloqueo de ${esc(_ruClassLabel(st))}">
+    <span class="ru-switch__track"><span class="ru-switch__knob"></span></span>
+    <span class="ru-switch__text">Bloqueo</span>
+  </label>`;
+  return panelClassificationRowHtml({label:_ruClassLabel(st),title:st.eventName,rowCount:st.rowCount,leader:st._leaderName||st.winnerName,locked,chipsHtml:'',actionsHtml:`
+    ${officialSwitch}
+    ${lockSwitch}
     <button type="button" class="btn btn--ghost ru-edit" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>
-    <button type="button" class="btn btn--ghost ru-delete" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>
-  </div>`;
+    <button type="button" class="btn btn--ghost ru-delete" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>`});
 }
 
-function _ruSyncPolicyHtml(rd, link) {
+function _ruSyncPolicyHtml(rd, race, link) {
   if (!link || UCI_MANUAL_SOURCES.has(link.source || 'uci')) return '';
-  const dayOverride = rd.resultsAutoSyncEnabled != null;
-  const enabled = dayOverride ? rd.resultsAutoSyncEnabled : link.autoSyncEnabled;
+  const defaultScope = resultSyncDefaultScope(rd);
   let startTime = '';
-  if (dayOverride && rd.resultsSyncStartAt) {
+  if (rd.resultsSyncStartAt) {
     startTime = formatTimeHHMM(rd.resultsSyncStartAt);
-  } else if (!dayOverride && link.syncStartTime) {
+  } else if (rd.resultsSyncStartOffsetMinutes != null && rd.estimatedFinishTimeUtc) {
+    startTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + rd.resultsSyncStartOffsetMinutes * 60000));
+  } else if (link.syncStartTime) {
     startTime = String(link.syncStartTime).slice(0, 5);
   } else if (rd.estimatedFinishTimeUtc) {
-    const startOffset = dayOverride && rd.resultsSyncStartOffsetMinutes != null
-      ? rd.resultsSyncStartOffsetMinutes : (link.syncStartOffsetMinutes ?? -15);
+    const startOffset = link.syncStartOffsetMinutes ?? -15;
     startTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + startOffset * 60000));
   }
   let stopTime = '';
-  if (dayOverride && rd.resultsSyncStopAt) {
+  if (rd.resultsSyncStopAt) {
     stopTime = formatTimeHHMM(rd.resultsSyncStopAt);
-  } else if (!dayOverride && link.syncStopTime) {
+  } else if (rd.resultsSyncStopOffsetMinutes != null && rd.estimatedFinishTimeUtc) {
+    stopTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + rd.resultsSyncStopOffsetMinutes * 60000));
+  } else if (link.syncStopTime) {
     stopTime = String(link.syncStopTime).slice(0, 5);
   } else if (rd.estimatedFinishTimeUtc) {
-    const stopOffset = dayOverride && rd.resultsSyncStopOffsetMinutes != null
-      ? rd.resultsSyncStopOffsetMinutes : (link.syncStopOffsetMinutes ?? 180);
+    const stopOffset = link.syncStopOffsetMinutes ?? 180;
     stopTime = formatTimeHHMM(new Date(new Date(rd.estimatedFinishTimeUtc).getTime() + stopOffset * 60000));
   }
   const stageLabel = rd.stageNumber == null ? 'esta carrera' : `esta etapa (${rd.stageNumber === 0 ? 'prólogo' : 'etapa ' + rd.stageNumber})`;
-  return `<details class="ru-sync-policy" style="margin-top:0.65rem">
-    <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted)">Programación automática ${enabled ? '· activa' : '· desactivada'}</summary>
+  const scopeOptions = resultSyncScopeOptionsVisible(race)
+    ? `<div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
+        <label><input type="radio" name="ru-sync-scope" value="race" ${defaultScope === 'race' ? 'checked' : ''}> Toda la carrera</label>
+        <label><input type="radio" name="ru-sync-scope" value="day" ${defaultScope === 'day' ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
+      </div>`
+    : '';
+  return `<div class="ru-sync-policy" style="margin-top:0.65rem">
+    <div style="font-size:0.76rem;color:var(--text-muted)">Horario de volcado automático</div>
     <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
-      <div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
-        <label><input type="radio" name="ru-sync-scope" value="race" ${dayOverride ? '' : 'checked'}> Toda la carrera</label>
-        <label><input type="radio" name="ru-sync-scope" value="day" ${dayOverride ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
-      </div>
-      <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;margin-top:0.5rem;align-items:end">
+      ${scopeOptions}
+      <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;${scopeOptions ? 'margin-top:0.5rem;' : ''}align-items:end">
         <label> <span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" style="width:7rem"></label>
         <label> <span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" style="width:7rem"></label>
-        <label style="white-space:nowrap"><input id="ru-sync-enabled" type="checkbox" ${enabled ? 'checked' : ''}> Activar</label>
         <button type="button" class="btn btn--primary ru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar ventana</button>
       </div>
     </div>
-  </details>`;
+  </div>`;
 }
 
 async function _ruSaveSyncPolicy(btn, rd, race) {
   const scope = document.querySelector('input[name="ru-sync-scope"]:checked')?.value || 'race';
   const startTime = document.getElementById('ru-sync-start-time')?.value || '';
   const stopTime = document.getElementById('ru-sync-stop-time')?.value || '';
-  const enabled = document.getElementById('ru-sync-enabled').checked;
   const [startHour, startMinute] = startTime.split(':').map(Number);
   const [stopHour, stopMinute] = stopTime.split(':').map(Number);
   const validStartTime = /^\d{2}:\d{2}$/.test(startTime)
@@ -4987,11 +5221,11 @@ async function _ruSaveSyncPolicy(btn, rd, race) {
   const validStopTime = /^\d{2}:\d{2}$/.test(stopTime)
     && Number.isInteger(stopHour) && stopHour >= 0 && stopHour <= 23
     && Number.isInteger(stopMinute) && stopMinute >= 0 && stopMinute <= 59;
-  if (enabled && (!validStartTime || !validStopTime)) {
+  if (!validStartTime || !validStopTime) {
     alertDialog('Indica horas válidas de apertura y cierre.');
     return;
   }
-  if (enabled && !rd.estimatedFinishTimeUtc) {
+  if (!rd.estimatedFinishTimeUtc) {
     alertDialog('La jornada necesita una hora estimada de meta para programar la ventana.');
     return;
   }
@@ -5002,13 +5236,12 @@ async function _ruSaveSyncPolicy(btn, rd, race) {
   const startMs = startAt ? new Date(startAt).getTime() : NaN;
   let stopMs = stopAt ? new Date(stopAt).getTime() : NaN;
   if (stopMs <= startMs) stopMs += 24 * 60 * 60 * 1000;
-  if (enabled && stopMs < finishMs) {
+  if (stopMs < finishMs) {
     alertDialog('El cierre debe ser posterior a la apertura y a la hora estimada de meta.');
     return;
   }
   btn.disabled = true;
   const patch = {
-    "resultsAutoSyncEnabled": enabled,
     "resultsSyncStartAt": startAt,
     "resultsSyncStopAt": stopAt ? new Date(stopMs).toISOString() : null,
     "resultsSyncStartOffsetMinutes": null,
@@ -5017,27 +5250,31 @@ async function _ruSaveSyncPolicy(btn, rd, race) {
   };
   try {
     let error;
+    let savedDay = null;
     if (scope === 'day') {
-      ({ error } = await supabase.from('race_days').update(patch).eq('id', rd.id));
+      ({ data: savedDay, error } = await supabase.from('race_days')
+        .update(patch)
+        .eq('id', rd.id)
+        .select(RESULT_SYNC_DAY_STATE_SELECT)
+        .single());
     } else {
       ({ error } = await supabase.from('race_uci_links').update({
-        autoSyncEnabled: enabled,
         syncStartTime: validStartTime ? `${startTime}:00` : null,
         syncStopTime: validStopTime ? `${stopTime}:00` : null,
         updatedAt: new Date().toISOString(),
-      }).eq('raceId', rd.raceId));
+      }).eq('raceId', rd.raceId).select('raceId').single());
       if (!error) {
-        ({ error } = await supabase.from('race_days').update({
-          resultsAutoSyncEnabled: null,
+        ({ data: savedDay, error } = await supabase.from('race_days').update({
           resultsSyncStartAt: null,
           resultsSyncStopAt: null,
           resultsSyncStartOffsetMinutes: null,
           resultsSyncIntervalMinutes: null,
           resultsSyncStopOffsetMinutes: null,
-        }).eq('id', rd.id));
+        }).eq('id', rd.id).select(RESULT_SYNC_DAY_STATE_SELECT).single());
       }
     }
     if (error) throw error;
+    applyPersistedResultSyncDayState(rd, savedDay);
     showToast(scope === 'day' ? 'Excepción de jornada guardada.' : 'Ventana de carrera guardada.', 'success');
     setupUciResultsSection(rd, race);
   } catch (err) {
@@ -5047,10 +5284,9 @@ async function _ruSaveSyncPolicy(btn, rd, race) {
 }
 
 function _ruRenderSection(body, rd, race, link, stages, raceDays) {
-  // Clasificaciones de ESTA jornada: por raceDayId; fallback por stageNumber para
-  // stages volcados antes de que existiera la jornada (raceDayId quedó NULL).
-  const mine = stages.filter(s => s.raceDayId === rd.id
-    || (s.raceDayId == null && s.stageNumber != null && rd.stageNumber != null && s.stageNumber === rd.stageNumber));
+  rd._stageSuffix = sectorSuffixMap(raceDays).suffixByDayId.get(rd.id) || '';
+  // El fallback por número solo es válido si identifica una única jornada.
+  const mine = stages.filter(s => resultClassificationBelongsToDay(s, rd, raceDays));
   // Las FINALES (pseudo-etapa "Final Classification", stageNumber NULL, sin jornada
   // propia) se muestran en la última etapa — y en carreras de un día (su "gc" sin
   // raceDayId es la clasificación de la prueba).
@@ -5076,7 +5312,7 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // pertenece a la carrera completa y puede corresponder a otra etapa.
   let html = _ruOriginHtml(rd, race, link, [...visibleMine, ...finals]);
   html += `<div id="ruDetectPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>`;
-  html += _ruSyncPolicyHtml(rd, link);
+  html += _ruSyncPolicyHtml(rd, race, link);
 
   // Las clasificaciones ya volcadas se muestran SIEMPRE (aunque la carrera se haya
   // desenlazado después: sin link el cron no refresca, pero los datos siguen ahí).
@@ -5106,15 +5342,19 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // Cableado por render (el DOM se recrea en cada apertura).
   const visibleStages = [...visibleMine, ...finals];
   const stById = new Map(visibleStages.map(s => [s.id, s]));
-  body.querySelectorAll('.ru-new').forEach(b => b.addEventListener('click', () => _ruNewClass(rd, race, stages, finalStageDay)));
+  body.querySelectorAll('.ru-new').forEach(b => b.addEventListener('click', () => _ruNewClass(rd, race, stages, finalStageDay, raceDays)));
   body.querySelectorAll('.ru-manual-link').forEach(b => b.addEventListener('click', () => _ruOpenManualLink(rd, race)));
   body.querySelectorAll('.ru-sync-save').forEach(b => b.addEventListener('click', () => _ruSaveSyncPolicy(b, rd, race)));
   body.querySelectorAll('.ru-unlink').forEach(b => b.addEventListener('click', () => _ruUnlinkFromDay(rd, race)));
-  body.querySelectorAll('.ru-run-cron').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId)));
-  body.querySelectorAll('.ru-run-cron-stage').forEach(b => b.addEventListener('click', () => _uciRunCronNow(b, rd.raceId, rd.stageNumber)));
-  body.querySelectorAll('.ru-lock-toggle').forEach(b => b.addEventListener('click', () => {
+  body.querySelectorAll('.ru-run-cron').forEach(b => b.addEventListener('click', () => _runResultsSyncNow(b, rd.raceId)));
+  body.querySelectorAll('.ru-run-cron-stage').forEach(b => b.addEventListener('click', () => _runResultsSyncNow(b, rd.raceId, rd.stageNumber)));
+  body.querySelectorAll('.ru-lock-toggle').forEach(b => b.addEventListener('change', () => {
     const s = stById.get(b.dataset.id);
-    if (s) _ruToggleLock(s, rd, race);
+    if (s) _ruToggleLock(s, rd, race, b);
+  }));
+  body.querySelectorAll('.ru-official-toggle').forEach(b => b.addEventListener('change', () => {
+    const s = stById.get(b.dataset.id);
+    if (s) _ruToggleOfficial(s, rd, race, b);
   }));
   body.querySelectorAll('.ru-edit').forEach(b => b.addEventListener('click', () => {
     const s = stById.get(b.dataset.id);
@@ -5262,8 +5502,9 @@ async function _ruUnlinkFromDay(rd, race) {
   }
 }
 
-// Candado de la lista: bloquear sin editar / desbloquear (volver a dejar mandar al cron).
-async function _ruToggleLock(st, rd, race) {
+// Candado de la lista (interruptor): bloquear sin editar / desbloquear (volver a
+// dejar mandar al cron). El checkbox se repone si el usuario cancela o falla el guardado.
+async function _ruToggleLock(st, rd, race, checkbox) {
   const ids = [st.id, st._finalTwinId].filter(Boolean);
   const locked = st._finalTwinId
     ? !!st.lockedAt && !!st._finalTwinLockedAt
@@ -5271,11 +5512,47 @@ async function _ruToggleLock(st, rd, race) {
   const msg = locked
     ? '¿Desbloquear esta clasificación? El próximo volcado del cron la sobreescribirá con los datos de la UCI (se perderán las correcciones manuales).'
     : '¿Bloquear esta clasificación sin editarla? El cron dejará de actualizarla con los datos de la UCI.';
-  if (!await confirmDialog(msg, locked ? { danger: true } : {})) return;
+  if (!await confirmDialog(msg, locked ? { danger: true } : {})) {
+    if (checkbox) checkbox.checked = locked;
+    return;
+  }
   const { error } = await supabase.from('race_uci_stages')
     .update({ lockedAt: locked ? null : new Date().toISOString() }).in('id', ids);
-  if (error) { showToast('Error: ' + error.message); return; }
+  if (error) {
+    showToast('Error: ' + error.message);
+    if (checkbox) checkbox.checked = locked;
+    return;
+  }
   showToast(locked ? 'Clasificación desbloqueada — el cron vuelve a sincronizarla.' : 'Clasificación bloqueada — el cron no la sobreescribirá.', 'success');
+  setupUciResultsSection(rd, race);
+}
+
+// Interruptor de oficialidad: marca o retira el estado oficial de la clasificación
+// (y de su pseudo-final emparejada). El ancla officialAt impide que el contrato de
+// publicación degrade a provisional una oficialización manual; retirarlo devuelve
+// el mando al criterio automático de la fuente. El interruptor refleja siempre
+// publicationStatus: las clasificaciones que la fuente ya declaró oficiales se
+// muestran activadas aunque nadie las haya tocado a mano.
+async function _ruToggleOfficial(st, rd, race, checkbox) {
+  const ids = [st.id, st._finalTwinId].filter(Boolean);
+  const { official } = resultClassificationOfficialState(st);
+  if (official && !await confirmDialog('¿Retirar el oficial de esta clasificación? Volverá a «Provisional» hasta que la fuente la publique de nuevo como oficial.', { danger: true })) {
+    if (checkbox) checkbox.checked = true;
+    return;
+  }
+  const patch = official
+    ? { officialAt: null, publicationStatus: 'provisional' }
+    : { officialAt: new Date().toISOString(), publicationStatus: 'official' };
+  const { error } = await supabase.from('race_uci_stages')
+    .update(patch).in('id', ids).eq('raceId', rd.raceId);
+  if (error) {
+    showToast('Error: ' + error.message);
+    if (checkbox) checkbox.checked = official;
+    return;
+  }
+  showToast(official
+    ? 'Oficial retirado — la clasificación vuelve a provisional.'
+    : 'Clasificación oficial — el cron no la degradará a provisional.', 'success');
   setupUciResultsSection(rd, race);
 }
 
@@ -5316,7 +5593,7 @@ async function _ruDeleteClass(st, rd, race) {
 // → jamás choca con los eventId positivos de DataRide; el offset por slot+clase lo
 // hace único entre clasificaciones de la misma jornada. Se crea SIN bloquear:
 // es un placeholder que la fuente oficial PISA si llega (decisión Dani 2026-06-27;
-// el upsert purga las gemelas sintéticas por raceId+stageNumber+classKind+scope).
+// el upsert purga las gemelas sintéticas por raceId+raceDayId+classKind+scope).
 function _ruFnv1a(str) {
   let h = 0x811c9dc5;
   for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
@@ -5333,7 +5610,7 @@ function _ruScopeFor(kind, isFinal) {
 }
 
 // Diálogo: elegir tipo de clasificación (+ "es la final/de la prueba") y crear.
-async function _ruNewClass(rd, race, stages, finalStageDay = false) {
+async function _ruNewClass(rd, race, stages, finalStageDay = false, raceDays = []) {
   const isOneDay = race?.raceFormat === 'one_day';
   // En carrera de un día la clasificación es la prueba entera (final, sin etapa).
   // En carrera por etapas, por defecto cuelga de ESTA jornada (su stageNumber).
@@ -5369,7 +5646,7 @@ async function _ruNewClass(rd, race, stages, finalStageDay = false) {
         const isFinal = body.querySelector('#ruNewFinal').checked;
         e.target.disabled = true;
         try {
-          const st = await _ruCreateClass(rd, race, stages, kind, isFinal);
+          const st = await _ruCreateClass(rd, race, stages, kind, isFinal, raceDays);
           st._isFinalRaceDay = finalStageDay;
           closeDrawer(2);
           openUciClassEditor(st, rd, race);   // abre el editor de filas YA existente
@@ -5385,7 +5662,7 @@ async function _ruNewClass(rd, race, stages, finalStageDay = false) {
 }
 
 // Inserta la fila en race_uci_stages y devuelve el objeto stage para editarla.
-async function _ruCreateClass(rd, race, stages, kind, isFinal) {
+async function _ruCreateClass(rd, race, stages, kind, isFinal, raceDays = []) {
   const isOneDay = race?.raceFormat === 'one_day';
   // Una "final" no cuelga de etapa (stageNumber null, raceDayId null, como el cron).
   // Si no, cuelga de ESTA jornada.
@@ -5394,11 +5671,9 @@ async function _ruCreateClass(rd, race, stages, kind, isFinal) {
   const scope = _ruScopeFor(kind, isFinal);
 
   // Guard contra el error más típico: ya existe esa misma clasificación lógica
-  // (raceId ya está fijo por la lista) para esta etapa/scope. Mejor avisar que dejar
+  // (raceId ya está fijo por la lista) para esta jornada/scope. Mejor avisar que dejar
   // que reviente el UNIQUE del eventId/id con un error críptico.
-  const dup = stages.find(s => s.classKind === kind && s.scope === scope
-    && (s.stageNumber ?? null) === stageNumber
-    && !!s.isFinalClassification === isFinal);
+  const dup = findResultClassificationDuplicate(stages, rd, { kind, scope, isFinal }, raceDays);
   if (dup) {
     const lbl = (UCI_CLASS_LABELS[kind] || kind) + (isFinal ? ' (final)' : '');
     throw new Error(`Ya existe una clasificación «${lbl}» para esta jornada. Edítala desde la lista en vez de crear otra.`);
@@ -5493,7 +5768,7 @@ async function _ruMirrorFinalClassification(st, rd, race, records, headerPatch) 
 // las filas (insert tras delete, sortOrder = orden visual), conserva el candado
 // y re-resuelve los corredores por dorsal (RPC resolve_uci_results).
 async function openUciClassEditor(st, rd, race) {
-  const stageLbl = st.isFinalClassification ? 'Final' : stageLabel(st.stageNumber) || (race?.name || '');
+  const stageLbl = st.isFinalClassification ? 'Final' : stageLabel(st.stageNumber, rd._stageSuffix) || (race?.name || '');
   const h = openDrawer({
     title: `${UCI_CLASS_LABELS[st.classKind] || st.classKind} — ${stageLbl}`,
     level: 2,
@@ -5524,7 +5799,7 @@ async function openUciClassEditor(st, rd, race) {
   //   · Puntos/Montaña (points/kom) → columna Pts (sin tiempo).
   //   · Etapa/General/Jóvenes/Equipos → columna Tiempo/Gap (sin puntos).
   const isPtsClass = st.classKind === 'points' || st.classKind === 'kom';
-  // Equipos globales para el override manual (chapa + nombre + selector).
+  // Equipos globales para el override manual (nombre y selector).
   await fetchTeams().catch(() => {});
   const teamById = (id) => (id ? (_teamsCache || []).find(t => t.id === id) : null);
   const gidIndex = riderMap.__byGid || {};
@@ -5577,7 +5852,7 @@ async function openUciClassEditor(st, rd, race) {
     ${valueCell(r)}
     <td class="ru-td-irm">
       <select class="ru-in ru-irm" data-ru-field="irm">
-        ${['', 'DNF', 'DNS', 'OTL', 'DSQ'].map(c => `<option value="${c}" ${(r.irm ?? '') === c ? 'selected' : ''}>${c || '—'}</option>`).join('')}
+        ${UCI_EDITABLE_IRM_CODES.map(c => `<option value="${c}" ${(r.irm ?? '') === c ? 'selected' : ''}>${c || '—'}</option>`).join('')}
       </select>
     </td>
     <td class="ru-actions">
@@ -5604,7 +5879,7 @@ async function openUciClassEditor(st, rd, race) {
         ${isPtsClass
           ? '<th style="width:5rem" title="Puntos">Pts</th>'
           : '<th style="width:7rem" title="Tiempo del ganador, o gap del resto empezando por +">Tiempo / Gap</th>'}
-        <th style="width:4.6rem" title="DNF/DNS/OTL/DSQ">IRM</th>
+        <th style="width:4.6rem" title="DNF/DNS/OTL/DSQ/DF/NR">IRM</th>
         <th style="width:2.4rem"></th>
       </tr></thead>
       <tbody id="ruRows">${rows.map(rowHtml).join('')}</tbody>
@@ -5859,7 +6134,7 @@ function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = null) {
   const currentBib = String(tr.querySelector('.ru-bib')?.value || '').trim();
 
   const pop = document.createElement('div');
-  pop.style.cssText = 'position:absolute;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:360px;max-height:420px;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
+  pop.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:360px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);box-sizing:border-box;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
   pop.innerHTML = `
     ${currentId ? `<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Match actual: <code style="color:var(--text)">${esc(currentId)}</code></div>` : ''}
     ${restrictToStartlist ? '<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Solo inscritas e inscritos de esta carrera.</div>' : ''}
@@ -5871,12 +6146,6 @@ function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = null) {
       <button data-action="close" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem">Cerrar</button>
     </div>`;
   document.body.appendChild(pop);
-  const cell = tr.querySelector('.ru-td-name') || tr;
-  const rect = cell.getBoundingClientRect();
-  pop.style.left = (rect.left + window.scrollX) + 'px';
-  pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-  const popRect = pop.getBoundingClientRect();
-  if (popRect.right > window.innerWidth - 16) pop.style.left = (rect.right + window.scrollX - popRect.width) + 'px';
   _ruMatchPickerEl = pop;
 
   const input = pop.querySelector('.ru-pick-input');
@@ -5978,9 +6247,8 @@ function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = null) {
   setTimeout(() => input.focus(), 0);
 }
 
-// ── Combobox de equipos reutilizable (con chapa) ────────────────────────────
-// Reemplaza al <select> nativo, que no admite SVG dentro de las opciones. Muestra
-// la chapa (buildTeamBadgeSvg) + nombre + etiqueta «Ed. especial» de cada equipo,
+// ── Combobox de equipos reutilizable ────────────────────────────
+// Muestra el nombre y la etiqueta «Ed. especial» de cada equipo,
 // con búsqueda por texto y navegación por teclado (↑/↓/Enter/Esc). Recibe la lista
 // YA filtrada (por sexo, etc.) y devuelve el equipo elegido por callback.
 //
@@ -5990,13 +6258,12 @@ function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = null) {
 //   currentId,            // id preseleccionado (o '')
 //   suggestionId,         // id a resaltar como sugerencia (opcional)
 //   allowNone,            // muestra opción «— Ninguno —» (default true)
-//   showBadges,           // muestra chapas en las opciones (default true)
 //   validate,             // (team) => {ok, reason}; bloquea al confirmar (opcional)
 //   onPick,               // (teamIdOrEmpty) => void
 // }
 function _openTeamCombo(opts) {
   const { title = 'Asignar equipo', teams = [], currentId = '',
-          suggestionId = '', allowNone = true, showBadges = true, validate, onPick } = opts;
+          suggestionId = '', allowNone = true, validate, onPick } = opts;
   const sorted = [...teams].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   const overlay = document.createElement('div');
@@ -6029,14 +6296,13 @@ function _openTeamCombo(opts) {
   const rowHtml = (t, idx, isActive) => {
     const selected = t.id === currentId;
     const isSug = t.id && t.id === suggestionId;
-    const badge = t._none || !showBadges ? '' : `<span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 20 })}</span>`;
     const special = t.specialEdition
       ? '<span style="font-size:0.66rem;color:var(--text-dim);white-space:nowrap;margin-left:auto">Ed. especial</span>' : '';
     const sug = isSug ? '<span style="font-size:0.62rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-left:0.35rem">sugerido</span>' : '';
     const border = isActive ? 'var(--accent)' : (selected ? '#22c55e' : 'var(--border)');
     return `<div class="tc-item" data-idx="${idx}" data-id="${esc(t.id)}" role="option" aria-selected="${selected}"
         style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.5rem;border:1px solid ${border};border-radius:5px;cursor:pointer;font-size:0.82rem;color:var(--text);${t._none ? 'font-style:italic;color:var(--text-dim)' : ''}">
-        ${badge}<span style="${t._none ? '' : 'font-weight:600'}">${esc(t.name)}</span>${sug}${special}
+        <span style="${t._none ? '' : 'font-weight:600'}">${esc(t.name)}</span>${sug}${special}
       </div>`;
   };
 
@@ -6093,7 +6359,7 @@ function _openTeamCombo(opts) {
 }
 
 // ── Picker de equipo para una fila de la clasificación (override manual) ──
-// Combobox con chapas sobre los equipos globales. Valida specialEdition y sexo
+// Combobox sobre los equipos globales. Valida specialEdition y sexo
 // contra la carrera de la jornada (mismo guard que inscritos). Guarda en tr.dataset.teamId.
 function _ruOpenTeamPicker(tr, race, onPicked) {
   if (!_teamsCache || _teamsCache.length === 0) {
@@ -6104,7 +6370,7 @@ function _ruOpenTeamPicker(tr, race, onPicked) {
   // Candidatos filtrados por sexo de la carrera (excluye el sexo opuesto); se
   // incluye igualmente el equipo ya asignado aunque sea del sexo opuesto (dato
   // heredado) para poder verlo y corregirlo.
-  const genderTeams = _teamsFilteredByGender(_teamsCache, race && race.gender);
+  const genderTeams = _teamsFilteredByGender(activeCatalogTeams(_teamsCache), race && race.gender);
   if (current && !genderTeams.some(t => t.id === current)) {
     const cur = _teamsCache.find(t => t.id === current);
     if (cur) genderTeams.push(cur);
@@ -6113,7 +6379,6 @@ function _ruOpenTeamPicker(tr, race, onPicked) {
     title: 'Equipo (override)',
     teams: genderTeams,
     currentId: current,
-    showBadges: false,
     validate: (team) => {
       const v = _validateSpecialEditionForRace(team, race);
       if (!v.ok) return v;
@@ -6123,86 +6388,28 @@ function _ruOpenTeamPicker(tr, race, onPicked) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Vista "Resultados UCI" — revisión en lote de enlaces carrera↔competición
-//  (rail-item data-tab="uci"). Espejo del escáner de duplicados (#dupScanModal):
-//  presenta de golpe los casos que el matcher dejó sin resolver, con su contexto
-//  y un botón por caso, en vez de obligar a abrir el editor carrera por carrera.
-//
-//  Fuente de verdad: el match-report.json ESTÁTICO (vía _loadUciReport, cacheado;
-//  NO re-corre el matcher, la API DataRide es CORS-only) RECONCILIADO con el estado
-//  vivo de race_uci_links. Una carrera que el reporte llama "ambiguous" puede estar
-//  ya enlazada (a mano o por backfill) → el estado vivo manda para pintar.
-// ═══════════════════════════════════════════════════════════════════════════
-
-let _uciViewReady = false;
-let _uciShowAll = false;          // toggle "solo pendientes / ver todas"
-let _uciLinkMap = new Map();      // raceId → { competitionId, autoMatched } (estado vivo)
-
-async function setupUciView() {
-  const view = document.getElementById('uciView');
-  if (!_uciViewReady) {
-    _uciViewReady = true;
-    view.innerHTML = `
-      <div class="panel-section-divider">
-        <div class="panel-view-row">
-          <div class="panel-view-title">Resultados UCI</div>
-          <div class="u-row" style="gap:0.5rem;align-items:center">
-            <button class="btn btn--primary" id="uciRunCron" style="padding:0.35rem 0.7rem;font-size:0.75rem"
-              title="Dispara el workflow de volcado para TODAS las carreras con etapa hoy, sin esperar la ventana de meta">▶ Volcar hoy ahora</button>
-            <button class="btn btn--ghost" id="uciToggleAll" style="padding:0.35rem 0.7rem;font-size:0.75rem"></button>
-          </div>
-        </div>
-        <div style="max-width:900px;margin:0.5rem auto 0;color:var(--text-dim);font-size:0.78rem" id="uciSubtitle">Cargando…</div>
-      </div>
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box">
-        <div class="u-stack" id="uciViewContent"></div>
-      </div>`;
-    document.getElementById('uciToggleAll').addEventListener('click', () => {
-      _uciShowAll = !_uciShowAll;
-      renderUciReview();
-    });
-    document.getElementById('uciRunCron').addEventListener('click', e => _uciRunCronNow(e.currentTarget));
-  }
-  await renderUciReview();
-}
-
-// Botón de volcado a mano del cron de resultados (RPC admin_trigger_uci_results_workflow).
-// La RPC encola una solicitud privada en Postgres; el timer del VPS la reclama en
-// menos de un minuto. GitHub Actions queda fuera de este circuito.
-//   · Sin raceId → "▶ Volcar hoy ahora" (vista global): ignore_window=true,
-//     procesa TODO lo que tenga etapa HOY sin esperar la ventana de meta (087).
-//   · Con raceId → "▶ Volcar esta carrera" (pestaña Resultados de la jornada):
-//     vuelca SOLO esa carrera ignorando fecha/ventana → trae TODAS las etapas que
-//     la UCI tenga publicadas, también las de días anteriores (caso Tour de Beauce:
-//     resultados de ayer que "hoy" no recogía). Migración 099.
-//   · Con raceId + stageNumber → "▶ Volcar esta etapa" (migración 134): re-escribe
-//     SOLO esa etapa (stage_number → --stage → --only-stage en el upsert). El fetcher
-//     sigue trayendo la carrera entera, pero no se re-vuelcan las demás etapas: en una
-//     grande (Tour, 21 etapas) tocar la etapa 16 ya no re-escribe la 1-15. stageNumber
-//     puede ser 0 (prólogo) → se comprueba con `!= null`, NO por truthiness.
-async function _uciRunCronNow(btn, raceId = null, stageNumber = null) {
+// Encola una pasada dirigida desde la pestaña Resultados de una jornada. La RPC
+// escribe en una cola privada y el timer del VPS la reclama en menos de un minuto.
+// stageNumber puede ser 0 (prólogo), por lo que se comprueba con != null.
+async function _runResultsSyncNow(btn, raceId = null, stageNumber = null) {
   const oneStage = raceId && stageNumber != null;
-  // Los botones de una carrera ya expresan el alcance de la operación. El toast
-  // posterior confirma visualmente que la RPC se ha encolado. La confirmación
-  // queda reservada para la acción global, que afecta a todas las carreras de hoy.
   if (!raceId) {
     const ok = await confirmDialog(
-      '¿Encolar ahora el volcado de resultados UCI en el VPS? Procesa todas las carreras con etapa hoy sin esperar la ventana de meta.'
+      '¿Encolar ahora una pasada global de resultados? Procesará las carreras con etapa hoy sin esperar la ventana de meta.'
     );
     if (!ok) return;
   }
   btn.disabled = true;
   try {
     const { error } = oneStage
-      ? await supabase.rpc('admin_trigger_uci_results_workflow', { p_race_id: raceId, p_stage: stageNumber })
+      ? await supabase.rpc('admin_trigger_results_sync', { p_race_id: raceId, p_stage: stageNumber })
       : raceId
-      ? await supabase.rpc('admin_trigger_uci_results_workflow', { p_race_id: raceId })
-      : await supabase.rpc('admin_trigger_uci_results_workflow');
+      ? await supabase.rpc('admin_trigger_results_sync', { p_race_id: raceId })
+      : await supabase.rpc('admin_trigger_results_sync');
     if (error) throw error;
-    showToast('Volcado encolado en el VPS — comenzará en menos de 1 min', 'success', 6000);
+    showToast('Pasada encolada en el VPS — comenzará en menos de 1 min', 'success', 6000);
   } catch (err) {
-    showToast('No se pudo disparar el volcado: ' + (err.message || err), 'error');
+    showToast('No se pudo encolar la pasada: ' + (err.message || err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -6238,234 +6445,6 @@ async function _markWebPagesDirtyIfMissing(slug) {
     if (error) console.warn('No se pudo marcar la creación de páginas:', error.message || error);
   } catch (err) {
     console.warn('No se pudo comprobar la página de jornada; no se regenera:', err?.message || err);
-  }
-}
-
-// Carga el estado vivo de race_uci_links (tabla corta) → Map por raceId.
-async function _loadUciLinkMap() {
-  _uciLinkMap = new Map();
-  try {
-    const { data, error } = await supabase.from('race_uci_links').select('raceId, competitionId, autoMatched');
-    if (error) throw error;
-    for (const row of (data || [])) _uciLinkMap.set(row.raceId, { competitionId: row.competitionId, autoMatched: row.autoMatched });
-  } catch (err) { console.warn('[uci] loadLinkMap', err); }
-  return _uciLinkMap;
-}
-
-// Carreras canceladas en el estado VIVO de la BD → fuera de la revisión. El reporte
-// de matching es un snapshot estático: una carrera cancelada DESPUÉS de generarlo
-// seguiría apareciendo como ambigua/sin-match (caso real: Tour du Doubs 2026). El
-// matcher ya las excluye al regenerar el reporte (uci-match-poc.mjs); aquí se aplica
-// el mismo criterio en vivo — marcar cancelada en el editor la saca de la vista.
-async function _loadUciCancelledSet() {
-  try {
-    const { data, error } = await supabase.from('races').select('id').eq('isCancelled', true);
-    if (error) throw error;
-    return new Set((data || []).map(r => r.id));
-  } catch (err) { console.warn('[uci] loadCancelledSet', err); return new Set(); }
-}
-
-async function renderUciReview() {
-  const content = document.getElementById('uciViewContent');
-  const subtitle = document.getElementById('uciSubtitle');
-  const toggle = document.getElementById('uciToggleAll');
-  if (!content) return;
-  content.innerHTML = '<div class="u-empty-note">Cargando reporte de matching…</div>';
-
-  let report;
-  try { ({ report } = await _loadUciReport()); }
-  catch (err) {
-    content.innerHTML = `<div class="u-empty-note">No se pudo cargar el reporte de matching (${esc(err.message)}).</div>`;
-    subtitle.textContent = 'Error al cargar.';
-    return;
-  }
-  await _loadUciLinkMap();
-  const cancelled = await _loadUciCancelledSet();
-
-  // Construir los grupos desde el reporte (solo dentro del horizonte UCI; las
-  // futuras aún sin publicar no tienen candidato y se enlazan solas al publicarse).
-  // Las canceladas en el estado VIVO se excluyen de TODOS los grupos: el reporte es
-  // un snapshot y el vivo manda, igual que con race_uci_links.
-  const inPlay = (r) => r.inHorizon && !cancelled.has(r.our.id);
-  const amb = (report.ambiguous || []).filter(inPlay);
-  const collisions = amb.filter(r => r.collision);
-  const realAmbig = amb.filter(r => !r.collision);
-  const noneIn = (report.none || []).filter(inPlay);
-
-  // Colisiones → grupos por competitionId compartido (cada grupo = una tarjeta-par).
-  const byComp = new Map();
-  for (const r of collisions) {
-    const k = r.collision.competitionId;
-    if (!byComp.has(k)) byComp.set(k, []);
-    byComp.get(k).push(r);
-  }
-
-  // ¿Un caso está resuelto? (todas sus carreras tienen enlace en el estado vivo, o
-  // —en colisión— alguna del par ya tiene el competitionId compartido).
-  const isLinked = (id) => _uciLinkMap.has(id);
-  const collisionResolved = (group, comp) => group.some(r => _uciLinkMap.get(r.our.id)?.competitionId === comp);
-
-  // Filtrar pendientes salvo "ver todas".
-  const pendingCollisions = [...byComp.entries()].filter(([comp, grp]) => _uciShowAll || !collisionResolved(grp, comp));
-  const pendingAmbig = realAmbig.filter(r => _uciShowAll || !isLinked(r.our.id));
-
-  // Subtítulo + toggle.
-  const totalPendC = [...byComp.entries()].filter(([comp, grp]) => !collisionResolved(grp, comp)).length;
-  const totalPendA = realAmbig.filter(r => !isLinked(r.our.id)).length;
-  subtitle.innerHTML = `${totalPendC + totalPendA} por revisar · <strong>${totalPendC}</strong> colisiones masc/fem · <strong>${totalPendA}</strong> ambiguas`
-    + (_uciShowAll ? ` · mostrando también ${noneIn.length} sin equivalente UCI + ya resueltas` : '');
-  toggle.textContent = _uciShowAll ? 'Solo pendientes' : 'Ver todas';
-
-  // Render.
-  const parts = [];
-
-  if (pendingCollisions.length) {
-    parts.push(`<div class="uci-group-label">Colisiones masc/fem <span class="u-c-dim">(la UCI publica una sola competición para el par → solo una enlaza)</span></div>`);
-    for (const [comp, grp] of pendingCollisions) parts.push(_renderUciCollisionCard(comp, grp));
-  }
-
-  if (pendingAmbig.length) {
-    parts.push(`<div class="uci-group-label" style="margin-top:1rem">Ambiguas <span class="u-c-dim">(varios candidatos UCI; elige el correcto)</span></div>`);
-    for (const r of pendingAmbig) parts.push(_renderUciAmbiguousRow(r));
-  }
-
-  if (_uciShowAll && noneIn.length) {
-    parts.push(`<div class="uci-group-label" style="margin-top:1rem">Sin equivalente UCI <span class="u-c-dim">(carreras no disputadas / fuera de road UCI — nada que enlazar)</span></div>`);
-    for (const r of noneIn) {
-      parts.push(`<div class="uci-card uci-card--muted"><div class="uci-claim__title">«${esc(r.our.name)}» <span class="u-c-dim">[${esc(r.our.class)}/${esc(r.our.gender)}]</span></div>
-        <div class="u-c-dim u-fs-085">${esc((r.our.dates || []).filter(Boolean).join(' → '))} · ${esc((r.our.country || '').toUpperCase())}</div></div>`);
-    }
-  }
-
-  if (!parts.length) {
-    content.innerHTML = `<div class="u-empty-note">Todo revisado 🎉 ${_uciShowAll ? '' : '(pulsa «Ver todas» para auditar las resueltas y las sin equivalente)'}</div>`;
-    return;
-  }
-  content.innerHTML = parts.join('');
-  _wireUciReview();
-}
-
-// Tarjeta de colisión: competición compartida arriba + las 2 carreras reclamantes
-// en columnas, cada una con su botón. Elegir una desenlaza la otra.
-// URL pública de resultados de una competición en la UCI (iframe Kendo, viewable
-// en el navegador) → para que Dani verifique de un vistazo cuál es la correcta.
-function _uciCompUrl(comp) {
-  return `https://dataride.uci.ch/iframe/CompetitionResults/${comp}/10/`;
-}
-// Enlace al competitionId que abre la página UCI en otra pestaña.
-function _uciCompLink(comp, label) {
-  return `<a href="${_uciCompUrl(comp)}" target="_blank" rel="noopener" class="uci-comp-link" title="Ver en la UCI ↗">${label != null ? label : '#' + comp} ↗</a>`;
-}
-
-function _renderUciCollisionCard(comp, group) {
-  const uciName = group[0]?.collision?.uciName || '';
-  const cols = group.map(r => {
-    const id = r.our.id;
-    const link = _uciLinkMap.get(id);
-    const sim = r.candidates?.[0]?.nameSim;
-    const linkedHere = link && link.competitionId === comp;
-    const linkedElsewhere = link && link.competitionId !== comp;
-    let action;
-    if (linkedHere) {
-      action = `<span class="uci-chip uci-chip--ok">✓ enlazada</span>
-        <button type="button" class="btn btn--ghost uci-unlink" data-race="${esc(id)}" style="font-size:0.68rem;padding:0 0.5rem;color:#e55">Desenlazar</button>`;
-    } else if (linkedElsewhere) {
-      action = `<span class="uci-chip">enlazada a #${link.competitionId}</span>
-        <button type="button" class="btn btn--ghost uci-unlink" data-race="${esc(id)}" style="font-size:0.68rem;padding:0 0.5rem;color:#e55">Desenlazar</button>`;
-    } else {
-      action = `<button type="button" class="btn btn--primary uci-link" data-race="${esc(id)}" data-comp="${comp}" data-year="${r.our.dates?.[0]?.slice(0,4) || ''}" style="font-size:0.72rem;padding:0.3rem 0.6rem">Enlazar a #${comp}</button>`;
-    }
-    return `<div class="uci-claim${linkedHere ? ' uci-claim--active' : ''}">
-        <div class="uci-claim__title">${r.our.gender === 'female' ? '♀' : '♂'} «${esc(r.our.name)}»</div>
-        <div class="u-c-dim u-fs-085">${esc(r.our.class)} · ${sim != null ? 'sim ' + sim : 'sin nombre en común'}</div>
-        <div class="uci-claim__action">${action} <span class="u-c-dim u-fs-075">${_uciCompLink(comp, 'ver en UCI')}</span></div>
-      </div>`;
-  }).join('');
-  return `<div class="uci-card">
-      <div class="uci-card__head">${_uciCompLink(comp)} · <strong>${esc(uciName)}</strong></div>
-      <div class="uci-pair">${cols}</div>
-      <div class="uci-card__foot">
-        <button type="button" class="btn btn--ghost uci-none" style="font-size:0.7rem;padding:0 0.5rem;color:var(--text-dim)">Ninguna de las dos</button>
-        <span class="u-c-dim u-fs-075">si no son realmente el mismo evento (p. ej. carreras distintas que solo solapan fecha)</span>
-      </div>
-    </div>`;
-}
-
-// Fila ambigua: una carrera con sus candidatos (reusa _uciCandidateRow de la Fase 4b).
-function _renderUciAmbiguousRow(rec) {
-  const id = rec.our.id;
-  const link = _uciLinkMap.get(id);
-  const o = rec.our;
-  let head = `<div class="uci-claim__title">«${esc(o.name)}» <span class="u-c-dim">[${esc(o.class)}/${esc(o.gender)}] · ${esc((o.dates || []).filter(Boolean).join(' → '))} · ${esc((o.country || '').toUpperCase())}</span></div>`;
-  if (link) {
-    head += `<div style="margin-top:0.25rem"><span class="uci-chip uci-chip--ok">✓ enlazada a #${link.competitionId}${link.autoMatched ? ' (auto)' : ''}</span>
-      <button type="button" class="btn btn--ghost uci-unlink" data-race="${esc(id)}" style="font-size:0.68rem;padding:0 0.5rem;color:#e55;margin-left:0.3rem">Desenlazar</button></div>`;
-  }
-  // Reutiliza la fila de candidato de la Fase 4b, pero con data-attrs propios de la vista.
-  const year = o.dates?.[0]?.slice(0, 4) || '';
-  const cands = (rec.candidates || []).map(c => {
-    const cls = c.uciClass != null ? esc(String(c.uciClass)) : '—';
-    const tick = c.classMatch ? '<span style="color:#3a3">✓ clase</span>' : '<span class="u-c-dim">≠ clase</span>';
-    const sim = c.nameSim != null ? ` · sim ${c.nameSim}` : '';
-    return `<div class="u-row uci-cand" style="gap:0.5rem;align-items:center;padding:0.3rem 0;border-top:1px solid var(--border)">
-        <button type="button" class="btn btn--ghost uci-link" data-race="${esc(id)}" data-comp="${c.competitionId}" data-year="${year}" style="font-size:0.7rem;padding:0 0.55rem;white-space:nowrap">Enlazar #${c.competitionId}</button>
-        <div class="u-grow"><strong>${esc(c.uciName || '(sin nombre)')}</strong> ${_uciCompLink(c.competitionId, 'ver')}<div class="u-c-dim u-fs-075">${tick} · ${cls}${sim}</div></div>
-      </div>`;
-  }).join('');
-  return `<div class="uci-card">${head}<div style="margin-top:0.4rem">${cands || '<span class="u-c-dim u-fs-085">Sin candidatos en el reporte.</span>'}</div></div>`;
-}
-
-// Cablea botones de la vista (se recrea en cada render → listeners por render).
-function _wireUciReview() {
-  const content = document.getElementById('uciViewContent');
-  if (!content) return;
-  content.querySelectorAll('.uci-link').forEach(btn =>
-    btn.addEventListener('click', () => _uciViewLink(btn.dataset.race, parseInt(btn.dataset.comp, 10), btn.dataset.year)));
-  content.querySelectorAll('.uci-unlink').forEach(btn =>
-    btn.addEventListener('click', () => _uciViewUnlink(btn.dataset.race)));
-  content.querySelectorAll('.uci-none').forEach(btn =>
-    btn.addEventListener('click', () => {
-      // "Ninguna de las dos": no escribe nada; colapsa la tarjeta visualmente.
-      const card = btn.closest('.uci-card');
-      if (card) card.classList.toggle('uci-card--dismissed');
-    }));
-}
-
-// Enlazar desde la vista de lote. Si OTRA carrera ya tiene ese competitionId
-// (caso colisión: el par), la desenlaza ANTES para no chocar con el UNIQUE.
-async function _uciViewLink(raceId, competitionId, yearStr) {
-  if (!raceId || !competitionId) return;
-  const year = parseInt(yearStr, 10) || null;
-  const seasonId = (year && _UCI_SEASON[year]) || null;
-  try {
-    // ¿Hay un dueño actual del competitionId distinto de esta carrera? → desenlazarlo.
-    const { data: cur } = await supabase.from('race_uci_links')
-      .select('raceId').eq('competitionId', competitionId).eq('disciplineId', 10).maybeSingle();
-    if (cur && cur.raceId && cur.raceId !== raceId) {
-      await _deleteUciLink(cur.raceId);
-    }
-    const res = await _writeUciLink(raceId, competitionId, seasonId);
-    if (!res.ok && res.conflict) {
-      // No debería ocurrir tras el desenlace, pero por si acaso informamos.
-      showToast(`#${competitionId} ya la usa ${res.ownerName || 'otra carrera'}.`, 'error');
-      return;
-    }
-    showToast(`Enlazada a #${competitionId}.`, 'success', 2500);
-    await renderUciReview();
-  } catch (err) {
-    showToast(`Error al enlazar: ${err.message || err}`, 'error');
-  }
-}
-
-async function _uciViewUnlink(raceId) {
-  if (!raceId) return;
-  if (!await confirmDialog('¿Quitar el enlace UCI de esta carrera?', { danger: true })) return;
-  try {
-    await _deleteUciLink(raceId);
-    showToast('Enlace quitado.', 'success', 2000);
-    await renderUciReview();
-  } catch (err) {
-    showToast(`Error al desenlazar: ${err.message || err}`, 'error');
   }
 }
 
@@ -6539,8 +6518,6 @@ async function saveEditRace() {
       colorHex:    document.getElementById('er-color').value || '#888888',
       logoUrl:     document.getElementById('er-logo').value.trim() || null,
       websiteUrl:  document.getElementById('er-website').value.trim() || null,
-      extId:        parseInt(document.getElementById('er-extId').value) || null,
-      extSlug:     document.getElementById('er-extSlug').value.trim() || null,
       hideFlag:    document.getElementById('er-hideFlag').checked || false,
       isGrandTour: document.getElementById('er-isGrandTour').checked || false,
       isCancelled: document.getElementById('er-isCancelled').checked || false,
@@ -6633,8 +6610,6 @@ async function duplicateRace() {
       colorHex: raceData.colorHex || null,
       logoUrl: raceData.logoUrl || null,
       websiteUrl: raceData.websiteUrl || null,
-      extId: raceData.extId || null,
-      extSlug: raceData.extSlug || null,
       hideFlag: raceData.hideFlag || false,
       isGrandTour: raceData.isGrandTour || false,
       isNoClickable: raceData.isNoClickable || false,
@@ -6662,12 +6637,29 @@ async function duplicateRace() {
 
 // ── Setup modales de carreras ─────────────────────────────────────
 function setupRacesView() {
+  document.querySelector('#racesView .races-header').innerHTML=panelCatalogHeaderHtml({
+    tabsId:'racesSubviewToggle',tabs:[{key:'races',label:'Carreras'},{key:'challenges',label:'Challenges'}],filterRowId:'racesFiltersRow',searchId:'racesSearch',
+    controls:[
+      {key:'period',id:'racesYearSelect',label:'Temporada',options:Array.from({length:11},(_,i)=>[2020+i,2020+i]),value:_racesYear},
+      {key:'class',id:'racesCatFilter',label:'Categoría',options:[['','Todas'],...RACES_CAT_ORDER.map(cat=>[cat,cat])]},
+      {key:'country',id:'racesCountryFilter',label:'País',options:[['','Todos los países']]},
+      {key:'sort',id:'racesSortOrder',label:'Orden',options:[['cat','Por categoría'],['recent','Última actualización']],value:'cat'},
+    ],actions:[{key:'new',id:'addRaceDirectBtn',primary:true,label:'+ Nueva carrera'},{key:'challenge',id:'newChallengeBtn',primary:true,label:'+ Nuevo challenge',hidden:true}],
+  });
   // Selector de año
   const yearSel = document.getElementById('racesYearSelect');
   yearSel.value = _racesYear;
-  yearSel.addEventListener('change', () => {
+  yearSel.addEventListener('change', async () => {
     _racesYear = parseInt(yearSel.value);
-    renderRacesView();
+    yearSel.disabled = true;
+    try {
+      await ensureRaceYearLoaded(_racesYear);
+      renderRacesView();
+    } catch (error) {
+      showToast('No se pudieron cargar las carreras de la temporada: ' + error.message);
+    } finally {
+      yearSel.disabled = false;
+    }
   });
 
   // El desplegable de categoría sincroniza con la cuadrícula: elegir una
@@ -6893,226 +6885,6 @@ async function extractDominantColor(url) {
   });
 }
 
-
-// ── Autocomplete de país ──────────────────────────────────────────
-const COUNTRY_LIST = [
-  // Regionales
-  { code: 'es-ct', name: 'Catalunya' },
-  { code: 'es-pv', name: 'País Vasco' },
-  // A
-  { code: 'ad', name: 'Andorra' },
-  { code: 'ae', name: 'Emiratos Árabes Unidos' },
-  { code: 'al', name: 'Albania' },
-  { code: 'ao', name: 'Angola' },
-  { code: 'ar', name: 'Argentina' },
-  { code: 'at', name: 'Austria' },
-  { code: 'au', name: 'Australia' },
-  { code: 'az', name: 'Azerbaiyán' },
-  // B
-  { code: 'ba', name: 'Bosnia y Herzegovina' },
-  { code: 'bd', name: 'Bangladés' },
-  { code: 'be', name: 'Bélgica' },
-  { code: 'bf', name: 'Burkina Faso' },
-  { code: 'bg', name: 'Bulgaria' },
-  { code: 'bh', name: 'Baréin' },
-  { code: 'bo', name: 'Bolivia' },
-  { code: 'br', name: 'Brasil' },
-  { code: 'by', name: 'Bielorrusia' },
-  // C
-  { code: 'ca', name: 'Canadá' },
-  { code: 'cd', name: 'República Democrática del Congo' },
-  { code: 'ch', name: 'Suiza' },
-  { code: 'ci', name: 'Costa de Marfil' },
-  { code: 'cl', name: 'Chile' },
-  { code: 'cm', name: 'Camerún' },
-  { code: 'cn', name: 'China' },
-  { code: 'co', name: 'Colombia' },
-  { code: 'cr', name: 'Costa Rica' },
-  { code: 'cu', name: 'Cuba' },
-  { code: 'cy', name: 'Chipre' },
-  { code: 'cz', name: 'República Checa' },
-  // D
-  { code: 'de', name: 'Alemania' },
-  { code: 'dk', name: 'Dinamarca' },
-  { code: 'do', name: 'República Dominicana' },
-  { code: 'dz', name: 'Argelia' },
-  // E
-  { code: 'ec', name: 'Ecuador' },
-  { code: 'ee', name: 'Estonia' },
-  { code: 'eg', name: 'Egipto' },
-  { code: 'er', name: 'Eritrea' },
-  { code: 'es', name: 'España' },
-  { code: 'et', name: 'Etiopía' },
-  // F
-  { code: 'fi', name: 'Finlandia' },
-  { code: 'fr', name: 'Francia' },
-  // G
-  { code: 'gb', name: 'Gran Bretaña' },
-  { code: 'ge', name: 'Georgia' },
-  { code: 'gh', name: 'Ghana' },
-  { code: 'gr', name: 'Grecia' },
-  { code: 'gt', name: 'Guatemala' },
-  // H
-  { code: 'hr', name: 'Croacia' },
-  { code: 'hu', name: 'Hungría' },
-  // I
-  { code: 'id', name: 'Indonesia' },
-  { code: 'ie', name: 'Irlanda' },
-  { code: 'il', name: 'Israel' },
-  { code: 'in', name: 'India' },
-  { code: 'iq', name: 'Irak' },
-  { code: 'ir', name: 'Irán' },
-  { code: 'it', name: 'Italia' },
-  // J
-  { code: 'jo', name: 'Jordania' },
-  { code: 'jp', name: 'Japón' },
-  // K
-  { code: 'ke', name: 'Kenia' },
-  { code: 'kg', name: 'Kirguistán' },
-  { code: 'kp', name: 'Corea del Norte' },
-  { code: 'kr', name: 'Corea del Sur' },
-  { code: 'kw', name: 'Kuwait' },
-  { code: 'kz', name: 'Kazajistán' },
-  // L
-  { code: 'lb', name: 'Líbano' },
-  { code: 'li', name: 'Liechtenstein' },
-  { code: 'lt', name: 'Lituania' },
-  { code: 'lu', name: 'Luxemburgo' },
-  { code: 'lv', name: 'Letonia' },
-  // M
-  { code: 'ma', name: 'Marruecos' },
-  { code: 'md', name: 'Moldavia' },
-  { code: 'mk', name: 'Macedonia del Norte' },
-  { code: 'mn', name: 'Mongolia' },
-  { code: 'mt', name: 'Malta' },
-  { code: 'mu', name: 'Mauricio' },
-  { code: 'mx', name: 'México' },
-  { code: 'my', name: 'Malasia' },
-  // N
-  { code: 'ng', name: 'Nigeria' },
-  { code: 'ni', name: 'Nicaragua' },
-  { code: 'nl', name: 'Países Bajos' },
-  { code: 'no', name: 'Noruega' },
-  { code: 'nz', name: 'Nueva Zelanda' },
-  // O
-  { code: 'om', name: 'Omán' },
-  // P
-  { code: 'pa', name: 'Panamá' },
-  { code: 'pe', name: 'Perú' },
-  { code: 'ph', name: 'Filipinas' },
-  { code: 'pk', name: 'Pakistán' },
-  { code: 'pl', name: 'Polonia' },
-  { code: 'pt', name: 'Portugal' },
-  { code: 'py', name: 'Paraguay' },
-  // Q
-  { code: 'qa', name: 'Catar' },
-  // R
-  { code: 'ro', name: 'Rumanía' },
-  { code: 'rs', name: 'Serbia' },
-  { code: 'ru', name: 'Rusia' },
-  { code: 'rw', name: 'Ruanda' },
-  // S
-  { code: 'sa', name: 'Arabia Saudí' },
-  { code: 'sd', name: 'Sudán' },
-  { code: 'se', name: 'Suecia' },
-  { code: 'sg', name: 'Singapur' },
-  { code: 'si', name: 'Eslovenia' },
-  { code: 'sk', name: 'Eslovaquia' },
-  { code: 'sn', name: 'Senegal' },
-  { code: 'sv', name: 'El Salvador' },
-  // T
-  { code: 'th', name: 'Tailandia' },
-  { code: 'tj', name: 'Tayikistán' },
-  { code: 'tm', name: 'Turkmenistán' },
-  { code: 'tn', name: 'Túnez' },
-  { code: 'tr', name: 'Turquía' },
-  { code: 'tw', name: 'Taiwán' },
-  { code: 'tz', name: 'Tanzania' },
-  // U
-  { code: 'ua', name: 'Ucrania' },
-  { code: 'ug', name: 'Uganda' },
-  { code: 'us', name: 'Estados Unidos' },
-  { code: 'uy', name: 'Uruguay' },
-  { code: 'uz', name: 'Uzbekistán' },
-  // V
-  { code: 've', name: 'Venezuela' },
-  { code: 'vn', name: 'Vietnam' },
-  // Z
-  { code: 'za', name: 'Sudáfrica' },
-  { code: 'zm', name: 'Zambia' },
-  { code: 'zw', name: 'Zimbabue' },
-];
-
-function attachCountryAutocomplete(input) {
-  if (input.dataset.countryAc) return; // evitar duplicados
-  input.dataset.countryAc = '1';
-  input.autocomplete = 'off';
-
-  const dropdown = document.createElement('div');
-  dropdown.className = 'country-ac-dropdown';
-  // position:fixed anclado al body para no depender del overflow:hidden de contenedores
-  // ancestrales (p.ej. .editor-section tiene overflow:hidden para recortar el header).
-  dropdown.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,0.18);max-height:220px;overflow-y:auto;min-width:220px;display:none';
-  document.body.appendChild(dropdown);
-
-  function positionDropdown() {
-    const r = input.getBoundingClientRect();
-    dropdown.style.left  = `${r.left}px`;
-    dropdown.style.top   = `${r.bottom + 4}px`;
-    dropdown.style.width = `${Math.max(r.width, 220)}px`;
-  }
-
-  function show(items) {
-    dropdown.innerHTML = items.map(c =>
-      `<div class="country-ac-item" data-code="${c.code}" style="padding:0.4rem 0.75rem;cursor:pointer;font-family:var(--font-display);font-size:0.8rem;display:flex;align-items:center;gap:0.5rem">
-        <img src="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/${c.code}.svg" style="width:1.2em;height:0.9em;object-fit:cover;border-radius:2px;flex-shrink:0">
-        <span>${c.name}</span>
-        <span style="margin-left:auto;opacity:0.45;font-size:0.7rem">${c.code.toUpperCase()}</span>
-      </div>`
-    ).join('');
-    if (items.length) {
-      positionDropdown();
-      dropdown.style.display = 'block';
-    } else {
-      dropdown.style.display = 'none';
-    }
-    dropdown.querySelectorAll('.country-ac-item').forEach(item => {
-      item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-card-hover)');
-      item.addEventListener('mouseleave', () => item.style.background = '');
-      item.addEventListener('mousedown', e => {
-        e.preventDefault();
-        input.value = item.dataset.code.toUpperCase();
-        dropdown.style.display = 'none';
-      });
-    });
-  }
-
-  input.addEventListener('input', () => {
-    const q = input.value.toLowerCase().trim();
-    if (!q) { dropdown.style.display = 'none'; return; }
-    const matches = COUNTRY_LIST.filter(c =>
-      c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-    ).slice(0, 8);
-    show(matches);
-  });
-
-  input.addEventListener('focus', () => {
-    const q = input.value.toLowerCase().trim();
-    if (q.length >= 1) input.dispatchEvent(new Event('input'));
-  });
-
-  // Reposicionar si el usuario scrollea o redimensiona mientras está abierto
-  window.addEventListener('scroll', () => {
-    if (dropdown.style.display === 'block') positionDropdown();
-  }, true);
-  window.addEventListener('resize', () => {
-    if (dropdown.style.display === 'block') positionDropdown();
-  });
-
-  document.addEventListener('click', e => {
-    if (e.target !== input && !dropdown.contains(e.target)) dropdown.style.display = 'none';
-  });
-}
 
 function attachInlineUpload(input, tipo) {
   // Evitar duplicados
@@ -7381,6 +7153,7 @@ async function openChallengeModal(editId = null) {
 
 // Pobla y cablea el editor de challenge (todo per-apertura, ya lo era).
 async function _populateChallengeEditor(editId) {
+  await ensureAllRacesLoaded();
   const errorDiv = document.getElementById('challengeError');
   errorDiv.style.display = 'none';
 
@@ -8412,23 +8185,26 @@ function renderCountries(data) {
 // ═════════════════════════════════════════════════════════════════
 
 let _startlistsInitialized = false;
+let _startlistsDateKey = madridDateKey(new Date());
+let _startlistsRequest = 0;
 
 function setupStartlistsView() {
-  if (_startlistsInitialized) { loadExistingStartlists(); return; }
-  _startlistsInitialized = true;
-  document.getElementById('newStartlistBtn')?.addEventListener('click', openNewStartlistImport);
-  // El editor de inscritos se renderiza en el drawer; sus listeners se cablean
-  // por apertura en wireStartlistEditor() (ver openStartlistEditor).
-  loadExistingStartlists();
+  if (!_startlistsInitialized) {
+    _startlistsInitialized = true;
+    const root=document.getElementById('startlistsView');
+    root.querySelector('.sidebar__header').innerHTML=panelDayNavigationHtml({pickerId:'startlistsDate',addId:'newStartlistBtn',addLabel:'+ Nueva lista de inscritos',title:'Inscritos'});
+    wirePanelDayNavigation({picker:root.querySelector('[data-date]'),previous:root.querySelector('[data-previous]'),next:root.querySelector('[data-next]'),today:root.querySelector('[data-today]')},{getDate:()=>_startlistsDateKey,todayDate:()=>madridDateKey(new Date()),onChange:date=>{_startlistsDateKey=date;void loadExistingStartlists();}});
+    root.querySelector('#newStartlistBtn').addEventListener('click',()=>void openNewStartlist());
+  }
+  void loadExistingStartlists();
 }
 
 function _newStartlistRaceOptions(query = '') {
   return selectUpcomingStartlistRaces(allRaces, madridDateKey(new Date()), query);
 }
 
-function openNewStartlistImport() {
-  let parsedDocument = null;
-
+async function openNewStartlist() {
+  await ensureRaceYearLoaded(new Date().getFullYear() + 1);
   openDrawer({
     title: 'Nueva lista de inscritos',
     level: 1,
@@ -8443,39 +8219,24 @@ function openNewStartlistImport() {
                     style="width:100%;box-sizing:border-box;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)"></select>
             <div id="newStartlistRaceCount" class="u-fs-xs u-c-dim" style="margin-top:0.35rem"></div>
           </div>
-          <div>
-            <label for="newStartlistFile" class="panel-view-label" style="display:block;margin-bottom:0.4rem">Archivo JSON (opcional)</label>
-            <input id="newStartlistFile" type="file" accept="application/json,.json" style="width:100%">
-          </div>
-          <div id="newStartlistImportStatus" class="u-fs-md u-c-dim" role="status">Selecciona una carrera. Después puedes crear la lista manualmente o importar un JSON.</div>
+          <div id="newStartlistStatus" class="u-fs-md u-c-dim" role="status">Selecciona una carrera para abrir el editor de inscritos.</div>
           <div class="u-row" style="justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;padding-top:0.75rem;border-top:1px solid var(--border)">
             <button class="btn btn--ghost" id="cancelNewStartlistBtn" type="button">Cancelar</button>
-            <button class="btn btn--ghost" id="manualNewStartlistBtn" type="button" disabled>Crear manualmente</button>
-            <button class="btn btn--primary" id="continueNewStartlistBtn" type="button" disabled>Importar JSON</button>
+            <button class="btn btn--primary" id="continueNewStartlistBtn" type="button" disabled>Abrir editor</button>
           </div>
         </div>`;
 
       const search = body.querySelector('#newStartlistRaceSearch');
       const select = body.querySelector('#newStartlistRace');
-      const fileInput = body.querySelector('#newStartlistFile');
-      const status = body.querySelector('#newStartlistImportStatus');
+      const status = body.querySelector('#newStartlistStatus');
       const count = body.querySelector('#newStartlistRaceCount');
-      const manualBtn = body.querySelector('#manualNewStartlistBtn');
       const continueBtn = body.querySelector('#continueNewStartlistBtn');
 
       const updateReadyState = () => {
-        const target = validateStartlistImportTarget(select.value, parsedDocument?.raceId);
-        manualBtn.disabled = !select.value;
-        continueBtn.disabled = !parsedDocument?.ok || !target.ok;
-        if (parsedDocument?.ok) {
-          status.textContent = target.ok
-            ? `JSON válido: ${parsedDocument.summary.teams} equipos y ${parsedDocument.summary.riders} corredores.`
-            : target.error;
-        } else if (select.value) {
-          status.textContent = 'Carrera seleccionada. Puedes crear la lista manualmente o elegir un JSON.';
-        } else {
-          status.textContent = 'Selecciona una carrera. Después puedes crear la lista manualmente o importar un JSON.';
-        }
+        continueBtn.disabled = !select.value;
+        status.textContent = select.value
+          ? 'Carrera seleccionada. Abre el editor para completar la lista de inscritos.'
+          : 'Selecciona una carrera para abrir el editor de inscritos.';
       };
 
       const renderRaces = () => {
@@ -8496,45 +8257,12 @@ function openNewStartlistImport() {
 
       search.addEventListener('input', renderRaces);
       select.addEventListener('change', updateReadyState);
-      fileInput.addEventListener('change', async () => {
-        parsedDocument = null;
-        continueBtn.disabled = true;
-        const file = fileInput.files?.[0];
-        if (!file) {
-          updateReadyState();
-          return;
-        }
-        try {
-          const parsed = parseStartlistImportDocument(JSON.parse(await file.text()));
-          if (!parsed.ok) {
-            throw new Error(parsed.errors.slice(0, 4).map(({ path, message }) => `${path}: ${message}`).join(' · '));
-          }
-          parsedDocument = parsed;
-          updateReadyState();
-        } catch (error) {
-          status.textContent = `Error de importación: ${error.message}`;
-        }
-      });
       body.querySelector('#cancelNewStartlistBtn').addEventListener('click', () => closeDrawer(1));
-      manualBtn.addEventListener('click', async () => {
-        const target = validateStartlistImportTarget(select.value, null);
-        if (!target.ok) {
-          status.textContent = target.error;
-          return;
-        }
-        manualBtn.disabled = true;
-        manualBtn.textContent = 'Abriendo…';
-        await window.openStartlistEditor(target.raceId, { manualCreation: true });
-      });
       continueBtn.addEventListener('click', async () => {
-        const target = validateStartlistImportTarget(select.value, parsedDocument?.raceId);
-        if (!parsedDocument?.ok || !target.ok) {
-          status.textContent = target.error || 'Selecciona un JSON válido.';
-          return;
-        }
+        if (!select.value) return;
         continueBtn.disabled = true;
         continueBtn.textContent = 'Abriendo…';
-        await window.openStartlistEditor(target.raceId, { importedDocument: parsedDocument });
+        await window.openStartlistEditor(select.value);
       });
 
       renderRaces();
@@ -8543,70 +8271,18 @@ function openNewStartlistImport() {
 }
 
 async function loadExistingStartlists() {
-  const container = document.getElementById('existingStartlists');
-
-  // Filtramos directamente la tabla `races` por `startlistImportedAt IS NOT NULL`
-  // y ordenamos por startDate desc. Sale en 1 query de 10 filas — antes había
-  // que paginar miles de filas de `startlist_teams` para sacar los raceIds.
-  const { data: races, error } = await supabase
-    .from('races')
-    .select('id, name, startDate, endDate, countryCode, uciCategory, gender, hideFlag, enrichedStartlist')
-    .not('startlistImportedAt', 'is', null)
-    .order('startDate', { ascending: false })
-    .limit(10);
-
-  if (error || !races || races.length === 0) {
-    container.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem 0">No hay listas importadas.</div>';
-    return;
+  const container=document.getElementById('existingStartlists'),dateKey=_startlistsDateKey,request=++_startlistsRequest;
+  container.innerHTML='<p class="panel-catalog-empty" role="status">Cargando…</p>';
+  try {
+    const days=await loadPanelAgendaDay(dateKey);
+    if(request!==_startlistsRequest)return;
+    renderRoadPanelAgenda(container,days,dateKey,{onRaceDay:(_dayId,raceId)=>void window.openStartlistEditor(raceId),onPendingRace:raceId=>void window.openStartlistEditor(raceId),onlyFirstStageDay:true,hideStageLabel:true,hideCompletenessGroups:true});
+  } catch(error) {
+    if(request!==_startlistsRequest)return;
+    container.innerHTML='<p class="cx-error" role="alert"></p><button type="button" class="btn btn--ghost">Reintentar</button>';
+    container.querySelector('[role=alert]').textContent=error.message;
+    container.querySelector('button').onclick=()=>void loadExistingStartlists();
   }
-
-  const raceEntries = races.map(r => ({ raceId: r.id, race: r }));
-
-  function formatRaceDates(race) {
-    if (!race) return '';
-    const fmt = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
-    if (race.startDate && race.endDate && race.startDate !== race.endDate) {
-      return `${fmt(race.startDate)} – ${fmt(race.endDate)}`;
-    }
-    if (race.startDate) return fmt(race.startDate);
-    return '';
-  }
-
-  const rowHtml = ({ raceId, race }) => {
-    const name  = race ? race.name : raceId;
-    const dates = formatRaceDates(race);
-    const flag  = (race && !race.hideFlag) ? countryFlag(race.countryCode) : '';
-    const catBadge = race
-      ? categoryBadge(race.uciCategory, race.gender === 'female' && !nameImpliesFemale(race.name || ''))
-      : '';
-    return `<div class="listrow">
-      <span class="listrow__flag">${flag}</span>
-      <div class="listrow__info">
-        <div class="listrow__name">${esc(name)}</div>
-        ${dates ? `<div class="listrow__meta">${esc(dates)}</div>` : ''}
-        ${catBadge ? `<div class="listrow__badges">${catBadge}</div>` : ''}
-      </div>
-      <div class="listrow__actions">
-        <button class="btn btn--ghost listrow__btn" onclick="openStartlistEditor('${raceId}')">Editar</button>
-        <button class="btn btn--ghost listrow__btn listrow__btn--danger" onclick="deleteStartlist('${raceId}')">Eliminar</button>
-      </div>
-    </div>`;
-  };
-
-  // Agrupar como la Agenda: enriquecidas (chapas curadas) vs sin enriquecer.
-  const groups = [
-    { key: true,  label: 'Enriquecidas' },
-    { key: false, label: 'Sin enriquecer' },
-  ];
-
-  let html = '';
-  for (const { key, label } of groups) {
-    const entries = raceEntries.filter(({ race }) => !!(race && race.enrichedStartlist) === key);
-    if (entries.length === 0) continue;
-    html += `<div class="sidebar-group-label">${label}</div>`;
-    html += entries.map(rowHtml).join('');
-  }
-  container.innerHTML = html;
 }
 
 window.deleteStartlist = async function(raceId) {
@@ -8629,12 +8305,16 @@ window.deleteStartlist = async function(raceId) {
 
 // ── Editor de startlist ──────────────────────────────────────────
 let _editingRaceId = null;
-let _editingRaceEnriched = false;   // estado del toggle del editor abierto
+let _slPreparedImport = null;
+let _slSaving = false;
 let _editingRaceProvisional = false; // toggle "Lista provisional"
+let _slRosterMatchCache = new Map(); // plantilla por equipo/temporada/género
+let _slAutoMatchSequence = 0;
+let _slTeamMatchIndex = new Map();
+let _slTeamAliases = [];
 
 // ─── Rider matching ───────────────────────────────────────────────
-// No se crean identidades. El editor puede enlazar solo coincidencias exactas
-// existentes; los casos ausentes o ambiguos quedan para el selector manual.
+// Los enlaces se revisan en el editor; las altas se aplican con la lista.
 
 function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip */) {
   const btn = riderEl.querySelector('.sl-rider-match-btn');
@@ -8647,57 +8327,242 @@ function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip */) {
       ? `Match en BD: ${rider.firstName || ''} ${rider.lastName || ''}. Click para cambiar/desligar.`
       : 'Match en BD. Click para cambiar/desligar.';
   } else {
-    btn.textContent = '🔗';
+    btn.textContent = riderEl.dataset.birthDate ? 'Alta preparada' : '🔗';
     btn.style.color = 'var(--text-dim)';
     btn.title = 'Buscar o forzar un match en la BD de corredores';
   }
 }
 
-// Consulta batch de SOLO LECTURA. La RPC compara identityKey exacto y aliases
-// de fusiones; no crea ni actualiza fichas. Una clave ambigua queda desligada.
-async function _slMatchExistingRiders(riderEls) {
-  const gender = _slEditingRaceGender();
-  const rows = [...riderEls]
-    .filter(riderEl => !riderEl.dataset.globalRiderId)
-    .map((riderEl, idx) => ({
-      idx,
-      riderEl,
-      firstName: riderEl.querySelector('.sl-firstname')?.value.trim() || '',
-      lastName: riderEl.querySelector('.sl-lastname')?.value.trim() || '',
-    }))
-    .filter(row => row.firstName || row.lastName);
-  if (!gender || rows.length === 0) {
-    return { matched: 0, ambiguous: 0, unmatched: rows.length, skipped: true };
-  }
+// Temporada de la carrera que se está editando. Las afiliaciones son anuales;
+// no se debe limitar la búsqueda al currentTeamId, que es solo una caché del
+// equipo vigente.
+function _slEditingRaceSeason() {
+  const race = allRaces.find(r => r.id === _editingRaceId);
+  const year = Number.parseInt(String(race?.startDate || race?.endDate || '').slice(0, 4), 10);
+  return Number.isFinite(year) ? year : new Date().getFullYear();
+}
 
-  try {
-    const { data, error } = await supabase.rpc('match_existing_riders', {
-      p_gender: gender,
-      p_rows: rows.map(({ idx, firstName, lastName }) => ({ idx, firstName, lastName })),
+// La RPC consulta el equipo y sus vínculos deportivos de la temporada de la
+// carrera. Resuelve maillots especiales y fechas sin modificar afiliaciones.
+async function _slLoadTeamRosterForMatch(teamId) {
+  const raceId = _editingRaceId;
+  const team = (_teamsCache || []).find(t => t.id === teamId);
+  if (isSelectionTeam(team)) return [];
+  const cacheKey = `${raceId}:${teamId}`;
+  const cached = _slRosterMatchCache.get(cacheKey);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    const { data, error } = await supabase.rpc('startlist_team_roster', {
+      p_race_id: raceId,
+      p_team_id: teamId,
     });
     if (error) throw error;
-    const results = new Map((data || []).map(result => [Number(result.idx), result]));
-    let matched = 0;
-    let ambiguous = 0;
-    let unmatched = 0;
-    for (const row of rows) {
-      const result = results.get(row.idx);
-      const matchedId = uniqueExistingRiderMatchId(result);
-      if (matchedId) {
-        row.riderEl.dataset.globalRiderId = matchedId;
-        _slRefreshRiderMatchBtn(row.riderEl);
-        matched++;
-      } else if (Number(result?.match_count) > 1) {
-        ambiguous++;
-      } else {
-        unmatched++;
+    if (!Array.isArray(data)) throw new Error('No se recibió la plantilla de inscritos.');
+    return data.map(rider => ({
+      ...rider,
+      globalRiderId: rider.id,
+      name: `${rider.firstName || ''} ${rider.lastName || ''}`.trim(),
+    }));
+  })();
+
+  _slRosterMatchCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    _slRosterMatchCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+function _slApplyAutomaticRiderMatch(riderEl, rider) {
+  const globalRiderId = rider?.globalRiderId || rider?.id;
+  if (!globalRiderId) return;
+  riderEl.dataset.globalRiderId = globalRiderId;
+  riderEl.dataset.birthDate = rider.birthDate || '';
+  riderEl.dataset.uciProfileId = rider.uciProfileId || '';
+  delete riderEl.dataset.rejectedCandidateIds;
+  const firstName = rider.firstName || '';
+  const lastName = rider.lastName || '';
+  const firstInput = riderEl.querySelector('.sl-firstname');
+  const lastInput = riderEl.querySelector('.sl-lastname');
+  if (firstInput) firstInput.value = firstName;
+  if (lastInput) lastInput.value = lastName;
+
+  const country = riderEl.querySelector('.sl-country');
+  const flag = riderEl.querySelector('.sl-flag-preview');
+  if (country && rider.nationality) {
+    country.value = rider.nationality;
+    if (flag) flag.innerHTML = _slRiderFlagPreview(rider.nationality);
+  }
+  const matched = riderEl.querySelector('.sl-rider-matched');
+  if (matched) {
+    matched.style.display = 'inline';
+    matched.title = rider.affiliationType === 'trainee' ? 'Asociado como ciclista a prueba (stagiaire)' : 'Corredor asociado';
+  }
+  _slRefreshRiderMatchBtn(riderEl, rider);
+  const suggestion = riderEl.querySelector('.sl-rider-suggestion');
+  if (suggestion) {
+    suggestion.style.display = 'none';
+    suggestion.dataset.dismissed = '1';
+  }
+}
+
+// Al salir del nombre o del apellido, busca dentro de la plantilla del equipo.
+// Una respuesta pendiente no puede reemplazar una edición posterior.
+async function _slAutoMatchRiderByTeam(riderEl) {
+  if (!riderEl || riderEl.dataset.globalRiderId) return null;
+  const teamEl = riderEl.closest('.sl-edit-team');
+  const teamId = teamEl?.dataset.teamId || '';
+  const firstName = riderEl.querySelector('.sl-firstname')?.value.trim() || '';
+  const lastName = riderEl.querySelector('.sl-lastname')?.value.trim() || '';
+  if (!teamId || (!firstName && !lastName)) return null;
+
+  const raceId = _editingRaceId;
+  const requestToken = String(++_slAutoMatchSequence);
+  riderEl.dataset.slAutoMatchToken = requestToken;
+  try {
+    const roster = await _slLoadTeamRosterForMatch(teamId);
+    if (_editingRaceId !== raceId || !document.contains(riderEl)
+        || riderEl.dataset.slAutoMatchToken !== requestToken
+        || riderEl.dataset.globalRiderId
+        || riderEl.closest('.sl-edit-team')?.dataset.teamId !== teamId
+        || riderEl.querySelector('.sl-firstname')?.value.trim() !== firstName
+        || riderEl.querySelector('.sl-lastname')?.value.trim() !== lastName) return null;
+
+    const candidates = startlistRosterCandidates(lastName, firstName, roster);
+    if (candidates.length === 1) {
+      _slApplyAutomaticRiderMatch(riderEl, candidates[0]);
+      return candidates[0];
+    }
+    const slot = riderEl.querySelector('.sl-rider-suggestion');
+    if (slot) {
+      slot.replaceChildren();
+      slot.style.display = candidates.length > 1 ? 'block' : 'none';
+      if (candidates.length > 1) {
+        const label = document.createElement('span');
+        label.textContent = 'Varias coincidencias en las plantillas vinculadas: ';
+        slot.appendChild(label);
+        candidates.forEach(candidate => {
+          const button = document.createElement('button');
+          button.type = 'button'; button.className = 'btn btn--ghost';
+          button.textContent = `${candidate.firstName} ${candidate.lastName}${candidate.rosterTeamName ? ` · ${candidate.rosterTeamName}` : ''}`;
+          button.addEventListener('click', () => _slApplyAutomaticRiderMatch(riderEl, candidate));
+          slot.appendChild(button);
+        });
       }
     }
-    return { matched, ambiguous, unmatched, skipped: false };
+    return null;
   } catch (error) {
-    console.warn('[startlist exact match]', error);
-    return { matched: 0, ambiguous: 0, unmatched: rows.length, error, skipped: false };
+    console.warn('[startlist roster match]', error);
+    return null;
   }
+}
+
+function _slAutoDorsalForRider(riderEl) {
+  const dorsal = riderEl.querySelector('.sl-dorsal');
+  if (!dorsal || dorsal.value.trim()) return;
+  if (!_slEditorHasAssignedDorsals()) return;
+  const teamEl = riderEl.closest('.sl-edit-team');
+  if (!teamEl) return;
+  const teams = [...document.querySelectorAll('#startlistEditorContent .sl-edit-team')];
+  const teamIndex = teams.indexOf(teamEl);
+  const riders = [...teamEl.querySelectorAll('.sl-edit-rider')];
+  const riderIndex = riders.indexOf(riderEl);
+  if (teamIndex < 0 || riderIndex < 0) return;
+  dorsal.value = String((teamIndex * 10) + riderIndex + 1);
+}
+
+function _slCreateRiderRow(teamEl) {
+  const ridersDiv = teamEl?.querySelector('.sl-edit-riders');
+  if (!ridersDiv) return null;
+  const row = document.createElement('div');
+  row.className = 'sl-edit-rider';
+  row.dataset.rowKey = crypto.randomUUID();
+  row.style = 'display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap';
+  row.innerHTML = `<div style="display:flex;align-items:center;gap:0.35rem;flex:1;min-width:0">
+    <input type="number" class="sl-dorsal" value="" placeholder="—" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
+    <span class="sl-flag-preview u-icon-box"><span style="display:inline-block;width:1.2em;height:0.9em"></span></span>
+    <input type="text" class="sl-country" value="" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)" style="width:3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.72rem;padding:0.2rem 0.3rem;text-align:center;text-transform:lowercase;outline:none">
+    <input type="text" class="sl-firstname u-input-sm" value="" placeholder="Nombre">
+    <input type="text" class="sl-lastname u-input-sm" value="" placeholder="Apellido">
+    <button type="button" class="sl-rider-match-btn" data-action="picker" title="Buscar o forzar un match en la BD de corredores" style="background:none;border:1px solid var(--border);border-radius:4px;padding:0.05rem 0.4rem;font-size:0.7rem;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-dim)">🔗</button>
+    <span class="sl-rider-matched" style="display:none;font-size:0.65rem;color:#22c55e;font-weight:700;flex-shrink:0">✓</span>
+    <button type="button" class="btn btn--ghost sl-remove-rider-btn" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0">✕</button>
+  </div>
+  <div class="sl-rider-suggestion" style="display:none;width:100%;padding:0.1rem 0.75rem 0.3rem 4.2rem"></div>`;
+  ridersDiv.appendChild(row);
+  _slUpdateTeamOrderControls();
+  return row;
+}
+
+function _slEditorTeamsSource() {
+  return [...document.querySelectorAll('#startlistEditorContent .sl-edit-team')].map(team => ({
+    riders: [...team.querySelectorAll('.sl-dorsal')].map(input => ({ dorsal: input.value.trim() })),
+  }));
+}
+
+function _slEditorHasAssignedDorsals() {
+  return hasAssignedStartlistDorsals(_slEditorTeamsSource());
+}
+
+function _slUpdateTeamOrderControls() {
+  const teams = [...document.querySelectorAll('#slTeamsList .sl-edit-team')];
+  const manualOrder = teams.length > 1 && !_slEditorHasAssignedDorsals();
+  teams.forEach((team, index) => {
+    const controls = team.querySelector('.sl-team-order-controls');
+    if (controls) controls.style.display = manualOrder ? 'inline-flex' : 'none';
+    const up = team.querySelector('.sl-team-up-btn');
+    const down = team.querySelector('.sl-team-down-btn');
+    if (up) up.disabled = index === 0;
+    if (down) down.disabled = index === teams.length - 1;
+  });
+}
+
+function _slMoveTeamRow(team, direction) {
+  const list = team?.parentElement;
+  if (!list || _slEditorHasAssignedDorsals()) return;
+  if (direction === 'up' && team.previousElementSibling) {
+    list.insertBefore(team, team.previousElementSibling);
+  } else if (direction === 'down' && team.nextElementSibling) {
+    list.insertBefore(team.nextElementSibling, team);
+  }
+  _slUpdateTeamOrderControls();
+}
+
+function _slFocusSurnameInput(riderEl) {
+  const input = riderEl?.querySelector('.sl-lastname');
+  if (!input) return false;
+  input.focus();
+  input.select?.();
+  return true;
+}
+
+function _slFocusFirstSurname(teamEl, addIfEmpty = false) {
+  const first = teamEl?.querySelector('.sl-edit-rider .sl-lastname');
+  if (first) return _slFocusSurnameInput(first);
+  if (!addIfEmpty) return false;
+  const row = _slCreateRiderRow(teamEl);
+  if (!row) return false;
+  _slAutoDorsalForRider(row);
+  return _slFocusSurnameInput(row);
+}
+
+function _slFocusAdjacentSurname(riderEl, backwards = false) {
+  const teamEl = riderEl?.closest('.sl-edit-team');
+  const inputs = [...(teamEl?.querySelectorAll('.sl-edit-rider .sl-lastname') || [])];
+  const current = riderEl?.querySelector('.sl-lastname');
+  const index = inputs.indexOf(current);
+  const target = inputs[index + (backwards ? -1 : 1)];
+  if (target) return _slFocusSurnameInput(target);
+  if (backwards || index < 0) return false;
+
+  // El último apellido del bloque crea automáticamente el siguiente corredor
+  // y mantiene el foco en la misma columna.
+  const row = _slCreateRiderRow(teamEl);
+  if (!row) return false;
+  _slAutoDorsalForRider(row);
+  return _slFocusSurnameInput(row);
 }
 
 // ── Picker manual de match contra la BD ─────────────────────────────
@@ -8727,7 +8592,7 @@ async function _slOpenRiderMatchPicker(riderEl) {
   const currentId   = riderEl.dataset.globalRiderId || null;
 
   const popover = document.createElement('div');
-  popover.style.cssText = 'position:absolute;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:400px;max-height:600px;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
+  popover.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:400px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);box-sizing:border-box;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
   popover.innerHTML = `
     ${currentId ? `
       <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem">Match actual: <code style="color:var(--text)">${esc(currentId)}</code></div>
@@ -8761,9 +8626,9 @@ async function _slOpenRiderMatchPicker(riderEl) {
           <span class="sl-new-flag" style="font-size:1.1rem;min-width:1.4rem;text-align:center"></span>
         </div>
         <input type="text" class="sl-new-other" placeholder="otherNames (opcional): aliases separados por coma" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-bottom:0.3rem">
-        <input type="date" class="sl-new-birth" title="Fecha de nacimiento (opcional)" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-bottom:0.4rem">
+        <input type="date" class="sl-new-birth" title="Fecha de nacimiento verificada (obligatoria)" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-bottom:0.4rem">
         <div style="display:flex;justify-content:flex-end">
-          <button data-action="create-new" type="button" class="btn btn--primary" style="padding:0.25rem 0.6rem;font-size:0.72rem">Crear y vincular</button>
+          <button data-action="create-new" type="button" class="btn btn--primary" style="padding:0.25rem 0.6rem;font-size:0.72rem">Preparar alta</button>
         </div>
       </div>
     `}
@@ -8779,14 +8644,6 @@ async function _slOpenRiderMatchPicker(riderEl) {
     </div>`;
 
   document.body.appendChild(popover);
-  const rect = riderEl.getBoundingClientRect();
-  popover.style.left = (rect.left + window.scrollX) + 'px';
-  popover.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-  // Si se sale por la derecha, alinear a la derecha del rider
-  const popRect = popover.getBoundingClientRect();
-  if (popRect.right > window.innerWidth - 16) {
-    popover.style.left = (rect.right + window.scrollX - popRect.width) + 'px';
-  }
   _slMatchPickerEl = popover;
 
   const input = popover.querySelector('.sl-picker-input');
@@ -8915,54 +8772,26 @@ async function _slOpenRiderMatchPicker(riderEl) {
       newFlag.innerHTML = _slRiderFlagPreview(newNat.value.trim().toLowerCase());
     });
 
-    // currentTeamId: si el team de la fila tiene teamId canónico (enriquecido), úsalo.
-    const teamEl = riderEl.closest('.sl-edit-team');
-    const teamIdRef = teamEl?.dataset.teamId || null;
-
-    createBtn.addEventListener('click', async () => {
-      const last  = newLast.value.trim();
+    newBirth.value = riderEl.dataset.birthDate || '';
+    newOther.value = riderEl.dataset.otherNames || '';
+    createBtn.addEventListener('click', () => {
+      const last = newLast.value.trim();
       const first = newFirst.value.trim();
-      const nat   = (newNat.value.trim().toLowerCase()) || null;
-      const other = newOther.value.trim() || null;
-      const birth = newBirth.value || null;
-      if (!last || !first) { showToast('Necesita nombre y apellido', 'error'); return; }
-      createBtn.disabled = true; createBtn.textContent = 'Creando…';
-
-      // Generar slug "apellido-nombre", con sufijo numérico si colisiona.
-      const slugify = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      const base = `${slugify(last)}-${slugify(first)}` || `rider-${Date.now()}`;
-      let candidate = base;
-      let n = 2;
-      // Verificar colisiones en BD
-      while (true) {
-        const { data: exists } = await supabase.from(ridersTable).select('id').eq('id', candidate).limit(1);
-        if (!exists?.length) break;
-        candidate = `${base}-${n++}`;
-        if (n > 100) { createBtn.disabled = false; createBtn.textContent = 'Crear y vincular'; showToast('Demasiadas colisiones de slug', 'error'); return; }
+      const nat = newNat.value.trim().toLowerCase();
+      const birth = newBirth.value;
+      if (!last || !first || !/^[a-z]{2}$/.test(nat) || !birth) {
+        showToast('Completa nombre, apellidos, nacionalidad y fecha de nacimiento verificada.', 'error');
+        return;
       }
-
-      const { error } = await supabase.from(ridersTable).insert({
-        id: candidate,
-        firstName: first,
-        lastName: last,
-        nationality: nat,
-        otherNames: other,
-        birthDate: birth,
-        currentTeamId: teamIdRef,
-        source: 'manual',
-        verified: true,
-      });
-      if (error) { createBtn.disabled = false; createBtn.textContent = 'Crear y vincular'; showToast('Error: ' + error.message, 'error'); return; }
-
-      // Vincular en la fila del editor de inscritos.
-      riderEl.dataset.globalRiderId = candidate;
+      riderEl.dataset.birthDate = birth;
+      riderEl.dataset.otherNames = newOther.value.trim();
       riderEl.querySelector('.sl-firstname').value = first;
-      riderEl.querySelector('.sl-lastname').value  = last;
-      _slRefreshRiderMatchBtn(riderEl, { firstName: first, lastName: last });
-      const sugg = riderEl.querySelector('.sl-rider-suggestion');
-      if (sugg) { sugg.style.display = 'none'; sugg.dataset.dismissed = '1'; }
+      riderEl.querySelector('.sl-lastname').value = last;
+      riderEl.querySelector('.sl-country').value = nat;
+      riderEl.querySelector('.sl-flag-preview').innerHTML = _slRiderFlagPreview(nat);
+      _slRefreshRiderMatchBtn(riderEl);
       _slCloseMatchPicker();
-      showToast(`Creado en BD: ${first} ${last} (${candidate})`, 'success');
+      showToast('Alta preparada. Se creará al guardar la lista.', 'success');
     });
   }
 
@@ -9150,10 +8979,12 @@ function _slRiderFlagPreview(code) {
 }
 
 function _slTeamRowHtml({ teamName = '', teamId = null, isConfirmed = false, riders = [] } = {}) {
-  const ridersHtml = riders.map(r => `
-      <div class="sl-edit-rider" data-global-rider-id="${esc(r.globalRiderId || '')}" style="display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap">
+  const ridersHtml = riders.map(r => {
+    const rowKey = r.rowKey || r.id || crypto.randomUUID();
+    return `
+      <div class="sl-edit-rider" data-row-key="${esc(rowKey)}" data-startlist-rider-id="${esc(r.id || '')}" data-global-rider-id="${esc(r.globalRiderId || '')}" data-birth-date="${esc(r.birthDate || '')}" data-other-names="${esc(r.otherNames || '')}" data-uci-profile-id="${esc(r.uciProfileId || '')}" data-source-url="${esc(r.sourceUrl || '')}" data-rejected-candidate-ids="${esc(JSON.stringify(r.rejectedCandidateIds || []))}" style="display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:0.35rem;flex:1;min-width:0">
-          <input type="number" class="sl-dorsal" value="${r.dorsal ?? ''}" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
+          <input type="number" class="sl-dorsal" value="${Number(r.dorsal) > 0 ? r.dorsal : ''}" placeholder="—" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
           <span class="sl-flag-preview u-icon-box">${_slRiderFlagPreview(r.countryCode)}</span>
           <input type="text" class="sl-country" value="${esc(r.countryCode || '')}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)" style="width:3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.72rem;padding:0.2rem 0.3rem;text-align:center;text-transform:lowercase;outline:none">
           <input type="text" class="sl-firstname u-input-sm" value="${esc(r.firstName || '')}" placeholder="Nombre">
@@ -9161,20 +8992,24 @@ function _slTeamRowHtml({ teamName = '', teamId = null, isConfirmed = false, rid
           <button type="button" class="sl-rider-match-btn" data-action="picker"
                   title="${r.globalRiderId ? 'Match en BD: ' + esc((r.firstName||'') + ' ' + (r.lastName||'')) + '. Click para cambiar/desligar.' : 'Buscar o forzar un match en la BD de corredores'}"
                   style="background:none;border:1px solid var(--border);border-radius:4px;padding:0.05rem 0.4rem;font-size:0.7rem;font-weight:700;cursor:pointer;flex-shrink:0;color:${r.globalRiderId ? '#22c55e' : 'var(--text-dim)'}">${r.globalRiderId ? '✓ BD' : '🔗'}</button>
-          <button class="btn btn--ghost" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0" onclick="this.closest('.sl-edit-rider').remove()">✕</button>
+          <button type="button" class="btn btn--ghost sl-remove-rider-btn" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0">✕</button>
         </div>
         <div class="sl-rider-suggestion" style="display:none;width:100%;padding:0.1rem 0.75rem 0.3rem 4.2rem"></div>
-      </div>`).join('');
+      </div>`;
+  }).join('');
   return `<div class="sl-edit-team" data-team-id="${teamId ? esc(teamId) : ''}" style="border:1px solid var(--border);border-radius:8px;margin-bottom:0.75rem;overflow:hidden">
       <div class="sl-edit-team-header" style="background:var(--bg-card-hover);padding:0.5rem 0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-        <span class="sl-team-badge-slot u-shrink-0"></span>
         <input type="text" class="sl-team-name" value="${esc(teamName)}" placeholder="Nombre del equipo" style="flex:1;min-width:180px;background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text);font-family:var(--font-display);font-weight:700;font-size:0.82rem;padding:0.25rem 0.4rem;outline:none;transition:border-color 0.15s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='transparent'">
         <span class="sl-team-enrich-slot" style="display:flex;align-items:center;gap:0.35rem"></span>
         <label class="sl-confirmed-cell" style="${_editingRaceProvisional ? 'display:inline-flex' : 'display:none'};align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-dim);cursor:pointer;white-space:nowrap">
           <input type="checkbox" class="sl-is-confirmed" ${isConfirmed ? 'checked' : ''}>
           Confirmado
         </label>
-        <button class="btn btn--ghost" style="padding:0.2rem 0.5rem;font-size:0.7rem;color:var(--red)" onclick="this.closest('.sl-edit-team').remove()">Eliminar equipo</button>
+        <span class="sl-team-order-controls" style="display:none;gap:0.25rem;align-items:center">
+          <button type="button" class="btn btn--ghost sl-team-up-btn" style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Subir selección" aria-label="Subir selección">↑</button>
+          <button type="button" class="btn btn--ghost sl-team-down-btn" style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Bajar selección" aria-label="Bajar selección">↓</button>
+        </span>
+        <button type="button" class="btn btn--ghost sl-remove-team-btn" style="padding:0.2rem 0.5rem;font-size:0.7rem;color:var(--red)">Eliminar equipo</button>
       </div>
       <div class="sl-edit-riders" style="padding:0.35rem 0">${ridersHtml}</div>
       <div style="padding:0.3rem 0.75rem 0.5rem">
@@ -9185,32 +9020,31 @@ function _slTeamRowHtml({ teamName = '', teamId = null, isConfirmed = false, rid
 
 function _slUpdateRowEnrichUI(rowEl) {
   const slot = rowEl.querySelector('.sl-team-enrich-slot');
-  const badgeSlot = rowEl.querySelector('.sl-team-badge-slot');
-  if (!_editingRaceEnriched) {
-    slot.innerHTML = '';
-    badgeSlot.innerHTML = '';
+  const rawName = rowEl.querySelector('.sl-team-name')?.value || '';
+  // Las listas se guardan siempre con las identidades completas.
+  if (isNoTeamPlaceholderTeam({ teamId: rowEl.dataset.teamId || null, teamName: rawName })) {
+    slot.innerHTML = `<span class="u-fs-xs u-c-dim">${esc(rawName)} · sin identidad de equipo</span>`;
     return;
   }
   const teamId = rowEl.dataset.teamId || '';
   const team = teamId ? (_teamsCache || []).find(t => t.id === teamId) : null;
   if (team) {
-    badgeSlot.innerHTML = buildTeamBadgeSvg(team, { size: 28 });
     slot.innerHTML = `
       <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.45rem;border-radius:4px;font-size:0.7rem;font-family:var(--font-display);letter-spacing:0.03em;background:${esc(team.headerBg)};color:${esc(team.headerText)}">
         ${esc(team.name)}
       </span>
-      <button class="btn btn--ghost sl-change-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Cambiar</button>
-      <button class="btn btn--ghost sl-unassign-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem;color:var(--text-dim)">Quitar</button>`;
+      <button class="btn btn--ghost sl-change-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Cambiar</button>`;
   } else {
-    badgeSlot.innerHTML = '';
+    if (!rawName.trim()) { slot.replaceChildren(); return; }
+    const matches = _slTeamMatchIndex.get(normalizeTeamName(rawName)) || [];
+    const warning = rowEl.dataset.teamResolutionError || (matches.length > 1
+      ? 'Varios equipos coinciden. Selecciona el correcto.'
+      : 'Equipo no encontrado. Hay que crearlo.');
     slot.innerHTML = `
-      <span style="font-size:0.7rem;color:var(--text-dim)">Sin equipo</span>
-      <button class="btn btn--ghost sl-assign-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Asignar</button>`;
+      <span role="status" style="font-size:0.7rem;color:var(--orange)">${esc(warning)}</span>
+      ${matches.length > 1 ? '' : '<button class="btn btn--ghost sl-create-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Crear equipo</button>'}
+      <button class="btn btn--ghost sl-assign-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Seleccionar existente</button>`;
   }
-}
-
-function _slRefreshAllEnrichUI() {
-  document.querySelectorAll('#startlistEditorContent .sl-edit-team').forEach(row => _slUpdateRowEnrichUI(row));
 }
 
 // ── Gate por sexo (equipo ↔ carrera) ────────────────────────────────────────
@@ -9249,18 +9083,78 @@ function _validateGenderForRace(team) {
   return _validateGenderMismatch(team, _slEditingRaceGender());
 }
 
-function _slAutoMatchAll() {
-  if (!_teamsCache || _teamsCache.length === 0) return;
-  const availableTeams = _slGenderFilteredTeams(_teamsCache.filter(t => !t.specialEdition));
-  document.querySelectorAll('#startlistEditorContent .sl-edit-team').forEach(row => {
-    if (row.dataset.teamId) return;
-    const name = row.querySelector('.sl-team-name').value.trim();
-    const match = findMatchingTeam(name, availableTeams);
-    if (match) {
-      row.dataset.teamId = match.id;
-    }
+// Índice por carrera: normaliza el catálogo una vez, no por fila o pulsación.
+function _slBuildTeamMatchIndex() {
+  _slTeamMatchIndex = new Map();
+  const add = (key, team) => {
+    if (!key) return;
+    const matches = _slTeamMatchIndex.get(key) || [];
+    if (!matches.some(t => t.id === team.id)) matches.push(team);
+    _slTeamMatchIndex.set(key, matches);
+  };
+  const available = _slGenderFilteredTeams(activeCatalogTeams(_teamsCache).filter(t => !t.specialEdition));
+  const byId = new Map(available.map(t => [t.id, t]));
+  available.forEach(team => {
+    [team.name, ...(team.nameAliases || '').split('\n')].forEach(name => add(normalizeTeamName(name), team));
+    (team.foldedNames || []).forEach(name => add(name, team));
   });
-  _slRefreshAllEnrichUI();
+  _slTeamAliases.forEach(alias => {
+    const team = byId.get(alias.teamId);
+    if (team) add(normalizeTeamName(alias.alias), team);
+  });
+}
+
+function _slFindUniqueTeam(teamName, teams = null) {
+  const matches = (_slTeamMatchIndex.get(normalizeTeamName(teamName)) || [])
+    .filter(team => !teams || teams.some(t => t.id === team.id));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function _slAutoMatchAll() {
+  document.querySelectorAll('#startlistEditorContent .sl-edit-team').forEach(row => {
+    if (!row.dataset.teamId) {
+      const match = _slFindUniqueTeam(row.querySelector('.sl-team-name').value.trim());
+      if (match) row.dataset.teamId = match.id;
+    }
+    _slUpdateRowEnrichUI(row);
+  });
+}
+
+async function _slCreateMissingTeam(row) {
+  const raceId = _editingRaceId;
+  const input = row.querySelector('.sl-team-name');
+  const name = input.value.trim();
+  if (!name || row.dataset.creatingTeam) return;
+  row.dataset.creatingTeam = '1';
+  row.inert = true;
+  try {
+    const { data, error } = await supabase.rpc('ensure_startlist_team', {
+      p_race_id: raceId, p_team_name: name, p_team_gender: _slEditingRaceGender(),
+    });
+    if (error) throw error;
+    const resolved = Array.isArray(data) ? data[0] : data;
+    if (!resolved?.team_id) throw new Error(resolved?.action === 'ambiguous'
+      ? 'Varios equipos coinciden. Selecciona el correcto.' : 'No se pudo crear el equipo.');
+    const { data: team, error: teamError } = await supabase.from('teams').select('*').eq('id', resolved.team_id).single();
+    if (teamError) throw teamError;
+    _teamsCache = [...(_teamsCache || []).filter(t => t.id !== team.id), team];
+    if (_editingRaceId !== raceId || !document.contains(row)) return;
+    _slBuildTeamMatchIndex();
+    row.dataset.teamId = team.id;
+    delete row.dataset.teamResolutionError;
+    input.value = team.name;
+    _slUpdateRowEnrichUI(row);
+    row.querySelectorAll('.sl-edit-rider').forEach(rider => { void _slAutoMatchRiderByTeam(rider); });
+    showToast(resolved.action === 'created' ? 'Equipo creado y asociado' : 'Equipo asociado', 'success');
+  } catch (error) {
+    if (_editingRaceId === raceId && document.contains(row)) {
+      row.dataset.teamResolutionError = error.message;
+      _slUpdateRowEnrichUI(row);
+    }
+  } finally {
+    delete row.dataset.creatingTeam;
+    row.inert = false;
+  }
 }
 
 // Valida que un equipo specialEdition sea compatible con la carrera en edición.
@@ -9312,7 +9206,7 @@ function _slOpenTeamPicker(rowEl) {
   const current = rowEl.dataset.teamId || '';
   const currentName = rowEl.querySelector('.sl-team-name').value.trim();
   // Candidatos filtrados por sexo de la carrera (excluye el sexo opuesto).
-  const genderTeams = _slGenderFilteredTeams(_teamsCache);
+  const genderTeams = _slGenderFilteredTeams(activeCatalogTeams(_teamsCache));
   // Si la fila ya tenía asignado un equipo del sexo opuesto (dato heredado),
   // lo incluimos igualmente para que se vea seleccionado y se pueda corregir.
   if (current && !genderTeams.some(t => t.id === current)) {
@@ -9321,7 +9215,7 @@ function _slOpenTeamPicker(rowEl) {
   }
   // La sugerencia se calcula sobre candidatos NO specialEdition (las ediciones
   // especiales nunca se automatchean).
-  const suggestion = findMatchingTeam(currentName, genderTeams.filter(t => !t.specialEdition));
+  const suggestion = _slFindUniqueTeam(currentName, genderTeams.filter(t => !t.specialEdition));
   const race = allRaces.find(r => r.id === _editingRaceId);
   _openTeamCombo({
     title: 'Asignar equipo',
@@ -9333,7 +9227,12 @@ function _slOpenTeamPicker(rowEl) {
       if (!v.ok) return v;
       return _validateGenderForRace(team);
     },
-    onPick: (val) => { rowEl.dataset.teamId = val || ''; _slUpdateRowEnrichUI(rowEl); },
+    onPick: (val) => {
+      rowEl.dataset.teamId = val || '';
+      delete rowEl.dataset.teamResolutionError;
+      _slUpdateRowEnrichUI(rowEl);
+      rowEl.querySelectorAll('.sl-edit-rider').forEach(rider => { void _slAutoMatchRiderByTeam(rider); });
+    },
   });
 }
 
@@ -9342,55 +9241,14 @@ function startlistEditorBodyHtml() {
   return `
     <div id="startlistEditorContent"></div>
     <div class="u-row" style="gap:0.75rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border)">
-      <label class="btn btn--ghost" for="importStartlistFile" style="cursor:pointer">Importar JSON mínimo</label>
-      <input id="importStartlistFile" type="file" accept="application/json,.json" style="display:none">
-      <button class="btn btn--primary" id="saveStartlistBtn">Guardar cambios</button>
+      <button class="btn btn--primary" id="saveStartlistBtn" disabled>Guardar cambios</button>
       <span class="u-fs-md u-c-dim" id="startlistSaveStatus"></span>
     </div>`;
-}
-
-async function _slApplyParsedImport(parsed) {
-  const target = validateStartlistImportTarget(_editingRaceId, parsed?.raceId);
-  if (!target.ok) throw new Error(target.error);
-  const teamsList = document.getElementById('slTeamsList');
-  if (!teamsList) throw new Error('El editor no está listo para importar.');
-  // La importación solo reemplaza el borrador visible: no escribe en Supabase.
-  // Después se enlazan únicamente coincidencias exactas existentes.
-  teamsList.innerHTML = parsed.teams.map(team => _slTeamRowHtml({
-    teamName: team.name,
-    riders: team.riders,
-  })).join('');
-  if (_editingRaceEnriched) _slAutoMatchAll();
-  _slRefreshAllEnrichUI();
-  const exact = await _slMatchExistingRiders(teamsList.querySelectorAll('.sl-edit-rider'));
-  const matchInfo = exact.error
-    ? ' No se pudieron consultar coincidencias existentes; revisa los enlaces manualmente.'
-    : ` · ${exact.matched} enlaces exactos · ${exact.ambiguous} ambiguos · ${exact.unmatched} sin match.`;
-  const status = document.getElementById('startlistSaveStatus');
-  status.textContent = `Importado en el editor: ${parsed.summary.teams} equipos, ${parsed.summary.riders} corredores.${matchInfo} Revisa y guarda.`;
-  showToast('Borrador de inscritos importado', 'success');
 }
 
 // Listeners del editor de inscritos (por apertura del drawer).
 function wireStartlistEditor() {
   document.getElementById('saveStartlistBtn').addEventListener('click', saveStartlistEdits);
-  document.getElementById('importStartlistFile').addEventListener('change', async (event) => {
-    const input = event.currentTarget;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-
-    const status = document.getElementById('startlistSaveStatus');
-    try {
-      const parsed = parseStartlistImportDocument(JSON.parse(await file.text()));
-      if (!parsed.ok) {
-        throw new Error(parsed.errors.slice(0, 4).map(({ path, message }) => `${path}: ${message}`).join(' · '));
-      }
-      await _slApplyParsedImport(parsed);
-    } catch (err) {
-      status.textContent = `Error de importación: ${err.message}`;
-    }
-  });
   const content = document.getElementById('startlistEditorContent');
   content.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.matches('.sl-dorsal, .sl-firstname, .sl-lastname')) {
@@ -9407,10 +9265,11 @@ function wireStartlistEditor() {
   });
 }
 
-window.openStartlistEditor = async function(raceId, { importedDocument = null, manualCreation = false } = {}) {
+window.openStartlistEditor = async function(raceId) {
   _editingRaceId = raceId;
+  _slRosterMatchCache.clear();
   const race = allRaces.find(r => r.id === raceId);
-  _editingRaceEnriched = !!(race && race.enrichedStartlist);
+  _slPreparedImport = null;
   _editingRaceProvisional = !!(race && race.startlistProvisional);
 
   // El editor vive ahora en el drawer (paradigma único). Se monta su cuerpo y
@@ -9427,18 +9286,37 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
   const content = document.getElementById('startlistEditorContent');
   content.innerHTML = '<div style="color:var(--text-dim)">Cargando…</div>';
 
-  // Fetch startlist + global teams en paralelo
-  const [{ data: teams }, _teams] = await Promise.all([
+  const season = _slEditingRaceSeason();
+  // Catálogos completos y filas de la carrera en paralelo.
+  const [{ data: teams, error: teamsError }, _teams, aliases] = await Promise.all([
     supabase.from('startlist_teams').select('*').eq('raceId', raceId).order('sortOrder'),
     fetchTeams(),
+    loadCompleteStartlistCatalog((from, to, count) => supabase.from('team_name_aliases')
+      .select('id, teamId, alias', count ? { count: 'exact' } : {})
+      .eq('year', season).order('id').range(from, to))
+      .then(data => ({ data })).catch(error => ({ error })),
   ]);
+  if (_editingRaceId !== raceId) return;
+  if (teamsError || aliases.error || !_teamsCache) {
+    content.textContent = `No se pudo cargar la lista: ${teamsError?.message || aliases.error?.message || 'catálogo de equipos no disponible'}`;
+    document.getElementById('saveStartlistBtn').disabled = true;
+    return;
+  }
+  _slTeamAliases = aliases.data || [];
+  _slBuildTeamMatchIndex();
   const teamIds = (teams || []).map(t => t.id);
   // Vista resuelta: para los inscritos con globalRiderId, nombre/country vienen
   // del catálogo riders_men/women (canónico). Así el editor abre mostrando los
   // datos oficiales, no el snapshot histórico que pudo quedar desactualizado.
-  const { data: riders } = teamIds.length
+  const { data: riders, error: ridersError } = teamIds.length
     ? await supabase.from('startlist_riders_resolved').select('*').in('teamId', teamIds).order('dorsal')
     : { data: [] };
+  if (_editingRaceId !== raceId) return;
+  if (ridersError) {
+    content.textContent = `No se pudieron cargar los corredores: ${ridersError.message}`;
+    document.getElementById('saveStartlistBtn').disabled = true;
+    return;
+  }
 
   const ridersByTeam = {};
   (riders || []).forEach(r => {
@@ -9446,28 +9324,11 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
     ridersByTeam[r.teamId].push(r);
   });
 
-  // Toolbar con toggles (Enriquecida + Provisional)
-  const toolbar = `<div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:8px">
-    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-      <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem">
-        <input type="checkbox" id="slEnrichedToggle" ${_editingRaceEnriched ? 'checked' : ''}>
-        <span style="font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;font-size:0.78rem">Enriquecida</span>
-      </label>
-      <span class="u-fs-xs u-c-dim u-grow">Asocia cada equipo a la tabla global <em>Equipos</em> para aplicar cabecera de color y chapa.</span>
-      <button class="btn btn--ghost" id="slAutoMatchBtn" type="button" style="padding:0.25rem 0.6rem;font-size:0.72rem;${_editingRaceEnriched ? '' : 'display:none'}">Auto-asociar</button>
-    </div>
-    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-      <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem">
-        <input type="checkbox" id="slProvisionalToggle" ${_editingRaceProvisional ? 'checked' : ''}>
-        <span style="font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;font-size:0.78rem">Lista provisional</span>
-      </label>
-      <span class="u-fs-xs u-c-dim u-grow">Sustituye la etiqueta «Inscritos» por «Lista provisional» en web e iOS/Android. Mantiene el icono.</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-      <span style="font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;font-size:0.78rem">BD corredores</span>
-      <span class="u-fs-xs u-c-dim u-grow">Al importar o guardar se enlazan solo coincidencias exactas ya existentes. Nunca se crean fichas; usa «🔗» para revisar casos sin match o ambiguos.</span>
-      <button class="btn btn--ghost" id="slSyncCanonicalBtn" type="button" style="padding:0.25rem 0.6rem;font-size:0.72rem" title="Sobreescribe firstName/lastName/countryCode en startlist_riders con los valores canónicos de riders_men/women (para corredores ya enlazados). Propaga también a start_order_entries.">Re-sync canónico</button>
-    </div>
+  const toolbar = `<div style="margin-bottom:0.75rem">
+    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem">
+      <input type="checkbox" id="slProvisionalToggle" ${_editingRaceProvisional ? 'checked' : ''}>
+      <span>Lista provisional</span>
+    </label>
   </div>`;
 
   let html = `${toolbar}<div id="slTeamsList">`;
@@ -9479,55 +9340,17 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
       riders:      ridersByTeam[team.id] || [],
     });
   });
-  if (manualCreation && !(teams || []).length) {
+  if (!(teams || []).length) {
     html += _slTeamRowHtml({ teamName: '', teamId: null, riders: [] });
   }
   html += `</div><button class="btn btn--ghost" id="addTeamBtn" style="padding:0.35rem 0.75rem;font-size:0.75rem;margin-top:0.25rem">+ Añadir equipo</button>`;
   content.innerHTML = html;
+  _slUpdateTeamOrderControls();
 
-  // Auto-match inicial de EQUIPOS si enriched está activo y hay filas sin teamId.
-  // Las identidades se enlazan únicamente con coincidencias exactas existentes.
-  if (_editingRaceEnriched) _slAutoMatchAll();
-  _slRefreshAllEnrichUI();
+  // Las identidades ambiguas requieren revisión antes del guardado.
+  _slAutoMatchAll();
+  document.getElementById('saveStartlistBtn').disabled = false;
 
-  // Listeners toolbar
-  document.getElementById('slEnrichedToggle').addEventListener('change', (e) => {
-    _editingRaceEnriched = e.target.checked;
-    document.getElementById('slAutoMatchBtn').style.display = _editingRaceEnriched ? '' : 'none';
-    if (_editingRaceEnriched) _slAutoMatchAll();
-    _slRefreshAllEnrichUI();
-  });
-  document.getElementById('slAutoMatchBtn').addEventListener('click', () => {
-    _slAutoMatchAll();
-    showToast('Auto-asociación aplicada', 'success');
-  });
-  document.getElementById('slSyncCanonicalBtn').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    const prevText = btn.textContent;
-    btn.textContent = 'Sincronizando…';
-    try {
-      const { data, error } = await supabase
-        .rpc('sync_startlist_riders_to_canonical', { p_race_id: raceId });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      const slUpd  = row?.updated_startlist_riders    ?? 0;
-      const soeUpd = row?.updated_start_order_entries ?? 0;
-      if (!slUpd && !soeUpd) {
-        showToast('Ya estaba en sync con la BD canónica', 'success');
-      } else {
-        showToast(`${slUpd} inscritos · ${soeUpd} entradas de orden de salida actualizadas`, 'success');
-        // Recargar el editor para reflejar los nombres canónicos en la UI.
-        openStartlistEditor(raceId);
-      }
-    } catch (err) {
-      console.error('[sync canonical]', err);
-      showToast(`Error: ${err.message}`, 'error');
-    } finally {
-      btn.textContent = prevText;
-      btn.disabled = false;
-    }
-  });
   document.getElementById('slProvisionalToggle').addEventListener('change', (e) => {
     _editingRaceProvisional = e.target.checked;
     document.querySelectorAll('#startlistEditorContent .sl-confirmed-cell').forEach(el => {
@@ -9535,18 +9358,58 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
     });
   });
 
-  // Delegación para asignar/cambiar/quitar + re-match al editar nombre
+  // Selección explícita para ambigüedades y alta de equipos ausentes.
   content.addEventListener('click', (ev) => {
     const row = ev.target.closest('.sl-edit-team');
     if (!row) return;
-    if (ev.target.closest('.sl-assign-team') || ev.target.closest('.sl-change-team')) {
+    if (ev.target.closest('.sl-team-up-btn')) {
+      _slMoveTeamRow(row, 'up');
+    } else if (ev.target.closest('.sl-team-down-btn')) {
+      _slMoveTeamRow(row, 'down');
+    } else if (ev.target.closest('.sl-remove-team-btn')) {
+      row.remove();
+      _slUpdateTeamOrderControls();
+    } else if (ev.target.closest('.sl-remove-rider-btn')) {
+      ev.target.closest('.sl-edit-rider')?.remove();
+      _slUpdateTeamOrderControls();
+    } else if (ev.target.closest('.sl-assign-team') || ev.target.closest('.sl-change-team')) {
       _slOpenTeamPicker(row);
-    } else if (ev.target.closest('.sl-unassign-team')) {
-      row.dataset.teamId = '';
-      _slUpdateRowEnrichUI(row);
+    } else if (ev.target.closest('.sl-create-team')) {
+      void _slCreateMissingTeam(row);
+    }
+  });
+  // Flujo rápido de carga por bloques de equipo. Desde el nombre del equipo se
+  // entra al primer apellido; desde el último apellido se crea otra fila del
+  // mismo equipo. Tab/Shift+Tab desde nombre o apellido numera y busca antes
+  // de mover el foco; focusout conserva el matching al salir con el ratón.
+  content.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Tab') return;
+    if (ev.target.matches('.sl-team-name')) {
+      if (ev.shiftKey || !ev.target.value.trim()) return;
+      const teamEl = ev.target.closest('.sl-edit-team');
+      if (_slFocusFirstSurname(teamEl, true)) ev.preventDefault();
+      return;
+    }
+    if (!ev.target.matches('.sl-firstname, .sl-lastname')) return;
+    const riderEl = ev.target.closest('.sl-edit-rider');
+    if (!riderEl) return;
+    _slAutoDorsalForRider(riderEl);
+    void _slAutoMatchRiderByTeam(riderEl);
+    if (ev.target.matches('.sl-lastname') && _slFocusAdjacentSurname(riderEl, ev.shiftKey)) ev.preventDefault();
+  });
+  content.addEventListener('focusout', (ev) => {
+    if (!ev.target.matches('.sl-firstname, .sl-lastname')) return;
+    const rider = ev.target.closest('.sl-edit-rider');
+    if (rider) {
+      _slAutoDorsalForRider(rider);
+      void _slAutoMatchRiderByTeam(rider);
     }
   });
   content.addEventListener('input', (ev) => {
+    if (ev.target.matches('.sl-dorsal')) {
+      _slUpdateTeamOrderControls();
+      return;
+    }
     if (ev.target.matches('.sl-country')) {
       const code = ev.target.value.trim().toLowerCase();
       const preview = ev.target.parentElement.querySelector('.sl-flag-preview');
@@ -9558,21 +9421,26 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
       const riderEl = ev.target.closest('.sl-edit-rider');
       if (!riderEl) return;
       delete riderEl.dataset.globalRiderId;
+      delete riderEl.dataset.slAutoMatchToken;
+      delete riderEl.dataset.birthDate;
+      delete riderEl.dataset.uciProfileId;
+      delete riderEl.dataset.rejectedCandidateIds;
       const badge = riderEl.querySelector('.sl-rider-matched');
       if (badge) badge.style.display = 'none';
       _slRefreshRiderMatchBtn(riderEl);
+      const suggestions = riderEl.querySelector('.sl-rider-suggestion');
+      if (suggestions) { suggestions.replaceChildren(); suggestions.style.display = 'none'; }
       return;
     }
     if (!ev.target.matches('.sl-team-name')) return;
-    if (!_editingRaceEnriched) return;
     const row = ev.target.closest('.sl-edit-team');
-    if (row.dataset.teamId) return; // no pisar asignación manual
-    const availableTeams = _slGenderFilteredTeams(_teamsCache.filter(t => !t.specialEdition));
-    const match = findMatchingTeam(ev.target.value.trim(), availableTeams);
-    if (match) {
-      row.dataset.teamId = match.id;
-      _slUpdateRowEnrichUI(row);
-    }
+    // El cambio de texto invalida cualquier elección anterior. Solo se recupera
+    // una coincidencia exacta única; los homónimos requieren selección manual.
+    row.dataset.teamId = '';
+    delete row.dataset.teamResolutionError;
+    const match = _slFindUniqueTeam(ev.target.value.trim());
+    if (match) row.dataset.teamId = match.id;
+    _slUpdateRowEnrichUI(row);
   });
 
   document.getElementById('addTeamBtn').addEventListener('click', () => {
@@ -9581,133 +9449,127 @@ window.openStartlistEditor = async function(raceId, { importedDocument = null, m
     const teamDiv = wrapper.firstElementChild;
     document.getElementById('slTeamsList').appendChild(teamDiv);
     _slUpdateRowEnrichUI(teamDiv);
+    _slUpdateTeamOrderControls();
   });
 
-  if (importedDocument) await _slApplyParsedImport(importedDocument);
   content.scrollIntoView({ behavior: 'smooth' });
 };
 
 window.addRiderRow = function(btn) {
-  const ridersDiv = btn.closest('.sl-edit-team').querySelector('.sl-edit-riders');
-  const row = document.createElement('div');
-  row.className = 'sl-edit-rider';
-  row.style = 'display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap';
-  row.innerHTML = `<div style="display:flex;align-items:center;gap:0.35rem;flex:1;min-width:0">
-    <input type="number" class="sl-dorsal" value="" placeholder="0" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
-    <span class="sl-flag-preview u-icon-box"><span style="display:inline-block;width:1.2em;height:0.9em"></span></span>
-    <input type="text" class="sl-country" value="" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)" style="width:3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.72rem;padding:0.2rem 0.3rem;text-align:center;text-transform:lowercase;outline:none">
-    <input type="text" class="sl-firstname u-input-sm" value="" placeholder="Nombre">
-    <input type="text" class="sl-lastname u-input-sm" value="" placeholder="Apellido">
-    <span class="sl-rider-matched" style="display:none;font-size:0.65rem;color:#22c55e;font-weight:700;flex-shrink:0">✓</span>
-    <button class="btn btn--ghost" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0" onclick="this.closest('.sl-edit-rider').remove()">✕</button>
-  </div>
-  <div class="sl-rider-suggestion" style="display:none;width:100%;padding:0.1rem 0.75rem 0.3rem 4.2rem"></div>`;
-  ridersDiv.appendChild(row);
+  return _slCreateRiderRow(btn.closest('.sl-edit-team'));
 };
 
 function closeStartlistEditor() {
   _editingRaceId = null;
-  _editingRaceEnriched = false;
+  _slPreparedImport = null;
   _editingRaceProvisional = false;
   closeDrawer(1);
 }
 
+function _slShowImportIssues(report) {
+  const labels = { MISSING_COUNTRY: 'Falta nacionalidad', MISSING_BIRTH_DATE: 'Falta fecha de nacimiento verificada',
+    REVIEW_RIDER: 'Revisa las fichas candidatas', IDENTITY_CONFLICT: 'La fecha o el identificador UCI no coincide', AMBIGUOUS_TEAM: 'Selecciona el equipo correcto' };
+  const rows = [...document.querySelectorAll('#startlistEditorContent .sl-edit-rider')];
+  document.querySelectorAll('#startlistEditorContent .sl-rider-suggestion').forEach(el => { el.replaceChildren(); el.style.display = 'none'; });
+  for (const issue of report.issues || []) {
+    const row = rows.find(el => issue.rowKey && el.dataset.rowKey === issue.rowKey)
+      || rows.find(el => Number(el.querySelector('.sl-dorsal').value) === issue.dorsal);
+    const slot = row?.querySelector('.sl-rider-suggestion');
+    if (!slot) continue;
+    slot.style.display = 'block';
+    const text = document.createElement('div');
+    text.textContent = labels[issue.code] || issue.code;
+    slot.appendChild(text);
+    for (const candidate of issue.candidates || []) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'btn btn--ghost';
+      button.textContent = `${candidate.firstName} ${candidate.lastName} · ${candidate.nationality || '—'} · ${candidate.birthDate || '—'}`;
+      button.addEventListener('click', () => {
+        _slApplyAutomaticRiderMatch(row, candidate);
+        slot.replaceChildren(); slot.style.display = 'none';
+      });
+      slot.appendChild(button);
+    }
+    if (issue.canCreate) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'btn btn--ghost';
+      button.textContent = 'Revisados: ninguno corresponde a este corredor';
+      button.addEventListener('click', () => {
+        row.dataset.rejectedCandidateIds = JSON.stringify(issue.candidates.map(c => c.id));
+        slot.replaceChildren(); slot.style.display = 'none';
+        _slOpenRiderMatchPicker(row);
+      });
+      slot.appendChild(button);
+    }
+  }
+  const detail = (report.issues || []).map(issue => {
+    const subject = issue.dorsal > 0 ? `Dorsal ${issue.dorsal}`
+      : [issue.firstName, issue.lastName].filter(Boolean).join(' ') || issue.teamName || 'Corredor sin dorsal';
+    return `${subject}: ${labels[issue.code] || issue.code}`;
+  }).join(' · ');
+  document.getElementById('startlistSaveStatus').textContent = `Completa los datos pendientes para guardar. ${detail}`;
+}
+
 async function saveStartlistEdits() {
-  if (!_editingRaceId) return;
+  if (!_editingRaceId || _slSaving) return;
+  if (document.querySelector('#startlistEditorContent [data-creating-team]')) {
+    showToast('Espera a que termine el alta del equipo.', 'error');
+    return;
+  }
   const raceId = _editingRaceId;
   const status = document.getElementById('startlistSaveStatus');
-  status.textContent = 'Guardando…';
-
-  const teamEls = document.querySelectorAll('#startlistEditorContent .sl-edit-team');
-  // Segundo pase para filas nuevas o editadas desde la importación. No toca las
-  // asociaciones manuales existentes ni crea identidades.
-  const exact = await _slMatchExistingRiders(document.querySelectorAll('#startlistEditorContent .sl-edit-rider'));
-  const teamsData = [];
-  teamEls.forEach((el) => {
-    const name = el.querySelector('.sl-team-name').value.trim();
-    if (!name) return;
-    const teamIdRef = el.dataset.teamId || null;
-    const isConfirmed = el.querySelector('.sl-is-confirmed')?.checked || false;
-    const riders = [];
-    el.querySelectorAll('.sl-edit-rider').forEach(rEl => {
-      const dorsal = parseInt(rEl.querySelector('.sl-dorsal').value) || 0;
-      const firstName = rEl.querySelector('.sl-firstname').value.trim();
-      const lastName = rEl.querySelector('.sl-lastname').value.trim();
-      const rawCountry = (rEl.querySelector('.sl-country')?.value || '').trim().toLowerCase();
-      const countryCode = /^[a-z]{2}(-[a-z0-9]{2,4})?$/.test(rawCountry) ? rawCountry : null;
-      const globalRiderId = rEl.dataset.globalRiderId || null;
-      if (firstName || lastName) riders.push({ dorsal, firstName, lastName, countryCode, globalRiderId });
-    });
-    teamsData.push({ name, riders, teamIdRef, isConfirmed });
-  });
-
-  // Sort teams by the lowest dorsal of their riders
-  teamsData.sort((a, b) => {
-    const minA = Math.min(...a.riders.map(r => r.dorsal || Infinity));
-    const minB = Math.min(...b.riders.map(r => r.dorsal || Infinity));
-    return minA - minB;
-  });
-  teamsData.forEach((t, i) => t.sortOrder = i);
-
+  const button = document.getElementById('saveStartlistBtn');
+  const editor = document.getElementById('startlistEditorContent');
+  _slSaving = true; button.disabled = true; editor.inert = true;
+  status.textContent = 'Guardando inscritos…';
   try {
-    const { error: delR } = await supabase.from('startlist_riders').delete().eq('raceId', raceId);
-    if (delR) throw new Error('Error borrando corredores: ' + delR.message);
-    const { error: delT } = await supabase.from('startlist_teams').delete().eq('raceId', raceId);
-    if (delT) throw new Error('Error borrando equipos: ' + delT.message);
-
-    const ts = Date.now();
-    const teamRows = [];
-    const riderRows = [];
-    for (let i = 0; i < teamsData.length; i++) {
-      const t = teamsData[i];
-      const teamId = `sl_${raceId}_${ts}_${i}`;
-      teamRows.push({
-        id: teamId, raceId, teamName: t.name, sortOrder: t.sortOrder,
-        teamId: _editingRaceEnriched ? (t.teamIdRef || null) : null,
-        isConfirmed: t.isConfirmed || false,
+    await Promise.all([...editor.querySelectorAll('.sl-edit-rider')]
+      .filter(row => !row.dataset.globalRiderId)
+      .map(row => _slAutoMatchRiderByTeam(row)));
+    if (_editingRaceId !== raceId || !document.contains(editor)) return;
+    const teams = [...document.querySelectorAll('#startlistEditorContent .sl-edit-team')].map(el => ({
+      teamName: el.querySelector('.sl-team-name').value.trim(),
+      teamId: el.dataset.teamId || null,
+      isConfirmed: el.querySelector('.sl-is-confirmed')?.checked || false,
+      riders: [...el.querySelectorAll('.sl-edit-rider')].filter(row =>
+        ['.sl-dorsal', '.sl-firstname', '.sl-lastname', '.sl-country'].some(selector => row.querySelector(selector)?.value.trim())
+      ).map(row => ({
+        rowKey: row.dataset.rowKey,
+        startlistRiderId: row.dataset.startlistRiderId || null,
+        dorsal: row.querySelector('.sl-dorsal').value.trim(),
+        firstName: row.querySelector('.sl-firstname').value.trim(),
+        lastName: row.querySelector('.sl-lastname').value.trim(),
+        countryCode: row.querySelector('.sl-country').value.trim().toLowerCase(),
+        globalRiderId: row.dataset.globalRiderId || null,
+        birthDate: row.dataset.birthDate || null,
+        otherNames: row.dataset.otherNames || null,
+        uciProfileId: row.dataset.uciProfileId || null,
+        sourceUrl: row.dataset.sourceUrl || null,
+        rejectedCandidateIds: JSON.parse(row.dataset.rejectedCandidateIds || '[]'),
+      })),
+    }));
+    const orderedTeams = orderStartlistTeamsForSave(teams);
+    const source = { raceId, teams: orderedTeams,
+      expectedRiderCount: orderedTeams.reduce((sum, team) => sum + team.riders.length, 0) };
+    const { report } = await saveEnrichedStartlist((name, args) => supabase.rpc(name, args), source,
+      _editingRaceProvisional, _slPreparedImport, prepared => {
+        if (_editingRaceId === raceId) _slPreparedImport = prepared;
       });
-      t.riders.forEach((r, j) => {
-        riderRows.push({
-          id: `${teamId}_${j}`, teamId, raceId,
-          dorsal: r.dorsal, firstName: r.firstName, lastName: r.lastName,
-          countryCode: r.countryCode || null,
-          globalRiderId: r.globalRiderId || null,
-        });
-      });
-    }
-
-    // Insert teams in chunks of 50
-    for (let c = 0; c < teamRows.length; c += 50) {
-      const { error: tErr } = await supabase.from('startlist_teams').insert(teamRows.slice(c, c + 50));
-      if (tErr) throw new Error(`Error insertando equipos (lote ${c}): ${tErr.message}`);
-    }
-
-    // Insert riders in chunks of 50
-    for (let c = 0; c < riderRows.length; c += 50) {
-      const { error: rErr } = await supabase.from('startlist_riders').insert(riderRows.slice(c, c + 50));
-      if (rErr) throw new Error(`Error insertando corredores (lote ${c}): ${rErr.message}`);
-    }
-
-    const importedAt = new Date().toISOString();
-    await supabase.from('races').update({
-      startlistImportedAt: importedAt,
-      enrichedStartlist: _editingRaceEnriched,
-      startlistProvisional: _editingRaceProvisional,
-    }).eq('id', raceId);
+    if (_editingRaceId !== raceId) return;
+    if (report.status !== 'applied') { _slShowImportIssues(report); return; }
     const race = allRaces.find(r => r.id === raceId);
-    if (race) {
-      race.startlistImportedAt = importedAt;
-      race.enrichedStartlist = _editingRaceEnriched;
-      race.startlistProvisional = _editingRaceProvisional;
-    }
-
-    const matchInfo = exact.error ? '' : ` · ${exact.matched} enlaces exactos`;
-    status.textContent = `Guardado: ${teamRows.length} equipos, ${riderRows.length} corredores${matchInfo}.`;
+    if (race) Object.assign(race, { startlistImportedAt: report.importedAt, startlistProvisional: _editingRaceProvisional });
+    _slPreparedImport = null;
+    if (report.createdTeams) await fetchTeams({ force: true });
+    await openStartlistEditor(raceId);
+    document.getElementById('startlistSaveStatus').textContent = `Guardado: ${report.teams} equipos, ${report.riders} corredores. Altas: ${report.createdTeams} equipos y ${report.createdRiders} corredores.`;
     showToast('Inscritos actualizados', 'success');
-    loadExistingStartlists();
-  } catch (err) {
-    console.error('[startlist save]', err);
-    status.textContent = 'Error: ' + err.message;
+    void loadExistingStartlists();
+  } catch (error) {
+    if (error.code === '40001') _slPreparedImport = null;
+    status.textContent = 'Error: ' + error.message;
+  } finally {
+    _slSaving = false; button.disabled = false; editor.inert = false;
   }
 }
 
@@ -9734,18 +9596,90 @@ const DEFAULT_TEAM = {
   badgeShorts:       '#111111',
 };
 
+let _teamsLoading = null;
+let _teamSeasonYears = new Map();
+let _teamSeasonYearsLoading = null;
+let _teamsListYear = new Date().getFullYear();
+const _teamSeasonsByYear = new Map();
+const _teamSeasonsByYearLoading = new Map();
 async function fetchTeams({ force = false } = {}) {
   if (_teamsCache && !force) return _teamsCache;
-  const { data, error } = await supabase
-    .from('teams').select('*').order('name', { ascending: true });
-  if (error) { console.error('[teams] fetch', error); return []; }
-  _teamsCache = data || [];
-  return _teamsCache;
+  if (_teamsLoading) return _teamsLoading;
+  _teamsLoading = loadCompleteStartlistCatalog((from, to, count) => supabase.from('teams')
+    .select('*', count ? { count: 'exact' } : {}).order('id').range(from, to))
+    .then(data => {
+      _teamsCache = data.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+      return _teamsCache;
+    })
+    .catch(error => { console.error('[teams] fetch', error); return []; })
+    .finally(() => { _teamsLoading = null; });
+  return _teamsLoading;
+}
+
+async function fetchTeamSeasonYears({ force = false } = {}) {
+  if (_teamSeasonYears.size && !force) return _teamSeasonYears;
+  if (_teamSeasonYearsLoading) return _teamSeasonYearsLoading;
+  _teamSeasonYearsLoading = loadCompleteStartlistCatalog((from, to, count) => supabase.from('team_seasons')
+    .select('teamId,year', count ? { count: 'exact' } : {}).order('year').range(from, to))
+    .then(rows => {
+      const years = new Map();
+      rows.forEach(row => {
+        const list = years.get(row.teamId) || [];
+        list.push(row.year);
+        years.set(row.teamId, list);
+      });
+      _teamSeasonYears = years;
+      return years;
+    })
+    .catch(error => { console.error('[team_seasons] fetch', error); return _teamSeasonYears; })
+    .finally(() => { _teamSeasonYearsLoading = null; });
+  return _teamSeasonYearsLoading;
+}
+
+async function fetchTeamSeasonsForYear(year, { force = false } = {}) {
+  const normalizedYear = Number(year);
+  if (!Number.isInteger(normalizedYear)) return [];
+  if (_teamSeasonsByYear.has(normalizedYear) && !force) return _teamSeasonsByYear.get(normalizedYear);
+  if (_teamSeasonsByYearLoading.has(normalizedYear)) return _teamSeasonsByYearLoading.get(normalizedYear);
+  const request = loadCompleteStartlistCatalog((from, to, count) => supabase.from('team_seasons')
+    .select('*', count ? { count: 'exact' } : {})
+    .eq('year', normalizedYear)
+    .order('name')
+    .range(from, to))
+    .then(rows => {
+      _teamSeasonsByYear.set(normalizedYear, rows);
+      return rows;
+    })
+    .catch(error => {
+      console.error(`[team_seasons ${normalizedYear}] fetch`, error);
+      return _teamSeasonsByYear.get(normalizedYear) || [];
+    })
+    .finally(() => { _teamSeasonsByYearLoading.delete(normalizedYear); });
+  _teamSeasonsByYearLoading.set(normalizedYear, request);
+  return request;
+}
+
+function populateTeamsYearSelect() {
+  const select = document.getElementById('teamsYearSelect');
+  if (!select) return;
+  const existingYears = [..._teamSeasonYears.values()].flat();
+  const options = teamListYearOptions(existingYears, {
+    currentYear: CURRENT_TEAM_SEASON,
+    marketYear: MARKET_SEASON,
+    minYear: 2020,
+  });
+  if (!options.includes(_teamsListYear)) _teamsListYear = options.includes(CURRENT_TEAM_SEASON)
+    ? CURRENT_TEAM_SEASON
+    : options[0];
+  select.innerHTML = options.map(year => `<option value="${year}">${year}</option>`).join('');
+  select.value = String(_teamsListYear);
+  const label = document.getElementById('teamsListYearLabel');
+  if (label) label.textContent = String(_teamsListYear);
 }
 
 function _populateParentTeamSelect(selectedId) {
   const sel = document.getElementById('te-parentTeamId');
-  const baseTeams = (_teamsCache || [])
+  const baseTeams = activeCatalogTeams(_teamsCache)
     .filter(t => !t.specialEdition)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   sel.innerHTML = '<option value="">— Sin vincular —</option>' +
@@ -9772,6 +9706,39 @@ function _populateSpecialRaceSelect(selectedId, query = '') {
   sel.value = selectedId || '';
 }
 
+function renderTeamSpecialEditionsPanel(teamId) {
+  const panel = document.getElementById('teamSpecialEditionsPanel');
+  const list = document.getElementById('teamSpecialEditionsList');
+  const team = (_teamsCache || []).find(candidate => candidate.id === teamId);
+  if (!panel || !list || !team || team.specialEdition) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'flex';
+  const editions = (_teamsCache || [])
+    .filter(candidate => candidate.specialEdition && candidate.parentTeamId === teamId)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+  if (!editions.length) {
+    list.innerHTML = '<div class="u-fs-085 u-c-dim">Sin ediciones especiales.</div>';
+    return;
+  }
+  list.innerHTML = editions.map(edition => {
+    const validity = edition.specialEditionRaceId
+      ? 'Carrera concreta'
+      : [edition.specialEditionValidFrom, edition.specialEditionValidTo].filter(Boolean).join(' → ') || 'Sin vigencia limitada';
+    return `<button type="button" class="btn btn--ghost" data-special-edition-id="${esc(edition.id)}" style="display:flex;align-items:center;gap:0.6rem;width:100%;padding:0.45rem 0.6rem;text-align:left">
+      <strong style="flex:1;font-size:0.8rem">${esc(edition.name)}</strong>
+      <span class="u-fs-xs u-c-dim">${esc(validity)}</span>
+      <span aria-hidden="true">›</span>
+    </button>`;
+  }).join('');
+  list.querySelectorAll('[data-special-edition-id]').forEach(button => {
+    button.addEventListener('click', () => openTeamEditor(button.dataset.specialEditionId, {
+      seasonYear: _editingTeamSeasonYear,
+    }));
+  });
+}
+
 async function setupTeamsView() {
   if (!_teamsViewReady) {
     _teamsViewReady = true;
@@ -9784,9 +9751,18 @@ async function setupTeamsView() {
       if (el) el.addEventListener(event, handler);
       else console.warn(`[setupTeamsView] #${id} no existe en el DOM — listener omitido (¿app.html cacheado?)`);
     };
-    bind('addRiderPanelBtn', 'click', openNewRiderFromTeams);
-    bind('addTeamPanelBtn', 'click', () => openTeamEditor(null));
+    bind('addTeamPanelBtn', 'click', () => openTeamEditor(null, { seasonYear: _teamsListYear }));
     bind('teamsSearch', 'input', () => renderTeamsList());
+    bind('teamsYearSelect', 'change', async event => {
+      _teamsListYear = Number(event.target.value) || CURRENT_TEAM_SEASON;
+      _teamsCatSelected = null;
+      const label = document.getElementById('teamsListYearLabel');
+      if (label) label.textContent = String(_teamsListYear);
+      const list = document.getElementById('teamsList');
+      if (list) list.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
+      await fetchTeamSeasonsForYear(_teamsListYear);
+      renderTeamsList();
+    });
     // Los listeners del editor de equipo (form, colores, specialEdition,
     // categoría→género, editTeamColorsBtn, roster) se cablean por apertura en
     // wireTeamEditor() — el editor se renderiza en el drawer.
@@ -9797,7 +9773,9 @@ async function setupTeamsView() {
     // wireDupScan()).
     bind('dupScanBtn', 'click', openDuplicateScanner);
   }
-  await fetchTeams({ force: true });
+  await Promise.all([fetchTeams({ force: true }), fetchTeamSeasonYears({ force: true })]);
+  populateTeamsYearSelect();
+  await fetchTeamSeasonsForYear(_teamsListYear, { force: true });
   renderTeamsList();
 }
 
@@ -9815,72 +9793,35 @@ const TEAM_CATEGORIES = [
 ];
 
 // Categoría de equipos seleccionada en la cuadrícula (null = mostrar cuadrícula).
-// Claves: las de TEAM_CATEGORIES, más '__none__' (sin categoría) y '__orphan__'
-// (ediciones especiales sin vincular).
+// Claves: las de TEAM_CATEGORIES, más '__none__' (sin categoría).
 let _teamsCatSelected = null;
 
 function renderTeamsList() {
   const container = document.getElementById('teamsList');
   const q = (document.getElementById('teamsSearch').value || '').toLowerCase().trim();
-  const allTeams = _teamsCache || [];
+  const completeCatalog = _teamsCache || [];
+  const seasonRows = _teamSeasonsByYear.get(_teamsListYear) || [];
+  const allTeams = teamsForSeasonList(completeCatalog, seasonRows);
   const filtered = allTeams.filter(t =>
-    !q || (t.name || '').toLowerCase().includes(q) || ((t.nameAliases || '').toLowerCase().includes(q))
+    !q || (t.name || '').toLowerCase().includes(q) || ((t.nameAliases || '').toLowerCase().includes(q)) ||
+      ((t.matrixName || '').toLowerCase().includes(q))
   );
 
   if (filtered.length === 0) {
     container.innerHTML = `<div class="u-fs-085 u-c-dim">
-      ${allTeams.length === 0 ? 'No hay equipos todavía. Crea el primero con “+ Nuevo equipo”.' : 'Sin resultados.'}
+      ${allTeams.length === 0 ? `No hay equipos en la temporada ${_teamsListYear}.` : 'Sin resultados.'}
     </div>`;
     return;
   }
 
   const total = allTeams.length;
 
-  // Mapa: parentTeamId → ediciones especiales (del cache completo, para que siempre
-  // aparezcan bajo su padre aunque no coincidan con la búsqueda)
-  const specialsByParent = {};
-  for (const s of allTeams.filter(t => t.specialEdition && t.parentTeamId)) {
-    if (!specialsByParent[s.parentTeamId]) specialsByParent[s.parentTeamId] = [];
-    specialsByParent[s.parentTeamId].push(s);
-  }
-
-  // Equipos base (no edición especial) que pasan el filtro
-  const regular = filtered.filter(t => !t.specialEdition);
-  const regularIds = new Set(regular.map(t => t.id));
-
-  // Ediciones especiales huérfanas: sin padre, o cuyo padre no está en la lista filtrada
-  const orphanSpecials = filtered.filter(t =>
-    t.specialEdition && (!t.parentTeamId || !regularIds.has(t.parentTeamId))
-  );
-
-  const renderSpecialRow = (t) => `
-    <div style="margin-left:1.25rem;display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0.6rem;background:var(--bg-card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;cursor:pointer" data-team-id="${esc(t.id)}">
-      <span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 16 })}</span>
-      <span style="flex:1;font-size:0.8rem">${esc(t.name)}</span>
-      <span style="font-size:0.68rem;color:var(--text-dim);white-space:nowrap">Edición especial</span>
-      <button class="btn btn--ghost" data-edit-team-id="${esc(t.id)}" style="padding:0.15rem 0.4rem;font-size:0.7rem;flex-shrink:0">Editar</button>
-    </div>`;
-
-  const renderTeamRow = (t) => {
-    const children = specialsByParent[t.id] || [];
-    const childrenHtml = children.length
-      ? `<div style="display:flex;flex-direction:column;gap:0.15rem;margin-top:0.15rem">${children.map(renderSpecialRow).join('')}</div>`
-      : '';
-    return `
-      <div>
-        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;cursor:pointer" data-team-id="${esc(t.id)}">
-          <span class="u-shrink-0">${buildTeamBadgeSvg(t, { size: 20 })}</span>
-          <span style="flex:1;font-size:0.85rem"><strong>${esc(t.name)}</strong></span>
-          <button class="btn btn--ghost" data-edit-team-id="${esc(t.id)}" style="padding:0.2rem 0.5rem;font-size:0.72rem;flex-shrink:0">Editar</button>
-        </div>
-        ${childrenHtml}
-      </div>`;
-  };
+  const renderTeamRow=t=>panelTeamRowHtml(t,{meta:[teamGenderLabel(t.gender),t.category,String(_teamsListYear)]});
 
   // Agrupar equipos base por categoría
   const byCategory = {};
   const uncategorized = [];
-  for (const t of regular) {
+  for (const t of filtered) {
     if (t.category) {
       if (!byCategory[t.category]) byCategory[t.category] = [];
       byCategory[t.category].push(t);
@@ -9892,68 +9833,26 @@ function renderTeamsList() {
   // Definición ordenada de las categorías que existen (con su listado).
   const sections = [];
   for (const { key, label } of TEAM_CATEGORIES) {
-    if (byCategory[key]?.length) sections.push({ key, label, items: byCategory[key], special: false });
+    if (byCategory[key]?.length) sections.push({ key, label, items: byCategory[key] });
   }
-  if (uncategorized.length) sections.push({ key: '__none__', label: 'Sin categoría', items: uncategorized, special: false });
-  if (orphanSpecials.length) sections.push({ key: '__orphan__', label: 'Ediciones especiales sin vincular', items: orphanSpecials, special: true });
+  if (uncategorized.length) sections.push({ key: '__none__', label: 'Sin categoría', items: uncategorized });
 
   const wireRows = () => {
     container.querySelectorAll('[data-team-id]').forEach(el => {
       el.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
-        openTeamEditor(el.dataset.teamId);
+        openTeamEditor(el.dataset.teamId, { seasonYear: _teamsListYear });
       });
     });
     container.querySelectorAll('[data-edit-team-id]').forEach(btn => {
-      btn.addEventListener('click', () => openTeamEditor(btn.dataset.editTeamId));
+      btn.addEventListener('click', () => openTeamEditor(btn.dataset.editTeamId, { seasonYear: _teamsListYear }));
     });
   };
 
-  // ── Búsqueda activa → listado plano (sin cuadrícula) ─────────────
-  if (q) {
-    let html = `<div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.5rem">${filtered.length} de ${total} equipos</div>`;
-    const flatRegular = [...regular].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    html += `<div class="u-stack u-stack--xs">${flatRegular.map(renderTeamRow).join('')}</div>`;
-    if (orphanSpecials.length) {
-      const flatOrphans = [...orphanSpecials].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      html += `<div class="u-stack u-stack--xs" style="margin-top:0.5rem">${flatOrphans.map(renderSpecialRow).join('')}</div>`;
-    }
-    container.innerHTML = html;
-    wireRows();
-    return;
-  }
-
-  // Si la categoría seleccionada ya no existe, volver a la cuadrícula.
-  if (_teamsCatSelected && !sections.some(s => s.key === _teamsCatSelected)) _teamsCatSelected = null;
-
-  // ── Vista cuadrícula (ninguna categoría seleccionada) ────────────
-  if (!_teamsCatSelected) {
-    const grid = document.createElement('div');
-    grid.className = 'cat-grid';
-    sections.forEach(s => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cat-grid__btn';
-      btn.innerHTML = `<span class="cat-grid__label">${esc(s.label)}</span><span class="cat-grid__count">${s.items.length}</span>`;
-      btn.addEventListener('click', () => { _teamsCatSelected = s.key; renderTeamsList(); });
-      grid.appendChild(btn);
-    });
-    container.innerHTML = '';
-    container.appendChild(grid);
-    return;
-  }
-
-  // ── Vista de una categoría: listado alfabético ───────────────────
-  const section = sections.find(s => s.key === _teamsCatSelected);
-  const sorted = [...section.items].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const rowFn = section.special ? renderSpecialRow : renderTeamRow;
-  container.innerHTML = `
-    <div class="cat-back">
-      <button type="button" class="cat-back__btn">← Categorías</button>
-      <div class="cat-back__title">${esc(section.label)} <span class="u-o60">(${section.items.length})</span></div>
-    </div>
-    <div class="u-stack u-stack--xs">${sorted.map(rowFn).join('')}</div>`;
-  container.querySelector('.cat-back__btn').addEventListener('click', () => { _teamsCatSelected = null; renderTeamsList(); });
+  const catalog=panelTeamCatalogHtml({sections,selectedCategory:_teamsCatSelected,search:q,total,filteredRows:filtered,rowHtml:renderTeamRow});
+  _teamsCatSelected=catalog.selectedCategory;container.innerHTML=catalog.html;
+  container.querySelectorAll('[data-team-category]').forEach(button=>button.onclick=()=>{_teamsCatSelected=button.dataset.teamCategory;renderTeamsList();});
+  container.querySelector('.cat-back__btn')?.addEventListener('click',()=>{_teamsCatSelected=null;renderTeamsList();});
   wireRows();
 }
 
@@ -9973,16 +9872,23 @@ function getColorPair(key) {
 }
 
 function readTeamFromForm() {
-  const inner = (_teamColorsExplicitlySet && document.getElementById('te-innerCircle-enabled').checked)
-    ? getColorPair('innerCircle') : null;
+  const headerBg = _teamColorsExplicitlySet ? getColorPair('headerBg') : DEFAULT_TEAM.headerBg;
+  const category = document.getElementById('te-category').value || null;
+  const isSelection = category === 'NTM' || category === 'NTW';
+  const selectionScope = isSelection
+    ? (document.getElementById('te-selectionScope').value || 'national')
+    : null;
+  const selectionCode = isSelection
+    ? ((document.getElementById('te-selectionCode').value || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || null)
+    : null;
   return {
     name:             document.getElementById('te-name').value.trim(),
     nameAliases:      document.getElementById('te-aliases').value.split('\n').map(s => s.trim()).filter(Boolean).join('\n') || null,
-    headerBg:         _teamColorsExplicitlySet ? getColorPair('headerBg')         : DEFAULT_TEAM.headerBg,
-    headerText:       _teamColorsExplicitlySet ? getColorPair('headerText')        : DEFAULT_TEAM.headerText,
+    headerBg,
+    headerText:       automaticTeamHeaderText(headerBg),
     badgeTorsoCenter: _teamColorsExplicitlySet ? getColorPair('torsoCenter')       : DEFAULT_TEAM.badgeTorsoCenter,
     badgeTorsoSides:  _teamColorsExplicitlySet ? getColorPair('torsoSides')        : DEFAULT_TEAM.badgeTorsoSides,
-    badgeInnerCircle: inner,
+    badgeInnerCircle: null,
     badgeShorts:      _teamColorsExplicitlySet ? getColorPair('shorts')            : DEFAULT_TEAM.badgeShorts,
     specialEdition:   document.getElementById('te-specialEdition').checked,
     parentTeamId:     document.getElementById('te-specialEdition').checked
@@ -9995,9 +9901,32 @@ function readTeamFromForm() {
                         ? (document.getElementById('te-seValidTo').value || null) : null,
     specialEditionRaceId:    document.getElementById('te-specialEdition').checked
                         ? (document.getElementById('te-seRaceId').value || null) : null,
-    category:         document.getElementById('te-category').value || null,
+    category,
     gender:           document.getElementById('te-gender').value || null,
     countryCode:      (document.getElementById('te-countryCode').value || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 2) || null,
+    teamKind:         isSelection ? 'selection' : 'club',
+    selectionScope,
+    selectionCode,
+  };
+}
+
+function readTeamSeasonFromForm(team) {
+  const uciCode = (document.getElementById('te-uciCode')?.value || '').trim().toUpperCase() || null;
+  return {
+    name: team.name,
+    nameAliases: team.nameAliases,
+    uciCode,
+    category: team.category,
+    gender: team.gender,
+    headerBg: team.headerBg,
+    headerText: team.headerText,
+    badgeTorsoCenter: team.badgeTorsoCenter,
+    badgeTorsoSides: team.badgeTorsoSides,
+    badgeInnerCircle: _season27Row?.badgeInnerCircle || null,
+    badgeShorts: team.badgeShorts,
+    translations: _season27Row?.translations || {},
+    badgeVisible: _season27Row ? _season27Row.badgeVisible !== false : true,
+    continuityDoubt: !!_season27Row?.continuityDoubt,
   };
 }
 
@@ -10011,7 +9940,10 @@ function refreshTeamCountryFlag() {
 
 function refreshTeamPreview() {
   const t = readTeamFromForm();
-  document.getElementById('teamEditorBadgePreview').innerHTML = buildTeamBadgeSvg(t, { size: 120 });
+  const colors = [t.badgeTorsoSides, t.badgeTorsoCenter, t.badgeShorts];
+  document.querySelectorAll('#teamEditorColorsPreview i').forEach((square, index) => {
+    square.style.background = colors[index];
+  });
   const hdr = document.getElementById('teamEditorHeaderPreview');
   hdr.style.background = t.headerBg;
   hdr.style.color = t.headerText;
@@ -10021,6 +9953,7 @@ function refreshTeamPreview() {
 function duplicateTeam() {
   const t = readTeamFromForm();
   _editingTeamId = null;
+  _editingTeamIsSeason = false;
   const drawerTitle = document.getElementById('ccDrawer1Title');
   if (drawerTitle) drawerTitle.textContent = 'Nuevo equipo';
   document.getElementById('deleteTeamBtn').style.display = 'none';
@@ -10028,7 +9961,7 @@ function duplicateTeam() {
   document.getElementById('te-name').value = '';
   document.getElementById('te-aliases').value = '';
   document.getElementById('teamSaveStatus').textContent = 'Copia lista. Pon nombre y guarda.';
-  // Colors and badge are already in the form — just refresh preview with empty name
+  // Los colores ya están en el formulario; solo se refresca la vista previa.
   refreshTeamPreview();
 }
 
@@ -10036,7 +9969,10 @@ function duplicateTeam() {
 // propio — el drawer trae su ✕; sin span de título — va al header del drawer).
 function teamEditorBodyHtml() {
   return `
-    <div style="display:grid;grid-template-columns:1fr 140px;gap:1.25rem;align-items:start">
+    <button type="button" class="btn btn--ghost" id="specialEditorBackBtn" style="display:none;margin-bottom:0.75rem;padding:0.3rem 0.65rem;font-size:0.76rem">← Volver al equipo</button>
+    <div id="teamEditorKindTitle" style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.75rem">Equipo</div>
+    <div id="teamEditorKindDescription" class="u-fs-sm u-c-dim" style="margin-bottom:0.75rem">Identidad de la temporada seleccionada.</div>
+    <div class="team-editor-layout">
       <div class="u-stack">
         <div class="field">
           <label>Nombre</label>
@@ -10046,10 +9982,7 @@ function teamEditorBodyHtml() {
           <label>Alias (uno por línea) <span class="u-dim">— para matching</span></label>
           <textarea id="te-aliases" rows="3" placeholder="Alias 1&#10;Alias 2" class="u-w-full" style="font-family:var(--font-body);font-size:0.82rem"></textarea>
         </div>
-        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
-          <input type="checkbox" id="te-specialEdition">
-          <span>Edición especial (Grandes Vueltas)</span>
-        </label>
+        <input type="checkbox" id="te-specialEdition" hidden>
         <div id="te-parentTeam-row" class="field" style="display:none;margin-top:0.1rem">
           <label>Equipo base <span class="u-dim">— al que pertenece esta edición especial</span></label>
           <select id="te-parentTeamId" class="u-w-full">
@@ -10079,7 +10012,11 @@ function teamEditorBodyHtml() {
             </select>
           </div>
         </div>
-        <div class="field-row field-row--3">
+        <div class="field-row field-row--4">
+          <div class="field">
+            <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
+            <input type="text" id="te-uciCode" maxlength="3" class="u-w-full" style="text-transform:uppercase" autocapitalize="characters" autocomplete="off" spellcheck="false">
+          </div>
           <div class="field">
             <label>Categoría UCI</label>
             <select id="te-category" class="u-w-full">
@@ -10088,14 +10025,14 @@ function teamEditorBodyHtml() {
                 <option value="WT">WT — WorldTour</option>
                 <option value="PT">PT — ProTeam</option>
                 <option value="CT">CT — Continental</option>
-                <option value="NTM">NTM — Selección nac.</option>
+                <option value="NTM">NTM — Selección</option>
                 <option value="CLUBM">CLUBM — Club</option>
               </optgroup>
               <optgroup label="Femenino">
                 <option value="WWT">WWT — WorldTour</option>
                 <option value="PRW">PRW — ProTeam</option>
                 <option value="CTW">CTW — Continental</option>
-                <option value="NTW">NTW — Selección nac.</option>
+                <option value="NTW">NTW — Selección</option>
                 <option value="CLUBW">CLUBW — Club</option>
               </optgroup>
             </select>
@@ -10116,55 +10053,44 @@ function teamEditorBodyHtml() {
             </div>
           </div>
         </div>
-        <div id="te-colors">
-        <div class="field-row field-row--2">
+        <div id="te-selectionMeta-row" class="field-row field-row--2" style="display:none">
           <div class="field">
-            <label>Fondo cabecera</label>
+            <label>Ámbito de selección</label>
+            <select id="te-selectionScope" class="u-w-full">
+              <option value="national">Nacional</option>
+              <option value="regional">Regional</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Código de selección <span class="u-dim">— p. ej. es-ct</span></label>
+            <input type="text" id="te-selectionCode" placeholder="es o es-ct" maxlength="16" autocapitalize="off" autocomplete="off" spellcheck="false" class="u-w-full">
+          </div>
+        </div>
+        <div id="te-colors">
+          <div class="field">
+            <label>Fondo de pestaña / barra de título</label>
             <div class="color-preview">
               <input class="u-color-dot" type="color" id="te-headerBg-color">
               <input class="u-grow" type="text" id="te-headerBg-text" value="#1f2937">
             </div>
           </div>
+        <div class="field-row field-row--3">
           <div class="field">
-            <label>Texto cabecera</label>
+            <label>Cuadrado cromático 1</label>
             <div class="color-preview">
-              <input class="u-color-dot" type="color" id="te-headerText-color">
-              <input class="u-grow" type="text" id="te-headerText-text" value="#ffffff">
+              <input class="u-color-dot" type="color" id="te-torsoSides-color">
+              <input class="u-grow" type="text" id="te-torsoSides-text" value="#111111">
             </div>
           </div>
-        </div>
-        <div class="field-row field-row--2">
           <div class="field">
-            <label>Chapa — central torso</label>
+            <label>Cuadrado cromático 2</label>
             <div class="color-preview">
               <input class="u-color-dot" type="color" id="te-torsoCenter-color">
               <input class="u-grow" type="text" id="te-torsoCenter-text" value="#ffffff">
             </div>
           </div>
           <div class="field">
-            <label>Chapa — laterales</label>
-            <div class="color-preview">
-              <input class="u-color-dot" type="color" id="te-torsoSides-color">
-              <input class="u-grow" type="text" id="te-torsoSides-text" value="#111111">
-            </div>
-          </div>
-        </div>
-        <div class="field-row field-row--2">
-          <div class="field">
-            <label>
-              Chapa — círculo interior
-              <label style="display:inline-flex;align-items:center;gap:0.3rem;font-weight:400;margin-left:0.5rem">
-                <input type="checkbox" id="te-innerCircle-enabled">
-                <span class="u-fs-sm u-c-dim">activar</span>
-              </label>
-            </label>
-            <div class="color-preview">
-              <input class="u-color-dot" type="color" id="te-innerCircle-color">
-              <input class="u-grow" type="text" id="te-innerCircle-text" value="#ffd700">
-            </div>
-          </div>
-          <div class="field">
-            <label>Chapa — culotte</label>
+            <label>Cuadrado cromático 3</label>
             <div class="color-preview">
               <input class="u-color-dot" type="color" id="te-shorts-color">
               <input class="u-grow" type="text" id="te-shorts-text" value="#111111">
@@ -10173,9 +10099,11 @@ function teamEditorBodyHtml() {
         </div>
         </div><!-- /te-colors -->
       </div>
-      <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:center;position:sticky;top:1rem">
+      <div class="team-editor-preview">
         <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)">Vista previa</div>
-        <div id="teamEditorBadgePreview" style="display:flex;align-items:center;justify-content:center;width:120px;height:120px"></div>
+        <div id="teamEditorColorsPreview" class="team-color-squares" aria-label="Tres colores cromáticos">
+          <i></i><i></i><i></i>
+        </div>
         <div id="teamEditorHeaderPreview" style="width:100%;text-align:center;padding:0.5rem 0.6rem;border-radius:6px;font-family:var(--font-display);font-weight:700;font-size:0.82rem;letter-spacing:0.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cabecera</div>
       </div>
     </div>
@@ -10183,7 +10111,16 @@ function teamEditorBodyHtml() {
       <button class="btn btn--primary" id="saveTeamBtn">Guardar</button>
       <button class="btn btn--ghost" id="duplicateTeamBtn" style="display:none">Duplicar</button>
       <button class="btn btn--ghost" id="deleteTeamBtn" style="color:var(--red);display:none">Eliminar</button>
+      <button class="btn btn--ghost" id="seasonDiscontinueBtn" style="color:var(--red);display:none">No continúa</button>
       <span class="u-fs-md u-c-dim" id="teamSaveStatus"></span>
+    </div>
+    <div id="teamSpecialEditionsPanel" style="display:none;flex-direction:column;gap:0.6rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
+        <div style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text)">Ediciones especiales</div>
+        <div class="u-grow"></div>
+        <button type="button" class="btn btn--ghost" id="addSpecialEditionBtn" style="padding:0.3rem 0.7rem;font-size:0.76rem">+ Nueva edición</button>
+      </div>
+      <div id="teamSpecialEditionsList" class="u-stack u-stack--xs"></div>
     </div>
     <div id="teamRosterPanel" style="display:none;flex-direction:column;gap:0.75rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
       <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
@@ -10206,20 +10143,20 @@ function teamEditorBodyHtml() {
         <div class="u-fs-085 u-c-dim">Cargando…</div>
       </div>
     </div>
-    <div id="teamSeason27Panel" style="display:none;flex-direction:column;gap:0.75rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+    <div id="teamSeason27Panel" hidden style="display:none;flex-direction:column;gap:0.75rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
       <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
         <div style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text)">
-          Temporada 2027
+          Temporada <span id="teamSeasonYearLabel"></span>
         </div>
-        <span class="u-fs-sm u-c-dim">identidad del equipo en el mercado de fichajes (team_seasons)</span>
+        <span class="u-fs-sm u-c-dim">identidad anual independiente de la ficha matriz</span>
       </div>
       <div class="field-row field-row--2">
         <div class="field">
-          <label>Nombre 2027 <span class="u-dim">— el que se muestra en Fichajes</span></label>
+          <label>Nombre de temporada</label>
           <input type="text" id="ts27-name" class="u-w-full">
         </div>
         <div class="field">
-          <label>Categoría 2027 <span class="u-dim">— ascensos/descensos</span></label>
+          <label>Categoría de temporada</label>
           <select id="ts27-category" class="u-w-full">
             <option value="">— Sin categoría —</option>
             <optgroup label="Masculino">
@@ -10239,80 +10176,86 @@ function teamEditorBodyHtml() {
           </select>
         </div>
       </div>
+      <div class="field-row field-row--3">
+        <div class="field">
+          <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
+          <input type="text" id="ts27-uciCode" maxlength="3" class="u-w-full" style="text-transform:uppercase">
+        </div>
+        <div class="field">
+          <label>Género</label>
+          <select id="ts27-gender" class="u-w-full">
+            <option value="">— Sin especificar —</option>
+            <option value="male">Masculino</option>
+            <option value="female">Femenino</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Alias de temporada <span class="u-dim">— uno por línea</span></label>
+          <textarea id="ts27-aliases" rows="3" class="u-w-full"></textarea>
+        </div>
+      </div>
       <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
         <input type="checkbox" id="ts27-badgeVisible">
-        <span>Mostrar los colores 2027 en Fichajes <span class="u-dim">— sin marcar, un equipo que ya existía muestra sus colores ACTUALES; uno nuevo queda vacío hasta que publiques el kit 2027</span></span>
+        <span>Colores publicados para esta temporada</span>
       </label>
       <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
         <input type="checkbox" id="ts27-continuityDoubt">
-        <span>Continuidad en duda <span class="u-dim">— el equipo sigue listado, con aviso (ej.: sin sponsor todavía). Si ya sabes que NO sigue, usa «No continúa en 2027»</span></span>
+        <span>Continuidad en duda <span class="u-dim">— usado por el mercado de fichajes cuando corresponde</span></span>
       </label>
       <details id="ts27-colors-details">
-        <summary style="cursor:pointer;font-size:0.8rem;color:var(--text-muted)">🎨 Colores 2027</summary>
+        <summary style="cursor:pointer;font-size:0.8rem;color:var(--text-muted)">🎨 Colores de temporada</summary>
         <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:0.6rem">
-          <div class="field-row field-row--2">
+          <div class="field-row">
             <div class="field">
-              <label>Fondo cabecera</label>
+              <label>Fondo de pestaña / barra de título</label>
               <div class="color-preview">
                 <input class="u-color-dot" type="color" id="ts27-headerBg-color">
                 <input class="u-grow" type="text" id="ts27-headerBg-text" value="#1f2937">
               </div>
             </div>
+          </div>
+          <div class="field-row field-row--3">
             <div class="field">
-              <label>Texto cabecera</label>
+              <label>Cuadrado cromático 1</label>
               <div class="color-preview">
-                <input class="u-color-dot" type="color" id="ts27-headerText-color">
-                <input class="u-grow" type="text" id="ts27-headerText-text" value="#ffffff">
+                <input class="u-color-dot" type="color" id="ts27-torsoSides-color">
+                <input class="u-grow" type="text" id="ts27-torsoSides-text" value="#111111">
               </div>
             </div>
-          </div>
-          <div class="field-row field-row--2">
             <div class="field">
-              <label>Chapa — central torso</label>
+              <label>Cuadrado cromático 2</label>
               <div class="color-preview">
                 <input class="u-color-dot" type="color" id="ts27-torsoCenter-color">
                 <input class="u-grow" type="text" id="ts27-torsoCenter-text" value="#ffffff">
               </div>
             </div>
             <div class="field">
-              <label>Chapa — laterales</label>
-              <div class="color-preview">
-                <input class="u-color-dot" type="color" id="ts27-torsoSides-color">
-                <input class="u-grow" type="text" id="ts27-torsoSides-text" value="#111111">
-              </div>
-            </div>
-          </div>
-          <div class="field-row field-row--2">
-            <div class="field">
-              <label>
-                Chapa — círculo interior
-                <label style="display:inline-flex;align-items:center;gap:0.3rem;font-weight:400;margin-left:0.5rem">
-                  <input type="checkbox" id="ts27-innerCircle-enabled">
-                  <span class="u-fs-sm u-c-dim">activar</span>
-                </label>
-              </label>
-              <div class="color-preview">
-                <input class="u-color-dot" type="color" id="ts27-innerCircle-color">
-                <input class="u-grow" type="text" id="ts27-innerCircle-text" value="#ffd700">
-              </div>
-            </div>
-            <div class="field">
-              <label>Chapa — culotte</label>
+              <label>Cuadrado cromático 3</label>
               <div class="color-preview">
                 <input class="u-color-dot" type="color" id="ts27-shorts-color">
                 <input class="u-grow" type="text" id="ts27-shorts-text" value="#111111">
               </div>
             </div>
           </div>
-          <div class="u-row" style="align-items:center;gap:0.75rem">
-            <div id="ts27BadgePreview" style="width:64px;height:64px;display:flex;align-items:center;justify-content:center"></div>
-            <span class="u-fs-sm u-c-dim">Vista previa de la chapa 2027</span>
+          <div class="field-row field-row--2">
+            <div class="field">
+              <label>Círculo interior <span class="u-dim">— opcional, #RRGGBB</span></label>
+              <input type="text" id="ts27-innerCircle-text" placeholder="Sin círculo" class="u-w-full">
+            </div>
+            <div class="field">
+              <label>Traducciones <span class="u-dim">— JSON</span></label>
+              <textarea id="ts27-translations" rows="3" class="u-w-full" spellcheck="false">{}</textarea>
+            </div>
+          </div>
+          <div class="team-season-colors-preview">
+            <div id="ts27ColorsPreview" class="team-color-squares team-color-squares--small" aria-label="Tres colores cromáticos de la temporada"><i></i><i></i><i></i></div>
+            <div id="ts27HeaderPreview" class="team-season-header-preview">Barra de título</div>
           </div>
         </div>
       </details>
       <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
-        <button class="btn btn--primary" id="saveTeamSeason27Btn" style="padding:0.35rem 0.8rem;font-size:0.8rem">Guardar temporada 2027</button>
-        <button class="btn btn--ghost" id="ts27DiscontinueBtn" title="Equipos que cierran: elimina su temporada 2027 y deja de aparecer en Fichajes (reversible guardando de nuevo)" style="padding:0.35rem 0.8rem;font-size:0.8rem;color:var(--red);display:none">No continúa en 2027</button>
+        <button class="btn btn--primary" id="saveTeamSeason27Btn" style="padding:0.35rem 0.8rem;font-size:0.8rem">Guardar temporada</button>
+        <button class="btn btn--ghost" id="ts27DiscontinueBtn" title="Elimina únicamente la temporada del mercado y deja de listar el equipo allí" style="padding:0.35rem 0.8rem;font-size:0.8rem;color:var(--red);display:none">No continúa</button>
         <span class="u-fs-md u-c-dim" id="ts27Status"></span>
       </div>
     </div>
@@ -10330,7 +10273,18 @@ function wireTeamEditor() {
   bind('saveTeamBtn', 'click', saveTeam);
   bind('duplicateTeamBtn', 'click', duplicateTeam);
   bind('deleteTeamBtn', 'click', deleteTeam);
-  ['headerBg', 'headerText', 'torsoCenter', 'torsoSides', 'innerCircle', 'shorts'].forEach(key => {
+  bind('seasonDiscontinueBtn', 'click', discontinueTeamSeason27);
+  bind('specialEditorBackBtn', 'click', event => {
+    const parentTeamId = event.currentTarget.dataset.parentTeamId;
+    if (parentTeamId) openTeamEditor(parentTeamId, { seasonYear: _editingTeamSeasonYear });
+  });
+  bind('addSpecialEditionBtn', 'click', () => {
+    if (_editingTeamId) openTeamEditor(null, {
+      seasonYear: _editingTeamSeasonYear,
+      specialParentId: _editingTeamId,
+    });
+  });
+  ['headerBg', 'torsoSides', 'torsoCenter', 'shorts'].forEach(key => {
     const color = document.getElementById(`te-${key}-color`);
     const text  = document.getElementById(`te-${key}-text`);
     if (!color || !text) return;
@@ -10340,18 +10294,8 @@ function wireTeamEditor() {
       if (/^#[0-9a-fA-F]{6}$/.test(v)) { _teamColorsExplicitlySet = true; color.value = v.toLowerCase(); refreshTeamPreview(); }
     });
   });
-  bind('te-innerCircle-enabled', 'change', refreshTeamPreview);
   bind('te-name', 'input', refreshTeamPreview);
   bind('te-countryCode', 'input', refreshTeamCountryFlag);
-  bind('te-specialEdition', 'change', (e) => {
-    const row = document.getElementById('te-parentTeam-row');
-    if (row) row.style.display = e.target.checked ? '' : 'none';
-    if (e.target.checked) _populateParentTeamSelect(null);
-    const valRow = document.getElementById('te-specialValidity-row');
-    if (valRow) valRow.style.display = e.target.checked ? 'flex' : 'none';
-    if (e.target.checked) _populateSpecialRaceSelect(null);
-    _syncRosterVisibility(_editingTeamId, e.target.checked);
-  });
   bind('te-seRaceSearch', 'input', (e) => {
     const current = document.getElementById('te-seRaceId').value || null;
     _populateSpecialRaceSelect(current, e.target.value);
@@ -10360,24 +10304,47 @@ function wireTeamEditor() {
   bind('te-category', 'change', (e) => {
     const g = CATEGORY_GENDER[e.target.value];
     if (g) document.getElementById('te-gender').value = g;
+    const isSelection = e.target.value === 'NTM' || e.target.value === 'NTW';
+    const meta = document.getElementById('te-selectionMeta-row');
+    if (meta) meta.style.display = isSelection ? '' : 'none';
+    if (isSelection) {
+      const scope = document.getElementById('te-selectionScope');
+      if (!scope.value) scope.value = 'national';
+      const code = document.getElementById('te-selectionCode');
+      if (!code.value) code.value = document.getElementById('te-countryCode').value.trim().toLowerCase();
+    }
+    _syncRosterVisibility(_editingTeamId, document.getElementById('te-specialEdition').checked);
   });
   // Panel de plantilla (antes setupRosterPanel con guarda once)
   setupRosterPanel();
-  // Panel de temporada 2027 (mercado de fichajes)
+  // Editor de temporada: el DOM se recrea cada vez que se abre el drawer.
   setupSeason27Panel();
 }
 
-function openTeamEditor(teamId) {
+function openTeamEditor(teamId, { seasonYear = CURRENT_TEAM_SEASON, specialParentId = null } = {}) {
   _editingTeamId = teamId;
+  _editingTeamSeasonYear = Number(seasonYear) || CURRENT_TEAM_SEASON;
   // Por defecto, un alta normal NO nace en el mercado (solo lo hace el alta por
   // «+ Equipo <MARKET_SEASON>», que fija el flag después de esta llamada).
   _newTeamMarketBorn = false;
   const team = teamId ? (_teamsCache || []).find(t => t.id === teamId) : null;
-  _teamColorsExplicitlySet = !!(team?.headerBg);
+  const requestedParent = specialParentId
+    ? (_teamsCache || []).find(candidate => candidate.id === specialParentId && !candidate.specialEdition)
+    : null;
+  const matrix = team || requestedParent;
+  const isSpecialEdition = team?.specialEdition === true || !!requestedParent;
+  const parentTeamId = team?.parentTeamId || requestedParent?.id || null;
+  const season = teamId && !isSpecialEdition
+    ? (_teamSeasonsByYear.get(_editingTeamSeasonYear) || []).find(row => row.teamId === teamId) || null
+    : null;
+  const source = isSpecialEdition ? matrix : (season || matrix);
+  _editingTeamIsSeason = !!teamId && !isSpecialEdition;
+  _season27Row = season;
+  _teamColorsExplicitlySet = !!(source?.headerBg);
 
   // El editor vive en el drawer: se monta su cuerpo + listeners por apertura.
   openDrawer({
-    title: team ? 'Editar equipo' : 'Nuevo equipo',
+    title: isSpecialEdition ? (team ? 'Editar edición especial' : 'Nueva edición especial') : (team ? 'Editar equipo' : 'Nuevo equipo'),
     level: 1,
     render: (body) => {
       body.innerHTML = teamEditorBodyHtml();
@@ -10385,44 +10352,66 @@ function openTeamEditor(teamId) {
     },
   });
 
-  document.getElementById('deleteTeamBtn').style.display = team ? '' : 'none';
-  document.getElementById('duplicateTeamBtn').style.display = team ? '' : 'none';
+  document.getElementById('deleteTeamBtn').style.display = team && isSpecialEdition ? '' : 'none';
+  document.getElementById('duplicateTeamBtn').style.display = team && isSpecialEdition ? '' : 'none';
+  document.getElementById('seasonDiscontinueBtn').style.display = _editingTeamIsSeason
+    && _editingTeamSeasonYear === MARKET_SEASON && !!season ? '' : 'none';
   document.getElementById('teamSaveStatus').textContent = '';
 
-  document.getElementById('te-name').value    = team?.name || '';
-  document.getElementById('te-aliases').value = team?.nameAliases || '';
-  setColorPair('headerBg',    team?.headerBg         || DEFAULT_TEAM.headerBg);
-  setColorPair('headerText',  team?.headerText       || DEFAULT_TEAM.headerText);
-  setColorPair('torsoCenter', team?.badgeTorsoCenter || DEFAULT_TEAM.badgeTorsoCenter);
-  setColorPair('torsoSides',  team?.badgeTorsoSides  || DEFAULT_TEAM.badgeTorsoSides);
-  setColorPair('shorts',      team?.badgeShorts      || DEFAULT_TEAM.badgeShorts);
-  const innerEnabled = !!team?.badgeInnerCircle;
-  document.getElementById('te-innerCircle-enabled').checked = innerEnabled;
-  setColorPair('innerCircle', team?.badgeInnerCircle || '#ffd700');
-  document.getElementById('te-specialEdition').checked = !!team?.specialEdition;
+  document.getElementById('te-name').value    = source?.name || '';
+  document.getElementById('te-aliases').value = source?.nameAliases || '';
+  document.getElementById('te-uciCode').value = season?.uciCode || '';
+  setColorPair('headerBg',    source?.headerBg         || DEFAULT_TEAM.headerBg);
+  setColorPair('torsoCenter', source?.badgeTorsoCenter || DEFAULT_TEAM.badgeTorsoCenter);
+  setColorPair('torsoSides',  source?.badgeTorsoSides  || DEFAULT_TEAM.badgeTorsoSides);
+  setColorPair('shorts',      source?.badgeShorts      || DEFAULT_TEAM.badgeShorts);
+  document.getElementById('te-specialEdition').checked = isSpecialEdition;
+  const kindTitle = document.getElementById('teamEditorKindTitle');
+  const kindDescription = document.getElementById('teamEditorKindDescription');
+  if (isSpecialEdition) {
+    if (kindTitle) kindTitle.textContent = 'Edición especial';
+    if (kindDescription) kindDescription.textContent = 'Identidad y vigencia del maillot especial vinculado al equipo matriz.';
+  } else {
+    if (kindTitle) kindTitle.textContent = `Temporada ${_editingTeamSeasonYear}`;
+    if (kindDescription) kindDescription.textContent = season
+      ? `Identidad anual del equipo en ${_editingTeamSeasonYear}. Los cambios solo afectan a esta temporada.`
+      : `Nueva identidad anual para ${_editingTeamSeasonYear}.`;
+  }
+  const backButton = document.getElementById('specialEditorBackBtn');
+  if (backButton && parentTeamId) {
+    backButton.style.display = '';
+    backButton.dataset.parentTeamId = parentTeamId;
+  }
   const parentRow = document.getElementById('te-parentTeam-row');
-  parentRow.style.display = team?.specialEdition ? '' : 'none';
-  if (team?.specialEdition) _populateParentTeamSelect(team?.parentTeamId || null);
+  parentRow.style.display = isSpecialEdition ? '' : 'none';
+  if (isSpecialEdition) _populateParentTeamSelect(parentTeamId);
   // Vigencia del maillot especial
-  document.getElementById('te-specialValidity-row').style.display = team?.specialEdition ? 'flex' : 'none';
+  document.getElementById('te-specialValidity-row').style.display = isSpecialEdition ? 'flex' : 'none';
   document.getElementById('te-seValidFrom').value = team?.specialEditionValidFrom || '';
   document.getElementById('te-seValidTo').value   = team?.specialEditionValidTo   || '';
   document.getElementById('te-seRaceSearch').value = '';
   _populateSpecialRaceSelect(team?.specialEditionRaceId || null);
-  document.getElementById('te-category').value = team?.category || '';
-  document.getElementById('te-gender').value   = team?.gender   || '';
-  document.getElementById('te-countryCode').value = team?.countryCode || '';
+  document.getElementById('te-category').value = source?.category || '';
+  document.getElementById('te-gender').value   = source?.gender   || '';
+  document.getElementById('te-countryCode').value = matrix?.countryCode || '';
+  document.getElementById('te-countryCode').disabled = _editingTeamIsSeason;
+  const isSelection = source?.category === 'NTM' || source?.category === 'NTW' || source?.teamKind === 'selection';
+  document.getElementById('te-selectionScope').value = source?.selectionScope || 'national';
+  document.getElementById('te-selectionCode').value = source?.selectionCode || (isSelection ? (source?.countryCode || '') : '');
+  document.getElementById('te-selectionMeta-row').style.display = isSelection ? '' : 'none';
   refreshTeamCountryFlag();
 
   refreshTeamPreview();
-  // Plantilla: visible solo para equipos guardados que no sean edición especial.
-  _syncRosterVisibility(teamId, team?.specialEdition);
-  // Temporada 2027 (mercado): mismas condiciones de visibilidad.
-  _syncSeason27Visibility(teamId, team?.specialEdition);
+  // Temporada y plantilla comparten el año seleccionado. Las ediciones
+  // especiales conservan su editor propio y no montan ninguno de estos bloques.
+  renderTeamSpecialEditionsPanel(teamId);
+  _syncRosterVisibility(teamId, isSpecialEdition, source);
+  _syncSeason27Visibility(teamId, isSpecialEdition);
 }
 
 function closeTeamEditor() {
   _editingTeamId = null;
+  _editingTeamIsSeason = false;
   _rosterTeamId = null;
   closeDrawer(1);
 }
@@ -10439,14 +10428,9 @@ function refreshTeamEditorColors(teamId, colors) {
   if (!document.getElementById('te-headerBg-color')) return;
   _teamColorsExplicitlySet = true;
   setColorPair('headerBg',    colors.headerBg);
-  setColorPair('headerText',  colors.headerText);
   setColorPair('torsoCenter', colors.badgeTorsoCenter);
   setColorPair('torsoSides',  colors.badgeTorsoSides);
   setColorPair('shorts',      colors.badgeShorts);
-  if (colors.badgeInnerCircle) {
-    document.getElementById('te-innerCircle-enabled').checked = true;
-    setColorPair('innerCircle', colors.badgeInnerCircle);
-  }
   refreshTeamPreview();
 }
 
@@ -10455,9 +10439,23 @@ async function saveTeam() {
   const t = readTeamFromForm();
   if (!t.name) { status.textContent = 'Falta el nombre.'; return; }
   if (!t.category) { status.textContent = 'Selecciona una categoría UCI.'; return; }
+  if (t.specialEdition && !t.parentTeamId) { status.textContent = 'Selecciona el equipo base de la edición especial.'; return; }
+  const seasonPayload = readTeamSeasonFromForm(t);
+  if (seasonPayload.uciCode && !/^\S{3}$/.test(seasonPayload.uciCode)) {
+    status.textContent = 'El código UCI debe tener exactamente 3 caracteres.';
+    return;
+  }
   status.textContent = 'Guardando…';
   try {
-    if (_editingTeamId) {
+    if (_editingTeamIsSeason) {
+      const { data, error } = await supabase.rpc('admin_save_team_season', {
+        p_team_id: _editingTeamId,
+        p_year: _editingTeamSeasonYear,
+        p_season: seasonPayload,
+      });
+      if (error) throw error;
+      _season27Row = data || seasonPayload;
+    } else if (_editingTeamId) {
       const payload = { ...t, updatedAt: new Date().toISOString() };
       const { error } = await supabase.from('teams').update(payload).eq('id', _editingTeamId);
       if (error) throw error;
@@ -10466,26 +10464,53 @@ async function saveTeam() {
       // Alta desde «+ Equipo <MARKET_SEASON>» → firstSeason = temporada del
       // mercado: el trigger sync_team_to_season NO le estampa una temporada del
       // año en curso (mig. 129) → nace SIN identidad anterior → el mercado lo
-      // deja vacío hasta publicar la chapa, en vez de mostrar colores antiguos
+      // deja vacío hasta publicar los colores, en vez de mostrar los anteriores
       // que no existen.
       const insert = { id, ...t };
       if (_newTeamMarketBorn) insert.firstSeason = MARKET_SEASON;
       const { error } = await supabase.from('teams').insert(insert);
       if (error) throw error;
+      if (!t.specialEdition) {
+        const { data: seasonData, error: seasonError } = await supabase.rpc('admin_save_team_season', {
+          p_team_id: id,
+          p_year: _editingTeamSeasonYear,
+          p_season: seasonPayload,
+        });
+        if (seasonError) throw seasonError;
+        _season27Row = seasonData || seasonPayload;
+        _editingTeamIsSeason = true;
+      }
       _newTeamMarketBorn = false;
       _editingTeamId = id;
       document.getElementById('deleteTeamBtn').style.display = '';
       const drawerTitle = document.getElementById('ccDrawer1Title');
-      if (drawerTitle) drawerTitle.textContent = 'Editar equipo';
+      if (drawerTitle) drawerTitle.textContent = t.specialEdition ? 'Editar edición especial' : 'Editar equipo';
     }
-    await fetchTeams({ force: true });
-    renderTeamsList();
+    const refreshes = [
+      fetchTeams({ force: true }),
+      fetchTeamSeasonsForYear(_editingTeamSeasonYear, { force: true }),
+    ];
+    if (_teamsListYear !== _editingTeamSeasonYear) {
+      refreshes.push(fetchTeamSeasonsForYear(_teamsListYear, { force: true }));
+    }
+    await Promise.all(refreshes);
+    if (document.getElementById('teamsList')) renderTeamsList();
     status.textContent = 'Guardado.';
-    showToast('Equipo guardado', 'success');
+    showToast(_editingTeamIsSeason ? `Temporada ${_editingTeamSeasonYear} guardada` : 'Equipo guardado', 'success');
 
     // Revelar/refrescar la plantilla del equipo recién guardado (no para ediciones especiales).
     _syncRosterVisibility(_editingTeamId, t.specialEdition);
-    _syncSeason27Visibility(_editingTeamId, t.specialEdition);
+    renderTeamSpecialEditionsPanel(_editingTeamId);
+    if (_editingTeamIsSeason) {
+      document.getElementById('te-countryCode').disabled = true;
+      document.getElementById('duplicateTeamBtn').style.display = 'none';
+      document.getElementById('deleteTeamBtn').style.display = 'none';
+    }
+    const backButton = document.getElementById('specialEditorBackBtn');
+    if (backButton && t.specialEdition) {
+      backButton.style.display = '';
+      backButton.dataset.parentTeamId = t.parentTeamId;
+    }
 
   } catch (err) {
     console.error('[saveTeam]', err);
@@ -10497,13 +10522,22 @@ async function deleteTeam() {
   if (!_editingTeamId) return;
   if (!await confirmDialog('¿Eliminar este equipo? Las listas de inscritos enlazadas perderán su enriquecimiento visual.', { danger: true })) return;
   const status = document.getElementById('teamSaveStatus');
+  const deletedTeam = (_teamsCache || []).find(team => team.id === _editingTeamId);
+  const returnToParentId = deletedTeam?.specialEdition ? deletedTeam.parentTeamId : null;
   status.textContent = 'Eliminando…';
   try {
     const { error } = await supabase.from('teams').delete().eq('id', _editingTeamId);
     if (error) throw error;
-    await fetchTeams({ force: true });
+    await Promise.all([
+      fetchTeams({ force: true }),
+      fetchTeamSeasonsForYear(_teamsListYear, { force: true }),
+    ]);
     renderTeamsList();
-    closeTeamEditor();
+    if (returnToParentId && (_teamsCache || []).some(team => team.id === returnToParentId)) {
+      openTeamEditor(returnToParentId, { seasonYear: _editingTeamSeasonYear });
+    } else {
+      closeTeamEditor();
+    }
     showToast('Equipo eliminado', 'success');
   } catch (err) {
     console.error('[deleteTeam]', err);
@@ -10512,7 +10546,7 @@ async function deleteTeam() {
 }
 
 // ═════════════════════════════════════════════════════════════════
-//  PLANTILLA DEL EQUIPO (afiliaciones rider_team_affiliations)
+//  PLANTILLA DEL EQUIPO (afiliaciones + observaciones UCI históricas)
 // ═════════════════════════════════════════════════════════════════
 //
 // La plantilla se construye desde rider_team_affiliations del AÑO EN CURSO,
@@ -10520,37 +10554,38 @@ async function deleteTeam() {
 // 2026 aunque su currentTeamId apunte a otro (fichajes, catálogo oro).
 //
 // ⚠️ Las fechas de vínculo se escriben SIEMPRE directo sobre
-// rider_team_affiliations (upsert por id = riderId__teamId__year). NUNCA vía
+// rider_team_affiliations, actualizando el id real de la fila. NUNCA vía
 // currentTeamId: el trigger sync_rider_to_affiliation borra la afiliación SIMPLE
 // (fechas NULL) del corredor para el año — de CUALQUIER equipo, no solo este —
 // y la reescribiría con fechas NULL, robando afiliaciones a otros equipos.
 
-const ROSTER_YEAR = new Date().getFullYear();
+const CURRENT_TEAM_SEASON = new Date().getFullYear();
+let _editingTeamSeasonYear = CURRENT_TEAM_SEASON;
+let _editingTeamIsSeason = false;
 let _rosterTeamId = null;
 let _rosterRows   = [];                 // [{ riderId, riderGender, dateFrom, dateTo, rider }]
 let _rosterAddGender = 'male';          // género activo del buscador (equipos sin género)
 
-function _rosterAffId(riderId, teamId) {
-  return `${riderId}__${teamId}__${ROSTER_YEAR}`;
-}
-
 // Muestra/oculta el panel de plantilla según el estado del equipo y lo carga.
-function _syncRosterVisibility(teamId, specialEdition) {
+function _syncRosterVisibility(teamId, specialEdition, season = null) {
   const panel = document.getElementById('teamRosterPanel');
   if (!panel) return;
-  const show = !!teamId && !specialEdition;
+  const team = (_teamsCache || []).find(t => t.id === teamId);
+  // Una categoría de selección oculta la plantilla antes de guardar. Una
+  // selección ya guardada solo se habilita tras confirmar su nueva identidad.
+  const category = season?.category ?? document.getElementById('te-category')?.value ?? team?.category;
+  const show = !!teamId && canHaveTeamRoster(team && { ...team, category, specialEdition });
   panel.style.display = show ? 'flex' : 'none';
-  if (!show) { _rosterTeamId = null; return; }
+  if (!show) { _rosterTeamId = null; _rosterRows = []; return; }
   setupRosterPanel();
   _rosterTeamId = teamId;
-  document.getElementById('teamRosterYear').textContent = ROSTER_YEAR;
+  document.getElementById('teamRosterYear').textContent = _editingTeamSeasonYear;
   // Reset del buscador de añadir
   const addSearch = document.getElementById('rosterAddSearch');
   if (addSearch) addSearch.value = '';
   const addResults = document.getElementById('rosterAddResults');
   if (addResults) { addResults.style.display = 'none'; addResults.innerHTML = ''; }
   // Género del buscador: el del equipo si lo tiene; si no, toggle visible.
-  const team = (_teamsCache || []).find(t => t.id === teamId);
   const toggle = document.getElementById('rosterAddGenderToggle');
   if (team?.gender) {
     _rosterAddGender = team.gender;
@@ -10567,25 +10602,23 @@ const _updateRosterGenderToggle = () =>
   setGenderToggleActive('rosterAddGenderMale', 'rosterAddGenderFemale', _rosterAddGender);
 
 async function loadTeamRoster(teamId) {
+  const matrix = (_teamsCache || []).find(t => t.id === teamId);
+  if (!canHaveTeamRoster(matrix && { ...matrix, category: _season27Row?.category ?? matrix.category })) return;
   const list = document.getElementById('teamRosterList');
   if (list) list.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
   try {
-    // La VERDAD es rider_team_affiliations (mig. 116): la plantilla = los corredores
-    // con una afiliación a este equipo en el año. Cada fila lleva sus fechas (tramo);
-    // las participaciones puntuales (corredor de desarrollo con el WT, etc.) viven solo
-    // a nivel de startlist y NO crean afiliación → no aparecen aquí. (Editor: se muestran
-    // también los tramos cerrados/futuros, con sus fechas, para poder revisarlos.)
+    // El contrato administrativo combina afiliaciones editables con observaciones
+    // oficiales UCI de 2020–2025. Estas últimas acreditan una plantilla anual, no
+    // fechas contractuales, y se devuelven como filas de solo lectura.
     const cols = 'id, firstName, lastName, otherNames, nationality, birthDate, currentTeamId, verified, source';
 
-    // 1) Afiliaciones a este equipo (año).
-    const { data: affs, error: affErr } = await supabase
-      .from('rider_team_affiliations')
-      .select('riderId, riderGender, dateFrom, dateTo')
-      .eq('teamId', teamId)
-      .eq('year', ROSTER_YEAR);
+    // 1) Filas resueltas para este equipo y año.
+    const { data: rosterData, error: affErr } = await supabase.rpc('admin_get_team_roster', {
+      p_team_id: teamId,
+      p_year: _editingTeamSeasonYear,
+    });
     if (affErr) throw affErr;
-    const affByKey = new Map();
-    (affs || []).forEach(a => affByKey.set(`${a.riderGender}:${a.riderId}`, a));
+    const affs = Array.isArray(rosterData) ? rosterData : [];
 
     // 2) Traer las fichas de esos corredores (por género).
     const menIds   = (affs || []).filter(a => a.riderGender === 'male').map(a => a.riderId);
@@ -10600,13 +10633,16 @@ async function loadTeamRoster(teamId) {
 
     // 3) Construir filas desde las afiliaciones (la ficha puede faltar → fila huérfana).
     const rows = [];
-    const seen = new Set();
     (affs || []).forEach(a => {
       const gender = a.riderGender === 'female' ? 'female' : 'male';
       const key = `${gender}:${a.riderId}`;
-      if (seen.has(key)) return;
-      seen.add(key);
       rows.push({
+        id: a.id,
+        affiliationType: a.affiliationType,
+        sourceUrl: a.sourceUrl,
+        dateBasis: a.dateBasis,
+        readOnly: a.readOnly === true,
+        sourceKind: a.sourceKind || 'affiliation',
         riderId: a.riderId,
         riderGender: gender,
         dateFrom: a.dateFrom || null,
@@ -10622,6 +10658,7 @@ async function loadTeamRoster(teamId) {
       ? `${row.rider.lastName || ''} ${row.rider.firstName || ''}`
       : `￿${row.riderId}`;   // huérfanas al final
     rows.sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'es', { sensitivity: 'base' }));
+    if (_rosterTeamId !== teamId) return;
     _rosterRows = rows;
     renderTeamRoster();
   } catch (err) {
@@ -10637,7 +10674,7 @@ function renderTeamRoster() {
   if (countEl) countEl.textContent = _rosterRows.length ? `${_rosterRows.length} corredor${_rosterRows.length === 1 ? '' : 'es'}` : '';
 
   if (_rosterRows.length === 0) {
-    list.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:0.35rem 0">Sin corredores en la plantilla ${ROSTER_YEAR}. Añade uno existente o crea uno nuevo.</div>`;
+    list.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:0.35rem 0">Sin corredores en la plantilla ${_editingTeamSeasonYear}. Añade uno existente o crea uno nuevo.</div>`;
     return;
   }
 
@@ -10645,34 +10682,34 @@ function renderTeamRoster() {
     const r = row.rider;
     if (!r) {
       // Afiliación huérfana (el corredor ya no existe): fila degradada.
-      return `<div class="roster-row" data-rider-id="${esc(row.riderId)}" data-gender="${esc(row.riderGender)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;background:var(--bg-card);border:1px solid var(--red);border-radius:6px">
+      return `<div class="roster-row" data-affiliation-id="${esc(row.id)}" data-rider-id="${esc(row.riderId)}" data-gender="${esc(row.riderGender)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;background:var(--bg-card);border:1px solid var(--red);border-radius:6px">
         <span style="flex:1;font-size:0.82rem;color:var(--red)">⚠ Corredor no encontrado — ${esc(row.riderId)} (${esc(row.riderGender)})</span>
-        <button class="btn btn--ghost roster-clean-orphan" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--red)">Limpiar afiliación</button>
+        ${row.readOnly ? '' : '<button class="btn btn--ghost roster-clean-orphan" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--red)">Limpiar afiliación</button>'}
       </div>`;
     }
-    // Pertenece como titular (currentTeamId == este equipo) o como traspaso
-    // entrante (solo afiliación con fechas; su currentTeamId apunta a otro).
-    const isTitular = r.currentTeamId === _rosterTeamId;
-    const otherTeam = !isTitular && r.currentTeamId
-      ? (_teamsCache || []).find(t => t.id === r.currentTeamId)
-      : null;
-    return `<div class="roster-row" data-rider-id="${esc(r.id)}" data-gender="${esc(row.riderGender)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;background:var(--bg-card);border:1px solid ${isTitular ? 'var(--border)' : '#f59e0b'};border-radius:6px;flex-wrap:wrap">
+    // La prueba no es un traspaso ni modifica la pertenencia habitual.
+    const isTrainee = row.affiliationType === 'trainee';
+    return `<div class="roster-row" data-affiliation-id="${esc(row.id)}" data-rider-id="${esc(r.id)}" data-gender="${esc(row.riderGender)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;flex-wrap:wrap">
       <span style="flex-shrink:0;width:1.6em;text-align:center">${_slRiderFlagPreview(r.nationality)}</span>
       <span style="flex:1;min-width:8rem;font-size:0.85rem">
         <strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+        ${isTrainee ? '<span class="badge roster-stagiaire-badge">Stagiaire</span>' : ''}
         ${r.birthDate ? `<span style="color:var(--text-dim);font-size:0.72rem;margin-left:0.3rem">'${esc(String(r.birthDate).slice(2,4))}</span>` : ''}
         ${r.verified === false ? '<span title="Sin verificar" style="color:#f59e0b;margin-left:0.3rem">?</span>' : ''}
-        ${otherTeam ? `<span title="Traspaso con fechas; su equipo actual es otro" style="display:block;font-size:0.68rem;color:#f59e0b">tramo · equipo actual: ${esc(otherTeam.name)}</span>` : ''}
       </span>
-      <label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Desde
+      ${!isTrainee && !row.readOnly ? `<label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Desde
         <input type="date" class="roster-from u-chip-input" value="${esc(row.dateFrom || '')}">
       </label>
       <label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Hasta
         <input type="date" class="roster-to u-chip-input" value="${esc(row.dateTo || '')}">
       </label>
-      <button class="btn btn--ghost roster-save-dates u-btn-xs" title="Guardar fechas de vínculo (vacío = toda la temporada)">💾</button>
+      <button class="btn btn--ghost roster-save-dates u-btn-xs" title="Guardar fechas de vínculo (vacío = toda la temporada)">💾</button>` : ''}
       <button class="btn btn--ghost roster-edit-rider u-btn-xs" title="Editar datos del corredor">✎</button>
-      <button class="btn btn--ghost roster-remove" title="Quitar del equipo (no borra el corredor)" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--red)">Quitar</button>
+      ${row.readOnly
+        ? '<span class="u-fs-068 u-c-dim" title="Observación anual oficial sin fechas contractuales">Solo lectura</span>'
+        : isTrainee
+        ? '<span class="u-fs-068 u-c-dim" title="Las pruebas requieren la RPC y evidencia de stagiaires">Gestión por contrato de stagiaires</span>'
+        : '<button class="btn btn--ghost roster-remove" title="Quitar del equipo (no borra el corredor)" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--red)">Quitar</button>'}
     </div>`;
   }).join('');
 
@@ -10680,50 +10717,46 @@ function renderTeamRoster() {
   list.querySelectorAll('.roster-row').forEach(rowEl => {
     const riderId = rowEl.dataset.riderId;
     const gender  = rowEl.dataset.gender;
+    const affiliationId = rowEl.dataset.affiliationId;
 
     const cleanOrphan = rowEl.querySelector('.roster-clean-orphan');
-    if (cleanOrphan) cleanOrphan.addEventListener('click', () => removeRiderFromTeam(riderId, gender, { orphan: true }));
+    if (cleanOrphan) cleanOrphan.addEventListener('click', () => removeRiderFromTeam(riderId, gender, { orphan: true, affiliationId }));
 
     const saveDates = rowEl.querySelector('.roster-save-dates');
     if (saveDates) saveDates.addEventListener('click', () => {
       const from = rowEl.querySelector('.roster-from').value || null;
       const to   = rowEl.querySelector('.roster-to').value || null;
-      saveAffiliationDates(riderId, gender, from, to, saveDates);
+      saveAffiliationDates(riderId, gender, from, to, saveDates, affiliationId);
     });
 
     const editBtn = rowEl.querySelector('.roster-edit-rider');
     if (editBtn) editBtn.addEventListener('click', () => openRosterRiderEditor(riderId, gender));
 
     const removeBtn = rowEl.querySelector('.roster-remove');
-    if (removeBtn) removeBtn.addEventListener('click', () => removeRiderFromTeam(riderId, gender));
+    if (removeBtn) removeBtn.addEventListener('click', () => removeRiderFromTeam(riderId, gender, { affiliationId }));
   });
 }
 
-// Upsert directo de fechas de vínculo (NO toca currentTeamId).
-async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnEl) {
+// Actualización de fechas del vínculo habitual por su identidad real.
+async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnEl, affiliationId) {
   if (!_rosterTeamId) return;
+  const row = _rosterRows.find(r => r.id === affiliationId);
+  // Las fechas de prueba se mantienen con la RPC documentada y su evidencia.
+  if (!row || row.readOnly || row.affiliationType === 'trainee') return;
   if (dateFrom && dateTo && dateFrom > dateTo) {
     showToast('La fecha "desde" no puede ser posterior a "hasta".', 'error');
     return;
   }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '…'; }
   try {
-    const payload = {
-      id: _rosterAffId(riderId, _rosterTeamId),
-      riderId,
-      riderGender,
-      teamId: _rosterTeamId,
-      year: ROSTER_YEAR,
-      dateFrom: dateFrom || null,
-      dateTo:   dateTo   || null,
-      source: 'panel',
-      verified: true,
-      updatedAt: new Date().toISOString(),
-    };
-    const { error } = await supabase.from('rider_team_affiliations').upsert(payload, { onConflict: 'id' });
+    const payload = { dateFrom: dateFrom || null, dateTo: dateTo || null };
+    const { error } = await supabase.rpc('admin_edit_regular_team_affiliation', {
+      p_action: 'update', p_team_id: _rosterTeamId, p_year: _editingTeamSeasonYear,
+      p_rider_id: riderId, p_rider_gender: riderGender, p_affiliation_id: affiliationId,
+      p_date_from: payload.dateFrom, p_date_to: payload.dateTo,
+    });
     if (error) throw error;
     // Reflejar en memoria sin recargar.
-    const row = _rosterRows.find(r => r.riderId === riderId && r.riderGender === riderGender);
     if (row) { row.dateFrom = payload.dateFrom; row.dateTo = payload.dateTo; }
     showToast('Fechas guardadas', 'success', 2000);
   } catch (err) {
@@ -10738,27 +10771,34 @@ async function saveAffiliationDates(riderId, riderGender, dateFrom, dateTo, btnE
 // borrar la afiliación de este corredor a este equipo del año (sea simple o con
 // fechas). El trigger inverso deriva currentTeamId (→ NULL si era su afiliación
 // activa y no queda otra). NUNCA se escribe currentTeamId a mano.
-async function removeRiderFromTeam(riderId, riderGender, { orphan = false } = {}) {
+async function removeRiderFromTeam(riderId, riderGender, { orphan = false, affiliationId } = {}) {
   if (!_rosterTeamId) return;
-  const row = _rosterRows.find(r => r.riderId === riderId && r.riderGender === riderGender);
+  const row = _rosterRows.find(r => r.id === affiliationId);
+  if (!row || row.readOnly) return;
   const r = row?.rider;
   const name = r ? `${r.firstName} ${r.lastName}` : riderId;
-  const isTitular = r && r.currentTeamId === _rosterTeamId;
+  const isTitular = row.affiliationType !== 'trainee' && _editingTeamSeasonYear === CURRENT_TEAM_SEASON
+    && r && r.currentTeamId === _rosterTeamId;
 
   const msg = orphan
     ? `¿Eliminar la afiliación huérfana de "${name}"?`
     : isTitular
       ? `¿Quitar a ${name} del equipo? Dejará de tener equipo actual. No borra el corredor.`
-      : `¿Quitar el tramo de ${name} en este equipo ${ROSTER_YEAR}? (Su equipo actual no cambia.)`;
+      : `¿Quitar el tramo de ${name} en este equipo ${_editingTeamSeasonYear}? (Su equipo actual no cambia.)`;
   if (!await confirmDialog(msg, { danger: true })) return;
 
   try {
     // Borrar la afiliación a este equipo (simple o con fechas). El trigger inverso
     // recalcula currentTeamId.
-    const { error: delErr } = await supabase.from('rider_team_affiliations')
-      .delete().eq('id', _rosterAffId(riderId, _rosterTeamId));
+    if (row.affiliationType === 'trainee') {
+      throw new Error('Las afiliaciones de stagiaire se gestionan con su contrato específico.');
+    }
+    const { error: delErr } = await supabase.rpc('admin_edit_regular_team_affiliation', {
+      p_action: 'remove', p_team_id: _rosterTeamId, p_year: _editingTeamSeasonYear,
+      p_rider_id: riderId, p_rider_gender: riderGender, p_affiliation_id: affiliationId,
+    });
     if (delErr) throw delErr;
-    _rosterRows = _rosterRows.filter(x => !(x.riderId === riderId && x.riderGender === riderGender));
+    _rosterRows = _rosterRows.filter(x => x.id !== affiliationId);
     renderTeamRoster();
     showToast('Corredor quitado de la plantilla', 'success', 2000);
   } catch (err) {
@@ -10773,28 +10813,16 @@ async function removeRiderFromTeam(riderId, riderGender, { orphan = false } = {}
 // simple del equipo anterior (un fichaje). NUNCA se escribe currentTeamId a mano.
 async function addExistingRiderToTeam(riderId, riderGender, rider) {
   if (!_rosterTeamId) return;
-  if (_rosterRows.some(r => r.riderId === riderId && r.riderGender === riderGender)) {
+  if (_rosterRows.some(r => r.riderId === riderId && r.riderGender === riderGender && r.affiliationType === 'regular')) {
     showToast('Ese corredor ya está en la plantilla.', 'info', 2500);
     return;
   }
-  const prevTeamId = rider?.currentTeamId || null;
-  if (prevTeamId && prevTeamId !== _rosterTeamId) {
-    const prev = (_teamsCache || []).find(t => t.id === prevTeamId);
-    const name = rider ? `${rider.firstName} ${rider.lastName}` : riderId;
-    if (!await confirmDialog(`${name} pertenece actualmente a "${prev?.name || prevTeamId}". ¿Ficharlo para este equipo? (Pasará a ser su equipo actual y saldrá de la plantilla del anterior.)`)) return;
-  }
   try {
-    // 1) Borrar la afiliación simple del equipo anterior (pertenencia única).
-    if (prevTeamId && prevTeamId !== _rosterTeamId) {
-      await supabase.from('rider_team_affiliations').delete().eq('id', _rosterAffId(riderId, prevTeamId));
-    }
-    // 2) Upsert de la afiliación simple a este equipo. El trigger inverso deriva currentTeamId.
-    const { error } = await supabase.from('rider_team_affiliations').upsert({
-      id: _rosterAffId(riderId, _rosterTeamId),
-      riderId, riderGender, teamId: _rosterTeamId, year: ROSTER_YEAR,
-      dateFrom: null, dateTo: null, source: 'panel',
-      verified: rider?.verified ?? false, updatedAt: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    const { error } = await supabase.rpc('admin_edit_regular_team_affiliation', {
+      p_action: 'add', p_team_id: _rosterTeamId, p_year: _editingTeamSeasonYear,
+      p_rider_id: riderId, p_rider_gender: riderGender,
+      p_verified: rider?.verified ?? false,
+    });
     if (error) throw error;
     showToast('Corredor añadido a la plantilla', 'success', 2000);
     const addSearch = document.getElementById('rosterAddSearch');
@@ -10828,7 +10856,7 @@ async function _rosterSearchRiders(q) {
       .limit(20);
     if (error) throw error;
     const rows = data || [];
-    const inRoster = new Set(_rosterRows.filter(r => r.riderGender === _rosterAddGender).map(r => r.riderId));
+    const inRoster = new Set(_rosterRows.filter(r => r.riderGender === _rosterAddGender && r.affiliationType === 'regular').map(r => r.riderId));
     if (rows.length === 0) {
       results.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem;padding:0.3rem 0">Sin resultados.</div>';
       return;
@@ -10887,11 +10915,11 @@ async function _refreshOpenRoster() {
 
 // ── Crear corredor nuevo dentro del equipo ────────────────────────
 // Inserta en riders_* con currentTeamId = equipo (el trigger crea la afiliación
-// simple). Si se indican fechas, las aplica con saveAffiliationDates después.
+// simple). Las fechas se guardan directamente en la nueva afiliación habitual.
 function _rosterGenderForNewRider() {
   // Para crear: si el equipo tiene género, usarlo; si no, el del toggle.
   const team = (_teamsCache || []).find(t => t.id === _rosterTeamId);
-  return team?.gender || _rosterAddGender;
+  return _season27Row?.gender || team?.gender || _rosterAddGender;
 }
 
 function openNewRiderInTeamForm() {
@@ -10938,6 +10966,10 @@ async function createRiderInTeam(gender) {
   const birthDate   = document.getElementById('rnr-birthDate').value || null;
   const dateFrom    = document.getElementById('rnr-from').value || null;
   const dateTo      = document.getElementById('rnr-to').value || null;
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    if (status) status.textContent = 'La fecha desde no puede ser posterior a hasta.';
+    return;
+  }
   if (status) status.textContent = 'Creando…';
 
   const table = gender === 'male' ? 'riders_men' : 'riders_women';
@@ -10971,15 +11003,12 @@ async function createRiderInTeam(gender) {
     }
     // Afiliación al equipo: con fechas si se indicaron, simple si no. El trigger
     // inverso deriva currentTeamId.
-    if (dateFrom || dateTo) {
-      await saveAffiliationDates(id, gender, dateFrom, dateTo, null);
-    } else {
-      const { error: affErr } = await supabase.from('rider_team_affiliations').upsert({
-        id: _rosterAffId(id, _rosterTeamId),
-        riderId: id, riderGender: gender, teamId: _rosterTeamId, year: ROSTER_YEAR,
-        dateFrom: null, dateTo: null, source: 'manual', verified: true,
-        updatedAt: new Date().toISOString(),
-      }, { onConflict: 'id' });
+    {
+      const { error: affErr } = await supabase.rpc('admin_edit_regular_team_affiliation', {
+        p_action: 'add', p_team_id: _rosterTeamId, p_year: _editingTeamSeasonYear,
+        p_rider_id: id, p_rider_gender: gender, p_date_from: dateFrom,
+        p_date_to: dateTo, p_verified: true,
+      });
       if (affErr) throw affErr;
     }
     showToast('Corredor creado y añadido a la plantilla', 'success', 2500);
@@ -11015,15 +11044,13 @@ function setupRosterPanel() {
 }
 
 // ═════════════════════════════════════════════════════════════════
-//  TEMPORADA 2027 DEL EQUIPO (team_seasons — mercado de fichajes)
+//  TEMPORADA DEL EQUIPO (team_seasons)
 // ═════════════════════════════════════════════════════════════════
-//
-// La pantalla de Fichajes lista los equipos desde team_seasons[2027]: nombre,
-// categoría (ascensos/descensos) y chapa OCULTABLE (badgeVisible, mig. 122).
-// Se edita aquí y NO en `teams` (el trigger sync_team_to_season pisa siempre
-// el año en curso → tocar teams contaminaría la vista 2026).
+// La ficha matriz (`teams`) conserva identidad y compatibilidad. Este bloque
+// lee y guarda exclusivamente la temporada seleccionada.
 
-let _season27Row = null;   // fila team_seasons año 2027 del equipo abierto (o null)
+let _season27Row = null; // nombre heredado para conservar el mínimo diff interno
+let _teamSeasonLoadToken = 0;
 
 function _ts27SetColor(key, value) {
   const color = document.getElementById(`ts27-${key}-color`);
@@ -11042,62 +11069,80 @@ function _ts27GetColor(key) {
 }
 
 function refreshSeason27Preview() {
-  const preview = document.getElementById('ts27BadgePreview');
-  if (!preview) return;
-  const inner = document.getElementById('ts27-innerCircle-enabled')?.checked ? _ts27GetColor('innerCircle') : null;
-  preview.innerHTML = buildTeamBadgeSvg({
-    badgeTorsoCenter: _ts27GetColor('torsoCenter'),
-    badgeTorsoSides:  _ts27GetColor('torsoSides'),
-    badgeInnerCircle: inner,
-    badgeShorts:      _ts27GetColor('shorts'),
-  }, { size: 64 });
+  const colors = [_ts27GetColor('torsoSides'), _ts27GetColor('torsoCenter'), _ts27GetColor('shorts')];
+  document.querySelectorAll('#ts27ColorsPreview i').forEach((square, index) => {
+    square.style.background = colors[index];
+  });
+  const headerBg = _ts27GetColor('headerBg');
+  const header = document.getElementById('ts27HeaderPreview');
+  if (header) {
+    header.style.background = headerBg;
+    header.style.color = automaticTeamHeaderText(headerBg);
+    header.textContent = document.getElementById('ts27-name')?.value.trim() || 'Barra de título';
+  }
 }
 
 function _syncSeason27Visibility(teamId, specialEdition) {
   const panel = document.getElementById('teamSeason27Panel');
   if (!panel) return;
   const show = !!teamId && !specialEdition;
+  panel.hidden = !show;
   panel.style.display = show ? 'flex' : 'none';
-  if (show) loadTeamSeason27(teamId);
+  if (show) {
+    const label = document.getElementById('teamSeasonYearLabel');
+    if (label) label.textContent = String(_editingTeamSeasonYear);
+    loadTeamSeason27(teamId);
+  }
 }
 
 async function loadTeamSeason27(teamId) {
+  const year = _editingTeamSeasonYear;
+  const token = ++_teamSeasonLoadToken;
   const status = document.getElementById('ts27Status');
   if (status) status.textContent = 'Cargando…';
   _season27Row = null;
   try {
     const { data, error } = await supabase
       .from('team_seasons').select('*')
-      .eq('teamId', teamId).eq('year', 2027)
+      .eq('teamId', teamId).eq('year', year)
       .maybeSingle();
     if (error) throw error;
+    if (token !== _teamSeasonLoadToken || _editingTeamId !== teamId || _editingTeamSeasonYear !== year) return;
     _season27Row = data || null;
-    // Sin fila 2027 → precargar con la identidad actual (se crea al guardar).
+    // Sin fila → precargar desde la matriz solo como borrador; guardar crea
+    // exclusivamente team_seasons[year].
     const team = (_teamsCache || []).find(t => t.id === teamId) || {};
     const src = _season27Row || team;
     const nameEl = document.getElementById('ts27-name');
     if (!nameEl) return; // el drawer se cerró mientras cargaba
     nameEl.value = src.name || '';
+    document.getElementById('ts27-aliases').value = src.nameAliases || '';
+    document.getElementById('ts27-uciCode').value = src.uciCode || '';
+    document.getElementById('ts27-innerCircle-text').value = src.badgeInnerCircle || '';
+    document.getElementById('ts27-translations').value = JSON.stringify(src.translations || {}, null, 2);
     document.getElementById('ts27-category').value = src.category || '';
-    // Sin fila todavía → chapa OCULTA por defecto (los kits 2027 no se conocen).
-    document.getElementById('ts27-badgeVisible').checked = _season27Row ? (_season27Row.badgeVisible !== false) : false;
+    document.getElementById('ts27-gender').value = src.gender || '';
+    document.getElementById('ts27-badgeVisible').checked = _season27Row
+      ? (_season27Row.badgeVisible !== false)
+      : year !== MARKET_SEASON;
     document.getElementById('ts27-continuityDoubt').checked = !!_season27Row?.continuityDoubt;
     _ts27SetColor('headerBg',    src.headerBg         || DEFAULT_TEAM.headerBg);
-    _ts27SetColor('headerText',  src.headerText       || DEFAULT_TEAM.headerText);
     _ts27SetColor('torsoCenter', src.badgeTorsoCenter || DEFAULT_TEAM.badgeTorsoCenter);
     _ts27SetColor('torsoSides',  src.badgeTorsoSides  || DEFAULT_TEAM.badgeTorsoSides);
     _ts27SetColor('shorts',      src.badgeShorts      || DEFAULT_TEAM.badgeShorts);
-    const innerEnabled = !!src.badgeInnerCircle;
-    document.getElementById('ts27-innerCircle-enabled').checked = innerEnabled;
-    _ts27SetColor('innerCircle', src.badgeInnerCircle || '#ffd700');
     refreshSeason27Preview();
-    // "No continúa" solo tiene sentido si HAY temporada 2027 que retirar.
+    document.getElementById('teamRosterYear').textContent = year;
+    _syncRosterVisibility(teamId, false, src);
+    // "No continúa" solo pertenece al contrato del mercado.
     const discBtn = document.getElementById('ts27DiscontinueBtn');
-    if (discBtn) discBtn.style.display = _season27Row ? '' : 'none';
-    if (status) status.textContent = _season27Row ? '' : 'Sin temporada 2027 — este equipo NO aparece en Fichajes. Guarda para crearla.';
+    if (discBtn) {
+      discBtn.style.display = _season27Row && year === MARKET_SEASON ? '' : 'none';
+      discBtn.textContent = `No continúa en ${year}`;
+    }
+    if (status) status.textContent = _season27Row ? '' : `Sin temporada ${year}. Guarda para crearla sin modificar la matriz.`;
   } catch (err) {
     console.error('[loadTeamSeason27]', err);
-    if (status) status.textContent = 'Error cargando la temporada 2027: ' + (err.message || err);
+    if (status) status.textContent = `Error cargando la temporada ${year}: ` + (err.message || err);
   }
 }
 
@@ -11105,35 +11150,53 @@ async function saveTeamSeason27() {
   if (!_editingTeamId) return;
   const status = document.getElementById('ts27Status');
   const name = document.getElementById('ts27-name').value.trim();
-  if (!name) { status.textContent = 'Falta el nombre 2027.'; return; }
+  if (!name) { status.textContent = 'Falta el nombre de temporada.'; return; }
   const category = document.getElementById('ts27-category').value || null;
   const CATEGORY_GENDER = { WT:'male',WWT:'female',PT:'male',PRW:'female',CT:'male',CTW:'female',NTM:'male',NTW:'female',CLUBM:'male',CLUBW:'female' };
-  const inner = document.getElementById('ts27-innerCircle-enabled').checked ? _ts27GetColor('innerCircle') : null;
+  const headerBg = _ts27GetColor('headerBg');
+  let translations;
+  try {
+    translations = JSON.parse(document.getElementById('ts27-translations').value || '{}');
+    if (!translations || Array.isArray(translations) || typeof translations !== 'object') throw new Error();
+  } catch {
+    status.textContent = 'Las traducciones deben ser un objeto JSON válido.';
+    return;
+  }
+  const badgeInnerCircle = document.getElementById('ts27-innerCircle-text').value.trim().toLowerCase() || null;
+  if (badgeInnerCircle && !/^#[0-9a-f]{6}$/.test(badgeInnerCircle)) {
+    status.textContent = 'El círculo interior debe usar #RRGGBB o quedar vacío.';
+    return;
+  }
   status.textContent = 'Guardando…';
   try {
     const payload = {
-      id: `${_editingTeamId}_2027`,
-      teamId: _editingTeamId,
-      year: 2027,
       name,
+      nameAliases: document.getElementById('ts27-aliases').value.split('\n').map(s => s.trim()).filter(Boolean).join('\n') || null,
+      uciCode: document.getElementById('ts27-uciCode').value.trim().toUpperCase() || null,
       category,
-      gender: CATEGORY_GENDER[category] || null,
-      headerBg:         _ts27GetColor('headerBg'),
-      headerText:       _ts27GetColor('headerText'),
+      gender: document.getElementById('ts27-gender').value || CATEGORY_GENDER[category] || null,
+      headerBg,
+      headerText:       automaticTeamHeaderText(headerBg),
       badgeTorsoCenter: _ts27GetColor('torsoCenter'),
       badgeTorsoSides:  _ts27GetColor('torsoSides'),
-      badgeInnerCircle: inner,
+      badgeInnerCircle,
       badgeShorts:      _ts27GetColor('shorts'),
+      translations,
       badgeVisible:     document.getElementById('ts27-badgeVisible').checked,
       continuityDoubt:  document.getElementById('ts27-continuityDoubt').checked,
-      updatedAt: new Date().toISOString(),
     };
-    const { error } = await supabase.from('team_seasons').upsert(payload, { onConflict: 'teamId,year' });
+    const { error } = await supabase.rpc('admin_save_team_season', {
+      p_team_id: _editingTeamId, p_year: _editingTeamSeasonYear, p_season: payload,
+    });
     if (error) throw error;
     status.textContent = 'Guardado.';
-    showToast('Temporada 2027 guardada', 'success', 2500);
+    showToast(`Temporada ${_editingTeamSeasonYear} guardada`, 'success', 2500);
+    await fetchTeamSeasonYears({ force: true });
+    await fetchTeamSeasonsForYear(_editingTeamSeasonYear, { force: true });
+    populateTeamsYearSelect();
+    if (_teamsListYear === _editingTeamSeasonYear) renderTeamsList();
     await loadTeamSeason27(_editingTeamId);
-    await _refreshMarketTeamsIfVisible();
+    if (_editingTeamSeasonYear === MARKET_SEASON) await _refreshMarketTeamsIfVisible();
   } catch (err) {
     console.error('[saveTeamSeason27]', err);
     status.textContent = 'Error: ' + (err.message || err);
@@ -11142,7 +11205,7 @@ async function saveTeamSeason27() {
 
 /**
  * Refresca la lista de equipos de la vista Fichajes si está montada — un
- * renombre 2027 o un cambio de chapa/duda debe verse al cerrar el editor.
+ * renombre 2027 o un cambio de colores/duda debe verse al cerrar el editor.
  * No-op fuera de esa vista (el editor de equipo también vive en Equipos).
  */
 async function _refreshMarketTeamsIfVisible() {
@@ -11161,31 +11224,42 @@ async function _refreshMarketTeamsIfVisible() {
 // Reversible: "Guardar temporada 2027" vuelve a crearla.
 async function discontinueTeamSeason27() {
   if (!_editingTeamId) return;
-  const teamName = document.getElementById('ts27-name')?.value.trim() || 'este equipo';
-  if (!await confirmDialog(`¿Marcar que ${teamName} NO continúa en 2027? Se elimina su temporada 2027 y deja de aparecer en Fichajes. (Reversible: guarda la temporada de nuevo para recuperarla.)`, { danger: true })) return;
-  const status = document.getElementById('ts27Status');
-  if (status) status.textContent = 'Eliminando temporada 2027…';
+  if (_editingTeamSeasonYear !== MARKET_SEASON) return;
+  const teamName = document.getElementById('te-name')?.value.trim() || 'este equipo';
+  if (!await confirmDialog(`¿Marcar que ${teamName} NO continúa en ${MARKET_SEASON}? Se elimina solo esa temporada y deja de aparecer en Fichajes.`, { danger: true })) return;
+  const status = document.getElementById('teamSaveStatus');
+  if (status) status.textContent = `Eliminando temporada ${MARKET_SEASON}…`;
   try {
-    const { error } = await supabase.from('team_seasons')
-      .delete().eq('teamId', _editingTeamId).eq('year', 2027);
+    const { error } = await supabase.rpc('admin_delete_team_season', {
+      p_team_id: _editingTeamId, p_year: MARKET_SEASON,
+    });
     if (error) throw error;
-    showToast('Marcado: el equipo no continúa en 2027', 'success', 3000);
-    await loadTeamSeason27(_editingTeamId);
+    showToast(`Marcado: el equipo no continúa en ${MARKET_SEASON}`, 'success', 3000);
+    await fetchTeamSeasonYears({ force: true });
+    await fetchTeamSeasonsForYear(MARKET_SEASON, { force: true });
+    populateTeamsYearSelect();
+    if (_teamsListYear === MARKET_SEASON) renderTeamsList();
     await _refreshMarketTeamsIfVisible();
+    closeTeamEditor();
   } catch (err) {
     console.error('[discontinueTeamSeason27]', err);
     if (status) status.textContent = 'Error: ' + (err.message || err);
   }
 }
 
-// Wiring del panel de temporada 2027 (por apertura del drawer, idempotente por DOM).
+// Wiring del panel de temporada (por apertura del drawer, idempotente por DOM).
 function setupSeason27Panel() {
   const panel = document.getElementById('teamSeason27Panel');
   if (!panel || panel.dataset.wired === '1') return;
   panel.dataset.wired = '1';
   document.getElementById('saveTeamSeason27Btn')?.addEventListener('click', saveTeamSeason27);
   document.getElementById('ts27DiscontinueBtn')?.addEventListener('click', discontinueTeamSeason27);
-  ['headerBg', 'headerText', 'torsoCenter', 'torsoSides', 'innerCircle', 'shorts'].forEach(key => {
+  document.getElementById('ts27-category')?.addEventListener('change', event => {
+    const genders = { WT:'male',WWT:'female',PT:'male',PRW:'female',CT:'male',CTW:'female',NTM:'male',NTW:'female',CLUBM:'male',CLUBW:'female' };
+    if (genders[event.target.value]) document.getElementById('ts27-gender').value = genders[event.target.value];
+    _syncRosterVisibility(_editingTeamId, false, { category: event.target.value || null });
+  });
+  ['headerBg', 'torsoSides', 'torsoCenter', 'shorts'].forEach(key => {
     const color = document.getElementById(`ts27-${key}-color`);
     const text  = document.getElementById(`ts27-${key}-text`);
     if (!color || !text) return;
@@ -11195,17 +11269,100 @@ function setupSeason27Panel() {
       if (/^#[0-9a-fA-F]{6}$/.test(v)) { color.value = v.toLowerCase(); refreshSeason27Preview(); }
     });
   });
-  document.getElementById('ts27-innerCircle-enabled')?.addEventListener('change', refreshSeason27Preview);
+  document.getElementById('ts27-name')?.addEventListener('input', refreshSeason27Preview);
 }
 
 // ═════════════════════════════════════════════════════════════════
 //  VISTA DE CORREDORES
 // ═════════════════════════════════════════════════════════════════
 
+let _ridersViewReady = false;
+let _ridersSearchDebounce = null;
+let _ridersSearchRequest = 0;
+
+async function setupRidersView() {
+  if (_ridersViewReady) return;
+  _ridersViewReady = true;
+
+  const input = document.getElementById('ridersSearch');
+  if (!input) return;
+  document.getElementById('addRiderPanelBtn')?.addEventListener('click', openNewRiderFromRiders);
+  input.addEventListener('input', () => {
+    clearTimeout(_ridersSearchDebounce);
+    _ridersSearchDebounce = setTimeout(() => searchRidersForEditing(input.value), 280);
+  });
+
+  // El editor reutilizado muestra el equipo actual en su selector y los
+  // resultados lo incluyen como contexto para distinguir homónimos.
+  await fetchTeams();
+}
+
+async function searchRidersForEditing(query) {
+  const results = document.getElementById('ridersSearchResults');
+  if (!results) return;
+  const term = (query || '').trim();
+  const requestId = ++_ridersSearchRequest;
+  if (term.length < 3) {
+    results.innerHTML = '';
+    return;
+  }
+
+  const safe = riderSearchLookupToken(term).replace(/[%,()]/g, '');
+  if (safe.length < 2) {
+    results.innerHTML = '';
+    return;
+  }
+
+  results.innerHTML = '<div class="u-fs-085 u-c-dim">Buscando…</div>';
+  const cols = 'id, firstName, lastName, otherNames, nationality, birthDate, currentTeamId, contractUntil, verified, source, identityKey';
+  const filter = `identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
+
+  try {
+    const [menRes, womenRes] = await Promise.all([
+      supabase.from('riders_men').select(cols).or(filter).order('lastName').limit(12),
+      supabase.from('riders_women').select(cols).or(filter).order('lastName').limit(12),
+    ]);
+    if (requestId !== _ridersSearchRequest) return;
+    if (menRes.error) throw menRes.error;
+    if (womenRes.error) throw womenRes.error;
+
+    const rows = [
+      ...(menRes.data || []).map(r => ({ ...r, gender: 'male' })),
+      ...(womenRes.data || []).map(r => ({ ...r, gender: 'female' })),
+    ]
+      .filter(rider => riderMatchesSearch(rider, term))
+      .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
+
+    if (!rows.length) {
+      results.innerHTML = '<div class="u-fs-085 u-c-dim">Sin resultados.</div>';
+      return;
+    }
+
+    results.innerHTML = rows.map((rider, index) => {
+      const team = rider.currentTeamId ? (_teamsCache || []).find(t => t.id === rider.currentTeamId) : null;
+      return panelRiderRowHtml(rider,{index,flagHtml:_slRiderFlagPreview(rider.nationality),teamName:team?.name});
+    }).join('');
+
+    results.querySelectorAll('[data-rider-index]').forEach(button => {
+      button.addEventListener('click', () => {
+        const rider = rows[Number(button.dataset.riderIndex)];
+        if (!rider) return;
+        _ridersGender = rider.gender;
+        _onRiderSavedOnce = null;
+        _ridersAllCache = [rider];
+        openRiderEditor(rider.id, { level: 1, loading: true });
+      });
+    });
+  } catch (err) {
+    if (requestId !== _ridersSearchRequest) return;
+    console.error('[searchRidersForEditing]', err);
+    results.innerHTML = `<div style="color:var(--red);font-size:0.85rem">Error: ${esc(err.message || String(err))}</div>`;
+  }
+}
+
 // Género del corredor sobre el que opera el editor/fusión (riders_men/women).
-// Lo fija openRosterRiderEditor antes de abrir el modal. NO es un "tab activo":
-// la zona Corredores se fusionó en Equipos (los corredores se gestionan desde la
-// plantilla de un equipo).
+// Lo fija la búsqueda, la plantilla o el editor de movimientos antes de abrir
+// la ficha.
 let _ridersGender     = 'male';
 let _editingRiderId   = null;
 let _ridersAllCache   = [];          // ficha(s) en memoria que el editor puede leer
@@ -11227,6 +11384,14 @@ function riderEditorBodyHtml() {
       <label>Sexo</label>
       ${genderToggleHtml({ idMale: 're-gender-male', idFemale: 're-gender-female', labels: { male: 'Masculino', female: 'Femenino' } })}
       <span class="u-fs-sm u-c-dim" style="display:block;margin-top:0.25rem">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
+    </div>
+    <div class="field" id="re-slug-row" style="display:none;margin-bottom:0.75rem">
+      <label>Identificador/slug</label>
+      <div class="u-row" style="gap:0.4rem">
+        <input type="text" id="re-slug" readonly spellcheck="false" autocomplete="off" style="flex:1">
+        <button type="button" class="btn btn--ghost" id="re-slug-edit">Editar slug</button>
+      </div>
+      <span id="re-slug-hint" class="u-fs-sm u-c-dim" style="display:block;margin-top:0.25rem">Cambiar el slug re-vincula startlists, resultados, afiliaciones, transferencias, alias y orden de salida mediante una RPC transaccional. Solo minúsculas, dígitos y guiones.</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
       <div class="field">
@@ -11294,67 +11459,104 @@ function wireRiderEditor() {
     _ridersGender = g;
     setGenderToggleActive('re-gender-male', 're-gender-female', g);
   });
+  // Slug: readonly por defecto; el botón lo habilita y la validación es inline.
+  const slugInput = document.getElementById('re-slug');
+  const slugHint  = document.getElementById('re-slug-hint');
+  const slugHintOk = slugHint.textContent;
+  document.getElementById('re-slug-edit').addEventListener('click', () => {
+    slugInput.readOnly = false;
+    document.getElementById('re-slug-edit').style.display = 'none';
+    slugInput.focus();
+  });
+  slugInput.addEventListener('input', () => {
+    const value = slugInput.value.trim();
+    if (!value || isValidRiderSlug(value)) {
+      slugHint.textContent = slugHintOk;
+      slugHint.style.color = '';
+    } else {
+      slugHint.textContent = 'Slug inválido: solo minúsculas, dígitos y guiones (^[a-z0-9-]+$).';
+      slugHint.style.color = 'var(--red)';
+    }
+  });
 }
 
-// Rellena el desplegable de equipo del editor con TODOS los equipos (puede haber
-// transfers entre géneros o equipos sin gender), preservando la selección actual.
+// El equipo actual admite equipos regulares; las selecciones solo convocan
+// corredores en startlists. Se conserva la búsqueda entre géneros.
 function _populateRiderEditorTeams() {
   const sel = document.getElementById('re-teamId');
   if (!sel) return;
   const prev = sel.value;
-  const allTeamsSorted = (_teamsCache || [])
-    .slice()
+  const allTeamsSorted = activeCatalogTeams(_teamsCache)
+    .filter(t => !t.specialEdition && !isSelectionTeam(t))
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-  sel.innerHTML = '<option value="">— Sin equipo —</option>';
-  for (const t of allTeamsSorted) {
-    sel.innerHTML += `<option value="${esc(t.id)}" ${prev === t.id ? 'selected' : ''}>${esc(t.name)}</option>`;
-  }
+  sel.innerHTML = '<option value="">— Sin equipo —</option>' + allTeamsSorted.map(t =>
+    `<option value="${esc(t.id)}" ${prev === t.id ? 'selected' : ''}>${esc(riderTeamOptionLabel(t))}</option>`
+  ).join('');
 }
 
-function openRiderEditor(riderId, { level = _riderEditorLevel } = {}) {
+function openRiderEditor(riderId, { level = _riderEditorLevel, loading = false } = {}) {
   _riderEditorLevel = level;
   _editingRiderId = riderId;
   const rider = riderId ? _ridersAllCache.find(r => r.id === riderId) : null;
+
+  const renderEditor = (body) => {
+    body.innerHTML = riderEditorBodyHtml();
+    wireRiderEditor();
+
+    document.getElementById('deleteRiderBtn').style.display = rider ? '' : 'none';
+    document.getElementById('mergeRiderBtn').style.display  = rider ? '' : 'none';
+    document.getElementById('riderSaveStatus').textContent  = '';
+
+    // Selector de sexo: solo al CREAR una ficha (al editar, el género lo fija la
+    // tabla de la que vino y NO se cambia aquí). Refleja _ridersGender, que el
+    // llamador ya prefijó (p. ej. por el equipo de origen del movimiento).
+    const genderRow = document.getElementById('re-gender-row');
+    if (genderRow) genderRow.style.display = rider ? 'none' : '';
+    if (!rider) setGenderToggleActive('re-gender-male', 're-gender-female', _ridersGender);
+
+    // Slug: solo al EDITAR; vuelve a readonly y al id actual en cada apertura
+    // (el cuerpo se re-renderiza, así que el aviso inline también se restablece).
+    const slugRow = document.getElementById('re-slug-row');
+    if (slugRow) slugRow.style.display = rider ? '' : 'none';
+    document.getElementById('re-slug').value = rider?.id || '';
+    document.getElementById('re-slug').readOnly = true;
+    document.getElementById('re-slug-edit').style.display = '';
+
+    // Rellenar el desplegable de equipos ANTES de fijar re-teamId.value (necesita
+    // que exista la <option> correspondiente).
+    _populateRiderEditorTeams();
+
+    document.getElementById('re-firstName').value   = rider?.firstName   || '';
+    document.getElementById('re-lastName').value    = rider?.lastName    || '';
+    document.getElementById('re-otherNames').value  = rider?.otherNames  || '';
+    document.getElementById('re-nationality').value = rider?.nationality || '';
+    document.getElementById('re-nationality-flag').innerHTML = _slRiderFlagPreview(rider?.nationality || '');
+    document.getElementById('re-birthDate').value   = rider?.birthDate   || '';
+    document.getElementById('re-teamId').value      = rider?.currentTeamId || '';
+    document.getElementById('re-contractUntil').value = rider?.contractUntil || '';
+    // Verificación: nuevos riders parten como verified=true (los crea el admin).
+    // Editando un existente: muestra su estado real.
+    document.getElementById('re-verified').checked  = rider ? (rider.verified !== false) : true;
+    const srcInfo = document.getElementById('re-source-info');
+    if (rider && rider.source) srcInfo.textContent = `origen: ${rider.source}`;
+    else srcInfo.textContent = '';
+  };
 
   // El alta directa usa el nivel 1; desde un equipo o movimiento se apila en el 2.
   openDrawer({
     title: rider ? 'Editar corredor' : 'Nuevo corredor',
     level,
     render: (body) => {
-      body.innerHTML = riderEditorBodyHtml();
-      wireRiderEditor();
+      if (!loading) {
+        renderEditor(body);
+        return;
+      }
+      body.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando corredor…</div>';
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (body.isConnected) renderEditor(body);
+      }));
     },
   });
-
-  document.getElementById('deleteRiderBtn').style.display = rider ? '' : 'none';
-  document.getElementById('mergeRiderBtn').style.display  = rider ? '' : 'none';
-  document.getElementById('riderSaveStatus').textContent  = '';
-
-  // Selector de sexo: solo al CREAR una ficha (al editar, el género lo fija la
-  // tabla de la que vino y NO se cambia aquí). Refleja _ridersGender, que el
-  // llamador ya prefijó (p. ej. por el equipo de origen del movimiento).
-  const genderRow = document.getElementById('re-gender-row');
-  if (genderRow) genderRow.style.display = rider ? 'none' : '';
-  if (!rider) setGenderToggleActive('re-gender-male', 're-gender-female', _ridersGender);
-
-  // Rellenar el desplegable de equipos ANTES de fijar re-teamId.value (necesita
-  // que exista la <option> correspondiente).
-  _populateRiderEditorTeams();
-
-  document.getElementById('re-firstName').value   = rider?.firstName   || '';
-  document.getElementById('re-lastName').value    = rider?.lastName    || '';
-  document.getElementById('re-otherNames').value  = rider?.otherNames  || '';
-  document.getElementById('re-nationality').value = rider?.nationality || '';
-  document.getElementById('re-nationality-flag').innerHTML = _slRiderFlagPreview(rider?.nationality || '');
-  document.getElementById('re-birthDate').value   = rider?.birthDate   || '';
-  document.getElementById('re-teamId').value      = rider?.currentTeamId || '';
-  document.getElementById('re-contractUntil').value = rider?.contractUntil || '';
-  // Verificación: nuevos riders parten como verified=true (los crea el admin).
-  // Editando un existente: muestra su estado real.
-  document.getElementById('re-verified').checked  = rider ? (rider.verified !== false) : true;
-  const srcInfo = document.getElementById('re-source-info');
-  if (rider && rider.source) srcInfo.textContent = `origen: ${rider.source}`;
-  else srcInfo.textContent = '';
 }
 
 function closeRiderEditor() {
@@ -11362,9 +11564,9 @@ function closeRiderEditor() {
   closeDrawer(_riderEditorLevel);
 }
 
-// Alta independiente desde la cabecera de Equipos. El editor estándar ya
+// Alta independiente desde la cabecera de Corredores. El editor estándar ya
 // incluye sexo y equipo actual, por lo que no necesita una plantilla abierta.
-function openNewRiderFromTeams() {
+function openNewRiderFromRiders() {
   _ridersGender = 'male';
   _onRiderSavedOnce = null;
   _ridersAllCache = [];
@@ -11376,6 +11578,18 @@ async function saveRider() {
   const firstName = document.getElementById('re-firstName').value.trim();
   const lastName  = document.getElementById('re-lastName').value.trim();
   if (!firstName || !lastName) { status.textContent = 'Faltan nombre y/o apellido.'; return; }
+
+  // Invariante del renombrado: el update NUNCA incluye el id; el slug original se
+  // captura aquí y el id solo cambia vía admin_rename_rider (RPC transaccional).
+  const originalId = _editingRiderId;
+  let newSlug = originalId;
+  if (originalId) {
+    newSlug = document.getElementById('re-slug').value.trim() || originalId;
+    if (newSlug !== originalId && !isValidRiderSlug(newSlug)) {
+      status.textContent = 'Slug inválido: solo minúsculas, dígitos y guiones.';
+      return;
+    }
+  }
 
   status.textContent = 'Guardando…';
   const table = _ridersGender === 'male' ? 'riders_men' : 'riders_women';
@@ -11410,7 +11624,7 @@ async function saveRider() {
           const { data: tgtNow } = await supabase.from(table)
             .select('otherNames').eq('id', _editingRiderId).maybeSingle();
           if (tgtNow && tgtNow.otherNames) payload.otherNames = tgtNow.otherNames;
-          // Reintentar el update tras consolidar el duplicado.
+          // Reintentar el update tras consolidar el duplicado (o declarar homónimo).
           const { error: retryErr } = await supabase.from(table).update(payload).eq('id', _editingRiderId);
           if (retryErr) throw retryErr;
         } else {
@@ -11418,18 +11632,51 @@ async function saveRider() {
         }
       }
 
+      // Renombrado de slug: el update anterior conservó el id; el cambio de slug
+      // va por la RPC, que re-vincula startlists, resultados, afiliaciones,
+      // transferencias, alias y orden de salida en una transacción.
+      let currentId = _editingRiderId;
+      let renameError = null;
+      if (newSlug !== currentId) {
+        try {
+          const { data: renameCounts, error: rpcErr } = await supabase.rpc('admin_rename_rider', {
+            p_gender: _ridersGender, p_old_id: currentId, p_new_id: newSlug,
+          });
+          if (rpcErr) throw rpcErr;
+          currentId = newSlug;
+          _editingRiderId = newSlug;
+          _ridersAllCache = _ridersAllCache.map(r => r.id === originalId ? { ...r, id: newSlug } : r);
+          const c = renameCounts || {};
+          showToast(`Slug renombrado: ${c.startlist_riders ?? 0} startlists, ${c.race_uci_results ?? 0} resultados, ${c.rider_team_affiliations ?? 0} afiliaciones, ${c.rider_transfers ?? 0} transferencias, ${c.rider_identity_aliases ?? 0} alias, ${c.start_order_entries ?? 0} órdenes de salida`, 'success', 6000);
+        } catch (e) {
+          console.error('[saveRider] rename falló', e);
+          renameError = e.message || String(e);
+        }
+      }
+
       // P4: propagar a snapshots de startlist_riders para que las apps que
       // todavía leen la tabla original (no la vista resuelta) vean el nombre
       // canónico actualizado. countryCode NO se propaga porque suele ser un
       // override de selección nacional en la startlist (Mundial, JJOO).
+      // Se hace con el id vigente: la RPC ya re-puntó globalRiderId al nuevo.
       try {
         const { error: propErr } = await supabase
           .from('startlist_riders')
           .update({ firstName, lastName })
-          .eq('globalRiderId', _editingRiderId);
+          .eq('globalRiderId', currentId);
         if (propErr) console.warn('[saveRider] snapshot propagation failed', propErr);
       } catch (e) {
         console.warn('[saveRider] snapshot propagation error', e);
+      }
+
+      await _refreshOpenRoster();
+      if (renameError) {
+        // El resto de campos ya está guardado: no se rompe el flujo, pero el
+        // slug queda como estaba y el error se muestra en el status.
+        status.textContent = 'Error: ' + renameError;
+      } else {
+        status.textContent = 'Guardado.';
+        showToast('Corredor guardado', 'success');
       }
     } else {
       // Generar ID slug con el plegado CANÓNICO (fold_name SQL, igual que el
@@ -11463,11 +11710,10 @@ async function saveRider() {
       document.getElementById('mergeRiderBtn').style.display = '';
       const drawer2Title = document.getElementById('ccDrawer2Title');
       if (drawer2Title) drawer2Title.textContent = 'Editar corredor';
+      await _refreshOpenRoster();
+      status.textContent = 'Guardado.';
+      showToast('Corredor guardado', 'success');
     }
-
-    await _refreshOpenRoster();
-    status.textContent = 'Guardado.';
-    showToast('Corredor guardado', 'success');
 
     // Ficha creada desde el editor de un movimiento del mercado: seleccionarla
     // ahí y cerrar este drawer, para no obligar a volver a buscarla.
@@ -11585,10 +11831,12 @@ async function _handleIdentityKeyClash(table, firstName, lastName, payload, stat
 // Renombrar la ficha que se está editando (_editingRiderId) chocó con el índice
 // UNIQUE de identityKey: ya existe OTRA ficha con ese mismo DNI. La ficha que se
 // edita es la buena (verificada por el admin); la otra suele ser un duplicado
-// huérfano. Damos salida: fusionar la OTRA ficha en ESTA (traspasa sus startlists/
-// afiliaciones aquí, deja un alias del DNI viejo para que no se re-cree, y la borra)
-// y devolvemos true para que saveRider() reintente el rename. Devuelve false si el
-// admin cancela o no se pudo localizar/fusionar (status ya informado).
+// huérfano. Salidas: si es la MISMA persona, fusionar la OTRA ficha en ESTA
+// (traspasa sus startlists/afiliaciones aquí, deja un alias del DNI viejo para
+// que no se re-cree, y la borra); si son personas DISTINTAS, declarar homónimo
+// (identityKey = base-añoPropio, que el trigger 075 respeta) y reintentar.
+// Devuelve true para que saveRider() reintente el rename; false si el admin
+// cancela o no se pudo (status ya informado).
 async function _handleRenameIdentityKeyClash(table, firstName, lastName, payload, status) {
   status.textContent = 'Ese nombre ya existe (mismo DNI). Buscando la ficha que choca…';
   const ikey = await _computeIdentityKeyClient(firstName, lastName);
@@ -11613,40 +11861,75 @@ async function _handleRenameIdentityKeyClash(table, firstName, lastName, payload
     `Al renombrar a "${firstName} ${lastName}" choca con una ficha que ya existe ` +
     `con ese mismo DNI:\n\n` +
     `   "${other.firstName} ${other.lastName}"${dob}${teamStr} (id: ${other.id})\n\n` +
-    `Lo más probable es que sea la MISMA persona (un duplicado).\n\n` +
+    `Si es la MISMA persona:\n` +
     `• Aceptar → fusionar esa ficha EN ESTA (sus startlists y afiliaciones pasan ` +
     `a la que estás editando; la duplicada se elimina) y aplicar el cambio de nombre.\n` +
-    `• Cancelar → no hacer nada.`,
+    `• Cancelar → pasar a la opción de homónimo o no hacer nada.`,
     { title: 'Duplicado al renombrar', confirmText: 'Fusionar y renombrar' }
   );
-  if (!ok) {
+
+  if (ok) {
+    status.textContent = 'Fusionando el duplicado…';
+    // La ficha editada es el superviviente; la otra (other) es el perdedor.
+    const target = { id: _editingRiderId, firstName, lastName, otherNames: payload.otherNames };
+    const { ok: mergedOk, error: mergeErr } = await _mergeRidersSilent(other, target, table);
+    if (!mergedOk) {
+      status.textContent = 'No se pudo fusionar el duplicado: ' + (mergeErr || 'error');
+      return false;
+    }
+
+    // Alias del DNI del perdedor → superviviente, para que un volcado futuro por el
+    // nombre largo no vuelva a crear el duplicado (red de seguridad, como en el saneo).
+    try {
+      const gender = table === 'riders_men' ? 'male' : 'female';
+      await supabase.from('rider_identity_aliases').insert({
+        aliasKey: other.identityKey,
+        gender,
+        riderId: _editingRiderId,
+        note: `dup fusionado al renombrar a ${firstName} ${lastName}`,
+      });
+    } catch (e) {
+      console.warn('[rename clash] no se pudo crear alias:', e);
+    }
+
+    return true;
+  }
+
+  // Son personas distintas: declarar homónimo. La clave candidata es base + año
+  // PROPIO (el trigger 075 respeta una identityKey ya sufijada por el año de la
+  // propia ficha). Se comprueba con un SELECT que esté libre antes de fijarla.
+  const wantHomonym = await confirmDialog(
+    `¿"${firstName} ${lastName}" y la ficha que choca son personas DISTINTAS?\n\n` +
+    `Se declarará homónimo: la clave de identidad incluirá el año de nacimiento propio` +
+    (payload.birthDate ? ` (${payload.birthDate.slice(0,4)})` : '') +
+    `, igual que hace el desambiguador del catálogo.`,
+    { title: 'Son personas distintas', confirmText: 'Declarar homónimo' }
+  );
+  if (!wantHomonym) {
     status.textContent = 'Cancelado. No se aplicó el cambio de nombre.';
     return false;
   }
 
-  status.textContent = 'Fusionando el duplicado…';
-  // La ficha editada es el superviviente; la otra (other) es el perdedor.
-  const target = { id: _editingRiderId, firstName, lastName, otherNames: payload.otherNames };
-  const { ok: mergedOk, error: mergeErr } = await _mergeRidersSilent(other, target, table);
-  if (!mergedOk) {
-    status.textContent = 'No se pudo fusionar el duplicado: ' + (mergeErr || 'error');
+  status.textContent = 'Comprobando la clave de homónimo…';
+  const homKey = homonymIdentityKey(ikey, payload.birthDate);
+  let homonymTaken = false;
+  if (homKey) {
+    const { data: takenRows } = await supabase.from(table).select('id')
+      .eq('identityKey', homKey).neq('id', _editingRiderId);
+    homonymTaken = !!(takenRows && takenRows.length);
+  }
+  const plan = planRenameIdentityKeyClash({
+    samePerson: false,
+    baseIdentityKey: ikey,
+    birthDate: payload.birthDate,
+    homonymTaken,
+  });
+  if (plan.action !== 'homonym') {
+    status.textContent = 'No se pudo declarar el homónimo: ' + plan.reason;
     return false;
   }
-
-  // Alias del DNI del perdedor → superviviente, para que un volcado futuro por el
-  // nombre largo no vuelva a crear el duplicado (red de seguridad, como en el saneo).
-  try {
-    const gender = table === 'riders_men' ? 'male' : 'female';
-    await supabase.from('rider_identity_aliases').insert({
-      aliasKey: other.identityKey,
-      gender,
-      riderId: _editingRiderId,
-      note: `dup fusionado al renombrar a ${firstName} ${lastName}`,
-    });
-  } catch (e) {
-    console.warn('[rename clash] no se pudo crear alias:', e);
-  }
-
+  payload.identityKey = plan.identityKey;
+  status.textContent = `Reintentando el guardado como homónimo (${plan.identityKey})…`;
   return true;
 }
 
@@ -12363,7 +12646,8 @@ async function _mergeRidersSilent(source, target, table) {
     //    afiliaciones quedaban colgando (riderId muerto, sin FK que las arrastre) y el
     //    superviviente podía perder la del año. Política "superviviente manda": solo se
     //    traslada una afiliación del perdedor si el superviviente NO tiene ya una del
-    //    mismo (teamId, year). El id de la fila es `riderId__teamId__year`, así que
+    //    mismo (teamId, year, affiliationType). Las pruebas usan UUID; las
+    //    afiliaciones habituales usan `riderId__teamId__year`, así que
     //    trasladar = INSERTAR una fila nueva con el id del superviviente (no basta con
     //    UPDATE de riderId). Luego se borran TODAS las del perdedor (no hay ON DELETE
     //    CASCADE hacia riders_*, así que el DELETE del paso 4 no las limpiaría solo).
@@ -12376,13 +12660,13 @@ async function _mergeRidersSilent(source, target, table) {
     } else if (srcAffs && srcAffs.length) {
       const { data: tgtAffs } = await supabase
         .from('rider_team_affiliations')
-        .select('teamId,year').eq('riderId', target.id).eq('riderGender', gender);
-      const tgtKeys = new Set((tgtAffs || []).map(a => `${a.teamId}__${a.year}`));
+        .select('teamId,year,affiliationType').eq('riderId', target.id).eq('riderGender', gender);
+      const tgtKeys = new Set((tgtAffs || []).map(a => `${a.teamId}__${a.year}__${a.affiliationType}`));
       const toMove = srcAffs
-        .filter(a => !tgtKeys.has(`${a.teamId}__${a.year}`))
+        .filter(a => !tgtKeys.has(`${a.teamId}__${a.year}__${a.affiliationType}`))
         .map(a => ({
           ...a,
-          id: `${target.id}__${a.teamId}__${a.year}`,
+          id: a.affiliationType === 'trainee' ? crypto.randomUUID() : `${target.id}__${a.teamId}__${a.year}`,
           riderId: target.id,
           updatedAt: new Date().toISOString(),
         }));
@@ -12415,12 +12699,18 @@ async function _mergeRidersSilent(source, target, table) {
 const SEND_PUSH_FN = `${SUPABASE_URL}/functions/v1/send-push`;
 let _notificationsInitialized = false;
 let _pushRaceDays = []; // cache de jornadas para la carrera seleccionada
+let _pushCxRaceRequest = 0;
+let _pushSending = false;
 
 // ── Resolver deep link value a partir de los selectores en cascada ──
 function getComposedDeepLink() {
   const type = document.getElementById('push-deepLinkType').value;
   if (!type) return '';
   if (type === 'tab') return document.getElementById('push-deepLinkTab').value || '';
+  if (type === 'cxRace') {
+    const id = document.getElementById('push-deepLinkCxRace').value;
+    return id ? `cxRace/${id}` : '';
+  }
   if (type === 'race') {
     const raceId = document.getElementById('push-deepLinkRace').value;
     return raceId ? `race/${raceId}` : '';
@@ -12451,6 +12741,8 @@ function getComposedDeepLink() {
 // ── Etiqueta legible de un deep link para el historial ──
 function deepLinkDisplayLabel(dl) {
   if (!dl) return '';
+  if (dl.startsWith('cxRace/')) return 'Carrera de ciclocross';
+  if (dl === 'cyclocross') return 'Ciclocross';
   if (dl.startsWith('race/'))       return `Competición`;
   if (dl.startsWith('stage/'))      return `Jornada`;
   if (dl.startsWith('startlist/'))  return `Dorsales`;
@@ -12461,7 +12753,73 @@ function deepLinkDisplayLabel(dl) {
   return tabLabels[dl] || dl;
 }
 
+// ── Separación por área (carretera / ciclocross) ──────────────────
+// La vista de Notificaciones es común a las dos áreas del panel. El formulario
+// y los listados se acotan al área activa, pero el envío reutiliza la misma vía
+// (`send-push`) y las mismas funciones de envío y recuento.
+const PUSH_DEEPLINK_OPTIONS = {
+  common: [['', 'Sin destino específico'], ['tab', 'Pestaña de la app']],
+  road: [
+    ['race', 'Competición'], ['stage', 'Jornada / Etapa'], ['startlist', 'Dorsales'],
+    ['perfil', 'Perfil de etapa'], ['startOrder', 'Orden de salida'],
+    ['transfers', 'Mercado de Fichajes'], ['team', 'Equipo (Mercado de Fichajes)'],
+  ],
+  cx: [['cxRace', 'Carrera de ciclocross']],
+};
+const PUSH_TAB_OPTIONS = {
+  road: [
+    ['today', 'Hoy (agenda del día)'], ['month', 'Mes (calendario mensual)'],
+    ['season', 'Temporada (listado completo)'], ['search', 'Buscar'],
+    ['subscribe', 'Suscripción (calendarios iCal)'], ['notifications', 'Avisos (notificaciones)'],
+  ],
+  cx: [['cyclocross', 'Ciclocross']],
+};
+
+/** Categoría de la vía `send-push` según el área activa del panel. */
+function _pushAreaCategory(area = panelArea()) {
+  return area === 'cx' ? 'cyclocross' : 'general';
+}
+
+/** Ajusta formulario y etiquetas de la vista de Notificaciones al área activa. */
+function applyPushArea(area = panelArea()) {
+  const isCx = area === 'cx';
+  const areaLabel = document.getElementById('pushAreaLabel');
+  if (areaLabel) areaLabel.textContent = isCx ? 'Ciclocross' : 'Carretera';
+  const formLabel = document.getElementById('pushFormLabel');
+  if (formLabel) formLabel.textContent = isCx ? 'Enviar aviso de ciclocross' : 'Enviar anuncio de carretera';
+
+  const typeSelect = document.getElementById('push-deepLinkType');
+  if (typeSelect) {
+    const options = [...PUSH_DEEPLINK_OPTIONS.common, ...(isCx ? PUSH_DEEPLINK_OPTIONS.cx : PUSH_DEEPLINK_OPTIONS.road)];
+    typeSelect.innerHTML = options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
+    typeSelect.value = '';
+  }
+  const tabSelect = document.getElementById('push-deepLinkTab');
+  if (tabSelect) {
+    const options = isCx ? PUSH_TAB_OPTIONS.cx : PUSH_TAB_OPTIONS.road;
+    tabSelect.innerHTML = options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
+  }
+
+  ++_pushCxRaceRequest;
+  ['push-tabSelector', 'push-cxRaceSelector', 'push-raceSelector', 'push-stageSelector', 'push-startlistSelector', 'push-teamSelector']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+  try {
+    const target = getPushAudienceTarget();
+    _setPushAudience(target.category === 'cyclocross' ? cxPushAudienceLabel(target.cxRaceId) : '');
+  } catch (error) { _setPushAudience(error.message); }
+}
+
+// La audiencia solo se muestra en ciclocross o ante un error; en carretera queda oculta.
+function _setPushAudience(text) {
+  const audience = document.getElementById('pushAudience');
+  if (!audience) return;
+  audience.textContent = text;
+  audience.hidden = !text;
+}
+
 async function setupNotificationsView() {
+  applyPushArea();
   if (_notificationsInitialized) {
     loadPushHistory();
     loadScheduledNotifications();
@@ -12507,11 +12865,18 @@ async function setupNotificationsView() {
     } else {
       bigPreview.style.display = 'none';
     }
+    try {
+      const target = getPushAudienceTarget();
+      _setPushAudience(target.category === 'cyclocross' ? cxPushAudienceLabel(target.cxRaceId) : '');
+    } catch (error) { _setPushAudience(error.message); }
   }
 
   titleInput.addEventListener('input', updatePreview);
   subtitleInput.addEventListener('input', updatePreview);
   imageInput.addEventListener('input', updatePreview);
+  ['push-deepLinkType', 'push-deepLinkTab', 'push-deepLinkCxRace'].forEach(id =>
+    document.getElementById(id).addEventListener('change', updatePreview));
+  updatePreview();
 
   // ── Selector de deep link en cascada ──────────────────────────
   const typeSelect  = document.getElementById('push-deepLinkType');
@@ -12523,7 +12888,33 @@ async function setupNotificationsView() {
   const raceSearch  = document.getElementById('push-raceSearch');
   const teamSelect  = document.getElementById('push-deepLinkTeam');
   const teamSearch  = document.getElementById('push-teamSearch');
+  const cxRaceSelect = document.getElementById('push-deepLinkCxRace');
+  const cxRaceRetry = document.getElementById('push-cx-retry');
   let pushMarketTeams = [];
+
+  async function populatePushCxRaceList() {
+    const request = ++_pushCxRaceRequest;
+    const isCurrent = () => request === _pushCxRaceRequest && typeSelect.value === 'cxRace';
+    cxRaceSelect.value = '';
+    cxRaceSelect.innerHTML = '<option value="">Cargando carreras CX…</option>';
+    cxRaceSelect.disabled = true;
+    cxRaceRetry.style.display = 'none';
+    updatePreview();
+    try {
+      await fillCxRaceSelect(supabase, cxRaceSelect, '', { isCurrent });
+    } catch (error) {
+      if (isCurrent()) {
+        cxRaceSelect.innerHTML = '<option value="">No se han podido cargar las carreras CX</option>';
+        cxRaceRetry.style.display = '';
+        showToast(error.message, 'error');
+      }
+    } finally {
+      if (isCurrent()) { cxRaceSelect.disabled = false; updatePreview(); }
+    }
+  }
+  cxRaceRetry.addEventListener('click', () => {
+    if (typeSelect.value === 'cxRace' && !_pushSending) void populatePushCxRaceList();
+  });
 
   function populatePushRaceList(query) {
     const q = (query || '').toLowerCase();
@@ -12564,6 +12955,9 @@ async function setupNotificationsView() {
   const STAGE_LIKE = ['stage', 'perfil', 'startOrder'];
   typeSelect.addEventListener('change', () => {
     const t = typeSelect.value;
+    ++_pushCxRaceRequest;
+    document.getElementById('push-cxRaceSelector').style.display = t === 'cxRace' ? '' : 'none';
+    if (t === 'cxRace') void populatePushCxRaceList();
     const stageLike = STAGE_LIKE.includes(t);
     tabSel.style.display   = t === 'tab' ? '' : 'none';
     raceSel.style.display  = (t === 'race' || stageLike) ? '' : 'none';
@@ -12775,10 +13169,18 @@ async function _loadPushDebugDevices() {
 }
 
 function _clearPushForm() {
+  ++_pushCxRaceRequest;
+  const cxRaceSelect = document.getElementById('push-deepLinkCxRace');
+  cxRaceSelect.innerHTML = '<option value="">Seleccionar carrera CX</option>';
+  cxRaceSelect.value = '';
+  cxRaceSelect.disabled = false;
+  document.getElementById('push-cx-retry').style.display = 'none';
   document.getElementById('push-title').value = '';
   document.getElementById('push-subtitle').value = '';
   document.getElementById('push-imageUrl').value = '';
   document.getElementById('push-deepLinkType').value = '';
+  document.getElementById('push-cxRaceSelector').style.display = 'none';
+  _setPushAudience(panelArea() === 'cx' ? cxPushAudienceLabel() : '');
   document.getElementById('push-tabSelector').style.display = 'none';
   document.getElementById('push-raceSelector').style.display = 'none';
   document.getElementById('push-stageSelector').style.display = 'none';
@@ -12832,15 +13234,45 @@ function pushPlatformsLabel(platforms) {
   return platforms.map(pushPlatformLabel).join(', ');
 }
 
+function getPushAudienceTarget() {
+  const type = document.getElementById('push-deepLinkType').value;
+  if (type === 'cxRace' &&
+      document.getElementById('push-deepLinkCxRace').disabled) throw new Error('Espera a que se carguen las carreras de ciclocross.');
+  if (type === 'cxRace' &&
+      !document.getElementById('push-deepLinkCxRace').value) throw new Error('Selecciona una carrera de ciclocross antes de enviar.');
+  return resolveCxPushTarget({ category: _pushAreaCategory(), deepLink: getComposedDeepLink() });
+}
+
 async function sendPushNotification() {
+  if (_pushSending) return;
+  const errorDiv = document.getElementById('pushSendError');
+  let target;
+  try { target = getPushAudienceTarget(); }
+  catch (error) { errorDiv.textContent = error.message; errorDiv.style.display = 'block'; return; }
+  _pushSending = true;
+  const btn = document.getElementById('sendPushBtn');
+  const status = document.getElementById('pushSendStatus');
+  const controls = [...btn.closest('.panel-card').querySelectorAll('input,select,textarea,button')]
+    .map(node => ({ node, disabled: node.disabled }));
+  controls.forEach(({ node }) => { node.disabled = true; });
+  status.textContent = 'Preparando…';
+  try { await _sendPushNotification(target); }
+  catch (error) {
+    errorDiv.textContent = String(error?.message || error);
+    errorDiv.style.display = 'block';
+    status.textContent = '';
+  }
+  finally {
+    controls.forEach(({ node, disabled }) => { node.disabled = disabled; });
+    if (status.textContent === 'Preparando…') status.textContent = '';
+    _pushSending = false;
+  }
+}
+
+async function _sendPushNotification(target) {
   const title    = document.getElementById('push-title').value.trim();
   const subtitle = document.getElementById('push-subtitle').value.trim();
   const imageUrl = document.getElementById('push-imageUrl').value.trim();
-  const deepLink = getComposedDeepLink();
-  // El panel manual siempre envía categoría 'general'. Las categorías
-  // Premium (race_start, tv_start, results) las genera el cron
-  // auto_dispatch_premium_pushes automáticamente desde race_days/broadcasts.
-  const category = 'general';
   const targetPlatforms = _getSelectedTargetPlatforms();
   const debugToken = document.getElementById('push-debug-token')?.value?.trim() || '';
   const errorDiv = document.getElementById('pushSendError');
@@ -12849,6 +13281,8 @@ async function sendPushNotification() {
   const isScheduled = document.getElementById('push-schedule-toggle')?.checked;
 
   errorDiv.style.display = 'none';
+  const { category, deepLink, cxRaceId } = target;
+  const audienceInfo = category === 'cyclocross' ? `\nPúblico: ${cxPushAudienceLabel(cxRaceId)}` : '';
   if (!title) {
     errorDiv.textContent = 'El título es obligatorio.';
     errorDiv.style.display = 'block';
@@ -12881,7 +13315,7 @@ async function sendPushNotification() {
       hour: '2-digit', minute: '2-digit',
     });
     const deepLinkInfo = deepLink ? `\nDestino: ${deepLinkDisplayLabel(deepLink)} (${deepLink})` : '';
-    if (!await confirmDialog(`¿Programar notificación para el ${dateStr}?\n\nTítulo: ${title}\n${subtitle ? `Subtítulo: ${subtitle}\n` : ''}${deepLinkInfo}`, { title: 'Programar notificación', confirmText: 'Programar' })) {
+    if (!await confirmDialog(`¿Programar notificación para el ${dateStr}?\n\nTítulo: ${title}\n${subtitle ? `Subtítulo: ${subtitle}\n` : ''}${deepLinkInfo}${audienceInfo}`, { title: 'Programar notificación', confirmText: 'Programar' })) {
       return;
     }
 
@@ -12898,6 +13332,7 @@ async function sendPushNotification() {
           imageUrl:        imageUrl    || undefined,
           deepLink:        deepLink    || undefined,
           category,
+          cxRaceId,
           targetPlatforms: targetPlatforms,
           scheduledAt:     scheduledDate.toISOString(),
         }),
@@ -12929,13 +13364,18 @@ async function sendPushNotification() {
       return;
     }
   } else {
-    let countQuery = supabase.from('push_subscriptions').select('*', { count: 'exact', head: true }).eq('isActive', true);
+    let countQuery = category === 'cyclocross'
+      ? cxPushSubscriberQuery(supabase, { cxRaceId }, { count: 'exact', head: true })
+      : supabase.from('push_subscriptions').select('deviceToken,push_subscription_categories!inner(category)', { count: 'exact', head: true })
+        .eq('isActive', true).eq('push_subscription_categories.category', 'general');
     if (targetPlatforms?.length > 0) countQuery = countQuery.in('platform', targetPlatforms);
-    const { count: filteredCount } = await countQuery;
+    const { count: filteredCount, error: countError } = await countQuery;
+    if (countError) { errorDiv.textContent = `No se pudo comprobar el público: ${countError.message}`; errorDiv.style.display = 'block'; return; }
     const n = filteredCount ?? 0;
     const subscriberText = `${n} dispositivo${n !== 1 ? 's' : ''} suscrito${n !== 1 ? 's' : ''}`;
     const platformInfo = targetPlatforms?.length > 0 ? ` (solo ${targetPlatforms.map(pushPlatformLabel).join(', ')})` : '';
-    if (!await confirmDialog(`¿Enviar notificación a todos los suscriptores?\n\nTítulo: ${title}\n${subtitle ? `Subtítulo: ${subtitle}\n` : ''}${subscriberText}${platformInfo}${deepLinkInfo}`, { title: 'Enviar a todos', confirmText: 'Enviar' })) {
+    const audienceTitle = category === 'cyclocross' ? 'Enviar aviso de ciclocross' : 'Enviar a todos';
+    if (!await confirmDialog(`¿Enviar notificación al público indicado?\n\nTítulo: ${title}\n${subtitle ? `Subtítulo: ${subtitle}\n` : ''}${subscriberText}${platformInfo}${deepLinkInfo}${audienceInfo}`, { title: audienceTitle, confirmText: 'Enviar' })) {
       return;
     }
   }
@@ -12954,6 +13394,7 @@ async function sendPushNotification() {
         imageUrl:        imageUrl || undefined,
         deepLink:        deepLink || undefined,
         category,
+        cxRaceId,
         targetPlatforms: debugToken ? undefined : targetPlatforms,
         targetToken:     debugToken || undefined,
       }),
@@ -13000,15 +13441,13 @@ async function loadScheduledNotifications() {
   const container = document.getElementById('pushScheduledList');
   if (!container) return;
   try {
-    // Solo mostramos las creadas a mano desde el panel (category='general').
-    // Las Premium (race_start, tv_start, results) las genera el cron
-    // auto_dispatch_premium_pushes y se gestionan automáticamente —
-    // mostrarlas aquí saturaría el listado con cientos de filas por carrera.
+    // Acotado al área activa: carretera → anuncios generales; ciclocross →
+    // avisos CX. Las categorías automáticas de carretera se gestionan fuera.
     const { data, error } = await supabase
       .from('scheduled_push_notifications')
       .select('*')
       .in('status', ['pending', 'processing', 'failed', 'cancelled'])
-      .eq('category', 'general')
+      .eq('category', _pushAreaCategory())
       .order('scheduledAt', { ascending: true })
       .limit(30);
     if (error) throw error;
@@ -13062,6 +13501,7 @@ async function loadScheduledNotifications() {
           </div>
           ${n.subtitle ? `<div class="u-fs-md u-c-muted">${esc(n.subtitle)}</div>` : ''}
           <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.2rem">${scheduledDate}${dlLabel}</div>
+          ${n.category === 'cyclocross' ? `<div class="u-fs-md u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
           ${errorNote}
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
@@ -13085,6 +13525,9 @@ async function sendScheduledNotificationNow(id) {
       .single();
     if (fetchError) throw fetchError;
     if (!notification) throw new Error('Notificación no encontrada');
+    const target = resolveCxPushTarget({ category: notification.category || 'general', deepLink: notification.deepLink,
+      cxRaceId: notification.cxRaceId, raceId: notification.raceId, raceDayId: notification.raceDayId });
+    if (target.category === 'cyclocross' && !await confirmDialog(`¿Enviar ahora este aviso?\n\n${notification.title}\n${cxPushAudienceLabel(target.cxRaceId)}`, { title: 'Enviar aviso de ciclocross', confirmText: 'Enviar' })) return;
 
     // Invocar send-push como envío inmediato. Propaga targetRegions
     // de la fila programada para mantener el targeting elegido al crearla.
@@ -13096,14 +13539,17 @@ async function sendScheduledNotificationNow(id) {
         title: notification.title,
         subtitle: notification.subtitle || undefined,
         imageUrl: notification.imageUrl || undefined,
-        deepLink: notification.deepLink || undefined,
-        category: notification.category || 'general',
+        deepLink: target.deepLink || undefined,
+        category: target.category,
+        cxRaceId: target.cxRaceId,
         targetRegions: Array.isArray(notification.targetRegions) && notification.targetRegions.length > 0
           ? notification.targetRegions
           : undefined,
         targetPlatforms: Array.isArray(notification.targetPlatforms) && notification.targetPlatforms.length > 0
           ? notification.targetPlatforms
           : undefined,
+        targetCountryGroups: notification.targetCountryGroups?.length ? notification.targetCountryGroups : undefined,
+        targetLanguages: notification.targetLanguages?.length ? notification.targetLanguages : undefined,
       }),
     });
     const result = await res.json();
@@ -13117,6 +13563,8 @@ async function sendScheduledNotificationNow(id) {
         status: 'sent',
         sentAt: now,
         recipientCount: result.sent,
+        category: target.category,
+        cxRaceId: target.cxRaceId ?? null,
       })
       .eq('id', id);
     if (updateError) throw updateError;
@@ -13154,13 +13602,11 @@ async function cancelScheduledNotification(id) {
 async function loadPushHistory() {
   const container = document.getElementById('pushHistoryList');
   try {
-    // Solo historial de envíos manuales (category='general'). Las
-    // Premium (race_start/tv_start/results) son automáticas y generan
-    // demasiados registros para revisarlas aquí.
+    // Historial del área activa; excluye las categorías automáticas de carretera.
     const { data, error } = await supabase
       .from('push_notifications')
       .select('*')
-      .eq('category', 'general')
+      .eq('category', _pushAreaCategory())
       .order('sentAt', { ascending: false })
       .limit(20);
     if (error) throw error;
@@ -13183,6 +13629,7 @@ async function loadPushHistory() {
         <div class="u-grow u-min0">
           <div style="font-weight:600;font-size:0.85rem">${esc(n.title)}${platformsBadge}</div>
           ${n.subtitle ? `<div class="u-fs-md u-c-muted">${esc(n.subtitle)}</div>` : ''}
+          ${n.category === 'cyclocross' ? `<div class="u-fs-md u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
           <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.25rem">${date} · ${n.recipientCount} destinatarios${dlLabel}</div>
         </div>
       </div>`;
@@ -13195,13 +13642,12 @@ async function loadPushHistory() {
 async function loadSubscriberCount() {
   const el = document.getElementById('pushSubscriberCount');
   try {
-    const { count, error } = await supabase
-      .from('push_subscriptions')
-      .select('*', { count: 'exact', head: true })
+    const { count, error } = await supabase.from('push_subscriptions')
+      .select('deviceToken', { count: 'exact', head: true })
       .eq('isActive', true);
     if (error) throw error;
     const n = count ?? 0;
-    el.textContent = `${n} dispositivo${n !== 1 ? 's' : ''} suscrito${n !== 1 ? 's' : ''}`;
+    el.textContent = `${n} dispositivo${n !== 1 ? 's' : ''}`;
   } catch {
     el.textContent = '';
   }
@@ -13289,7 +13735,7 @@ function _getOrCreateJerseyOverlay() {
           <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-dim);font-weight:700">Colores detectados — revisa y ajusta</div>
           <div style="display:grid;grid-template-columns:120px 1fr;gap:1rem;align-items:start">
             <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:sticky;top:0">
-              <div id="jerseyBadgePreview" style="width:100px;height:100px;display:flex;align-items:center;justify-content:center"></div>
+              <div id="jerseyColorsSwatches" style="display:flex;gap:0.35rem"><i style="width:24px;height:24px"></i><i style="width:24px;height:24px"></i><i style="width:24px;height:24px"></i></div>
               <div id="jerseyHeaderPreview" style="width:100%;text-align:center;padding:0.35rem 0.4rem;border-radius:5px;font-family:var(--font-display);font-weight:700;font-size:0.75rem;letter-spacing:0.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cabecera</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:0.45rem">
@@ -13297,19 +13743,6 @@ function _getOrCreateJerseyOverlay() {
               ${_jerseyColorFieldHtml('headerText',  'Texto cabecera')}
               ${_jerseyColorFieldHtml('torsoCenter', 'Central torso')}
               ${_jerseyColorFieldHtml('torsoSides',  'Laterales')}
-              <div style="display:flex;flex-direction:column;gap:0.2rem">
-                <label style="font-size:0.76rem;color:var(--text-dim);display:flex;align-items:center;gap:0.4rem">
-                  Círculo interior
-                  <label style="display:inline-flex;align-items:center;gap:0.25rem;font-weight:400;cursor:pointer">
-                    <input type="checkbox" id="jd-innerCircle-enabled">
-                    <span style="font-size:0.7rem;color:var(--text-dim)">activar</span>
-                  </label>
-                </label>
-                <div style="display:flex;gap:0.35rem;align-items:center">
-                  <input type="color" id="jd-innerCircle-color" style="width:34px;height:30px;padding:2px;border:1px solid var(--border);background:var(--bg);border-radius:4px;cursor:pointer">
-                  <input type="text" id="jd-innerCircle-text" value="#FFD700" maxlength="7" style="flex:1;font-family:monospace;font-size:0.82rem;text-transform:uppercase;padding:0.28rem 0.4rem;border:1px solid var(--border);background:var(--bg);border-radius:4px;color:var(--text)">
-                </div>
-              </div>
               ${_jerseyColorFieldHtml('shorts', 'Culotte')}
             </div>
           </div>
@@ -13345,7 +13778,7 @@ function _getOrCreateJerseyOverlay() {
     if (file) jerseyHandleFile(file);
   });
 
-  const allKeys = ['headerBg', 'headerText', 'torsoCenter', 'torsoSides', 'innerCircle', 'shorts'];
+  const allKeys = ['headerBg', 'headerText', 'torsoCenter', 'torsoSides', 'shorts'];
   allKeys.forEach(key => {
     const colorEl = ov.querySelector(`#jd-${key}-color`);
     const textEl  = ov.querySelector(`#jd-${key}-text`);
@@ -13356,7 +13789,6 @@ function _getOrCreateJerseyOverlay() {
       if (/^#[0-9a-fA-F]{6}$/.test(v)) { colorEl.value = v.toLowerCase(); refreshJerseyPreview(); }
     });
   });
-  ov.querySelector('#jd-innerCircle-enabled').addEventListener('change', refreshJerseyPreview);
 
   return ov;
 }
@@ -13422,14 +13854,6 @@ function _jerseyApplyColors(raw) {
   setVal('torsoSides',  colors.badgeTorsoSides);
   setVal('shorts',      colors.badgeShorts);
 
-  const innerEnabled = ov.querySelector('#jd-innerCircle-enabled');
-  if (colors.badgeInnerCircle) {
-    innerEnabled.checked = true;
-    setVal('innerCircle', colors.badgeInnerCircle);
-  } else {
-    innerEnabled.checked = false;
-  }
-
   ov.querySelector('#jerseyColorsPreview').style.display = 'flex';
   ov.querySelector('#jerseyColorsPreview').style.flexDirection = 'column';
   ov.querySelector('#jerseyDetectorSaveBtn').style.display = '';
@@ -13441,7 +13865,6 @@ function refreshJerseyPreview() {
   const ov = document.getElementById('jerseyDetectorOverlay');
   if (!ov) return;
   const get = key => (ov.querySelector(`#jd-${key}-text`)?.value || '').trim().toLowerCase();
-  const innerEnabled = ov.querySelector('#jd-innerCircle-enabled')?.checked;
 
   const team = {
     name:             _jerseyDetectorState?.teamName || '',
@@ -13450,11 +13873,13 @@ function refreshJerseyPreview() {
     badgeTorsoCenter: get('torsoCenter'),
     badgeTorsoSides:  get('torsoSides'),
     badgeShorts:      get('shorts'),
-    badgeInnerCircle: innerEnabled ? get('innerCircle') : null,
+    badgeInnerCircle: null,
   };
 
-  const badgeEl = ov.querySelector('#jerseyBadgePreview');
-  if (badgeEl) badgeEl.innerHTML = buildTeamBadgeSvg(team, { size: 100 });
+  const colors = [team.badgeTorsoSides, team.badgeTorsoCenter, team.badgeShorts];
+  ov.querySelectorAll('#jerseyColorsSwatches i').forEach((square, index) => {
+    square.style.background = colors[index];
+  });
 
   const hdrEl = ov.querySelector('#jerseyHeaderPreview');
   if (hdrEl) {
@@ -13468,14 +13893,13 @@ function _jerseyReadColors() {
   const ov = document.getElementById('jerseyDetectorOverlay');
   if (!ov) return null;
   const get = key => (ov.querySelector(`#jd-${key}-text`)?.value || '').trim().toLowerCase();
-  const innerEnabled = ov.querySelector('#jd-innerCircle-enabled')?.checked;
   return {
     headerBg:         get('headerBg'),
     headerText:       get('headerText'),
     badgeTorsoCenter: get('torsoCenter'),
     badgeTorsoSides:  get('torsoSides'),
     badgeShorts:      get('shorts'),
-    badgeInnerCircle: innerEnabled ? get('innerCircle') : null,
+    badgeInnerCircle: null,
   };
 }
 
@@ -13537,35 +13961,26 @@ async function saveJerseyColors() {
   }
 }
 
-// ── Paso 3: buscar apariciones en listas enriquecidas ────────────
+// ── Paso 3: buscar apariciones en listas de inscritos ────────────
 
 async function _jerseyCheckStartlistMatches(team) {
   if (!team) return [];
 
-  // Fetch enriched races (use allRaces if already loaded, otherwise query)
-  let enrichedRaces;
-  if (Array.isArray(allRaces) && allRaces.length > 0) {
-    enrichedRaces = allRaces.filter(r => r.enrichedStartlist);
-  } else {
-    const { data, error } = await supabase
-      .from('races').select('id, name, year, gender').eq('enrichedStartlist', true);
-    if (error) { console.error('[jerseyAssoc] races fetch', error); return []; }
-    enrichedRaces = data || [];
-  }
-  if (enrichedRaces.length === 0) return [];
-
-  const raceById = {};
-  enrichedRaces.forEach(r => { raceById[r.id] = r; });
-  const enrichedIds = enrichedRaces.map(r => r.id);
-
-  // Fetch unmatched teams in those races
-  const { data: unmatched, error: stErr } = await supabase
+  // Buscar primero las filas pendientes; no descargar el calendario completo.
+  const unmatched = await loadCompleteStartlistCatalog((from, to, count) => supabase
     .from('startlist_teams')
-    .select('id, teamName, raceId')
-    .is('teamId', null)
-    .in('raceId', enrichedIds);
-  if (stErr) { console.error('[jerseyAssoc] startlist_teams fetch', stErr); return []; }
-  if (!unmatched?.length) return [];
+    .select('id, teamName, raceId', count ? { count: 'exact' } : {})
+    .is('teamId', null).order('id').range(from, to));
+  if (!unmatched.length) return [];
+  const raceIds = [...new Set(unmatched.map(st => st.raceId))];
+  const races = [];
+  for (let i = 0; i < raceIds.length; i += 100) {
+    const { data, error } = await supabase.from('races')
+      .select('id, name, year, gender').in('id', raceIds.slice(i, i + 100));
+    if (error) throw error;
+    races.push(...(data || []));
+  }
+  const raceById = Object.fromEntries(races.map(r => [r.id, r]));
 
   const teamGender = team.gender || null;
 
@@ -13728,9 +14143,10 @@ async function confirmJerseyStartlistLinks() {
 
 let _highlightsViewReady = false;
 let _highlightsCache = null;
+let _highlightsScope = null;               // scope ('road'|'cx') de `_highlightsCache`
 let _highlightRaceDaysCache = {};         // raceId → race_days[] (lazy, para el editor)
 let _highlightRaceDaysByIdCache = {};     // raceDayId → race_day (bulk, para la lista)
-let _editingHighlightId = null;
+let _highlightEditor = null;
 let _hlSelectedRace = null;
 let _hlRaceSearchDebounce = null;
 
@@ -13774,13 +14190,16 @@ function _fmtVisibilityInstant(iso) {
 }
 
 async function fetchHighlights({ force = false } = {}) {
-  if (_highlightsCache && !force) return _highlightsCache;
+  const scope = panelArea();
+  if (_highlightsCache && !force && _highlightsScope === scope) return _highlightsCache;
   const { data, error } = await supabase
     .from('today_highlights')
     .select('*')
+    .eq('scope', scope)
     .order('position', { ascending: true });
   if (error) { console.error('[highlights] fetch', error); return []; }
   _highlightsCache = data || [];
+  _highlightsScope = scope;
   return _highlightsCache;
 }
 
@@ -13853,7 +14272,10 @@ async function setupFichajesView() {
     const seasonEl = document.getElementById('fichajesSeason');
     if (seasonEl) seasonEl.textContent = `· temporada ${MARKET_SEASON}`;
   }
-  await fetchTeams();
+  // Fichajes combina `teams` con `team_seasons`. Forzar ambas lecturas evita
+  // que un equipo recién creado aparezca en la lista 2027 pero falte en los
+  // selectores por conservar un `_teamsCache` anterior de otra sección.
+  await fetchTeams({ force: true });
   await loadTransfers();
   renderMarketTeams();
 }
@@ -13861,9 +14283,9 @@ async function setupFichajesView() {
 // ── Lista de equipos de la temporada del mercado ──────────────────
 // Espejo de la lista pública de /fichajes/: 4 divisiones, orden alfabético.
 // Es el atajo para renombrar un equipo 2027 (sponsor nuevo), moverlo de
-// división, activar su chapa o marcar su continuidad en duda sin salir a la
+// división, publicar sus colores o marcar su continuidad en duda sin salir a la
 // vista Equipos.
-const MARKET_DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
+const MARKET_DIVISIONS = MARKET_DESTINATION_DIVISIONS;
 
 function renderMarketTeams() {
   const btns = document.getElementById('marketDivBtns');
@@ -13897,14 +14319,14 @@ function renderMarketTeams() {
     // señal de un renombre de sponsor ya registrado.
     const prev = _trTeamNamePrev.get(s.teamId);
     const renamed = prev && prev !== s.name;
-    // Chapa que se verá en Fichajes: colores 2027 publicados / colores antiguos
+    // Colores que se verán en Fichajes: paleta 2027 publicada / paleta anterior
     // (equipo que ya existía en la temporada previa) / vacío (equipo nuevo, sin
     // kit antiguo que enseñar). `prev` truthy = hay fila team_seasons previa.
     const badgeChip = s.badgeVisible
       ? chip(`Colores ${MARKET_SEASON}`, 'var(--accent)')
       : prev
         ? chip(`Colores ${MARKET_PREV_SEASON}`, '#6b7280')
-        : chip('Nuevo · sin chapa', '#9ca3af');
+        : chip('Nuevo · sin colores', '#9ca3af');
     return `
       <div class="market-team-row" data-team="${esc(s.teamId)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.65rem;background:var(--bg-card);border:1px solid ${s.continuityDoubt ? '#8b5cf6' : 'var(--border)'};border-radius:6px;cursor:pointer">
         <span style="flex:1;min-width:0;font-size:0.85rem"><strong>${esc(s.name || s.teamId)}</strong>
@@ -13930,19 +14352,16 @@ function renderMarketTeams() {
  * caso de uso normal desde aquí es un renombre de sponsor).
  */
 async function openTeamEditorForSeason(teamId) {
-  await fetchTeams();
-  openTeamEditor(teamId);
-  // El panel de temporada lo puebla loadTeamSeason27 de forma asíncrona.
+  await Promise.all([fetchTeams(), fetchTeamSeasonsForYear(MARKET_SEASON)]);
+  openTeamEditor(teamId, { seasonYear: MARKET_SEASON });
   setTimeout(() => {
-    const panel = document.getElementById('teamSeason27Panel');
-    panel?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    document.getElementById('ts27-name')?.focus();
+    document.getElementById('te-name')?.focus();
   }, 260);
 }
 
 // Equipo NUEVO para el mercado (nace en 2027, aún no existe en el catálogo):
 // reutiliza el editor de equipo estándar — al guardar la identidad aparece el
-// panel "Temporada 2027", donde se fija nombre/categoría 2027 y la chapa.
+// panel "Temporada 2027", donde se fijan nombre, categoría y colores de 2027.
 // Un equipo sin startlists 2026 no aparece en ninguna superficie pública del
 // año en curso, así que crear la identidad ahora es inocuo.
 async function openTeamEditorForMarket() {
@@ -13950,7 +14369,7 @@ async function openTeamEditorForMarket() {
   openTeamEditor(null);
   // Nace en la temporada del mercado → firstSeason en el INSERT (mig. 129): el
   // trigger no le estampará una temporada del año en curso, así que NO tendrá
-  // colores "antiguos" y el mercado lo dejará vacío hasta publicar la chapa.
+  // colores anteriores y el mercado lo dejará vacío hasta publicar los nuevos.
   _newTeamMarketBorn = true;
   const status = document.getElementById('teamSaveStatus');
   if (status) status.textContent = `Equipo nuevo para el mercado ${MARKET_SEASON}: guarda la identidad (nombre + categoría) y rellena después el panel «Temporada ${MARKET_SEASON}».`;
@@ -14108,6 +14527,7 @@ async function _tseFetchRoster(teamId, gender) {
 async function _tseFetchAffiliations(teamId) {
   const { data, error } = await supabase.from('rider_team_affiliations')
     .select('id, riderId, riderGender, teamId, year, dateFrom, dateTo')
+    .eq('affiliationType', 'regular')
     .eq('year', MARKET_SEASON)
     .eq('teamId', teamId);
   if (error) throw error;
@@ -14137,7 +14557,7 @@ function _tseRenderEditor(body, { teamName, teamCat }) {
           <div style="font-size:1rem;font-weight:700">${esc(teamName)}</div>
           <div class="u-fs-xs u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
         </div>
-        <button class="btn btn--ghost" id="tse-edit-identity" style="padding:0.3rem 0.7rem;font-size:0.75rem" title="Renombre de sponsor, chapa 2027, continuidad en duda…">Editar identidad 2027</button>
+        <button class="btn btn--ghost" id="tse-edit-identity" style="padding:0.3rem 0.7rem;font-size:0.75rem" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
       </div>
 
       <div class="u-stack u-stack--xs">
@@ -14251,15 +14671,14 @@ function _tseRenderRiderExtra(s) {
     </div>`;
   } else if (s.state === 'change') {
     // El destino de un fichaje es la temporada del MERCADO → nombre/categoría de
-    // team_seasons[2027] (con el que va a correr), con fallback al catálogo para
-    // equipos sin fila 2027.
-    const seasonById = new Map((_marketSeasons || []).map(x => [x.teamId, x]));
-    const teams = (_teamsCache || [])
-      .filter(t => !t.specialEdition && t.id !== _tseTeamId && (!s.rider.gender || !t.gender || t.gender === s.rider.gender))
-      .map(t => {
-        const s27 = seasonById.get(t.id);
-        return { id: t.id, name: (s27?.name || _trTeamNameById.get(t.id) || t.name), category: (s27?.category || t.category) };
-      })
+    // team_seasons[2027] (con el que va a correr). Solo son destinos elegibles
+    // las dos primeras divisiones masculina y femenina del mercado.
+    const teams = marketDestinationTeamOptions({
+      teams: _teamsCache || [],
+      marketSeasons: _marketSeasons || [],
+      gender: s.rider.gender,
+      excludeTeamId: _tseTeamId,
+    })
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     // Fecha de confirmación (announcedAt): solo aplica a un fichaje CONFIRMADO
     // (ordena y agrupa el feed). Un rumor no sale en el feed → sin fecha.
@@ -14319,7 +14738,7 @@ function _tseRenderIncoming() {
     const name = r ? `${r.lastName}, ${r.firstName}` : t.riderId;
     const from = _trTeamLabel(t.fromTeamId, t.fromTeamName, 'from');
     const isRumor = t.status === 'rumor';
-    return `<div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;padding:0.45rem 0.65rem;background:var(--bg-card);border:1px solid ${isRumor ? '#f59e0b' : 'var(--border)'};border-radius:6px">
+    return `<div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;padding:0.45rem 0.65rem;background:var(--bg-card);border:1px solid ${transferRowBorderColor(t.status)};border-radius:6px">
       <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
       <span style="flex:1;min-width:9rem;font-size:0.85rem"><strong>${esc(name)}</strong>
         <span class="u-c-dim" style="font-size:0.72rem">· ${esc(from)}</span></span>
@@ -14357,7 +14776,8 @@ function _tseOpenNewSigning() {
 }
 
 // ── Escritura de afiliaciones 2027 (materialización de plantilla) ──────
-// Un corredor solo puede tener UNA afiliación por año → la clave lógica es
+// El mercado solo materializa afiliaciones habituales; nunca vínculos de prueba.
+// Un corredor solo puede tener UNA afiliación de mercado por año → la clave lógica es
 // (riderId, year). Al continuar en T se borra cualquier afiliación 2027 previa
 // (a otro equipo) y se inserta/actualiza la de T. `year` = año de fin de
 // contrato (UI); se guarda como dateTo = 31-dic de ese año (dateFrom = 1-ene
@@ -14365,6 +14785,8 @@ function _tseOpenNewSigning() {
 async function _upsertAffiliation2027(riderId, gender, teamId, year) {
   const { data: existing, error: selErr } = await supabase.from('rider_team_affiliations')
     .select('id, teamId')
+    .eq('affiliationType', 'regular')
+    .eq('riderGender', gender)
     .eq('riderId', riderId)
     .eq('year', MARKET_SEASON);
   if (selErr) throw selErr;
@@ -14393,9 +14815,11 @@ async function _upsertAffiliation2027(riderId, gender, teamId, year) {
   }
 }
 
-async function _deleteAffiliation2027(riderId, teamId) {
+async function _deleteAffiliation2027(riderId, teamId, gender) {
   const { error } = await supabase.from('rider_team_affiliations')
     .delete()
+    .eq('affiliationType', 'regular')
+    .eq('riderGender', gender)
     .eq('riderId', riderId)
     .eq('year', MARKET_SEASON)
     .eq('teamId', teamId);
@@ -14418,7 +14842,7 @@ async function _syncSigningAffiliation(t) {
   if (t.status === 'confirmed') {
     await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
   } else {
-    await _deleteAffiliation2027(t.riderId, t.toTeamId);
+    await _deleteAffiliation2027(t.riderId, t.toTeamId, t.riderGender);
   }
 }
 
@@ -14429,7 +14853,8 @@ async function _syncSigningAffiliation(t) {
 async function _syncMarketSituationAffiliation(t) {
   if (!t || t.midSeason) return;
   const { error: clearErr } = await supabase.from('rider_team_affiliations')
-    .delete().eq('riderId', t.riderId).eq('year', MARKET_SEASON);
+    .delete().eq('affiliationType', 'regular').eq('riderGender', t.riderGender)
+    .eq('riderId', t.riderId).eq('year', MARKET_SEASON);
   if (clearErr) throw clearErr;
   if (t.type === 'renewal' && t.toTeamId) {
     await _upsertAffiliation2027(t.riderId, t.riderGender, t.toTeamId, t.contractUntil || null);
@@ -14484,6 +14909,15 @@ async function _tseSaveTeam() {
       if (status) { status.style.color = 'var(--red)'; status.textContent = `${s.rider.lastName}: elige el equipo de destino del cambio.`; }
       return;
     }
+    if (s.state === 'change' && !isMarketDestinationTeamEligible({
+      teamId: s.newTeamId,
+      teams: _teamsCache || [],
+      marketSeasons: _marketSeasons || [],
+      gender: s.rider.gender,
+    })) {
+      if (status) { status.style.color = 'var(--red)'; status.textContent = `${s.rider.lastName}: el destino debe pertenecer a las dos primeras divisiones de ${MARKET_SEASON}.`; }
+      return;
+    }
   }
 
   if (status) { status.style.color = 'var(--text-dim)'; status.textContent = 'Guardando…'; }
@@ -14522,7 +14956,7 @@ async function _tseSaveTeam() {
           contractUntil: s.year || null, announcedAt: _localDateKey(), dateVisible: true,
         });
       } else if (s.state === 'change') {
-        await _deleteAffiliation2027(r.id, teamId);
+        await _deleteAffiliation2027(r.id, teamId, r.gender);
         // Un rumor no sale en el feed → su fecha de anuncio es HOY (irrelevante);
         // un cambio confirmado lleva la fecha de confirmación que marcó el editor.
         await supabase.from('rider_transfers').insert({
@@ -14535,7 +14969,7 @@ async function _tseSaveTeam() {
           dateVisible: true,
         });
       } else if (s.state === 'end') {
-        await _deleteAffiliation2027(r.id, teamId);
+        await _deleteAffiliation2027(r.id, teamId, r.gender);
         if (s.retired) {
           await supabase.from('rider_transfers').insert({
             id: _tseNewId('tr'),
@@ -14555,7 +14989,7 @@ async function _tseSaveTeam() {
       } else {
         // 'undecided': ya se limpiaron sus transfers de T arriba; también quitar
         // su afiliación 2027 a T (deja de formar parte hasta que se decida).
-        await _deleteAffiliation2027(r.id, teamId);
+        await _deleteAffiliation2027(r.id, teamId, r.gender);
       }
     }
 
@@ -14637,7 +15071,7 @@ async function loadTransfers() {
     if (prevSeasonsRes.error) throw prevSeasonsRes.error;
     const rows = transfersRes.data || [];
     // Filas completas de la temporada del mercado: alimentan la lista de
-    // equipos 2027 de esta vista (renombres, chapa, continuidad en duda).
+    // equipos 2027 de esta vista (renombres, colores, continuidad en duda).
     _marketSeasons = seasonsRes.data || [];
     _trTeamNameById = new Map(_marketSeasons.map(s => [s.teamId, s.name]));
     _trTeamNamePrev = new Map((prevSeasonsRes.data || []).map(s => [s.teamId, s.name]));
@@ -14682,27 +15116,6 @@ function _trRiderLabel(t) {
   return r ? `${r.lastName}, ${r.firstName}` : t.riderId;
 }
 
-// El volcado inicial asignó 20/07/2026 a las filas sin fecha editorial. Sus
-// timestamps de creación/actualización difieren como máximo unas décimas por
-// los defaults y triggers del lote; cualquier diferencia >= 1 s indica edición.
-function _trIsDefaultImport(t) {
-  if (t.announcedAt !== '2026-07-20') return false;
-  const created = Date.parse(t.createdAt || '');
-  const updated = Date.parse(t.updatedAt || '');
-  if (!Number.isFinite(created) || !Number.isFinite(updated)) return false;
-
-  const unchangedSinceImport = Math.abs(updated - created) < 1000;
-  // Ocho bajas sin destino de UAE Team L'IMAD recibieron juntas una actualización
-  // técnica el 27/07, sin edición editorial. Una edición posterior cambia updatedAt.
-  const uaeLegacyBatchUpdate =
-    created === Date.parse('2026-07-20T13:00:57.868Z') &&
-    updated === Date.parse('2026-07-27T09:52:12.424Z') &&
-    t.type === 'transfer' && t.status === 'confirmed' &&
-    !t.toTeamId && t.toTeamName === TSE_UNKNOWN_DEST;
-
-  return unchangedSinceImport || uaeLegacyBatchUpdate;
-}
-
 function renderTransfersList() {
   const container = document.getElementById('transfersList');
   const countEl = document.getElementById('transfersCount');
@@ -14714,7 +15127,7 @@ function renderTransfersList() {
   const filtered = (_transfersCache || []).filter(t => {
     // Las filas del volcado inicial sin edición manual no aportan una novedad
     // editorial. Aparecen en cuanto se modifica cualquier campo o su fecha.
-    if (_trIsDefaultImport(t)) return false;
+    if (isInitialTransferImport(t)) return false;
     // 'hidden' no es un status: cruza los tres (lo que no sale en el feed).
     if (statusFilter === 'hidden') {
       if (t.dateVisible !== false) return false;
@@ -14771,7 +15184,7 @@ function renderTransfersList() {
     const midSeasonChip = t.midSeason
       ? `<span style="${chipCss};background:rgba(59,130,246,0.14);color:#2563eb">M. temporada</span>`
       : '';
-    const borderColor = isRumor ? '#f59e0b' : isDoubt ? '#8b5cf6' : 'var(--border)';
+    const borderColor = transferRowBorderColor(t.status);
     // Fecha tachada = no sale en el feed público (dateVisible=false).
     const dateStyle = dateHidden ? 'text-decoration:line-through;opacity:0.55' : '';
     return `
@@ -14999,8 +15412,13 @@ function _trPopulateTeamSelect(selId, selectedId) {
   const sel = document.getElementById(selId);
   if (!sel) return;
   const gender = _trSelectedRider?.gender || null;
-  const teams = (_teamsCache || [])
-    .filter(t => !t.specialEdition && (!gender || !t.gender || t.gender === gender))
+  const teams = (selId === 'tr-toTeamId'
+    ? marketDestinationTeamOptions({
+        teams: activeCatalogTeams(_teamsCache),
+        marketSeasons: _marketSeasons || [],
+        gender,
+      })
+    : activeCatalogTeams(_teamsCache).filter(t => !t.specialEdition && (!gender || !t.gender || t.gender === gender)))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   sel.innerHTML = '<option value="">— Fuera del catálogo / ninguno —</option>' +
     teams.map(t =>
@@ -15083,11 +15501,19 @@ function _trWireCreateRiderBtn(term) {
  * Al guardar, la ficha queda seleccionada en el movimiento (_onRiderSavedOnce).
  */
 async function _trCreateRiderFromSearch(term) {
-  // El género del movimiento lo decide la ficha; por defecto, el de la división
-  // del equipo de origen si ya se eligió (si no, masculino, editable).
+  // Refrescar el catálogo antes de abrir la ficha: el destino puede ser un
+  // equipo creado en esta misma sesión o desde otra pestaña.
+  await fetchTeams({ force: true });
+
+  // El género del movimiento lo decide la ficha. Prioridad: equipo de origen;
+  // si todavía no existe (alta de una incorporación), equipo de destino
+  // prefijado por el editor de temporada; solo sin contexto se usa masculino.
   const fromTeamId = document.getElementById('tr-fromTeamId')?.value || '';
-  const fromTeam = (_teamsCache || []).find(t => t.id === fromTeamId);
-  _ridersGender = fromTeam?.gender === 'female' ? 'female' : 'male';
+  _ridersGender = transferRiderInitialGender({
+    teams: _teamsCache || [],
+    fromTeamId,
+    presetToTeamId: _transferEditorOpts?.presetToTeamId || null,
+  });
 
   _ridersAllCache = [];
   openRiderEditor(null, { level: 2 }); // se apila sobre el movimiento
@@ -15181,7 +15607,11 @@ function _trApplySituation(t, { existing = false } = {}) {
   document.getElementById('tr-contractUntil').value = _trLifetime ? '' : (t?.contractUntil || '');
   document.getElementById('tr-rumor').checked = t?.status === 'rumor';
   document.getElementById('tr-retired').checked = t?.type === 'retirement';
-  document.getElementById('tr-announcedAt').value = t?.announcedAt || _localDateKey();
+  document.getElementById('tr-announcedAt').value = transferEditorAnnouncementDate({
+    transfer: t,
+    today: _localDateKey(),
+    autoResolvedFromNew: existing,
+  });
   document.getElementById('tr-dateHidden').checked = t ? t.dateVisible === false : false;
   document.getElementById('tr-midSeason').checked = t?.midSeason === true;
   _trRefreshTypeVisibility();
@@ -15200,6 +15630,7 @@ async function _trResolveSelectedRiderSituation(r) {
   if (status) status.textContent = 'Comprobando situación registrada…';
   const { data: aff, error } = await supabase.from('rider_team_affiliations')
     .select('teamId, dateTo')
+    .eq('affiliationType', 'regular')
     .eq('riderId', r.id)
     .eq('riderGender', r.gender)
     .eq('year', MARKET_SEASON)
@@ -15289,7 +15720,7 @@ function openTransferEditor(t, opts = null) {
     document.getElementById('tr-contractUntil').value = '';
     document.getElementById('tr-rumor').checked = false;
     document.getElementById('tr-retired').checked = false;
-    document.getElementById('tr-announcedAt').value = _localDateKey();
+    document.getElementById('tr-announcedAt').value = transferEditorAnnouncementDate({ today: _localDateKey() });
     document.getElementById('tr-dateHidden').checked = false;
     document.getElementById('tr-midSeason').checked = false;
     _trRefreshTypeVisibility();
@@ -15336,6 +15767,14 @@ async function saveTransfer() {
       if (toTeamId) toTeamName = null;
       if (!toTeamId && !toTeamName) {
         status.style.color = 'var(--red)'; status.textContent = 'Elige el equipo de destino (catálogo o texto libre).'; return;
+      }
+      if (toTeamId && !isMarketDestinationTeamEligible({
+        teamId: toTeamId,
+        teams: _teamsCache || [],
+        marketSeasons: _marketSeasons || [],
+        gender: _trSelectedRider.gender,
+      })) {
+        status.style.color = 'var(--red)'; status.textContent = `El destino debe pertenecer a las dos primeras divisiones de ${MARKET_SEASON}.`; return;
       }
       if (toTeamId && toTeamId === fromTeamId) {
         status.style.color = 'var(--red)'; status.textContent = 'El destino debe ser distinto del equipo de origen.'; return;
@@ -15420,7 +15859,7 @@ async function deleteTransfer() {
     const { error } = await supabase.from('rider_transfers').delete().eq('id', _editingTransferId);
     if (error) throw error;
     if (del && !del.midSeason && del.type === 'transfer' && del.status === 'confirmed' && del.toTeamId) {
-      await _deleteAffiliation2027(del.riderId, del.toTeamId);
+      await _deleteAffiliation2027(del.riderId, del.toTeamId, del.riderGender);
     }
     showToast('Movimiento eliminado', 'success', 2500);
     closeDrawer(1);
@@ -15434,6 +15873,9 @@ async function deleteTransfer() {
 }
 
 function setupHighlightsView() {
+  ensureAllRacesLoaded().catch(error => {
+    showToast('No se pudo cargar el catálogo histórico: ' + error.message);
+  });
   if (!_highlightsViewReady) {
     _highlightsViewReady = true;
     document.getElementById('addHighlightBtn').addEventListener('click', () => openHighlightEditor(null));
@@ -15442,6 +15884,8 @@ function setupHighlightsView() {
   }
   fetchHighlights({ force: true })
     .then(_prefetchHighlightsRaceDays)
+    .then(() => loadCxCommonRaces(supabase).catch(error => showToast(error.message, 'error')))
+    .then(() => loadCxCommonTournaments(supabase).catch(error => showToast(error.message, 'error')))
     .then(renderHighlightsList);
 }
 
@@ -15465,6 +15909,8 @@ async function _prefetchHighlightsRaceDays() {
 }
 
 function _onHighlightRaceSearch() {
+  const editor = _highlightEditor;
+  if (!editor?.drawer.isCurrent()) return;
   const q = document.getElementById('hl-race-search').value.trim().toLowerCase();
   const resultsDiv = document.getElementById('hl-race-results');
   clearTimeout(_hlRaceSearchDebounce);
@@ -15473,6 +15919,7 @@ function _onHighlightRaceSearch() {
     return;
   }
   _hlRaceSearchDebounce = setTimeout(() => {
+    if (!editor.drawer.isCurrent()) return;
     const matches = allRaces
       .filter(r => (r.name || '').toLowerCase().includes(q) || (r.nameEn || '').toLowerCase().includes(q))
       .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
@@ -15502,6 +15949,9 @@ function _onHighlightRaceSearch() {
 }
 
 async function _selectHighlightRace(race) {
+  const editor = _highlightEditor;
+  if (!editor?.drawer.isCurrent()) return;
+  const request = ++editor.raceRequest;
   _hlSelectedRace = race;
   document.getElementById('hl-race-search').style.display = 'none';
   document.getElementById('hl-race-results').style.display = 'none';
@@ -15510,9 +15960,18 @@ async function _selectHighlightRace(race) {
   // countryFlag() devuelve HTML (<img>), por eso innerHTML — no textContent.
   document.getElementById('hl-race-selected-flag').innerHTML = race.hideFlag ? '' : countryFlag(race.countryCode);
   document.getElementById('hl-race-selected-name').textContent = race.name;
+  document.getElementById('hl-stage-row').style.display = 'none';
+  document.getElementById('hl-raceDayId').innerHTML = '';
 
   // Cargar jornadas si la carrera es de varias etapas
-  const rds = await _fetchRaceDaysForHighlight(race.id);
+  let rds;
+  try {
+    rds = await _fetchRaceDaysForHighlight(race.id);
+  } catch (error) {
+    if (editor.drawer.isCurrent() && request === editor.raceRequest) document.getElementById('highlightSaveStatus').textContent = error.message;
+    return;
+  }
+  if (!editor.drawer.isCurrent() || request !== editor.raceRequest) return;
   const stageRow = document.getElementById('hl-stage-row');
   const stageSel = document.getElementById('hl-raceDayId');
   if (rds.length === 0) {
@@ -15537,6 +15996,7 @@ function _describeRaceDay(rd) {
 }
 
 function _clearHighlightRaceSelection() {
+  if (_highlightEditor) ++_highlightEditor.raceRequest;
   _hlSelectedRace = null;
   document.getElementById('hl-race-search').value = '';
   document.getElementById('hl-race-search').style.display = '';
@@ -15558,7 +16018,11 @@ function _refreshHighlightTargetWarning() {
   const isCustom = targetType === 'custom';
   const isChampionships = targetType === 'championships';
   const isTransfers = targetType === 'transfers';
-  const noRace = isCustom || isChampionships || isTransfers;
+  const isCx = targetType === 'cxRace';
+  const isCxTournament = targetType === 'cxTournament';
+  document.getElementById('hl-cx-race-row').style.display = isCx ? '' : 'none';
+  document.getElementById('hl-cx-tournament-row').style.display = isCxTournament ? '' : 'none';
+  const noRace = isCustom || isChampionships || isTransfers || isCx || isCxTournament;
   document.getElementById('hl-race-row').style.display   = noRace ? 'none' : '';
   document.getElementById('hl-custom-row').style.display = isCustom ? 'flex' : 'none';
   if (noRace) {
@@ -15595,21 +16059,50 @@ function _refreshHighlightTargetWarning() {
   }
 }
 
+// Destinos del cintillo. Carretera y Ciclocross son independientes: solo se
+// muestran los del área activa. Los del área opuesta quedan en el DOM ocultos
+// para conservar los flujos del editor pero no son seleccionables.
+const HIGHLIGHT_TARGETS = [
+  ['raceDay', 'Jornada (detalle de la etapa)', 'road'],
+  ['race', 'Competición (vista general de la carrera)', 'road'],
+  ['startlist', 'Dorsales (startlist)', 'road'],
+  ['startOrder', 'Orden de salida', 'road'],
+  ['championships', 'Modo Campeonatos — web abre la página; apps, la pantalla nativa', 'road'],
+  ['transfers', 'Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa', 'road'],
+  ['custom', 'Personalizado (solo web) — URL, título y logo libres', 'road'],
+  ['cxRace', 'Prueba de ciclocross (página de la jornada)', 'cx'],
+  ['cxTournament', 'Torneo de ciclocross (página de la serie)', 'cx'],
+];
+const HIGHLIGHT_TARGET_DEFAULT = { road: 'raceDay', cx: 'cxRace' };
+
+function _highlightTargetOptionsHtml(scope) {
+  const area = scope === 'cx' ? 'cx' : 'road';
+  const defaultType = HIGHLIGHT_TARGET_DEFAULT[area];
+  return HIGHLIGHT_TARGETS.map(([value, label, valueScope]) =>
+    `<label class="hl-target-option"${valueScope !== area ? ' style="display:none"' : ''}><input type="radio" name="hl-targetType" value="${value}"${value === defaultType ? ' checked' : ''}><span>${esc(label)}</span></label>`
+  ).join('');
+}
+
 // Cuerpo del editor de cintillo dentro del drawer (mismos ids hl-*).
-function highlightEditorBodyHtml() {
+function highlightEditorBodyHtml(scope) {
+  const isCx = scope === 'cx';
   return `
     <div>
-      <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Destino del cintillo</label>
+      <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Destino del cintillo de ${isCx ? 'Ciclocross' : 'carretera'}</label>
       <div class="hl-target-options" style="display:flex;flex-direction:column;gap:0.5rem">
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="raceDay" checked><span>Jornada (detalle de la etapa)</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="race"><span>Competición (vista general de la carrera)</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startlist"><span>Dorsales (startlist)</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="startOrder"><span>Orden de salida</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="championships"><span>Modo Campeonatos — web abre la página; apps, la pantalla nativa</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="transfers"><span>Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa</span></label>
-        <label class="hl-target-option"><input type="radio" name="hl-targetType" value="custom"><span>Personalizado (solo web) — URL, título y logo libres</span></label>
+        ${_highlightTargetOptionsHtml(scope)}
       </div>
       <div id="hl-target-warning" style="display:none;color:var(--red);font-size:0.78rem;margin-top:0.4rem"></div>
+    </div>
+    <div class="field" id="hl-cx-race-row" style="display:none">
+      <label>Carrera de ciclocross</label>
+      <select id="hl-cx-race-id"></select>
+      <button type="button" class="btn btn--ghost" id="hl-cx-retry" hidden>Reintentar</button>
+    </div>
+    <div class="field" id="hl-cx-tournament-row" style="display:none">
+      <label>Torneo de ciclocross</label>
+      <select id="hl-cx-tournament-id"></select>
+      <button type="button" class="btn btn--ghost" id="hl-cx-tournament-retry" hidden>Reintentar</button>
     </div>
     <div class="field" id="hl-race-row">
       <label>Carrera</label>
@@ -15629,7 +16122,7 @@ function highlightEditorBodyHtml() {
       <div class="field-row field-row--2">
         <div class="field">
           <label>URL de destino (ES) <span style="color:var(--red)">*</span></label>
-          <input type="text" id="hl-customUrl" placeholder="Ej.: /campeonatos-nacionales-2026/" class="u-w-full">
+          <input type="text" id="hl-customUrl" placeholder="Ej.: /campeonatos-nacionales-2026.html" class="u-w-full">
         </div>
         <div class="field">
           <label>URL de destino (EN) <span class="u-dim">— opcional</span></label>
@@ -15689,19 +16182,109 @@ function wireHighlightEditor() {
     r.addEventListener('change', _refreshHighlightTargetWarning)
   );
   document.getElementById('hl-raceDayId').addEventListener('change', _refreshHighlightTargetWarning);
+  document.getElementById('hl-cx-retry').addEventListener('click', () => {
+    const editor = _highlightEditor;
+    if (editor?.drawer.isCurrent() && !editor.busy) void _loadHighlightCxRaces(editor);
+  });
+  document.getElementById('hl-cx-tournament-retry').addEventListener('click', () => {
+    const editor = _highlightEditor;
+    if (editor?.drawer.isCurrent() && !editor.busy) void _loadHighlightCxTournaments(editor);
+  });
+}
+
+async function _loadHighlightCxRaces(editor, selected) {
+  if (!editor.drawer.isCurrent() || editor.cxLoading) return;
+  const body = editor.drawer.body;
+  const select = body.querySelector('#hl-cx-race-id');
+  const retry = body.querySelector('#hl-cx-retry');
+  const status = body.querySelector('#highlightSaveStatus');
+  editor.cxLoading = true;
+  select.disabled = true;
+  retry.hidden = true;
+  const selectedId = selected ?? (select.value || editor.cxRaceId || '');
+  editor.cxRaceId = selectedId;
+  try {
+    await fillCxRaceSelect(supabase, select, selectedId, { isCurrent: () => editor.drawer.isCurrent() });
+    if (editor.drawer.isCurrent()) {
+      editor.cxRaceId = select.value;
+      status.textContent = '';
+    }
+  } catch (error) {
+    if (editor.drawer.isCurrent()) {
+      status.textContent = error.message;
+      retry.hidden = false;
+    }
+  } finally {
+    editor.cxLoading = false;
+    if (editor.drawer.isCurrent()) select.disabled = editor.busy;
+  }
+}
+
+async function _loadHighlightCxTournaments(editor, selected) {
+  if (!editor.drawer.isCurrent() || editor.cxTournamentLoading) return;
+  const body = editor.drawer.body;
+  const select = body.querySelector('#hl-cx-tournament-id');
+  const retry = body.querySelector('#hl-cx-tournament-retry');
+  const status = body.querySelector('#highlightSaveStatus');
+  editor.cxTournamentLoading = true;
+  select.disabled = true;
+  retry.hidden = true;
+  const selectedId = selected ?? (select.value || editor.cxTournamentId || '');
+  editor.cxTournamentId = selectedId;
+  try {
+    await fillCxTournamentSelect(supabase, select, selectedId, { isCurrent: () => editor.drawer.isCurrent() });
+    if (editor.drawer.isCurrent()) {
+      editor.cxTournamentId = select.value;
+      status.textContent = '';
+    }
+  } catch (error) {
+    if (editor.drawer.isCurrent()) {
+      status.textContent = error.message;
+      retry.hidden = false;
+    }
+  } finally {
+    editor.cxTournamentLoading = false;
+    if (editor.drawer.isCurrent()) select.disabled = editor.busy;
+  }
+}
+
+function _setHighlightBusy(editor, busy) {
+  editor.busy = busy;
+  if (!editor.drawer.isCurrent()) return;
+  const body = editor.drawer.body;
+  body.setAttribute('aria-busy', String(busy));
+  if (busy) {
+    editor.controls = [...body.querySelectorAll('input,select,textarea,button')].map(node => [node, node.disabled]);
+    for (const [node] of editor.controls) node.disabled = true;
+  } else {
+    for (const [node, disabled] of editor.controls || []) node.disabled = disabled;
+    body.querySelector('#hl-cx-race-id').disabled = editor.cxLoading;
+    body.querySelector('#hl-cx-tournament-id').disabled = editor.cxTournamentLoading;
+  }
 }
 
 async function openHighlightEditor(highlight) {
   // Reset
-  _editingHighlightId = highlight?.id || null;
+  const editor = { id: highlight?.id || crypto.randomUUID(), isNew: !highlight,
+    position: highlight?.position ?? (_highlightsCache || []).reduce((mx, h) => Math.max(mx, h.position || 0), -1) + 1,
+    scope: panelArea(), cxTournamentId: '', busy: false, cxLoading: false, cxTournamentLoading: false,
+    loading: true, raceRequest: 0 };
+  _highlightEditor = editor;
+  _hlSelectedRace = null;
 
   // El editor vive en el drawer: se monta su cuerpo + listeners por apertura.
-  openDrawer({
+  editor.drawer = openDrawer({
     title: highlight ? 'Editar destacado' : 'Nuevo destacado',
     level: 1,
     render: (body) => {
-      body.innerHTML = highlightEditorBodyHtml();
+      body.innerHTML = highlightEditorBodyHtml(editor.scope);
       wireHighlightEditor();
+    },
+    onClose: () => {
+      if (_highlightEditor !== editor) return;
+      _highlightEditor = null;
+      _hlSelectedRace = null;
+      clearTimeout(_hlRaceSearchDebounce);
     },
   });
 
@@ -15716,52 +16299,77 @@ async function openHighlightEditor(highlight) {
   document.getElementById('hl-customLogo').value      = highlight?.customLogo      || '';
   document.getElementById('hl-visibleFrom').value     = _toDatetimeLocal(highlight?.visibleFrom);
   document.getElementById('hl-visibleUntil').value    = _toDatetimeLocal(highlight?.visibleUntil);
-  const targetType = highlight?.targetType || 'raceDay';
-  document.querySelector(`input[name="hl-targetType"][value="${targetType}"]`).checked = true;
+  const targetType = highlight?.targetType || (editor.scope === 'cx' ? 'cxRace' : 'raceDay');
+  const targetRadio = document.querySelector(`input[name="hl-targetType"][value="${targetType}"]`);
+  if (targetRadio) targetRadio.checked = true;
   _clearHighlightRaceSelection();
   // Enganchar la subida R2 del logo custom (el DOM es nuevo en cada apertura).
   attachInlineUpload(document.getElementById('hl-customLogo'), 'logo');
   _refreshHighlightTargetWarning(); // ajustar visibilidad de secciones según el tipo
+  _setHighlightBusy(editor, true);
+  try {
+    await _loadHighlightCxRaces(editor, highlight?.cxRaceId || '');
+    if (!editor.drawer.isCurrent()) return;
+    await _loadHighlightCxTournaments(editor, highlight?.cxTournamentId || '');
+    if (!editor.drawer.isCurrent()) return;
 
-  if (highlight) {
-    const raceId = highlight.raceId
-      || (() => {
-        const rd = allRaces.find(r => false); // placeholder
-        return null;
-      })();
-    // Resolver raceId: si vino directo (startlist) usar; si vino raceDayId, traer race_days y de ahí raceId
-    let resolvedRaceId = highlight.raceId;
-    if (!resolvedRaceId && highlight.raceDayId) {
-      const { data: rd } = await supabase.from('race_days').select('raceId').eq('id', highlight.raceDayId).single();
-      resolvedRaceId = rd?.raceId;
-    }
-    const race = resolvedRaceId ? allRaces.find(r => r.id === resolvedRaceId) : null;
-    if (race) {
-      await _selectHighlightRace(race);
-      if (highlight.raceDayId) {
-        document.getElementById('hl-raceDayId').value = highlight.raceDayId;
+    if (highlight) {
+      // Resolver raceId: si vino directo (startlist) usar; si vino raceDayId, traer race_days y de ahí raceId
+      let resolvedRaceId = highlight.raceId;
+      if (!resolvedRaceId && highlight.raceDayId) {
+        const { data: rd, error } = await supabase.from('race_days').select('raceId').eq('id', highlight.raceDayId).single();
+        if (!editor.drawer.isCurrent()) return;
+        if (error) throw error;
+        resolvedRaceId = rd?.raceId;
       }
+      const race = resolvedRaceId ? allRaces.find(r => r.id === resolvedRaceId) : null;
+      if (race) {
+        await _selectHighlightRace(race);
+        if (!editor.drawer.isCurrent()) return;
+        if (highlight.raceDayId) {
+          document.getElementById('hl-raceDayId').value = highlight.raceDayId;
+        }
+      }
+      _refreshHighlightTargetWarning();
     }
-    _refreshHighlightTargetWarning();
+  } catch (error) {
+    if (editor.drawer.isCurrent()) document.getElementById('highlightSaveStatus').textContent = error.message;
+  } finally {
+    editor.loading = false;
+    _setHighlightBusy(editor, false);
   }
 }
 
 function closeHighlightEditor() {
-  _editingHighlightId = null;
-  _hlSelectedRace = null;
-  closeDrawer(1);
+  _highlightEditor?.drawer.close();
 }
 
 async function saveHighlight() {
+  const editor = _highlightEditor;
+  if (!editor?.drawer.isCurrent() || editor.busy || editor.loading) return;
   const status = document.getElementById('highlightSaveStatus');
-  status.style.color = 'var(--text-dim)';
-  status.textContent = 'Guardando…';
-
   const targetType = document.querySelector('input[name="hl-targetType"]:checked')?.value || 'raceDay';
   const isCustom = targetType === 'custom';
   const isChampionships = targetType === 'championships';
   const isTransfers = targetType === 'transfers';
-  const noRace = isCustom || isChampionships || isTransfers;
+  const isCx = targetType === 'cxRace';
+  const isCxTournament = targetType === 'cxTournament';
+  if ((isCx && editor.cxLoading) || (isCxTournament && editor.cxTournamentLoading)) return;
+  status.style.color = 'var(--text-dim)';
+  status.textContent = 'Guardando…';
+  const cxRaceId = isCx ? document.getElementById('hl-cx-race-id').value || null : null;
+  const cxTournamentId = isCxTournament ? document.getElementById('hl-cx-tournament-id').value || null : null;
+  const noRace = isCustom || isChampionships || isTransfers || isCx || isCxTournament;
+  if (isCx && !cxRaceId) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Selecciona una carrera de ciclocross.';
+    return;
+  }
+  if (isCxTournament && !cxTournamentId) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Selecciona un torneo de ciclocross.';
+    return;
+  }
 
   // Carrera obligatoria salvo para entradas custom, Campeonatos o Fichajes (sin carrera).
   if (!noRace && !_hlSelectedRace) {
@@ -15811,7 +16419,10 @@ async function saveHighlight() {
   }
 
   const payload = {
+    scope: editor.scope,
     targetType,
+    cxRaceId,
+    cxTournamentId,
     raceId,
     raceDayId,
     customTitle,
@@ -15825,35 +16436,51 @@ async function saveHighlight() {
     visibleUntil:    _fromDatetimeLocal(document.getElementById('hl-visibleUntil').value),
   };
 
+  _setHighlightBusy(editor, true);
   try {
-    if (_editingHighlightId) {
-      const { error } = await supabase.from('today_highlights').update(payload).eq('id', _editingHighlightId);
+    if (!editor.isNew) {
+      const { error } = await supabase.from('today_highlights').update(payload).eq('id', editor.id);
       if (error) throw error;
     } else {
-      const nextPos = (_highlightsCache || []).reduce((mx, h) => Math.max(mx, h.position || 0), -1) + 1;
-      const { error } = await supabase.from('today_highlights').insert({ ...payload, position: nextPos });
+      const { error } = await supabase.from('today_highlights').upsert({ ...payload, id: editor.id, position: editor.position }, { onConflict: 'id' });
       if (error) throw error;
     }
-    showToast(_editingHighlightId ? 'Destacado actualizado' : 'Destacado creado', 'success', 2500);
-    closeHighlightEditor();
+    if (editor.drawer.isCurrent()) {
+      showToast(editor.isNew ? 'Destacado creado' : 'Destacado actualizado', 'success', 2500);
+      editor.drawer.close();
+    }
     await fetchHighlights({ force: true });
     await _prefetchHighlightsRaceDays();
     renderHighlightsList();
   } catch (err) {
+    if (!editor.drawer.isCurrent()) return;
     status.style.color = 'var(--red)';
     status.textContent = 'Error: ' + err.message;
+  } finally {
+    _setHighlightBusy(editor, false);
   }
 }
 
 async function deleteHighlight() {
-  if (!_editingHighlightId) return;
+  const editor = _highlightEditor;
+  if (!editor?.drawer.isCurrent() || editor.isNew || editor.busy || editor.loading) return;
   if (!await confirmDialog('¿Eliminar este destacado del cintillo?', { danger: true })) return;
-  const { error } = await supabase.from('today_highlights').delete().eq('id', _editingHighlightId);
-  if (error) { showToast('Error al eliminar: ' + error.message); return; }
-  showToast('Destacado eliminado', 'success', 2500);
-  closeHighlightEditor();
-  await fetchHighlights({ force: true });
-  renderHighlightsList();
+  if (!editor.drawer.isCurrent() || editor.busy) return;
+  _setHighlightBusy(editor, true);
+  try {
+    const { error } = await supabase.from('today_highlights').delete().eq('id', editor.id);
+    if (error) throw error;
+    if (editor.drawer.isCurrent()) {
+      showToast('Destacado eliminado', 'success', 2500);
+      editor.drawer.close();
+    }
+    await fetchHighlights({ force: true });
+    renderHighlightsList();
+  } catch (error) {
+    if (editor.drawer.isCurrent()) showToast('Error al eliminar: ' + error.message);
+  } finally {
+    _setHighlightBusy(editor, false);
+  }
 }
 
 function _resolveHighlightDisplay(h) {
@@ -15895,6 +16522,8 @@ function renderHighlightsList() {
     custom:        'Personalizado',
     championships: 'Campeonatos',
     transfers:     'Fichajes',
+    cxRace:        'Prueba CX',
+    cxTournament:  'Torneo CX',
   };
 
   container.innerHTML = list.map((h, idx) => {
@@ -15907,6 +16536,10 @@ function renderHighlightsList() {
       lhs = h.customTitle || 'Campeonatos Nacionales';
     } else if (h.targetType === 'transfers') {
       lhs = h.customTitle || 'Mercado de Fichajes';
+    } else if (h.targetType === 'cxRace') {
+      lhs = cxCommonRaceName(h.cxRaceId) || h.customTitle || '(carrera CX desconocida)';
+    } else if (h.targetType === 'cxTournament') {
+      lhs = cxCommonTournamentName(h.cxTournamentId) || h.customTitle || '(torneo CX desconocido)';
     } else {
       // Fila identifica el destacado por la carrera real, no por el customTitle
       // (que es lo que se ve en el cintillo en sí, no en el panel).

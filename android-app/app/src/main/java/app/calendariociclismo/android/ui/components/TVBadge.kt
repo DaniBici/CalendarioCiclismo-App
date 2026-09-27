@@ -16,10 +16,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -28,12 +26,11 @@ import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Broadcast
-import app.calendariociclismo.android.data.prefs.RegionPreference
-import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.RegionDetector
 
 /**
  * Badge de estado de TV con hora de emisión si está disponible.
@@ -53,15 +50,13 @@ fun TVBadge(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val app = rememberApp()
-    val regionPref by app.preferences.regionPreference.collectAsState(initial = RegionPreference.SPAIN)
 
     // Todo el badge (label, icono, "hay TV", hora de referencia y enlace) se calcula
     // sobre los broadcasts visibles para la región del usuario, NO sobre la lista
     // cruda: si no, un usuario de España vería "TV 14:00" de una emisión solo de
     // Bélgica aunque el enlace estuviera (correctamente) suprimido. La web ya
     // pre-filtra los broadcasts antes de pintar el badge.
-    val regionBroadcasts = RaceLogic.filterBroadcastsByRegion(broadcasts, regionPref.allowedBroadcastGroups)
+    val regionBroadcasts = RaceLogic.filterBroadcastsByRegion(broadcasts, RegionDetector.allowedBroadcastGroups())
     val hasBroadcasts = regionBroadcasts.isNotEmpty()
     // HABÍA emisiones pero NINGUNA accesible en la región del usuario (todas filtradas)
     // → no mostramos el badge "TV" genérico que vendría de tvStatus='confirmed'. (Sin

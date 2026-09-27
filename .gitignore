@@ -1,4 +1,3 @@
-# Estado local de Claude Code (el repositorio usa Codex).
 .claude/
 .mcp.json
 
@@ -91,6 +90,14 @@ scripts/**/*_run/**/*.sig
 # ruta relativa). Desde 2026-07-19 va al bucket privado `uci-reports` de Storage
 # (migración 133) y lo suben los crons → vuelve a estar ignorado como el resto.
 
+# Estudios, informes y copias de trabajo locales. Las herramientas que los generan
+# sí se versionan; los resultados se reconstruyen a partir de sus snapshots.
+output/*
+work/
+
+# Capturas del panel de navegación de OpenChamber (artefactos locales).
+.openchamber/
+
 # ── Logos de carreras (obras de terceros — NO redistribuir) ──────
 # Se empaquetan en las apps como fallback offline, pero no se versionan:
 # son obras de organizadores/federaciones y el repo es público (AGPL-3.0).
@@ -102,6 +109,9 @@ android-app/app/src/main/assets/bundled_logos/
 supabase/.temp/
 
 # ── Sitio generado (GitHub Pages por artifact) ───────────────────
+.pages-generated/
+.pages-build-state.json
+__pycache__/
 # build-site.yml recompone estas páginas desde Supabase en cada pasada y las
 # publica como artifact: NO se versionan (eran 11.292 ficheros y ~25 commits
 # automáticos al día). Se siguen generando en local para poder previsualizar.

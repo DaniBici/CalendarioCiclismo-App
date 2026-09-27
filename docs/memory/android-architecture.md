@@ -46,7 +46,7 @@ android-app/app/src/main/java/app/calendariociclismo/android/
 
 **Build CI/cloud:** no hay Android SDK en cloud — verificar código manualmente, no buildear en CI cloud.
 
-**Room:** bump de `version` necesario al añadir columnas. Con `fallbackToDestructiveMigration` no hace falta SQL de migración explícita.
+**Room:** incrementar `@Database.version` al cambiar el esquema y exportar un JSON nuevo; conservar los esquemas de versiones publicadas. `versionCode` no sustituye este incremento. `fallbackToDestructiveMigration` solo recrea la caché cuando cambia la versión y falta una migración; no resuelve un hash incompatible dentro de la misma versión. La migración 15→16 conserva los datos y añade `realStartTimeUtc` solo si falta, porque la build 510 creó dos variantes del esquema 15. `AppDatabaseMigrationTest` cubre ambas variantes y la instalación nueva usando la misma configuración de apertura que producción.
 
 **Status bar:** SIEMPRE declarar `<item name="android:windowLightStatusBar">true</item>` en `values/themes.xml` y `false` en `values-night/themes.xml`. El flag aplicado solo desde código se ignora en API 35 sobre Pixel 9a. Detalles en `docs/memory/android-status-bar.md`.
 

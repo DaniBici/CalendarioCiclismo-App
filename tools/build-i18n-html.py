@@ -6,7 +6,6 @@ Para cada HTML raíz marcado con data-i18n, genera su equivalente EN en en/:
   index.html        → en/index.html
   mes.html          → en/month/index.html
   temporada.html    → en/season/index.html
-  about.html        → en/about/index.html
   buscar.html       → en/search/index.html
   privacidad.html   → en/privacy/index.html
   404.html          → en/404.html
@@ -43,11 +42,13 @@ def t(key: str):
     return val if isinstance(val, str) else None
 
 # ── Mapeo HTML fuente → directorio de salida ─────────────────────
+# Nota: about.html es desde 2026-09-16 un shell de redirección a /about/ y
+# en/about/ se edita A MANO (como en/open/) — no regenerar desde el shell.
 PAGES = [
     ("index.html",              "en"),
+    ("ciclocross.html",         "en/cyclocross"),
     ("mes.html",                "en/month"),
     ("temporada.html",          "en/season"),
-    ("about.html",              "en/about"),
     ("buscar.html",             "en/search"),
     ("privacidad.html",         "en/privacy"),
     ("404.html",                "en/404"),
@@ -57,14 +58,20 @@ PAGES = [
 
 # ── Mapeo de hrefs internos ES → EN ──────────────────────────────
 HREF_MAP = {
+    "/ciclocross/":           "/cyclocross/",
+    "/ciclocross.html":       "/cyclocross/",
     "/index.html":            "/",
     "index.html":             "/",
+    "/calendario/":           "/calendar/",
+    "/calendario.html":       "/calendar/",
     "/mes.html":              "/month/",
     "mes.html":               "/month/",
     "/temporada.html":        "/season/",
     "temporada.html":         "/season/",
+    "/about/":                "/about/",
     "/about.html":            "/about/",
-    "about.html":             "/about/",
+    "/abierto/":              "/open/",
+    "/abierto.html":          "/open/",
     "/buscar.html":           "/search/",
     "buscar.html":            "/search/",
     "/privacidad.html":       "/privacy/",
@@ -82,58 +89,8 @@ HREF_MAP = {
 # ── Bloques <main> EN para páginas con contenido largo ───────────
 # Reemplazan el <main>...</main> del fuente ES íntegro.
 MAIN_BLOCKS_EN = {
-    "about.html": """\
-  <main style="max-width:680px;margin:0 auto;padding:3rem 1.5rem;box-sizing:border-box;text-align:center">
-    <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;
-               text-transform:uppercase;letter-spacing:-0.01em;margin-bottom:2rem">
-      About Me
-    </h1>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      <a href="/" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Calendario Ciclismo</a> aims to make the essential information about professional cycling competitions instantly understandable and accessible.
-    </p>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      The project launched in April 2026 and is produced by a single person: <a href="https://danisanchez.info" target="_blank" rel="noopener" id="dani-link" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;position:relative">Dani Sánchez<span id="dani-photo" style="display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:8px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.4);width:180px"><img src="https://assets.calendariociclismo.app/about/dani-sanchez.jpg" alt="Dani Sánchez" style="width:100%;display:block"></span></a>, a cycling communications professional with two decades of experience.
-    </p>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">
-      He was a member of the <strong>communications department</strong> at <a href="https://movistarteam.com" target="_blank" rel="noopener" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Movistar Team</a> (2011–2024) and <strong>digital editor</strong> for the social media and website of <a href="https://eurosport.es" target="_blank" rel="noopener" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Eurosport Spain</a> (2024–2026). He currently works as head of Spanish-language web content for the <a href="https://www.giroditalia.it/es" target="_blank" rel="noopener" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">Giro d'Italia</a> (2025–), as well as a freelance professional and lecturer in digital communication.
-    </p>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:2rem">
-      You can visit Dani's personal website, with all his other work, at the link below. You can also reach him on <a href="https://x.com/danibvo_" target="_blank" rel="noopener" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">X (Twitter)</a>, <a href="https://linkedin.com/in/danibvo" target="_blank" rel="noopener" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">LinkedIn</a> or <a href="mailto:hola@danisanchez.info" style="font-weight:700;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">email</a>.
-    </p>
-    <a href="https://danisanchez.info" target="_blank" rel="noopener"
-       style="display:inline-flex;align-items:center;justify-content:center;
-              font-family:var(--font-display);font-weight:600;
-              font-size:0.9rem;letter-spacing:0;text-transform:none;
-              padding:0.6rem 1.4rem;background:var(--accent);color:#fff;
-              border-radius:var(--radius-pill);text-decoration:none;
-              transition:filter var(--transition);margin-top:0.5rem"
-       onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter=''">
-      Dani Sánchez's Website
-    </a>
-    <section style="margin:2rem auto 0;padding:1.4rem 1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">
-      <p style="font-size:0.95rem;line-height:1.8;margin:0;max-width:100%">
-        <strong>Calendario Ciclismo is not a business.</strong> All content is free for everyone and will remain so in the future.
-        <br><br>
-        Running it involves server, database, repository and domain costs. From version 4.3 the apps contain no advertising and every feature is free. The project is funded through voluntary contributions from its Friends and Dani's personal contribution. More information is available via the button below.
-      </p>
-      <p style="margin:1.5rem 0 0">
-        <a href="/en/open/"
-           style="display:inline-flex;align-items:center;justify-content:center;
-                  font-family:var(--font-display);font-weight:600;
-                  font-size:0.9rem;letter-spacing:0;text-transform:none;
-                  padding:0.6rem 1.4rem;background:transparent;color:var(--text);
-                  border:1px solid var(--border);border-radius:var(--radius-pill);
-                  text-decoration:none;transition:border-color var(--transition),color var(--transition)"
-           onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-           onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
-          Transparency
-        </a>
-      </p>
-    </section>
-  </main>""",
-
     "privacidad.html": """\
-  <main style="max-width:680px;margin:0 auto;padding:3rem 1.5rem;box-sizing:border-box">
+  <main class="cc-public-document" style="">
     <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;text-transform:uppercase;letter-spacing:-0.01em;margin-bottom:0.5rem;text-align:center">Privacy Policy</h1>
     <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem"><strong>calendariociclismo.app</strong> &mdash; Last updated: 24 August 2026</p>
 
@@ -145,7 +102,7 @@ MAIN_BLOCKS_EN = {
       <li><strong>Notifications:</strong> APNs or FCM technical token, platform, language, region and country group derived from the time zone, selected categories, and followed races, stages or filters. We do not request GPS or precise location.</li>
       <li><strong>Reports and corrections:</strong> if you submit a race-day form, we process your name, email address, report type and text, the affected race day, IP address, user agent and submission date.</li>
       <li><strong>App analytics:</strong> Firebase Analytics uses a pseudonymous app-instance identifier, device and operating-system data, approximate geography and interactions such as screens, searches, viewed content, and support or purchase actions. We do not use IDFA, GAID or cross-app tracking.</li>
-      <li><strong>Web analytics:</strong> Google Analytics 4 processes navigation data and measurement cookies only after you accept.</li>
+      <li><strong>Web analytics:</strong> Google Analytics 4 processes navigation data and measurement cookies after the cookie notice is accepted; the notice auto-accepts 10 seconds after it is shown unless you reject it first.</li>
       <li><strong>Purchases:</strong> Apple or Google handles payment. The app receives the technical confirmation, product and status required to recognise Amigo, contributions or historical Premium; we do not receive card or billing-address details. If app analytics is enabled, the product and purchase action may be recorded, but not banking details.</li>
       <li><strong>Local and technical data:</strong> preferences, favourites, caches, purchase state and privacy choices are stored on the device or browser. Hosting providers may generate technical logs, such as IP, date, requested resource and user agent, for security and operation.</li>
     </ul>
@@ -157,7 +114,7 @@ MAIN_BLOCKS_EN = {
       <li><strong>Push notifications:</strong> send the notifications you select, with your consent (Article 6(1)(a)).</li>
       <li><strong>Reports and corrections:</strong> receive, verify and respond to information you voluntarily submit, based on the legitimate interest in keeping the calendar accurate and handling the request (Article 6(1)(f)).</li>
       <li><strong>App analytics:</strong> understand use and improve stability and design, based on legitimate interests (Article 6(1)(f)), with an immediate right to object under <strong>Settings &rarr; Privacy &rarr; Usage statistics</strong>.</li>
-      <li><strong>Web analytics:</strong> visit measurement with consent (Article 6(1)(a) and cookie rules).</li>
+      <li><strong>Web analytics:</strong> visit measurement in line with the cookie notice (Article 6(1)(a) and cookie rules).</li>
       <li><strong>Voluntary purchases:</strong> process and recognise the requested purchase (Article 6(1)(b)).</li>
     </ul>
 
@@ -174,7 +131,7 @@ MAIN_BLOCKS_EN = {
     </ul>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">6. Your privacy controls</h2>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">App analytics is <strong>initially enabled</strong> and can be disabled at any time under <strong>Settings &rarr; Privacy &rarr; Usage statistics</strong>. The website does not load Google Analytics until you press <strong>Accept</strong>; rejecting or choosing later does not amount to consent. You can reopen <strong>Cookie settings</strong> from the footer. Notification permission can also be withdrawn in system settings.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">App analytics is <strong>initially enabled</strong> and can be disabled at any time under <strong>Settings &rarr; Privacy &rarr; Usage statistics</strong>. The website loads Google Analytics when the cookie notice is accepted; the notice auto-accepts 10 seconds after it is shown unless you press <strong>Reject</strong> first. You can reopen <strong>Cookie settings</strong> from the footer. Notification permission can also be withdrawn in system settings.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">7. Your rights</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem">You may request access, rectification, erasure, restriction, objection and portability where applicable, and withdraw consent without affecting earlier processing. Write to <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>. We may request reasonable verification details to locate a specific report.</p>
@@ -190,7 +147,7 @@ MAIN_BLOCKS_EN = {
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Founder.</strong> A previous Premium purchase may be recognised as Founder. On iOS, Restore Purchases can detect historical transactions. On Android, an already-expired Premium subscription may not be recoverable after clearing data or reinstalling if Google Play does not return that historical purchase and no local copy exists; contact us so we can review the case.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Cookies and browser storage</h2>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">We use essential storage for theme, language, preferences, favourites, form control and your cookie choice. Consent is not required where it is strictly necessary. Google Analytics may create measurement cookies only after acceptance. We do not use advertising cookies or advertising profiles. You can withdraw consent through <strong>Cookie settings</strong> and clear storage in your browser.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">We use essential storage for theme, language, preferences, favourites, form control and your cookie choice. Consent is not required where it is strictly necessary. Google Analytics may create measurement cookies after the cookie notice is accepted, automatically after 10 seconds unless rejected first. We do not use advertising cookies or advertising profiles. You can withdraw consent through <strong>Cookie settings</strong> and clear storage in your browser.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">11. Advertising and marketing</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">The apps and website do not display ads, integrate advertising networks, or sell or rent data. An email address submitted with a report is used to handle that report, not for marketing.</p>
@@ -297,6 +254,10 @@ def patch_locale(html: str) -> str:
 def patch_canonical(html: str, en_path: str) -> str:
     """Ajusta canonical y hreflang para páginas EN."""
     base_es = "https://calendariociclismo.app"
+    source_canonical = re.search(r'<link rel="canonical" href="([^"]+)"', html)
+    es_url = (source_canonical.group(1) if source_canonical and
+              source_canonical.group(1).startswith(base_es + "/")
+              else base_es + "/")
     base_en = "https://calendariociclismo.app/en"
     en_url  = base_en + ("/" if en_path == "en" else f"/{en_path.removeprefix('en/')}/")
 
@@ -312,8 +273,8 @@ def patch_canonical(html: str, en_path: str) -> str:
     # Insertar hreflangs correctos justo tras la canonical
     hreflangs = (
         f'\n  <link rel="alternate" hreflang="en" href="{en_url}"/>'
-        f'\n  <link rel="alternate" hreflang="es" href="{base_es}/"/>'
-        f'\n  <link rel="alternate" hreflang="x-default" href="{base_es}/"/>'
+        f'\n  <link rel="alternate" hreflang="es" href="{es_url}"/>'
+        f'\n  <link rel="alternate" hreflang="x-default" href="{es_url}"/>'
     )
     html = html.replace(
         f'<link rel="canonical" href="{en_url}">',
@@ -330,6 +291,17 @@ def patch_hrefs(html: str) -> str:
     for es_href, en_href in HREF_MAP.items():
         html = html.replace(f'href="{es_href}"', f'href="{en_href}"')
         html = html.replace(f"href='{es_href}'", f"href='{en_href}'")
+        # Variante con query (?vista=…, ?date=…): /calendario/?vista=mes
+        html = re.sub(
+            rf'href="{re.escape(es_href)}(\?[^"]*)"',
+            rf'href="{en_href}\1"',
+            html,
+        )
+        html = re.sub(
+            rf"href='{re.escape(es_href)}(\?[^']*)'",
+            rf"href='{en_href}\1'",
+            html,
+        )
     # Textos hardcodeados del footer y nav que no tienen data-i18n.
     # La marca "Calendario Ciclismo" NO se traduce: las apps usan ese mismo
     # nombre en su locale EN (values-en/strings.xml app_name), así que la web

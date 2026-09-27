@@ -84,7 +84,7 @@ const ISO3to2 = {
   GBR:'gb', GER:'de', NED:'nl', NOR:'no', SWE:'se', SUI:'ch', USA:'us', AUS:'au', CAN:'ca',
   IRL:'ie', CZE:'cz', SVK:'sk', GRE:'gr', ISR:'il', TUR:'tr', RSA:'za', NZL:'nz', ERI:'er',
   RWA:'rw', IND:'in', IRI:'ir', HKG:'hk', KOR:'kr', TPE:'tw', SGP:'sg', VIE:'vn', BRA:'br',
-  ARG:'ar', CHI:'cl', URU:'uy', VEN:'ve', MEX:'mx', CRC:'cr', GUA:'gt', CUB:'cu', PAN:'pa',
+  ARG:'ar', CHI:'cl', URU:'uy', VEN:'ve', MEX:'mx', CRC:'cr', GUA:'gt', CUB:'cu', PAN:'pa', BIZ:'bz',
   LUX:'lu', EST:'ee', LAT:'lv', LTU:'lt', FIN:'fi', ROU:'ro', BUL:'bg', CRO:'hr', SRB:'rs',
   HUN:'hu', BLR:'by', RUS:'ru', KSA:'sa', UAE:'ae', QAT:'qa', BRN:'bh', KUW:'kw', OMA:'om',
   EGY:'eg', TUN:'tn', ETH:'et', KEN:'ke', NGR:'ng', CYP:'cy', MLT:'mt', MGL:'mn', POL:'pl',

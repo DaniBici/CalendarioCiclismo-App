@@ -57,3 +57,23 @@ fun Team.applySeason(season: TeamSeason?): Team {
         category = season.category ?: category,
     )
 }
+
+/**
+ * Materializa una identidad limitada a una temporada cuando su fila base está
+ * aislada del catálogo que consumen los clientes publicados.
+ */
+fun TeamSeason.asTeam(): Team? {
+    val seasonName = name ?: return null
+    return Team(
+        id = teamId,
+        name = seasonName,
+        badgeTorsoCenter = badgeTorsoCenter ?: "#ffffff",
+        badgeTorsoSides = badgeTorsoSides ?: "#000000",
+        badgeShorts = badgeShorts ?: "#000000",
+        badgeInnerCircle = badgeInnerCircle,
+        headerBg = headerBg ?: "#1f2937",
+        headerText = headerText ?: "#ffffff",
+        nameAliases = null,
+        category = category,
+    )
+}

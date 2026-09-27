@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyPdfSummaryIrms, classify, classificationsFromStageHtml, fnv1a, provisionalClassificationsFromHtml, rowsFromPayload, stageNumber, stagePdfUrlFromHtml, stagesFromRaceHtml, suggestCompetitionId, summaryIrmsFromPdfText } from '../../scripts/results-fetchers/classificacoes-results-fetch.mjs';
-import { extractRidersForNameResolve } from '../../scripts/results-fetchers/uci-results-upsert.mjs';
+import { extractRidersForNameResolve } from '../../scripts/results-fetchers/results-upsert.mjs';
 
 describe('Classificações.net', () => {
   it('descubre etapas sin fijar sus identificadores', () => {

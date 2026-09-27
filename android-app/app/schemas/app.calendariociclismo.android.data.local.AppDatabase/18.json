@@ -1,0 +1,616 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 18,
+    "identityHash": "7ec5fc61aada6a2233f7ca8f6c859820",
+    "entities": [
+      {
+        "tableName": "races",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `nameEn` TEXT, `abbrev` TEXT, `uciCategory` TEXT, `gender` TEXT, `raceFormat` TEXT, `countryCode` TEXT, `colorHex` TEXT, `logoUrl` TEXT, `websiteUrl` TEXT, `hideFlag` INTEGER NOT NULL, `isGrandTour` INTEGER NOT NULL, `isNoClickable` INTEGER NOT NULL, `isCancelled` INTEGER NOT NULL, `startDate` TEXT, `endDate` TEXT, `year` INTEGER, `slug` TEXT, `originalName` TEXT, `startlistImportedAt` TEXT, `startlistProvisional` INTEGER NOT NULL, `createdAt` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nameEn",
+            "columnName": "nameEn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "abbrev",
+            "columnName": "abbrev",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "uciCategory",
+            "columnName": "uciCategory",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "raceFormat",
+            "columnName": "raceFormat",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "countryCode",
+            "columnName": "countryCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "colorHex",
+            "columnName": "colorHex",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "logoUrl",
+            "columnName": "logoUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "websiteUrl",
+            "columnName": "websiteUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hideFlag",
+            "columnName": "hideFlag",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isGrandTour",
+            "columnName": "isGrandTour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isNoClickable",
+            "columnName": "isNoClickable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCancelled",
+            "columnName": "isCancelled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "endDate",
+            "columnName": "endDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "slug",
+            "columnName": "slug",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originalName",
+            "columnName": "originalName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startlistImportedAt",
+            "columnName": "startlistImportedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startlistProvisional",
+            "columnName": "startlistProvisional",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "race_days",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `raceId` TEXT, `dateKey` TEXT NOT NULL, `date` TEXT, `slug` TEXT, `isRestDay` INTEGER NOT NULL, `isCancelledDay` INTEGER NOT NULL, `stageNumber` INTEGER, `startLocation` TEXT, `finishLocation` TEXT, `startLocationEn` TEXT, `finishLocationEn` TEXT, `distanceKm` REAL, `primaryType` TEXT, `secondaryType` TEXT, `neutralStartTimeUtc` TEXT, `realStartTimeUtc` TEXT, `estimatedFinishTimeUtc` TEXT, `tvStatus` TEXT, `description` TEXT, `bonuses` TEXT, `notes` TEXT, `translationsJson` TEXT, `editorialStatus` TEXT NOT NULL, `hasAssets` INTEGER NOT NULL, `updatedAt` TEXT, `countryCode` TEXT, `elevationProfileJson` TEXT, `profileSummitsJson` TEXT, `profileWaypointsJson` TEXT, `profileNotViewable` INTEGER NOT NULL, `routeGpxUrl` TEXT, `raceStatus` TEXT, `competitiveDistanceKm` REAL, `timingPolicy` TEXT NOT NULL, `raceTimeSeconds` REAL, `averageSpeedKmh` REAL, `timeLimitSeconds` REAL, `timeLimitBasisJson` TEXT, `metricsUpdatedAt` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "raceId",
+            "columnName": "raceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dateKey",
+            "columnName": "dateKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "slug",
+            "columnName": "slug",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isRestDay",
+            "columnName": "isRestDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCancelledDay",
+            "columnName": "isCancelledDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stageNumber",
+            "columnName": "stageNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startLocation",
+            "columnName": "startLocation",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "finishLocation",
+            "columnName": "finishLocation",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startLocationEn",
+            "columnName": "startLocationEn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "finishLocationEn",
+            "columnName": "finishLocationEn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "distanceKm",
+            "columnName": "distanceKm",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "primaryType",
+            "columnName": "primaryType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "secondaryType",
+            "columnName": "secondaryType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "neutralStartTimeUtc",
+            "columnName": "neutralStartTimeUtc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "realStartTimeUtc",
+            "columnName": "realStartTimeUtc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "estimatedFinishTimeUtc",
+            "columnName": "estimatedFinishTimeUtc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tvStatus",
+            "columnName": "tvStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bonuses",
+            "columnName": "bonuses",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "translationsJson",
+            "columnName": "translationsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "editorialStatus",
+            "columnName": "editorialStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasAssets",
+            "columnName": "hasAssets",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "countryCode",
+            "columnName": "countryCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "elevationProfileJson",
+            "columnName": "elevationProfileJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "profileSummitsJson",
+            "columnName": "profileSummitsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "profileWaypointsJson",
+            "columnName": "profileWaypointsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "profileNotViewable",
+            "columnName": "profileNotViewable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeGpxUrl",
+            "columnName": "routeGpxUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "raceStatus",
+            "columnName": "raceStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "competitiveDistanceKm",
+            "columnName": "competitiveDistanceKm",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "timingPolicy",
+            "columnName": "timingPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "raceTimeSeconds",
+            "columnName": "raceTimeSeconds",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "averageSpeedKmh",
+            "columnName": "averageSpeedKmh",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "timeLimitSeconds",
+            "columnName": "timeLimitSeconds",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "timeLimitBasisJson",
+            "columnName": "timeLimitBasisJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "metricsUpdatedAt",
+            "columnName": "metricsUpdatedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_race_days_dateKey",
+            "unique": false,
+            "columnNames": [
+              "dateKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_race_days_dateKey` ON `${TABLE_NAME}` (`dateKey`)"
+          },
+          {
+            "name": "index_race_days_raceId",
+            "unique": false,
+            "columnNames": [
+              "raceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_race_days_raceId` ON `${TABLE_NAME}` (`raceId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "broadcasts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `raceDayId` TEXT NOT NULL, `channel` TEXT, `startTimeUtc` TEXT, `url` TEXT, `note` TEXT, `sortOrder` INTEGER NOT NULL, `showInRevive` INTEGER NOT NULL, `country` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "raceDayId",
+            "columnName": "raceDayId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startTimeUtc",
+            "columnName": "startTimeUtc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showInRevive",
+            "columnName": "showInRevive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_broadcasts_raceDayId",
+            "unique": false,
+            "columnNames": [
+              "raceDayId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_broadcasts_raceDayId` ON `${TABLE_NAME}` (`raceDayId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "assets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `raceDayId` TEXT NOT NULL, `type` TEXT, `sourceType` TEXT, `url` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "raceDayId",
+            "columnName": "raceDayId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceType",
+            "columnName": "sourceType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_assets_raceDayId",
+            "unique": false,
+            "columnNames": [
+              "raceDayId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assets_raceDayId` ON `${TABLE_NAME}` (`raceDayId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "cx_month_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `seasonKey` TEXT NOT NULL, `monthKey` TEXT NOT NULL, `payload` TEXT NOT NULL, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seasonKey",
+            "columnName": "seasonKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "monthKey",
+            "columnName": "monthKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "cx_detail_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slug` TEXT NOT NULL, `slugEn` TEXT, `payload` TEXT NOT NULL, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slug",
+            "columnName": "slug",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slugEn",
+            "columnName": "slugEn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ec5fc61aada6a2233f7ca8f6c859820')"
+    ]
+  }
+}

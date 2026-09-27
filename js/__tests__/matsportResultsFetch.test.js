@@ -67,6 +67,12 @@ describe('normAbsTime — capital → timeText', () => {
     expect(normAbsTime('44:02')).toBe('44:02');
   });
 
+  it('trunca centésimas y un punto final publicados por Matsport', () => {
+    expect(normAbsTime('26:49.95')).toBe('26:49');
+    expect(normAbsTime('1:02:03.45')).toBe('1:02:03');
+    expect(normAbsTime('12:10:10.')).toBe('12:10:10');
+  });
+
   it('rechaza lo que no es tiempo', () => {
     expect(normAbsTime('78 pts')).toBeNull();
     expect(normAbsTime(null)).toBeNull();

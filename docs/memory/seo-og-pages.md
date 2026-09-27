@@ -34,6 +34,7 @@ Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inlin
 - `<title>`, `<meta description>`, canonical, OG + Twitter cards completas.
 - `og:image:alt` / `twitter:image:alt` / `og:locale=es_ES`.
 - `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">`.
+- Excepción: las carreras con `races.year` entre 2020 y 2025 llevan `noindex, follow` (ver sección «Temporadas archivadas»).
 - `hreflang="es"` + `hreflang="x-default"` auto-referenciales.
 - `<link rel="alternate" type="application/atom+xml" href="/atom.xml">`.
 - JSON-LD: `SportsEvent` (`startDate`, `endDate`, `location`, `superEvent` para etapas de vuelta, `eventStatus`, `eventAttendanceMode`, `organizer`).
@@ -108,6 +109,17 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 - **Gating de navegación interna SIN CAMBIOS**: el trofeo/CTA "Ver resultados" (`race-data-modal.js`, `jornada.js`, `campeonatos.js`, `resultados-feed.js`) sigue leyendo `keepForWeb` tal cual — solo se activa con clasificación real (rank 1 existente). Mientras no haya datos, la navegación interna sigue cayendo al modal externos de siempre; la página de resultados adelantada solo es alcanzable por buscador/enlace directo.
 - **Alcance**: se aplica a TODA jornada publicada con un `raceId` válido, exista o no fuente UCI configurada (`race_uci_links`) para esa carrera. Una carrera que nunca llegue a tener resultados in-house queda con una página "aún no disponible" permanente — barato y sin `noindex`, pero si la escala crece mucho conviene revisar si acotar a carreras con fuente configurada.
 - **404.html**: ya cubría `/resultados/` y `/en/results/` (fallback a SPA con querystring) desde antes — sin cambios.
+
+## Temporadas archivadas 2020-2025 — noindex (2026-09-26)
+
+Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
+
+- **Criterio:** `races.year` (temporada UCI), no `startDate`: hay carreras de temporada 2021-2025 que empiezan en octubre del año anterior.
+- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; `js/__tests__/archivedSeasonRobots.test.js` comprueba que coinciden.
+- **Estático:** `og_page()`/`og_page_en()` aceptan `robots=` (por defecto el `index, follow, …` de siempre). Las 14 llamadas de carrera (competición, jornada, inscritos, orden de salida, perfil, mapa y resultados, ES y EN) pasan `robots=race_robots(race)`. Ciclocross y el resto de páginas usan el valor por defecto.
+- **SPA:** competición, jornada, inscritos, orden de salida, perfil, mapa y resultados llaman a `setRaceRobots(race)` junto al canonical, lo que cubre las URLs con query string y la navegación interna.
+- **Sitemap:** `gen_sitemap.py` descarta esas carreras antes de construir entradas (competición, inscritos, jornadas, perfiles, mapas, órdenes de salida y resultados).
+- **Caché del build:** `archived_seasons.py` forma parte de la huella de los bloques OG y del sitemap en `build_generated.py`.
 
 ## Sitemap + Atom
 

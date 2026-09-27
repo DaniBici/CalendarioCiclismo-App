@@ -1,8 +1,28 @@
+import { contentHash, fold, zonedTimeToUtc } from './broadcasts-sync-core.mjs';
+
 export const SPORZA_SCHEDULE_BASE_URL = 'https://api.sporza.be/web/content/schedule';
+export const SPORZA_LIVESTREAM_URL = 'https://sporza.be/nl/livestream/';
 export const SPORZA_TIME_ZONE = 'Europe/Brussels';
 
 const STAGE_RE = /\b(?:etappe|rit|stage)\s*(\d{1,2})(?:[a-z])?\b/i;
 const SUMMARY_RE = /\b(?:samenvatting|hoogtepunten|herhaling|summary|highlights|resume)\b/i;
+
+const SPORZA_MONTHS = new Map([
+  ['januari', 1], ['februari', 2], ['maart', 3], ['april', 4], ['mei', 5], ['juni', 6],
+  ['juli', 7], ['augustus', 8], ['september', 9], ['oktober', 10], ['november', 11], ['december', 12],
+]);
+
+// El esquema de livestreams nombra las pruebas en neerlandés; se traduce al
+// vocabulario del emparejador antes de comparar con los nombres de la base de datos.
+export function normalizeSporzaDutch(value) {
+  return String(value || '')
+    .replace(/\btijdrit\b/gi, 'ITT')
+    .replace(/\bwegrit\b/gi, 'road race')
+    .replace(/\bbeloften\b/gi, 'U23')
+    .replace(/\bjunioren\b/gi, 'junior')
+    .replace(/\bvrouwen\b/gi, 'women')
+    .replace(/\bmannen\b/gi, 'men');
+}
 
 function decodeHtml(value) {
   return String(value || '')
@@ -215,7 +235,7 @@ async function responseText(response) {
   return response.text();
 }
 
-export async function collectSporza({ dateKey, fetcher = fetch } = {}) {
+export async function collectSporza({ dateKey, fetcher = fetch, diagnostics = null } = {}) {
   const calendarUrl = sporzaScheduleUrl(dateKey);
   const calendarText = await responseText(await fetcher(calendarUrl));
   const identities = parseSporzaSchedule(calendarText, { sourceUrl: calendarUrl });
@@ -227,6 +247,84 @@ export async function collectSporza({ dateKey, fetcher = fetch } = {}) {
       pageUrl: response?.url || identity.editorialUrl,
     });
     if (observation) observations.push(observation);
+    else if (Array.isArray(diagnostics)) diagnostics.push({
+      source: 'sporza',
+      externalEventId: identity.externalEventId,
+      title: identity.title,
+      dateKey: identity.dateKey,
+      sourceUrl: identity.editorialUrl,
+      action: 'insufficient_broadcast_evidence',
+      detail: 'La página editorial no declara a la vez una hora de emisión y un canal verificables.',
+    });
   }
   return observations;
+}
+
+function sporzaDateKeyFromLabel(label, todayKey) {
+  const text = stripHtml(label);
+  if (/^vandaag/i.test(text)) return todayKey;
+  const match = text.match(/\b(\d{1,2})\s+([a-z]+)\s+(20\d{2})\b/i);
+  const month = match && SPORZA_MONTHS.get(match[2].toLowerCase());
+  if (!month) return null;
+  const dateKey = `${match[3]}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : null;
+}
+
+function sporzaRowField(rowHtml, className) {
+  return stripHtml(rowHtml.match(new RegExp(`<[^>]+class="[^"]*\\b${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'i'))?.[1]);
+}
+
+export function parseSporzaLivestreamSchedule(html, { sourceUrl = SPORZA_LIVESTREAM_URL, todayKey } = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(todayKey || ''))) {
+    throw new Error('El esquema de livestreams de Sporza requiere la fecha de referencia');
+  }
+  const rows = [...String(html || '').matchAll(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/gi)];
+  const events = [];
+  let currentDay = null;
+  for (const [, attrs, rowHtml] of rows) {
+    if (/_customRow_/.test(attrs)) {
+      currentDay = sporzaDateKeyFromLabel(rowHtml, todayKey);
+      continue;
+    }
+    if (!currentDay) continue;
+    const href = rowHtml.match(/<a\b[^>]*href="(https:\/\/sporza\.be\/[^"]+)"[^>]*>/i)?.[1];
+    const time = sporzaRowField(rowHtml, '_time_');
+    const title = sporzaRowField(rowHtml, '_title_');
+    const subtitles = [...rowHtml.matchAll(
+      new RegExp(`<[^>]+class="[^"]*\\b_subSubTitle_[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'gi'),
+    )].map((match) => stripHtml(match[1])).filter(Boolean);
+    if (!href || !title || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) continue;
+    if (subtitles[0] !== 'wielrennen') continue;
+    if (SUMMARY_RE.test(`${title} ${subtitles.join(' ')}`)) continue;
+    const competition = subtitles.slice(1).join(' ');
+    const normalizedTitle = normalizeSporzaDutch(title);
+    const text = `${normalizedTitle} ${competition}`;
+    events.push({
+      source: 'sporza',
+      externalEventId: `${dateKeyHash(currentDay, title, competition)}`,
+      dateKey: currentDay,
+      title: normalizedTitle,
+      subtitle: competition || null,
+      stageNumber: parseStageNumber(text),
+      startTimeUtc: zonedSporzaTime(currentDay, time),
+      sourceUrl,
+      broadcastUrl: href.split('?')[0],
+      sourceChannels: ['Sporza'],
+      country: 'BE',
+      evidence: { declaredTime: time, competition },
+    });
+  }
+  const unique = new Map();
+  for (const event of events) {
+    if (!unique.has(event.externalEventId)) unique.set(event.externalEventId, event);
+  }
+  return [...unique.values()].sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
+}
+
+function dateKeyHash(dateKey, title, competition) {
+  return contentHash(`sporza-livestream|${dateKey}|${fold(`${title} ${competition}`)}`).slice(0, 32);
+}
+
+function zonedSporzaTime(dateKey, time) {
+  return zonedTimeToUtc(dateKey, time, SPORZA_TIME_ZONE);
 }

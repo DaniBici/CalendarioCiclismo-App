@@ -1,10 +1,38 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildStage, eventsListUrl, mapGeneralRows, mapTimingRows, parseCode,
+  buildStage, eventsListUrl, fetchCompetition, mapGeneralRows, mapTimingRows, parseCode,
   raceTypeFor, stageNumberFor, suggestCompetitionId,
 } from '../../scripts/results-fetchers/evodata-results-fetch.mjs';
 
 describe('EvoData CIS — resultados públicos', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('consulta la llegada con el concurso publicado para la segunda etapa', async () => {
+    const requests = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body });
+      let data;
+      if (url.endsWith('/apptoken')) data = { status: 'OK', token: 'test' };
+      else if (url.includes('/getEventById/')) data = { subEvents: [
+        { eventId: 107904, order: 1, date: '2026-09-03' },
+        { eventId: 107905, order: 2, date: '2026-09-04' },
+      ] };
+      else if (url.includes('/getRacesByEventId/')) data = [{ eventId: 107905, raceId: 100000002, raceTypeId: 12 }];
+      else if (url.includes('/getJerseysByEventId/')) data = [];
+      else if (url.includes('/getResults/')) data = body.raceId === 100000002
+        ? { status: 'OK', tot: 1, times: [{ position: 1, bib: '44', order: 13429773, gap: '0' }] }
+        : { status: 'KO', tot: 0 };
+      else throw new Error(`Petición inesperada: ${url}`);
+      return { ok: true, json: async () => data };
+    }));
+    const stages = await fetchCompetition('103006', { onlyStage: 2, totalStages: 4, delay: 0 });
+    expect(stages).toHaveLength(1);
+    expect(stages[0]).toMatchObject({ stageNumber: 2, dateKey: '2026-09-04' });
+    expect(stages[0].classifications[0].rows[0]).toMatchObject({ bib: '44', rank: 1, timeText: '3:43:49' });
+    expect(requests.filter(({ url }) => url.includes('/getResults/')).map(({ body }) => body.raceId)).toEqual([100000002]);
+  });
+
   it('valida el evento padre y genera identificadores estables', () => {
     expect(parseCode('107849')).toBe('107849');
     expect(() => parseCode('tour-avenir')).toThrow('eventId padre numérico');
@@ -85,5 +113,40 @@ describe('EvoData CIS — resultados públicos', () => {
     expect(stages[1]).toMatchObject({ stageNumber: null, isFinalClassification: true });
     expect(stages[1].classifications.map((item) => item.classKind)).toEqual(['gc', 'points', 'teams']);
     expect(stages[1].classifications.every((item) => item.scope === 'stage')).toBe(true);
+  });
+
+  it('publica una carrera de un día como clásica y sin número de etapa', () => {
+    const subEvent = { eventId: 108062, order: 1, eventType: 1, name: 'GIRO DI CAMPANIA', date: '2026-09-20' };
+    const payload = {
+      races: [{ raceTypeId: 12 }],
+      timing: { status: 'OK', tot: 2, times: [
+        { position: 1, bib: '105', order: 15_708_000, gap: '0' },
+        { position: 2, bib: '75', order: 15_708_000, gap: '-' },
+      ] },
+      jerseys: [{ jerseyId: 1, type: 1 }, { jerseyId: 2, type: 2 }],
+      generals: {
+        1: { status: 'OK', tot: 1, results: [{ position: 1, bib: '105', timeResult: 15_708_000, timeGap: 0 }] },
+        2: { status: 'OK', tot: 1, results: [{ position: 1, bib: '105', pointsResult: 100 }] },
+      },
+    };
+    const stages = buildStage('108094', subEvent, payload, { totalStages: 1, oneDay: true });
+    expect(stages).toHaveLength(1);
+    expect(stages[0]).toMatchObject({ stageNumber: null, isFinalClassification: true, raceType: null });
+    expect(stages[0].classifications).toHaveLength(1);
+    expect(stages[0].classifications[0]).toMatchObject({
+      classKind: 'gc', scope: 'stage', eventName: 'General Classification', rowCount: 2,
+    });
+  });
+
+  it('conserva las diferencias cronometradas de una CRI de un día', () => {
+    const stages = buildStage('108094',
+      { eventId: 108063, order: 1, eventType: 2, name: 'Time Trial', date: '2026-09-20' },
+      { races: [{ raceTypeId: 13 }], timing: { status: 'OK', times: [
+        { position: 1, bib: '1', order: 3_600_000, gap: '0' },
+        { position: 2, bib: '2', order: 3_609_000, gap: '-' },
+      ] } },
+      { oneDay: true });
+    expect(stages[0].raceType).toBeNull();
+    expect(stages[0].classifications[0].rows[1]).toMatchObject({ gapText: '+09' });
   });
 });

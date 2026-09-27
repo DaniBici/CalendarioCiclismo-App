@@ -3,6 +3,8 @@ package app.calendariociclismo.android.util
 import app.calendariociclismo.android.data.model.RaceUciResultRow
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.Team
+import app.calendariociclismo.android.data.model.RaceClassificationConfig
+import app.calendariociclismo.android.data.model.RaceUciStage
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -11,6 +13,45 @@ import org.junit.Test
  * puntos, IRM, y el colapso de CRE (variantes A y B).
  */
 class UciResultsLogicTest {
+
+    @Test
+    fun `inventario respeta orden etiquetas y colores editoriales sin colorear etapa`() {
+        val config = listOf(
+            RaceClassificationConfig("r", "points", 3, "Regularidad", "Points", "#00AA44"),
+            RaceClassificationConfig("r", "stage", 1, "Etapa", "Stage", "#FF0000"),
+            RaceClassificationConfig("r", "kom", 2, "Montaña", "KOM", "invalid"),
+        )
+        val inventory = UciResultsLogic.classificationInventory(config, emptyList())
+        assertEquals(listOf("stage", "kom", "points"), inventory.map { it.classKind })
+        assertEquals("Regularidad", UciResultsLogic.classificationLabel(inventory.last(), isEn = false))
+        assertNull(UciResultsLogic.classificationColor(inventory.first()))
+        assertNull(UciResultsLogic.classificationColor(inventory[1]))
+        assertEquals("#00AA44", UciResultsLogic.classificationColor(inventory.last()))
+    }
+
+    @Test
+    fun `inventario incorpora clasificaciones publicadas no configuradas`() {
+        val stage = RaceUciStage(id = "s", raceId = "r", classKind = "youth")
+        assertEquals("youth", UciResultsLogic.classificationInventory(emptyList(), listOf(stage)).single().classKind)
+    }
+
+    @Test
+    fun `la etapa solo muestra las clasificaciones que tiene publicadas`() {
+        val config = listOf(
+            RaceClassificationConfig("r", "stage", 1),
+            RaceClassificationConfig("r", "gc", 2),
+            RaceClassificationConfig("r", "teams", 3),
+        )
+        val existing = listOf(
+            RaceUciStage(id = "gc-3", raceId = "r", classKind = "gc", stageNumber = 3),
+            RaceUciStage(id = "stage-3", raceId = "r", classKind = "stage", stageNumber = 3),
+        )
+
+        val visible = UciResultsLogic.visibleStageClassifications(config, existing)
+
+        assertEquals(listOf("stage", "gc"), visible.map { it.classKind })
+        assertFalse(visible.any { it.classKind == "teams" })
+    }
 
     // Helper: fila de resultado con lo mínimo.
     private fun row(
@@ -129,6 +170,8 @@ class UciResultsLogicTest {
         assertEquals("NS", UciResultsLogic.irmLabel("DNS", isEn = false))
         assertEquals("FC", UciResultsLogic.irmLabel("OTL", isEn = false))
         assertEquals("EXP", UciResultsLogic.irmLabel("DSQ", isEn = false))
+        assertEquals("DF", UciResultsLogic.irmLabel("DF", isEn = false))
+        assertEquals("NR", UciResultsLogic.irmLabel("NR", isEn = true))
         // ABD = variante UCI de DNF → misma etiqueta.
         assertEquals("ABN", UciResultsLogic.irmLabel("ABD", isEn = false))
         assertEquals("DNF", UciResultsLogic.irmLabel("ABD", isEn = true))
@@ -148,6 +191,10 @@ class UciResultsLogicTest {
         assertTrue(UciResultsLogic.isAbandonIrm("DSQ"))
         // 'LAP' (doblada) es RUIDO, no abandono.
         assertFalse(UciResultsLogic.isAbandonIrm("LAP"))
+        assertFalse(UciResultsLogic.isAbandonIrm("DF"))
+        assertFalse(UciResultsLogic.isAbandonIrm("NR"))
+        assertTrue(UciResultsLogic.isNonWinnerIrm("DF"))
+        assertTrue(UciResultsLogic.isNonWinnerIrm("NR"))
         assertFalse(UciResultsLogic.isAbandonIrm(null))
         assertFalse(UciResultsLogic.isAbandonIrm(""))
     }
@@ -675,6 +722,22 @@ class UciResultsLogicTest {
         assertEquals("+1'10\"", vms[2].valueText)
     }
 
+    @Test
+    fun `equipos empatados con el ganador muestran mismo tiempo`() {
+        val rows = listOf(
+            row(rank = 1, riderDisplay = "TEAM A", timeText = "20:00:42"),
+            row(rank = 2, riderDisplay = "TEAM B", gapText = "+0"),
+            row(rank = 3, riderDisplay = "TEAM C", gapText = "+00"),
+            row(rank = 4, riderDisplay = "TEAM D", gapText = "+8"),
+        )
+        val vms = UciResultsLogic.buildIndividualRows(rows, "teams", true, emptyMap(), isEn = false)
+        assertEquals(UciResultsLogic.ValueKind.WINNER_TIME, vms[0].valueKind)
+        assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vms[1].valueKind)
+        assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vms[2].valueKind)
+        assertEquals(UciResultsLogic.ValueKind.GAP, vms[3].valueKind)
+        assertEquals("+8\"", vms[3].valueText)
+    }
+
     // ── isTttStage ─────────────────────────────────────────────────
 
     @Test
@@ -684,19 +747,40 @@ class UciResultsLogicTest {
             row(rank = 2, bib = "11"), row(rank = 2, bib = "12"), row(rank = 2, bib = "13"),
         )
         assertTrue(UciResultsLogic.isTttStage(rows, "stage", false, "ttt"))
-        // Sin el tipo de jornada curado, 2 ranks compartidos no basta (exige ≥3).
+        // Sin marca de CRE no dispara, por marcada que sea la estructura.
         assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, null))
     }
 
     @Test
-    fun `isTttStage con estructura muy marcada se dispara sin tipo de jornada`() {
-        // 3 puestos con ≥2 corredores → suficiente aunque no sepamos que es CRE.
+    fun `isTttStage sin marca de CRE no se dispara por estructura sola`() {
+        // 3 puestos con ≥2 corredores: sin marca (primaryType ni raceType) ya no basta.
         val rows = listOf(
             row(rank = 1, bib = "1"), row(rank = 1, bib = "2"),
             row(rank = 2, bib = "11"), row(rank = 2, bib = "12"),
             row(rank = 3, bib = "21"), row(rank = 3, bib = "22"),
         )
-        assertTrue(UciResultsLogic.isTttStage(rows, "stage", false, null))
+        assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, null))
+        // Con raceType='TTT' de la fuente sí (marca de CRE sin catálogo).
+        assertTrue(UciResultsLogic.isTttStage(rows, "stage", false, null, stageRaceType = "TTT"))
+    }
+
+    @Test
+    fun `isTttStage no dispara con puestos vacios transitorios sin marca (Eslovaquia 2026-3)`() {
+        // Etapa en línea cuyo auto-sync aún no ha rellenado puestos: ≥6 clasificados
+        // sin rank ya no pintan la etapa como CRE si la jornada no está marcada.
+        val rows = listOf(
+            row(rank = 1, bib = "1", timeText = "4:29:54"),
+            row(rank = 2, bib = "2", gapText = "+0"),
+            row(rank = 3, bib = "3", gapText = "+0"),
+            row(rank = null, bib = "4", gapText = "+1:49"),
+            row(rank = null, bib = "5", gapText = "+1:49"),
+            row(rank = null, bib = "6", gapText = "+1:49"),
+            row(rank = null, bib = "7", gapText = "+1:49"),
+            row(rank = null, bib = "8", gapText = "+1:49"),
+            row(rank = null, bib = "9", gapText = "+1:49"),
+        )
+        assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, "medium_mountain"))
+        assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, null))
     }
 
     @Test

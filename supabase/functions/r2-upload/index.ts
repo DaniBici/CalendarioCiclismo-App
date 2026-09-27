@@ -170,7 +170,9 @@ Deno.serve(async (req: Request) => {
     const rawFilename = req.headers.get('x-filename');
     const filename = rawFilename ? decodeURIComponent(rawFilename) : null;
     const contentType = req.headers.get('content-type') || 'application/octet-stream';
-    if (!filename || !filename.startsWith('races/') || !/\/technicalGuide(?:-\d+)?\.pdf$/i.test(filename)) {
+    // Carretera (races/) y ciclocross (cx/) comparten la convención
+    // `{propietario}/{slug}/{año}/technicalGuide[-N].pdf`.
+    if (!filename || !/^(races|cx)\/[^/]+\/[^/]+\/technicalGuide(?:-\d+)?\.pdf$/i.test(filename)) {
       return jsonRes({ error: 'Solo se pueden firmar guías técnicas PDF canónicas' }, 400);
     }
     if (contentType !== 'application/pdf') {

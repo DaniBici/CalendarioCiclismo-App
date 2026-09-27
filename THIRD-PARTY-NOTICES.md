@@ -76,6 +76,58 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
+## iso3166-flags
+
+Banderas de las comunidades autónomas de España que no existen en flag-icons
+(`es-an`, `es-ar`, …, `es-vc`). Se sirven autoalojadas desde `/flags/`, van
+empaquetadas en Android (`android-app/app/src/main/assets/flags/`) y en el
+asset catalog de iOS.
+
+- Proyecto: https://github.com/amckenna41/iso3166-flags
+- Licencia: MIT
+
+```
+MIT License
+
+Copyright (c) 2021 AJ McKenna
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## Google Sans
+
+Google Sans Medium se redistribuye en las cabeceras nativas de iOS y Android.
+Subconjuntos latinos de Google Sans Regular, Medium y Bold se sirven desde
+`fonts/pdf/` para el PDF de inscritos de la web.
+
+- Proyecto: https://github.com/googlefonts/googlesans
+- Versión: 13.002
+- Copyright: Copyright 2025 The Google Sans Project Authors
+- Licencia: [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
+
+El binario conserva el aviso de copyright, el nombre del proyecto y la URL de
+la licencia en sus metadatos.
+
+---
+
 ## Librerías
 
 Ninguna se redistribuye en este repositorio: la web las carga desde CDN y las

@@ -17,42 +17,36 @@
 //     nombre canónico de la ficha (fallback al winnerName crudo; CRE → crudo).
 //   · stageDate puede venir NULL (volcados PDF, migración 090) → la fecha se
 //     resuelve por raceDayId→race_days.dateKey o por las fechas de la carrera.
-//   · Sin resultados in-house pero jornada concluida (meta+30) y externos → la
-//     misma card navegable, que abre el modal de fuentes externas; se convierte
-//     sola cuando el cron vuelque.
+//   · El feed solo publica clasificaciones propias.
 // ─────────────────────────────────────────────────────────────────
 
+import { fetchAllRows, fetchByIds } from './services/paged-query.js';
+import { enrichResultFeed } from './services/result-feed-context.js';
+import { classificationLabel, classificationColor } from './services/race-presentation.js';
 import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          setMeta, setMetaProperty, resolveTypeBadges,
          uciRank, proLevel, genderRank, grandTourRank, tsSeconds,
-         nameImpliesFemale, effectiveCountryCode, trapFocus, femaleMark } from './shared.js';
+         nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
 import { getLang } from './i18n.js';
-import { buildExtUrlA, buildExtUrlB, isRaceConcluded, openResultsModal } from './race-data-modal.js';
-import { isAbandonIrm } from './uci-irm.js';
+import { isNonWinnerIrm } from './uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
-import {
-  buildInhouseResultsMatcher,
-  resultFeedEntryKey,
-  sectorSuffixMap,
-} from './services/races.js';
+import { resultFeedEntryKey, sectorSuffixMap } from './services/races.js';
 import {
   decorateUciRanking,
   formatUciRankingUpdated,
   UciRankingTier,
   uciRankingRuleText,
 } from './uci-team-ranking.js';
-
-const WINDOW_DAYS = 14;
-const SEASON_START = '2026-01-01';
+import {
+  RESULTS_SEASON_START,
+  initialResultsFromKey,
+  previousResultsWindow,
+} from './services/result-feed-pagination.js';
 
 const TROPHY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
 
 function toDateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function addDays(dk, n) {
-  const [y, m, d] = dk.split('-').map(Number);
-  return toDateKey(new Date(y, m - 1, d + n));
 }
 // Color del tinte de la card (espejo de safeCardColor en app.js): oscurece los
 // colores demasiado claros para que el tinte/borde sea visible en ambos temas.
@@ -133,23 +127,32 @@ function cmpEntries(a, b) {
 
 // ── Datos: entradas de resultados de un rango de fechas, ya ordenadas ──
 async function fetchEntries(fromKey, toKey, isEn) {
-  // 1) Clasificaciones in-house: etapas + generales. stageDate NULL (PDF)
-  //    también entra; su fecha se resuelve después y se filtra en cliente.
-  const { data: stages } = await supabase
-    .from('race_uci_stages')
-    .select('id, raceId, raceDayId, stageNumber, classKind, stageDate, winnerName, isFinalClassification')
-    .eq('keepForWeb', true).gt('rowCount', 0)
-    .in('classKind', ['stage', 'gc'])
-    .or(`stageDate.gte.${fromKey},stageDate.is.null`)
-    .or(`stageDate.lte.${toKey},stageDate.is.null`);
-
-  // 2) Jornadas publicadas del rango (fallback externos + km/desnivel/tipos/
-  //    hora de las filas in-house, vía raceDayId).
-  const { data: raceDays } = await supabase
-    .from('race_days')
-    .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, distanceKm, elevationProfile, primaryType, secondaryType, countryCode')
-    .eq('editorialStatus', 'published')
-    .gte('dateKey', fromKey).lte('dateKey', toKey);
+  const stageColumns = 'id, raceId, raceDayId, stageNumber, classKind, stageDate, winnerName, isFinalClassification';
+  const raceColumns = 'id, name, nameEn, slug, slugEn, year, countryCode, gender, raceFormat, uciCategory, colorHex, isGrandTour, startDate, endDate, logoUrl';
+  // Consultar primero la ventana fechada, sus jornadas y las carreras que se
+  // solapan. Los PDF sin stageDate se acotan después a esos IDs de carrera.
+  const [datedStages, raceDays, activeRaces] = await Promise.all([
+    fetchAllRows(() => supabase.from('race_uci_stages').select(stageColumns)
+      .eq('keepForWeb', true).gt('rowCount', 0).in('classKind', ['stage', 'gc'])
+      .gte('stageDate', fromKey).lte('stageDate', toKey).order('id')),
+    fetchAllRows(() => supabase.from('race_days')
+      .select('id, raceId, dateKey, stageNumber, isRestDay, isCancelledDay, estimatedFinishTimeUtc, neutralStartTimeUtc, realStartTimeUtc, distanceKm, elevationProfile, primaryType, secondaryType, countryCode, raceStatus, profileSummits, profileWaypoints, profileNotViewable')
+      .eq('editorialStatus', 'published')
+      .gte('dateKey', fromKey).lte('dateKey', toKey).order('id')),
+    fetchAllRows(() => supabase.from('races').select(raceColumns)
+      .or(`startDate.lte.${toKey},startDate.is.null`)
+      .or(`endDate.gte.${fromKey},endDate.is.null`).order('id')),
+  ]);
+  const candidateIds = [...new Set([
+    ...raceDays.map(day => day.raceId),
+    ...activeRaces.map(race => race.id),
+  ].filter(Boolean))];
+  const undatedStages = candidateIds.length
+    ? await fetchByIds(supabase, 'race_uci_stages', stageColumns, 'raceId', candidateIds,
+      query => query.eq('keepForWeb', true).gt('rowCount', 0)
+        .in('classKind', ['stage', 'gc']).is('stageDate', null))
+    : [];
+  const stages = [...datedStages, ...undatedStages].sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
   const rdById = new Map((raceDays || []).map(rd => [rd.id, rd]));
   const { suffixByDayId, sectoredNums } = sectorSuffixMap(raceDays || []);
@@ -173,28 +176,16 @@ async function fetchEntries(fromKey, toKey, isEn) {
   // 3) Carreras implicadas.
   const raceIds = [...new Set([
     ...(stages || []).map(s => s.raceId),
-    ...(raceDays || []).map(rd => rd.raceId),
   ].filter(Boolean))];
-  const raceById = new Map();
-  if (raceIds.length) {
-    const { data: races } = await supabase.from('races')
-      .select('id, name, nameEn, slug, slugEn, year, countryCode, gender, raceFormat, extId, extSlug, uciCategory, colorHex, isGrandTour, startDate, endDate, logoUrl')
-      .in('id', raceIds);
+  const raceById = new Map(activeRaces.map(race => [race.id, race]));
+  const missingRaceIds = raceIds.filter(id => !raceById.has(id));
+  if (missingRaceIds.length) {
+    const races = await fetchByIds(supabase,'races',raceColumns,'id',missingRaceIds);
     (races || []).forEach(r => raceById.set(r.id, r));
   }
-  const automaticSourceRaceIds = new Set();
-  if (raceIds.length) {
-    const { data: links } = await supabase.from('race_uci_links')
-      .select('raceId,source').in('raceId', raceIds);
-    (links || []).forEach(link => {
-      if (link.source !== 'pdf') automaticSourceRaceIds.add(link.raceId);
-    });
-  }
-
   // ── Entradas in-house ──────────────────────────────────────────
   const key = (rid, sn, raceDayId = null) =>
     resultFeedEntryKey(rid, sn, raceDayId, suffixByDayId, sectoredNums);
-  const inhouseMatcher = buildInhouseResultsMatcher(stages || []);
   const entries = [];
   const seen = new Set();
   // Jornada de una clasificación: por raceDayId → por `${raceId}#${stageNumber}`
@@ -210,6 +201,40 @@ async function fetchEntries(fromKey, toKey, isEn) {
     || (race.raceFormat === 'one_day' ? race.startDate : race.endDate)
     || null;
   const entryRd = (s, race) => rdFor(s, race);
+
+  // La vista de resultados duplica las clasificaciones finales bajo la última
+  // etapa publicada: conserva sus pestañas F, pero la columna de contexto
+  // (ruta, perfil y assets) es la de esa jornada. Localizamos aquí esa etapa
+  // para que la card de la general final entre directamente en ese contexto.
+  // Solo cuenta una clasificación de etapa realmente publicada: si no existe,
+  // se mantiene el enlace histórico a la pestaña final independiente.
+  const finalStageContextByRace = new Map();
+  const isLaterStage = (candidate, current) => {
+    if (!current) return true;
+    const date = (candidate.rd?.dateKey || candidate.stageDate || '').localeCompare(
+      current.rd?.dateKey || current.stageDate || ''
+    );
+    if (date) return date > 0;
+    const time = (candidate.rd?.neutralStartTimeUtc || '').localeCompare(current.rd?.neutralStartTimeUtc || '');
+    if (time) return time > 0;
+    if (candidate.sn !== current.sn) return candidate.sn > current.sn;
+    return (candidate.suffix || '').localeCompare(current.suffix || '') > 0;
+  };
+  for (const s of (stages || [])) {
+    if (s.classKind !== 'stage' || s.stageNumber == null) continue;
+    const race = raceById.get(s.raceId);
+    if (!race) continue;
+    const rd = entryRd(s, race);
+    if (rd?.isRestDay || rd?.isCancelledDay) continue;
+    const candidate = {
+      sn: s.stageNumber,
+      suffix: rd?._stageSuffix || '',
+      rd,
+      stageDate: s.stageDate,
+    };
+    const current = finalStageContextByRace.get(s.raceId);
+    if (isLaterStage(candidate, current)) finalStageContextByRace.set(s.raceId, candidate);
+  }
 
   for (const s of (stages || [])) {
     const race = raceById.get(s.raceId);
@@ -242,15 +267,18 @@ async function fetchEntries(fromKey, toKey, isEn) {
       });
     } else if (isFinalGc) {
       // General final de una vuelta: entrada propia, POR DELANTE de la etapa
-      // de su carrera (subOrder 0 < 1; cmpEntries la pega a su carrera).
+      // de su carrera (subOrder 0 < 1; cmpEntries la pega a su carrera). La
+      // URL entra en la última etapa para que las clasificaciones F se vean
+      // con el contexto de esa jornada.
       const k = `${s.raceId}#gcfinal`;
       if (seen.has(k)) continue;
       seen.add(k);
+      const finalStage = finalStageContextByRace.get(s.raceId);
       entries.push({
         _k: k, _stageRef: s.id, kind: 'inhouse', isGcFinal: true,
         date, race, sn: null, subOrder: 0, rd: null,
         winner: cleanWinner(s.winnerName),
-        href: inhouseHref(race, null, 'gc', isEn),
+        href: inhouseHref(race, finalStage?.sn ?? null, 'gc', isEn, finalStage?.suffix || ''),
       });
     } else if (s.classKind === 'stage' && s.stageNumber != null) {
       const k = key(s.raceId, s.stageNumber, s.raceDayId);
@@ -267,26 +295,6 @@ async function fetchEntries(fromKey, toKey, isEn) {
     }
   }
 
-  // ── Fallback externos: jornadas concluidas SIN volcado in-house ─────
-  for (const rd of (raceDays || [])) {
-    if (rd.isRestDay || rd.isCancelledDay) continue;
-    const race = raceById.get(rd.raceId);
-    if (!race || (!race.extId && !race.extSlug)) continue;
-    if (automaticSourceRaceIds.has(rd.raceId)) continue;
-    const isOneDay = race.raceFormat === 'one_day';
-    const covered = inhouseMatcher.has(rd)
-      || (isOneDay && seen.has(`${rd.raceId}#oneday`));
-    if (covered) continue;
-    if (!isRaceConcluded(rd)) continue;
-    const sn = isOneDay ? null : rd.stageNumber;
-    entries.push({
-      kind: 'ext',
-      date: rd.dateKey, race, sn, suffix: rd._stageSuffix || '', subOrder: 1, rd,
-      extUrlA: buildExtUrlA(race, sn),
-      extUrlB: buildExtUrlB(race, sn),
-    });
-  }
-
   // ── Ganadores con nombre canónico de la ficha (en negrita) ────────
   // rank 1 de cada clasificación → globalRiderId → riders_men/women. Si hay
   // VARIOS rank 1 (CRE: todo el equipo comparte puesto) o no resuelve, se
@@ -298,8 +306,9 @@ async function fetchEntries(fromKey, toKey, isEn) {
         .select('stageRef, globalRiderId, irm')
         .in('stageRef', refIds).eq('rank', 1);
       const byRef = new Map();
+      const nonWinnerRefs = new Set();
       (w || []).forEach(row => {
-        if (isAbandonIrm(row.irm)) return;   // rank 1 espurio (DNS con rank)
+        if (isNonWinnerIrm(row.irm)) { nonWinnerRefs.add(row.stageRef); return; }
         if (!byRef.has(row.stageRef)) byRef.set(row.stageRef, new Set());
         if (row.globalRiderId) byRef.get(row.stageRef).add(row.globalRiderId);
       });
@@ -316,6 +325,7 @@ async function fetchEntries(fromKey, toKey, isEn) {
       entries.forEach(e => {
         if (e.kind !== 'inhouse' || !e._stageRef) return;
         const set = byRef.get(e._stageRef);
+        if (nonWinnerRefs.has(e._stageRef) && !set?.size) e.winner = '';
         if (set && set.size === 1) {
           const nm = nameById.get([...set][0]);
           if (nm) e.winner = nm;
@@ -368,7 +378,10 @@ async function fetchEntries(fromKey, toKey, isEn) {
 
   // Cronología inversa; dentro del día, orden canónico de carreras (las
   // generales finales pegadas a su carrera y por delante).
-  entries.sort((a, b) => (b.date || '').localeCompare(a.date || '') || cmpEntries(a, b));
+  await enrichResultFeed(supabase,entries);
+  // Las destacadas con clasificaciones complementarias abren su día.
+  const featuredRank = e => Number(!!(e._featured && e.leaders?.length));
+  entries.sort((a, b) => (b.date || '').localeCompare(a.date || '') || featuredRank(b)-featuredRank(a) || cmpEntries(a, b));
   return entries;
 }
 
@@ -379,11 +392,11 @@ function entryRowHtml(e, isEn, locale) {
   // carrera (etapa que sale de otro país) → prevalece el de la jornada.
   const flagCc = effectiveCountryCode(e.rd, e.race);
   const flag = flagCc ? `<span class="feed-row__flag">${countryFlag(flagCc)}</span>` : '';
-  // Logo de la carrera como en las cards de Hoy (race-logo-img + bandera
-  // debajo); sin logo → solo la bandera, como hasta ahora.
-  const leftCol = e.race.logoUrl
-    ? `<span class="feed-row__logo"><img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">${flag}</span>`
-    : flag;
+  // Todas las filas reservan la misma columna para el logo y la bandera.
+  const logo = e.race.logoUrl
+    ? `<img class="race-logo-img" src="${esc(e.race.logoUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : '';
+  const leftCol = `<span class="feed-row__logo">${logo}${flag}</span>`;
   const fem = (e.race.gender === 'female' && !nameImpliesFemale(e.race.name || ''))
     ? femaleMark({ cls: 'feed-row__fem' }) : '';
   const name = `${esc(getRaceName(e.race))}${fem}`;
@@ -417,32 +430,59 @@ function entryRowHtml(e, isEn, locale) {
     subHtml = `${text}${badges}`;
   }
 
-  const winnerHtml = (e.kind === 'inhouse' && e.winner)
+  const winnerHtml = e.winner
     ? `<span class="feed-row__winner">${TROPHY_SVG} <strong>${esc(e.winner)}</strong></span>` : '';
 
-  if (e.kind === 'inhouse') {
-    return `
-      <a class="feed-row${e.isGcFinal ? ' feed-row--gc' : ''}" style="--card-color:${esc(color)}" href="${esc(e.href)}">
+  // Destacada (espejo de FeedRowView en iOS/Android): la misma fila con sus
+  // clasificaciones complementarias debajo. Solo las vueltas por etapas las
+  // tienen; una destacada sin complementarias se pinta como fila normal.
+  const leaders = e._featured ? (e.leaders || []).map(c => {
+    const dot = classificationColor(c)
+      ? `<span class="feed-row__leader-dot" style="background:${classificationColor(c)}"></span>` : '';
+    const winners = c.winners.map(w => esc(w.name)).join(' / ');
+    return `<span class="feed-row__leader">${dot}<span class="feed-row__leader-label">${esc(classificationLabel(c, isEn ? 'en' : 'es'))}</span>${winners ? `<span class="feed-row__leader-name">${winners}</span>` : ''}</span>`;
+  }).join('') : '';
+
+  return `
+      <a class="feed-row${e.isGcFinal ? ' feed-row--gc' : ''}${leaders ? ' feed-row--featured' : ''}" style="--card-color:${esc(color)}" href="${esc(e.href)}">
         ${leftCol}
         <span class="feed-row__main"><span class="feed-row__race">${name}</span>
           ${subHtml ? `<span class="feed-row__sub">${subHtml}</span>` : ''}
-          ${winnerHtml}</span>
+          ${winnerHtml}${leaders ? `<span class="feed-row__leaders">${leaders}</span>` : ''}</span>
         <span class="feed-row__chevron" aria-hidden="true">›</span>
       </a>`;
-  }
-  const externalLabel = isEn
-    ? `View results for ${getRaceName(e.race)}`
-    : `Ver resultados de ${getRaceName(e.race)}`;
-  return `
-    <button class="feed-row feed-row--ext" type="button"
-            style="--card-color:${esc(color)}"
-            data-results-fallback="${esc(e.rd?.id || '')}"
-            aria-label="${esc(externalLabel)}">
-      ${leftCol}
-      <span class="feed-row__main"><span class="feed-row__race">${name}</span>
-        ${subHtml ? `<span class="feed-row__sub">${subHtml}</span>` : ''}</span>
-      <span class="feed-row__chevron" aria-hidden="true">›</span>
-    </button>`;
+}
+
+// ── Rejilla de escritorio ──────────────────────────────────────────
+// Con ancho suficiente cada día es una rejilla de dos columnas (css/app.css,
+// mismo breakpoint). Cada destacada ocupa en su columna las filas que exige
+// su altura natural y las filas normales rellenan en orden denso la otra
+// columna. La altura de referencia es la mediana de las filas normales del día.
+// Solo las destacadas con clasificaciones complementarias crecen en altura.
+// Un exceso de hasta FEED_SPAN_TOLERANCE px no añade otra fila: lo absorben
+// las filas abarcadas creciendo unos píxeles.
+const FEED_TWO_COLUMNS = window.matchMedia('(min-width:961px)');
+const FEED_SPAN_TOLERANCE = 12;
+function packFeaturedEntries(root) {
+  root.querySelectorAll('.feed-day').forEach((day) => {
+    const featured = [...day.querySelectorAll(':scope>.feed-row--featured')];
+    if (!featured.length) return;
+    featured.forEach((el) => { el.style.gridRow = ''; });
+    if (!FEED_TWO_COLUMNS.matches) return;
+    const rows = [...day.querySelectorAll(':scope>.feed-row:not(.feed-row--featured)')];
+    const items = [...featured, ...rows];
+    items.forEach((el) => { el.style.alignSelf = 'start'; });
+    const featuredHeights = featured.map(el => el.offsetHeight);
+    const rowHeights = rows.map(el => el.offsetHeight).sort((a, b) => a - b);
+    items.forEach((el) => { el.style.alignSelf = ''; });
+    const rowHeight = rowHeights[Math.floor(rowHeights.length / 2)];
+    if (!rowHeight) return;
+    const gap = parseFloat(getComputedStyle(day).rowGap) || 0;
+    featured.forEach((el, i) => {
+      const span = Math.max(1, Math.ceil((featuredHeights[i] + gap - FEED_SPAN_TOLERANCE) / (rowHeight + gap)));
+      el.style.gridRow = `span ${span}`;
+    });
+  });
 }
 
 // ── Índice /resultados/ · /en/results/ ─────────────────────────────
@@ -450,13 +490,11 @@ export function renderResultsFeed(content) {
   const _isEn = getLang() === 'en';
   const locale = _isEn ? 'en-GB' : 'es-ES';
   const todayKey = toDateKey(new Date());
-  let fromKey = addDays(todayKey, -(WINDOW_DAYS - 1));
+  let fromKey = initialResultsFromKey(todayKey);
   let activeView = 'latest';
   let rankingGender = 'male';
   let feedEntries = null;
   let rankingRows = null;
-  let infoModal = null;
-  let _releaseInfoFocus = null;
 
   // ── SEO (la home del feed es evergreen) ───────────────────────────
   const title = _isEn
@@ -537,115 +575,113 @@ export function renderResultsFeed(content) {
       if (curDate !== null) html += '</div>';
     }
 
-    if (fromKey > SEASON_START) {
+    if (fromKey > RESULTS_SEASON_START) {
       html += `<div class="feed-more-wrap"><button class="feed-more" id="feedMoreBtn">${_isEn ? 'Load more results' : 'Cargar más resultados'}</button></div>`;
     }
     content.innerHTML = shell(html);
     bindViewTabs();
+    packFeaturedEntries(content);
 
-    const externalByDayId = new Map(entries
-      .filter(entry => entry.kind === 'ext' && entry.rd?.id)
-      .map(entry => [String(entry.rd.id), entry]));
-    content.querySelectorAll('[data-results-fallback]').forEach(card => {
-      const entry = externalByDayId.get(card.dataset.resultsFallback);
-      if (entry) card.addEventListener('click', () => openResultsModal(entry.rd, entry.race));
-    });
-
-    const moreBtn = document.getElementById('feedMoreBtn');
+    const moreBtn = content.querySelector('#feedMoreBtn');
     if (moreBtn) {
-      moreBtn.addEventListener('click', async () => {
-        const next = addDays(fromKey, -WINDOW_DAYS);
-        fromKey = next < SEASON_START ? SEASON_START : next;
-        const y = window.scrollY;
-        await loadFeed();
-        window.scrollTo(0, y);
-      });
+      moreBtn.addEventListener('click', loadMoreFeed);
     }
   }
 
-  async function loadFeed() {
-    content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
-    bindViewTabs();
+  let feedRequest=0, feedLoading=false, moreLoading=false;
+
+  function setMoreButtonLoading(loading) {
+    const button = content.querySelector('#feedMoreBtn');
+    if (!button) return;
+    button.disabled = loading;
+    button.setAttribute('aria-busy', String(loading));
+    button.textContent = loading
+      ? (_isEn ? 'Loading…' : 'Cargando…')
+      : (_isEn ? 'Load more results' : 'Cargar más resultados');
+  }
+
+  async function loadMoreFeed() {
+    if (moreLoading) return;
+    const range = previousResultsWindow(fromKey);
+    if (!range) return;
+
+    const request = ++feedRequest;
+    const y = window.scrollY;
+    moreLoading = true;
+    feedLoading = true;
+    setMoreButtonLoading(true);
+
     try {
-      feedEntries = await fetchEntries(fromKey, todayKey, _isEn);
-      if (activeView === 'latest') renderFeed(feedEntries);
-    } catch (error) {
-      console.error('[resultados-feed] latest', error);
+      const olderEntries = await fetchEntries(range.fromKey, range.toKey, _isEn);
+      if (request !== feedRequest) return;
+      fromKey = range.fromKey;
+      feedEntries = [...(feedEntries || []), ...olderEntries];
+      moreLoading = false;
       if (activeView === 'latest') {
-        content.innerHTML = shell(`<div class="startlist-empty">${_isEn
-          ? 'The latest results could not be loaded.'
-          : 'No se pudieron cargar los últimos resultados.'}</div>`);
-        bindViewTabs();
+        renderFeed(feedEntries);
+        window.scrollTo(0, y);
+      }
+    } catch (error) {
+      if (request !== feedRequest) return;
+      console.error('[resultados-feed] load more', error);
+      const wrap = content.querySelector('.feed-more-wrap');
+      if (wrap) {
+        const note = document.createElement('div');
+        note.className = 'res-update-note';
+        note.setAttribute('role', 'status');
+        note.textContent = _isEn
+          ? 'Unable to load more results. Try again.'
+          : 'No se pudieron cargar más resultados. Inténtalo de nuevo.';
+        wrap.append(note);
+      }
+    } finally {
+      if (request === feedRequest) {
+        moreLoading = false;
+        feedLoading = false;
+        setMoreButtonLoading(false);
       }
     }
   }
 
-  function rankingInfoHtml(rows) {
-    const updated = formatUciRankingUpdated(rows[0]?.rankingDate, _isEn);
-    const sourceUrl = rows[0]?.sourceUrl || 'https://dataride.uci.ch/iframe/Rankings/10';
-    const regulationsUrl = 'https://assets.ctfassets.net/761l7gh5x5an/6FEzFHeA2oKMBGb5sdIvQ7/96aad776f210fc38853ec9bf9ec9acba/2-ROA-20260701-E.pdf';
-    if (_isEn) {
-      return `
-        <p><strong>${esc(updated)}.</strong> DataRide normally publishes a new ranking every Tuesday.</p>
-        <p>The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season.</p>
-        <ul class="uci-ranking-legend">
-          <li><span class="uci-ranking-swatch uci-ranking-swatch--wt"></span> ${rankingGender === 'male' ? 'WorldTeams' : "Women's WorldTeams"}</li>
-          <li><span class="uci-ranking-swatch uci-ranking-swatch--orange"></span> ${rankingGender === 'male' ? 'Mandatory WorldTour and ProSeries invitations' : "Mandatory Women's WorldTour invitations"}</li>
-          ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--green"></span> Mandatory ProSeries invitations</li>' : ''}
-          ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--excluded"></span> ProTeams outside the overall top 30</li>' : ''}
-        </ul>
-        <p><a href="${esc(sourceUrl)}" target="_blank" rel="noopener">UCI DataRide source</a> ·
-        <a href="${regulationsUrl}" target="_blank" rel="noopener">UCI Regulations, art. 2.1.007bis</a></p>`;
+  async function loadFeed({refresh=false}={}) {
+    const request=++feedRequest;
+    feedLoading=true;
+    if (!refresh && !feedEntries) {
+      content.innerHTML = shell(`<div class="loading">${_isEn ? 'Loading results' : 'Cargando resultados'}</div>`);
+      bindViewTabs();
     }
-    return `
-      <p><strong>${esc(updated)}.</strong> DataRide publica normalmente un nuevo ránking cada martes.</p>
-      <p>Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.</p>
-      <ul class="uci-ranking-legend">
-        <li><span class="uci-ranking-swatch uci-ranking-swatch--wt"></span> ${rankingGender === 'male' ? 'WorldTeams' : "Women's WorldTeams"}</li>
-        <li><span class="uci-ranking-swatch uci-ranking-swatch--orange"></span> ${rankingGender === 'male' ? 'Invitaciones obligatorias a todo el WorldTour y ProSeries' : "Invitaciones obligatorias al Women's WorldTour"}</li>
-        ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--green"></span> Invitaciones obligatorias a ProSeries</li>' : ''}
-        ${rankingGender === 'male' ? '<li><span class="uci-ranking-swatch uci-ranking-swatch--excluded"></span> ProTeams fuera del top-30 absoluto</li>' : ''}
-      </ul>
-      <p><a href="${esc(sourceUrl)}" target="_blank" rel="noopener">Fuente UCI DataRide</a> ·
-      <a href="${regulationsUrl}" target="_blank" rel="noopener">Reglamento UCI, art. 2.1.007bis</a></p>`;
+    try {
+      const next=await fetchEntries(fromKey,toDateKey(new Date()),_isEn);
+      if (request!==feedRequest) return;
+      const changed = !feedEntries || JSON.stringify(next) !== JSON.stringify(feedEntries);
+      feedEntries=next;
+      if (activeView==='latest' && changed) {
+        const focused=document.activeElement?.closest('a')?.getAttribute('href');
+        renderFeed(feedEntries);
+        if (focused) [...content.querySelectorAll('a')].find(a=>a.getAttribute('href')===focused)?.focus({preventScroll:true});
+      }
+    } catch (error) {
+      if (request!==feedRequest || activeView!=='latest') return;
+      console.error('[resultados-feed] latest',error);
+      if(feedEntries) renderFeed(feedEntries);
+      else { content.innerHTML=shell(''); bindViewTabs(); }
+      const note=document.createElement('div'); note.className='res-update-note'; note.setAttribute('role','status');
+      note.innerHTML=`${feedEntries ? (_isEn?'Unable to update · Saved results':'No se pudo actualizar · Datos conservados') : (_isEn?'Unable to load results':'No se pudieron cargar los resultados')} <button type="button">${_isEn?'Retry':'Reintentar'}</button>`;
+      content.append(note);
+      note.querySelector('button').onclick=()=>loadFeed({refresh:true});
+    } finally { if(request===feedRequest) feedLoading=false; }
   }
-
-  function closeInfoModal() {
-    if (!infoModal) return;
-    infoModal.classList.remove('rd-modal--open');
-    document.body.style.overflow = '';
-    if (_releaseInfoFocus) { _releaseInfoFocus(); _releaseInfoFocus = null; }
-    content.querySelector('.uci-ranking-info-button')?.focus();
-  }
-
-  function openInfoModal(rows) {
-    if (!infoModal) {
-      infoModal = document.createElement('div');
-      infoModal.className = 'rd-modal-overlay';
-      infoModal.innerHTML = `
-        <div class="rd-modal uci-ranking-info-modal" role="dialog" aria-modal="true" aria-labelledby="uciRankingInfoTitle">
-          <div class="rd-modal__bar">
-            <div class="rd-modal__header-text">
-              <span class="rd-modal__race-name" id="uciRankingInfoTitle">${_isEn ? 'About the UCI Ranking' : 'Sobre el Ránking UCI'}</span>
-            </div>
-            <button class="rd-modal__close" type="button" aria-label="${_isEn ? 'Close' : 'Cerrar'}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <div class="rd-modal__body uci-ranking-info-modal__body"></div>
-        </div>`;
-      infoModal.addEventListener('click', (event) => {
-        if (event.target === infoModal) closeInfoModal();
-      });
-      infoModal.querySelector('.rd-modal__close').addEventListener('click', closeInfoModal);
-      document.body.appendChild(infoModal);
-    }
-    infoModal.querySelector('.uci-ranking-info-modal__body').innerHTML = rankingInfoHtml(rows);
-    infoModal.classList.add('rd-modal--open');
-    document.body.style.overflow = 'hidden';
-    _releaseInfoFocus = trapFocus(infoModal.querySelector('.rd-modal'),
-      { initial: infoModal.querySelector('.rd-modal__close') });
-  }
+  let packFrame=0;
+  const repackFeed=()=> {
+    cancelAnimationFrame(packFrame);
+    packFrame=requestAnimationFrame(()=> { if(activeView==='latest') packFeaturedEntries(content); });
+  };
+  window.addEventListener('resize',repackFeed);
+  document.fonts?.ready.then(repackFeed);
+  const refreshFeed=()=> { if(!document.hidden && activeView==='latest' && !feedLoading && content.isConnected) loadFeed({refresh:true}); };
+  const feedTimer=setInterval(refreshFeed,60000);
+  document.addEventListener('visibilitychange',refreshFeed);
+  window.addEventListener('pagehide',()=> {clearInterval(feedTimer);document.removeEventListener('visibilitychange',refreshFeed);window.removeEventListener('resize',repackFeed);},{once:true});
 
   function tierClass(row) {
     switch (row.invitationTier) {
@@ -659,7 +695,6 @@ export function renderResultsFeed(content) {
 
   function renderRanking(rows) {
     const selected = decorateUciRanking(rows, rankingGender);
-    const info = rankingInfoHtml(selected);
     const updated = formatUciRankingUpdated(selected[0]?.rankingDate, _isEn);
     const pointsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
     const genderButtons = [
@@ -692,11 +727,7 @@ export function renderResultsFeed(content) {
           <h2 class="uci-ranking-title">${_isEn ? 'UCI Team Ranking' : 'Ránking UCI por equipos'}</h2>
           <div class="uci-ranking-heading-meta">
             <p class="uci-ranking-updated">${esc(updated)}</p>
-            <button class="uci-ranking-info-button" type="button"
-                    aria-label="${_isEn ? 'Ranking source and invitation rules' : 'Fuente y reglas de invitación'}"
-                    aria-describedby="uciRankingInfoTooltip">i</button>
           </div>
-          <div class="uci-ranking-info-tooltip" id="uciRankingInfoTooltip" role="tooltip">${info}</div>
         </div>
         <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
           ${genderButtons}
@@ -720,9 +751,6 @@ export function renderResultsFeed(content) {
         rankingGender = button.dataset.rankingGender;
         renderRanking(rows);
       });
-    });
-    content.querySelector('.uci-ranking-info-button')?.addEventListener('click', () => {
-      if (window.matchMedia('(max-width: 768px)').matches) openInfoModal(selected);
     });
     const explainedRows = [...content.querySelectorAll('.uci-ranking-row--explained')];
     const closeRuleTooltips = (except = null) => {
@@ -777,10 +805,6 @@ export function renderResultsFeed(content) {
       }
     }
   }
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && infoModal?.classList.contains('rd-modal--open')) closeInfoModal();
-  });
 
   loadFeed();
 }

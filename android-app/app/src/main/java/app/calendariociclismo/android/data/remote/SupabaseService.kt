@@ -6,9 +6,12 @@ import app.calendariociclismo.android.data.model.Broadcast
 import app.calendariociclismo.android.data.model.ChallengeGroup
 import app.calendariociclismo.android.data.model.DayData
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
+import app.calendariociclismo.android.data.model.FeaturedRaceSelection
+import app.calendariociclismo.android.data.model.FeedStartlistIdentityRow
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceDayElevationData
+import app.calendariociclismo.android.data.model.RaceClassificationConfig
 import app.calendariociclismo.android.data.model.RaceUciResultRow
 import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.RiderProfile
@@ -27,6 +30,8 @@ import app.calendariociclismo.android.data.model.applyingElevation
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
 import io.github.jan.supabase.annotations.SupabaseInternal
+import io.github.jan.supabase.annotations.SupabaseExperimental
+import io.github.jan.supabase.postgrest.RpcMethod
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
@@ -41,9 +46,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import app.calendariociclismo.android.data.model.*
+import app.calendariociclismo.android.data.repository.CxRemote
+import java.time.YearMonth
 
 /**
  * Servicio centralizado para acceso a datos de Supabase.
@@ -54,10 +63,178 @@ import kotlinx.serialization.json.buildJsonObject
  * `push_subscriptions`).
  */
 @OptIn(SupabaseInternal::class)
-class SupabaseService {
+class SupabaseService : CxRemote {
+
+    private val cxAgendaColumns = "id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
+        "assets(type,url)," +
+        "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl),cx_broadcasts(*),cx_videos(*)"
+
+    override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> =
+        client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
+            filter {
+                eq("seasonKey", season)
+                eq("editorialStatus", "published")
+                lte("dateKey", month.atEndOfMonth().toString())
+                or { gte("dateKey", month.atDay(1).toString()); gte("endDateKey", month.atDay(1).toString()) }
+            }
+            order("dateKey", Order.ASCENDING)
+            order("id", Order.ASCENDING)
+        }.decodeList()
+
+    suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = ids.distinct().chunked(100).flatMap { batch ->
+        client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
+            filter { eq("editorialStatus", "published"); isIn("id", batch) }
+        }.decodeList<CxRace>().filter { app.calendariociclismo.android.util.CyclocrossLogic.raceInSeason(it) }
+    }
+
+    suspend fun cxTournamentsByIds(ids: List<String>): List<CxTournament> = ids.distinct().chunked(100).flatMap { batch ->
+        client.from("cx_tournaments").select(columns = Columns.raw("id,name,nameEn,slug,seasonKey,colorHex,logoUrl")) {
+            filter { isIn("id", batch) }
+        }.decodeList<CxTournament>()
+    }
+
+    @OptIn(SupabaseExperimental::class)
+    override suspend fun cxNextDate(season: String, date: String): String? =
+        client.postgrest.rpc("cx_next_race_date", method = RpcMethod.GET) {
+            // En la versión 2.6.1, rpc(parameters, GET) conserva comillas JSON en strings.
+            params["p_season_key"] = listOf(season)
+            params["p_date_key"] = listOf(date)
+        }.decodeAs()
+
+    override suspend fun cxNextDate(season: String, date: String, excluding: List<String>): String? {
+        if (excluding.isEmpty()) return cxNextDate(season, date)
+        return client.postgrest.rpc(
+            "cx_next_race_date",
+            buildJsonObject {
+                put("p_season_key", JsonPrimitive(season))
+                put("p_date_key", JsonPrimitive(date))
+                put("p_exclude_classes", JsonArray(excluding.map(::JsonPrimitive)))
+            },
+        ).decodeAs()
+    }
+
+    /** Datos del widget «Carreras de hoy» (RPC `widget_day`), en JSON crudo. */
+    suspend fun widgetDay(params: JsonObject): String =
+        client.postgrest.rpc("widget_day", params).data
 
     @Serializable
-    private data class ResultsSourceLink(val raceId: String, val source: String)
+    private data class CxIdEntry(val id: String)
+
+    override suspend fun cxTournamentHasRaces(tournamentId: String, excluding: List<String>): Boolean =
+        client.from("cx_races").select(columns = Columns.raw("id")) {
+            filter {
+                eq("tournamentId", tournamentId); eq("editorialStatus", "published")
+                excluding.forEach { neq("class", it) }
+            }
+            limit(1)
+        }.decodeList<CxIdEntry>().isNotEmpty()
+
+    @Serializable
+    private data class CxDateEntry(val dateKey: String, val cx_race_categories: List<Category>) {
+        @Serializable data class Category(val dateKey: String? = null, val isCancelled: Boolean)
+    }
+
+    override suspend fun cxTournamentNextDate(season: String, date: String, tournamentId: String): String? =
+        cxTournamentNextDate(season, date, tournamentId, emptyList())
+
+    override suspend fun cxTournamentNextDate(season: String, date: String, tournamentId: String, excluding: List<String>): String? {
+        val last = app.calendariociclismo.android.util.CyclocrossLogic.months(season).last().atEndOfMonth().toString()
+        val rows = mutableListOf<CxDateEntry>()
+        var offset = 0L
+        while (true) {
+            val page = client.from("cx_races").select(columns = Columns.raw("dateKey,cx_race_categories(dateKey,isCancelled)")) {
+                filter {
+                    eq("seasonKey", season); eq("tournamentId", tournamentId)
+                    eq("editorialStatus", "published"); eq("isCancelled", false)
+                    gte("dateKey", "${season.take(4)}-08-01"); lte("dateKey", last)
+                    or { gte("dateKey", date); gte("endDateKey", date) }
+                    excluding.forEach { neq("class", it) }
+                }
+                order("id", Order.ASCENDING); range(offset, offset + 999)
+            }.decodeList<CxDateEntry>()
+            rows += page
+            if (page.size < 1000) break
+            offset += 1000
+        }
+        return rows.flatMap { race -> if (race.cx_race_categories.isEmpty()) listOf(race.dateKey) else race.cx_race_categories.filterNot { it.isCancelled }.map { it.dateKey ?: race.dateKey } }
+            .filter { it >= date && runCatching { YearMonth.from(java.time.LocalDate.parse(it)) in app.calendariociclismo.android.util.CyclocrossLogic.months(season) }.getOrDefault(false) }.minOrNull()
+    }
+
+    override suspend fun cxRaceForSlug(slug: String): CxRace? =
+        client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
+            filter { eq("editorialStatus", "published"); or { eq("slug", slug); eq("slugEn", slug) } }
+            limit(1)
+        }.decodeList<CxRace>().firstOrNull()
+
+    override suspend fun cxTournamentForSlug(slug: String): CxTournament? =
+        client.from("cx_tournaments").select(columns = Columns.raw("id,name,nameEn,slug,seasonKey,colorHex,logoUrl")) {
+            filter { eq("slug", slug) }
+            limit(1)
+        }.decodeList<CxTournament>().firstOrNull()
+
+    override suspend fun cxSeasonRounds(season: String): Map<String, CxRound> {
+        val last = app.calendariociclismo.android.util.CyclocrossLogic.months(season).last().atEndOfMonth().toString()
+        val rows = mutableListOf<CxRoundRow>()
+        var offset = 0L
+        while (true) {
+            val page = client.from("cx_races").select(columns = Columns.raw("id,tournamentId,dateKey,seasonKey,isCancelled,cx_race_categories(dateKey,startTimeUtc,isCancelled)")) {
+                filter {
+                    eq("seasonKey", season); eq("editorialStatus", "published")
+                    gte("dateKey", "${season.take(4)}-08-01"); lte("dateKey", last)
+                }
+                order("id", Order.ASCENDING); range(offset, offset + 999)
+            }.decodeList<CxRoundRow>()
+            rows += page
+            if (page.size < 1000) break
+            offset += 1000
+        }
+        return app.calendariociclismo.android.util.CyclocrossLogic.tournamentRounds(rows, season)
+    }
+
+    // Orden por columna configurable: las tablas sin `id` (p. ej.
+    // cx_standings_state, cuya clave es tournamentId+seasonKey+category) no
+    // admiten el orden por defecto.
+    private suspend inline fun <reified T : Any> cxRows(table: String, filters: Map<String, String>, orderColumn: String = "id"): List<T> {
+        val rows = mutableListOf<T>()
+        var offset = 0L
+        while (true) {
+            val page = client.from(table).select {
+                filter { filters.forEach { (key, value) -> eq(key, value) } }
+                order(orderColumn, Order.ASCENDING)
+                range(offset, offset + 999)
+            }.decodeList<T>()
+            rows.addAll(page)
+            if (page.size < 1000) return rows
+            offset += 1000
+        }
+    }
+
+    override suspend fun cxDetail(id: String): CxDetail? = coroutineScope {
+        val race = client.from("cx_races").select(columns = Columns.raw("*,cx_tournaments(*),cx_race_categories(*)")) {
+            filter { eq("id", id); eq("editorialStatus", "published") }
+        }.decodeList<CxRace>().firstOrNull() ?: return@coroutineScope null
+        val filters = mapOf("raceId" to id)
+        val startlist = async { cxRows<CxStartlistRider>("cx_startlist_riders", filters) }
+        val results = async { cxRows<CxResult>("cx_results", filters) }
+        val broadcasts = async { cxRows<CxBroadcast>("cx_broadcasts", filters) }
+        val videos = async { cxRows<CxVideo>("cx_videos", filters) }
+        val assets = async { cxRows<CxAsset>("assets", mapOf("cxRaceId" to id)) }
+        val standings = async {
+            race.tournamentId?.let { id ->
+                val filters = mapOf("tournamentId" to id, "seasonKey" to race.seasonKey)
+                val states = cxRows<CxStandingState>("cx_standings_state", filters, "category")
+                states to cxRows<CxStanding>("cx_tournament_standings", filters)
+            } ?: (emptyList<CxStandingState>() to emptyList<CxStanding>())
+        }
+        // Catálogo completo: resultados y generales casan `teamName` por nombre
+        // y alias, igual que la web; los dorsales usan `teamId`.
+        val catalog = async { cxRows<CxTeam>("cx_teams", emptyMap()) }
+        val riders = startlist.await()
+        val teams = catalog.await()
+        val (states, rows) = standings.await()
+        CxDetail(race, riders, results.await(), broadcasts.await(), videos.await(), teams, rows, states, assets.await())
+    }
 
     private val client = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -100,6 +277,36 @@ class SupabaseService {
         return client.from("races").select {
             filter { isIn("id", ids) }
         }.decodeList()
+    }
+
+    /** Selección editorial de hasta dos carreras por fecha. */
+    suspend fun featuredRaces(dateKeys: List<String>): List<FeaturedRaceSelection> {
+        val keys = dateKeys.filter { it.isNotEmpty() }.distinct().sorted()
+        if (keys.isEmpty()) return emptyList()
+        return client.postgrest.rpc(
+            "featured_races_for_dates",
+            buildJsonObject { put("date_keys", JsonArray(keys.map(::JsonPrimitive))) },
+        ).decodeList()
+    }
+
+    /** Carreras cuyo intervalo se solapa con el rango solicitado. */
+    suspend fun racesOverlapping(startKey: String, endKey: String): List<Race> =
+        client.from("races").select {
+            filter {
+                lte("startDate", endKey)
+                gte("endDate", startKey)
+            }
+        }.decodeList()
+
+    /** Jornadas y carreras necesarias para un mes, incluidas las carreras
+     * referenciadas por una jornada aunque sus fechas estén desalineadas. */
+    suspend fun calendarMonthData(startKey: String, endKey: String): Pair<List<RaceDay>, List<Race>> = coroutineScope {
+        val daysDeferred = async { raceDaysInRange(startKey, endKey) }
+        val racesDeferred = async { racesOverlapping(startKey, endKey) }
+        val days = daysDeferred.await()
+        val overlappingRaces = racesDeferred.await()
+        val recovered = racesByIds(RaceLogic.missingRaceIds(days, overlappingRaces))
+        days to (overlappingRaces + recovered).distinctBy { it.id }
     }
 
     /** Carreras de Campeonatos Nacionales (uciCategory='CN') de un año dentro de
@@ -165,12 +372,9 @@ class SupabaseService {
      * Pagina manualmente en chunks de 1.000: PostgREST aplica un tope
      * server-side de 1.000 filas por request que un `limit()` más alto NO
      * evita (mismo tope que ya documenta `panel.js` para riders_men/women).
-     * Sin esto, un rango que cubra más de 1.000 jornadas (p. ej. un año
-     * natural completo, como hace `MonthScreen` vía `refreshRange`) se
-     * trunca en silencio y el orden de retorno no sigue la fecha, así que
-     * la parte recortada no son necesariamente "los últimos días del año":
-     * pueden faltar carreras enteras de mitad de temporada (bug real: Tour
-     * de Francia 2026 desaparecía casi entero de la vista de Mes).
+     * Sin esto, cualquier consumidor que solicite más de 1.000 jornadas se
+     * truncaría en silencio y la parte recortada no tendría por qué coincidir
+     * con el final cronológico del rango.
      * Se pagina por `id` (clave única) para que el orden entre páginas sea
      * estable — paginar por `dateKey` (no único) puede saltar o duplicar
      * filas en el borde de cada página.
@@ -268,6 +472,19 @@ class SupabaseService {
     suspend fun teams(): List<Team> =
         client.from("teams").select().decodeList()
 
+    suspend fun teamsByIds(ids: List<String>): List<Team> =
+        if (ids.isEmpty()) emptyList() else client.from("teams").select {
+            filter { isIn("id", ids) }
+        }.decodeList()
+
+    suspend fun teamSeasonsByIds(year: Int, ids: List<String>): List<TeamSeason> =
+        if (ids.isEmpty()) emptyList() else client.from("team_seasons").select {
+            filter {
+                eq("year", year)
+                isIn("teamId", ids)
+            }
+        }.decodeList()
+
     // Render temporal: versiones de equipo de un año concreto (team_seasons).
     // Se filtra por año; los teamIds se cruzan en memoria con globalTeams.
     suspend fun teamSeasons(year: Int): List<TeamSeason> =
@@ -333,7 +550,7 @@ class SupabaseService {
     suspend fun ridersByAffiliation(teamId: String, season: Int, gender: String?): List<RiderProfile> {
         val affs: List<AffiliationRow> = client.from("rider_team_affiliations")
             .select(Columns.list("riderId", "riderGender", "dateTo")) {
-                filter { eq("year", season); eq("teamId", teamId) }
+                filter { eq("year", season); eq("teamId", teamId); eq("affiliationType", "regular") }
             }.decodeList()
         if (affs.isEmpty()) return emptyList()
 
@@ -379,18 +596,6 @@ class SupabaseService {
 
     // ─────────── Resultados UCI in-house ───────────
 
-    /** Carreras con fuente automática enlazada. PDF es carga manual y conserva externos. */
-    suspend fun automaticResultsSourceRaceIds(raceIds: List<String>): Set<String> {
-        val ids = raceIds.filter { it.isNotEmpty() }.distinct()
-        if (ids.isEmpty()) return emptySet()
-        return client.from("race_uci_links").select(columns = Columns.list("raceId", "source")) {
-            filter { isIn("raceId", ids) }
-        }.decodeList<ResultsSourceLink>()
-            .filter { it.source != "pdf" }
-            .map { it.raceId }
-            .toSet()
-    }
-
     // Clasificaciones keepForWeb de una carrera (clasif. de etapa + GC del día +
     // generales acumuladas). 1 fila por (etapa × clasificación).
     suspend fun raceUciStages(raceId: String): List<RaceUciStage> =
@@ -401,6 +606,28 @@ class SupabaseService {
             }
             order("stageNumber", Order.ASCENDING, nullsFirst = true)
         }.decodeList()
+
+    suspend fun raceClassifications(raceId: String): List<RaceClassificationConfig> =
+        client.from("race_classifications").select(
+            columns = Columns.raw("raceId,classKind,position,labelEs,labelEn,colorHex")
+        ) {
+            filter { eq("raceId", raceId) }
+            order("position", Order.ASCENDING)
+        }.decodeList()
+
+    suspend fun raceClassificationsByRaceIds(raceIds: List<String>): List<RaceClassificationConfig> {
+        if (raceIds.isEmpty()) return emptyList()
+        val out = ArrayList<RaceClassificationConfig>()
+        raceIds.distinct().chunked(20).forEach { chunk ->
+            out += client.from("race_classifications").select(
+                columns = Columns.raw("raceId,classKind,position,labelEs,labelEn,colorHex")
+            ) {
+                filter { isIn("raceId", chunk) }
+                order("position", Order.ASCENDING)
+            }.decodeList<RaceClassificationConfig>()
+        }
+        return out
+    }
 
     // Filas de una clasificación concreta (siempre por stageRef → índice).
     suspend fun raceUciResults(stageRef: String): List<RaceUciResultRow> =
@@ -489,7 +716,7 @@ class SupabaseService {
         }.decodeList()
 
     /**
-     * Jornadas publicadas del rango para el feed (fallback externos + km/desnivel/
+     * Jornadas publicadas del rango para el feed (km/desnivel/
      * tipos/hora de las filas in-house, vía raceDayId). El rango va dentro de
      * un `and` explícito: dos filtros sueltos sobre la MISMA columna colapsan
      * al primero en supabase-kt 2.6.1 (ver nota de raceUciStagesFeed).
@@ -498,7 +725,7 @@ class SupabaseService {
         client.from("race_days").select(
             columns = Columns.raw(
                 "id,raceId,dateKey,stageNumber,isRestDay,isCancelledDay," +
-                    "estimatedFinishTimeUtc,neutralStartTimeUtc,startLocation,finishLocation," +
+                    "estimatedFinishTimeUtc,neutralStartTimeUtc,realStartTimeUtc,startLocation,finishLocation," +
                     "startLocationEn,finishLocationEn,distanceKm,elevationProfile," +
                     "primaryType,secondaryType,countryCode"
             )
@@ -516,7 +743,7 @@ class SupabaseService {
     suspend fun raceUciRank1(stageRefs: List<String>): List<UciRank1Row> {
         if (stageRefs.isEmpty()) return emptyList()
         return client.from("race_uci_results").select(
-            columns = Columns.raw("stageRef,globalRiderId,irm")
+            columns = Columns.raw("stageRef,raceId,bib,globalRiderId,teamId,riderDisplay,irm")
         ) {
             filter {
                 eq("rank", 1)
@@ -544,6 +771,27 @@ class SupabaseService {
             }
         }
         return out
+    }
+
+    /** Inscritos de las carreras destacadas, para el fallback por dorsal del feed. */
+    suspend fun feedStartlistIdentities(raceIds: List<String>): List<FeedStartlistIdentityRow> {
+        if (raceIds.isEmpty()) return emptyList()
+        return client.from("startlist_riders_resolved").select(
+            columns = Columns.raw("raceId,dorsal,globalRiderId,firstName,lastName")
+        ) {
+            filter { isIn("raceId", raceIds) }
+        }.decodeList()
+    }
+
+    /** Nombres canónicos de equipos para líderes de clasificaciones por equipos. */
+    suspend fun teamNamesByIds(teamIds: List<String>): Map<String, String> {
+        if (teamIds.isEmpty()) return emptyMap()
+        val rows: List<TeamIdentityRow> = client.from("teams").select(
+            columns = Columns.list("id", "name")
+        ) {
+            filter { isIn("id", teamIds) }
+        }.decodeList()
+        return rows.associate { it.id to it.name }
     }
 
     /**
@@ -586,8 +834,10 @@ class SupabaseService {
      * TIMESTAMPTZ (precisión al segundo). Filtrado en cliente para evitar
      * problemas de escaping ISO/null en filtros .or() de PostgREST.
      */
-    suspend fun todayHighlights(): List<TodayHighlight> {
+    suspend fun todayHighlights(scope: String = "road"): List<TodayHighlight> {
+        val resolvedScope = if (scope == "cx") "cx" else "road"
         val all: List<TodayHighlight> = client.from("today_highlights").select {
+            filter { eq("scope", resolvedScope) }
             order("position", Order.ASCENDING)
         }.decodeList()
         val now = java.time.Instant.now()
@@ -639,6 +889,7 @@ class SupabaseService {
         followedRaces: List<String> = emptyList(),
         raceFilters: List<String> = emptyList(),
         followedStages: List<String> = emptyList(),
+        followedCxRaces: List<String>? = null,
     ) {
         val normalizedLanguage = if (language == "en") "en" else "es"
         val params = buildJsonObject {
@@ -652,8 +903,9 @@ class SupabaseService {
             put("p_followed_races", JsonArray(followedRaces.map { JsonPrimitive(it) }))
             put("p_race_filters", JsonArray(raceFilters.map { JsonPrimitive(it) }))
             put("p_followed_stages", JsonArray(followedStages.map { JsonPrimitive(it) }))
+            put("p_followed_cx_races", followedCxRaces?.let { JsonArray(it.map { id -> JsonPrimitive(id) }) } ?: JsonNull)
         }
-        client.postgrest.rpc("set_push_subscription_v3", params)
+        client.postgrest.rpc("set_push_subscription_v4", params)
     }
 
     /**
@@ -681,11 +933,13 @@ class SupabaseService {
         val broadcastsDeferred = async { broadcastsByRaceDays(rdIds) }
         val assetsDeferred = async { assetsByRaceDays(rdIds) }
         val elevDeferred = async { raceDaysElevation(rdIds) }
+        val featuredDeferred = async { featuredRaces(listOf(dateKey)) }
 
         val fetchedRaces = racesDeferred.await()
         val fetchedBroadcasts = broadcastsDeferred.await()
         val fetchedAssets = assetsDeferred.await()
         val fetchedElev = elevDeferred.await()
+        val featured = featuredDeferred.await()
 
         val raceMap = fetchedRaces.associateBy { it.id }
         val broadcastsByRd = fetchedBroadcasts.groupBy { it.raceDayId }
@@ -708,7 +962,11 @@ class SupabaseService {
             )
         }
 
-        DayData(raceDays = enriched, raceMap = raceMap)
+        DayData(
+            raceDays = enriched,
+            raceMap = raceMap,
+            featuredRaceIds = featured.filter { it.dateKey == dateKey }.map { it.raceId }.toSet(),
+        )
     }
 
     /** Carga datos completos de una carrera: info + etapas + emisiones + assets. */
@@ -773,6 +1031,9 @@ class SupabaseService {
     @Serializable
     private data class TeamNameRow(val name: String)
 
+    @Serializable
+    private data class TeamIdentityRow(val id: String, val name: String)
+
     companion object {
         /** Columnas de race_days sin los campos de perfil de elevación (JSONB pesados).
          *  Para queries masivas (Mes, Temporada, Búsqueda) donde esos datos no son necesarios. */
@@ -781,5 +1042,6 @@ class SupabaseService {
             "startLocation,finishLocation,distanceKm,primaryType,secondaryType," +
             "neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
             "startLocationEn,finishLocationEn,translations,editorialStatus,hasAssets,updatedAt,countryCode,routeGpxUrl"
+                .plus(",raceStatus,competitiveDistanceKm,timingPolicy,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis,metricsUpdatedAt")
     }
 }

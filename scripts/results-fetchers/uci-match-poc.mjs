@@ -250,7 +250,7 @@ async function main() {
   const horizonISO = HORIZON != null ? new Date(HORIZON).toISOString().slice(0, 10) : '∞';
   // Excluir CANCELADAS: una carrera no disputada (isCancelled) no tiene resultados en la UCI,
   // así que jamás debe casar. Si las dejásemos, solaparían en fecha/país a competiciones ajenas
-  // y caerían en 'ambiguous'/'none', ensuciando para siempre la revisión «Resultados UCI» del
+  // y caerían en 'ambiguous'/'none', ensuciando para siempre la revisión técnica del
   // panel. Excluirlas aquí (única fuente del matching → propaga a backfill y al cron de
   // descubrimiento) es además auto-mantenible: marcar una carrera cancelada en el panel la saca.
   const cancelled = oursAll.filter((r) => r.isCancelled);

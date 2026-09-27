@@ -40,22 +40,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.browser.customtabs.CustomTabsIntent
-import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import android.content.Context
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Broadcast
 import app.calendariociclismo.android.data.model.ChampionshipCountry
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
-import app.calendariociclismo.android.data.prefs.RegionPreference
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RouteLoadingView
@@ -64,8 +59,8 @@ import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.LocaleHolder
-import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.RegionDetector
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -170,7 +165,7 @@ private fun ChampionshipsGrid(
                     }
                 } else {
                     items(countries, key = { it.countryCode }) { country ->
-                        CountryCard(country = country, filter = state.filter, navController = navController, inhouseKeys = state.inhouseKeys, automaticSourceRaceIds = state.automaticSourceRaceIds, resultsSourceGateResolved = state.resultsSourceGateResolved)
+                        CountryCard(country = country, filter = state.filter, navController = navController, inhouseKeys = state.inhouseKeys)
                     }
                 }
             }
@@ -211,8 +206,6 @@ private fun CountryCard(
     filter: ChampionshipsConfig.Filter,
     navController: NavController,
     inhouseKeys: Set<String> = emptySet(),
-    automaticSourceRaceIds: Set<String> = emptySet(),
-    resultsSourceGateResolved: Boolean = false,
 ) {
     val countryName = remember(country.countryCode) {
         Locale("", country.countryCode).getDisplayCountry(LocaleHolder.current)
@@ -254,8 +247,6 @@ private fun CountryCard(
                                 item = enriched,
                                 navController = navController,
                                 inhouseKeys = inhouseKeys,
-                                automaticSourceRaceIds = automaticSourceRaceIds,
-                                resultsSourceGateResolved = resultsSourceGateResolved,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -269,10 +260,10 @@ private fun CountryCard(
 
 /**
  * Celda compacta de una prueba. Por prioridad (espejo de `eventCell` en
- * js/campeonatos.js): concluida con externos → botones de resultados; concluida
- * sin ellos → bandera; con TV → badge de TV (Live / hora / "TV"); si no → hora
- * de meta con bandera a cuadros. El cuerpo navega al detalle; los botones externos
- * abren el navegador. Paridad con `ChampionshipEventCell` iOS.
+ * js/campeonatos.js): con clasificaciones propias → trofeo a la pantalla nativa;
+ * si no, concluida → bandera; con TV → badge de TV (Live / hora / "TV"); si no →
+ * hora de meta con bandera a cuadros. El cuerpo navega al detalle. Paridad con
+ * `ChampionshipEventCell` iOS.
  */
 @Composable
 private fun EventCell(
@@ -280,28 +271,20 @@ private fun EventCell(
     item: EnrichedRaceDay,
     navController: NavController,
     inhouseKeys: Set<String> = emptySet(),
-    automaticSourceRaceIds: Set<String> = emptySet(),
-    resultsSourceGateResolved: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val rd = item.raceDay
-    val context = LocalContext.current
     val app = rememberApp()
-    val regionPref by app.preferences.regionPreference.collectAsState(initial = RegionPreference.SPAIN)
     val concluded = RaceLogic.isRaceConcluded(rd)
     val tint = if (slot.isFemale) Color(0xFF9C27B0) else MaterialTheme.colorScheme.primary
     // El badge de TV de la celda debe respetar la preferencia regional igual que
     // las race cards / la web (que pre-filtra): si no, un usuario de España vería
     // la TV del campeonato de Bélgica.
-    val regionBroadcasts = RaceLogic.filterBroadcastsByRegion(item.broadcasts, regionPref.allowedBroadcastGroups)
+    val regionBroadcasts = RaceLogic.filterBroadcastsByRegion(item.broadcasts, RegionDetector.allowedBroadcastGroups())
     val hasTvInfo = regionBroadcasts.isNotEmpty() || !rd.tvStatus.isNullOrEmpty()
-    val extUrlA = item.race?.let { RaceLogic.buildExtUrlA(it, rd.stageNumber) }
-    val extUrlB = item.race?.let { RaceLogic.buildExtUrlB(it, rd.stageNumber, rd.stageSuffix) }
     // ¿Resultados in-house? → el trofeo lleva a la pantalla NATIVA (como las race cards).
     val hasInhouse = item.race?.id?.let { inhouseKeys.contains(app.repository.inhouseKey(it, rd.stageNumber)) } ?: false
-    val automaticSource = item.race?.id in automaticSourceRaceIds
-    val showResults = hasInhouse || (resultsSourceGateResolved && !automaticSource
-        && concluded && (extUrlA != null || extUrlB != null))
+    val showResults = hasInhouse
 
     Column(
         modifier = modifier
@@ -343,14 +326,9 @@ private fun EventCell(
         }
         CellDivider(tint)
         when {
-            // Con resultados in-house, el trofeo (pantalla NATIVA) SUSTITUYE a externos
-            // (no se une a ellos); sin in-house, externos en el navegador.
-            showResults && hasInhouse && item.race != null ->
+            // El trofeo (pantalla NATIVA) sustituye a hora/TV.
+            showResults && item.race != null ->
                 TrophyBadge(tint) { navController.navigate(Routes.results(item.race!!.id, rd.stageNumber)) }
-            showResults -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                extUrlA?.let { ResultsBadge("FC", tint) { openResultLink(context, it) } }
-                extUrlB?.let { ResultsBadge("fuente externa", tint) { openResultLink(context, it) } }
-            }
             concluded -> Icon(
                 imageVector = Icons.Filled.Flag,
                 contentDescription = null,
@@ -433,30 +411,6 @@ private fun TrophyBadge(tint: Color, onClick: () -> Unit) {
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .size(14.dp),
     )
-}
-
-/** Badge de resultados (externos), mismo lenguaje que `badge--results` de la web. */
-@Composable
-private fun ResultsBadge(text: String, tint: Color, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = Color.White,
-        modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(tint)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 5.dp, vertical = 2.dp),
-    )
-}
-
-/** Abre un enlace externo de resultados en Custom Tabs (no-op si offline). */
-private fun openResultLink(context: Context, url: String) {
-    if (!NetworkMonitor.isOnline(context)) return
-    runCatching {
-        CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, url.toUri())
-    }
 }
 
 /** Día corto "EEE d" (sin mes — la semana es conocida). */

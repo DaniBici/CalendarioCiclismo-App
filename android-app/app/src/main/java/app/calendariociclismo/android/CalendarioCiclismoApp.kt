@@ -2,6 +2,7 @@ package app.calendariociclismo.android
 
 import android.app.Application
 import android.util.Log
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.work.Configuration
 import app.calendariociclismo.android.data.analytics.AnalyticsService
 import app.calendariociclismo.android.data.local.AppDatabase
@@ -10,10 +11,14 @@ import app.calendariociclismo.android.data.prefs.RaceFollowMode
 import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.data.remote.SupabaseService
 import app.calendariociclismo.android.data.repository.CalendarRepository
+import app.calendariociclismo.android.data.repository.CyclocrossRepository
 import app.calendariociclismo.android.data.sync.ImageAssetCache
 import app.calendariociclismo.android.data.sync.OfflineManager
 import app.calendariociclismo.android.notifications.NotificationChannels
 import app.calendariociclismo.android.notifications.PushNotificationManager
+import app.calendariociclismo.android.widget.today.TodayCyclingWidget
+import app.calendariociclismo.android.widget.today.TodayWidgetScheduler
+import app.calendariociclismo.android.widget.today.WidgetDayRepository
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -21,6 +26,8 @@ import coil3.svg.SvgDecoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -50,6 +57,8 @@ class CalendarioCiclismoApp : Application(), Configuration.Provider, SingletonIm
         private set
     lateinit var repository: CalendarRepository
         private set
+    lateinit var cxRepository: CyclocrossRepository
+        private set
     lateinit var offlineManager: OfflineManager
         private set
     lateinit var imageAssetCache: ImageAssetCache
@@ -68,10 +77,11 @@ class CalendarioCiclismoApp : Application(), Configuration.Provider, SingletonIm
         supabaseService = SupabaseService()
         preferences = AppPreferences(this)
         repository = CalendarRepository(database, supabaseService, this)
+        cxRepository = CyclocrossRepository(database.cxCacheDao(), supabaseService)
         // Instanciar antes que OfflineManager para que el singleton
         // `ImageAssetCache.instance()` esté disponible nada más arrancar.
         imageAssetCache = ImageAssetCache(this)
-        offlineManager = OfflineManager(this, preferences, repository, imageCache = imageAssetCache)
+        offlineManager = OfflineManager(this, preferences, repository, cxRepository, imageCache = imageAssetCache)
         pushManager = PushNotificationManager(this, preferences, supabaseService)
         analytics = AnalyticsService(this, preferences)
         premium = PremiumService(this, preferences, analytics, appScope)
@@ -108,12 +118,15 @@ class CalendarioCiclismoApp : Application(), Configuration.Provider, SingletonIm
                 offlineManager.runSyncNow()
             }
         }
-        // 3. Refrescar el token FCM si el usuario ya estaba suscrito.
+        // 3. Widget «Carreras de hoy»: asegurar el refresco periódico y
+        //    redibujar al cambiar idioma, filtros fijados o seguimientos.
+        observeWidgetPreferences()
+        // 4. Refrescar el token FCM si el usuario ya estaba suscrito.
         if (preferences.pushEnabled.first()) {
             runCatching { pushManager.refreshToken() }
                 .onFailure { Log.w(TAG, "refreshToken al arranque falló: ${it.message}") }
         }
-        // 4. Al transicionar a Premium (free → paid), si el modo de seguimiento
+        // 5. Al transicionar a Premium (free → paid), si el modo de seguimiento
         //    sigue en FOLLOW_ALL, cambiar a FOLLOW_RACES ("Selectas") para evitar
         //    que el usuario reciba notificaciones de TODAS las carreras nada más
         //    suscribirse. La lista existente de followedRaceIds se respeta: si
@@ -135,6 +148,34 @@ class CalendarioCiclismoApp : Application(), Configuration.Provider, SingletonIm
                         .onFailure {
                             Log.w(TAG, "syncCategories tras activar Premium falló: ${it.message}")
                         }
+                }
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private suspend fun observeWidgetPreferences() {
+        val hasWidgets = runCatching {
+            GlanceAppWidgetManager(this).getGlanceIds(TodayCyclingWidget::class.java).isNotEmpty()
+        }.getOrDefault(false)
+        if (hasWidgets) {
+            TodayWidgetScheduler.schedulePeriodic(this)
+            TodayWidgetScheduler.refreshNow(this)
+        }
+        appScope.launch {
+            combine(
+                preferences.appLocale,
+                preferences.defaultFilter,
+                preferences.cxDefaultFilter,
+                preferences.followedRaceIds,
+                preferences.followedStageIds,
+                preferences.followedCxRaceIds,
+            ) { values -> values.toList() }
+                .distinctUntilChanged()
+                .drop(1)
+                .debounce(500)
+                .collect {
+                    WidgetDayRepository(this@CalendarioCiclismoApp).invalidate()
+                    TodayWidgetScheduler.refreshNow(this@CalendarioCiclismoApp)
                 }
         }
     }

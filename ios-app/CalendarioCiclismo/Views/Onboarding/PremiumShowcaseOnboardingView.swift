@@ -4,29 +4,34 @@ import SwiftUI
 struct PremiumShowcaseOnboardingView: View {
     @State private var premium = PremiumService.shared
     @Environment(\.openURL) private var openURL
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 72
     let isNewInstallation: Bool
     let onDismiss: () -> Void
 
     var body: some View {
         ZStack {
-            Color(.systemBackground).ignoresSafeArea()
-            VStack(spacing: 0) {
-                VStack(spacing: 20) {
+            AppTheme.background.ignoresSafeArea()
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        VStack(spacing: 0) {
                     Image("SupportIconFriend")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 72, height: 72)
+                        .frame(width: iconSize, height: iconSize)
                         .accessibilityHidden(true)
+                        .padding(.bottom, 20)
 
-                    VStack(spacing: 10) {
-                        Text(LocaleService.t("Gratis y sin anuncios para todos", "Free and ad-free for everyone"))
-                            .font(.title.bold())
-                            .multilineTextAlignment(.center)
-                        Text(subtitle)
+                    Text(LocaleService.t("Gratis y sin anuncios para todos", "Free and ad-free for everyone"))
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom, 12)
+
+                    Text(subtitle)
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    }
+                        .padding(.bottom, 32)
 
                     VStack(alignment: .leading, spacing: 14) {
                         featureRow("chevron.left.forwardslash.chevron.right", LocaleService.t(
@@ -43,12 +48,19 @@ struct PremiumShowcaseOnboardingView: View {
                         Button(LocaleService.t("Conoce el cambio", "Learn about the change")) {
                             openURL(explanationURL)
                         }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(minHeight: 44)
                     }
-                }
-                .padding(.horizontal, 20)
-                .frame(maxHeight: .infinity)
+                        }
+                        .padding(.horizontal, 32)
+                        .frame(maxHeight: .infinity)
 
-                bottomButtons
+                        bottomButtons
+                    }
+                    .frame(minHeight: proxy.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
         .accessibilityElement(children: .contain)
@@ -61,28 +73,29 @@ struct PremiumShowcaseOnboardingView: View {
     }
 
     private var bottomButtons: some View {
-        VStack(spacing: 10) {
-            Divider().padding(.bottom, 4)
+        VStack(spacing: 12) {
             Button { primaryAction() } label: {
                 Text(primaryTitle)
                     .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
             }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .padding(.horizontal, 20)
 
             if shouldShowSecondaryButton {
                 Button(secondaryTitle) { secondaryAction() }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .padding(.bottom, 36)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             } else {
-                Spacer().frame(height: 36)
+                Spacer().frame(height: 44)
             }
         }
-        .background(Color(.systemBackground))
+        .padding(.horizontal, 32)
+        .padding(.bottom, 32)
+        .background(AppTheme.background)
     }
 
     private var primaryTitle: String {
@@ -163,7 +176,7 @@ struct PremiumShowcaseOnboardingView: View {
     private func featureRow(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.body)
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 28)
                 .accessibilityHidden(true)

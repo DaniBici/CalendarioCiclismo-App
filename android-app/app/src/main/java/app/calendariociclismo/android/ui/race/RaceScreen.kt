@@ -81,8 +81,6 @@ import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.DateFormatting
-import app.calendariociclismo.android.ui.today.ResultsDialog
-import app.calendariociclismo.android.ui.today.ResultsDialogItem
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.openExternalUrl
@@ -99,8 +97,6 @@ import kotlinx.coroutines.launch
 fun RaceScreen(raceId: String, navController: NavController) {
     val app = rememberApp()
     var state by remember { mutableStateOf<RaceState>(RaceState.Loading) }
-    // Etapa cuyo diálogo de resultados (fuentes externas) está abierto.
-    var resultsDialogItem by remember { mutableStateOf<ResultsDialogItem?>(null) }
     val context = LocalContext.current
     val networkErrorFallback = stringResource(R.string.startlist_error_unknown)
     LaunchedEffect(raceId) {
@@ -125,20 +121,15 @@ fun RaceScreen(raceId: String, navController: NavController) {
     }
 
     // Jornadas con resultados in-house (raceDayId → stageNumber): el trofeo de
-    // esas etapas navega a la pantalla nativa de clasificaciones en vez del modal
-    // externos. Diferido y no bloqueante (sin red → vacío → modal clásico). Pasa las
-    // jornadas para resolver el caso de un día/general (stage sin raceDayId).
+    // esas etapas navega a la pantalla nativa de clasificaciones. Diferido y no
+    // bloqueante. Pasa las jornadas para resolver el caso de un día/general
+    // (stage sin raceDayId).
     var inhouseByDay by remember(raceId) { mutableStateOf<Map<String, Int?>>(emptyMap()) }
-    var hasAutomaticResultsSource by remember(raceId) { mutableStateOf(false) }
-    var resultsSourceGateResolved by remember(raceId) { mutableStateOf(false) }
     LaunchedEffect(state) {
         val ready = state as? RaceState.Ready ?: return@LaunchedEffect
-        resultsSourceGateResolved = false
         val days = ready.days.map { it.raceDay.id to it.raceDay.stageNumber }
         val cancelled = ready.days.filter { it.raceDay.isCancelledDay }.map { it.raceDay.id }.toSet()
         inhouseByDay = runCatching { app.repository.inhouseStagesForDays(raceId, days, cancelled) }.getOrDefault(emptyMap())
-        hasAutomaticResultsSource = raceId in app.repository.automaticResultsSourceRaceIds(listOf(raceId))
-        resultsSourceGateResolved = true
     }
 
     Scaffold { padding ->
@@ -193,11 +184,11 @@ fun RaceScreen(raceId: String, navController: NavController) {
                     itemsIndexed(s.days, key = { _, it -> it.id }) { index, day ->
                         // Resultados/Revive cuando la etapa ya terminó (mismo
                         // criterio que "Hoy").
-                        // In-house: si esta jornada tiene clasificación propia, el
-                        // trofeo va a la pantalla nativa (no al modal externos).
+                        // In-house: solo si esta jornada tiene clasificación
+                        // propia, el trofeo va a la pantalla nativa.
                         val inhouseStage = inhouseByDay[day.id]
                         val hasInhouse = inhouseByDay.containsKey(day.id)
-                        val showResults = hasInhouse || (resultsSourceGateResolved && !hasAutomaticResultsSource && RaceLogic.shouldShowResults(day.raceDay, s.race))
+                        val showResults = hasInhouse
                         // Revive/TV solo acompaña a Resultados; alcanzar la hora
                         // de meta sin clasificaciones no lo activa.
                         val reviveUrl = if (showResults) RaceLogic.reviveUrl(day.broadcasts) else null
@@ -214,11 +205,7 @@ fun RaceScreen(raceId: String, navController: NavController) {
                                 },
                                 onShowResults = if (showResults) {
                                     {
-                                        if (hasInhouse) {
-                                            navController.navigate(Routes.results(s.race.id, inhouseStage, suffix = day.raceDay.stageSuffix))
-                                        } else {
-                                            resultsDialogItem = ResultsDialogItem(s.race, day.raceDay)
-                                        }
+                                        navController.navigate(Routes.results(s.race.id, inhouseStage, suffix = day.raceDay.stageSuffix))
                                     }
                                 } else null,
                                 onRevive = reviveUrl?.let { url ->
@@ -233,13 +220,6 @@ fun RaceScreen(raceId: String, navController: NavController) {
         }
     }
 
-    resultsDialogItem?.let { item ->
-        ResultsDialog(
-            item = item,
-            context = context,
-            onDismiss = { resultsDialogItem = null },
-        )
-    }
 }
 
 @Composable
@@ -257,50 +237,8 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier.size(32.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.action_back),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            RaceLogo(url = race.logoUrl, size = 44.dp)
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (!race.hideFlag) {
-                        CountryFlag(countryCode = race.countryCode)
-                    }
-                    Text(
-                        text = race.localizedName,
-                        style = MaterialTheme.typography.titleLarge,
-                        // Peso igualado al titular del cintillo (Medium, no Bold).
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (RaceLogic.shouldShowFemaleIndicator(race)) {
-                        val femaleCd = stringResource(R.string.season_female_indicator_cd)
-                        Text(
-                            text = "♀",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.semantics { contentDescription = femaleCd },
-                        )
-                    }
-                }
-            }
-        }
+        app.calendariociclismo.android.ui.components.RaceCompetitionIdentity(race.localizedName, race.logoUrl, race.countryCode, race.hideFlag,
+            RaceLogic.shouldShowFemaleIndicator(race), onBack)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -687,11 +625,6 @@ private fun StageRow(
                     summits = rd.profileSummits.orEmpty(),
                     waypoints = rd.profileWaypoints.orEmpty(),
                     primaryType = rd.primaryType,
-                    startTimeMs = rd.neutralStartTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                    endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                    isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
-                    usesLineFallbackWithoutTimeTrialSchedule = true,
-                    forceCompleted = isFinishedMode,
                 )
             }
         }

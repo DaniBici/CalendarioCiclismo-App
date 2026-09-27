@@ -41,10 +41,26 @@ fun CountryFlag(
     val code = countryCode.lowercase()
     val context = LocalContext.current
 
-    val request = remember(code) {
-        val key = "flag_$code"
+    // Si la variante regional no está empaquetada en esta build (una autonomía
+    // añadida después), cae a la bandera del país (`es-an` → `es`). Así las
+    // versiones anteriores a 5.0.1 no quedan sin bandera ante códigos nuevos.
+    val resolved = remember(code) {
+        fun exists(candidate: String) = runCatching {
+            context.assets.open("flags/$candidate.svg").use { true }
+        }.getOrDefault(false)
+        when {
+            code.isBlank() -> ""
+            exists(code) -> code
+            '-' in code -> code.substringBefore('-').takeIf { exists(it) } ?: ""
+            else -> ""
+        }
+    }
+    if (resolved.isBlank()) return
+
+    val request = remember(resolved) {
+        val key = "flag_$resolved"
         ImageRequest.Builder(context)
-            .data("file:///android_asset/flags/$code.svg")
+            .data("file:///android_asset/flags/$resolved.svg")
             .memoryCacheKey(key)
             .placeholderMemoryCacheKey(key)
             .build()

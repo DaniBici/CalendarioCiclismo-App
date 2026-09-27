@@ -34,7 +34,7 @@ final class NotificationManager: NSObject {
 
     /// Tipos de deep link que puede recibir la app.
     enum DeepLink: Equatable {
-        case tab(Int)          // índice de pestaña (0-5)
+        case tab(Int)          // Hoy, Resultados, Fichajes, CX y Calendario
         case race(String)      // raceId
         case stage(String)     // raceDayId
         case startlist(String) // raceId → vista de inscritos
@@ -42,9 +42,31 @@ final class NotificationManager: NSObject {
         case profile(String)    // raceDayId → perfil de elevación de la jornada
         case routeMap(String)   // raceDayId → mapa del recorrido de la jornada
         case team(String)       // teamId → ficha del equipo en Mercado de Fichajes
+        case cxRace(String, anchor: String?)
+        case cxRaceSlug(String, anchor: String?)
+        // Página de serie web: /ciclocross/torneos/<slug>/ y /en/cyclocross/series/<slug>.
+        case cxTournamentSlug(String)
+        /// Resultados nativos de una jornada (copa del widget): etapa nil = final
+        /// o última clasificación; sufijo A/B de doble sector.
+        case results(raceId: String, stageNumber: Int?, stageSuffix: String?)
 
         /// Parsea un string de deep link recibido de la notificación.
         static func parse(_ value: String) -> DeepLink? {
+            if value.hasPrefix("cxRace/") {
+                let parts = value.dropFirst(7).split(separator: "#", omittingEmptySubsequences: false)
+                guard parts.count <= 2, let id = parts.first, validCxId(String(id)),
+                      parts.count == 1 || validCxAnchor(String(parts[1])) else { return nil }
+                return .cxRace(String(id), anchor: parts.count == 2 ? String(parts[1]) : nil)
+            }
+            // "results/{raceId}/{etapa|final}{sufijo}" → resultados nativos.
+            if value.hasPrefix("results/") {
+                let parts = value.dropFirst(8).split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+                guard parts.count == 2, !parts[0].isEmpty else { return nil }
+                if parts[1] == "final" { return .results(raceId: parts[0], stageNumber: nil, stageSuffix: nil) }
+                guard let match = parts[1].wholeMatch(of: /(\d+)([A-Z]?)/), let number = Int(match.1) else { return nil }
+                return .results(raceId: parts[0], stageNumber: number,
+                                stageSuffix: match.2.isEmpty ? nil : String(match.2))
+            }
             // Formato: "race/{id}", "stage/{id}", "startlist/{id}",
             // "startOrder/{id}", "perfil/{id}", "team/{id}" o nombre de pestaña.
             if value.hasPrefix("race/") {
@@ -78,12 +100,11 @@ final class NotificationManager: NSObject {
                 let id = String(value.dropFirst(5))
                 return id.isEmpty ? nil : .team(id)
             }
-            // Pestañas (apps 4.0): Hoy(0) · Resultados(1) · Fichajes(2) ·
-            // Calendario(3). "month" y "season" apuntan ambas al tab Calendario
-            // fusionado; "search" (pushes antiguos, tab retirado) cae a Hoy.
+            // Apps 5.0: CX ocupa la cuarta pestaña; Calendario pasa a la quinta.
             let tabMap: [String: Int] = [
-                "today": 0, "results": 1, "transfers": 2, "month": 3, "season": 3,
-                "calendar": 3, "search": 0, "subscribe": 4, "notifications": 5
+                "today": 0, "results": 1, "transfers": 2, "cyclocross": 3,
+                "month": 4, "season": 4, "calendar": 4, "search": 0,
+                "subscribe": 5, "notifications": 6
             ]
             if let tabIndex = tabMap[value] {
                 return .tab(tabIndex)
@@ -101,22 +122,33 @@ final class NotificationManager: NSObject {
         ///   - `calendariociclismo://perfil/{id}`     → `.profile(id)`
         ///   - `calendariociclismo://mapa/{id}`       → `.routeMap(id)`
         ///   - `calendariociclismo://team/{id}`       → `.team(id)`
+        ///   - `calendariociclismo://results/{raceId}/{etapa}` → `.results(...)`
         ///   - `calendariociclismo://tab/{name}`      → `.tab(index)`
         ///   - `calendariociclismo://{tabName}`       → `.tab(index)` (forma corta)
         ///
         /// Se reconstruye la forma que espera `parse(_:)` para reutilizar el
         /// parser existente y mantener una única fuente de verdad.
         static func fromURL(_ url: URL) -> DeepLink? {
+            if url.scheme == "https" { return fromCxWebURL(url) }
             guard url.scheme == "calendariociclismo" else { return nil }
             // `URL.host` es el primer segmento tras `://`; el resto va en
             // `pathComponents` (el primero es siempre "/").
             guard let host = url.host, !host.isEmpty else { return nil }
             let extraSegments = url.pathComponents.filter { $0 != "/" }
 
+            if host == "cxRace" || host == "cxrace" {
+                guard url.user == nil, url.password == nil, url.port == nil,
+                      extraSegments.count == 1 else { return nil }
+                return parse("cxRace/" + extraSegments[0] + (url.fragment.map { "#" + $0 } ?? ""))
+            }
             if host == "race" || host == "stage" || host == "startlist"
                 || host == "startOrder" || host == "perfil" || host == "mapa" || host == "team" {
                 guard let id = extraSegments.first, !id.isEmpty else { return nil }
                 return parse("\(host)/\(id)")
+            }
+            if host == "results" {
+                guard extraSegments.count == 2 else { return nil }
+                return parse("results/" + extraSegments.joined(separator: "/"))
             }
             if host == "tab" {
                 guard let name = extraSegments.first, !name.isEmpty else { return nil }
@@ -124,6 +156,31 @@ final class NotificationManager: NSObject {
             }
             // Forma corta: calendariociclismo://today → "today"
             return parse(host)
+        }
+        private static func validCxId(_ value: String) -> Bool {
+            value.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil
+        }
+        private static func validCxAnchor(_ value: String) -> Bool {
+            value == "general" || CyclocrossLogic.categories.contains(value) ||
+                CyclocrossLogic.categories.contains { value == "general-" + $0 || value == "inscritos-" + $0 }
+        }
+        private static func fromCxWebURL(_ url: URL) -> DeepLink? {
+            guard url.host?.lowercased() == "calendariociclismo.app", url.user == nil,
+                  url.password == nil, url.port == nil || url.port == 443 else { return nil }
+            let segments = url.pathComponents.filter { $0 != "/" }
+            let english = segments.first == "en"
+            let prefix = english ? ["en", "cyclocross"] : ["ciclocross"]
+            guard Array(segments.prefix(prefix.count)) == prefix else { return nil }
+            let rest = Array(segments.dropFirst(prefix.count))
+            if rest.isEmpty { return .tab(3) }
+            // Página de serie: torneos/ en ES, series/ en EN.
+            if rest.count == 2, rest[0] == (english ? "series" : "torneos"),
+               rest[1].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil {
+                return .cxTournamentSlug(rest[1])
+            }
+            guard rest.count == 1, rest[0].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil,
+                  url.fragment == nil || validCxAnchor(url.fragment!) else { return nil }
+            return .cxRaceSlug(rest[0], anchor: url.fragment)
         }
     }
 
@@ -257,7 +314,8 @@ final class NotificationManager: NSObject {
                 categories: categories,
                 followedRaces: followedRaces,
                 raceFilters: raceFilters,
-                followedStages: followedStages
+                followedStages: followedStages,
+                followedCxRaces: RaceFollowService.shared.followedCxRacesForRpc
             )
         } catch {
             #if DEBUG

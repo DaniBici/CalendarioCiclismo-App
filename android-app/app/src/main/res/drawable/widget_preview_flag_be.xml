@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bandera simplificada para la vista previa del widget. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="15dp"
+    android:viewportWidth="4"
+    android:viewportHeight="3">
+    <path android:fillColor="#000000" android:pathData="M0,0h1.333v3h-1.333z" />
+    <path android:fillColor="#FDDA24" android:pathData="M1.333,0h1.334v3h-1.334z" />
+    <path android:fillColor="#EF3340" android:pathData="M2.667,0h1.333v3h-1.333z" />
+</vector>

@@ -15,7 +15,7 @@ Las notificaciones se segmentan por tipo (`category`). Todas las categorías son
 | `general` | Free (siempre activa, no se puede desactivar) | Anuncios admin, novedades, mejoras de la app — todo lo que entregaba la app 1.4.4. |
 | `race_start` | Gratis | Aviso T-30 min antes del banderazo. |
 | `tv_start` | Gratis | Aviso T-5 min antes de cada retransmisión. |
-| `results` | Gratis | Resumen al cerrar la jornada. |
+| `results` | Gratis | Aviso al guardarse la primera clasificación de la jornada (carretera). |
 
 Las tres categorías enriquecidas dejaron de estar bloqueadas en 4.3.
 
@@ -67,11 +67,21 @@ Solo entrega a devices que tengan esa categoría activa. El handler valida estri
 
 Al cambiar un toggle: persiste en DataStore/UserDefaults + dispara `pushManager.syncCategories()` (Android) / `manager.healSubscriptionIfNeeded()` (iOS) que re-invoca la RPC con el conjunto actualizado.
 
+### Seguimiento de carreras CX (apps)
+
+Las carreras de ciclocross se siguen individualmente, igual que las de carretera: el chip «Notificaciones» de la ficha CX (`CxRaceDetailView.swift` en iOS, `CxRaceScreen.kt` en Android) añade o quita la carrera de la lista persistida (`followed_cx_race_ids`) y la sincroniza con `set_push_subscription_v4` (`p_followed_cx_races`). No hay modos ni filtros CX, ni seguimiento por torneo. El chip solo aparece en las pruebas con resultados en directo (Mundial `CM`, Continental `CC`, Copa del Mundo `CDM` y los torneos Copa del Mundo, Superprestige y X2O), el mismo criterio que la espera de resultados.
+
+El seguimiento es independiente del modo y los filtros de carretera y **no** activa automáticamente la categoría `cyclocross`. Un aviso `cxRace/<id>` exige la categoría `cyclocross` activa y la fila en `push_cx_race_subscriptions`. Ajustes ofrece la lista «Carreras de ciclocross seguidas» (`FollowedCxRacesView` / `FollowedCxRacesScreen`) para quitarlas con deslizamiento.
+
 ### Panel admin
 
-`panel/app.html` añade un `<select id="push-category">` con las 4 opciones. `js/panel.js`:
-- `sendPushNotification()` y `sendScheduledNotificationNow()` propagan `category` en el body del POST a `send-push`.
-- `loadScheduledNotifications()` y `loadPushHistory()` muestran un badge con `pushCategoryLabel(cat)` ("General", "Inicio carrera", "Inicio TV", "Resultados").
+La vista de Notificaciones de `panel/app.html` es común a las dos áreas del panel. `js/panel.js` la acota al área activa con `panelArea()` (`applyPushArea()`), sin duplicar la vía de envío:
+
+- Carretera: categoría `general`; destinos de competición, jornada, dorsales, perfil, orden de salida, mercado de fichajes y equipo. El recuento filtra `push_subscription_categories.category='general'`.
+- Ciclocross: categoría `cyclocross`; destinos `cxRace/<id>` y pestaña `cyclocross`. El recuento usa `cxPushSubscriberQuery`.
+- `loadScheduledNotifications()` y `loadPushHistory()` filtran por la categoría del área (`.eq('category', _pushAreaCategory())`).
+
+Todas las categorías son gratuitas.
 
 ### Reglas al modificar
 
@@ -83,6 +93,23 @@ Al cambiar un toggle: persiste en DataStore/UserDefaults + dispara `pushManager.
   5. Selector del panel admin + helper `pushCategoryLabel`.
 - Ninguna categoría puede depender de Fundador o Amigo. `general` debe seguir siempre activa.
 - Las apps que aún no se han actualizado a 2.0 siguen llamando al upsert directo (sin RPC). Eso es OK: el trigger AFTER INSERT les asigna `general` y siguen recibiendo lo de siempre.
+
+## Avisos automáticos de resultados de carretera (2026-09-18)
+
+Los avisos `results` de carretera ya no se programan por reloj. Antes
+`auto_dispatch_premium_pushes()` los agendaba a `estimatedFinishTimeUtc + 30 min`
+para las jornadas de las próximas 48 h, aunque no hubiera resultados. Ahora:
+
+- El trigger `race_uci_stages_results_push` (función `private.trg_road_results_push()`)
+  se dispara la primera vez que una clasificación `stage`/`gc` de scope `stage`
+  pasa de `rowCount` 0 a >0 — volcado automático, edición del panel o PDF.
+- Crea las dos notificaciones (es/en) con `scheduledAt = now()`, idempotentes por
+  jornada vía `push_auto_dispatch` (`eventKey` `results-<raceDayId>-<lang>`), y
+  llama a `process_scheduled_push_notifications()` para el envío inmediato.
+- Solo jornadas con `dateKey` entre ayer y mañana (Europe/Madrid): una recarga
+  histórica no notifica. El ciclocross conserva su dispatcher propio.
+- `auto_dispatch_premium_pushes()` mantiene solo `race_start` y `tv_start`. Las
+  programaciones `results` por reloj pendientes se cancelaron al desplegar.
 
 ## Edge Function `supabase/functions/send-push/index.ts`
 

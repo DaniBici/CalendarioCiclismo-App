@@ -29,6 +29,7 @@ data class RaceDay(
     val primaryType: String? = null,
     val secondaryType: String? = null,
     val neutralStartTimeUtc: String? = null,
+    val realStartTimeUtc: String? = null,
     val estimatedFinishTimeUtc: String? = null,
     val tvStatus: String? = null,
     val description: String? = null,
@@ -64,6 +65,15 @@ data class RaceDay(
      * sobre ella. Independiente de `elevationProfile` (puede haber uno sin otro).
      */
     val routeGpxUrl: String? = null,
+    /** Estado editorial confirmado; no implica oficialidad de resultados. */
+    val raceStatus: String? = null,
+    val competitiveDistanceKm: Double? = null,
+    val timingPolicy: String = "standard",
+    val raceTimeSeconds: Double? = null,
+    val averageSpeedKmh: Double? = null,
+    val timeLimitSeconds: Double? = null,
+    val timeLimitBasis: TimeLimitBasis? = null,
+    val metricsUpdatedAt: String? = null,
 ) {
     @kotlinx.serialization.Transient
     var stageSuffix: String? = null
@@ -211,7 +221,37 @@ data class RaceDay(
                 .reversed()
             return "+${formatted} m"
         }
+
+    /** Fuera de control publicable según el contrato persistido. */
+    val hasValidTimeLimit: Boolean
+        get() {
+            val seconds = timeLimitSeconds ?: return false
+            val basis = timeLimitBasis ?: return false
+            if (!seconds.isFinite() || seconds <= 0.0) return false
+            val uri = runCatching { java.net.URI(basis.sourceUrl) }.getOrNull() ?: return false
+            if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
+            return runCatching { java.time.Instant.parse(basis.verifiedAt) }.isSuccess
+        }
+
+    companion object {
+        fun formatDuration(seconds: Double?): String? {
+            if (seconds == null || !seconds.isFinite() || seconds <= 0.0) return null
+            val totalMillis = kotlin.math.round(seconds * 1000.0).toLong()
+            val hours = totalMillis / 3_600_000
+            val minutes = (totalMillis % 3_600_000) / 60_000
+            val wholeSeconds = (totalMillis % 60_000) / 1_000
+            val millis = totalMillis % 1_000
+            val fraction = if (millis == 0L) "" else ".${millis.toString().padStart(3, '0').trimEnd('0')}"
+            return "%d:%02d:%02d%s".format(java.util.Locale.US, hours, minutes, wholeSeconds, fraction)
+        }
+    }
 }
+
+@Serializable
+data class TimeLimitBasis(
+    val sourceUrl: String,
+    val verifiedAt: String,
+)
 
 // ─────────── Elevation payload (lazy fetch) ───────────
 

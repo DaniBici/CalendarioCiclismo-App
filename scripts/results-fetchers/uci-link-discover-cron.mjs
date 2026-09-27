@@ -20,7 +20,7 @@
  *   nada: una sola fuente de verdad para el matching y el enlazado. Las ambiguas y
  *   los pares masc/fem en colisión NUNCA se enlazan solos → el backfill las imprime
  *   por stderr (quedan en el log del workflow) para resolverlas en la pestaña
- *   «Resultados UCI» del panel.
+ *   revisión técnica de enlaces DataRide.
  *
  *   NO da de alta carreras que no existan en nuestra DB (eso es curado): solo crea
  *   el ENLACE de una carrera nuestra ya existente con su competición UCI.

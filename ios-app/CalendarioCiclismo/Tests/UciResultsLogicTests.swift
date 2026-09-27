@@ -6,6 +6,45 @@ import XCTest
 /// (variantes A y B). Paridad 1:1 con la suite de Android.
 final class UciResultsLogicTests: XCTestCase {
 
+    func testClassificationInventoryUsesEditorialOrderLabelsAndColorsWithoutColoringStage() {
+        let config = [
+            RaceClassificationConfig(raceId: "r", classKind: "points", position: 3, labelEs: "Regularidad", labelEn: "Points", colorHex: "#00AA44"),
+            RaceClassificationConfig(raceId: "r", classKind: "stage", position: 1, labelEs: "Etapa", labelEn: "Stage", colorHex: "#FF0000"),
+            RaceClassificationConfig(raceId: "r", classKind: "kom", position: 2, labelEs: "Montaña", labelEn: "KOM", colorHex: "invalid"),
+        ]
+        let inventory = UciResultsLogic.classificationInventory(config: config, stages: [])
+        XCTAssertEqual(inventory.map(\.classKind), ["stage", "kom", "points"])
+        XCTAssertEqual(UciResultsLogic.classificationLabel(inventory.last!, isEn: false), "Regularidad")
+        XCTAssertNil(UciResultsLogic.classificationColor(inventory.first))
+        XCTAssertNil(UciResultsLogic.classificationColor(inventory[1]))
+        XCTAssertEqual(UciResultsLogic.classificationColor(inventory.last), "#00AA44")
+    }
+
+    func testClassificationInventoryIncludesPublishedKindsMissingFromConfig() {
+        let stage = RaceUciStage(id: "s", raceId: "r", classKind: "youth")
+        XCTAssertEqual(
+            UciResultsLogic.classificationInventory(config: [], stages: [stage]).first?.classKind,
+            "youth"
+        )
+    }
+
+    func testStageOnlyShowsClassificationsPublishedForThatStage() {
+        let config = [
+            RaceClassificationConfig(raceId: "r", classKind: "stage", position: 1, labelEs: nil, labelEn: nil, colorHex: nil),
+            RaceClassificationConfig(raceId: "r", classKind: "gc", position: 2, labelEs: nil, labelEn: nil, colorHex: nil),
+            RaceClassificationConfig(raceId: "r", classKind: "teams", position: 3, labelEs: nil, labelEn: nil, colorHex: nil),
+        ]
+        let existing = [
+            RaceUciStage(id: "gc-3", raceId: "r", classKind: "gc", stageNumber: 3),
+            RaceUciStage(id: "stage-3", raceId: "r", classKind: "stage", stageNumber: 3),
+        ]
+
+        let visible = UciResultsLogic.visibleStageClassifications(config: config, stages: existing)
+
+        XCTAssertEqual(visible.map(\.classKind), ["stage", "gc"])
+        XCTAssertFalse(visible.contains { $0.classKind == "teams" })
+    }
+
     // Helper: fila de resultado con lo mínimo.
     private func row(
         rank: Int? = nil,
@@ -62,6 +101,22 @@ final class UciResultsLogicTests: XCTestCase {
         )
     }
 
+    func testChapasConPaletaPorDefectoNoSeMuestran() {
+        let defaultTeam = Team(
+            id: "default", name: "Club", badgeTorsoCenter: "#fff",
+            badgeTorsoSides: "#111", badgeShorts: "#111111", badgeInnerCircle: nil,
+            headerBg: "#000000", headerText: "#ffffff", nameAliases: nil
+        )
+        let curatedTeam = Team(
+            id: "curated", name: "Club", badgeTorsoCenter: "#e30613",
+            badgeTorsoSides: "#000000", badgeShorts: "#000000", badgeInnerCircle: nil,
+            headerBg: "#000000", headerText: "#ffffff", nameAliases: nil
+        )
+
+        XCTAssertFalse(defaultTeam.hasVisibleBadge)
+        XCTAssertTrue(curatedTeam.hasVisibleBadge)
+    }
+
     // ── timeToSeconds / secondsToGap / formatGap ───────────────────
 
     func testTimeToSecondsParseaLosTresFormatos() {
@@ -97,6 +152,8 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(UciResultsLogic.irmLabel("DNS", isEn: false), "NS")
         XCTAssertEqual(UciResultsLogic.irmLabel("OTL", isEn: false), "FC")
         XCTAssertEqual(UciResultsLogic.irmLabel("DSQ", isEn: false), "EXP")
+        XCTAssertEqual(UciResultsLogic.irmLabel("DF", isEn: false), "DF")
+        XCTAssertEqual(UciResultsLogic.irmLabel("NR", isEn: true), "NR")
         // ABD = variante UCI de DNF → misma etiqueta.
         XCTAssertEqual(UciResultsLogic.irmLabel("ABD", isEn: false), "ABN")
         XCTAssertEqual(UciResultsLogic.irmLabel("ABD", isEn: true), "DNF")
@@ -115,6 +172,10 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertTrue(UciResultsLogic.isAbandonIrm("DSQ"))
         // 'LAP' (doblada) es RUIDO, no abandono.
         XCTAssertFalse(UciResultsLogic.isAbandonIrm("LAP"))
+        XCTAssertFalse(UciResultsLogic.isAbandonIrm("DF"))
+        XCTAssertFalse(UciResultsLogic.isAbandonIrm("NR"))
+        XCTAssertTrue(UciResultsLogic.isNonWinnerIrm("DF"))
+        XCTAssertTrue(UciResultsLogic.isNonWinnerIrm("NR"))
         XCTAssertFalse(UciResultsLogic.isAbandonIrm(nil))
         XCTAssertFalse(UciResultsLogic.isAbandonIrm(""))
     }
@@ -547,6 +608,13 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(UciResultsLogic.normalizeTeamName("Team"), "")   // solo stopwords
     }
 
+    func testEstadosSinEquipoNoSeTratanComoFormaciones() {
+        for name in ["Individual", "Private Member", "Sin equipo", "UN", "Un-Attached Leinster"] {
+            XCTAssertTrue(isNoTeamPlaceholderTeam(teamId: nil, teamName: name))
+        }
+        XCTAssertFalse(isNoTeamPlaceholderTeam(teamId: "team_x", teamName: "Individual"))
+    }
+
     func testFindMatchingTeamCasaNombresCrudosDeLaFuenteContraElCatalogo() {
         // Casos reales del ARA 2026 (riderDisplay de Tissot vs nombre canónico).
         let teams = [
@@ -663,6 +731,23 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[2].valueText, "+1'10\"")
     }
 
+    func testEquiposEmpatadosConElGanadorMuestranMismoTiempo() {
+        let rows = [
+            row(rank: 1, timeText: "20:00:42", riderDisplay: "TEAM A"),
+            row(rank: 2, gapText: "+0", riderDisplay: "TEAM B"),
+            row(rank: 3, gapText: "+00", riderDisplay: "TEAM C"),
+            row(rank: 4, gapText: "+8", riderDisplay: "TEAM D"),
+        ]
+        let vms = UciResultsLogic.buildIndividualRows(
+            rows: rows, classKind: "teams", isTeams: true, byDorsal: [:], isEn: false
+        )
+        XCTAssertEqual(vms[0].valueKind, .winnerTime)
+        XCTAssertEqual(vms[1].valueKind, .sameTime)
+        XCTAssertEqual(vms[2].valueKind, .sameTime)
+        XCTAssertEqual(vms[3].valueKind, .gap)
+        XCTAssertEqual(vms[3].valueText, "+8\"")
+    }
+
     // ── isTttStage ─────────────────────────────────────────────────
 
     func testIsTttStageDetectaCreVarianteA() {
@@ -671,18 +756,39 @@ final class UciResultsLogicTests: XCTestCase {
             row(rank: 2, bib: "11"), row(rank: 2, bib: "12"), row(rank: 2, bib: "13"),
         ]
         XCTAssertTrue(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: "ttt"))
-        // Sin el tipo de jornada curado, 2 ranks compartidos no basta (exige ≥3).
+        // Sin marca de CRE no dispara, por marcada que sea la estructura.
         XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
     }
 
-    func testIsTttStageConEstructuraMuyMarcadaSeDisparaSinTipoDeJornada() {
-        // 3 puestos con ≥2 corredores → suficiente aunque no sepamos que es CRE.
+    func testIsTttStageSinMarcaDeCreNoSeDisparaPorEstructuraSola() {
+        // 3 puestos con ≥2 corredores: sin marca (primaryType ni raceType) ya no basta.
         let rows = [
             row(rank: 1, bib: "1"), row(rank: 1, bib: "2"),
             row(rank: 2, bib: "11"), row(rank: 2, bib: "12"),
             row(rank: 3, bib: "21"), row(rank: 3, bib: "22"),
         ]
-        XCTAssertTrue(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
+        XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
+        // Con raceType='TTT' de la fuente sí (marca de CRE sin catálogo).
+        XCTAssertTrue(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil, stageRaceType: "TTT"))
+    }
+
+    func testIsTttStageNoDisparaConPuestosVaciosTransitoriosSinMarca() {
+        // Etapa en línea cuyo auto-sync aún no ha rellenado puestos (Tour de
+        // Eslovaquia 2026 etapa 3): ≥6 clasificados sin rank ya no pintan la
+        // etapa como CRE si la jornada no está marcada.
+        let rows = [
+            row(rank: 1, bib: "1", timeText: "4:29:54"),
+            row(rank: 2, bib: "2", gapText: "+0"),
+            row(rank: 3, bib: "3", gapText: "+0"),
+            row(rank: nil, bib: "4", gapText: "+1:49"),
+            row(rank: nil, bib: "5", gapText: "+1:49"),
+            row(rank: nil, bib: "6", gapText: "+1:49"),
+            row(rank: nil, bib: "7", gapText: "+1:49"),
+            row(rank: nil, bib: "8", gapText: "+1:49"),
+            row(rank: nil, bib: "9", gapText: "+1:49"),
+        ]
+        XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: "medium_mountain"))
+        XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
     }
 
     func testIsTttStageDetectaCreVarianteB() {
@@ -1094,5 +1200,18 @@ final class UciResultsLogicTests: XCTestCase {
         let stages = [uciStage("s1", 1, "stage"), uciStage("gc1", 1, "gc")]
         let days = [day(1, "2026-07-11"), day(2, "2026-07-12")]
         XCTAssertEqual(UciResultsLogic.applyCancelledStages(stages, days: days), stages)
+    }
+
+    func test_teamSeason_materializesHistoricalIdentityWithoutPublicBaseRow() {
+        let team = TeamSeason(
+            teamId: "hist", year: 2021, name: "Equipo 2021", category: "CT",
+            badgeTorsoCenter: "#123456", badgeTorsoSides: nil, badgeShorts: nil,
+            badgeInnerCircle: nil, headerBg: nil, headerText: nil, gender: "male",
+            badgeVisible: false, continuityDoubt: false
+        ).asTeam()
+        XCTAssertEqual(team?.id, "hist")
+        XCTAssertEqual(team?.name, "Equipo 2021")
+        XCTAssertEqual(team?.badgeTorsoCenter, "#123456")
+        XCTAssertEqual(team?.badgeShorts, "#000000")
     }
 }

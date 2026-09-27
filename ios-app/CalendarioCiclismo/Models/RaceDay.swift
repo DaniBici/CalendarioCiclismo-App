@@ -15,6 +15,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
     let primaryType: String?
     let secondaryType: String?
     let neutralStartTimeUtc: String?
+    let realStartTimeUtc: String?
     let estimatedFinishTimeUtc: String?
     let tvStatus: String?
     let description: String?
@@ -44,6 +45,18 @@ struct RaceDay: Codable, Identifiable, Hashable {
     /// marcadores de `profileSummits`/`profileWaypoints` se proyectan por km
     /// sobre ella. Independiente de `elevationProfile` (puede haber uno sin el otro).
     let routeGpxUrl: String?
+    /// Estado confirmado por el contrato editorial. `finished` habilita la
+    /// espera de resultados, pero nunca convierte una clasificación en oficial.
+    let raceStatus: String?
+    /// Métricas persistidas por el backend. Los clientes no recalculan estos
+    /// valores a partir de resultados ni de reglamentos.
+    let competitiveDistanceKm: Double?
+    let timingPolicy: String
+    let raceTimeSeconds: Double?
+    let averageSpeedKmh: Double?
+    let timeLimitSeconds: Double?
+    let timeLimitBasis: TimeLimitBasis?
+    let metricsUpdatedAt: String?
 
     /// Sufijo de doble sector ("A", "B", …). No viene de la DB, se asigna por lógica de app.
     var stageSuffix: String?
@@ -51,13 +64,14 @@ struct RaceDay: Codable, Identifiable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case id, raceId, dateKey, slug, isRestDay, isCancelledDay
         case stageNumber, startLocation, finishLocation, distanceKm
-        case primaryType, secondaryType, neutralStartTimeUtc, estimatedFinishTimeUtc
+        case primaryType, secondaryType, neutralStartTimeUtc, realStartTimeUtc, estimatedFinishTimeUtc
         case tvStatus, description, bonuses, notes
         case startLocationEn, finishLocationEn, translations
         case editorialStatus, hasAssets, updatedAt
         case countryCode, stageSuffix
         case elevationProfile, profileSummits, profileWaypoints, profileNotViewable
-        case routeGpxUrl
+        case routeGpxUrl, raceStatus, competitiveDistanceKm, timingPolicy
+        case raceTimeSeconds, averageSpeedKmh, timeLimitSeconds, timeLimitBasis, metricsUpdatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +89,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
         primaryType = try c.decodeIfPresent(String.self, forKey: .primaryType)
         secondaryType = try c.decodeIfPresent(String.self, forKey: .secondaryType)
         neutralStartTimeUtc = try c.decodeIfPresent(String.self, forKey: .neutralStartTimeUtc)
+        realStartTimeUtc = try c.decodeIfPresent(String.self, forKey: .realStartTimeUtc)
         estimatedFinishTimeUtc = try c.decodeIfPresent(String.self, forKey: .estimatedFinishTimeUtc)
         tvStatus = try c.decodeIfPresent(String.self, forKey: .tvStatus)
         description = try c.decodeIfPresent(String.self, forKey: .description)
@@ -93,6 +108,14 @@ struct RaceDay: Codable, Identifiable, Hashable {
         profileWaypoints = try c.decodeIfPresent([ProfileWaypoint].self, forKey: .profileWaypoints)
         profileNotViewable = try c.decodeIfPresent(Bool.self, forKey: .profileNotViewable) ?? false
         routeGpxUrl = try c.decodeIfPresent(String.self, forKey: .routeGpxUrl)
+        raceStatus = try c.decodeIfPresent(String.self, forKey: .raceStatus)
+        competitiveDistanceKm = try c.decodeIfPresent(Double.self, forKey: .competitiveDistanceKm)
+        timingPolicy = try c.decodeIfPresent(String.self, forKey: .timingPolicy) ?? "standard"
+        raceTimeSeconds = try c.decodeIfPresent(Double.self, forKey: .raceTimeSeconds)
+        averageSpeedKmh = try c.decodeIfPresent(Double.self, forKey: .averageSpeedKmh)
+        timeLimitSeconds = try c.decodeIfPresent(Double.self, forKey: .timeLimitSeconds)
+        timeLimitBasis = try c.decodeIfPresent(TimeLimitBasis.self, forKey: .timeLimitBasis)
+        metricsUpdatedAt = try c.decodeIfPresent(String.self, forKey: .metricsUpdatedAt)
     }
 
     func hash(into hasher: inout Hasher) {
@@ -200,7 +223,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
         isRestDay: Bool, isCancelledDay: Bool, stageNumber: Int?,
         startLocation: String?, finishLocation: String?,
         distanceKm: Double?, primaryType: String?, secondaryType: String?,
-        neutralStartTimeUtc: String?, estimatedFinishTimeUtc: String?,
+        neutralStartTimeUtc: String?, realStartTimeUtc: String? = nil, estimatedFinishTimeUtc: String?,
         tvStatus: String?, description: String?,
         bonuses: String?,
         notes: String?, startLocationEn: String? = nil, finishLocationEn: String? = nil,
@@ -212,7 +235,15 @@ struct RaceDay: Codable, Identifiable, Hashable {
         profileWaypoints: [ProfileWaypoint]? = nil,
         profileNotViewable: Bool = false,
         routeGpxUrl: String? = nil,
-        stageSuffix: String? = nil
+        stageSuffix: String? = nil,
+        raceStatus: String? = nil,
+        competitiveDistanceKm: Double? = nil,
+        timingPolicy: String = "standard",
+        raceTimeSeconds: Double? = nil,
+        averageSpeedKmh: Double? = nil,
+        timeLimitSeconds: Double? = nil,
+        timeLimitBasis: TimeLimitBasis? = nil,
+        metricsUpdatedAt: String? = nil
     ) {
         self.id = id
         self.raceId = raceId
@@ -227,6 +258,7 @@ struct RaceDay: Codable, Identifiable, Hashable {
         self.primaryType = primaryType
         self.secondaryType = secondaryType
         self.neutralStartTimeUtc = neutralStartTimeUtc
+        self.realStartTimeUtc = realStartTimeUtc
         self.estimatedFinishTimeUtc = estimatedFinishTimeUtc
         self.tvStatus = tvStatus
         self.description = description
@@ -245,6 +277,14 @@ struct RaceDay: Codable, Identifiable, Hashable {
         self.profileNotViewable = profileNotViewable
         self.routeGpxUrl = routeGpxUrl
         self.stageSuffix = stageSuffix
+        self.raceStatus = raceStatus
+        self.competitiveDistanceKm = competitiveDistanceKm
+        self.timingPolicy = timingPolicy
+        self.raceTimeSeconds = raceTimeSeconds
+        self.averageSpeedKmh = averageSpeedKmh
+        self.timeLimitSeconds = timeLimitSeconds
+        self.timeLimitBasis = timeLimitBasis
+        self.metricsUpdatedAt = metricsUpdatedAt
     }
 
     /// Distancia formateada: "174,5 km" (ES) / "174.5 km" (EN). El separador
@@ -282,6 +322,28 @@ struct RaceDay: Codable, Identifiable, Hashable {
         }
         return "+\(chunks.joined(separator: sep)) m"
     }
+
+    /// Fuera de control publicable: duración positiva y base verificable con
+    /// URL HTTP(S) y fecha ISO válida. Es el mismo contrato que la web.
+    var hasValidTimeLimit: Bool {
+        guard let seconds = timeLimitSeconds, seconds > 0,
+              let basis = timeLimitBasis,
+              let url = URL(string: basis.sourceUrl),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              DateFormatting.parseISO(basis.verifiedAt) != nil else { return false }
+        return true
+    }
+
+    static func formatDuration(seconds: Double?) -> String? {
+        guard let seconds, seconds > 0, seconds.isFinite else { return nil }
+        let totalMilliseconds = Int((seconds * 1_000).rounded())
+        let hours = totalMilliseconds / 3_600_000
+        let minutes = (totalMilliseconds % 3_600_000) / 60_000
+        let wholeSeconds = (totalMilliseconds % 60_000) / 1_000
+        let millis = totalMilliseconds % 1_000
+        let suffix = millis == 0 ? "" : String(format: ".%03d", millis).replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+        return String(format: "%d:%02d:%02d", hours, minutes, wholeSeconds) + suffix
+    }
 }
 
 // MARK: - Elevation payload (lazy fetch)
@@ -304,7 +366,7 @@ extension RaceDay {
             isRestDay: isRestDay, isCancelledDay: isCancelledDay, stageNumber: stageNumber,
             startLocation: startLocation, finishLocation: finishLocation,
             distanceKm: distanceKm, primaryType: primaryType, secondaryType: secondaryType,
-            neutralStartTimeUtc: neutralStartTimeUtc, estimatedFinishTimeUtc: estimatedFinishTimeUtc,
+            neutralStartTimeUtc: neutralStartTimeUtc, realStartTimeUtc: realStartTimeUtc, estimatedFinishTimeUtc: estimatedFinishTimeUtc,
             tvStatus: tvStatus, description: description,
             bonuses: bonuses, notes: notes,
             startLocationEn: startLocationEn, finishLocationEn: finishLocationEn,
@@ -316,9 +378,22 @@ extension RaceDay {
             profileWaypoints: elevation.profileWaypoints,
             profileNotViewable: elevation.profileNotViewable ?? false,
             routeGpxUrl: routeGpxUrl,
-            stageSuffix: stageSuffix
+            stageSuffix: stageSuffix,
+            raceStatus: raceStatus,
+            competitiveDistanceKm: competitiveDistanceKm,
+            timingPolicy: timingPolicy,
+            raceTimeSeconds: raceTimeSeconds,
+            averageSpeedKmh: averageSpeedKmh,
+            timeLimitSeconds: timeLimitSeconds,
+            timeLimitBasis: timeLimitBasis,
+            metricsUpdatedAt: metricsUpdatedAt
         )
     }
+}
+
+struct TimeLimitBasis: Codable, Hashable {
+    let sourceUrl: String
+    let verifiedAt: String
 }
 
 // MARK: - Translations JSONB

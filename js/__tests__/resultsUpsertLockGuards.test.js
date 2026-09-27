@@ -1,0 +1,592 @@
+import { describe, it, expect } from 'vitest';
+import { buildPlan, shouldIncludeStage } from '../../scripts/results-fetchers/results-upsert.mjs';
+
+describe('filtro de etapa — general final del último volcado automático', () => {
+  it('mantiene la etapa pedida y la pseudo-etapa final con --include-final', () => {
+    expect(shouldIncludeStage(3, false, 3, true)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, true)).toBe(true);
+    expect(shouldIncludeStage(2, false, 3, true)).toBe(false);
+  });
+
+  it('el volcado manual de una etapa sigue excluyendo la general final', () => {
+    expect(shouldIncludeStage(3, false, 3, false)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, false)).toBe(false);
+  });
+
+  it('no admite un stageNumber null que no esté marcado como final', () => {
+    expect(shouldIncludeStage(null, false, 3, true)).toBe(false);
+  });
+
+  it('en dobles sectores incluye solo el sector seleccionado', () => {
+    expect(shouldIncludeStage(3, false, 3, false, 0, 0)).toBe(true);
+    expect(shouldIncludeStage(3, false, 3, false, 1, 0)).toBe(false);
+    expect(shouldIncludeStage(3, false, 3, false, 0, 1)).toBe(false);
+    expect(shouldIncludeStage(3, false, 3, false, 1, 1)).toBe(true);
+  });
+
+  it('la final solo entra por include-final y no hereda el sector', () => {
+    expect(shouldIncludeStage(null, true, 3, true, 0, 1)).toBe(true);
+    expect(shouldIncludeStage(null, true, 3, false, 0, 1)).toBe(false);
+  });
+
+  it('el plan no genera SQL para el sector hermano', () => {
+    const data = {
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 3, sectorIndex: 0, classifications: [clasificacion({ eventId: 78302030 })] },
+        { stageNumber: 3, sectorIndex: 1, classifications: [clasificacion({ eventId: 78302031 })] },
+      ],
+    };
+    const planA = buildPlan(data, null, null, null, { onlyStage: 3, onlySectorIndex: 0 });
+    const planB = buildPlan(data, null, null, null, { onlyStage: 3, onlySectorIndex: 1 });
+
+    expect([...planA.acceptedEventIds]).toEqual([78302030]);
+    expect([...planB.acceptedEventIds]).toEqual([78302031]);
+  });
+});
+
+// Guarda de lock ASIMÉTRICA en la purga de gemelas sintéticas.
+//
+// Contexto: una misma clasificación lógica (raceId + raceDayId/sector + classKind
+// + scope) puede existir bajo varios eventId. Los POSITIVOS son de DataRide (fuente
+// oficial); los NEGATIVOS son sintéticos (cronometrador, volcado PDF…).
+//
+// La regla de producto (Dani, 2026-06-10) es "lo oficial pisa al placeholder": un
+// volcado provisional nunca debe bloquear a la UCI. Pero la implementación original
+// purgaba por "eventId distinto y negativo" a secas, así que también se llevaba por
+// delante a una gemela SINTÉTICA curada a mano y bloqueada desde el panel — entre dos
+// fuentes provisionales ninguna es "la verdad", así que ahí el candado debe mandar
+// (matizado 2026-07-19, caso Giro della Valle d'Aosta 2026: E1-E3 volcadas
+// del libro STS y curadas a mano, con el .clax de STS llegando después bajo otro
+// eventId sintético).
+//
+// Estos tests fijan el SQL que emite buildPlan. Son la red de seguridad de una
+// lógica de BORRADO: sin ellos, una regresión aquí destruye datos curados en silencio.
+
+const clasificacion = (overrides = {}) => ({
+  eventId: -1359920101,
+  classKind: 'stage',
+  scope: 'stage',
+  eventName: 'Stage 1',
+  stageNumber: 1,
+  rowCount: 2,
+  rows: [
+    { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: "26'25" },
+    { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel', gapText: '+1' },
+  ],
+  ...overrides,
+});
+
+const planDe = (eventId) => {
+  const { plan } = buildPlan({
+    competitionId: eventId > 0 ? 78302 : -135992,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId })] }],
+  });
+  return plan;
+};
+
+const planDeSector = (eventId, sectorIndex) => {
+  const { plan } = buildPlan({
+    competitionId: -135992,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, sectorIndex, classifications: [clasificacion({ eventId })] }],
+  });
+  return plan;
+};
+
+const purgaDe = (plan) => plan.find(
+  (p) => p.text.includes('DELETE FROM public.race_uci_stages') && p.text.includes('"eventId" <> '),
+);
+const insertCabeceraDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_stages'));
+const insertFilasDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO public.race_uci_results'));
+
+describe('bloqueo del enlace durante el volcado', () => {
+  it('difiere el upsert de race_uci_links hasta el final de la transacción', () => {
+    const link = planDe(-1359920101).find((p) => p.text.includes('INSERT INTO public.race_uci_links'));
+
+    expect(link).toBeDefined();
+    expect(link.deferUntilCommit).toBe(true);
+  });
+});
+
+describe('enlace race|result', () => {
+  const data = {
+    competitionId: -196674,
+    disciplineId: 10,
+    source: 'raceresult',
+    raceresultEvent: 421325,
+    stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId: -1966740101 })] }],
+  };
+
+  it('incluye el código obligatorio en el INSERT del enlace', () => {
+    const { plan } = buildPlan(data);
+    const link = plan.find((statement) => statement.text.includes('INSERT INTO public.race_uci_links'));
+    expect(link.text).toContain('"raceresultCode"');
+    expect(link.text).toContain('$18');
+    expect(link.params[17]).toBe('421325');
+  });
+
+  it('rechaza el payload sin identificador de evento', () => {
+    expect(() => buildPlan({ ...data, raceresultEvent: null }))
+      .toThrow('requiere raceresultEvent');
+  });
+});
+
+// Los CHECK chk_race_uci_links_*_code son NOT NULL duros para tissot, matsort,
+// domtel y livetiming. Desde que el upsert propaga data.source, el INSERT propone
+// source=<fuente> y Postgres valida el código en la fila propuesta antes del ON
+// CONFLICT: sin él, el volcado entero revierte (Tour de Luxemburgo E1, 2026-09-16).
+describe('enlace de cronometradores con código obligatorio', () => {
+  const caso = (source, codeKey, codeValue) => ({
+    competitionId: -135992,
+    disciplineId: 10,
+    source,
+    [codeKey]: codeValue,
+    stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId: -1359920101 })] }],
+  });
+  const linkDe = (data) => buildPlan(data).plan
+    .find((statement) => statement.text.includes('INSERT INTO public.race_uci_links'));
+
+  it('incluye tissotCode', () => {
+    const link = linkDe(caso('tissot', 'tissotCode', 'tdf'));
+    expect(link.text).toContain('"tissotCode"');
+    expect(link.params[18]).toBe('tdf');
+  });
+
+  it('incluye matsortCode', () => {
+    const link = linkDe(caso('matsport', 'matsportCode', 'LUX'));
+    expect(link.text).toContain('"matsportCode"');
+    expect(link.text).toContain('$20');
+    expect(link.params[19]).toBe('LUX');
+  });
+
+  it('incluye domtelCode', () => {
+    const link = linkDe(caso('domtel', 'domtelCode', '8872'));
+    expect(link.text).toContain('"domtelCode"');
+    expect(link.params[20]).toBe('8872');
+  });
+
+  it('incluye livetimingCode', () => {
+    const link = linkDe(caso('livetiming', 'livetimingCode', '260903'));
+    expect(link.text).toContain('"livetimingCode"');
+    expect(link.params[21]).toBe('260903');
+  });
+
+  it('rechaza cada fuente sin su código', () => {
+    expect(() => buildPlan(caso('tissot', 'tissotCode', null))).toThrow('--tissot-code');
+    expect(() => buildPlan(caso('matsport', 'matsportCode', null))).toThrow('--matsport-code');
+    expect(() => buildPlan(caso('domtel', 'domtelCode', null))).toThrow('--domtel-code');
+    expect(() => buildPlan(caso('livetiming', 'livetimingCode', null))).toThrow('--livetiming-code');
+  });
+});
+
+describe('licencias UCI externas', () => {
+  it('no genera SQL de propagación a fichas de corredores', () => {
+    const data = {
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion({
+        eventId: 78302032,
+        rows: [{ rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', uciId: '10042809619', timeText: '26:25:00' }],
+      })] }],
+    };
+    const { plan } = buildPlan(data, null, null, null, { gender: 'male' });
+    expect(plan.find((statement) => statement.note?.includes('propagar licencia UCI'))).toBeUndefined();
+    expect(plan.every((statement) => !statement.text.includes('target."uciId"'))).toBe(true);
+  });
+});
+
+describe('purga de gemelas — entrante SINTÉTICA (otro cronometrador/PDF)', () => {
+  it('respeta el candado: no borra una gemela bloqueada', () => {
+    // Sin este AND, el .clax de STS se llevaría por delante los volcados manuales
+    // de las etapas 1-3 de Aosta pese a estar bloqueados desde el panel.
+    expect(purgaDe(planDe(-1359920101)).text).toContain('"lockedAt" IS NULL');
+  });
+
+  it('no se inserta al lado de una gemela bloqueada', () => {
+    // El ON CONFLICT es por "eventId", que aquí NO colisiona (los eventId difieren)
+    // → sin este guard saldrían DOS pestañas de la misma clasificación en la web.
+    const sql = insertCabeceraDe(planDe(-1359920101)).text;
+    expect(sql).toContain('WHERE NOT EXISTS');
+    expect(sql).toContain('"lockedAt" IS NOT NULL');
+  });
+
+  it('sus filas exigen que la cabecera exista', () => {
+    // Si el guard anterior impidió insertar la cabecera, las filas quedan sin
+    // stageRef al que colgar y el FK aborta el --apply ENTERO (cazado en real
+    // contra Aosta: "violates foreign key constraint race_uci_results_stageRef_fkey").
+    expect(insertFilasDe(planDe(-1359920101)).text)
+      .toContain('EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=$1)');
+  });
+
+  it('limita la purga al raceDayId del sector entrante', () => {
+    const purgeA = purgaDe(planDeSector(-1359920101, 0));
+    const purgeB = purgaDe(planDeSector(-1359920102, 1));
+
+    expect(purgeA.text).toContain('"raceDayId" = (SELECT id');
+    expect(purgeA.text).toContain('OFFSET $6');
+    expect(purgeA.params.at(-1)).toBe(0);
+    expect(purgeB.params.at(-1)).toBe(1);
+  });
+
+  it('limita también el guard de gemelas bloqueadas al sector entrante', () => {
+    const insertB = insertCabeceraDe(planDeSector(-1359920102, 1));
+    expect(insertB.text).toContain('g."raceDayId" = (SELECT id');
+    expect(insertB.text).toContain('OFFSET $17');
+  });
+});
+
+describe('preferencia UCI por clave lógica sectorizada', () => {
+  const data = (sectorIndex) => ({
+    competitionId: -135992,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, sectorIndex, classifications: [clasificacion()] }],
+  });
+
+  it('una clasificación oficial de 1A no bloquea la sintética de 1B', () => {
+    const officialA = new Set(['1|0|stage|stage']);
+    expect(buildPlan(data(1), null, null, officialA).nStages).toBe(1);
+  });
+
+  it('una clasificación oficial del mismo sector sí bloquea su gemela sintética', () => {
+    const officialB = new Set(['1|1|stage|stage']);
+    expect(buildPlan(data(1), null, null, officialB).nStages).toBe(0);
+  });
+});
+
+describe('purga de gemelas — entrante OFICIAL (DataRide)', () => {
+  it('purga el placeholder AUNQUE esté bloqueado', () => {
+    // La regla original, intacta: el candado protege correcciones del panel frente a
+    // re-volcados de la misma fuente, pero no convierte un placeholder en verdad
+    // frente a la UCI. Si esto se rompe, un PDF viejo bloquea al oficial para siempre.
+    expect(purgaDe(planDe(78302001)).text).not.toContain('"lockedAt" IS NULL');
+  });
+
+  it('se inserta sin condicionarse a gemelas bloqueadas', () => {
+    // Su purga ya se llevó la gemela por delante → no hay nada que esquivar.
+    expect(insertCabeceraDe(planDe(78302001)).text).not.toContain('WHERE NOT EXISTS');
+  });
+});
+
+describe('fallback de identidad exclusivo de DataRide', () => {
+  const oneDay = (source, extra = {}) => buildPlan({
+    source,
+    competitionId: 78302,
+    disciplineId: 10,
+    ...extra,
+    stages: [{
+      stageNumber: null,
+      isFinalClassification: false,
+      classifications: [clasificacion({
+        eventId: 78302001,
+        classKind: 'gc',
+        scope: 'stage',
+        winnerName: 'BRAVO Henrique',
+      })],
+    }],
+  }).plan;
+
+  it('conserva riderDisplay y winnerName cuando el payload es UCI', () => {
+    const plan = oneDay('uci');
+    expect(insertFilasDe(plan).params[6]).toBe('BRAVO Henrique');
+    expect(insertCabeceraDe(plan).params[13]).toBe('BRAVO Henrique');
+  });
+
+  it('mantiene la exclusión de identidades para las demás fuentes', () => {
+    const plan = oneDay('tissot', { tissotCode: 'tdf' });
+    expect(insertFilasDe(plan).params[6]).toBeNull();
+    expect(insertCabeceraDe(plan).params[13]).toBeNull();
+  });
+
+  it('una fuente de cronometrador exige su código de enlace', () => {
+    expect(() => oneDay('tissot')).toThrow('--tissot-code');
+    expect(oneDay('tissot', { tissotCode: 'tdf' })).toBeDefined();
+  });
+});
+
+describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
+  // El nº de $N del SQL debe cuadrar SIEMPRE con params.length, o Postgres rechaza
+  // el bind y aborta el --apply entero. Se rompió con la pseudo-etapa Final
+  // Classification (stageNumber null): raceDayExpr='NULL' y stageDateExpr='$12' no
+  // referencian $17, pero params seguía llevando sectorIndex → "bind message supplies
+  // 17 parameters, but prepared statement requires 16". Cazado en real volcando la
+  // etapa 4 del Giro della Valle d'Aosta 2026. --emit-sql no lo detecta (serializa
+  // a literales), así que solo fallaba la ruta --apply.
+  const maxPlaceholder = (sql) =>
+    Math.max(...[...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+
+  const planConStage = (stageNumber) => {
+    const stages = [{
+      stageNumber,
+      isFinalClassification: stageNumber == null,
+      dateKey: '2026-07-19',
+      classifications: [clasificacion({ stageNumber })],
+    }];
+    // Una final llega siempre junto a una llegada confirmada: desde el gate de
+    // integridad no se admite un JSON que contenga solo generales finales.
+    if (stageNumber == null) {
+      stages.unshift({
+        stageNumber: 4,
+        dateKey: '2026-07-19',
+        classifications: [clasificacion({ stageNumber: 4 })],
+      });
+    }
+    const { plan } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages,
+    });
+    return plan;
+  };
+
+  it('etapa normal: params cuadran con los placeholders', () => {
+    const ins = insertCabeceraDe(planConStage(4));
+    expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
+  });
+
+  it('Final Classification (stageNumber null): params cuadran con los placeholders', () => {
+    const ins = planConStage(null)
+      .filter((p) => p.text.includes('INSERT INTO public.race_uci_stages'))
+      .at(-1);
+    expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
+  });
+
+  it('doble sector: sectorIndex se sigue pasando cuando el SQL lo usa', () => {
+    // El fix no debe llevarse por delante el soporte de doble sector (3A/3B): con
+    // stageNumber presente, $17 se referencia en el OFFSET y debe ir en params.
+    const ins = insertCabeceraDe(planConStage(3));
+    expect(ins.text).toContain('OFFSET $17');
+    expect(ins.params).toHaveLength(17);
+  });
+
+  it('conserva el PDF oficial de la clasificación', () => {
+    const stages = [{
+      stageNumber: 1,
+      dateKey: '2026-07-19',
+      sourcePdfUrl: 'https://timing.ee/resultados.pdf',
+      classifications: [clasificacion({ stageNumber: 1 })],
+    }];
+    const { plan } = buildPlan({ competitionId: 78302, disciplineId: 10, stages });
+    const ins = insertCabeceraDe(plan);
+    expect(ins.text).toContain('"sourcePdfUrl"');
+    expect(ins.params).toContain('https://timing.ee/resultados.pdf');
+  });
+});
+
+describe('el candado propio sigue protegiendo el re-volcado de la MISMA clasificación', () => {
+  it('la cabecera no se actualiza si está bloqueada', () => {
+    // Guarda preexistente (migración 087), independiente de la asimetría de arriba.
+    expect(insertCabeceraDe(planDe(-1359920101)).text)
+      .toContain('WHERE race_uci_stages."lockedAt" IS NULL');
+  });
+
+  it('las filas no se borran si su clasificación está bloqueada', () => {
+    const borrado = planDe(-1359920101).plan ?? planDe(-1359920101);
+    const del = borrado.find(
+      (p) => p.text.includes('DELETE FROM public.race_uci_results') && p.text.includes('"stageRef"=$1'),
+    );
+    expect(del.text).toContain('lockedAt" IS NOT NULL');
+  });
+});
+
+describe('gate de integridad — rank 1 válido', () => {
+  it('omite toda la etapa si faltan resultados de etapa con rank 1', () => {
+    const general = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' },
+        { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel', gapText: '+1' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [general] }],
+    });
+
+    expect(nStages).toBe(0);
+    expect(nRejected).toBe(1);
+    expect(plan).toEqual([]);
+  });
+
+  it('acepta una prueba de un día cuyo resultado principal viene como gc/stage', () => {
+    // Las one-day no tienen stageNumber ni raceDayId propio. Algunos proveedores
+    // (STS) tipan la llegada como gc/stage; no debe confundirse con una general
+    // heredada de una vuelta, que sí conserva un número de etapa.
+    const principal = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      scope: 'stage',
+      rows: [{ rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' }],
+    });
+    const { nStages, nRejected } = buildPlan({
+      competitionId: -135992,
+      disciplineId: 10,
+      stages: [{ stageNumber: null, isFinalClassification: false, classifications: [principal] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(0);
+  });
+
+  it('omite la clasificación final si el payload no confirma ninguna llegada', () => {
+    const general = clasificacion({
+      eventId: -1359920102,
+      classKind: 'gc',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '3:00:00' },
+      ],
+    });
+    const final = clasificacion({
+      eventId: -1359929902,
+      classKind: 'gc',
+      stageNumber: null,
+      scope: 'stage',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '20:00:00' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 1, classifications: [general] },
+        { stageNumber: null, isFinalClassification: true, classifications: [final] },
+      ],
+    });
+
+    expect(nStages).toBe(0);
+    expect(nRejected).toBe(2);
+    expect(plan).toEqual([]);
+  });
+
+  it('admite la clasificación final cuando el payload confirma la llegada', () => {
+    const final = clasificacion({
+      eventId: -1359929902,
+      classKind: 'gc',
+      stageNumber: null,
+      scope: 'stage',
+      rows: [
+        { rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', timeText: '20:00:00' },
+      ],
+    });
+    const { nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [
+        { stageNumber: 1, classifications: [clasificacion()] },
+        { stageNumber: null, isFinalClassification: true, classifications: [final] },
+      ],
+    });
+
+    expect(nStages).toBe(2);
+    expect(nRejected).toBe(0);
+  });
+
+  it('no genera ninguna escritura si la clasificación no trae rank 1', () => {
+    const { plan, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion({
+        rows: [{ rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel' }],
+      })] }],
+    });
+
+    expect(nRejected).toBe(1);
+    expect(plan).toEqual([]); // tampoco actualiza race_uci_links
+  });
+
+  it('omite solo la clasificación cuyo rank 1 lleva IRM', () => {
+    const invalida = clasificacion({
+      eventId: -1359920102,
+      classKind: 'points',
+      rows: [
+        { rank: 1, rankText: 'DNF', bib: '11', riderDisplay: 'BRAVO Henrique', irm: 'DNF' },
+        { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel' },
+      ],
+    });
+    const { plan, nStages, nRejected } = buildPlan({
+      competitionId: -135992,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion(), invalida] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(1);
+    expect(plan.some((p) => p.params?.includes(-1359920102))).toBe(false);
+  });
+
+  it('acepta la etapa si el saneo desplaza un IRM espurio y restaura al ganador', () => {
+    const { nStages, nRejected } = buildPlan({
+      competitionId: 78302,
+      disciplineId: 10,
+      stages: [{ stageNumber: 1, classifications: [clasificacion({
+        rows: [
+          { rank: 1, rankText: 'DNS', bib: '11', riderDisplay: 'BRAVO Henrique', irm: 'DNS' },
+          { rank: 2, rankText: '2', bib: '12', riderDisplay: 'BOCK Emanuel', timeText: '3:00:00' },
+        ],
+      })] }],
+    });
+
+    expect(nStages).toBe(1);
+    expect(nRejected).toBe(0);
+  });
+});
+
+// Guard anti-secuestro del enlace: un volcado manual ('pdf'/'sportstiming')
+// sobre una carrera ya enlazada a una fuente automática no toca el enlace.
+// Contexto: Vuelta al Ecuador 2026, E6 — el volcado PDF reescribió
+// race_uci_links a source='pdf' con competitionId sintético y syncStatus 'ok';
+// el cron excluye las fuentes manuales y DataRide nunca reemplazó lo manual.
+describe('statement del enlace — guard anti-secuestro manual', () => {
+  const carrera = (eventId) => ({
+    competitionId: 78836,
+    disciplineId: 10,
+    stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId })] }],
+  });
+
+  it('un volcado pdf emite el ON CONFLICT acotado a enlaces ya manuales', () => {
+    const { plan } = buildPlan(carrera(-1038250600), null, null, null, null, 'pdf');
+    const link = plan.find((p) => p.deferUntilCommit);
+    expect(link).toBeTruthy();
+    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+    expect(link.params).toContain('pdf');
+  });
+
+  it('un volcado automático (uci) no acota el ON CONFLICT', () => {
+    const { plan } = buildPlan(carrera(380794), null, null, null, null, 'uci');
+    const link = plan.find((p) => p.deferUntilCommit);
+    expect(link).toBeTruthy();
+    expect(link.text).not.toContain('WHERE race_uci_links."source"');
+  });
+
+  it('un manual sin --source preserva el enlace automático aunque su competición sea sintética', () => {
+    const { plan } = buildPlan({ ...carrera(-131200500), competitionId: -131200100 });
+    const link = plan.find((p) => p.deferUntilCommit);
+    expect(link.params[5]).toBe('pdf');
+    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+  });
+
+  it('un placeholder con competición real y eventos negativos tampoco actualiza el enlace', () => {
+    const { plan } = buildPlan(carrera(-131200500));
+    const link = plan.find((p) => p.deferUntilCommit);
+    expect(link.params[5]).toBe('pdf');
+    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+  });
+
+  it('respeta la fuente automática declarada por un captador sintético', () => {
+    const { plan } = buildPlan({ ...carrera(-123), competitionId: -123, source: 'domtel', domtelCode: '8872' });
+    const link = plan.find((p) => p.deferUntilCommit);
+    expect(link.params[5]).toBe('domtel');
+    expect(link.text).not.toContain('WHERE race_uci_links."source"');
+  });
+
+  it('rechaza una competición sintética presentada como DataRide', () => {
+    const data = { ...carrera(-131200500), competitionId: -131200100 };
+    expect(() => buildPlan({ ...data, source: 'uci' })).toThrow('competitionId positivo');
+    expect(() => buildPlan(data, null, null, null, null, 'uci')).toThrow('competitionId positivo');
+  });
+});

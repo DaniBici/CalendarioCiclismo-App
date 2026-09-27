@@ -1,24 +1,11 @@
 import SwiftUI
 
-private extension Color {
-    static func fromHex(_ hex: String) -> Color? {
-        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard h.count == 6 else { return nil }
-        let scanner = Scanner(string: h)
-        var rgb: UInt64 = 0
-        guard scanner.scanHexInt64(&rgb) else { return nil }
-        let r = Double((rgb >> 16) & 0xFF) / 255.0
-        let g = Double((rgb >> 8) & 0xFF) / 255.0
-        let b = Double(rgb & 0xFF) / 255.0
-        return Color(red: r, green: g, blue: b)
-    }
-}
-
 struct StartOrderView: View {
     @State private var viewModel = StartOrderViewModel()
     let raceDayId: String
     var showDismissButton: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ZStack {
@@ -29,32 +16,35 @@ struct StartOrderView: View {
                         StageInfoHeader(raceDay: rd, race: viewModel.race)
                     }
 
-                    if viewModel.hasAnyFilter {
-                        StartOrderFilterBar(viewModel: viewModel)
-                    }
-
-                    if viewModel.shouldConvertTime, let raceTz = viewModel.raceDay?.timezone {
-                        StartOrderTimezoneNote(
-                            userOffset: viewModel.tzOffsetLabel(TimeZone.current.identifier),
-                            raceOffset: viewModel.tzOffsetLabel(raceTz),
-                            location: viewModel.raceLocationLabel
-                        )
-                    }
-
-                    if viewModel.entries.isEmpty && !viewModel.isLoading {
-                        Text(LocaleService.t("No hay datos de orden de salida para esta jornada.",
-                                             "No start order data available for this stage."))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                    if horizontalSizeClass == .regular,
+                       let rd = viewModel.fullRaceDay,
+                       let race = viewModel.race,
+                       hasStageContext(rd) {
+                        HStack(alignment: .top, spacing: 16) {
+                            orderContent
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            ResultsStageContext(
+                                raceDay: rd,
+                                race: race
+                            )
+                                .frame(width: 320)
+                        }
                     } else {
-                        StartOrderTable(viewModel: viewModel)
+                        orderContent
+                        if let rd = viewModel.fullRaceDay,
+                           let race = viewModel.race,
+                           hasStageContext(rd) {
+                            ResultsStageContext(
+                                raceDay: rd,
+                                race: race
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal)
                 .padding(.vertical)
             }
+            .background(AppTheme.background)
             .refreshable {
                 await viewModel.refresh(raceDayId: raceDayId)
             }
@@ -67,6 +57,7 @@ struct StartOrderView: View {
                 })
             }
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -85,6 +76,39 @@ struct StartOrderView: View {
             ]
             if let label = viewModel.fullRaceDay?.stageLabel { soParams["stage_name"] = label }
             AnalyticsService.shared.logScreenView("start_order", parameters: soParams)
+        }
+    }
+
+    private func hasStageContext(_ raceDay: RaceDay) -> Bool {
+        raceDay.hasElevationProfile || raceDay.distanceKm != nil
+            || raceDay.elevationProfile?.elevationGain != nil || raceDay.neutralStartTimeUtc != nil
+            || raceDay.averageSpeedKmh != nil
+            || raceDay.hasValidTimeLimit
+    }
+
+    @ViewBuilder
+    private var orderContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if viewModel.hasAnyFilter {
+                StartOrderFilterBar(viewModel: viewModel)
+            }
+            if viewModel.shouldConvertTime, let raceTz = viewModel.raceDay?.timezone {
+                StartOrderTimezoneNote(
+                    userOffset: viewModel.tzOffsetLabel(TimeZone.current.identifier),
+                    raceOffset: viewModel.tzOffsetLabel(raceTz),
+                    location: viewModel.raceLocationLabel
+                )
+            }
+            if viewModel.entries.isEmpty && !viewModel.isLoading {
+                Text(LocaleService.t("No hay datos de orden de salida para esta jornada.",
+                                     "No start order data available for this stage."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else {
+                StartOrderTable(viewModel: viewModel)
+            }
         }
     }
 }
@@ -220,13 +244,17 @@ struct StartOrderRow: View {
             ))
 
             if viewModel.isTtt {
-                // CRE: solo el nombre del equipo (sin dorsal, sin bandera, sin corredor).
-                Text(entry.teamName?.isEmpty == false ? entry.teamName! : "—")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(entry.teamName?.isEmpty == false ? .primary : .secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    if let team = UciResultsLogic.findMatchingTeam(entry.teamName, teams: viewModel.teams) {
+                        TeamColorBands(team: team)
+                    }
+                    Text(entry.teamName?.isEmpty == false ? entry.teamName! : "—")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(entry.teamName?.isEmpty == false ? .primary : .secondary)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("\(entry.dorsal)")
                     .font(.caption)
@@ -246,7 +274,12 @@ struct StartOrderRow: View {
                             .lineLimit(1)
                     }
                     if let team = entry.teamName, !team.isEmpty {
-                        Text(team).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        HStack(spacing: 6) {
+                            if let resolved = UciResultsLogic.findMatchingTeam(team, teams: viewModel.teams) {
+                                TeamColorBands(team: resolved)
+                            }
+                            Text(team).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

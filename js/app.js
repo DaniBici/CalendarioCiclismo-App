@@ -1,14 +1,16 @@
+import {dateNavigationButton} from './components/date-navigation.js?v=20260912cxcohesion';
+import { loadFeaturedRaces, todayRaceState, profileProgress, waitingResultsHtml, resultsTrophyHtml, startlistCyclistHtml } from './services/race-presentation.js?v=20260912cxactionicons';
 // ─────────────────────────────────────────────────────────────────
 //  APP PÚBLICA — index.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, toDateKey, formatDateLabel, formatDateLabelShort, formatTime, formatTimeUser,
+import { supabase, esc, toDateKey, formatDateLabel, formatDateLabelShort, formatTime, formatTimeUser,
          stageLabel, uciRank, proLevel, genderRank, grandTourRank,
          countryFlag, effectiveCountryCode, typeLabel, typeBadge, resolveTypeBadges,
          categoryBadge, jornadaUrl, raceUrl, raceName, rdLocation, setMeta, setMetaProperty,
          setCachedRace, tsSeconds, openPhBanner,
          getPinnedFilter, renderFilterPins, handleFilterEvent,
-         filterBroadcastsByRegion, extractYouTubeId, startlistUrl, startOrderUrl, buildTimeStack,
+         filterBroadcastsByRegion, extractYouTubeId, startlistUrl, startOrderUrl,
          enBase, setPressed, announce, makeCardActivatable }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
@@ -16,18 +18,25 @@ import { t, initI18n, getLocale, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { annotateDoubleSectors } from './services/races.js';
-import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
 import { indicatorBadgeSVG, isIndicatorKind, buildElevationSparkline } from './elevation-profile.js';
-import { initCintillo } from './cintillo.js';
+import { initCintillo } from './cintillo.js?v=20260913cxscopes';
 import { compareChampionships, isU23Championship, isFemaleChampionship,
-         isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js';
+         isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js?v=20260924sitefix';
 import { isReviveBroadcast, pickBadgeBroadcast } from './broadcast-priority.js';
+import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js?v=20260920featured-sort';
+import { todaySeasonLastDay, clampToTodaySeason, isWithinTodaySeason } from './services/today-season.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
 let _progressCards = [];
 let _progressTimer = null;
+const _mobileCardLayout = window.matchMedia('(max-width: 600px)');
+let _renderedAgendaItems = [];
+let _renderedMobileCardLayout = null;
+let _agendaLayoutFrame = null;
 
 function _updateProgressCards() {
+  if (document.hidden) return;
   const now = Date.now();
   _progressCards = _progressCards.filter(({ card, startMs, endMs, clipRect }) => {
     if (now >= endMs) {
@@ -35,7 +44,7 @@ function _updateProgressCards() {
       else card.style.setProperty('--progress', '100%');
       return false;
     }
-    const pct = Math.round((now - startMs) / (endMs - startMs) * 100);
+    const pct = Math.max(0, Math.min(100, Math.round((now - startMs) / (endMs - startMs) * 100)));
     if (clipRect) clipRect.setAttribute('width', `${pct}`);
     else card.style.setProperty('--progress', `${pct}%`);
     return true;
@@ -48,8 +57,8 @@ function _updateProgressCards() {
 
 const _liveTextSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>';
 const _tvSvg        = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
-const _trophySvg    = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>';
-const _cyclistSvg   = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
+const _trophySvg = resultsTrophyHtml;
+const _cyclistSvg = startlistCyclistHtml;
 const _timerSvg     = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
 
 function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBlocked = false) {
@@ -129,33 +138,6 @@ function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBl
   return wrapTv(`${_tvSvg} TV`);
 }
 
-// ── Resultados post-carrera (30 min después de la llegada estimada) ─
-function _raceTimeCheckCard(rd, offsetMinutes) {
-  if (rd.estimatedFinishTimeUtc && rd.dateKey) {
-    const [y, m, d] = rd.dateKey.split('-').map(Number);
-    const finish = new Date(rd.estimatedFinishTimeUtc);
-    if (finish.getTime() >= Date.UTC(y, m - 1, d)) {
-      return new Date() >= new Date(finish.getTime() + offsetMinutes * 60 * 1000);
-    }
-  }
-  if (rd.dateKey) {
-    const [y, m, d] = rd.dateKey.split('-').map(Number);
-    return new Date() >= new Date(Date.UTC(y, m - 1, d, 18, 0, 0) + offsetMinutes * 60 * 1000);
-  }
-  return false;
-}
-function _shouldShowResultsCard(rd, race) {
-  if (rd.isRestDay || rd.isCancelledDay) return false;
-  if (!race.extId && !race.extSlug) return false;
-  if (rd._allowExternalResults === false) return false;
-  return _raceTimeCheckCard(rd, 30);
-}
-function _noIdsAndPastDeadline(rd, race) {
-  if (rd.isRestDay || rd.isCancelledDay) return false;
-  if ((race.extId || race.extSlug) && rd._allowExternalResults !== false) return false;
-  return _raceTimeCheckCard(rd, 0);
-}
-
 // ── Render date bar ───────────────────────────────────────────────
 const _urlDate = new URLSearchParams(window.location.search).get('date');
 // `today` se recalcula bajo demanda (no es constante): un usuario que deja la
@@ -163,16 +145,29 @@ const _urlDate = new URLSearchParams(window.location.search).get('date');
 // `todayKeyNow()` y el auto-avance de medianoche más abajo.
 let today = toDateKey(new Date());
 function todayKeyNow() { return toDateKey(new Date()); }
-let currentDateKey = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : today;
+// Día que representa "hoy" en la agenda: tras el cierre de temporada es el
+// último día navegable (services/today-season.js).
+function agendaTodayKey() { return clampToTodaySeason(today, today); }
+let currentDateKey = clampToTodaySeason((_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : today, today);
 
 function buildDateBar() {
   const bar = document.getElementById('dateBar');
 
-  // 7 días centrados en el día activo (3 antes + activo + 3 después)
+  // 7 días centrados en el día activo (3 antes + activo + 3 después). Cerca
+  // del último día de temporada la tira se desplaza para terminar en él: no
+  // se ofrece ningún día posterior.
   const [cy, cm, cd] = currentDateKey.split('-').map(Number);
   const center = new Date(cy, cm - 1, cd);
+  const seasonLastDay = todaySeasonLastDay(today);
+  let firstOffset = -3;
+  while (firstOffset > -6 && seasonLastDay) {
+    const last = new Date(center);
+    last.setDate(center.getDate() + firstOffset + 6);
+    if (toDateKey(last) <= seasonLastDay) break;
+    firstOffset--;
+  }
   const days = [];
-  for (let i = -3; i <= 3; i++) {
+  for (let i = firstOffset; i <= firstOffset + 6; i++) {
     const d = new Date(center);
     d.setDate(center.getDate() + i);
     days.push(toDateKey(d));
@@ -184,12 +179,7 @@ function buildDateBar() {
   const leftSection = document.createElement('div');
   leftSection.className = 'date-bar__left';
 
-  const prevBtn = document.createElement('button');
-  prevBtn.className = 'date-week-arrow';
-  // El glifo es decorativo: sin aria-label el lector anuncia «‹ botón».
-  prevBtn.innerHTML = '<span aria-hidden="true">&#8249;</span>';
-  prevBtn.type = 'button';
-  prevBtn.setAttribute('aria-label', t('today.prevDayLabel'));
+  const prevBtn=dateNavigationButton({kind:'arrow',direction:'prev',label:t('today.prevDayLabel')});
   prevBtn.addEventListener('click', () => {
     const prev = findPrevDayWithRaces(currentDateKey, _agendaCat);
     if (prev) { loadDay(prev); return; }
@@ -198,10 +188,9 @@ function buildDateBar() {
   });
   leftSection.appendChild(prevBtn);
 
-  const todayBtn = document.createElement('button');
-  todayBtn.className = 'date-today-btn' + (currentDateKey !== today ? ' date-today-btn--visible' : '');
-  todayBtn.textContent = t('today.todayBtn');
-  todayBtn.addEventListener('click', () => { currentDateKey = today; buildDateBar(); loadDay(today); });
+  const todayKey = agendaTodayKey();
+  const todayBtn=dateNavigationButton({kind:'today',visible:currentDateKey!==todayKey,label:t('today.todayBtn')});
+  todayBtn.addEventListener('click', () => { currentDateKey = todayKey; buildDateBar(); loadDay(todayKey); });
   leftSection.appendChild(todayBtn);
 
   bar.appendChild(leftSection);
@@ -216,22 +205,22 @@ function buildDateBar() {
   days.forEach(dk => {
     const [y, m, d] = dk.split('-').map(Number);
     const date  = new Date(y, m - 1, d);
-    // Dos líneas, como en las apps: día de la semana (abreviado) sobre el número
-    let wd = date.toLocaleDateString(getLocale(), { weekday: 'short' }).replace(/\.$/, '');
-    wd = wd.charAt(0).toUpperCase() + wd.slice(1);
+    // Móvil conserva la abreviatura en dos líneas. En escritorio se muestra el
+    // nombre completo: el selector ya no dispersa siete etiquetas cortas por
+    // todo el ancho de la agenda y funciona como una unidad compacta.
+    let wdShort = date.toLocaleDateString(getLocale(), { weekday: 'short' }).replace(/\.$/, '');
+    wdShort = wdShort.charAt(0).toUpperCase() + wdShort.slice(1);
+    let wdLong = date.toLocaleDateString(getLocale(), { weekday: 'long' });
+    wdLong = wdLong.charAt(0).toUpperCase() + wdLong.slice(1);
     const dayNum = date.toLocaleDateString(getLocale(), { day: 'numeric' });
 
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'date-pill'
-      + (dk === currentDateKey ? ' active' : '')
-      + (dk === today ? ' is-today' : '');
+    const pill=dateNavigationButton({kind:'pill',label:dk,selected:dk===currentDateKey,isToday:dk===today});
     // «Lun 12» no dice ni el mes ni cuál es el día seleccionado: el nombre
     // accesible lleva la fecha completa y aria-current marca el activo.
     pill.setAttribute('aria-label', date.toLocaleDateString(getLocale(),
       { weekday: 'long', day: 'numeric', month: 'long' }));
     if (dk === currentDateKey) pill.setAttribute('aria-current', 'date');
-    pill.innerHTML = `<span class="date-pill__wd" aria-hidden="true">${wd}</span><span class="date-pill__num" aria-hidden="true">${dayNum}</span>`;
+    pill.innerHTML = `<span class="date-pill__wd" aria-hidden="true"><span class="date-pill__wd-short">${wdShort}</span><span class="date-pill__wd-long">${wdLong}</span></span><span class="date-pill__num" aria-hidden="true">${dayNum}</span>`;
     pill.dataset.dk = dk;
     pill.addEventListener('click', () => loadDay(dk));
     pillsInner.appendChild(pill);
@@ -244,16 +233,11 @@ function buildDateBar() {
   const rightSection = document.createElement('div');
   rightSection.className = 'date-bar__right';
 
-  const nextBtn = document.createElement('button');
-  nextBtn.className = 'date-week-arrow';
-  nextBtn.innerHTML = '<span aria-hidden="true">&#8250;</span>';
-  nextBtn.type = 'button';
-  nextBtn.setAttribute('aria-label', t('today.nextDayLabel'));
+  const nextBtn=dateNavigationButton({kind:'arrow',direction:'next',label:t('today.nextDayLabel')});
+  nextBtn.disabled = !canGoToNextDay();
   nextBtn.addEventListener('click', () => {
-    const next = findNextDayWithRaces(currentDateKey, _agendaCat);
-    if (next) { loadDay(next); return; }
-    const [y, m, d] = currentDateKey.split('-').map(Number);
-    loadDay(toDateKey(new Date(y, m - 1, d + 1)));
+    const next = nextNavigableDay(currentDateKey);
+    if (next) loadDay(next);
   });
   rightSection.appendChild(nextBtn);
 
@@ -274,11 +258,16 @@ function buildDateBar() {
 // ── Cargar jornadas de un día ─────────────────────────────────────
 // skipEmptyDay: si true, salta automáticamente al siguiente día con carreras
 // cuando el día no tiene actividad. Solo debe ser true en la carga inicial.
-async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
+let dayRequest = 0;
+let dayLoading = false;
+async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) {
+  const request = ++dayRequest;
+  dayLoading = true;
   clearInterval(_progressTimer);
   _progressTimer = null;
   _progressCards = [];
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
+  dateKey = clampToTodaySeason(dateKey, today);
   currentDateKey = dateKey;
   // Reevaluar el bloqueo de filtros de Campeonatos contra la jornada mostrada
   // (puede entrar/salir de la ventana al navegar). Ajusta `_agendaCat` y los
@@ -302,23 +291,34 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
   // carrera del día (tarjetas normales). La rejilla país×prueba sigue accesible
   // aparte, pero no sustituye ni oculta nada en Hoy.
 
-  list.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.stages')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
+  if (!refresh) list.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.stages')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
   try {
-    const { data: rdData } = await supabase.from('race_days').select('*').eq('dateKey', dateKey).eq('editorialStatus', 'published');
+    // Estas dos lecturas no dependen de las jornadas del día: iniciarlas ya
+    // evita dos esperas en serie antes del primer render de la agenda.
+    const currentYear = parseInt(dateKey.slice(0, 4));
+    const yearRacesPromise = ensureYearRacesCached(currentYear);
+    const activeRacesPromise = fetchActiveRaces(dateKey);
+    const { data: rdData, error: dayError } = await supabase.from('race_days').select('*').eq('dateKey', dateKey).eq('editorialStatus', 'published');
+
+    if (dayError) throw dayError;
+    if (request !== dayRequest) return;
 
     // Cargar datos de carrera y broadcasts para cada jornada (en paralelo)
     const raceDays = rdData || [];
     const raceIds = [...new Set(raceDays.map(rd => rd.raceId).filter(Boolean))];
     const rdIds = raceDays.map(rd => rd.id);
 
-    const [racesResult, bcastResult, assetsResult, inhouseSet] = await Promise.all([
+    const [racesResult, bcastResult, assetsResult, inhouseSet, featured] = await Promise.all([
       raceIds.length ? supabase.from('races').select('*').in('id', raceIds) : Promise.resolve({ data: [] }),
       rdIds.length ? supabase.from('broadcasts').select('*').in('raceDayId', rdIds).order('sortOrder', { ascending: true }) : Promise.resolve({ data: [] }),
       rdIds.length ? supabase.from('assets').select('id,raceDayId,type,url').in('raceDayId', rdIds) : Promise.resolve({ data: [] }),
       loadInhouseStageSet(raceIds),
+      loadFeaturedRaces(supabase, [dateKey]),
     ]);
 
+    if (request !== dayRequest) return;
+    for (const result of [racesResult,bcastResult,assetsResult]) if (result.error) throw result.error;
     const raceMap = {};
     (racesResult.data || []).forEach(r => { raceMap[r.id] = r; setCachedRace(r.id, r); });
     const bcastByRd = {};
@@ -334,13 +334,11 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0;
       rd._assets = assetsByRd[rd.id] || [];
       rd._hasInhouse = inhouseSet.has(rd);
-      rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId);
+      rd._featured = featured.get(dateKey)?.has(rd.raceId) || false;
     });
 
     // Detectar dobles sectores (misma carrera, mismo día, mismo stageNumber).
-    // skipFcNumbers: solo tenemos la etapa del día actual por carrera, no la
-    // secuencia completa → _fcStageNumber sería siempre 1 (incorrecto).
-    annotateDoubleSectors(raceDays, { skipFcNumbers: true });
+    annotateDoubleSectors(raceDays);
 
     // Ordenar: categoría UCI → género (masc antes fem) → hora → nombre
     // (orden preliminar; el orden definitivo de la agenda lo fija _sortByCategory)
@@ -373,7 +371,8 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
 
     if (raceDays.length === 0) {
       // Comprobar si hay placeholders antes de mostrar vacío
-      const placeholders = await loadPlaceholders(dateKey, []);
+      const placeholders = await loadPlaceholders(dateKey, [], activeRacesPromise);
+      if (request !== dayRequest) return;
       const phAsDays0 = placeholders.map(ph => ({
         _placeholder: true, _race: ph, _phRace: ph,
         neutralStartTimeUtc: { seconds: -1 },
@@ -382,9 +381,10 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       let allItems0 = [...phAsDays0];
 
       if (allItems0.length === 0) {
+        _renderedAgendaItems = [];
         // Cachear carreras del año para navegación filter-aware
-        const currentYear0 = parseInt(dateKey.slice(0, 4));
-        await ensureYearRacesCached(currentYear0);
+        await yearRacesPromise;
+        if (request !== dayRequest) return;
         // Buscar siguiente día con carreras (respetando filtro activo)
         const nextDateBtn = findNextDayWithRaces(dateKey, _agendaCat);
         if (skipEmptyDay && nextDateBtn) {
@@ -426,25 +426,19 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
         return (rA.name || '').localeCompare(rB.name || '');
       });
 
-      const total0 = allItems0.length;
-      list.innerHTML = '';
       allItems0.forEach(item => {
-        if (item._placeholder) {
-          const ph = item._phRace; ph._dateKey = dateKey;
-          list.appendChild(buildPlaceholderCard(ph));
-        } else {
-          list.appendChild(buildCard(item));
-        }
+        if (item._placeholder) item._phRace._dateKey = dateKey;
       });
+      renderAgendaItems(allItems0);
       return;
     }
 
     // ── Cachear carreras del año para navegación filter-aware ──
-    const currentYear = parseInt(dateKey.slice(0, 4));
-    await ensureYearRacesCached(currentYear);
+    await yearRacesPromise;
 
     // ── Combinar jornadas reales y placeholders, ordenar todo junto ─
-    const placeholders = await loadPlaceholders(dateKey, raceDays);
+    const placeholders = await loadPlaceholders(dateKey, raceDays, activeRacesPromise);
+    if (request !== dayRequest) return;
     placeholders.forEach(ph => { ph._dateKey = dateKey; });
 
     // Normalizar placeholders al mismo formato que raceDays para el sort
@@ -462,6 +456,9 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
     allItems = applyAgendaFilters(allItems);
     allItems.sort(_sortByCategory);
     allItems = applyAgendaSort(allItems);
+    if (_agendaSort === 'category') {
+      allItems.sort((a, b) => Number(!!b._featured) - Number(!!a._featured));
+    }
 
     const total = allItems.length;
 
@@ -469,6 +466,7 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
 
     if (total === 0) {
+      _renderedAgendaItems = [];
       const nextFilteredDate = findNextDayWithRaces(dateKey, _agendaCat);
       // Dentro de la ventana de Campeonatos el filtro Masculino está FORZADO: si
       // este día no tiene carreras masculinas, auto-avanzar al siguiente que sí
@@ -490,30 +488,22 @@ async function loadDay(dateKey, { skipEmptyDay = false } = {}) {
       return;
     }
 
-    list.innerHTML = '';
-    allItems.forEach(item => {
-      if (item._placeholder) {
-        list.appendChild(buildPlaceholderCard(item._phRace));
-      } else {
-        list.appendChild(buildCard(item));
-      }
-    });
+    renderAgendaItems(allItems);
     // La lista se sustituye sin recargar: sin región activa, quien usa lector
     // pulsa un filtro o cambia de día y no recibe confirmación (WCAG 4.1.3).
     _announceDay(allItems.length, dateKey);
 
-    if (_progressCards.length > 0) {
-      _progressTimer = setInterval(_updateProgressCards, 60_000);
-    }
-
   } catch (err) {
+    if (request !== dayRequest) return;
     console.error(err);
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-state__icon">⚠️</div>
-      <div class="empty-state__title">Error al cargar los datos</div>
-    </div>`;
-    announce('Error al cargar los datos');
-  }
+    list.querySelector('.day-load-error')?.remove();
+    const error=document.createElement('div'); error.className='empty-state day-load-error'; error.setAttribute('role','status');
+    error.innerHTML=`<p>${getLang()==='en'?'Connection error.':'Error de conexión.'}</p><button type="button" class="btn btn--ghost">${getLang()==='en'?'Retry':'Reintentar'}</button>`;
+    error.querySelector('button').onclick=()=>loadDay(dateKey,{refresh});
+    if(!refresh) { _renderedAgendaItems = []; list.replaceChildren(error); }
+    else list.prepend(error);
+  } finally { if(request===dayRequest) dayLoading=false; }
+
 }
 
 // ── SEO del cintillo "Hoy" — EVERGREEN ────────────────────────────
@@ -613,14 +603,25 @@ function theoreticalStageNumber(race, dateKey) {
   return stage;
 }
 
-async function loadPlaceholders(dateKey, existingRaceDays) {
+const ACTIVE_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,colorHex,logoUrl,hideFlag,isCancelled,isNoClickable';
+const YEAR_NAV_COLUMNS = 'name,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,isCancelled';
+
+function fetchActiveRaces(dateKey) {
+  const currentYear = parseInt(dateKey.slice(0, 4));
+  return Promise.resolve(supabase.from('races').select(ACTIVE_RACE_COLUMNS)
+    .eq('year', currentYear).lte('startDate', dateKey).gte('endDate', dateKey));
+}
+
+async function loadPlaceholders(dateKey, existingRaceDays, racesPromise = fetchActiveRaces(dateKey)) {
   // IDs de carreras que ya tienen jornada publicada ese día
   const coveredIds = new Set(existingRaceDays.map(rd => rd.raceId).filter(Boolean));
 
-  // Cargar races con startDate <= dateKey, filtrar por año en cliente
-  // (evita índice compuesto year+startDate en Firestore)
+  // Cargar solo las carreras activas en la fecha. Pedir todas las ediciones
+  // anteriores desborda el límite de 1.000 filas de Supabase; además, sin un
+  // orden explícito, una carrera actualizada puede salir del lote y perder su
+  // placeholder aunque sus fechas sigan siendo correctas.
   const currentYear = parseInt(dateKey.slice(0, 4));
-  const { data: racesData } = await supabase.from('races').select('*').lte('startDate', dateKey);
+  const { data: racesData } = await racesPromise;
 
   const placeholders = [];
   for (const race of (racesData || [])) {
@@ -645,11 +646,17 @@ async function loadPlaceholders(dateKey, existingRaceDays) {
 
 /** Carga y cachea todas las carreras del año para navegación filter-aware. */
 let _cachedYear = null;
+let _yearRacesRequest = null;
 async function ensureYearRacesCached(year) {
   if (_cachedYear === year && _cachedYearRaces.length) return;
-  const { data } = await supabase.from('races').select('*').eq('year', year);
-  _cachedYearRaces = data || [];
-  _cachedYear = year;
+  if (_yearRacesRequest?.year === year) return _yearRacesRequest.promise;
+  const promise = Promise.resolve(supabase.from('races').select(YEAR_NAV_COLUMNS).eq('year', year))
+    .then(({ data }) => {
+      _cachedYearRaces = data || [];
+      _cachedYear = year;
+    }).finally(() => { if (_yearRacesRequest?.promise === promise) _yearRacesRequest = null; });
+  _yearRacesRequest = { year, promise };
+  return promise;
 }
 
 // Devuelve el color ajustado para que sea visible como raya/borde en ambos temas.
@@ -717,7 +724,18 @@ function buildPlaceholderCard(race) {
   const card = document.createElement('div');
   card.className = 'race-card race-card--placeholder' + (isLightCardColor(race.colorHex) ? ' race-card--light-color' : '');
   card.style.setProperty('--card-color', color);
-  card.innerHTML = `
+  if (!_mobileCardLayout.matches) card.classList.add('race-card--composed', 'race-card--compact');
+  card.innerHTML = !_mobileCardLayout.matches ? `
+    <div class="race-card__identity">
+      ${logo}
+      <div class="race-card__main">
+        <div class="race-card__name"><span>${name}</span></div>
+        ${subText ? `<div class="race-card__sub"><span class="race-card__stage">${subText}</span></div>` : ''}
+        <div class="race-card__badges"><span class="race-card__name-cat">${categoryBadge(uci, isFemale)}</span></div>
+      </div>
+    </div>
+    <div class="race-card__meta"></div>
+  ` : `
     <div class="race-card__ph-row">
       ${flagHtml ? `<span class="race-card__ph-flag">${flagHtml}</span>` : ''}
       ${subText
@@ -812,9 +830,6 @@ function buildCard(rd) {
   const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
   const start  = startTU?.display  ?? null;
   const finish = finishTU?.display ?? null;
-  const timeTip = (startTU?.tooltip || finishTU?.tooltip)
-    ? 'Hora Madrid · ' + [startTU?.tooltip, finishTU?.tooltip].filter(Boolean).join(' – ')
-    : null;
 
   if (!rd._broadcasts) rd._broadcasts = [];
   // El badge UCI va SIEMPRE junto al nombre, nunca en el sub
@@ -824,7 +839,11 @@ function buildCard(rd) {
   const routePart   = route ? `<span class="race-card__route">${route}</span>` : '';
   const kmPart      = km    ? `<span class="race-card__km">${km}</span>` : '';
   const elevPart    = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
-  const typeBadges  = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode) : '';
+  // Sin silueta renderizable, la jornada usa la misma tarjeta que las .2.
+  const hasMiniProfile = _hasMiniProfile(rd) && !!rd.elevationProfile.distance;
+  const isFeatured = agendaCardIsFeatured(_agendaSort, rd._featured);
+  const compact = !hasMiniProfile || (!isFeatured && /(?:^|\.)2U?$/.test(uci));
+  const typeBadges = hasMiniProfile && rd.primaryType ? resolveTypeBadges(rd.primaryType, compact && rd.secondaryType !== 'chrono_climb' ? null : rd.secondaryType, race.countryCode) : '';
   // La ruta (salida > llegada) se oculta en móvil (≤600px, CSS) para no quedar como
   // muñón ni dejar separadores huérfanos. El separador adyacente viaja dentro del
   // wrapper para desaparecer con la ruta en ese ancho.
@@ -842,9 +861,6 @@ function buildCard(rd) {
   const sepRouteElev  = (routePart && !kmPart && elevPart) ? sep : '';
   const sepKmElev     = (kmPart && elevPart) ? sep : '';
   const sepStageElev  = (!routePart && stagePart && !kmPart && elevPart) ? sep : '';
-  // Horario apilado (paridad iOS): salida ↓ meta. Helper compartido en shared.js.
-  const timeStackHtml = buildTimeStack(start, finish, timeTip);
-
   const logo = race.logoUrl
     ? `<div class="race-card__logo">
          <img class="race-logo-img" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">
@@ -865,41 +881,34 @@ function buildCard(rd) {
   const _rdInhouse = rd._hasInhouse === true;
   // Una etapa cancelada no puede entrar en modo resultados, incluso si la
   // ingesta propia contiene filas heredadas o sintéticas. Paridad iOS/Android.
-  const showResults = !rd.isCancelledDay && (_rdInhouse || _shouldShowResultsCard(rd, race));
-  const hideNoIds = !_rdInhouse && _noIdsAndPastDeadline(rd, race);
-  // CRI/CRE: el perfil se renderiza en reposo (sin avance) hasta que la card se sustituya por modo resultados/Revive.
+  const state = todayRaceState(rd);
+  const showResults = state === 'results';
+  const hideNoIds = state === 'waiting';
   const _isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-  // Una jornada cancelada no se corre: ni silueta ni avance (el % seguía
-  // "recorriendo" un perfil de una etapa que nunca salió). Espejo de competicion.js.
-  if (!rd.isCancelledDay && rd.elevationProfile && (showResults || hideNoIds)) {
-    _epSvgHtml = buildElevationSparkline(rd.elevationProfile, 1, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-    if (_epSvgHtml) card.classList.add('race-card--elevation');
-  } else if (!rd.isCancelledDay && !_rdInhouse && rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
-    const now = Date.now();
-    const startMs = new Date(rd.neutralStartTimeUtc).getTime();
-    const endMs   = new Date(rd.estimatedFinishTimeUtc).getTime();
-    const duration = endMs - startMs;
-    const cutoffMs = (race.extId || race.extSlug) ? endMs + 30 * 60 * 1000 : endMs;
-    if (duration > 0 && now >= startMs && now < cutoffMs) {
-      const pct = _isTimeTrial ? 0 : Math.min(100, Math.round((now - startMs) / duration * 100));
-      _epSvgHtml = buildElevationSparkline(rd.elevationProfile, pct / 100, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-      if (!_isTimeTrial) {
-        _epEntry = { card, startMs, endMs, clipRect: null };
+  const _mobileMetaState = agendaMetaState(state, { start, finish, lang: getLang(), isTimeTrial: _isTimeTrial });
+  const _desktopMetaState = _agendaSort === 'finishtime' && state === 'scheduled'
+    ? agendaMetaState('running', { start, finish, lang: getLang(), isTimeTrial: _isTimeTrial })
+    : _mobileMetaState;
+  // En móvil se conserva la salida al ordenar por hora de meta; en el resto de
+  // anchos, «Hora Meta» muestra la llegada prevista.
+  const _scheduleState = _mobileCardLayout.matches ? _mobileMetaState : _desktopMetaState;
+  const _scheduleHtml = (() => {
+    if (_scheduleState.kind === 'waiting') return waitingResultsHtml(getLang());
+    if (_scheduleState.kind !== 'schedule') return '';
+    const scheduleTip = (_scheduleState.time === 'finish' ? finishTU : startTU)?.tooltip;
+    const finishClass = _scheduleState.time === 'finish' ? ' race-card__schedule--finish' : '';
+    return `<div class="race-card__schedule${finishClass}" ${scheduleTip ? `title="${_isEn ? 'Madrid time' : 'Hora Madrid'} · ${esc(scheduleTip)}"` : ''}><span>${_scheduleState.label}</span><strong>${_scheduleState.value}</strong></div>`;
+  })();
+  const miniAllowed = !rd.profileNotViewable && !rd.isCancelledDay && !rd.isRestDay;
+  if (miniAllowed) {
+    _epSvgHtml = buildElevationSparkline(rd.elevationProfile, profileProgress(rd), rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
+    if (_epSvgHtml) {
+      card.classList.add('race-card--elevation');
+      const startMs = Date.parse(rd.neutralStartTimeUtc), endMs = Date.parse(rd.estimatedFinishTimeUtc);
+      if (!_isTimeTrial && !showResults && !hideNoIds && Number.isFinite(startMs) && endMs > startMs) {
+        _epEntry = { card, startMs, endMs, clipRect:null };
         _progressCards.push(_epEntry);
       }
-      if (_epSvgHtml) card.classList.add('race-card--elevation');
-      else if (!_isTimeTrial) card.style.setProperty('--progress', `${pct}%`);
-    }
-  }
-  // Perfil estático al 0%: con horario, mientras no haya empezado; sin horario, mientras
-  // la jornada no haya entrado en modo resultados (clásicas sin start time aún configurado).
-  if (!rd.isCancelledDay && !_rdInhouse && !showResults && !hideNoIds && !_epSvgHtml && rd.elevationProfile) {
-    const _showStaticProfile = rd.neutralStartTimeUtc
-      ? Date.now() < new Date(rd.neutralStartTimeUtc).getTime()
-      : !_raceTimeCheckCard(rd, 30);
-    if (_showStaticProfile) {
-      _epSvgHtml = buildElevationSparkline(rd.elevationProfile, 0, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-      if (_epSvgHtml) card.classList.add('race-card--elevation');
     }
   }
 
@@ -929,10 +938,12 @@ function buildCard(rd) {
   // Cancelada → sin badge de tipo: el carácter de una etapa que no se corrió
   // no describe nada, y el badge "Cancelada" es lo único que importa ahí
   // (las apps ya lo omitían: esto es la paridad que faltaba en la web).
-  const _showTypeBadge = !showResults && !hideNoIds && !rd.isCancelledDay && (!_epSvgHtml || _isTimeTrial) && !!typeBadges;
+  const _showTypeBadge = !rd.isCancelledDay && !!typeBadges && ((_epSvgHtml || compact) ? _isTimeTrial : (!showResults && !hideNoIds));
   const _cancelledBadgeHtml = rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>` : '';
   // Fila unificada de badges bajo el nombre, en orden iOS:
   // Categoría → Cancelada → Tipo → TV → Inscritos → Orden salida.
+  // («Ver jornada» solo aparece en las destacadas, que usan la ficha compuesta
+  //  y lo colocan entre los botones de la derecha.)
   const _badgeRowHtml = `<div class="race-card__badges">`
     + `<span class="race-card__name-cat">${catBadgeHtml}</span>`
     + _cancelledBadgeHtml
@@ -954,6 +965,14 @@ function buildCard(rd) {
         <div class="race-card__meta-top"></div>
       </div>
     `;
+    if (!_mobileCardLayout.matches) {
+      card.classList.add('race-card--composed');
+      card.classList.toggle('race-card--compact', compact);
+      const identity = document.createElement('div');
+      identity.className = 'race-card__identity';
+      card.prepend(identity);
+      card.querySelectorAll(':scope > .race-card__logo, :scope > .race-card__flag, :scope > .race-card__main').forEach(node => identity.append(node));
+    }
     // No clicable — sin listeners de navegación
     return card;
   }
@@ -961,7 +980,16 @@ function buildCard(rd) {
   if (race.isCancelled) {
     card.className = 'race-card race-card--placeholder' + (_isLight ? ' race-card--light-color' : '');
     const flagHtml = hideFlag ? '' : flag;
-    card.innerHTML = `
+    card.innerHTML = !_mobileCardLayout.matches ? `
+      <div class="race-card__identity">
+        ${logo}
+        <div class="race-card__main">
+          <div class="race-card__name"><span style="text-decoration:line-through">${name}</span></div>
+          <div class="race-card__badges"><span class="race-card__name-cat">${catBadgeHtml}</span><span class="badge badge--cancelled-day">${t('stage.cancelled')}</span></div>
+        </div>
+      </div>
+      <div class="race-card__meta"></div>
+    ` : `
       <div class="race-card__ph-row">
         ${flagHtml ? `<span class="race-card__ph-flag">${flagHtml}</span>` : ''}
         <span class="race-card__ph-name" style="text-decoration:line-through">${name}${uci ? `<span class="race-card__name-cat">${categoryBadge(uci, isFemale)}</span>` : ''}</span>
@@ -995,6 +1023,7 @@ function buildCard(rd) {
       e.stopPropagation();
       openPhBanner(card);
     });
+    if (!_mobileCardLayout.matches) card.classList.add('race-card--composed', 'race-card--compact');
   } else {
     // Estructura paritaria con iOS:
     //   __main: nombre · subtítulo (Etapa·ruta·km·elev) · fila de badges
@@ -1010,7 +1039,7 @@ function buildCard(rd) {
       </div>
       <div class="race-card__meta">
         <div class="race-card__meta-top">
-          ${(showResults || hideNoIds || rd.isCancelledDay) ? '' : timeStackHtml}
+          ${(showResults || rd.isCancelledDay) ? '' : _scheduleHtml}
         </div>
       </div>
     `;
@@ -1152,7 +1181,92 @@ function buildCard(rd) {
     });
   }
 
+  card.classList.toggle('race-card--featured', isFeatured);
+  card.classList.toggle('race-card--waiting', state === 'waiting');
+  // Las no destacadas usan la composición única: nombre, subtítulo y badges a
+  // la izquierda, horario/resultados a la derecha y miniperfil como banda
+  // inferior a todo el ancho. La rejilla (una o dos columnas) la decide el CSS.
+  if (_mobileCardLayout.matches || !isFeatured) return card;
+
+  // Las destacadas conservan la ficha compuesta: perfil exento en su columna,
+  // datos a la izquierda y botones a la derecha.
+  card.classList.add('race-card--composed');
+  card.classList.toggle('race-card--compact', compact || race.isCancelled);
+  if (race.isCancelled) return card;
+  const main = card.querySelector('.race-card__main');
+  const meta = card.querySelector('.race-card__meta');
+  if (main && meta) {
+    const identity = document.createElement('div'); identity.className = 'race-card__identity';
+    card.prepend(identity);
+    const logoNode = card.querySelector('.race-card__logo, .race-card__flag');
+    if (logoNode) identity.append(logoNode);
+    identity.append(main);
+    if (!rd.isRestDay && !rd.isCancelledDay) {
+      main.querySelector('.race-card__sub').innerHTML = compact
+        ? [stagePart, kmPart, elevPart].filter(Boolean).join(' · ')
+        : `<span class="race-card__stage-route">${stagePart}${stage && route ? ' · ' : ''}${route ? `<span class="race-card__route">${esc(route)}</span>` : ''}</span><span class="race-card__metrics">${kmPart}${km && elev ? ' · ' : ''}${elevPart}</span>`;
+      if (compact && route) main.querySelector('.race-card__sub').title = route;
+      const actions = document.createElement('div'); actions.className = 'race-card__actions';
+      const badges = main.querySelector('.race-card__badges');
+      badges?.querySelectorAll('a.badge, .badge--tv, .badge--live-text, .badge--notv, .badge--notv-es').forEach(node => actions.append(node));
+      if (rdClickable && isFeatured && !compact) actions.insertAdjacentHTML('beforeend', `<a class="badge badge--stage" href="${jornadaUrl(rd)}" onclick="event.stopPropagation()">${(_isEn ? 'View stage' : 'Ver jornada')}</a>`);
+      if (actions.childNodes.length) {
+        if (compact) badges?.append(actions);
+        else meta.append(actions);
+      }
+      if (!showResults) {
+        const scheduleTip = (_desktopMetaState.time === 'finish' ? finishTU : startTU)?.tooltip;
+        const finishClass = _desktopMetaState.time === 'finish' ? ' race-card__schedule--finish' : '';
+        meta.querySelector('.race-card__meta-top').innerHTML = state === 'waiting'
+          ? waitingResultsHtml(getLang())
+          : _desktopMetaState.kind === 'schedule'
+            ? `<div class="race-card__schedule${finishClass}" ${scheduleTip ? `title="${_isEn ? 'Madrid time' : 'Hora Madrid'} · ${esc(scheduleTip)}"` : ''}><span>${_desktopMetaState.label}</span><strong>${_desktopMetaState.value}</strong></div>`
+            : '';
+      }
+    }
+    if (_epSvgHtml) {
+      const profile = document.createElement('div'); profile.className = 'race-card__profile';
+      card.querySelectorAll(':scope>.race-card__elevation, :scope>.race-card__ep-inds').forEach(node => profile.append(node));
+      identity.after(profile);
+    }
+  }
   return card;
+}
+
+// Las jornadas de descanso, las canceladas y los placeholders aún cambian de
+// estructura al cruzar el modo móvil, y el rótulo del horario depende del
+// ancho; al cruzar el breakpoint hay que reconstruir las tarjetas con los
+// datos ya cargados. La rejilla de una o dos columnas es solo CSS.
+function renderAgendaItems(items) {
+  const list = document.getElementById('raceList');
+  if (!list) return;
+  clearInterval(_progressTimer);
+  _progressTimer = null;
+  _progressCards = [];
+  list.replaceChildren();
+  items.forEach(item => {
+    list.appendChild(item._placeholder
+      ? buildPlaceholderCard(item._phRace)
+      : buildCard(item));
+  });
+  _renderedAgendaItems = [...items];
+  _renderedMobileCardLayout = _mobileCardLayout.matches;
+  if (_progressCards.length > 0) {
+    _progressTimer = setInterval(_updateProgressCards, 60_000);
+  }
+}
+
+function syncAgendaCardLayout() {
+  _agendaLayoutFrame = null;
+  if (dayLoading || _renderedAgendaItems.length === 0) return;
+  if (_renderedMobileCardLayout !== _mobileCardLayout.matches) {
+    renderAgendaItems(_renderedAgendaItems);
+  }
+}
+
+function queueAgendaCardLayoutSync() {
+  if (_agendaLayoutFrame !== null) return;
+  _agendaLayoutFrame = requestAnimationFrame(syncAgendaCardLayout);
 }
 
 // Nombre accesible de una tarjeta: sin él el lector lee el amasijo de
@@ -1197,6 +1311,11 @@ const EUROPE = new Set(['AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ','DE','
 // ── Caché de carreras del año para navegación filter-aware ───────
 let _cachedYearRaces = [];
 
+function isMixedRelayChampionship(race) {
+  return ['WC', 'CC'].includes(race?.uciCategory || '')
+    && /relevo mixto|mixed relay/i.test(race?.name || '');
+}
+
 /** Comprueba si una carrera individual coincide con un filtro de categoría.
  *  Replica exactamente la lógica de applyAgendaFilters para consistencia. */
 function matchesCategoryFilter(race, cat) {
@@ -1219,10 +1338,10 @@ function matchesCategoryFilter(race, cat) {
     || (['1.2U','2.2U'].includes(uci) && isTourDelPorvenir(race.name));
   if (cat === 'uwt')    base = uci === '1.UWT' || uci === '2.UWT';
   if (cat === 'wwt')    base = uci === '1.WWT' || uci === '2.WWT';
-  if (cat === 'male')   base = (gender !== 'female' || uci === 'WC' || uci === 'CC')
+  if (cat === 'male')   base = (gender === 'male' || isMixedRelayChampionship(race))
     && !['1.2','2.2'].includes(uci)
     && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name));
-  if (cat === 'female') base = (gender === 'female' || uci === 'WC' || uci === 'CC')
+  if (cat === 'female') base = (gender === 'female' || isMixedRelayChampionship(race))
     && (!['1.2U','2.2U'].includes(uci) || isTourDelPorvenir(race.name))
     && (uci !== '1.2' && uci !== '2.2' || EUROPE.has(cc));
   if (!base) return false;
@@ -1234,19 +1353,38 @@ function matchesCategoryFilter(race, cat) {
   return true;
 }
 
-/** Busca el siguiente día con carreras que coincidan con el filtro (escanea hasta 180 días). */
+/** Busca el siguiente día con carreras que coincidan con el filtro (escanea
+ *  hasta 180 días, sin pasar del último día de temporada). */
 function findNextDayWithRaces(afterDateKey, cat) {
   if (!_cachedYearRaces.length) return null;
   let [y, m, d] = afterDateKey.split('-').map(Number);
   for (let i = 0; i < 180; i++) {
     const dt = new Date(y, m - 1, d + 1 + i);
     const dk = toDateKey(dt);
+    if (!isWithinTodaySeason(dk, today)) return null;
     const hasMatch = _cachedYearRaces.some(race =>
       !race.isCancelled && isRaceDay(race, dk) && matchesCategoryFilter(race, cat)
     );
     if (hasMatch) return dk;
   }
   return null;
+}
+
+/** True si existe algún día navegable posterior al mostrado. */
+function canGoToNextDay() {
+  return isWithinTodaySeason(addDaysKey(currentDateKey, 1), today);
+}
+
+/** Destino de «día siguiente»: el próximo día con carreras del filtro o, si no
+ *  lo hay, el día contiguo; null en el último día de temporada. */
+function nextNavigableDay(fromKey) {
+  const next = findNextDayWithRaces(fromKey, _agendaCat) || addDaysKey(fromKey, 1);
+  return isWithinTodaySeason(next, today) ? next : null;
+}
+
+function addDaysKey(dateKey, days) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return toDateKey(new Date(y, m - 1, d + days));
 }
 
 /** Busca el día anterior con carreras que coincidan con el filtro (escanea hasta 180 días). */
@@ -1494,10 +1632,10 @@ function applyAgendaFilters(items) {
         || (['1.2U','2.2U'].includes(cat) && isTourDelPorvenir(name));
       if (_agendaCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
       if (_agendaCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-      if (_agendaCat === 'male')   return (gender !== 'female' || cat === 'WC' || cat === 'CC')
+      if (_agendaCat === 'male')   return (gender === 'male' || isMixedRelayChampionship(r))
         && !['1.2','2.2'].includes(cat)
         && (!['1.2U','2.2U'].includes(cat) || isTourDelPorvenir(name));
-      if (_agendaCat === 'female') return (gender === 'female' || cat === 'WC' || cat === 'CC')
+      if (_agendaCat === 'female') return (gender === 'female' || isMixedRelayChampionship(r))
         && (!['1.2U','2.2U'].includes(cat) || isTourDelPorvenir(name))
         && (cat !== '1.2' && cat !== '2.2' || EUROPE.has(cc));
       return true;
@@ -1596,8 +1734,9 @@ function initDaySwipe() {
 
   function commit(forward) {
     const targetDk = forward
-      ? (findNextDayWithRaces(currentDateKey, _agendaCat) || addDays(currentDateKey, 1))
+      ? nextNavigableDay(currentDateKey)
       : (findPrevDayWithRaces(currentDateKey, _agendaCat) || addDays(currentDateKey, -1));
+    if (!targetDk) { settleBack(); return; }
 
     if (reduceMotion || !width) { resetTransform(); loadDay(targetDk); return; }
 
@@ -1696,6 +1835,10 @@ initAgendaFilters();
 initCintillo();
 initDaySwipe();
 window.loadDay = loadDay;
+if (_mobileCardLayout.addEventListener) _mobileCardLayout.addEventListener('change', queueAgendaCardLayoutSync);
+else _mobileCardLayout.addListener(queueAgendaCardLayoutSync);
+window.addEventListener('resize', queueAgendaCardLayoutSync, { passive: true });
+window.visualViewport?.addEventListener('resize', queueAgendaCardLayoutSync, { passive: true });
 initI18n().then(() => {
   // Aplicar traducciones a elementos data-i18n del HTML estático
   document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -1715,15 +1858,22 @@ initI18n().then(() => {
 function _maybeAdvanceToNewLocalDay() {
   const nowKey = todayKeyNow();
   if (nowKey === today) return;            // sigue siendo el mismo día local
-  const wasOnToday = currentDateKey === today;
+  const wasOnToday = currentDateKey === agendaTodayKey();
   today = nowKey;                          // actualizar la referencia de "hoy"
   if (!wasOnToday) { buildDateBar(); return; } // respetar navegación manual
-  currentDateKey = today;
+  currentDateKey = agendaTodayKey();
   buildDateBar();
-  loadDay(today, { skipEmptyDay: true });
+  loadDay(currentDateKey, { skipEmptyDay: true });
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') _maybeAdvanceToNewLocalDay();
 });
 window.addEventListener('focus', _maybeAdvanceToNewLocalDay);
 setInterval(_maybeAdvanceToNewLocalDay, 60_000);
+
+const refreshToday = () => {
+  if (!document.hidden && !dayLoading && currentDateKey === toDateKey(new Date())) loadDay(currentDateKey,{refresh:true});
+};
+const dayRefreshTimer=setInterval(refreshToday,60000);
+document.addEventListener('visibilitychange',refreshToday);
+window.addEventListener('pagehide',()=> { clearInterval(dayRefreshTimer); document.removeEventListener('visibilitychange',refreshToday); },{once:true});

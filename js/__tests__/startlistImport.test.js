@@ -1,82 +1,127 @@
 import { describe, expect, it } from 'vitest';
 import {
-  parseStartlistImportDocument,
+  normalizeStartlistSource,
+  normalizePersonName,
+  saveEnrichedStartlist,
+  hasAssignedStartlistDorsals,
+  loadCompleteStartlistCatalog,
+  orderStartlistTeamsForSave,
   selectUpcomingStartlistRaces,
   uniqueExistingRiderMatchId,
-  validateStartlistImportTarget,
 } from '../startlist-import.js';
 
-describe('importación mínima de inscritos en el panel', () => {
-  it('acepta el contrato v1 sin país ni decisiones de identidad', () => {
-    const imported = parseStartlistImportDocument({
-      raceId: 'vuelta-2026',
+const source = () => ({ raceId: 'vuelta-2026', expectedRiderCount: 1, sourceUrl: 'https://official.test/list',
+  teams: [{ teamName: 'Equipo Uno', teamId: 'equipo-uno', riders: [{ dorsal: '001', firstName: 'ANA', lastName: 'GARCÍA',
+    countryCode: 'ES', birthDate: '2000-02-29', globalRiderId: 'ana-garcia', uciProfileId: '123', sourceUrl: 'https://official.test/rider' }] }] });
+
+describe('importación enriquecida compartida con el panel', () => {
+  it('conserva la información de identidad, fecha y fuente sin fabricar metadatos', () => {
+    const parsed = normalizeStartlistSource(source());
+    expect(parsed).toMatchObject({ raceId: 'vuelta-2026', sourceUrl: 'https://official.test/list', expectedRiderCount: 1 });
+    expect(parsed.teams[0]).toMatchObject({ teamId: 'equipo-uno', riders: [{ dorsal: 1, firstName: 'Ana', lastName: 'García',
+      countryCode: 'es', birthDate: '2000-02-29', globalRiderId: 'ana-garcia', uciProfileId: '123', sourceUrl: 'https://official.test/rider' }] });
+    expect(normalizePersonName("  anna   VAN-DER-breggen ")).toBe('Anna Van-Der-Breggen');
+    const missing = source(); delete missing.teams[0].riders[0].birthDate;
+    expect(normalizeStartlistSource(missing).teams[0].riders[0]).not.toHaveProperty('birthDate');
+  });
+
+  it('conserva equipos provisionales aunque todavía no tengan corredores', () => {
+    const provisional = source();
+    provisional.teams.push({ teamName: 'Equipo pendiente', isConfirmed: false, riders: [] });
+
+    expect(normalizeStartlistSource(provisional).teams[1]).toEqual({
+      teamName: 'Equipo pendiente',
+      isConfirmed: false,
+      riders: [],
+    });
+  });
+
+  it('rechaza el contrato mínimo y los recuentos sin contrastar', () => {
+    const minimal = source(); minimal.teams[0].riders = [{ dorsal: '1', riderName: 'Ana GARCÍA' }];
+    expect(() => normalizeStartlistSource(minimal)).toThrow();
+    const noCount = source(); delete noCount.expectedRiderCount;
+    expect(() => normalizeStartlistSource(noCount)).toThrow();
+    const duplicate = source(); duplicate.teams[0].riders.push({ ...duplicate.teams[0].riders[0], dorsal: 1 });
+    expect(() => normalizeStartlistSource(duplicate)).toThrow('duplicado');
+  });
+
+  it('admite varios corredores sin dorsal y conserva sus identificadores de fila', () => {
+    const withoutBibs = {
+      raceId: 'mundial-2026',
       expectedRiderCount: 2,
       teams: [{
-        teamName: ' Equipo Uno ',
+        teamName: 'Austria',
         riders: [
-          { dorsal: '1', riderName: 'Ana García López' },
-          { dorsal: '2', riderName: 'Van Aert, Wout' },
+          { rowKey: 'row-1', startlistRiderId: 'sl-1', dorsal: '', firstName: 'Felix', lastName: 'Gall' },
+          { rowKey: 'row-2', startlistRiderId: 'sl-2', dorsal: 0, firstName: 'Patrick', lastName: 'Konrad' },
         ],
       }],
-    });
+    };
 
-    expect(imported).toMatchObject({ ok: true, raceId: 'vuelta-2026', summary: { teams: 1, riders: 2 } });
-    expect(imported.teams[0]).toEqual({
-      name: 'Equipo Uno',
-      riders: [
-        { dorsal: '1', firstName: 'Ana', lastName: 'García López' },
-        { dorsal: '2', firstName: 'Wout', lastName: 'Van Aert' },
-      ],
-    });
+    expect(normalizeStartlistSource(withoutBibs).teams[0].riders).toEqual([
+      expect.objectContaining({ rowKey: 'row-1', startlistRiderId: 'sl-1', dorsal: 0 }),
+      expect.objectContaining({ rowKey: 'row-2', startlistRiderId: 'sl-2', dorsal: 0 }),
+    ]);
   });
 
-  it('admite los aliases anteriores y nunca devuelve identificadores globales', () => {
-    const imported = parseStartlistImportDocument({
-      teams: [{ name: 'Equipo Uno', riders: [{ dorsal: '11', firstName: 'Marta', lastName: 'Cavalli' }] }],
-    });
+  it('conserva el orden manual sin dorsales y ordena por dorsal cuando existen', () => {
+    const manual = [
+      { teamName: 'Norway', riders: [{ dorsal: '' }] },
+      { teamName: 'Austria', riders: [{ dorsal: 0 }] },
+    ];
+    expect(hasAssignedStartlistDorsals(manual)).toBe(false);
+    expect(orderStartlistTeamsForSave(manual).map(team => team.teamName)).toEqual(['Norway', 'Austria']);
 
-    expect(imported.ok).toBe(true);
-    expect(imported.teams[0].riders[0]).toEqual({ dorsal: '11', firstName: 'Marta', lastName: 'Cavalli' });
+    const numbered = [
+      { teamName: 'Norway', riders: [{ dorsal: 21 }] },
+      { teamName: 'Austria', riders: [{ dorsal: 1 }] },
+      { teamName: 'Canada', riders: [{ dorsal: '' }] },
+    ];
+    expect(hasAssignedStartlistDorsals(numbered)).toBe(true);
+    expect(orderStartlistTeamsForSave(numbered).map(team => team.teamName)).toEqual(['Austria', 'Norway', 'Canada']);
   });
 
-  it('rechaza dorsales inválidos, duplicados y recuentos que no coinciden', () => {
-    const imported = parseStartlistImportDocument({
-      expectedRiderCount: 4,
-      teams: [{ teamName: 'Equipo Uno', riders: [
-        { dorsal: '01', riderName: 'Corredor Uno' },
-        { dorsal: '1', riderName: 'Corredor Dos' },
-        { dorsal: '1', riderName: 'Corredor Tres' },
-      ] }],
-    });
+  it('prepara y aplica en dos llamadas, con el mismo documento validado', async () => {
+    const calls = [];
+    const rpc = async (name, args) => { calls.push({ name, args }); return { data: name === 'prepare_startlist_import'
+      ? { importId: 'job', ready: true, status: 'prepared' } : { status: 'applied', riders: 1 } }; };
+    const result = await saveEnrichedStartlist(rpc, source(), false);
+    expect(result.report.status).toBe('applied');
+    expect(calls.map(c => c.name)).toEqual(['prepare_startlist_import', 'apply_startlist_import']);
+    expect(calls[0].args.p_document).toEqual(normalizeStartlistSource(source()));
+    expect(calls[1].args).toEqual({ p_import_id: 'job' });
+  });
 
-    expect(imported.ok).toBe(false);
-    expect(imported.errors.map(error => error.message)).toEqual(expect.arrayContaining([
-      expect.stringContaining('sin ceros'),
-      expect.stringContaining('duplicado'),
-      expect.stringContaining('Declara 4'),
-    ]));
+  it('conserva el identificador antes de aplicar y reintenta sin repetir la preparación', async () => {
+    let saved;
+    const names = [];
+    const rpc = async name => {
+      names.push(name);
+      if (name === 'prepare_startlist_import') return { data: { importId: 'job', ready: true } };
+      if (names.length === 2) throw Error('Respuesta perdida');
+      return { data: { status: 'applied', alreadyApplied: true } };
+    };
+    await expect(saveEnrichedStartlist(rpc, source(), false, null, p => { saved = p; })).rejects.toThrow('Respuesta perdida');
+    const result = await saveEnrichedStartlist(rpc, source(), false, saved);
+    expect(names).toEqual(['prepare_startlist_import', 'apply_startlist_import', 'apply_startlist_import']);
+    expect(result.report.alreadyApplied).toBe(true);
+  });
+
+  it('devuelve excepciones sin aplicar y vuelve a preparar después de editar', async () => {
+    const calls = [];
+    const rpc = async (name, args) => { calls.push(args); return { data: { importId: 'job', ready: false, status: 'prepared', issues: [{ code: 'MISSING_BIRTH_DATE' }] } }; };
+    const first = await saveEnrichedStartlist(rpc, source(), false);
+    expect(calls).toHaveLength(1);
+    expect(first.report.issues).toHaveLength(1);
+    const edited = source(); edited.teams[0].riders[0].birthDate = '2001-01-01';
+    await saveEnrichedStartlist(rpc, edited, false, first.prepared);
+    expect(calls[1].p_document.teams[0].riders[0].birthDate).toBe('2001-01-01');
   });
 
   it('solo acepta el enlace automático si la RPC devuelve una coincidencia única', () => {
     expect(uniqueExistingRiderMatchId({ match_count: 1, matched_id: 'ana-garcia' })).toBe('ana-garcia');
     expect(uniqueExistingRiderMatchId({ match_count: 0, matched_id: null })).toBeNull();
     expect(uniqueExistingRiderMatchId({ match_count: 2, matched_id: 'no-debe-usarse' })).toBeNull();
-  });
-
-  it('exige una carrera de destino y bloquea un raceId distinto', () => {
-    expect(validateStartlistImportTarget('', 'vuelta-2026')).toMatchObject({ ok: false });
-    expect(validateStartlistImportTarget('giro-2026', 'vuelta-2026')).toEqual({
-      ok: false,
-      error: 'El JSON corresponde a vuelta-2026, no a la carrera seleccionada.',
-    });
-    expect(validateStartlistImportTarget('vuelta-2026', 'vuelta-2026')).toEqual({
-      ok: true,
-      raceId: 'vuelta-2026',
-    });
-    expect(validateStartlistImportTarget('vuelta-2026', null)).toEqual({
-      ok: true,
-      raceId: 'vuelta-2026',
-    });
   });
 
   it('ofrece desde hoy y ordena las carreras por fecha de inicio ascendente', () => {
@@ -95,5 +140,27 @@ describe('importación mínima de inscritos en el panel', () => {
       'pasado-a',
       'pasado-b',
     ]);
+  });
+});
+
+
+describe('catálogos completos del panel', () => {
+  it('recupera equipos y alias posteriores al límite de PostgREST', async () => {
+    const rows = Array.from({ length: 1755 }, (_, id) => ({ id: String(id) }));
+    const pages = [];
+    const result = await loadCompleteStartlistCatalog(async (from, to, count) => {
+      pages.push([from, to, count]);
+      return { data: rows.slice(from, to + 1), count: count ? rows.length : null };
+    });
+    expect(result).toEqual(rows);
+    expect(pages).toEqual([[0, 999, true], [1000, 1999, false]]);
+  });
+
+  it('no presenta un catálogo parcial como evidencia de ausencia', async () => {
+    const first = Array.from({ length: 1000 }, (_, id) => ({ id: String(id) }));
+    await expect(loadCompleteStartlistCatalog(async from => from === 0
+      ? { data: first, count: 1001 } : { error: Error('red') })).rejects.toThrow('red');
+    await expect(loadCompleteStartlistCatalog(async from => from === 0
+      ? { data: first, count: 1001 } : { data: [first[0]] })).rejects.toThrow('catálogo cambió');
   });
 });

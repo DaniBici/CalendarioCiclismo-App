@@ -1,14 +1,12 @@
 package app.calendariociclismo.android.ui.today
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -19,6 +17,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -48,10 +47,11 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.SportsScore
 import androidx.compose.material.icons.outlined.Tv
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material3.Button
@@ -80,7 +80,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,9 +87,9 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -105,27 +104,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
 import androidx.navigation.NavController
-import androidx.browser.customtabs.CustomTabsIntent
-import androidx.core.net.toUri
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.components.CCCard
+import app.calendariociclismo.android.ui.components.CCHeaderBrand
 import app.calendariociclismo.android.ui.components.CategoryBadge
+import app.calendariociclismo.android.ui.components.RaceCompetitionButton
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.MiniElevationProfile
 import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
+import app.calendariociclismo.android.ui.components.WaitingResultsIndicator
+import app.calendariociclismo.android.ui.components.RaceCardIdentity
+import app.calendariociclismo.android.ui.components.RaceActionBadge
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.StageTypeBadge
 import app.calendariociclismo.android.ui.components.TVBadge
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.colorFromHex
@@ -136,6 +140,7 @@ import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.TodaySeason
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import java.time.format.DateTimeFormatter
@@ -153,17 +158,15 @@ fun TodayScreen(navController: NavController) {
         factory = TodayViewModelFactory(app.repository, app.preferences)
     )
     val scope = rememberCoroutineScope()
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
     val state by vm.state.collectAsState()
     val data = remember(state) { vm.visibleData() }
     var placeholderItem by remember { mutableStateOf<PlaceholderItem?>(null) }
-    var resultsDialogItem by remember { mutableStateOf<ResultsDialogItem?>(null) }
     // Jornadas visibles con resultados in-house (raceDayId → stageNumber): el
-    // trofeo de esas etapas navega a la pantalla nativa, no al modal externos.
-    // Una query por carrera visible (en Hoy suelen ser pocas); diferido y no
-    // bloqueante (sin red → vacío → modal clásico).
+    // acceso de esas etapas navega a la pantalla nativa. Sin clasificación
+    // publicada, Hoy mantiene «Esperando resultados» y no ofrece enlaces
+    // provisionales a proveedores externos.
     var inhouseByDay by remember { mutableStateOf<Map<String, Int?>>(emptyMap()) }
-    var automaticSourceRaceIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var resultsSourceGateResolved by remember { mutableStateOf(false) }
     var pendingDefault by remember { mutableStateOf<Constants.CategoryFilter?>(null) }
     val pinnedFilter by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     // Semana de Campeonatos (22-28 jun): cuando la JORNADA MOSTRADA cae en la
@@ -181,9 +184,8 @@ fun TodayScreen(navController: NavController) {
         ?: emptyMap()
     val visibleKey = visibleByRace.keys.sorted().joinToString(",") +
         "|" + (data?.raceDays?.joinToString(",") { it.id } ?: "")
-    LaunchedEffect(visibleKey) {
-        if (visibleByRace.isEmpty()) { inhouseByDay = emptyMap(); automaticSourceRaceIds = emptySet(); resultsSourceGateResolved = true; return@LaunchedEffect }
-        resultsSourceGateResolved = false
+    LaunchedEffect(visibleKey, state.refreshToken) {
+        if (visibleByRace.isEmpty()) { inhouseByDay = emptyMap(); return@LaunchedEffect }
         val merged = HashMap<String, Int?>()
         for ((rid, days) in visibleByRace) {
             val pairs = days.map { it.raceDay.id to it.raceDay.stageNumber }
@@ -191,8 +193,6 @@ fun TodayScreen(navController: NavController) {
             runCatching { app.repository.inhouseStagesForDays(rid, pairs, cancelled) }.getOrNull()?.let { merged.putAll(it) }
         }
         inhouseByDay = merged
-        automaticSourceRaceIds = app.repository.automaticResultsSourceRaceIds(visibleByRace.keys.toList())
-        resultsSourceGateResolved = true
     }
 
     // Al recuperar conectividad, recargar automáticamente si estamos mostrando
@@ -220,18 +220,19 @@ fun TodayScreen(navController: NavController) {
     // Si deja la app abierta y cruza la medianoche local (latido de 60 s) o vuelve
     // a primer plano (ON_RESUME), pasa solo al día nuevo — pero SOLO si está viendo
     // "hoy" (la lógica de respetar la navegación manual vive en el ViewModel).
+    var statusNow by remember { mutableStateOf(java.time.Instant.now()) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) vm.advanceIfNewLocalDay()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            statusNow = java.time.Instant.now()
             vm.advanceIfNewLocalDay()
+            vm.refreshAutomatically()
+            while (true) {
+                delay(60_000)
+                statusNow = java.time.Instant.now()
+                vm.advanceIfNewLocalDay()
+                vm.refreshAutomatically()
+            }
         }
     }
 
@@ -251,17 +252,46 @@ fun TodayScreen(navController: NavController) {
     var isAnimatingNav by remember { mutableStateOf(false) }
     var contentWidthPx by remember { mutableStateOf(0f) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "refresh")
-    val refreshRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing)),
-        label = "refreshRotation",
-    )
-
+    val todayButtonLabel = stringResource(R.string.today_button_today)
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CCHeaderBrand(
+                    modifier = Modifier
+                        .semantics { contentDescription = todayButtonLabel }
+                        .clickable(role = Role.Button) {
+                            haptic(Haptics.Event.Navigation)
+                            val target = vm.currentDayKey()
+                            val forward = target >= state.dateKey
+                            scope.launch {
+                                animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
+                                    vm.navigateTo(target)
+                                }
+                            }
+                        },
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        haptic(Haptics.Event.Navigation)
+                        navController.navigate(Routes.SETTINGS) { launchSingleTop = true }
+                    },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = LocaleHolder.t("Ajustes", "Settings"),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
             TodayHighlightsBanner(navController = navController)
 
             // Las carreras de Campeonatos Nacionales (uciCategory='CN') se muestran
@@ -270,14 +300,15 @@ fun TodayScreen(navController: NavController) {
 
             DateBarWithControls(
                 selectedDateKey = state.dateKey,
-                isLoading = state.isLoading,
-                refreshRotation = refreshRotation,
+                isToday = state.dateKey == vm.currentDayKey(),
+                lastDateKey = TodaySeason.lastDay(),
+                canGoNext = vm.canGoToNextDay(state.dateKey),
                 onSelect = { newDate ->
                     haptic(Haptics.Event.Navigation)
                     val forward = newDate > state.dateKey
                     scope.launch {
                         animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
-                            vm.setDate(newDate)
+                            vm.navigateTo(newDate)
                         }
                     }
                 },
@@ -285,7 +316,17 @@ fun TodayScreen(navController: NavController) {
                     haptic(Haptics.Event.Navigation)
                     scope.launch {
                         animateNavigation(contentOffsetX, contentWidthPx, false, { isAnimatingNav = it }) {
-                            vm.previousDay()
+                            vm.navigateToPreviousDay()
+                        }
+                    }
+                },
+                onToday = {
+                    haptic(Haptics.Event.Navigation)
+                    val target = vm.currentDayKey()
+                    val forward = target >= state.dateKey
+                    scope.launch {
+                        animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
+                            vm.navigateTo(target)
                         }
                     }
                 },
@@ -293,17 +334,7 @@ fun TodayScreen(navController: NavController) {
                     haptic(Haptics.Event.Navigation)
                     scope.launch {
                         animateNavigation(contentOffsetX, contentWidthPx, true, { isAnimatingNav = it }) {
-                            vm.nextDay()
-                        }
-                    }
-                },
-                onRefresh = { vm.refresh() },
-                onToday = {
-                    haptic(Haptics.Event.Navigation)
-                    val forward = DateFormatting.todayKey() >= state.dateKey
-                    scope.launch {
-                        animateNavigation(contentOffsetX, contentWidthPx, forward, { isAnimatingNav = it }) {
-                            vm.setDate(DateFormatting.todayKey())
+                            vm.navigateToNextDay()
                         }
                     }
                 },
@@ -370,7 +401,9 @@ fun TodayScreen(navController: NavController) {
                                     if (isHorizontal) change.consume()
                                 }
 
-                                if (isHorizontal && abs(totalX) > 80f && !isAnimatingNav) {
+                                // Último día de temporada: el gesto hacia delante no navega.
+                                val blockedForward = totalX < 0 && !vm.canGoToNextDay(vm.state.value.dateKey)
+                                if (isHorizontal && abs(totalX) > 80f && !isAnimatingNav && !blockedForward) {
                                     haptic(Haptics.Event.Navigation)
                                     val forward = totalX < 0
                                     scope.launch {
@@ -378,7 +411,7 @@ fun TodayScreen(navController: NavController) {
                                             contentOffsetX, contentWidthPx, forward,
                                             { isAnimatingNav = it },
                                         ) {
-                                            if (forward) vm.nextDay() else vm.previousDay()
+                                            if (forward) vm.navigateToNextDay() else vm.navigateToPreviousDay()
                                         }
                                     }
                                 }
@@ -404,24 +437,38 @@ fun TodayScreen(navController: NavController) {
                                     animateNavigation(
                                         contentOffsetX, contentWidthPx, true,
                                         { isAnimatingNav = it },
-                                    ) { vm.jumpToNextRaceDay() }
+                                    ) { vm.navigateToNextRaceDay() }
                                 }
                             },
                         )
-                        else -> LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            itemsIndexed(data.raceDays, key = { _, it -> it.id }) { index, day ->
+                        else -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                            val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
+                            val rows = AdaptiveLayoutPolicy.rows(data.raceDays, columns) { day ->
+                                shouldDisplayTodayRaceAsFeatured(
+                                    day.race?.id in data.featuredRaceIds,
+                                    state.sortMode,
+                                )
+                            }
+                            val renderDay: @Composable (EnrichedRaceDay) -> Unit = { day ->
                                 // In-house: si la jornada tiene clasificación propia, el
-                                // trofeo va a la pantalla nativa (no al modal externos).
+                                // acceso va a la pantalla nativa.
                                 val inhouseStage = inhouseByDay[day.id]
                                 val hasInhouse = inhouseByDay.containsKey(day.id)
-                                val externalAllowed = resultsSourceGateResolved && day.race?.id !in automaticSourceRaceIds
-                                val showResults = hasInhouse || (externalAllowed && RaceLogic.shouldShowResults(day.raceDay, day.race))
                                 // Revive/TV solo acompaña a Resultados: alcanzar
                                 // la hora de meta sin clasificaciones no lo activa.
-                                val reviveUrl = if (showResults) RaceLogic.reviveUrl(day.broadcasts) else null
+                                val reviveUrl = if (hasInhouse) RaceLogic.reviveUrl(day.broadcasts) else null
+                                val raceState = RaceLogic.todayRaceState(
+                                    day.raceDay,
+                                    hasInhouseResults = hasInhouse,
+                                    now = statusNow,
+                                )
+                                val isWaiting = raceState == RaceLogic.TodayRaceState.WAITING
+                                val showsFinishTime = state.sortMode == TodayViewModel.SortMode.FINISH_TIME ||
+                                    raceState == RaceLogic.TodayRaceState.RUNNING
+                                val isFeatured = shouldDisplayTodayRaceAsFeatured(
+                                    day.race?.id in data.featuredRaceIds,
+                                    state.sortMode,
+                                )
                                 val isFinalStage = day.race?.isStageRace == true &&
                                     !day.raceDay.isRestDay &&
                                     !day.raceDay.isCancelledDay &&
@@ -430,13 +477,12 @@ fun TodayScreen(navController: NavController) {
                                     day = day,
                                     activeFilter = state.category,
                                     isFinalStage = isFinalStage,
-                                    onShowResults = if (showResults && day.race != null) { {
+                                    isFeatured = isFeatured,
+                                    showsFinishTimeOnly = showsFinishTime,
+                                    isWaitingForResults = isWaiting,
+                                    onShowResults = if (hasInhouse && day.race != null) { {
                                         haptic(Haptics.Event.PrimaryAction)
-                                        if (hasInhouse) {
-                                            navController.navigate(Routes.results(day.race!!.id, inhouseStage, suffix = day.raceDay.stageSuffix))
-                                        } else {
-                                            resultsDialogItem = ResultsDialogItem(day.race!!, day.raceDay)
-                                        }
+                                        navController.navigate(Routes.results(day.race!!.id, inhouseStage, suffix = day.raceDay.stageSuffix))
                                     } } else null,
                                     onRevive = reviveUrl?.let { url -> {
                                         haptic(Haptics.Event.PrimaryAction)
@@ -467,6 +513,27 @@ fun TodayScreen(navController: NavController) {
                                     },
                                 )
                             }
+                            LazyColumn(
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(rows, key = { row -> row.items.joinToString("|") { it.id } }) { row ->
+                                    if (columns == 1 || row.spansAllColumns) {
+                                        renderDay(row.items.first())
+                                    } else {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.Top,
+                                        ) {
+                                            row.items.forEach { day ->
+                                                Box(Modifier.weight(1f)) { renderDay(day) }
+                                            }
+                                            repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -477,9 +544,6 @@ fun TodayScreen(navController: NavController) {
         item = placeholderItem,
         onDismiss = { placeholderItem = null },
     )
-    resultsDialogItem?.let { item ->
-        ResultsDialog(item = item, context = context, onDismiss = { resultsDialogItem = null })
-    }
     pendingDefault?.let { filter ->
         val isPinned = filter == pinnedFilter && pinnedFilter != Constants.CategoryFilter.ALL
         val filterLabel = stringResource(filter.labelRes)
@@ -529,7 +593,7 @@ private suspend fun animateNavigation(
     widthPx: Float,
     forward: Boolean,
     setAnimating: (Boolean) -> Unit,
-    action: () -> Unit,
+    action: suspend () -> Unit,
 ) {
     if (widthPx <= 0f) { action(); return }
     setAnimating(true)
@@ -544,59 +608,66 @@ private suspend fun animateNavigation(
 // ─── DateBar con controles fusionados ───────────────────────────────
 
 /**
- * Fila única que combina botón Hoy (animado), flechas de navegación,
- * carrusel de fechas y botón de refresco. Sustituye el TopAppBar + DateBar
- * separados para eliminar el espacio en blanco redundante.
+ * Fila única situada bajo el cintillo: flecha anterior, carrusel de fechas y
+ * flecha siguiente. Fuera de la fecha actual inserta «Hoy» antes de los siete días.
  */
 @Composable
 private fun DateBarWithControls(
     selectedDateKey: String,
-    isLoading: Boolean,
-    refreshRotation: Float,
+    isToday: Boolean,
+    lastDateKey: String?,
+    canGoNext: Boolean,
     onSelect: (String) -> Unit,
     onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onRefresh: () -> Unit,
     onToday: () -> Unit,
+    onNext: () -> Unit,
 ) {
-    val dateKeys = remember(selectedDateKey) {
+    // Sin días posteriores al último día de temporada (TodaySeason).
+    val dateKeys = remember(selectedDateKey, lastDateKey) {
         DateFormatting.dateRangeAround(selectedDateKey, offset = 45)
+            .filter { lastDateKey == null || it <= lastDateKey }
     }
     val selectedIndex = remember(selectedDateKey, dateKeys) {
         dateKeys.indexOf(selectedDateKey).coerceAtLeast(0)
     }
     val density = LocalDensity.current
     val listState = rememberLazyListState()
+    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
     LaunchedEffect(selectedDateKey) {
         snapshotFlow { listState.layoutInfo.viewportSize.width }
             .first { it > 0 }
         val viewportWidth = listState.layoutInfo.viewportSize.width
         val itemHalfWidthPx = with(density) { 24.dp.roundToPx() }
-        listState.animateScrollToItem(
-            index = selectedIndex,
-            scrollOffset = -(viewportWidth / 2 - itemHalfWidthPx),
-        )
+        val offset = -(viewportWidth / 2 - itemHalfWidthPx)
+        if (animationsEnabled) {
+            listState.animateScrollToItem(index = selectedIndex, scrollOffset = offset)
+        } else {
+            listState.scrollToItem(index = selectedIndex, scrollOffset = offset)
+        }
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AnimatedVisibility(
-            visible = selectedDateKey != DateFormatting.todayKey(),
-            enter = expandHorizontally(),
-            exit = shrinkHorizontally(),
-        ) {
-            TextButton(
-                onClick = onToday,
-                contentPadding = PaddingValues(horizontal = 8.dp),
-            ) {
-                Text(stringResource(R.string.today_button_today), style = MaterialTheme.typography.labelLarge)
-            }
-        }
-
         IconButton(onClick = onPrevious) {
             Icon(Icons.Filled.ChevronLeft, contentDescription = stringResource(R.string.today_prev_day_cd))
+        }
+
+        if (!isToday) {
+            FilledTonalButton(
+                onClick = onToday,
+                modifier = Modifier.height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.today_button_today),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
         }
 
         LazyRow(
@@ -614,16 +685,8 @@ private fun DateBarWithControls(
             }
         }
 
-        IconButton(onClick = onNext) {
+        IconButton(onClick = onNext, enabled = canGoNext) {
             Icon(Icons.Filled.ChevronRight, contentDescription = stringResource(R.string.today_next_day_cd))
-        }
-
-        IconButton(onClick = onRefresh) {
-            Icon(
-                Icons.Filled.Refresh,
-                contentDescription = stringResource(R.string.today_refresh_cd),
-                modifier = Modifier.rotate(if (isLoading) refreshRotation else 0f),
-            )
         }
     }
 }
@@ -821,8 +884,6 @@ private fun CategoryChip(
 
 // ─── Race card ─────────────────────────────────────────────────────
 
-data class ResultsDialogItem(val race: Race, val raceDay: RaceDay)
-
 /** Altura de la franja del mini-perfil (a sangre, al fondo de la tarjeta):
  *  mayor en montaña para exacerbar las diferencias de perfil; algo más en
  *  cotas, sinuosas y clásicas de pavé/sterrato (desnivel a baja altitud que
@@ -847,12 +908,16 @@ private fun RaceCard(
     onShowStartOrder: (() -> Unit)? = null,
     onShowCompetition: (() -> Unit)? = null,
     isFinalStage: Boolean = false,
+    isFeatured: Boolean = false,
+    showsFinishTimeOnly: Boolean = false,
+    isWaitingForResults: Boolean = false,
 ) {
     val race = day.race
     val stripe = colorFromHex(race?.colorHex, fallback = MaterialTheme.colorScheme.outlineVariant)
     val rd = day.raceDay
     val liveTextUrl = day.assets.firstOrNull { it.type == "live_text" }?.url
     val isFinishedMode = onShowResults != null || onRevive != null
+    val isCompactPointTwo = !isFeatured && RaceLogic.categoryTier(race?.uciCategory) == "2"
     val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
         activeFilter == Constants.CategoryFilter.WWT
     val displayName = race?.localizedName?.let {
@@ -864,7 +929,7 @@ private fun RaceCard(
     // Mini-perfil + badge inscritos se liberaron al plan gratuito: visibles
     // siempre (gateados por featuresUnlocked, no por la suscripción).
     val featuresUnlocked = app.premium.featuresUnlocked
-    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay &&
+    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay && !isCompactPointTwo &&
         rd.elevationProfile?.points?.let { it.size >= 2 } == true
     // Paridad con web: clásicas siempre; vueltas por etapas solo el primer día.
     val isFirstOrOnlyDay = race?.raceFormat != "stage_race" || rd.dateKey == race?.startDate
@@ -873,15 +938,14 @@ private fun RaceCard(
     val startOrderAsset = day.assets.firstOrNull { it.type == "startOrder" && !it.url.isNullOrEmpty() }
     val showsStartOrderBadge = startOrderAsset != null && !rd.isCancelledDay &&
         (rd.primaryType == "itt" || rd.primaryType == "ttt")
+    val isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt"
 
     // Tarjeta canónica (CCCard) con tinte de marca por carrera — paridad con el
     // cintillo "Hoy". El contenido es la misma fila logo + textos + columna
     // derecha que antes, pero ahora vive sobre la superficie elevada compartida.
     CCCard(
         accent = race?.colorHex?.let { colorFromHex(it, fallback = MaterialTheme.colorScheme.outlineVariant) },
-        // Tinte más tenue que el default del cintillo: en una lista con muchas
-        // carreras de colores distintos, el 4% (planteamiento original) ordena
-        // mejor que el 7%.
+        // Las destacadas conservan el mismo tinte base que las demás carreras.
         accentAlpha = 0.04f,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -899,12 +963,7 @@ private fun RaceCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        RaceLogo(url = race?.logoUrl, size = 36.dp)
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
+        RaceCardIdentity(logoUrl = race?.logoUrl, title = {
             // Nombre + bandera
             Row(
                 modifier = Modifier.height(16.dp),
@@ -929,26 +988,7 @@ private fun RaceCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (onShowCompetition != null) {
-                    // IconButton impone un mínimo interactivo de 48 dp. Este
-                    // control visual debe medir exactamente 16 dp para mantener
-                    // la densidad de la fila y la paridad con iOS.
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                RoundedCornerShape(3.dp),
-                            )
-                            .clickable(role = Role.Button, onClick = onShowCompetition),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Menu,
-                            contentDescription = LocaleHolder.t("Ver competición", "View race"),
-                            modifier = Modifier.size(9.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+                    RaceCompetitionButton(LocaleHolder.t("Ver competición", "View race"), onShowCompetition)
                 }
                 if (!isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)) {
                     val femaleCd = stringResource(R.string.season_female_indicator_cd)
@@ -961,6 +1001,7 @@ private fun RaceCard(
                 }
             }
 
+        }, details = {
             if (rd.isRestDay) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -996,6 +1037,16 @@ private fun RaceCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (isFeatured && !rd.routeDescription.isNullOrEmpty()) {
+                    Text(
+                        text = rd.routeDescription.orEmpty(),
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (isFinishedMode) {
                     // En modo terminado solo categoría (tipo + TV ocultos)
                     CategoryBadge(category = race?.uciCategory)
@@ -1007,7 +1058,9 @@ private fun RaceCard(
                         CategoryBadge(category = race?.uciCategory)
                         if (rd.isCancelledDay) {
                             CancelledDayBadge()
-                        } else if (!showsMiniProfile || rd.primaryType == "itt" || rd.primaryType == "ttt") {
+                        } else if ((!isCompactPointTwo && !showsMiniProfile)
+                            || rd.primaryType == "itt" || rd.primaryType == "ttt"
+                            || rd.secondaryType == "chrono_climb") {
                             // Cuando hay mini-perfil, la silueta de elevación ya
                             // comunica el carácter de la etapa; omitir el badge
                             // de tipo (primary/secondary) — paridad con iOS.
@@ -1048,13 +1101,16 @@ private fun RaceCard(
                 // El mini-perfil ya no va aquí: se renderiza como franja a
                 // sangre al fondo de la tarjeta (ver más abajo).
             }
-        }
+        })
 
         // Columna derecha: tiempos o iconos de resultados/revive.
         // Cancelada → sin horario: la etapa no se corre (paridad con la web).
         if (!rd.isRestDay && !rd.isCancelledDay) {
             if (isFinishedMode) {
-                Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                Row(
+                    modifier = Modifier.width(if (isFeatured) 144.dp else 96.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
                     onShowResults?.let { action ->
                         IconButton(onClick = action) {
                             Icon(
@@ -1076,38 +1132,38 @@ private fun RaceCard(
                         }
                     }
                 }
+            } else if (isWaitingForResults) {
+                Row(
+                    modifier = Modifier
+                        .width(if (isFeatured) 144.dp else 96.dp)
+                        .semantics {
+                            contentDescription = LocaleHolder.t("Esperando resultados", "Awaiting results")
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+                ) {
+                    WaitingResultsIndicator()
+                }
             } else {
                 val startStr = rd.neutralStartTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
                 val finishStr = rd.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
                 if (startStr != null || finishStr != null) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (startStr != null) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        if (showsFinishTimeOnly && finishStr != null) {
+                            FinishTimeLine(finishStr, isTimeTrial)
+                        } else if (startStr != null) {
+                            ScheduleLabel(if (isTimeTrial) LocaleHolder.t("Inicio", "Start") else LocaleHolder.t("Salida", "Start"))
                             Text(
                                 text = startStr,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (finishStr != null) {
-                                Text(
-                                    text = "↓",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.clearAndSetSemantics { },
-                                )
-                                Text(
-                                    text = finishStr,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else if (finishStr != null) {
-                            Text(
-                                text = finishStr,
-                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        } else if (finishStr != null) {
+                            FinishTimeLine(finishStr, isTimeTrial)
                         }
                     }
                 }
@@ -1124,7 +1180,7 @@ private fun RaceCard(
                   summits = rd.profileSummits ?: emptyList(),
                   waypoints = rd.profileWaypoints ?: emptyList(),
                   primaryType = rd.primaryType,
-                  startTimeMs = rd.neutralStartTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
+                  startTimeMs = (rd.realStartTimeUtc ?: rd.neutralStartTimeUtc)?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
                     isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
                     forceCompleted = isFinishedMode,
@@ -1134,6 +1190,35 @@ private fun RaceCard(
       }
     }
 }
+
+@Composable
+private fun FinishTimeLine(finishTime: String, isTimeTrial: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        ScheduleLabel(if (isTimeTrial) LocaleHolder.t("Final", "End") else LocaleHolder.t("Meta", "Finish"))
+        Text(
+            text = "~$finishTime",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun ScheduleLabel(text: String) {
+    Text(
+        text = text.uppercase(LocaleHolder.currentState),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.25.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+    )
+}
+
 
 /**
  * Badge tappable que abre directamente la lista de inscritos sin pasar
@@ -1150,52 +1235,12 @@ private fun StartlistBadge(
         isFemale -> stringResource(R.string.stage_doc_startlist_female)
         else -> stringResource(R.string.today_startlist_badge)
     }
-    Row(
-        modifier = Modifier
-            .clickable(role = Role.Button, onClick = onClick)
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Group,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(11.dp),
-        )
-        Text(
-            text = label.uppercase(LocaleHolder.currentState),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimary,
-        )
-    }
+    RaceActionBadge(label = label, icon = Icons.Filled.Group, primaryAction = true, onClick = onClick)
 }
 
 @Composable
 private fun StartOrderBadge(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .clickable(role = Role.Button, onClick = onClick)
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Timer,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(11.dp),
-        )
-        Text(
-            text = stringResource(R.string.asset_start_order).uppercase(LocaleHolder.currentState),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimary,
-        )
-    }
+    RaceActionBadge(label = stringResource(R.string.asset_start_order), icon = Icons.Filled.Timer, primaryAction = true, onClick = onClick)
 }
 
 /** Badge de jornada cancelada, idéntico en geometría y color al de la web. */
@@ -1212,71 +1257,6 @@ private fun CancelledDayBadge() {
     )
 }
 
-// ─── Results dialog ────────────────────────────────────────────────
-
-// `internal` para reutilizarlo desde la vista de competición (RaceScreen).
-@Composable
-internal fun ResultsDialog(
-    item: ResultsDialogItem,
-    context: android.content.Context,
-    onDismiss: () -> Unit,
-) {
-    val race = item.race
-    val rd = item.raceDay
-    val extUrlA = RaceLogic.buildExtUrlA(race, rd.stageNumber)
-    val extUrlB = RaceLogic.buildExtUrlB(race, rd.stageNumber, rd.stageSuffix)
-
-    val title = if (race.isOneDay) {
-        stringResource(R.string.today_results_title)
-    } else {
-        stringResource(R.string.today_results_title_with_stage, rd.stageLabel)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = race.localizedName,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (extUrlA != null) {
-                    ResultsLinkButton(label = "fuente externa", url = extUrlA, context = context)
-                }
-                if (extUrlB != null) {
-                    ResultsLinkButton(label = "fuente externa", url = extUrlB, context = context)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
-        },
-    )
-}
-
-@Composable
-private fun ResultsLinkButton(label: String, url: String, context: android.content.Context) {
-    FilledTonalButton(
-        onClick = {
-            runCatching {
-                CustomTabsIntent.Builder().setShowTitle(true).build()
-                    .launchUrl(context, url.toUri())
-            }
-        },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(label)
-    }
-}
 
 /**
  * Subtítulo "Etapa N · Distancia · Desnivel". Etapa y distancia van en negrita.

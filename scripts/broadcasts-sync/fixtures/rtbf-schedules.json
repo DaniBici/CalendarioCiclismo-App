@@ -1,0 +1,65 @@
+{
+  "status": 200,
+  "data": [
+    {
+      "id": "stage-1-full",
+      "title": "Cyclisme - La Vuelta",
+      "subtitle": "Etape 1 : Monaco > Monaco",
+      "description": "Première étape de La Vuelta.",
+      "duration": 11761,
+      "scheduledAt": "2026-08-22T16:05:00+02:00",
+      "channel": { "id": 1, "label": "La Une" },
+      "deepLink": "https://auvio.rtbf.be/media/cyclisme-la-vuelta-3507068",
+      "broadcast": { "id": 3507068, "type": "VIDEO", "status": "AVAILABLE" },
+      "categoryLabel": "Cyclisme"
+    },
+    {
+      "id": "stage-1-summary",
+      "title": "Cyclisme - La Vuelta",
+      "subtitle": "Monaco - Monaco CLM",
+      "description": "Résumé de la première étape.",
+      "duration": 1842,
+      "scheduledAt": "2026-08-22T19:10:00+02:00",
+      "channel": { "id": 33, "label": "Tipik" },
+      "deepLink": "https://auvio.rtbf.be/media/la-vuelta-cyclisme-la-vuelta-3507078",
+      "broadcast": { "id": 3507078, "type": "VIDEO", "status": "AVAILABLE" },
+      "categoryLabel": "Cyclisme"
+    },
+    {
+      "id": "stage-5-live",
+      "title": "Cyclisme - La Vuelta",
+      "subtitle": "Etape 5 : Costa Daurada > Roquetes",
+      "description": "Cinquième étape de La Vuelta.",
+      "duration": 9465,
+      "scheduledAt": "2026-08-26T14:50:00+02:00",
+      "channel": { "id": 33, "label": "Tipik" },
+      "deepLink": "https://auvio.rtbf.be/live/cyclisme-la-vuelta-etape-5-costa-daurada-roquetes-744914",
+      "broadcast": { "id": 744914, "type": "LIVE", "status": "SCHEDULED" },
+      "categoryLabel": "Cyclisme"
+    },
+    {
+      "id": "stage-7-tipik",
+      "title": "Cyclisme - La Vuelta",
+      "subtitle": "Etape 7 : Départ",
+      "description": "Septième étape de La Vuelta.",
+      "duration": 3600,
+      "scheduledAt": "2026-08-28T13:00:00+02:00",
+      "channel": { "id": 33, "label": "Tipik" },
+      "deepLink": "https://auvio.rtbf.be/live/cyclisme-la-vuelta-etape-7-800001",
+      "broadcast": { "id": 800001, "type": "LIVE", "status": "SCHEDULED" },
+      "categoryLabel": "Cyclisme"
+    },
+    {
+      "id": "stage-7-la-une",
+      "title": "Cyclisme - La Vuelta",
+      "subtitle": "Etape 7 : Arrivée",
+      "description": "Septième étape de La Vuelta.",
+      "duration": 7200,
+      "scheduledAt": "2026-08-28T14:00:00+02:00",
+      "channel": { "id": 1, "label": "La Une" },
+      "deepLink": "https://auvio.rtbf.be/live/cyclisme-la-vuelta-etape-7-800001",
+      "broadcast": { "id": 800001, "type": "LIVE", "status": "SCHEDULED" },
+      "categoryLabel": "Cyclisme"
+    }
+  ]
+}

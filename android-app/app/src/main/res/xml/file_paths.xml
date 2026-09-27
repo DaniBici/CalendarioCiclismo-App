@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Paths exportados por el FileProvider. Actualmente solo se expone la carpeta
-  donde FileAssetCache guarda los PDFs / mapas / perfiles descargados del CDN
-  R2 para uso offline (context.filesDir/OfflineAssets).
+  Paths exportados por el FileProvider: la carpeta donde FileAssetCache guarda
+  los PDFs / mapas / perfiles descargados del CDN R2 para uso offline
+  (context.filesDir/OfflineAssets) y los PDF de inscritos que genera
+  StartlistPdfExporter (context.cacheDir/StartlistPdf).
 -->
 <paths>
     <files-path name="offline_assets" path="OfflineAssets/" />
+    <cache-path name="startlist_pdf" path="StartlistPdf/" />
 </paths>

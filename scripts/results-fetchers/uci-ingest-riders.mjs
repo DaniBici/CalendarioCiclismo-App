@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 /**
  * uci-ingest-riders.mjs — Ingestor del "catálogo oro" de CORREDORES desde la UCI
- * (fuente oficial). Sustituye el flujo fuente externa+fuente externa para los Continental: la UCI da
+ * (fuente oficial). Es la fuente de los Continental: la UCI da
  * nombre/apellido YA SEPARADOS (givenName/familyName) + país + fecha de nacimiento + año,
  * sin Cloudflare, vía API JSON + fichas SSR.
  *
- * FLUJO (roster POR EQUIPO — uciId es la clave inequívoca)
+ * FLUJO (roster POR EQUIPO — uciProfileId es la clave inequívoca del perfil UCI)
  *   El teamCode de la UCI NO es único: lo comparten el equipo masculino y el femenino de un
  *   mismo patrocinador (Standard Insurance, Amani, HKSI, 7 Saber, Aisan/Handsling…), y a veces
  *   el teamName tampoco distingue (idéntico para ambos géneros). Por eso NO se agrupa por código:
  *   se usa el uciId de cada equipo (del team-map) para leer SU roster oficial.
- *   1. Por equipo (uciId del team-map): GET /team-details/<uciId> (SSR) → sección RIDERS:
- *      enlaces /rider-details/<id> con el texto "GivenNames FAMILYNAMES NAT" (nombre en
- *      minúsculas/capital, apellidos en MAYÚSCULAS, país ISO-3 al final) → nombre/apellido
- *      separados SIN heurística (la UCI ya marca la frontera por mayúsculas).
+ *   1. Por equipo: GET /team-details/<uciId> (SSR), TeamDetailsModule → Riders y Neo.
+ *      Usa givenName/familyName estructurados. Excluye Trainees y Management;
+ *      los stagiaires tienen un flujo independiente con afiliación temporal.
  *   2. Por corredor: GET /rider-details/<id> (SSR) → D.O.B (dd.mm.yyyy → YYYY-MM-DD) + país.
  *   3. Matching token-set + desempate por fecha contra el CATÁLOGO GLOBAL del género
  *      (--db-men/--db-women: TODAS las filas riders_* + huérfanos) → update / move / create.
@@ -37,7 +36,8 @@
  * Parámetros:
  *   --year           Temporada (default 2026).
  *   --team-map       JSON de uci-map-teams.mjs (matched[]: {uciId, teamCode, dbId, gender, uciName, dbName}).
- *   --db-men/-women  Catálogo GLOBAL por género (array {id,firstName,lastName,otherNames,birthDate,nationality,currentTeamId,origin?,orphanOldId?}).
+ *                   El uciId del team-map es el perfil interno del EQUIPO, no una licencia.
+ *   --db-men/-women  Catálogo GLOBAL por género (array {id,firstName,lastName,otherNames,birthDate,nationality,currentTeamId,uciProfileId?,origin?,orphanOldId?}).
  *   --codes          CSV de teamCodes a procesar (si se omite: TODOS los del team-map).
  *   --cache-dir      Carpeta de caché de roster+DOB (default: junto al team-map / uci-cache).
  *   --emit-json/-sql Rutas de salida.
@@ -46,6 +46,7 @@
 'use strict';
 
 import { chromium } from 'playwright';
+import { parseUciTeamRoster } from './uci-team-roster.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
@@ -67,7 +68,7 @@ const UA = 'calendariociclismo-bot/1.0 (+https://calendariociclismo.app)';
 const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ── fold canónica (espejo del plan / ingestor fuente externa / xmatch) ──────────
+// ── fold canónica (espejo del plan / xmatch) ──────────
 function fold(s) {
   return String(s || '')
     .toLowerCase()
@@ -99,7 +100,7 @@ const ISO3to2 = {
   GBR:'gb', GER:'de', NED:'nl', NOR:'no', SWE:'se', SUI:'ch', USA:'us', AUS:'au', CAN:'ca',
   IRL:'ie', CZE:'cz', SVK:'sk', GRE:'gr', ISR:'il', TUR:'tr', RSA:'za', NZL:'nz', ERI:'er',
   RWA:'rw', IND:'in', IRI:'ir', HKG:'hk', KOR:'kr', TPE:'tw', SGP:'sg', VIE:'vn', BRA:'br',
-  ARG:'ar', CHI:'cl', URU:'uy', VEN:'ve', MEX:'mx', CRC:'cr', GUA:'gt', CUB:'cu', PAN:'pa',
+  ARG:'ar', CHI:'cl', URU:'uy', VEN:'ve', MEX:'mx', CRC:'cr', GUA:'gt', CUB:'cu', PAN:'pa', BIZ:'bz',
   LUX:'lu', EST:'ee', LAT:'lv', LTU:'lt', FIN:'fi', ROU:'ro', BUL:'bg', CRO:'hr', SRB:'rs',
   HUN:'hu', BLR:'by', RUS:'ru', KSA:'sa', UAE:'ae', QAT:'qa', BRN:'bh', KUW:'kw', OMA:'om',
   EGY:'eg', TUN:'tn', ETH:'et', KEN:'ke', NGR:'ng', CYP:'cy', MLT:'mt', MGL:'mn', POL:'pl',
@@ -124,92 +125,27 @@ const idFromUrl = (u) => { const m = String(u || '').match(/\/rider-details\/(\d
 const cacheRead = (file) => { try { return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null; } catch { return null; } };
 const cacheWrite = (file, obj) => { try { mkdirSync(CACHE_DIR, { recursive: true }); writeFileSync(file, JSON.stringify(obj)); } catch (e) { log('  cache write fail: ' + e.message); } };
 
-// ── Roster oficial de UN equipo (uciId) desde /team-details/<id> ──────
-// La sección RIDERS lista enlaces /rider-details/<id> cuyo texto trae el nombre con la
-// frontera ya marcada: "GivenNames FAMILYNAMES NAT" (given en minúsc/capital, apellidos en
-// MAYÚSCULAS, país ISO-3 al final). MANAGEMENT (staff) va aparte → lo excluimos por posición.
-async function fetchRoster(page, uciId) {
-  const file = join(CACHE_DIR, `team-${uciId}.json`);
+// Plantilla habitual: únicamente Riders y Neo. Trainees se importa por separado.
+async function fetchRoster(page, uciTeamProfileId) {
+  // No reutilizar las cachés antiguas: perdían la sección de procedencia.
+  const file = join(CACHE_DIR, `team-${uciTeamProfileId}-regular-v2.json`);
   const cached = cacheRead(file);
   if (cached) return cached;
-  let roster = [];
-  try {
-    await page.goto(`https://www.uci.org/team-details/${uciId}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(500);
-    roster = await page.evaluate(() => {
-      // Cortar antes de "MANAGEMENT": solo queremos corredores, no directores/staff.
-      const body = document.body?.innerText || '';
-      const out = []; const seen = new Set();
-      // Recorremos los enlaces /rider-details en orden; paramos al llegar a la zona de management.
-      // Heurística robusta: la palabra "MANAGEMENT" marca el inicio del staff; los enlaces de
-      // rider-details que aparezcan en el DOM tras ese marcador son staff → los descartamos por
-      // su texto de rol (SPORTS DIRECTOR, etc.) que NO acaba en país de 3 letras tras apellido.
-      const anchors = Array.from(document.querySelectorAll('a[href*="/rider-details/"]'));
-      for (const a of anchors) {
-        const m = (a.getAttribute('href') || '').match(/\/rider-details\/(\d+)/);
-        if (!m) continue;
-        const id = m[1]; if (seen.has(id)) continue;
-        const text = (a.textContent || '').replace(/\s+/g, ' ').trim();
-        if (!text) continue;
-        seen.add(id);
-        out.push({ uciRiderId: id, linkText: text });
-      }
-      return out;
-    });
-  } catch (e) { log(`  roster ${uciId} error: ${e.message.slice(0, 50)}`); }
-  cacheWrite(file, roster);
-  return roster;
-}
-
-// Separar el texto de enlace de la UCI, que viene SIN espacios en la frontera:
-//   "Jair AntonioAPARICIO CATACOLICOL"  →  given "Jair Antonio" | family "APARICIO CATACOLI" | NAT "COL"
-// Reglas del formato (verificadas):
-//   - nombre(s) de pila: capitalizados, separados por espacio entre sí ("Jair Antonio").
-//   - apellido(s): TODO MAYÚSCULAS, separados por espacio entre sí ("APARICIO CATACOLI").
-//   - la frontera nombre↔apellido NO tiene espacio ("AntonioAPARICIO").
-//   - el país (ISO-3) va PEGADO al final del último apellido ("CATACOLICOL").
-// Para cortar el país sin riesgo usamos el ISO-3 que ya conocemos de la ficha (knownNat3).
-function parseLinkName(linkText, knownNat3) {
-  let t = String(linkText || '').trim();
-  let nat3 = null;
-  // 1) quitar el país pegado al final, preferentemente el conocido de la ficha.
-  if (knownNat3 && t.toUpperCase().endsWith(knownNat3.toUpperCase())) {
-    nat3 = knownNat3.toUpperCase();
-    t = t.slice(0, t.length - nat3.length);
-  } else {
-    const m = t.match(/([A-Z]{3})$/); // último bloque de 3 mayúsculas
-    if (m) { nat3 = m[1]; t = t.slice(0, m.index); }
-  }
-  t = t.trim();
-  // 2) frontera nombre↔apellido = primera minúscula seguida INMEDIATAMENTE de mayúscula (sin espacio).
-  //    (los saltos entre nombres de pila o entre apellidos llevan espacio, así que no disparan aquí.)
-  //    Unicode-aware: \p{Ll}\p{Lu} cubre diacríticos checos/eslavos/polacos (Řeha, Šumpík, Łątkowski),
-  //    que un rango Latin-1 [A-ZÀ-Þ] se dejaba fuera → firstName==lastName con el nombre pegado.
-  //    El apóstrofo opcional cubre los italianos que la UCI escribe con ' en vez de acento
-  //    ("Nicolo'ARRIGHETTI" = Nicolò + ARRIGHETTI): el ' queda con el nombre de pila.
-  let firstName, lastName;
-  const b = t.match(/(\p{Ll}['’]?)(\p{Lu})/u);
-  if (b) {
-    const idx = b.index + b[1].length; // cortar justo antes de la mayúscula del apellido
-    firstName = titleCase(t.slice(0, idx).trim());
-    lastName = titleCase(t.slice(idx).trim());
-  } else {
-    // sin frontera detectable (p.ej. todo mayúsculas): último token = apellido.
-    const toks = t.split(/\s+/).filter(Boolean);
-    if (toks.length >= 2) { firstName = titleCase(toks.slice(0, -1).join(' ')); lastName = titleCase(toks.at(-1)); }
-    else { firstName = titleCase(t); lastName = titleCase(t); }
-  }
-  return { firstName, lastName, nat3 };
+  const response = await page.goto(`https://www.uci.org/team-details/${uciTeamProfileId}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  if (!response?.ok()) throw new Error(`UCI ${uciTeamProfileId}: HTTP ${response?.status()}`);
+  const { regular } = parseUciTeamRoster(await page.content());
+  cacheWrite(file, regular);
+  return regular;
 }
 
 // ── Ficha de corredor (SSR): DOB + país (ISO-3) ──────────────────────
-async function fetchRiderDetail(page, uciRiderId) {
-  const file = join(CACHE_DIR, `rider-${uciRiderId}.json`);
+async function fetchRiderDetail(page, uciProfileId) {
+  const file = join(CACHE_DIR, `rider-${uciProfileId}.json`);
   const cached = cacheRead(file);
   if (cached) return cached;
   let out = { dob: null, nat3: null, http: 0 };
   try {
-    const resp = await page.goto(`https://www.uci.org/rider-details/${uciRiderId}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const resp = await page.goto(`https://www.uci.org/rider-details/${uciProfileId}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(120);
     const data = await page.evaluate(() => {
       const t = document.body?.innerText || '';
@@ -224,7 +160,7 @@ async function fetchRiderDetail(page, uciRiderId) {
 }
 
 // ── Matching contra catálogo global del género ───────────────────────
-// uciRider ya trae firstName/lastName separados (parseLinkName), dob y countryCode (ISO-2).
+// uciRider ya trae firstName/lastName estructurados, dob y countryCode (ISO-2).
 function matchRider(uciRider, dbRiders, dbTeamId) {
   const firstName = uciRider.firstName;
   const lastName = uciRider.lastName;
@@ -274,7 +210,7 @@ function matchRider(uciRider, dbRiders, dbTeamId) {
   }
 
   return {
-    uciRiderId: uciRider.uciRiderId,
+    uciProfileId: uciRider.uciProfileId,
     rosterName: `${firstName} ${lastName}`.trim(),
     firstName, lastName, otherNames: null,
     enrichOtherNames,
@@ -313,23 +249,23 @@ function buildTeamSql(team, plan) {
   for (const p of plan) {
     const riderId = (p.action === 'create') ? newRiderId(p.firstName, p.lastName) : p.matchedRiderId;
     if (p.action === 'create') {
-      if (!p.birthDate) { lines.push(`-- ⚠️ OMITIDO (sin fecha nac, requisito duro): ${p.rosterName} [uci ${p.uciRiderId}]`); lines.push(''); continue; }
+      if (!p.birthDate) { lines.push(`-- ⚠️ OMITIDO (sin fecha nac, requisito duro): ${p.rosterName} [perfil UCI ${p.uciProfileId}]`); lines.push(''); continue; }
       const tag = p.orphanOldId ? `+ huérfano→ficha (repunta startlists de ${p.orphanOldId})` : '+ nuevo';
       lines.push(`-- ${tag}: ${p.rosterName} → ${riderId}`);
       // La VERDAD del equipo es rider_team_affiliations (mig. 116): la ficha NO escribe
       // currentTeamId (lo deriva el trigger inverso); la pertenencia va en la afiliación de abajo.
-      lines.push(`INSERT INTO ${TABLE} (id, "firstName", "lastName", "otherNames", nationality, "birthDate", source, verified)`);
-      lines.push(`VALUES (${sqlStr(riderId)}, ${sqlStr(p.firstName)}, ${sqlStr(p.lastName)}, ${sqlStr(p.otherNames)}, ${sqlStr(p.nationality)}, ${sqlStr(p.birthDate)}, 'catalog_gold', true)`);
-      lines.push(`ON CONFLICT (id) DO UPDATE SET "birthDate"=COALESCE(${TABLE}."birthDate", EXCLUDED."birthDate"), nationality=COALESCE(${TABLE}.nationality, EXCLUDED.nationality), source='catalog_gold', verified=true, "updatedAt"=now();`);
+      lines.push(`INSERT INTO ${TABLE} (id, "uciProfileId", "firstName", "lastName", "otherNames", nationality, "birthDate", source, verified)`);
+      lines.push(`VALUES (${sqlStr(riderId)}, ${sqlStr(p.uciProfileId)}, ${sqlStr(p.firstName)}, ${sqlStr(p.lastName)}, ${sqlStr(p.otherNames)}, ${sqlStr(p.nationality)}, ${sqlStr(p.birthDate)}, 'catalog_gold', true)`);
+      lines.push(`ON CONFLICT (id) DO UPDATE SET "uciProfileId"=COALESCE(${TABLE}."uciProfileId", EXCLUDED."uciProfileId"), "birthDate"=COALESCE(${TABLE}."birthDate", EXCLUDED."birthDate"), nationality=COALESCE(${TABLE}.nationality, EXCLUDED.nationality), source='catalog_gold', verified=true, "updatedAt"=now();`);
       if (p.orphanOldId && p.orphanOldId !== riderId) {
         lines.push(`UPDATE startlist_riders SET "globalRiderId"=${sqlStr(riderId)} WHERE "globalRiderId"=${sqlStr(p.orphanOldId)};`);
       }
     } else if (p.action === 'move') {
       lines.push(`-- ⇄ traspaso (${p.matchScore}${p.matchedByDate ? ' · fecha' : ''}): ${p.rosterName} ${p.matchedFromTeam} → ${team.dbId}`);
-      lines.push(`UPDATE ${TABLE} SET "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
+      lines.push(`UPDATE ${TABLE} SET "uciProfileId"=COALESCE("uciProfileId", ${sqlStr(p.uciProfileId)}), "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
     } else { // update
       lines.push(`-- ~ existe (${p.matchScore}${p.matchedByDate ? ' · fecha' : ''}): ${p.rosterName} → ${riderId}`);
-      lines.push(`UPDATE ${TABLE} SET "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
+      lines.push(`UPDATE ${TABLE} SET "uciProfileId"=COALESCE("uciProfileId", ${sqlStr(p.uciProfileId)}), "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
     }
     // Enriquecer otherNames con apellido(s) extra de la UCI (solo update/move; aditivo e idempotente).
     if (p.enrichOtherNames && (p.action === 'update' || p.action === 'move')) {
@@ -380,14 +316,14 @@ async function main() {
     const dbRiders = team.gender === 'male' ? dbMen : dbWomen;
     log(`\n  [${ti}/${targets.length}] ${team.teamCode} ${team.uciName} → ${team.dbName} (${team.gender}): ${rawRoster.length} corredores`);
 
-    // 2) DOB/país (ficha cacheada) + nombre (parse usando el país conocido para cortar el sufijo)
+    // 2) DOB/país de la ficha y nombre/apellido estructurados del roster.
     const roster = [];
     for (const r of rawRoster) {
-      const detail = await fetchRiderDetail(page, r.uciRiderId);
-      const { firstName, lastName, nat3: natFromLink } = parseLinkName(r.linkText, detail.nat3);
-      const nat3 = detail.nat3 || natFromLink;
+      const detail = await fetchRiderDetail(page, r.uciProfileId);
+      const firstName = titleCase(r.givenName), lastName = titleCase(r.familyName);
+      const nat3 = detail.nat3 || r.countryCode;
       roster.push({
-        uciRiderId: r.uciRiderId, firstName, lastName,
+        uciProfileId: r.uciProfileId, firstName, lastName,
         dob: detail.dob, countryCode: iso2(nat3), countryCode3: nat3,
       });
       await sleep(180);

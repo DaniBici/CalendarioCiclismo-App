@@ -7,7 +7,10 @@ final class TodayHighlightsViewModel {
     var dismissedHash: String?
     var isLoading = false
 
-    private let dismissKey = "cc_giro_dismissed_hash"
+    /// Sección del cintillo: "road" (Hoy y carretera) o "cx" (agenda Ciclocross).
+    /// Cada scope tiene su propio contenido editorial y su propio dismiss.
+    let scope: String
+    private var dismissKey: String { scope == "cx" ? "cc_giro_dismissed_hash_cx" : "cc_giro_dismissed_hash" }
 
     /// Hash determinista del contenido actual. Si cambia, reaparece el cintillo
     /// aunque el usuario lo hubiera cerrado.
@@ -22,8 +25,9 @@ final class TodayHighlightsViewModel {
         return dismissedHash != contentHash
     }
 
-    init() {
-        self.dismissedHash = UserDefaults.standard.string(forKey: dismissKey)
+    init(scope: String = "road") {
+        self.scope = scope == "cx" ? "cx" : "road"
+        self.dismissedHash = UserDefaults.standard.string(forKey: scope == "cx" ? "cc_giro_dismissed_hash_cx" : "cc_giro_dismissed_hash")
     }
 
     func load() async {
@@ -37,6 +41,7 @@ final class TodayHighlightsViewModel {
             let all: [TodayHighlight] = try await SupabaseService.shared.client
                 .from("today_highlights")
                 .select()
+                .eq("scope", value: scope)
                 .order("position", ascending: true)
                 .execute()
                 .value
@@ -100,7 +105,26 @@ final class TodayHighlightsViewModel {
                 for r in extra { racesById[r.id] = r }
             }
 
+            let cxIds = Array(Set(highlights.filter { $0.targetType == "cxRace" }.compactMap { $0.cxRaceId }))
+            // Un fallo de CX no elimina los destacados de carretera ya resueltos.
+            // En inglés se descartan las carreras nacionales y los torneos solo
+            // nacionales (CyclocrossPresentation.hiddenClasses).
+            let cxRows = ((try? await SupabaseService.shared.cxRaces(byIds: cxIds)) ?? []).filter { !CyclocrossPresentation.isHidden($0) }
+            let cxTournamentIds = Array(Set(highlights.filter { $0.targetType == "cxTournament" }.compactMap { $0.cxTournamentId }))
+            var cxTournamentRows = (try? await SupabaseService.shared.cxTournaments(byIds: cxTournamentIds)) ?? []
+            if !CyclocrossPresentation.hiddenClasses.isEmpty {
+                var visible: [CxTournament] = []
+                for tournament in cxTournamentRows {
+                    if await CyclocrossRepository.shared.tournamentIsVisible(tournament.id) { visible.append(tournament) }
+                }
+                cxTournamentRows = visible
+            }
+            guard !Task.isCancelled else { return }
+            let cxById = Dictionary(uniqueKeysWithValues: cxRows.map { ($0.id, $0) })
+            let cxTournamentById = Dictionary(uniqueKeysWithValues: cxTournamentRows.map { ($0.id, $0) })
             let resolved = highlights.compactMap { h -> TodayHighlightView? in
+                if h.targetType == "cxRace" { return TodayHighlightView.cx(highlight: h, race: h.cxRaceId.flatMap { cxById[$0] }) }
+                if h.targetType == "cxTournament" { return TodayHighlightView.cxTournament(highlight: h, tournament: h.cxTournamentId.flatMap { cxTournamentById[$0] }) }
                 let rd = h.raceDayId.flatMap { rdsById[$0] }
                 let race: Race? = {
                     if let rid = h.raceId { return racesById[rid] }

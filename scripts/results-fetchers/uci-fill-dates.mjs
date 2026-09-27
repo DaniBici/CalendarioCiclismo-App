@@ -4,8 +4,8 @@
  * existen en el catálogo, leyéndola de la UCI. NO crea, NO mueve, NO renombra: emite
  * únicamente `UPDATE riders_* SET "birthDate"=... WHERE id=... AND "birthDate" IS NULL`.
  *
- * Caso de uso: corredores de equipos UCI (sobre todo ProTeams sembrados por fuente externa, que no
- * daba fecha) que quedaron sin birthDate y sin gemelo en la BD. La fuente UCI da el DOB.
+ * Caso de uso: corredores de equipos UCI (sobre todo ProTeams sembrados sin fecha de
+ * nacimiento) que quedaron sin birthDate y sin gemelo en la BD. La fuente UCI da el DOB.
  *
  * FLUJO:
  *   1. Lee el archivo de objetivos (--targets): array {id,firstName,lastName,nationality,

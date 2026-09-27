@@ -39,7 +39,7 @@ import sys
 
 FLAGS_DIR = os.path.join(
     os.path.dirname(__file__), "..", "..",
-    "ios-app", "CalendarioCiclismo", "Assets.xcassets", "Flags",
+    "ios-app", "Shared", "Flags.xcassets", "Flags",
 )
 
 DRY = "--dry-run" in sys.argv

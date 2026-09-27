@@ -127,10 +127,10 @@ final class ChampionshipsConfigTests: XCTestCase {
             id: notCn.id, name: "Tour", nameEn: nil, abbrev: nil,
             uciCategory: "2.UWT", gender: nil, raceFormat: "stage_race",
             countryCode: "FR", colorHex: nil, logoUrl: nil, websiteUrl: nil,
-            extId: nil, extSlug: nil, hideFlag: false, isGrandTour: false,
+            hideFlag: false, isGrandTour: false,
             isCancelled: false, startDate: nil, endDate: nil,
             year: 2026, slug: nil, originalName: nil, startlistImportedAt: nil,
-            startlistProvisional: nil, enrichedStartlist: nil
+            startlistProvisional: nil
         )
         XCTAssertNil(ChampionshipsConfig.compare(cn, makeRaceDay(), notCn, makeRaceDay()))
     }
@@ -187,10 +187,10 @@ final class ChampionshipsConfigTests: XCTestCase {
             id: UUID().uuidString, name: name, nameEn: nil, abbrev: nil,
             uciCategory: "CN", gender: gender, raceFormat: "one_day",
             countryCode: country, colorHex: nil, logoUrl: nil, websiteUrl: nil,
-            extId: nil, extSlug: nil, hideFlag: false, isGrandTour: false,
+            hideFlag: false, isGrandTour: false,
             isCancelled: false, startDate: "2026-06-27", endDate: "2026-06-27",
             year: 2026, slug: nil, originalName: nil, startlistImportedAt: nil,
-            startlistProvisional: nil, enrichedStartlist: nil
+            startlistProvisional: nil
         )
     }
 
@@ -205,5 +205,32 @@ final class ChampionshipsConfigTests: XCTestCase {
             editorialStatus: "published", hasAssets: false,
             updatedAt: nil, countryCode: nil
         )
+    }
+}
+
+// MARK: - Cierre de temporada en Hoy
+
+final class TodaySeasonTests: XCTestCase {
+
+    func test_lastDay_2026IsOctober18() {
+        XCTAssertEqual(TodaySeason.lastDay(today: "2026-09-27"), "2026-10-18")
+        XCTAssertEqual(TodaySeason.lastDay(today: "2026-12-31"), "2026-10-18")
+    }
+
+    func test_clamp_movesLaterDatesToLastDay() {
+        XCTAssertEqual(TodaySeason.clamp("2026-10-19", today: "2026-09-27"), "2026-10-18")
+        XCTAssertEqual(TodaySeason.clamp("2026-11-02", today: "2026-11-02"), "2026-10-18")
+        XCTAssertEqual(TodaySeason.clamp("2026-10-09", today: "2026-10-19"), "2026-10-09")
+    }
+
+    func test_yearWithoutClosingDate_hasNoLimit() {
+        XCTAssertNil(TodaySeason.lastDay(today: "2027-01-02"))
+        XCTAssertEqual(TodaySeason.clamp("2027-10-30", today: "2027-01-02"), "2027-10-30")
+        XCTAssertTrue(TodaySeason.contains("2027-10-30", today: "2027-01-02"))
+    }
+
+    func test_contains_excludesDaysAfterLastDay() {
+        XCTAssertTrue(TodaySeason.contains("2026-10-18", today: "2026-10-01"))
+        XCTAssertFalse(TodaySeason.contains("2026-10-19", today: "2026-10-01"))
     }
 }

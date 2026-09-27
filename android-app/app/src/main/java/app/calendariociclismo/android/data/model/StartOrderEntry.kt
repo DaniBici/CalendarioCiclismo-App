@@ -55,4 +55,6 @@ data class StartOrderData(
     val fullRaceDay: RaceDay?,
     val race: Race?,
     val entries: List<StartOrderEntry>,
+    /** Equipos con colores efectivos para el año de la carrera. */
+    val teams: List<Team> = emptyList(),
 )

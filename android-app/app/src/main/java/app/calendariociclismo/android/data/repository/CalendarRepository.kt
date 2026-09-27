@@ -2,7 +2,6 @@ package app.calendariociclismo.android.data.repository
 
 import android.content.Context
 import android.util.Log
-import androidx.glance.appwidget.updateAll
 import app.calendariociclismo.android.data.local.AppDatabase
 import app.calendariociclismo.android.data.local.entity.AssetEntity
 import app.calendariociclismo.android.data.local.entity.BroadcastEntity
@@ -24,7 +23,9 @@ import app.calendariociclismo.android.data.model.StartOrderData
 import app.calendariociclismo.android.data.model.StartlistData
 import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.data.model.UciResultsData
+import app.calendariociclismo.android.data.model.UciRank1Row
 import app.calendariociclismo.android.data.model.applySeason
+import app.calendariociclismo.android.data.model.asTeam
 import app.calendariociclismo.android.data.remote.SupabaseService
 import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.DateFormatting
@@ -33,9 +34,11 @@ import app.calendariociclismo.android.util.ResultsFeedLogic
 import app.calendariociclismo.android.util.StartlistLogic
 import app.calendariociclismo.android.util.TransfersLogic
 import app.calendariociclismo.android.util.UciResultsLogic
-import app.calendariociclismo.android.widget.today.TodayCyclingWidget
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -113,6 +116,9 @@ class CalendarRepository(
     suspend fun nextRaceDateAfter(dateKey: String): String? =
         raceDaysDao.nextRaceDateAfter(dateKey)
 
+    suspend fun featuredRaceIds(dateKeys: List<String>): Set<String> =
+        api.featuredRaces(dateKeys).map { it.raceId }.toSet()
+
     /**
      * Ensambla `DayData` (jornadas + emisiones + assets + mapa de carreras)
      * a partir de lo que haya en caché local. Devuelve null si no hay nada.
@@ -154,6 +160,16 @@ class CalendarRepository(
         racesDao.upsertAll(fetched.map { RaceEntity.from(it, now) })
     }
 
+    /** Descarga y cachea únicamente las jornadas y carreras de un mes. */
+    suspend fun refreshMonth(from: String, to: String) {
+        val now = clock()
+        val (days, races) = api.calendarMonthData(from, to)
+        val previous = raceDaysDao.getByDateRange(from, to).associateBy { it.id }
+        raceDaysDao.upsertAll(days.map { RaceDayEntity.fromSlim(it, now, previous[it.id]) })
+        raceDaysDao.deleteByDateRangeNotIn(from, to, days.map { it.id })
+        racesDao.upsertAll(races.map { RaceEntity.from(it, now) })
+    }
+
     /** Descarga y cachea jornadas de una fecha + sus broadcasts + assets. */
     suspend fun refreshDay(dateKey: String) {
         val now = clock()
@@ -175,19 +191,14 @@ class CalendarRepository(
             .distinctBy { Pair(it.raceDayId, it.type) }
         broadcastsDao.upsertAll(allBroadcasts.map { BroadcastEntity.from(it, now) })
         assetsDao.upsertAll(allAssets.map { AssetEntity.from(it, now) })
-
-        // Redibujar el widget si la fecha recargada es hoy
-        if (dateKey == DateFormatting.todayKey()) {
-            runCatching { TodayCyclingWidget().updateAll(appContext) }
-                .onFailure { Log.w(TAG, "Error actualizando widget tras refreshDay: ${it.message}") }
-        }
     }
 
     /** Descarga y cachea todas las jornadas de un rango. */
     suspend fun refreshRange(from: String, to: String) {
         val now = clock()
         val days = api.raceDaysInRange(from, to)
-        raceDaysDao.upsertAll(days.map { RaceDayEntity.from(it, now) })
+        val previous = raceDaysDao.getByDateRange(from, to).associateBy { it.id }
+        raceDaysDao.upsertAll(days.map { RaceDayEntity.fromSlim(it, now, previous[it.id]) })
         // Propagar los borrados del backend en el rango (ver refreshDay).
         raceDaysDao.deleteByDateRangeNotIn(from, to, days.map { it.id })
     }
@@ -376,14 +387,18 @@ class CalendarRepository(
         // Render temporal: globalTeams con los atributos visuales del año de la carrera
         // (team_seasons). Fallback a `teams` por equipo sin season → nunca pierde chapa.
         // 2026 == teams. La UI no cambia: recibe globalTeams ya fusionados.
-        val globalTeams = if (race.enrichedStartlist == true) {
-            val base = api.teams()
+        val teamIds = teams.mapNotNull { it.teamId }.distinct()
+        val globalTeams = coroutineScope {
+            val base = async { api.teamsByIds(teamIds) }
             val year = race.year
-            if (year != null) {
-                val seasonByTeamId = api.teamSeasons(year).associateBy { it.teamId }
-                base.map { it.applySeason(seasonByTeamId[it.id]) }
-            } else base
-        } else emptyList()
+            val seasonByTeamId = if (year != null) {
+                api.teamSeasonsByIds(year, teamIds).associateBy { it.teamId }
+            } else emptyMap()
+            val baseById = base.await().associateBy { it.id }
+            teamIds.mapNotNull { id ->
+                baseById[id]?.applySeason(seasonByTeamId[id]) ?: seasonByTeamId[id]?.asTeam()
+            }
+        }
 
         // Tachado de abandonos: si la carrera tiene resultados in-house, marcar a
         // los corredores fuera de carrera (irm en su etapa MÁS RECIENTE). Port de
@@ -436,11 +451,21 @@ class CalendarRepository(
         // RaceDay canónico para reusar StageInfoHeaderCard (paridad con perfil).
         val fullRaceDay = runCatching { api.raceDaysByIds(listOf(raceDayId)).firstOrNull() }.getOrNull()
         val entries = api.startOrderEntries(raceDayId)
+        val teams = race?.year?.let { year ->
+            val base = runCatching { api.teams() }.getOrDefault(emptyList())
+            val seasons = runCatching { api.teamSeasons(year) }.getOrDefault(emptyList())
+                .associateBy { it.teamId }
+            val baseById = base.associateBy { it.id }
+            (baseById.keys + seasons.keys).mapNotNull { id ->
+                baseById[id]?.applySeason(seasons[id]) ?: seasons[id]?.asTeam()
+            }
+        }.orEmpty()
         return StartOrderData(
             raceDay = rd,
             fullRaceDay = fullRaceDay,
             race = race,
             entries = entries,
+            teams = teams,
         )
     }
 
@@ -456,22 +481,28 @@ class CalendarRepository(
      * su columna `teamId` (la ref canónica a `teams`). La chapa del equipo sale
      * de ese teamId canónico.
      */
-    private suspend fun buildByDorsal(raceId: String): Pair<Map<Int, ResolvedRider>, List<Team>> {
+    private suspend fun buildByDorsal(raceId: String, year: Int?): Pair<Map<Int, ResolvedRider>, List<Team>> {
         val slRiders = api.startlistRidersResolvedFull(raceId)
         val slTeams = api.startlistTeams(raceId)
         val slTeamByPk = slTeams.associateBy { it.id }                 // PK → fila
         val canonIds = slTeams.mapNotNull { it.teamId }.toSet()
         val allTeams = if (canonIds.isNotEmpty()) api.teams() else emptyList()
-        val teamById = allTeams.filter { it.id in canonIds }.associateBy { it.id }
+        val seasons = year?.let { runCatching { api.teamSeasonsByIds(it, canonIds.toList()) }.getOrNull() }.orEmpty()
+        val seasonByTeam = seasons.associateBy { it.teamId }
+        val baseById = allTeams.filter { it.id in canonIds }.associateBy { it.id }
+        val teamById = canonIds.mapNotNull { id ->
+            (baseById[id]?.applySeason(seasonByTeam[id]) ?: seasonByTeam[id]?.asTeam())
+                ?.let { id to it }
+        }.toMap()
 
         val out = HashMap<Int, ResolvedRider>(slRiders.size)
         for (r in slRiders) {
             val dorsal = r.dorsal ?: continue
             val slTeam = r.teamId?.let { slTeamByPk[it] }
             val canon = slTeam?.teamId?.let { teamById[it] }
-            // Ficticio "Individual" → ocultación cosmética: sin nombre de equipo,
+            // Estado sin equipo → ocultación cosmética: sin nombre de equipo,
             // y en cascada sin chapa ni opción en el filtro por equipo.
-            val slName = slTeam?.takeUnless { it.isIndividualPlaceholder }?.teamName.orEmpty()
+            val slName = slTeam?.takeUnless { it.isNoTeamPlaceholder }?.teamName.orEmpty()
             out[dorsal] = ResolvedRider(
                 name = "${r.firstName.orEmpty()} ${r.lastName.orEmpty()}".trim(),
                 countryCode = r.countryCode.orEmpty(),
@@ -486,29 +517,24 @@ class CalendarRepository(
 
     /**
      * Resuelve un conjunto de `globalRiderId` a [ResolvedRider] directamente
-     * desde riders_men/women + su equipo ACTUAL (currentTeamId) — el fallback
-     * para las filas de resultados que NO casan por dorsal con la startlist
-     * (campeonatos nacionales y demás volcados in-house sin inscritos curados).
-     * Espejo de `enrichRiders` en `js/resultados.js`: bandera (nationality) y
-     * equipo actual (nombre + chapa). Silencioso: si una query falla, esos ids
+     * desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
+     * actual solo se incluye cuando el llamador confirma que consulta el año vigente.
+     * Silencioso: si una query falla, esos ids
      * no entran en el mapa (la fila se renderiza sin bandera/chapa, como antes).
      */
-    suspend fun enrichRidersByGlobalId(ids: List<String>): Map<String, ResolvedRider> {
+    suspend fun enrichRidersByGlobalId(ids: List<String>, includeCurrentTeam: Boolean = true): Map<String, ResolvedRider> {
         val need = ids.filter { it.isNotEmpty() }.distinct()
         if (need.isEmpty()) return emptyMap()
         val riders = runCatching { api.ridersByIds(need) }.getOrNull().orEmpty()
         if (riders.isEmpty()) return emptyMap()
 
-        // Equipos ACTUALES (currentTeamId → teams): nombre + chapa para el badge.
-        // Una query por los equipos referidos.
-        val curIds = riders.mapNotNull { it.currentTeamId }.distinct()
-        val teamById = if (curIds.isNotEmpty()) {
+        val currentIds = if (includeCurrentTeam) riders.mapNotNull { it.currentTeamId }.distinct() else emptyList()
+        val teamById = if (currentIds.isNotEmpty()) {
             runCatching { api.teams() }.getOrNull().orEmpty()
-                .filter { it.id in curIds }.associateBy { it.id }
+                .filter { it.id in currentIds }.associateBy { it.id }
         } else emptyMap()
-
         return riders.associate { r ->
-            val team = r.currentTeamId?.let { teamById[it] }
+            val team = if (includeCurrentTeam) r.currentTeamId?.let { teamById[it] } else null
             r.id to ResolvedRider(
                 name = r.fullName,
                 countryCode = r.nationality.orEmpty(),
@@ -525,11 +551,16 @@ class CalendarRepository(
      * `enrichOverrideTeams` en `js/resultados.js`. Silencioso: ids sin equipo
      * simplemente no entran en el mapa (la fila cae a la resolución por dorsal).
      */
-    suspend fun enrichTeamsByIds(ids: List<String>): Map<String, Team> {
+    suspend fun enrichTeamsByIds(ids: List<String>, year: Int?): Map<String, Team> {
         val need = ids.filter { it.isNotEmpty() }.distinct()
         if (need.isEmpty()) return emptyMap()
-        return runCatching { api.teams() }.getOrNull().orEmpty()
-            .filter { it.id in need }.associateBy { it.id }
+        val baseById = runCatching { api.teamsByIds(need) }.getOrNull().orEmpty().associateBy { it.id }
+        val seasonById = year?.let {
+            runCatching { api.teamSeasonsByIds(it, need) }.getOrNull().orEmpty().associateBy { season -> season.teamId }
+        }.orEmpty()
+        return need.mapNotNull { id ->
+            (baseById[id]?.applySeason(seasonById[id]) ?: seasonById[id]?.asTeam())?.let { id to it }
+        }.toMap()
     }
 
     /** Carga inicial de la pantalla de resultados. null si la carrera no tiene
@@ -557,7 +588,9 @@ class CalendarRepository(
         // Sin clasificaciones NI etapa cancelada que sintetizar → estado Empty.
         if (stages.isEmpty()) return null
         val race = api.raceById(raceId)
-        val (byDorsal, raceTeams) = buildByDorsal(raceId)
+        val (byDorsal, raceTeams) = buildByDorsal(raceId, race.year)
+        val classificationConfig = runCatching { api.raceClassifications(raceId) }.getOrDefault(emptyList())
+        val assets = runCatching { api.assetsByRaceDays(allDays.map { it.id }) }.getOrDefault(emptyList())
 
         // Índices de jornadas (de `allDays`, que YA traen countryCode/ruta/…) para
         // resolver el header sin más red: por raceDayId y —si el volcado no lo
@@ -580,6 +613,8 @@ class CalendarRepository(
             raceTeams = raceTeams, raceDay = raceDay, raceDays = allDays,
             sectorSuffixByRaceDayId = sectorSuffixByRaceDayId,
             sectoredStageNumbers = sectoredStageNumbers,
+            classificationConfig = classificationConfig,
+            assets = assets,
         )
     }
 
@@ -687,14 +722,113 @@ class CalendarRepository(
             val daysDeferred = async { api.raceDaysFeedWindow(fromKey, toKey) }
             val stages = stagesDeferred.await()
             val raceDays = daysDeferred.await()
-            val raceIds = (stages.map { it.raceId } + raceDays.mapNotNull { it.raceId }).distinct()
+            val raceIds = stages.map { it.raceId }.distinct()
             val races = if (raceIds.isEmpty()) emptyList() else api.racesByIds(raceIds)
-            val automaticSources = runCatching { api.automaticResultsSourceRaceIds(raceIds) }.getOrDefault(emptySet())
-            ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey, automaticSources)
+            val entries = ResultsFeedLogic.buildEntries(stages, raceDays, races, fromKey, toKey)
+            val featuredDeferred = async {
+                try {
+                    api.featuredRaces(entries.map { it.date }.distinct())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            val allStagesDeferred = async {
+                try {
+                    api.raceUciStagesByRaceIds(raceIds)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            val configsDeferred = async {
+                try {
+                    api.raceClassificationsByRaceIds(raceIds)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            val programDeferred = async {
+                try {
+                    api.raceDaysByRaceIds(raceIds)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    raceDays
+                }
+            }
+            val decorated = decorateFeedEntries(
+                entries,
+                featuredDeferred.await().map { "${it.dateKey}#${it.raceId}" }.toSet(),
+                allStagesDeferred.await(),
+                configsDeferred.await(),
+                programDeferred.await(),
+            )
+            currentCoroutineContext().ensureActive()
+            // Contrato único del repositorio: la UI recibe solo el modelo final,
+            // con ganadores y líderes ya normalizados.
+            resolveFeedWinners(decorated)
         }
 
-    suspend fun automaticResultsSourceRaceIds(raceIds: List<String>): Set<String> =
-        runCatching { api.automaticResultsSourceRaceIds(raceIds) }.getOrDefault(emptySet())
+    private fun decorateFeedEntries(
+        entries: List<ResultsFeedLogic.FeedEntry>,
+        featuredKeys: Set<String>,
+        allStages: List<RaceUciStage>,
+        configs: List<app.calendariociclismo.android.data.model.RaceClassificationConfig>,
+        raceDays: List<RaceDay>,
+    ): List<ResultsFeedLogic.FeedEntry> {
+        val finalKeys = entries.filter { it.isGcFinal }.map { "${it.date}#${it.race.id}" }.toSet()
+        val configByRace = configs.groupBy { it.raceId }
+        val lastCompetitiveDayByRace = raceDays
+            .filter { !it.isRestDay && !it.isCancelledDay }
+            .sortedWith(compareBy<RaceDay>({ it.dateKey }, { it.neutralStartTimeUtc.orEmpty() }, { it.stageNumber ?: 0 }))
+            .mapNotNull { day -> day.raceId?.let { it to day.id } }
+            .toMap()
+        return entries.map { entry ->
+            val key = "${entry.date}#${entry.race.id}"
+            val isFeatured = key in featuredKeys && (key !in finalKeys || entry.isGcFinal)
+            if (!isFeatured || entry.kind != ResultsFeedLogic.Kind.INHOUSE) {
+                return@map entry.copy(isFeatured = isFeatured)
+            }
+            if (entry.race.isOneDay || (!entry.isGcFinal && entry.rd?.id == lastCompetitiveDayByRace[entry.race.id])) {
+                return@map entry.copy(isFeatured = true)
+            }
+            val candidates = allStages.filter { stage ->
+                stage.raceId == entry.race.id && stage.rowCount > 0 &&
+                    stage.classKind != "stage" && when {
+                        entry.isGcFinal -> stage.classKind != "gc" &&
+                            (stage.isFinalClassification || stage.stageNumber == null) &&
+                            (stage.stageDate == null || stage.stageDate == entry.date)
+                        entry.rd?.id != null && stage.raceDayId != null ->
+                            entry.rd.id == stage.raceDayId && !stage.isFinalClassification
+                        else -> stage.stageNumber == entry.stageNumber && !stage.isFinalClassification
+                    }
+            }
+            val inventory = UciResultsLogic.classificationInventory(configByRace[entry.race.id].orEmpty(), candidates)
+            val positions = inventory.associate { it.classKind to it.position }
+            val complementary = candidates.map { stage ->
+                val config = inventory.firstOrNull { it.classKind == stage.classKind }
+                    ?: app.calendariociclismo.android.data.model.RaceClassificationConfig(
+                        raceId = stage.raceId,
+                        classKind = stage.classKind,
+                        position = UciResultsLogic.CLASS_ORDER.indexOf(stage.classKind).takeIf { it >= 0 } ?: 10,
+                    )
+                ResultsFeedLogic.ComplementaryClassification(
+                    stageRef = stage.id,
+                    classKind = stage.classKind,
+                    labelEs = UciResultsLogic.classificationLabel(config, false),
+                    labelEn = UciResultsLogic.classificationLabel(config, true),
+                    colorHex = UciResultsLogic.classificationColor(config),
+                    winner = ResultsFeedLogic.cleanWinner(stage.winnerName),
+                )
+            }.sortedBy { positions[it.classKind] ?: 99 }
+            entry.copy(isFeatured = true, complementary = complementary)
+        }
+    }
 
     /** Instantánea actual del ránking UCI de equipos (solo online, sin Room). */
     suspend fun loadUciTeamRankings() = api.uciTeamRankings()
@@ -710,28 +844,112 @@ class CalendarRepository(
      *    es el PK de startlist_teams → teams.name canónico; fallback teamName).
      * Si nada resuelve, se conserva el winnerName crudo de la fuente.
      */
-    suspend fun resolveFeedWinners(entries: List<ResultsFeedLogic.FeedEntry>): List<ResultsFeedLogic.FeedEntry> {
+    private suspend fun resolveFeedWinners(entries: List<ResultsFeedLogic.FeedEntry>): List<ResultsFeedLogic.FeedEntry> {
+        currentCoroutineContext().ensureActive()
         val refIds = entries
             .filter { it.kind == ResultsFeedLogic.Kind.INHOUSE }
-            .mapNotNull { it.stageRefId }
+            .flatMap { entry -> listOfNotNull(entry.stageRefId) + entry.complementary.map { it.stageRef } }
+            .distinct()
         if (refIds.isEmpty()) return entries
 
-        val rank1Rows = runCatching { api.raceUciRank1(refIds) }.getOrNull() ?: return entries
-        val byRef = ResultsFeedLogic.winnerRiderIdsByStageRef(rank1Rows)
-
-        val singleRiderIds = byRef.values.filter { it.size == 1 }.map { it.first() }.distinct()
-        val nameById = if (singleRiderIds.isEmpty()) emptyMap() else {
-            runCatching { api.riderNamesByIds(singleRiderIds) }.getOrNull().orEmpty()
+        val allRank1Rows = try {
+            api.raceUciRank1(refIds)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return entries
         }
+        val nonWinnerRefs = allRank1Rows.filter { UciResultsLogic.isNonWinnerIrm(it.irm) }.map { it.stageRef }.toSet()
+        val rank1Rows = allRank1Rows.filterNot { UciResultsLogic.isNonWinnerIrm(it.irm) }
+        // Nombres canónicos primero: el cruce por dorsal de la startlist
+        // también debe cubrir filas cuya ficha existe pero no resuelve nombre
+        // (oculta por el aislamiento del catálogo histórico o sin nombre
+        // público), no solo las que llegan sin globalRiderId.
+        var nameById: Map<String, String> = emptyMap()
+        val directIds = rank1Rows.mapNotNull { it.globalRiderId }.distinct()
+        if (directIds.isNotEmpty()) {
+            nameById = try {
+                api.riderNamesByIds(directIds)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        }
+        val unresolvedRaceIds = rank1Rows
+            .filter { row ->
+                row.bib?.toIntOrNull() != null
+                    && row.globalRiderId?.let { gid -> nameById[gid]?.isNotEmpty() == true } != true
+            }
+            .map { it.raceId }
+            .distinct()
+        val startlistRows = try {
+            api.feedStartlistIdentities(unresolvedRaceIds)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val startlistByBib = startlistRows
+            .mapNotNull { row -> row.dorsal?.let { "${row.raceId}#$it" to row } }
+            .toMap()
+        val resolvedRiderId: (UciRank1Row) -> String? = { row ->
+            row.globalRiderId ?: row.bib?.toIntOrNull()?.let { startlistByBib["${row.raceId}#$it"]?.globalRiderId }
+        }
+        val byRef = rank1Rows.groupBy { it.stageRef }.mapValues { (_, rows) ->
+            rows.mapNotNull(resolvedRiderId).distinct()
+        }
+
+        val riderIds = rank1Rows.mapNotNull(resolvedRiderId).distinct()
+        val extraIds = riderIds.filter { nameById[it] == null }
+        if (extraIds.isNotEmpty()) {
+            nameById = try {
+                nameById + api.riderNamesByIds(extraIds)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                nameById
+            }
+        }
+        val resolvedRiderName: (UciRank1Row) -> String? = { row ->
+            val fallback = row.bib?.toIntOrNull()?.let { startlistByBib["${row.raceId}#$it"] }
+            resolvedRiderId(row)?.let { nameById[it] }
+                ?: listOfNotNull(fallback?.firstName, fallback?.lastName).joinToString(" ").ifBlank { null }
+                ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
+        }
+        val canonicalTeamNames = try {
+            api.teamNamesByIds(rank1Rows.mapNotNull { it.teamId }.distinct())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        val rowsByRef = rank1Rows.groupBy { it.stageRef }
 
         // 1) Nombre canónico cuando hay UN único rank 1 con ficha.
         val resolved = entries.map { e ->
             if (e.kind != ResultsFeedLogic.Kind.INHOUSE || e.stageRefId == null) return@map e
-            val ids = byRef[e.stageRefId] ?: return@map e
-            if (ids.size == 1) {
-                nameById[ids.first()]?.let { return@map e.copy(winner = it) }
+            val names = rowsByRef[e.stageRefId].orEmpty().mapNotNull(resolvedRiderName).distinct()
+            var updated = if (e.stageRefId in nonWinnerRefs && names.isEmpty()) {
+                e.copy(winner = "")
+            } else if (names.size == 1 && e.rd?.primaryType != "ttt") {
+                e.copy(winner = names.first())
+            } else {
+                e
             }
-            e
+            updated = updated.copy(complementary = updated.complementary.map { item ->
+                val rows = rowsByRef[item.stageRef].orEmpty()
+                val namesForClass = if (item.classKind == "teams") {
+                    rows.mapNotNull { row ->
+                        row.teamId?.let { canonicalTeamNames[it] }
+                            ?: ResultsFeedLogic.cleanWinner(row.riderDisplay).ifBlank { null }
+                    }.distinct()
+                } else {
+                    rows.mapNotNull(resolvedRiderName).distinct()
+                }
+                item.copy(winner = namesForClass.sorted().joinToString(" / ").ifBlank { item.winner })
+            })
+            updated
         }.toMutableList()
 
         // 2) CRE: el ganador es el EQUIPO, no un corredor.
@@ -740,23 +958,28 @@ class CalendarRepository(
             if (e.kind != ResultsFeedLogic.Kind.INHOUSE || e.stageRefId == null) continue
             val ids = byRef[e.stageRefId].orEmpty()
             if (!ResultsFeedLogic.isCreEntry(e, ids) || ids.isEmpty()) continue
-            runCatching {
+            try {
                 val pks = api.startlistRiderTeamPks(e.race.id, ids.take(3)).distinct()
-                if (pks.size != 1) return@runCatching
-                val slTeam = api.startlistTeamByPk(pks.first()) ?: return@runCatching
+                if (pks.size != 1) continue
+                val slTeam = api.startlistTeamByPk(pks.first()) ?: continue
                 var teamWinner = slTeam.teamName
                 slTeam.teamId?.let { canonId ->
                     api.teamNameById(canonId)?.let { teamWinner = it }
                 }
                 if (teamWinner.isNotEmpty()) resolved[i] = e.copy(winner = teamWinner)
-            } // si falla, se queda el ganador que hubiera (como la web)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Si falla, se queda el ganador que hubiera (como la web).
+            }
         }
+        currentCoroutineContext().ensureActive()
         return resolved
     }
 
     // ─────────── Today Highlights ───────────
 
-    suspend fun todayHighlights() = api.todayHighlights()
+    suspend fun todayHighlights(scope: String = "road") = api.todayHighlights(scope)
     suspend fun raceDaysByIds(ids: List<String>) = api.raceDaysByIds(ids)
     suspend fun racesByIds(ids: List<String>): List<Race> {
         if (ids.isEmpty()) return emptyList()

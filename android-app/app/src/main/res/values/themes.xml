@@ -12,6 +12,7 @@
          si el theme XML no lo declara primero. -->
     <style name="Theme.CalendarioCiclismo" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <!--

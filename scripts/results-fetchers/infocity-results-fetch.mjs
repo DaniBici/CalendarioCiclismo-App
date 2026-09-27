@@ -2,7 +2,7 @@
 /**
  * infocity-results-fetch.mjs — resultados del cronometraje InfoCity del Tour de
  * Pologne. El endpoint público devuelve JavaScript que asigna HTML a `cnt`, no
- * JSON; este adaptador lo normaliza al contrato de uci-results-upsert.mjs.
+ * JSON; este adaptador lo normaliza al contrato de results-upsert.mjs.
  *
  * `--code` es `race:test:ced-etapa-1` (por ejemplo, 21:21:141 en el TdP 2026).
  * El `ced` de las etapas sucesivas es correlativo. El sitio deja los resultados

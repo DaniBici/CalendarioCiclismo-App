@@ -3,7 +3,7 @@
    ───────────────────────────────────────────────────────────────── */
 
 .camp-wrap {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem 1.5rem 4rem;
   box-sizing: border-box;
@@ -21,7 +21,7 @@
   border-bottom: 1px solid var(--border);
 }
 .camp-sticky__inner {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem 1.5rem 0.75rem;
   box-sizing: border-box;
@@ -111,7 +111,7 @@
   border-color: color-mix(in srgb, var(--card-color, var(--border)) 30%, var(--border));
 }
 /* Celda sin datos (no cumple las condiciones de clic de Hoy): ni cursor ni hover.
-   Los badges internos (externos/TV/trofeo) conservan su propio cursor de enlace. */
+   Los badges internos (TV/trofeo) conservan su propio cursor de enlace. */
 .camp-cell--static { cursor: default; }
 .camp-cell--static:hover {
   background: color-mix(in srgb, var(--card-color, var(--bg-card)) 4%, var(--bg-card));
@@ -177,3 +177,5 @@
 @media (max-width: 340px) {
   .camp-events { grid-template-columns: 1fr; }
 }
+
+.camp-wrap, .camp-sticky__inner { width:var(--page-width); padding-inline:0; margin-inline:auto; }

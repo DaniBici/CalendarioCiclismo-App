@@ -1,11 +1,20 @@
 // ─────────────────────────────────────────────────────────────────
 //  INSCRITOS-PDF — genera un PDF con la lista de inscritos
 //  Dependencia: jsPDF (cargada dinámicamente)
-//  Fuente:      Roboto (TTF, cargada desde Google Fonts para UTF-8)
+//  Fuente:      Google Sans (TTF autoalojado en /fonts/pdf/, subconjunto
+//               latino) para UTF-8; si falla, Helvetica sin diacríticos.
+//
+//  Estética: réplica en tema claro de la página /inscritos/ (cabecera de la
+//  web, cabecera de carrera y rejilla de equipos).
+//  Maquetación: rejilla de 4 columnas por filas en orden de lectura. Cada fila
+//  toma la altura de su equipo más largo y, si no cabe, salta a una página
+//  nueva; no se descarta ningún equipo. Un equipo con más corredores de los
+//  que caben en una página se reparte en varias celdas.
 // ─────────────────────────────────────────────────────────────────
 
 import { getLang, t as i18nT } from './i18n.js';
-import { isIndividualPlaceholderTeam } from './shared.js';
+import { isNoTeamPlaceholderTeam } from './shared.js';
+import { flagIconUrl } from './flag-url.js';
 
 let jsPDFPromise = null;
 let fontsPromise = null;
@@ -15,10 +24,12 @@ const JSPDF_URLS = [
   'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js',
 ];
 
-const FONT_URLS = {
-  regular: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmEU9fBBc4.ttf',
-  bold:    'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.ttf',
-};
+// Subconjuntos latinos de Google Sans (OFL 1.1), la tipografía de la web.
+// Autoalojados: las URLs versionadas de fonts.gstatic.com caducan.
+const FONT_BASE = (typeof CONFIG !== 'undefined' && CONFIG.basePath) || '';
+const FONT_WEIGHTS = ['Regular', 'Medium', 'Bold'];
+
+const IMAGE_TIMEOUT_MS = 5000;
 
 function loadJsPDF() {
   if (jsPDFPromise) return jsPDFPromise;
@@ -55,10 +66,9 @@ async function fetchFontBase64(url) {
 // Preload fonts into memory (cached, retries on failure)
 function preloadFonts() {
   if (fontsPromise) return fontsPromise;
-  fontsPromise = Promise.all([
-    fetchFontBase64(FONT_URLS.regular),
-    fetchFontBase64(FONT_URLS.bold),
-  ]).catch((err) => {
+  fontsPromise = Promise.all(
+    FONT_WEIGHTS.map(w => fetchFontBase64(`${FONT_BASE}/fonts/pdf/GoogleSans-${w}.ttf`)),
+  ).catch((err) => {
     console.warn('Font preload failed, will retry:', err);
     fontsPromise = null;
     return null;
@@ -66,18 +76,20 @@ function preloadFonts() {
   return fontsPromise;
 }
 
-// Register fonts into a jsPDF doc. Returns the font family name to use.
+// Registra Google Sans en el documento. Devuelve la familia a usar y el
+// estilo equivalente al peso 500 de la web ('medium' o 'bold' en Helvetica).
 async function registerFonts(doc) {
   const fonts = await preloadFonts();
-  if (!fonts || !fonts[0] || !fonts[1]) return 'helvetica';
+  if (!fonts || fonts.some(f => !f)) return { family: 'helvetica', medium: 'bold' };
   try {
-    doc.addFileToVFS('Roboto-Regular.ttf', fonts[0]);
-    doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-    doc.addFileToVFS('Roboto-Bold.ttf', fonts[1]);
-    doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
-    return 'Roboto';
+    const styles = ['normal', 'medium', 'bold'];
+    FONT_WEIGHTS.forEach((w, i) => {
+      doc.addFileToVFS(`GoogleSans-${w}.ttf`, fonts[i]);
+      doc.addFont(`GoogleSans-${w}.ttf`, 'GoogleSans', styles[i]);
+    });
+    return { family: 'GoogleSans', medium: 'medium' };
   } catch {
-    return 'helvetica';
+    return { family: 'helvetica', medium: 'bold' };
   }
 }
 
@@ -90,295 +102,425 @@ export function preload() {
   preloadFonts();
 }
 
-// Convierte URL de imagen a base64 dataURL
-async function imgToBase64(url) {
-  const res = await fetch(url, { mode: 'cors' });
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+// ── Imágenes ─────────────────────────────────────────────────────
+// Toda imagen se rasteriza a PNG mediante canvas: jsPDF no admite SVG (banderas
+// de flag-icons, logotipos vectoriales) y así se unifica el formato.
+
+function loadHtmlImage(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timer = setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS);
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); resolve(null); };
+    img.src = url;
   });
 }
 
-// Calcula dimensiones manteniendo aspect ratio
-function fitImage(imgW, imgH, maxW, maxH) {
-  const ratio = Math.min(maxW / imgW, maxH / imgH);
-  return { w: imgW * ratio, h: imgH * ratio };
-}
-
-// Carga una imagen y devuelve { dataUrl, width, height } o null
-async function loadImage(url) {
+// Devuelve { dataUrl, width, height } o null. `maxPx` limita el lado mayor.
+async function rasterize(url, maxPx, forcedRatio = null) {
   if (!url) return null;
+  const img = await loadHtmlImage(url);
+  if (!img) return null;
+  const w = img.naturalWidth || 300;
+  const h = forcedRatio ? w / forcedRatio : (img.naturalHeight || 150);
+  const scale = Math.min(1, maxPx / Math.max(w, h)) || 1;
+  const cw = Math.max(1, Math.round(w * scale));
+  const ch = Math.max(1, Math.round(h * scale));
   try {
-    const dataUrl = await imgToBase64(url);
-    return await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
-      img.onerror = () => resolve(null);
-      img.src = dataUrl;
-    });
-  } catch { return null; }
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    return { dataUrl: canvas.toDataURL('image/png'), width: cw, height: ch };
+  } catch {
+    return null; // canvas contaminado (sin CORS)
+  }
 }
 
-// ── Draw site logo icons (calendar + bicycle) with jsPDF primitives ──
-
-function drawCalendarIcon(doc, x, y, size) {
-  const s = size;
-  const lw = s * 0.09;
-  const r = s * 0.1;
-  doc.setDrawColor('#1a73e8');
-  doc.setLineWidth(lw);
-  doc.setLineCap('round');
-  // Body rounded rect
-  doc.roundedRect(x, y + s * 0.15, s * 0.85, s * 0.85, r, r);
-  // Top pins
-  const pin1x = x + s * 0.27;
-  const pin2x = x + s * 0.58;
-  doc.line(pin1x, y, pin1x, y + s * 0.25);
-  doc.line(pin2x, y, pin2x, y + s * 0.25);
-  // Horizontal divider
-  const divY = y + s * 0.42;
-  doc.line(x, divY, x + s * 0.85, divY);
+async function loadFlags(codes) {
+  const unique = [...new Set(codes.filter(Boolean).map(c => String(c).toLowerCase()))];
+  const entries = await Promise.all(unique.map(async (code) => {
+    const img = await rasterize(flagIconUrl(code), 96, 4 / 3);
+    return [code, img];
+  }));
+  return new Map(entries.filter(([, img]) => img));
 }
 
-function drawBicycleIcon(doc, x, y, size) {
-  // Faithfully reproduces the SVG: viewBox 0 0 24 24
-  // <circle cx="5.5" cy="17.5" r="3.5"/>
-  // <circle cx="18.5" cy="17.5" r="3.5"/>
-  // <circle cx="15" cy="5" r="1"/>
-  // <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
-  const s = size;
-  const lw = s * 0.09;
-  const p = (v) => v * s / 24; // scale from SVG coords to mm
-  doc.setDrawColor('#1a73e8');
-  doc.setLineWidth(lw);
+const isHex = value => typeof value === 'string' && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value.trim());
+
+// ── Logotipo de la web ───────────────────────────────────────────
+// Reproduce LOGO_SVG de header.js: iconos Lucide de calendario y bicicleta
+// (viewBox 24×24, trazo 2, extremos redondeados) seguidos del nombre.
+
+function drawSiteLogoIcons(doc, x, y, size, color) {
+  const p = v => v * size / 24;
+  doc.setDrawColor(color);
+  doc.setLineWidth(p(2));
   doc.setLineCap('round');
   doc.setLineJoin('round');
-  // Wheels
-  doc.circle(x + p(5.5), y + p(17.5), p(3.5));
-  doc.circle(x + p(18.5), y + p(17.5), p(3.5));
-  // Rider head
-  doc.setFillColor('#1a73e8');
-  doc.circle(x + p(15), y + p(5), p(1), 'F');
-  // Frame path: M12,17.5 → V14 → l-3,-3 → l4,-3 → l2,3 → h2
-  doc.line(x + p(12), y + p(17.5), x + p(12), y + p(14));   // seat post
-  doc.line(x + p(12), y + p(14), x + p(9), y + p(11));       // down-tube
-  doc.line(x + p(9), y + p(11), x + p(13), y + p(8));        // top-tube
-  doc.line(x + p(13), y + p(8), x + p(15), y + p(11));       // fork
-  doc.line(x + p(15), y + p(11), x + p(17), y + p(11));      // handlebar
+
+  // Calendario: rect x=3 y=4 18×18 rx=2 · líneas x=16 y x=8 (2→6) · y=10
+  doc.roundedRect(x + p(3), y + p(4), p(18), p(18), p(2), p(2), 'S');
+  doc.line(x + p(16), y + p(2), x + p(16), y + p(6));
+  doc.line(x + p(8), y + p(2), x + p(8), y + p(6));
+  doc.line(x + p(3), y + p(10), x + p(21), y + p(10));
+
+  // Bicicleta (desplazada un icono + margen de 0.25em, como en la web)
+  const bx = x + size * 1.25;
+  doc.circle(bx + p(18.5), y + p(17.5), p(3.5), 'S');
+  doc.circle(bx + p(5.5), y + p(17.5), p(3.5), 'S');
+  doc.circle(bx + p(15), y + p(5), p(1), 'S');
+  // M12 17.5V14l-3-3 4-3 2 3h2
+  doc.lines([[0, p(-3.5)], [p(-3), p(-3)], [p(4), p(-3)], [p(2), p(3)], [p(2), 0]],
+    bx + p(12), y + p(17.5), [1, 1], 'S', false);
+
+  doc.setLineCap('butt');
+  doc.setLineJoin('miter');
+  return size * 2.25 + size * 0.35; // ancho de ambos iconos + margen final
 }
 
 // Strip diacritics and replace non-ASCII with closest equivalent.
-// Used as fallback when Roboto fails to load and helvetica is used.
+// Used as fallback when Google Sans fails to load and helvetica is used.
 function asciify(str) {
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // strip combining diacritical marks
-    .replace(/\u0111/g, 'd')          // đ → d
-    .replace(/\u0110/g, 'D')          // Đ → D
-    .replace(/\u0142/g, 'l')          // ł → l
-    .replace(/\u0141/g, 'L')          // Ł → L
-    .replace(/\u00f8/g, 'o')          // ø → o
-    .replace(/\u00d8/g, 'O')          // Ø → O
-    .replace(/\u00e6/g, 'ae')         // æ → ae
-    .replace(/\u00c6/g, 'AE')         // Æ → AE
-    .replace(/\u00df/g, 'ss')         // ß → ss
+    .replace(/[̀-ͯ]/g, '')  // strip combining diacritical marks
+    .replace(/đ/g, 'd')          // đ → d
+    .replace(/Đ/g, 'D')          // Đ → D
+    .replace(/ł/g, 'l')          // ł → l
+    .replace(/Ł/g, 'L')          // Ł → L
+    .replace(/ø/g, 'o')          // ø → o
+    .replace(/Ø/g, 'O')          // Ø → O
+    .replace(/æ/g, 'ae')         // æ → ae
+    .replace(/Æ/g, 'AE')         // Æ → AE
+    .replace(/ß/g, 'ss')         // ß → ss
     .replace(/[^\x00-\x7F]/g, '');    // drop remaining non-ASCII
 }
 
 /**
- * Genera y descarga el PDF de inscritos.
+ * Genera y descarga el PDF de inscritos. Con `deliver({ blob, fileName })`
+ * entrega el documento en lugar de descargarlo (página de las apps); con
+ * `pageUrl` fija el enlace del pie.
  */
 export async function generateStartlistPDF(opts) {
-  const { race, teams, ridersByTeam, heroSubline, totalTeams, totalRiders } = opts;
+  const {
+    race, teams, ridersByTeam, heroLabel, heroSubline, totalTeams, totalRiders,
+    teamColors = {}, riderOutMap = null, deliver = null,
+  } = opts;
 
   const JsPDF = await loadJsPDF();
-  const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
-  // Register Roboto for full UTF-8 support (falls back to helvetica)
-  const fontFamily = await registerFonts(doc);
-  const enc = fontFamily === 'Roboto' ? (s) => s : asciify;
+  // Carga en paralelo: fuentes, logotipo de la carrera y banderas.
+  const allRiders = teams.flatMap(team => ridersByTeam[team.id] || []);
+  const [font, raceLogoImg, flags] = await Promise.all([
+    registerFonts(doc),
+    rasterize(race.logoUrl, 480),
+    loadFlags([race.countryCode, ...allRiders.map(r => r.countryCode)]),
+  ]);
+  const fontFamily = font.family;
+  const hasUnicodeFont = fontFamily !== 'helvetica';
+  const enc = hasUnicodeFont ? (s) => s : asciify;
+  const ellipsis = hasUnicodeFont ? '…' : '...';
+  const isEn = getLang() === 'en';
 
-  // A4 portrait: 210 x 297
+  // ── Medidas (A4 vertical, mm) ──
   const pageW = 210;
   const pageH = 297;
-  const margin = 8;
+  const margin = 10;
   const usableW = pageW - margin * 2;
+  const contentBottom = pageH - 13;
 
-  // ── Colors ──
-  const colorHex = race.colorHex || '#1a73e8';
-  const black = '#1f1f1f';
-  const muted = '#5f6368';
-  const dim = '#9aa0a6';
-  const headerBg = '#f1f3f4';
-  const border = '#e0e0e0';
+  // ── Tokens del tema claro de la web (css/app.css) ──
+  const text = '#1f1f1f';
+  const textMuted = '#5f6368';
+  const textDim = '#63686d';
   const accent = '#1a73e8';
+  const border = '#d8dee8';
+  const headerNeutral = '#e9edf3';   // --bg-card-hover
+  const dorsalBg = '#eeeff2';        // --dorsal-bg-a
 
-  // ── SITE LOGO (calendar icon + bicycle icon + text) ──
-  let y = margin;
-  const iconSize = 5;
+  // ── Texto ──
+  const raceName = (isEn && race.nameEn) ? race.nameEn : (race.name || i18nT('race.unknown'));
+  const label = heroLabel || (isEn ? 'Startlist' : 'Dorsales');
+  const detail = (heroSubline || '').replace(/<[^>]+>/g, '')
+    .replace(/^(Dorsales|Lista provisional|Startlist|Provisional Startlist)\s*·\s*/, '');
+  const teamsWord = isEn ? 'teams' : 'equipos';
+  const ridersWord = isEn ? 'riders' : (race.gender === 'female' ? 'corredoras' : 'corredores');
+  // Sin equipos reales no se imprime "0 equipos", como en la web.
+  const statsText = totalTeams > 0
+    ? `${totalTeams} ${teamsWord} · ${totalRiders} ${ridersWord}`
+    : `${totalRiders} ${ridersWord}`;
+  const siteName = 'Calendario Ciclismo';
+  const host = window.location.hostname;
+  const pageUrl = opts.pageUrl || (window.location.origin + window.location.pathname);
+  const generatedText = (isEn ? 'Generated on ' : 'Generado el ')
+    + new Date().toLocaleDateString(isEn ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  drawCalendarIcon(doc, margin, y - 0.5, iconSize);
-  drawBicycleIcon(doc, margin + iconSize + 1, y - 0.5, iconSize);
+  doc.setProperties({
+    title: `${raceName} · ${label}`,
+    subject: statsText,
+    creator: siteName,
+  });
 
+  // Recorta `str` con puntos suspensivos hasta `maxW` con la fuente activa.
+  const fit = (str, maxW) => {
+    if (doc.getTextWidth(str) <= maxW) return str;
+    let out = str;
+    while (out.length > 1 && doc.getTextWidth(out + ellipsis) > maxW) out = out.slice(0, -1);
+    return out.trimEnd() + ellipsis;
+  };
+
+  const drawFlag = (code, x, y, w) => {
+    const key = code && String(code).toLowerCase();
+    const img = key && flags.get(key);
+    if (!img) return false;
+    // El alias reutiliza el mismo objeto de imagen en todo el documento.
+    doc.addImage(img.dataUrl, 'PNG', x, y, w, w * 0.75, `flag-${key}`);
+    return true;
+  };
+
+  // ── Cabecera de la web (todas las páginas) ──
+  // Logotipo a la izquierda; a la derecha, `rightText`. Filete inferior.
+  const siteHeaderH = 9;
+  const drawSiteHeader = (rightText, rightStyle) => {
+    const iconSize = 4.4;
+    const iconsW = drawSiteLogoIcons(doc, margin, margin, iconSize, accent);
+    doc.setFont(fontFamily, font.medium);
+    doc.setFontSize(12);
+    doc.setTextColor(text);
+    doc.text(siteName, margin + iconsW, margin + iconSize * 0.84);
+    const nameEnd = margin + iconsW + doc.getTextWidth(siteName);
+
+    doc.setFont(fontFamily, rightStyle);
+    doc.setFontSize(7.5);
+    doc.setTextColor(textMuted);
+    doc.text(fit(enc(rightText), pageW - margin - nameEnd - 8), pageW - margin, margin + iconSize * 0.84, { align: 'right' });
+
+    doc.setDrawColor(border);
+    doc.setLineWidth(0.25);
+    doc.line(margin, margin + siteHeaderH - 1, pageW - margin, margin + siteHeaderH - 1);
+  };
+
+  // ── Página 1: cabecera de la web + cabecera de la carrera ──
+  drawSiteHeader(generatedText, 'normal');
+  let y = margin + siteHeaderH + 5;
+
+  // Columna izquierda: logotipo de la carrera y bandera debajo (como la web).
+  const logoMaxH = 14;
+  const logoMaxW = 18;
+  let leftW = 0;
+  let leftH = 0;
+  if (raceLogoImg) {
+    const ratio = Math.min(logoMaxW / raceLogoImg.width, logoMaxH / raceLogoImg.height);
+    const lw = raceLogoImg.width * ratio;
+    const lh = raceLogoImg.height * ratio;
+    leftW = Math.max(lw, 6);
+    doc.addImage(raceLogoImg.dataUrl, 'PNG', margin + (leftW - lw) / 2, y, lw, lh, 'race-logo');
+    leftH = lh;
+  }
+  const flagW = raceLogoImg ? 5.6 : 8;
+  if (race.countryCode && flags.has(String(race.countryCode).toLowerCase())) {
+    const colW = Math.max(leftW, flagW);
+    const flagY = leftH ? y + leftH + 1.4 : y + 1;
+    drawFlag(race.countryCode, margin + (colW - flagW) / 2, flagY, flagW);
+    leftW = colW;
+    leftH = flagY - y + flagW * 0.75;
+  }
+  const textX = leftW ? margin + leftW + 4.5 : margin;
+  const textMaxW = pageW - margin - textX;
+
+  // Nombre de la carrera: reduce el cuerpo hasta que quepa (mínimo 14 pt).
+  doc.setFont(fontFamily, 'bold');
+  let nameSize = 22;
+  const nameText = enc(raceName);
+  doc.setFontSize(nameSize);
+  while (nameSize > 14 && doc.getTextWidth(nameText) > textMaxW) {
+    nameSize -= 0.5;
+    doc.setFontSize(nameSize);
+  }
+  doc.setTextColor(text);
+  doc.text(fit(nameText, textMaxW), textX, y + nameSize * 0.3);
+
+  // Subtítulo: etiqueta en color de texto + detalle atenuado.
+  let lineY = y + nameSize * 0.3 + 6;
   doc.setFont(fontFamily, 'bold');
   doc.setFontSize(10);
-  doc.setTextColor(accent);
-  doc.text(i18nT('seo.siteName'), margin + iconSize * 2 + 3, y + 3.5);
-
-  const logoLineY = y + 6;
-  doc.setDrawColor(border);
-  doc.setLineWidth(0.3);
-  doc.line(margin, logoLineY, pageW - margin, logoLineY);
-  y = logoLineY + 4;
-
-  // ── RACE HEADER ──
-  let raceLogoImg = null;
-  if (race.logoUrl) {
-    raceLogoImg = await loadImage(race.logoUrl);
+  doc.setTextColor(text);
+  const labelText = enc(label);
+  doc.text(labelText, textX, lineY);
+  if (detail) {
+    const labelW = doc.getTextWidth(labelText);
+    doc.setTextColor(textMuted);
+    doc.text(fit(enc(` · ${detail}`), textMaxW - labelW), textX + labelW, lineY);
   }
 
-  const headerStartY = y;
-  let textX = margin;
-
-  if (raceLogoImg) {
-    const fit = fitImage(raceLogoImg.width, raceLogoImg.height, 14, 14);
-    doc.addImage(raceLogoImg.dataUrl, textX, y, fit.w, fit.h);
-    textX = margin + fit.w + 3;
-  }
-
-  // Race name
-  doc.setFont(fontFamily, 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(black);
-  const isEn = getLang() === 'en';
-  const raceName = (isEn && race.nameEn) ? race.nameEn : (race.name || i18nT('race.unknown'));
-  doc.text(enc(raceName.toUpperCase()), textX, y + 5);
-
-  // Subtitle — strip HTML tags and leading label (works for both ES and EN)
-  const subtitleClean = heroSubline.replace(/<[^>]+>/g, '').replace(/^(Dorsales|Lista provisional|Startlist|Provisional Startlist)\s*·\s*/, '');
+  lineY += 4.6;
   doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(muted);
-  doc.text(enc(subtitleClean), textX, y + 9.5);
+  doc.setFontSize(8);
+  doc.setTextColor(textDim);
+  doc.text(enc(statsText), textX, lineY);
 
-  // Stats (sin equipos reales no se imprime "0 equipos", como en la web)
-  const teamsWord = isEn ? 'teams' : 'equipos';
-  const genderWord = isEn ? 'riders' : (race.gender === 'female' ? 'corredoras' : 'corredores');
-  const statsText = totalTeams > 0
-    ? `${totalTeams} ${teamsWord} · ${totalRiders} ${genderWord}`
-    : `${totalRiders} ${genderWord}`;
-  doc.setFontSize(6.5);
-  doc.setTextColor(dim);
-  doc.text(enc(statsText), textX, y + 13);
+  y = Math.max(y + leftH, lineY + 1.5) + 4;
 
-  y = headerStartY + 17;
+  if (race.startlistProvisional) {
+    const noteLead = isEn ? 'Provisional Startlist' : 'Lista provisional';
+    const noteRest = isEn
+      ? '; not considered final until the team managers meeting.'
+      : '; no se considera definitiva hasta la reunión de directores.';
+    doc.setFontSize(7.5);
+    doc.setFont(fontFamily, 'bold');
+    doc.setTextColor(text);
+    doc.text(enc(noteLead), margin, y + 2.5);
+    const leadW = doc.getTextWidth(enc(noteLead));
+    doc.setFont(fontFamily, 'normal');
+    doc.setTextColor(textMuted);
+    doc.text(enc(noteRest), margin + leadW, y + 2.5);
+    y += 6;
+  }
 
-  // Separator line
-  doc.setDrawColor(border);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageW - margin, y);
-  y += 3;
+  const firstGridTop = y;
+  const contGridTop = margin + siteHeaderH + 4;
 
-  // ── TEAMS GRID ──
+  // ── Rejilla de equipos ──
   const cols = 4;
-  const colW = usableW / cols;
-  const gridStartY = y;
-  const gridAvailH = pageH - margin - gridStartY;
-  const maxRows = 7;
+  const gapX = 3;
+  const gapY = 3;
+  const colW = (usableW - gapX * (cols - 1)) / cols;
+  const teamHeaderH = 5.6;
+  const lineH = 3.35;
+  const padY = 0.9;
+  const riderFont = 6.8;
+  const dorsalW = 5.4;
+  const dorsalH = 2.6;
+  const flagWRider = 3.1;
 
-  const totalRows = Math.ceil(teams.length / cols);
-  const rows = Math.min(totalRows, maxRows);
-
-  // Size rows to fit 9 riders max, regardless of actual rider count
-  const riderSlots = 9;
-  const teamHeaderH = 5;
-  const riderLineH = 3.2;
-  const rowH = teamHeaderH + 1.5 + riderLineH * riderSlots;
-  const riderFontSize = Math.min(6.5, riderLineH * 2.2);
-  const teamNameFontSize = Math.min(7, riderFontSize + 0.5);
-
-  teams.forEach((team, i) => {
-    if (i >= cols * maxRows) return;
-
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = margin + col * colW;
-    const cellY = gridStartY + row * rowH;
-
-    // Ficticio "Individual" → celda sin cabecera (los corredores se listan igual).
-    if (!isIndividualPlaceholderTeam(team)) {
-      // Team header background
-      doc.setFillColor(headerBg);
-      doc.rect(x, cellY, colW, teamHeaderH, 'F');
-
-      // Team name
-      doc.setFont(fontFamily, 'bold');
-      doc.setFontSize(teamNameFontSize);
-      doc.setTextColor(black);
-      const nameMaxW = colW - 4;
-      const teamName = team.displayName || team.teamName || '';
-      let displayName = enc(teamName.toUpperCase());
-      while (doc.getTextWidth(displayName) > nameMaxW && displayName.length > 3) {
-        displayName = displayName.slice(0, -1);
-      }
-      if (displayName.length < enc(teamName.toUpperCase()).length) displayName += '...';
-      doc.text(displayName, x + 2.5, cellY + teamHeaderH - 1.3);
-    }
-
-    // Riders
-    const teamRiders = ridersByTeam[team.id] || [];
-    let riderY = cellY + teamHeaderH + riderLineH;
-
-    teamRiders.forEach(r => {
-      // Dorsal
-      doc.setFont(fontFamily, 'bold');
-      doc.setFontSize(riderFontSize - 0.3);
-      doc.setTextColor(dim);
-      const dorsalStr = r.dorsal ? String(r.dorsal) : '';
-      const dorsalW = doc.getTextWidth(dorsalStr);
-      if (dorsalStr) doc.text(dorsalStr, x + 6 - dorsalW, riderY);
-
-      // Name
-      doc.setFont(fontFamily, 'normal');
-      doc.setFontSize(riderFontSize);
-      doc.setTextColor(black);
-      const fullName = enc(`${r.firstName} ${r.lastName}`);
-      const nameMax = colW - 10;
-      let riderName = fullName;
-      while (doc.getTextWidth(riderName) > nameMax && riderName.length > 3) {
-        riderName = riderName.slice(0, -1);
-      }
-      if (riderName.length < fullName.length) riderName += '...';
-      doc.text(riderName, x + 7.5, riderY);
-
-      riderY += riderLineH;
-    });
-
-    // Cell borders
-    doc.setDrawColor(border);
-    doc.setLineWidth(0.2);
-    doc.line(x, cellY + rowH, x + colW, cellY + rowH);
-    if (col < cols - 1) {
-      doc.line(x + colW, cellY, x + colW, cellY + rowH);
+  // Bloques: un equipo puede ocupar varias celdas si no cabe en una página.
+  const maxLines = Math.floor((contentBottom - firstGridTop - teamHeaderH - padY * 2) / lineH);
+  const blocks = [];
+  teams.forEach(team => {
+    const riders = ridersByTeam[team.id] || [];
+    if (!riders.length) { blocks.push({ team, riders, startIndex: 0 }); return; }
+    for (let i = 0; i < riders.length; i += maxLines) {
+      blocks.push({ team, riders: riders.slice(i, i + maxLines), startIndex: i });
     }
   });
 
-  // ── Footer ──
-  doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(5);
-  doc.setTextColor(dim);
-  doc.text(window.location.hostname, pageW - margin, pageH - 3, { align: 'right' });
+  const blockHeight = (b) => {
+    const headerH = isNoTeamPlaceholderTeam(b.team) ? 0 : teamHeaderH;
+    return headerH + padY * 2 + Math.max(1, b.riders.length) * lineH;
+  };
+
+  const drawTeamHeader = (team, x, cellY, continued) => {
+    const colors = teamColors[team.id];
+    const enriched = colors && isHex(colors.background) && isHex(colors.text);
+    doc.setFillColor(enriched ? colors.background : headerNeutral);
+    doc.rect(x, cellY, colW, teamHeaderH, 'F');
+    doc.setFont(fontFamily, 'bold');
+    doc.setFontSize(7.4);
+    doc.setTextColor(enriched ? colors.text : text);
+    const suffix = continued ? ' (cont.)' : '';
+    const name = enc(team.displayName || team.teamName || '');
+    const suffixW = suffix ? doc.getTextWidth(suffix) : 0;
+    doc.text(fit(name, colW - 4 - suffixW) + suffix, x + 2, cellY + teamHeaderH / 2 + 1.2);
+    return enriched && /^#?(fff|ffffff)$/i.test(colors.background.trim());
+  };
+
+  const drawRiderName = (r, x, baseY, maxW, out) => {
+    const first = enc((r.firstName || '').trim());
+    const last = enc((r.lastName || '').trim());
+    doc.setFont(fontFamily, 'normal');
+    doc.setFontSize(riderFont);
+    doc.setTextColor(text);
+    let full = [first, last].filter(Boolean).join(' ');
+    // Si no cabe, el nombre de pila pasa a inicial antes de recortar.
+    if (first && doc.getTextWidth(full) > maxW) full = `${first[0]}. ${last}`;
+    const shown = fit(full, maxW);
+    doc.text(shown, x, baseY);
+    if (out) {
+      doc.setDrawColor(text);
+      doc.setLineWidth(0.15);
+      doc.line(x, baseY - 0.8, x + doc.getTextWidth(shown), baseY - 0.8);
+    }
+  };
+
+  const drawBlock = (b, x, cellY, rowH) => {
+    const hideHeader = isNoTeamPlaceholderTeam(b.team);
+    const headerH = hideHeader ? 0 : teamHeaderH;
+    const whiteHeader = !hideHeader && drawTeamHeader(b.team, x, cellY, b.startIndex > 0);
+
+    const teamHasFlags = b.riders.some(r => r.countryCode && flags.has(String(r.countryCode).toLowerCase()));
+    const flagX = x + 1 + dorsalW + 1.6;
+    const nameX = teamHasFlags ? flagX + flagWRider + 1.6 : flagX;
+    const nameMaxW = x + colW - 1 - nameX;
+
+    let rowY = cellY + headerH + padY;
+    b.riders.forEach(r => {
+      const midY = rowY + lineH / 2;
+      const baseY = midY + 0.95;
+      const out = !!(riderOutMap && r.globalRiderId && riderOutMap.get(r.globalRiderId));
+
+      doc.setFillColor(dorsalBg);
+      doc.roundedRect(x + 1, midY - dorsalH / 2, dorsalW, dorsalH, 0.4, 0.4, 'F');
+      if (r.dorsal) {
+        doc.setFont(fontFamily, 'bold');
+        doc.setFontSize(riderFont - 0.6);
+        doc.setTextColor(out ? '#9aa0a6' : textMuted);
+        doc.text(String(r.dorsal), x + 1 + dorsalW / 2, baseY - 0.05, { align: 'center' });
+      }
+      if (teamHasFlags) drawFlag(r.countryCode, flagX, midY - flagWRider * 0.375, flagWRider);
+      drawRiderName(r, nameX, baseY, nameMaxW, out);
+      rowY += lineH;
+    });
+
+    doc.setDrawColor(border);
+    doc.setLineWidth(0.25);
+    if (whiteHeader) doc.rect(x, cellY, colW, rowH, 'S');
+    else doc.line(x, cellY + rowH, x + colW, cellY + rowH);
+  };
+
+  y = firstGridTop;
+  for (let i = 0; i < blocks.length; i += cols) {
+    const row = blocks.slice(i, i + cols);
+    const rowH = Math.max(...row.map(blockHeight));
+    if (y + rowH > contentBottom) {
+      doc.addPage();
+      drawSiteHeader(raceName, font.medium);
+      y = contGridTop;
+    }
+    row.forEach((b, col) => drawBlock(b, margin + col * (colW + gapX), y, rowH));
+    y += rowH + gapY;
+  }
+
+  // ── Pie en todas las páginas: dominio + paginación ──
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    const footerY = pageH - 7;
+    doc.setFont(fontFamily, 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(textDim);
+    doc.textWithLink(host, margin, footerY, { url: pageUrl });
+    const pageText = isEn ? `Page ${p} of ${totalPages}` : `Página ${p} de ${totalPages}`;
+    doc.text(pageText, pageW - margin, footerY, { align: 'right' });
+  }
+
+  const safeName = (race.slug || race.name || 'inscritos').replace(/[^a-z0-9-]/gi, '-');
+  const fileName = `inscritos-${safeName}.pdf`;
+  const blob = doc.output('blob');
+
+  // Página de las apps: entrega el PDF al puente nativo en lugar de descargarlo.
+  if (deliver) {
+    await deliver({ blob, fileName });
+    return;
+  }
 
   // ── Download via Blob + <a> click (avoids Chrome popup-blocker) ──
-  const safeName = (race.slug || race.name || 'inscritos').replace(/[^a-z0-9-]/gi, '-');
-  const blob = doc.output('blob');
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `inscritos-${safeName}.pdf`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

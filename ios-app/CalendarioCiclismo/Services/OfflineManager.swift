@@ -1,6 +1,5 @@
 import Foundation
 import Network
-import WidgetKit
 
 /// Monitor de conectividad de red. Observable desde SwiftUI para decidir si
 /// mostrar modales de "sin conexión" al tocar enlaces/assets.
@@ -102,7 +101,7 @@ final class OfflineManager {
     ///   - 0 → inicial (solo JSON de días/meses/temporada).
     ///   - 1 → añade descarga de docs R2 (PDFs, mapas, perfiles…).
     ///   - 2 → añade descarga de banderas + logos de carrera.
-    static let cacheSchemaVersion: Int = 2
+    static let cacheSchemaVersion: Int = 3
 
     /// Versión guardada localmente; `0` si no existe (primer arranque o app
     /// pre-migración).
@@ -200,6 +199,8 @@ final class OfflineManager {
 
         /// URLs remotas de logos de carrera a descargar (hash del absoluteString → nombre de fichero).
         var retainedLogoURLs = Set<URL>()
+        var cxError: Error?
+        let cxMonths = CyclocrossLogic.offlineMonths()
 
         do {
             // 1. Descargar los próximos 14 días (vista Hoy)
@@ -248,12 +249,17 @@ final class OfflineManager {
             // 2. Descargar mes actual (vista Mes)
             syncStatusText = "Descargando mes actual…"
             await downloadMonth(year: currentYear, month: currentMonth, cache: cache, logos: &retainedLogoURLs)
+            do { try await CyclocrossRepository.shared.prepareOfflineMonth(cxMonths[0]) }
+            catch { cxError = error }
             completedSteps += 1
             syncProgress = completedSteps / totalSteps
 
             // 3. Descargar mes siguiente (vista Mes)
             syncStatusText = "Descargando mes siguiente…"
             await downloadMonth(year: nextMonthYear, month: nextMonth, cache: cache, logos: &retainedLogoURLs)
+            do { if cxMonths.count > 1 { try await CyclocrossRepository.shared.prepareOfflineMonth(cxMonths[1]) } }
+            catch { cxError = error }
+            retainedLogoURLs.formUnion(await CyclocrossRepository.shared.artworkURLs())
             completedSteps += 1
             syncProgress = completedSteps / totalSteps
 
@@ -263,6 +269,7 @@ final class OfflineManager {
             do {
                 let races = try await SupabaseService.shared.racesByYear(currentYear)
                 await cache.save(races, forKey: seasonKey)
+                await cache.save(races, forKey: CacheManager.yearRacesKey(currentYear))
                 for race in races {
                     Self.collectArtwork(from: race, logos: &retainedLogoURLs)
                 }
@@ -305,19 +312,11 @@ final class OfflineManager {
             completedSteps += 1
             syncProgress = completedSteps / totalSteps
 
-            lastSyncDate = Date()
+            if cxError == nil { lastSyncDate = Date() }
             // Marca el esquema de caché al día — los próximos arranques ya no
             // disparan la migración.
-            storedCacheSchemaVersion = Self.cacheSchemaVersion
-            syncStatusText = nil
-
-            // Actualizar widget con los datos recién sincronizados de hoy
-            let todayKey = DateFormatting.todayKey()
-            if let dayData: DayData = await CacheManager.shared.load(
-                DayData.self, forKey: CacheManager.dayKey(todayKey)
-            ) {
-                writeWidgetPayload(items: dayData.raceDays, nextDateKey: nil, dateKey: todayKey)
-            }
+            if cxError == nil { storedCacheSchemaVersion = Self.cacheSchemaVersion }
+            syncStatusText = cxError == nil ? nil : "No se ha completado la descarga de ciclocross"
         }
 
         isSyncing = false
@@ -375,16 +374,12 @@ final class OfflineManager {
         let endKey = String(format: "%@-%02d", neededMonth, daysInMonth)
 
         do {
-            async let daysResult = SupabaseService.shared.raceDays(from: startKey, to: endKey)
-            async let racesResult = SupabaseService.shared.racesByYear(year)
-
-            let (publishedDays, races) = try await (daysResult, racesResult)
+            let (publishedDays, races) = try await SupabaseService.shared.calendarMonthData(
+                from: startKey,
+                to: endKey
+            )
 
             await cache.save(MonthCache(raceDays: publishedDays, races: races), forKey: cacheKey)
-
-            // También cachear las carreras del año
-            let yearKey = CacheManager.yearRacesKey(year)
-            await cache.save(races, forKey: yearKey)
 
             for race in races {
                 Self.collectArtwork(from: race, logos: &logos)

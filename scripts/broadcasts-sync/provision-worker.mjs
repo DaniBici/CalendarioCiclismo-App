@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import pg from 'pg';
 
-const SOURCE_ENV = process.env.RESULTS_ENV_PATH || '/etc/calendario-ciclismo/uci-results.env';
+const SOURCE_ENV = process.env.RESULTS_ENV_PATH || '/etc/calendario-ciclismo/results.env';
 const TARGET_ENV = process.env.BROADCASTS_ENV_PATH || '/etc/calendario-ciclismo/broadcasts.env';
 
 function databaseUrlFromEnv(path) {

@@ -78,6 +78,16 @@ function sv(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function fitLabelText(value, maxWidth, fontSize) {
+  const text = String(value ?? '').trim();
+  if (!text || maxWidth <= 0) return '';
+  const charWidth = fontSize * 0.62;
+  const maxChars = Math.floor(maxWidth / charWidth);
+  if (text.length <= maxChars) return text;
+  if (maxChars < 2) return '';
+  return `${text.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 function fmtM(v) {
   if (v == null) return '';
   return String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' m';
@@ -86,6 +96,7 @@ function fmtM(v) {
 // Build the inner content of an indicator circle. Returns SVG fragment
 // centered at (0, 0); caller wraps it in `<g transform="translate(cx,cy)">`.
 function indicatorInner(kind, data) {
+  if (kind === 'finish') return FINISH_ICON;
   if (kind === 'summit') {
     const cat = data?.category;
     if (cat === 'M' || !cat) return CAT_M_ICON;
@@ -107,6 +118,7 @@ function indicatorInner(kind, data) {
 
 // Color of the indicator circle for a given annotation kind.
 function indicatorColor(kind) {
+  if (kind === 'finish')              return GUIDE_COLOR.finish;
   if (kind === 'summit')              return SUMMIT_COLOR;
   if (SPRINT_META[kind])              return SPRINT_META[kind].fill;
   return WP_FILL[kind] ?? '#8e9099';
@@ -174,16 +186,23 @@ function guideInner(kind, category) {
 // ('start', 'finish', 'climb_foot', 'summit', 'intermediate_sprint',
 // 'bonus_sprint', 'intermediate_split', 'cobblestone', 'sterrato', 'town').
 // `category` (optional) is the summit category ('HC','1'..'4','M').
-export function guideMarkerSVG(kind, { size = 20, category = null } = {}) {
+export function guideMarkerSVG(kind, { size = 20, category = null, secondaryKind = null } = {}) {
   const r     = size / 2 - 1;
   const c     = size / 2;
-  const col   = GUIDE_COLOR[kind] ?? '#8c8c8c';
-  const inner = guideInner(kind, category);
   const scale = r / 9; // inner glyphs are drawn for the r=9 reference
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" `
-    + `viewBox="0 0 ${size} ${size}" class="sg-marker-svg" aria-hidden="true">`
-    + `<circle cx="${c}" cy="${c}" r="${r}" fill="${col}"/>`
-    + `<g transform="translate(${c},${c}) scale(${scale.toFixed(3)})">${inner}</g>`
+  const kinds = secondaryKind ? [kind, secondaryKind] : [kind];
+  const step = size - 3;
+  const width = size + (kinds.length - 1) * step;
+  const circles = kinds.map((currentKind, index) => {
+    const cx = c + index * step;
+    const col = GUIDE_COLOR[currentKind] ?? '#8c8c8c';
+    const inner = guideInner(currentKind, index === 0 ? category : null);
+    return `<circle cx="${cx}" cy="${c}" r="${r}" fill="${col}"/>`
+      + `<g transform="translate(${cx},${c}) scale(${scale.toFixed(3)})">${inner}</g>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${size}" `
+    + `viewBox="0 0 ${width} ${size}" class="sg-marker-svg" aria-hidden="true">`
+    + circles
     + `</svg>`;
 }
 
@@ -195,6 +214,47 @@ export function isIndicatorKind(kind) {
       || kind === 'intermediate_split'
       || kind === 'cobblestone'
       || kind === 'sterrato';
+}
+
+/**
+ * Une anotaciones únicamente cuando comparten el mismo km exacto. Una cima o
+ * waypoint que coincide con la meta conserva la posición primaria y recibe la
+ * meta como segundo marcador. En los demás puntos se mantiene la fusión
+ * cima + waypoint. Cada anotación admite un solo acompañante, por lo que una
+ * coincidencia triple se representa como cima + meta y waypoint independiente.
+ * No se aplica tolerancia ni redondeo.
+ */
+export function mergeCoincidentProfileAnnotations(summits = [], waypoints = [], finishKm = null) {
+  const remaining = [...waypoints];
+  const annotations = [];
+  let finishAvailable = Number.isFinite(finishKm);
+  for (const summit of summits) {
+    const atFinish = finishAvailable && summit?.km === finishKm;
+    const companionIndex = atFinish
+      ? -1
+      : remaining.findIndex(waypoint => waypoint?.km === summit?.km);
+    const companion = companionIndex >= 0 ? remaining.splice(companionIndex, 1)[0] : null;
+    if (atFinish) finishAvailable = false;
+    annotations.push({
+      kind: 'summit',
+      item: summit,
+      km: summit?.km,
+      secondaryKind: atFinish ? 'finish' : (companion?.type ?? null),
+      secondaryItem: atFinish ? null : companion,
+    });
+  }
+  for (const waypoint of remaining) {
+    const atFinish = finishAvailable && waypoint?.km === finishKm;
+    if (atFinish) finishAvailable = false;
+    annotations.push({
+      kind: waypoint.type,
+      item: waypoint,
+      km: waypoint.km,
+      secondaryKind: atFinish ? 'finish' : null,
+      secondaryItem: null,
+    });
+  }
+  return annotations;
 }
 
 // ── Sparkline de elevación para race cards ────────────────────────────────────
@@ -233,9 +293,8 @@ export function buildElevationSparkline(profile, progressFraction, rdId, fillCol
 
   const svgHtml = `<svg class="race-card__elevation" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
     + `<defs><clipPath id="${clipId}"><rect x="0" y="0" width="${clipW}" height="30"/></clipPath></defs>`
-    + `<path d="${pathD}" fill="#d1d5db" fill-opacity="0.55"/>`
-    + `<path d="${pathD}" fill="${fillColor || 'var(--accent)'}" fill-opacity="1" clip-path="url(#${clipId})"/>`
-    + `<line x1="0" y1="29.5" x2="100" y2="29.5" stroke="#d1d5db" stroke-opacity="0.4" stroke-width="0.5"/>`
+    + `<path d="${pathD}" fill="var(--profile-pending-color, #d1d5db)" fill-opacity="0.55"/>`
+    + `<path d="${pathD}" fill="${profileThemeColor(fillColor)}" fill-opacity="1" clip-path="url(#${clipId})"/>`
     + `</svg>`;
 
   const interpAlt = km => {
@@ -253,20 +312,20 @@ export function buildElevationSparkline(profile, progressFraction, rdId, fillCol
 
   const IND_SIZE = 12;
   const dist = profile.distance;
-  const toPx = alt => (yCoord(alt) / 30 * EP_CSS_H).toFixed(1);
+  const toPercent = alt => (yCoord(alt) / 30 * 100).toFixed(2);
 
   let spans = '';
   for (const s of (summits ?? [])) {
     if (s?.km == null || s.km < 0 || s.km > dist) continue;
     const x = (s.km / dist * 100).toFixed(1);
-    const y = toPx(s.altitude != null ? s.altitude : interpAlt(s.km));
-    spans += `<span style="left:${x}%;top:${y}px">${indicatorBadgeSVG('summit', s, { size: IND_SIZE })}</span>`;
+    const y = toPercent(s.altitude != null ? s.altitude : interpAlt(s.km));
+    spans += `<span style="left:${x}%;top:${y}%">${indicatorBadgeSVG('summit', s, { size: IND_SIZE })}</span>`;
   }
   for (const w of (waypoints ?? [])) {
     if (w?.km == null || !isIndicatorKind(w.type) || w.km < 0 || w.km > dist) continue;
     const x = (w.km / dist * 100).toFixed(1);
-    const y = toPx(interpAlt(w.km));
-    spans += `<span style="left:${x}%;top:${y}px">${indicatorBadgeSVG(w.type, w, { size: IND_SIZE })}</span>`;
+    const y = toPercent(interpAlt(w.km));
+    spans += `<span style="left:${x}%;top:${y}%">${indicatorBadgeSVG(w.type, w, { size: IND_SIZE })}</span>`;
   }
 
   if (!spans) return svgHtml;
@@ -274,6 +333,42 @@ export function buildElevationSparkline(profile, progressFraction, rdId, fillCol
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Ajusta los colores que pierden contraste sobre las tarjetas de cada tema.
+// La variable CSS permite cambiar de tema sin reconstruir el SVG y se resuelve
+// también al exportar a PNG. No altera opacidades ni grosores.
+export function profileThemeColor(color) {
+  if (!color) return 'var(--accent)';
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+  if (!match) return color;
+  const hex = match[1].length === 3
+    ? [...match[1]].map(c => c + c).join('') : match[1];
+  const rgb = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const luminance = (mix, target = 1) => rgb.reduce((sum, value, i) => {
+    const channel = value + (target - value) * mix;
+    const linear = channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return sum + linear * [0.2126, 0.7152, 0.0722][i];
+  }, 0);
+  const correction = (target, threshold, variable, fallback) => {
+    const needsCorrection = value => target === 1 ? value < threshold : value > threshold;
+    if (!needsCorrection(luminance(0))) return 0;
+    let low = 0, high = 1;
+    for (let i = 0; i < 16; i++) {
+      const mid = (low + high) / 2;
+      if (needsCorrection(luminance(mid, target))) low = mid;
+      else high = mid;
+    }
+    const percent = Math.ceil(high * 10000) / 100;
+    return `calc(${percent}% * var(${variable}, ${fallback}))`;
+  };
+  // Contraste >4.5:1 frente a --bg-card en ambos temas.
+  const dark = correction(1, 0.27, '--profile-dark-correction', 1);
+  const light = correction(0, 0.17, '--profile-light-correction', 0);
+  let result = color;
+  if (dark) result = `color-mix(in srgb, ${result}, white ${dark})`;
+  if (light) result = `color-mix(in srgb, ${result}, black ${light})`;
+  return result;
+}
 
 export function buildElevationProfileSVG({
   profile,
@@ -290,6 +385,8 @@ export function buildElevationProfileSVG({
   // Pensado para exportar el miniperfil "solo iconos". Por defecto false: el
   // render normal de la web no cambia (mismo generador, single source of truth).
   iconsOnly = false,
+  hidePointNames = false,
+  progressFraction = null,
 } = {}) {
   if (!profile?.points?.length || profile.points.length < 2) {
     const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`
@@ -301,7 +398,17 @@ export function buildElevationProfileSVG({
   const uid = Math.random().toString(36).slice(2, 8);
 
   // ── Layout ────────────────────────────────────────────────────────
-  const ML = 68, MR = 30, MT = 34, MB = 92;
+  const compact = hidePointNames || width < 761;
+  const labelledPointCount = (summits ?? []).filter(point => point?.km != null).length
+    + (waypoints ?? []).filter(point => point?.km != null && point.type !== 'kom').length;
+  // El algoritmo puede escalonar unas pocas etiquetas, pero deja de ser
+  // legible cuando cada punto dispone de menos espacio horizontal. En ese
+  // caso se conservan los marcadores y los nombres de salida/meta; solo se
+  // suprimen los textos de las anotaciones, que siguen en Puntos clave.
+  const densePointLabels = !compact
+    && labelledPointCount > Math.max(12, Math.floor(Math.max(0, width - 98) / 72));
+  const compactAnnotations = compact || densePointLabels;
+  const ML = 68, MR = 30, MT = 34, MB = compact ? 56 : 92;
   const PW = width - ML - MR;
   const PH = height - MT - MB;
   const BL = MT + PH;
@@ -338,8 +445,9 @@ export function buildElevationProfileSVG({
   const fillD = `${lineD} L${X(xMax).toFixed(2)},${BL} L${ML},${BL} Z`;
 
   // ── Solid fill + outline ──────────────────────────────────────────
-  const lineColor = color || 'var(--accent)';
-  const profileLayers = `<path d="${fillD}" fill="${lineColor}" fill-opacity="0.42"/>
+  const lineColor = profileThemeColor(color);
+  const progressLayer = progressFraction == null ? '' : `<defs><clipPath id="ep-progress-${uid}"><rect x="${ML}" y="${MT}" width="${PW * Math.max(0, Math.min(1, progressFraction))}" height="${PH}"/></clipPath></defs><path d="${fillD}" fill="${lineColor}" fill-opacity=".45" clip-path="url(#ep-progress-${uid})"/>`;
+  const profileLayers = `<path d="${fillD}" fill="${lineColor}" fill-opacity="0.42"/>${progressLayer}
     <path d="${lineD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>`;
 
   // ── Climb zones (puertos con startKm definido) ────────────────────
@@ -457,15 +565,12 @@ export function buildElevationProfileSVG({
   // con otros elementos en anchos estrechos.
   // En escritorio el texto va exento (sin tarjeta): nombre a la izquierda
   // del círculo en línea 1; si hay altitud (solo puertos), en línea 2.
-  const compact = width < 600;
-
   // Tolerancia summit fuera de rango: si el km nominal del summit excede
   // ligeramente el GPX (cima coincide con la meta), capeamos al último km
   // visible para que se siga dibujando. Ver detector en js/climb-detection.js.
   const SUMMIT_OVERSHOOT_TOL = 2;
-  const validSum  = (summits ?? [])
-    .filter(s => s.km != null && s.km >= 0 && s.km - xMax <= SUMMIT_OVERSHOOT_TOL)
-    .map(s => s.km > xMax ? { ...s, km: xMax } : s);
+  const validSum = (summits ?? [])
+    .filter(s => s.km != null && s.km >= 0 && s.km - xMax <= SUMMIT_OVERSHOOT_TOL);
   const sortedSum = [...validSum].sort((a, b) => a.km - b.km);
 
   // Normalize all annotations into a single list to compute layout/collisions.
@@ -473,18 +578,15 @@ export function buildElevationProfileSVG({
   // para el anchor visual aunque venga manual, ya que la curva pintada se basa
   // en interpolateAlt y cualquier divergencia produce un punto descolgado de
   // la curva (caso Capodarco: 225 m manual vs 310 m GPX).
-  const annots = [];
-  for (const s of sortedSum) {
-    annots.push({ kind: 'summit', item: s, km: s.km, anchorY: Y(interpolateAlt(s.km)) });
-  }
-  for (const wp of circleWp) {
-    annots.push({ kind: wp.type, item: wp, km: wp.km, anchorY: Y(interpolateAlt(wp.km)) });
-  }
+  const renderSum = sortedSum.map(summit => summit.km > xMax ? { ...summit, km:xMax } : summit);
+  const annots = mergeCoincidentProfileAnnotations(renderSum, circleWp, xMax).map(annotation => {
+    return { ...annotation, anchorY: Y(interpolateAlt(annotation.km)) };
+  });
   // Los waypoints de localidad se reservan para el perfil de escritorio: no
   // tienen icono y sus nombres no caben con claridad ni en móvil ni en el
   // miniperfil de los assets. Los demás tipos de waypoint siguen entrando en
   // `circleWp` y se mantienen también en esos dos contextos.
-  if (!iconsOnly && !compact) {
+  if (!iconsOnly && !compactAnnotations) {
     for (const wp of lineWp) {
       annots.push({ kind: 'waypoint', item: wp, km: wp.km, anchorY: Y(interpolateAlt(wp.km)) });
     }
@@ -495,26 +597,32 @@ export function buildElevationProfileSVG({
   let sprintSvg = '';
   let waypointSvg = '';
 
-  if (compact) {
-    // Mobile: just the colored circle floating above the anchor point.
+  if (compactAnnotations) {
+    // Móvil o perfil denso: solo el círculo sobre el punto de anclaje.
     const R = 7;
     for (const a of annots) {
       const cx  = X(a.km);
       const cy  = a.anchorY - R - 3;
       const cxF = cx.toFixed(2);
       const cyF = cy.toFixed(2);
-      const col = indicatorColor(a.kind);
-      const inner = indicatorInner(a.kind, a.item);
+      const badgeStep = R * 1.6;
+      const badges = [{ kind: a.kind, item: a.item }];
+      if (a.secondaryKind) badges.push({ kind: a.secondaryKind, item: a.secondaryItem });
+      const badgeStartX = cx - badgeStep * (badges.length - 1) / 2;
+      const badgeSvg = badges.map((badge, index) => {
+        const badgeCx = badgeStartX + index * badgeStep;
+        return `<circle cx="${badgeCx.toFixed(2)}" cy="${cyF}" r="${R}" fill="${indicatorColor(badge.kind)}" stroke="var(--bg-card)" stroke-width="1.4"/>`
+          + `<g transform="translate(${badgeCx.toFixed(2)},${cyF})">${indicatorInner(badge.kind, badge.item)}</g>`;
+      }).join('');
       const isSummit = a.kind === 'summit';
       const guide = (isSummit && !iconsOnly)
         ? `<line x1="${cxF}" y1="${MT}" x2="${cxF}" y2="${BL}"
                 stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`
         : '';
       const cls = isSummit ? 'ep-summit' : 'ep-sprint';
-      const fragment = `<g class="${cls}">
+      const fragment = `<g class="${cls}"${a.secondaryKind ? ' data-combined-marker="true"' : ''}>
         ${guide}
-        <circle cx="${cxF}" cy="${cyF}" r="${R}" fill="${col}" stroke="var(--bg-card)" stroke-width="1.4"/>
-        <g transform="translate(${cxF},${cyF})">${inner}</g>
+        ${badgeSvg}
       </g>`;
       if (isSummit) summitSvg += fragment;
       else sprintSvg += fragment;
@@ -548,40 +656,50 @@ export function buildElevationProfileSVG({
       return minY;
     };
 
-    // Build label descriptors with per-annotation bounding box.
-    // Each card has two layout variants: normal (name left of circle) and
-    // flipped (name right of circle). Collision avoidance tries normal first;
-    // if it gets stuck at the ceiling it retries with the flipped variant.
+    // Build label descriptors with per-annotation bounding box. Every text is
+    // fitted inside the plot before collision avoidance, so it cannot overflow
+    // the SVG or invade the surrounding panel.
+    const LABEL_MIN_X = ML + 2;
+    const LABEL_MAX_X = ML + PW - 2;
     const cards = [];
     for (const a of annots) {
       const item    = a.item;
       const cx      = X(a.km);
       const isLineWaypoint = a.kind === 'waypoint';
-      const hasName = !!(item.name?.trim());
+      const rawName = item.name?.trim() || '';
       const altStr  = '';
       const hasAlt  = !!altStr;
-
-      const nameW = hasName ? measureName(item.name) : 0;
       const altW  = hasAlt  ? measureMeta(altStr)    : 0;
 
       const circleCx = cx;
-      let lx, lw, lx_f, lw_f;
+      const markerHalfWidth = a.secondaryKind ? R * 1.8 : R;
+      let lx, lw, lx_f, lw_f, labelCx = cx;
+      let nameNormal = '', nameFlipped = '';
 
       if (isLineWaypoint) {
-        // Sin badge ni tarjeta: el nombre queda centrado sobre una línea que
-        // baja hasta el punto exacto del recorrido.
-        lx = cx - nameW / 2;
+        const maxNameW = Math.max(0, LABEL_MAX_X - LABEL_MIN_X);
+        nameNormal = fitLabelText(rawName, maxNameW, FONT_NAME);
+        nameFlipped = nameNormal;
+        const nameW = measureName(nameNormal);
+        labelCx = Math.max(LABEL_MIN_X + nameW / 2, Math.min(LABEL_MAX_X - nameW / 2, cx));
+        lx = labelCx - nameW / 2;
         lw = nameW;
         lx_f = lx;
         lw_f = lw;
-      } else if (hasName) {
+      } else if (rawName) {
+        const leftRoom = Math.max(0, circleCx - markerHalfWidth - GAP_NAME - LABEL_MIN_X);
+        const rightRoom = Math.max(0, LABEL_MAX_X - circleCx - markerHalfWidth - GAP_NAME);
+        nameNormal = fitLabelText(rawName, leftRoom, FONT_NAME);
+        nameFlipped = fitLabelText(rawName, rightRoom, FONT_NAME);
+        const normalW = measureName(nameNormal);
+        const flippedW = measureName(nameFlipped);
         // Normal: [name][circle]
-        const nameLeftX = circleCx - R - GAP_NAME - nameW;
+        const nameLeftX = circleCx - markerHalfWidth - GAP_NAME - normalW;
         lx = nameLeftX;
-        lw = Math.max((circleCx + R) - nameLeftX, altW);
+        lw = Math.max((circleCx + markerHalfWidth) - nameLeftX, altW);
         // Flipped: [circle][name]
-        lx_f = circleCx - R;
-        lw_f = R * 2 + GAP_NAME + Math.max(nameW, altW);
+        lx_f = circleCx - markerHalfWidth;
+        lw_f = markerHalfWidth * 2 + GAP_NAME + Math.max(flippedW, altW);
       } else {
         // No name: circle only, same for both variants
         lw = Math.max(R * 2, altW);
@@ -599,9 +717,10 @@ export function buildElevationProfileSVG({
       const baseLy_f = mkBaseLy(lx_f, lw_f);
 
       cards.push({
-        kind: a.kind, item, cx, anchorY: a.anchorY, isLineWaypoint,
+        kind: a.kind, item, secondaryKind: a.secondaryKind, secondaryItem: a.secondaryItem,
+        markerHalfWidth, cx, anchorY: a.anchorY, isLineWaypoint,
         lx, lw, lx_f, lw_f, lh, baseLy, baseLy_f,
-        hasName, hasAlt, altStr, circleCx,
+        nameNormal, nameFlipped, labelCx, hasAlt, altStr, circleCx,
       });
     }
 
@@ -630,9 +749,15 @@ export function buildElevationProfileSVG({
 
     for (const card of cards) {
       // Summits may carry a `side` override ('left'|'right') set in the data editor.
-      // 'right' forces the flipped variant (label to the right of the circle).
-      // 'left' forces the normal variant (label to the left). Auto-avoid otherwise.
-      const sideOverride = card.kind === 'summit' ? (card.item.side ?? null) : null;
+      // 'right' forces the flipped variant and 'left' the normal one, salvo que
+      // ese lado no tenga espacio para texto. Sin preferencia se usa el lado
+      // que conserva una mayor porción del nombre.
+      const requestedSide = card.kind === 'summit' ? (card.item.side ?? null) : null;
+      const sideOverride = requestedSide === 'right' && !card.nameFlipped && card.nameNormal
+        ? 'left'
+        : requestedSide === 'left' && !card.nameNormal && card.nameFlipped
+          ? 'right'
+          : requestedSide;
       let ly, flipped = false;
 
       if (card.isLineWaypoint) {
@@ -646,14 +771,21 @@ export function buildElevationProfileSVG({
         ly = tryPlace(card.lx, card.lw, card.lh, card.baseLy);
         if (ly === null) ly = card.baseLy;
       } else {
-        ly = tryPlace(card.lx, card.lw, card.lh, card.baseLy);
+        const preferFlipped = card.nameFlipped.length > card.nameNormal.length;
+        const first = preferFlipped
+          ? { lx:card.lx_f, lw:card.lw_f, baseLy:card.baseLy_f, flipped:true }
+          : { lx:card.lx, lw:card.lw, baseLy:card.baseLy, flipped:false };
+        const second = preferFlipped
+          ? { lx:card.lx, lw:card.lw, baseLy:card.baseLy, flipped:false }
+          : { lx:card.lx_f, lw:card.lw_f, baseLy:card.baseLy_f, flipped:true };
+        ly = tryPlace(first.lx, first.lw, card.lh, first.baseLy);
+        flipped = first.flipped;
         if (ly === null) {
-          const ly_f = tryPlace(card.lx_f, card.lw_f, card.lh, card.baseLy_f);
-          if (ly_f !== null) {
-            ly = ly_f;
-            flipped = true;
-          } else {
-            ly = card.baseLy; // both stuck — best effort
+          ly = tryPlace(second.lx, second.lw, card.lh, second.baseLy);
+          flipped = second.flipped;
+          if (ly === null) {
+            ly = first.baseLy; // both stuck — best effort
+            flipped = first.flipped;
           }
         }
       }
@@ -667,15 +799,16 @@ export function buildElevationProfileSVG({
 
     // Render
     for (const card of cards) {
-      const { kind, item, cx, anchorY, lx, lh, ly, hasName, hasAlt, altStr, circleCx, flipped, isLineWaypoint } = card;
+      const { kind, item, secondaryKind, secondaryItem, markerHalfWidth, cx, anchorY, lx, lh, ly, nameNormal, nameFlipped, labelCx, hasAlt, altStr, circleCx, flipped, isLineWaypoint } = card;
       const cxF = cx.toFixed(2);
       if (isLineWaypoint) {
-        if (!hasName) continue;
+        if (!nameNormal) continue;
+        const labelCxF = labelCx.toFixed(2);
         waypointSvg += `<g class="ep-waypoint">
-          <line x1="${cxF}" y1="${(ly + lh + 2).toFixed(2)}" x2="${cxF}" y2="${(anchorY - 3).toFixed(2)}"
+          <line x1="${labelCxF}" y1="${(ly + lh + 2).toFixed(2)}" x2="${cxF}" y2="${(anchorY - 3).toFixed(2)}"
                 stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2"/>
-          <text x="${cxF}" y="${(ly + lh / 2).toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
-                font-size="${FONT_NAME}" font-weight="600" fill="var(--text-muted)">${sv(item.name)}</text>
+          <text x="${labelCxF}" y="${(ly + lh / 2).toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+                font-size="${FONT_NAME}" font-weight="600" fill="var(--text-muted)">${sv(nameNormal)}</text>
         </g>`;
         continue;
       }
@@ -683,8 +816,6 @@ export function buildElevationProfileSVG({
       const isSummit = kind === 'summit';
 
       const circleCy = ly + R;
-      const inner    = indicatorInner(kind, item);
-
       // Vertical guide line for summits (full chart height, gray dashed).
       // Omitida en iconsOnly: el export conserva punto de anclaje + conector,
       // pero no la guía vertical.
@@ -706,18 +837,19 @@ export function buildElevationProfileSVG({
       // Name: normal → right-aligned left of circle; flipped → left-aligned right of circle.
       // Omitido en iconsOnly (solo el número/letra/icono dentro del círculo).
       const nameY = ly + R;
+      const displayName = flipped ? nameFlipped : nameNormal;
       let nameSvg = '';
-      if (hasName && !iconsOnly) {
+      if (displayName && !iconsOnly) {
         if (flipped) {
-          const nameLeftX = circleCx + R + GAP_NAME;
+          const nameLeftX = circleCx + markerHalfWidth + GAP_NAME;
           nameSvg = `<text x="${nameLeftX.toFixed(2)}" y="${nameY.toFixed(2)}"
                 text-anchor="start" dominant-baseline="middle"
-                font-size="${FONT_NAME}" font-weight="600" fill="var(--text)">${sv(item.name)}</text>`;
+                font-size="${FONT_NAME}" font-weight="600" fill="var(--text)">${sv(displayName)}</text>`;
         } else {
-          const nameRightX = circleCx - R - GAP_NAME;
+          const nameRightX = circleCx - markerHalfWidth - GAP_NAME;
           nameSvg = `<text x="${nameRightX.toFixed(2)}" y="${nameY.toFixed(2)}"
                 text-anchor="end" dominant-baseline="middle"
-                font-size="${FONT_NAME}" font-weight="600" fill="var(--text)">${sv(item.name)}</text>`;
+                font-size="${FONT_NAME}" font-weight="600" fill="var(--text)">${sv(displayName)}</text>`;
         }
       }
 
@@ -725,7 +857,7 @@ export function buildElevationProfileSVG({
       const altY = ly + LH1 + LINE_GAP;
       let altSvg = '';
       if (hasAlt) {
-        if (hasName) {
+        if (displayName) {
           const altX = flipped ? (circleCx + R + GAP_NAME) : lx;
           const altAnchor = flipped ? 'start' : 'start';
           altSvg = `<text x="${altX.toFixed(2)}" y="${altY.toFixed(2)}"
@@ -738,15 +870,23 @@ export function buildElevationProfileSVG({
         }
       }
 
+      const badgeStep = R * 1.6;
+      const badges = [{ kind, item }];
+      if (secondaryKind) badges.push({ kind: secondaryKind, item: secondaryItem });
+      const badgeStartX = circleCx - badgeStep * (badges.length - 1) / 2;
+      const badgeSvg = badges.map((badge, index) => {
+        const badgeCx = badgeStartX + index * badgeStep;
+        return `<circle cx="${badgeCx.toFixed(2)}" cy="${circleCy.toFixed(2)}" r="${R}"
+                fill="${indicatorColor(badge.kind)}" stroke="var(--bg-card)" stroke-width="1.4"/>`
+          + `<g transform="translate(${badgeCx.toFixed(2)},${circleCy.toFixed(2)})">${indicatorInner(badge.kind, badge.item)}</g>`;
+      }).join('');
       const cls = isSummit ? 'ep-summit' : 'ep-sprint';
-      const fragment = `<g class="${cls}">
+      const fragment = `<g class="${cls}"${secondaryKind ? ' data-combined-marker="true"' : ''}>
         ${guide}
         ${anchorDot}
         ${connector}
         ${nameSvg}
-        <circle cx="${circleCx.toFixed(2)}" cy="${circleCy.toFixed(2)}" r="${R}"
-                fill="${col}" stroke="var(--bg-card)" stroke-width="1.4"/>
-        <g transform="translate(${circleCx.toFixed(2)},${circleCy.toFixed(2)})">${inner}</g>
+        ${badgeSvg}
         ${altSvg}
       </g>`;
       if (isSummit) summitSvg += fragment;
@@ -759,14 +899,17 @@ export function buildElevationProfileSVG({
   const fx   = X(xMax);
   const metaY = BL + 24;
   const lblY  = BL + 36;
+  const pointNameMaxWidth = Math.max(0, PW / 2 - 12);
+  const startName = compact ? '' : fitLabelText(startLocation, pointNameMaxWidth, 10.5);
+  const finishName = compact ? '' : fitLabelText(finishLocation, pointNameMaxWidth, 10.5);
 
   const startSvg = `<g class="ep-start">
     <polygon points="${sx - 2},${BL - 10} ${sx + 8},${BL - 5} ${sx - 2},${BL}"
              fill="var(--accent)" opacity="0.9"/>
-    <text x="${sx}" y="${metaY}" text-anchor="middle" font-size="9"
+    <text x="${sx}" y="${metaY}" text-anchor="start" font-size="9"
           fill="var(--text-muted)">${lang === 'en' ? 'Start' : 'Salida'}</text>
-    <text x="${sx}" y="${lblY}" text-anchor="middle" font-size="10.5" font-weight="600"
-          fill="var(--text)">${sv(startLocation)}</text>
+    <text class="ep-point-name" x="${sx}" y="${lblY}" text-anchor="start" font-size="10.5" font-weight="600"
+          fill="var(--text)">${sv(startName)}</text>
   </g>`;
 
   // Checkered flag
@@ -780,10 +923,10 @@ export function buildElevationProfileSVG({
     <rect x="${fx + fw / 2}" y="${py}"        width="${fw / 2}" height="${fh / 2}" fill="var(--text)"    fill-opacity="0.85"/>
     <rect x="${fx}"          y="${py + fh/2}" width="${fw / 2}" height="${fh / 2}" fill="var(--text)"    fill-opacity="0.85"/>
     <rect x="${fx + fw / 2}" y="${py + fh/2}" width="${fw / 2}" height="${fh / 2}" fill="var(--bg-card)" fill-opacity="0.7"/>
-    <text x="${fx}" y="${metaY}" text-anchor="middle" font-size="9"
+    <text x="${fx}" y="${metaY}" text-anchor="end" font-size="9"
           fill="var(--text-muted)">${lang === 'en' ? 'Finish' : 'Meta'}</text>
-    <text x="${fx}" y="${lblY}" text-anchor="middle" font-size="10.5" font-weight="600"
-          fill="var(--text)">${sv(finishLocation)}</text>
+    <text class="ep-point-name" x="${fx}" y="${lblY}" text-anchor="end" font-size="10.5" font-weight="600"
+          fill="var(--text)">${sv(finishName)}</text>
   </g>`;
 
   // ── Assemble ──────────────────────────────────────────────────────
@@ -818,7 +961,7 @@ export function buildElevationProfileSVG({
 `;
   const svgStr = `<svg xmlns="http://www.w3.org/2000/svg"
     width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-    style="font-family:var(--font-body,'Google Sans',Roboto,sans-serif);display:block;overflow:visible;"
+    style="font-family:var(--font-body,'Google Sans',Roboto,sans-serif);display:block;overflow:hidden;"
     class="ep-detailed">${inner}</svg>`;
 
   // Export hover data for interactive tooltip

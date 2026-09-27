@@ -7,11 +7,11 @@
  * la etapa y valida minutos después de meta — mucho antes que UCI DataRide
  * (que en estas carreras pequeñas puede tardar días o no llegar).
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
  * race_uci_links.source ('uci'|'tissot'|'pdf'|'matsport', migración 101) vía
- * uci-results-cron.mjs.
+ * results-cron.mjs.
  *
  * API MATSPORT (sin auth; misma API que la skill usa para startlists):
  *   GET /competitions/{id}        → metadatos + stages[] + teams[] (con riders/bibs)
@@ -40,7 +40,8 @@
  *   a nombre de equipo y el bib se emite NULL (un bib de equipo casaría por error
  *   con un dorsal de corredor en resolve_uci_results).
  *
- * NORMALIZACIÓN: capital "10:15:27" (absoluto, ya en formato BD) · gap "+00"→"+0",
+ * NORMALIZACIÓN: capital "10:15:27" (absoluto, ya en formato BD; Matsport también
+ * puede añadir centésimas o un punto final, que se truncan) · gap "+00"→"+0",
  *   "+05"→"+5", "+1:22"/"+1:02:03" tal cual · puntos "61 pts"→"61" en resultValue ·
  *   status francés → IRM UCI: AB→DNF · NP→DNS · HD→OTL · DSQ/EX→DSQ (desconocidos
  *   se conservan en crudo, mayúsculas).
@@ -158,10 +159,13 @@ export function normGap(g) {
   return '+' + parts.join(':');
 }
 
-// capital "10:15:27" / "2:53:41" → tal cual (ya es el formato de BD); "61 pts" → null.
+// capital "10:15:27" / "2:53:41" → formato BD. Matsport puede enviar
+// "26:49.95" o "12:10:10."; se truncan las fracciones porque el contrato de
+// resultados de carretera trabaja con segundos enteros. "61 pts" → null.
 export function normAbsTime(v) {
   const t = clean(v);
-  return /^\d+(:\d{2}){1,2}$/.test(t) ? t : null;
+  const m = /^(\d+(?::\d{2}){1,2})(?:\.\d*)?$/.exec(t);
+  return m ? m[1] : null;
 }
 
 // "61 pts" / "61" → "61"

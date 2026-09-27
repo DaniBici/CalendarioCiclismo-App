@@ -1,6 +1,10 @@
 import Foundation
 import Supabase
 
+private struct FeaturedDatesParams: Encodable {
+    let date_keys: [String]
+}
+
 /// Servicio centralizado para acceso a datos de Supabase.
 /// Equivalente a `js/services/api.js`.
 @MainActor
@@ -27,9 +31,18 @@ final class SupabaseService {
             supabaseURL: url,
             supabaseKey: key,
             options: .init(
-                auth: .init(emitLocalSessionAsInitialSession: true)
+                auth: .init(emitLocalSessionAsInitialSession: true),
+                global: .init(session: Self.makeDataSession())
             )
         )
+    }
+
+    /// Los datos offline se gestionan en CacheManager; una consulta debe llegar a la red.
+    private static func makeDataSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
     }
 
     // MARK: - Races
@@ -73,6 +86,31 @@ final class SupabaseService {
             .value
     }
 
+    /// Carreras cuyo intervalo se solapa con el rango solicitado. La vista de
+    /// Mes usa este filtro para no descargar todas las ediciones del año.
+    func racesOverlapping(from startKey: String, to endKey: String) async throws -> [Race] {
+        try await client.from("races")
+            .select()
+            .lte("startDate", value: endKey)
+            .gte("endDate", value: startKey)
+            .execute()
+            .value
+    }
+
+    /// Jornadas y carreras necesarias para un mes. Además del solapamiento de
+    /// fechas recupera por ID cualquier padre referenciado por una jornada.
+    func calendarMonthData(from startKey: String, to endKey: String) async throws -> (raceDays: [RaceDay], races: [Race]) {
+        async let daysResult = raceDays(from: startKey, to: endKey)
+        async let racesResult = racesOverlapping(from: startKey, to: endKey)
+        let (days, overlappingRaces) = try await (daysResult, racesResult)
+
+        let missingIds = RaceLogic.missingRaceIds(raceDays: days, races: overlappingRaces)
+        let recovered = try await races(byIds: missingIds)
+        var byId = Dictionary(uniqueKeysWithValues: overlappingRaces.map { ($0.id, $0) })
+        recovered.forEach { byId[$0.id] = $0 }
+        return (days, Array(byId.values))
+    }
+
     /// Carreras de Campeonatos Nacionales (uciCategory='CN') de un año dentro de
     /// un rango de fechas de salida. Espejo de la query en `js/campeonatos.js`.
     func championshipRaces(year: Int, from startKey: String, to endKey: String) async throws -> [Race] {
@@ -86,6 +124,17 @@ final class SupabaseService {
             .value
     }
 
+    /// Selección editorial de hasta dos carreras por fecha. La RPC concentra
+    /// coronas manuales, exclusiones explícitas y fallback automático.
+    func featuredRaces(for dateKeys: [String]) async throws -> [FeaturedRaceSelection] {
+        let keys = Array(Set(dateKeys.filter { !$0.isEmpty })).sorted()
+        guard !keys.isEmpty else { return [] }
+        return try await client
+            .rpc("featured_races_for_dates", params: FeaturedDatesParams(date_keys: keys))
+            .execute()
+            .value
+    }
+
     // MARK: - Race Days
 
     /// Columnas de race_days sin los campos de perfil de elevación (JSONB pesados).
@@ -93,8 +142,9 @@ final class SupabaseService {
     private static let raceDaySlimColumns =
         "id,raceId,dateKey,slug,isRestDay,isCancelledDay,stageNumber," +
         "startLocation,finishLocation,distanceKm,primaryType,secondaryType," +
-        "neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
+        "neutralStartTimeUtc,realStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,bonuses,notes," +
         "startLocationEn,finishLocationEn,translations,editorialStatus,hasAssets,updatedAt,countryCode,routeGpxUrl"
+        + ",raceStatus,competitiveDistanceKm,timingPolicy,raceTimeSeconds,averageSpeedKmh,timeLimitSeconds,timeLimitBasis,metricsUpdatedAt"
 
     /// Jornadas publicadas para una fecha concreta (sin perfil de elevación).
     /// La elevación se carga de forma diferida en `loadDayComplete`.
@@ -152,12 +202,9 @@ final class SupabaseService {
     /// Pagina manualmente en chunks de 1.000: PostgREST aplica un tope
     /// server-side de 1.000 filas por request que un `.limit()` más alto NO
     /// evita (mismo tope que ya documenta `panel.js` para riders_men/women).
-    /// Sin esto, un rango que cubra más de 1.000 jornadas (p. ej. un año
-    /// natural completo, como hace `MonthViewModel.loadYear`) se trunca en
-    /// silencio y el orden de retorno no sigue la fecha, así que la parte
-    /// recortada no son necesariamente "los últimos días del año": pueden
-    /// faltar carreras enteras de mitad de temporada (bug real: Tour de
-    /// Francia 2026 desaparecía casi entero de la vista de Mes).
+    /// Sin esto, cualquier consumidor que solicite más de 1.000 jornadas se
+    /// truncaría en silencio y la parte recortada no tendría por qué coincidir
+    /// con el final cronológico del rango.
     /// Se pagina por `id` (clave única) para que el orden entre páginas sea
     /// estable — paginar por `dateKey` (no único) puede saltar o duplicar
     /// filas en el borde de cada página.
@@ -279,10 +326,10 @@ final class SupabaseService {
         let region: String
     }
 
-    /// Parámetros de la RPC `set_push_subscription_v3`.
+    /// Parámetros de la RPC `set_push_subscription_v4`.
     /// Upsert atómico de subscripción + idioma + countryGroup + categorías +
     /// carreras seguidas + filtros de grupo + jornadas seguidas.
-    private struct SetPushSubscriptionV3Params: Encodable {
+    struct SetPushSubscriptionV4Params: Encodable {
         let p_token: String
         let p_platform: String
         let p_is_active: Bool
@@ -293,6 +340,27 @@ final class SupabaseService {
         let p_followed_races: [String]
         let p_race_filters: [String]
         let p_followed_stages: [String]
+        let p_followed_cx_races: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case p_token, p_platform, p_is_active, p_region, p_country_group, p_language
+            case p_categories, p_followed_races, p_race_filters, p_followed_stages, p_followed_cx_races
+        }
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(p_token, forKey: .p_token)
+            try values.encode(p_platform, forKey: .p_platform)
+            try values.encode(p_is_active, forKey: .p_is_active)
+            try values.encode(p_region, forKey: .p_region)
+            try values.encode(p_country_group, forKey: .p_country_group)
+            try values.encode(p_language, forKey: .p_language)
+            try values.encode(p_categories, forKey: .p_categories)
+            try values.encode(p_followed_races, forKey: .p_followed_races)
+            try values.encode(p_race_filters, forKey: .p_race_filters)
+            try values.encode(p_followed_stages, forKey: .p_followed_stages)
+            // JSON null preserva CX; [] elimina el seguimiento. No omitir la clave.
+            try values.encode(p_followed_cx_races, forKey: .p_followed_cx_races)
+        }
     }
 
     /// Registra o actualiza un token de dispositivo para notificaciones push.
@@ -304,7 +372,7 @@ final class SupabaseService {
     /// `countryGroup` (opcional, derivado de la TZ) afina el envío de `tv_start`
     /// al horario del primer canal visible para el grupo fino del usuario.
     /// `followedStages` siempre se envía completo (independiente del modo de carreras).
-    /// `language` ('es' | 'en') determina el idioma de las notificaciones Premium
+    /// `language` ('es' | 'en') determina el idioma de las notificaciones
     /// auto-generadas (race_start / tv_start / results); valores inválidos caen a 'es'.
     func upsertPushToken(
         _ token: String,
@@ -315,10 +383,11 @@ final class SupabaseService {
         categories: [String],
         followedRaces: [String] = [],
         raceFilters: [String] = [],
-        followedStages: [String] = []
+        followedStages: [String] = [],
+        followedCxRaces: [String]? = nil
     ) async throws {
         let normalizedLanguage = (language == "en") ? "en" : "es"
-        let params = SetPushSubscriptionV3Params(
+        let params = SetPushSubscriptionV4Params(
             p_token: token,
             p_platform: "ios",
             p_is_active: isActive,
@@ -328,10 +397,11 @@ final class SupabaseService {
             p_categories: categories,
             p_followed_races: followedRaces,
             p_race_filters: raceFilters,
-            p_followed_stages: followedStages
+            p_followed_stages: followedStages,
+            p_followed_cx_races: followedCxRaces
         )
         try await client
-            .rpc("set_push_subscription_v3", params: params)
+            .rpc("set_push_subscription_v4", params: params)
             .execute()
     }
 
@@ -368,9 +438,10 @@ final class SupabaseService {
         async let broadcastsResult = broadcasts(byRaceDayIds: rdIds)
         async let assetsResult = assets(byRaceDayIds: rdIds)
         async let elevResult = raceDaysElevation(byIds: rdIds)
+        async let featuredResult = featuredRaces(for: [dateKey])
 
-        let (fetchedRaces, fetchedBroadcasts, fetchedAssets, fetchedElev) = try await (
-            racesResult, broadcastsResult, assetsResult, elevResult
+        let (fetchedRaces, fetchedBroadcasts, fetchedAssets, fetchedElev, featured) = try await (
+            racesResult, broadcastsResult, assetsResult, elevResult, featuredResult
         )
 
         let raceMap = Dictionary(uniqueKeysWithValues: fetchedRaces.map { ($0.id, $0) })
@@ -393,7 +464,11 @@ final class SupabaseService {
             )
         }
 
-        return DayData(raceDays: enriched, raceMap: raceMap)
+        return DayData(
+            raceDays: enriched,
+            raceMap: raceMap,
+            featuredRaceIds: Set(featured.filter { $0.dateKey == dateKey }.map(\.raceId))
+        )
     }
 
     /// Carga la rejilla del Modo Campeonatos: carreras CN del rango → primera

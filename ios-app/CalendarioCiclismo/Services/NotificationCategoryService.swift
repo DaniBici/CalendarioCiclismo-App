@@ -29,6 +29,7 @@ final class NotificationCategoryService {
         case raceStart = "race_start"
         case tvStart   = "tv_start"
         case results   = "results"
+        case cyclocross = "cyclocross"
 
         var id: String { rawValue }
 
@@ -41,6 +42,7 @@ final class NotificationCategoryService {
             case .raceStart: return "Inicio de carrera"
             case .tvStart:   return "Inicio de emisión TV"
             case .results:   return "Resultados al cerrar la jornada"
+            case .cyclocross: return "Ciclocross"
             }
         }
 
@@ -51,16 +53,18 @@ final class NotificationCategoryService {
             case .raceStart: return "T-30 min antes del banderazo"
             case .tvStart:   return "T-5 min antes de cada retransmisión"
             case .results:   return "Podio y clasificaciones tras la meta"
+            case .cyclocross: return "Avisos de ciclocross y de las carreras que sigues"
             }
         }
 
-        /// SF Symbol decorativo para la fila.
-        var icon: String {
+        /// SF Symbol decorativo para la fila; ciclocross usa su asset de marca.
+        var icon: String? {
             switch self {
             case .general:   return "megaphone"
             case .raceStart: return "flag.checkered"
             case .tvStart:   return "play.rectangle"
             case .results:   return "trophy"
+            case .cyclocross: return nil
             }
         }
     }

@@ -1,0 +1,13 @@
+[Unit]
+Description=Calendario Ciclismo - comprobar resultados CX cada minuto
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/cc-cx-results-pipeline.md
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=cc-cx-results.service
+
+[Install]
+WantedBy=timers.target

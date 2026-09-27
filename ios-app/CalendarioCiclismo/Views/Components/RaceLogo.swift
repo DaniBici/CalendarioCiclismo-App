@@ -13,11 +13,8 @@ struct RaceLogo: View {
     var body: some View {
         Group {
             if let urlStr = url, let imageUrl = URL(string: urlStr) {
-                // Preferir la copia local descargada por el modo offline si
-                // existe — garantiza render sin red aunque `CachedAsyncImage`
-                // no tenga el URL en su disk cache.
-                let effectiveURL = CacheManager.localLogoFileURL(for: imageUrl) ?? imageUrl
-                CachedAsyncImage(url: effectiveURL) {
+                // La URL remota identifica la carga; la copia local sirve de respaldo.
+                CachedAsyncImage(url: imageUrl) {
                     // Mientras carga: hueco del mismo tamaño para no saltar el
                     // layout cuando llega la imagen.
                     Color.clear

@@ -1,13 +1,11 @@
 package app.calendariociclismo.android.ui.resultsfeed
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,18 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -67,18 +60,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.components.CCHeaderMark
 import app.calendariociclismo.android.data.model.UciTeamRankingRow
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.StageTypeBadge
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutInfo
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.ui.theme.categoryBadgeColor
-import app.calendariociclismo.android.ui.today.ResultsDialog
-import app.calendariociclismo.android.ui.today.ResultsDialogItem
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
@@ -90,6 +85,9 @@ import app.calendariociclismo.android.util.UciTeamRankingTier
 import app.calendariociclismo.android.util.rememberHaptics
 import java.text.NumberFormat
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Ventana del feed: 14 días por página (espejo de WINDOW_DAYS en
  *  resultados-feed.js); "Cargar más" amplía hacia atrás hasta SEASON_START. */
@@ -130,6 +128,7 @@ fun ResultsFeedScreen(navController: NavController) {
     val haptic = rememberHaptics()
     val context = LocalContext.current
     val unknownError = stringResource(R.string.startlist_error_unknown)
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
 
     val todayKey = remember { DateFormatting.todayKey() }
     var fromKey by remember {
@@ -139,13 +138,11 @@ fun ResultsFeedScreen(navController: NavController) {
     var state by remember { mutableStateOf<FeedState>(FeedState.Loading) }
     var loadingMore by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
-    var resultsDialogItem by remember { mutableStateOf<ResultsDialogItem?>(null) }
     var activeSection by rememberSaveable { mutableStateOf(ResultsSection.Latest) }
     var rankingGender by rememberSaveable { mutableStateOf(RankingGender.Male) }
     var rankingState by remember { mutableStateOf<RankingState>(RankingState.Loading) }
     var rankingLoaded by remember { mutableStateOf(false) }
     var rankingRefreshing by remember { mutableStateOf(false) }
-    var showRankingInfo by remember { mutableStateOf(false) }
     var rankingExplanation by remember { mutableStateOf<RankingExplanation?>(null) }
     val pullRefreshState = rememberPullToRefreshState()
     val rankingPullRefreshState = rememberPullToRefreshState()
@@ -157,12 +154,14 @@ fun ResultsFeedScreen(navController: NavController) {
     // web: las filas existentes se mantienen visibles mientras llega la recarga.
     suspend fun reload() {
         if (state !is FeedState.Ready) state = FeedState.Loading
-        runCatching {
+        try {
             val entries = app.repository.loadResultsFeedWindow(fromKey, todayKey)
-            app.repository.resolveFeedWinners(entries)
-        }.onSuccess { entries ->
+            currentCoroutineContext().ensureActive()
+            // Commit único: el repositorio ya entrega ganadores y líderes resueltos.
             state = FeedState.Ready(entries)
-        }.onFailure { error ->
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
             // Si la recarga falla, conservamos lo ya cargado.
             if (state !is FeedState.Ready) {
                 state = FeedState.Error(error.message ?: unknownError)
@@ -210,10 +209,16 @@ fun ResultsFeedScreen(navController: NavController) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = stringResource(R.string.results_feed_heading),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CCHeaderMark()
+                        Text(
+                            text = stringResource(R.string.results_feed_heading),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 },
             )
         },
@@ -250,6 +255,7 @@ fun ResultsFeedScreen(navController: NavController) {
                                 } else {
                                     FeedList(
                                         entries = current.entries,
+                                        adaptiveInfo = adaptiveInfo,
                                         showLoadMore = fromKey > SEASON_START,
                                         loadingMore = loadingMore,
                                         onLoadMore = {
@@ -259,20 +265,14 @@ fun ResultsFeedScreen(navController: NavController) {
                                             fromKey = maxOf(next, SEASON_START)
                                         },
                                         onEntryTap = { entry ->
-                                            if (entry.kind == ResultsFeedLogic.Kind.INHOUSE) {
-                                                haptic(Haptics.Event.Navigation)
-                                                navController.navigate(
-                                                    Routes.results(
-                                                        entry.race.id,
-                                                        entry.stageNumber,
-                                                        suffix = entry.stageSuffix,
-                                                    )
+                                            haptic(Haptics.Event.Navigation)
+                                            navController.navigate(
+                                                Routes.results(
+                                                    entry.race.id,
+                                                    entry.stageNumber,
+                                                    suffix = entry.stageSuffix,
                                                 )
-                                            } else {
-                                                val rd = entry.rd ?: return@FeedList
-                                                haptic(Haptics.Event.PrimaryAction)
-                                                resultsDialogItem = ResultsDialogItem(entry.race, rd)
-                                            }
+                                            )
                                         },
                                     )
                                 }
@@ -294,10 +294,6 @@ fun ResultsFeedScreen(navController: NavController) {
                                 rankingGender = it
                             },
                             onRetry = { rankingRefreshing = true },
-                            onInfoClick = {
-                                haptic(Haptics.Event.Selection)
-                                showRankingInfo = true
-                            },
                             onRowTap = { item ->
                                 val message = item.explanation(LocaleHolder.shouldShowEnglishContent)
                                 if (message.isNotEmpty()) {
@@ -312,18 +308,6 @@ fun ResultsFeedScreen(navController: NavController) {
         }
     }
 
-    // Fallback externos: reusa el diálogo existente de las cards de Hoy.
-    resultsDialogItem?.let { item ->
-        ResultsDialog(item = item, context = context, onDismiss = { resultsDialogItem = null })
-    }
-    if (showRankingInfo) {
-        val rows = (rankingState as? RankingState.Ready)?.rows.orEmpty()
-        UciRankingInfoDialog(
-            rows = UciTeamRankingLogic.decorate(rows, rankingGender.value),
-            gender = rankingGender,
-            onDismiss = { showRankingInfo = false },
-        )
-    }
     rankingExplanation?.let { explanation ->
         AlertDialog(
             onDismissRequest = { rankingExplanation = null },
@@ -389,7 +373,6 @@ private fun UciRankingContent(
     gender: RankingGender,
     onGenderSelect: (RankingGender) -> Unit,
     onRetry: () -> Unit,
-    onInfoClick: () -> Unit,
     onRowTap: (UciTeamRankingPresentation) -> Unit,
 ) {
     when (state) {
@@ -436,37 +419,22 @@ private fun UciRankingContent(
                     )
                 }
                 rows.firstOrNull()?.row?.rankingDate?.let { rankingDate ->
-                    Row(
+                    Text(
+                        text = DateFormatting.formatUciRankingUpdated(
+                            rankingDate,
+                            LocaleHolder.shouldShowEnglishContent,
+                        ),
                         modifier = Modifier.fillMaxWidth().padding(
                             start = 16.dp,
                             end = 16.dp,
-                            top = 2.dp,
+                            top = 4.dp,
                         ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = DateFormatting.formatUciRankingUpdated(
-                                rankingDate,
-                                LocaleHolder.shouldShowEnglishContent,
-                            ),
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        IconButton(
-                            onClick = onInfoClick,
-                            modifier = Modifier.size(28.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Info,
-                                contentDescription = stringResource(R.string.uci_ranking_info_label),
-                                modifier = Modifier.size(17.dp),
-                            )
-                        }
-                    }
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 if (rows.isEmpty()) {
                     Text(
@@ -637,114 +605,9 @@ private fun UciRankingRow(
 }
 
 @Composable
-private fun UciRankingInfoDialog(
-    rows: List<UciTeamRankingPresentation>,
-    gender: RankingGender,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    val updated = rows.firstOrNull()?.row?.rankingDate
-        ?.let {
-            DateFormatting.formatUciRankingUpdated(
-                it,
-                LocaleHolder.shouldShowEnglishContent,
-            )
-        } ?: if (LocaleHolder.shouldShowEnglishContent) "Updated: —" else "Actualizado: —"
-    val sourceUrl = rows.firstOrNull()?.row?.sourceUrl
-    val regulationsUrl =
-        "https://assets.ctfassets.net/761l7gh5x5an/6FEzFHeA2oKMBGb5sdIvQ7/" +
-            "96aad776f210fc38853ec9bf9ec9acba/2-ROA-20260701-E.pdf"
-    val dark = isSystemInDarkTheme()
-    val orange = if (dark) Color(0xFFFFB77C) else Color(0xFFE37400)
-    val green = if (dark) Color(0xFF6DD58C) else Color(0xFF137333)
-    val red = if (dark) Color(0xFFFFB4AB) else Color(0xFFC5221F)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.uci_ranking_info_title)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.uci_ranking_updated, updated))
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.uci_ranking_projection),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(14.dp))
-                RankingLegendRow(
-                    categoryBadgeColor("1.UWT").background,
-                    stringResource(
-                        if (gender == RankingGender.Male) {
-                            R.string.uci_ranking_legend_worldteams
-                        } else {
-                            R.string.uci_ranking_legend_womens_worldteams
-                        },
-                    ),
-                )
-                RankingLegendRow(
-                    orange.copy(alpha = 0.15f),
-                    stringResource(
-                        if (gender == RankingGender.Male) {
-                            R.string.uci_ranking_legend_worldtour
-                        } else {
-                            R.string.uci_ranking_legend_womens_worldtour
-                        },
-                    ),
-                )
-                if (gender == RankingGender.Male) {
-                    RankingLegendRow(
-                        green.copy(alpha = 0.15f),
-                        stringResource(R.string.uci_ranking_legend_proseries),
-                    )
-                    RankingLegendRow(
-                        red.copy(alpha = 0.13f),
-                        stringResource(R.string.uci_ranking_legend_top30),
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                sourceUrl?.let { url ->
-                    TextButton(onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    }) {
-                        Text(stringResource(R.string.uci_ranking_source))
-                    }
-                }
-                TextButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(regulationsUrl)))
-                }) {
-                    Text(stringResource(R.string.uci_ranking_regulations))
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_close))
-            }
-        },
-    )
-}
-
-@Composable
-private fun RankingLegendRow(color: Color, text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-        modifier = Modifier.padding(vertical = 4.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 34.dp, height = 16.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
-        )
-        Text(text, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
 private fun FeedList(
     entries: List<ResultsFeedLogic.FeedEntry>,
+    adaptiveInfo: AdaptiveLayoutInfo,
     showLoadMore: Boolean,
     loadingMore: Boolean,
     onLoadMore: () -> Unit,
@@ -757,44 +620,65 @@ private fun FeedList(
         for (e in entries) out.getOrPut(e.date) { mutableListOf() }.add(e)
         out
     }
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        grouped.forEach { (date, dayEntries) ->
-            item(key = "hdr-$date") {
-                // Cabecera de día en el idioma de CONTENIDO (no el locale del
-                // dispositivo) — mismo criterio que las fechas de cabecera de etapa.
-                Text(
-                    text = DateFormatting.formatDateLongContent(date),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp),
-                )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            grouped.forEach { (date, dayEntries) ->
+                item(key = "hdr-$date") {
+                    // Cabecera de día en el idioma de CONTENIDO (no el locale del
+                    // dispositivo) — mismo criterio que las fechas de cabecera de etapa.
+                    Text(
+                        text = DateFormatting.formatDateLongContent(date),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp),
+                    )
+                }
+                val rows = AdaptiveLayoutPolicy.rows(dayEntries, columns) { it.isFeatured }
+                items(rows, key = { row ->
+                    row.items.joinToString("|") { e ->
+                        e.stageRefId ?: "ext-${e.rd?.id ?: e.race.id}-${e.stageNumber ?: "f"}"
+                    }
+                }) { row ->
+                    if (columns == 1 || row.spansAllColumns) {
+                        val entry = row.items.first()
+                        FeedEntryRow(entry = entry, onClick = { onEntryTap(entry) })
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            row.items.forEach { entry ->
+                                Box(Modifier.weight(1f)) {
+                                    FeedEntryRow(entry = entry, onClick = { onEntryTap(entry) })
+                                }
+                            }
+                            repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
             }
-            items(
-                dayEntries,
-                key = { e -> e.stageRefId ?: "ext-${e.rd?.id ?: e.race.id}-${e.stageNumber ?: "f"}" },
-            ) { entry ->
-                FeedEntryRow(entry = entry, onClick = { onEntryTap(entry) })
-            }
-        }
-        if (showLoadMore) {
-            item(key = "load-more") {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    OutlinedButton(onClick = onLoadMore, enabled = !loadingMore) {
-                        if (loadingMore) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Text(stringResource(R.string.results_feed_load_more))
+            if (showLoadMore) {
+                item(key = "load-more") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        OutlinedButton(onClick = onLoadMore, enabled = !loadingMore) {
+                            if (loadingMore) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Text(stringResource(R.string.results_feed_load_more))
+                            }
                         }
                     }
                 }
@@ -808,8 +692,7 @@ private fun FeedList(
  * el tinte del color de la carrera, logo 36dp con la bandera debajo, nombre con
  * la tipografía de card, línea "Etapa N · NNN km · +N.NNN m" + badge de tipo
  * solo para contrarrelojes, y tercera línea trofeo + ganador en
- * SemiBold. Las generales finales llevan etiqueta propia y tinte algo más
- * fuerte (espejo de `.feed-row--gc` en la web).
+ * SemiBold. Las generales finales conservan su etiqueta propia y el tinte base.
  */
 @Composable
 private fun FeedEntryRow(
@@ -819,8 +702,8 @@ private fun FeedEntryRow(
     val race = entry.race
     CCCard(
         accent = race.colorHex?.let { colorFromHex(it, fallback = MaterialTheme.colorScheme.outlineVariant) },
-        // Mismo 4% tenue que las cards de Hoy; las generales finales, un punto más.
-        accentAlpha = if (entry.isGcFinal) 0.10f else 0.04f,
+        // Mismo tinte base para destacados y generales finales.
+        accentAlpha = 0.04f,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -833,6 +716,9 @@ private fun FeedEntryRow(
         ) {
             // Columna izquierda: logo de carrera + bandera debajo (como la web).
             Column(
+                modifier = Modifier.align(
+                    if (entry.isFeatured) Alignment.Top else Alignment.CenterVertically
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
@@ -940,14 +826,35 @@ private fun FeedEntryRow(
                         )
                     }
                 }
+
+                if (entry.isFeatured && entry.complementary.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 2.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    entry.complementary.forEach { item ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            item.colorHex?.let {
+                                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(colorFromHex(it)))
+                            }
+                            Text(
+                                if (LocaleHolder.shouldShowEnglishContent) item.labelEn else item.labelEs,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (item.winner.isNotEmpty()) {
+                                Text(item.winner, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
             }
 
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(20.dp),
-            )
+            app.calendariociclismo.android.ui.components.RaceCardChevron()
         }
     }
 }

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────
-//  CALENDARIO — calendario.html (+ EN /en/calendar/)
+//  CALENDARIO — calendario/ (+ EN /en/calendar/)
 //  Fusión de las antiguas vistas Mes y Temporada en una sola página con
 //  toggle, espejo del CalendarScreen de las apps 3.1 (Android
 //  ui/calendar/CalendarScreen.kt): subvista persistida (localStorage
@@ -77,7 +77,7 @@ async function activate(view, { first = false } = {}) {
       const content = document.getElementById('temporadaContent');
       content.innerHTML = LOADING_HTML;
       removeStaticLoading();
-      await import('./temporada.js'); // se auto-inicializa y renderiza
+      await import('./temporada.js?v=20260924sitefix'); // se auto-inicializa y renderiza
     } else {
       resetCanonical();
     }
@@ -87,10 +87,10 @@ async function activate(view, { first = false } = {}) {
       const content = document.getElementById('mesContent');
       content.innerHTML = LOADING_HTML;
       removeStaticLoading();
-      const mod = await import('./calendario-mes.js');
+      const mod = await import('./calendario-mes.js?v=20260924sitefix');
       await mod.initMesView();
     } else {
-      const mod = await import('./calendario-mes.js');
+      const mod = await import('./calendario-mes.js?v=20260924sitefix');
       await mod.initMesView(); // re-render (estado conservado en el módulo)
     }
   }

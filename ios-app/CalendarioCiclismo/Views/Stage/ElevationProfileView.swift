@@ -1,14 +1,113 @@
 import SwiftUI
 
+// MARK: - Profile color contrast
+
+/// Ajusta el color identificativo de una carrera solo cuando no alcanza el
+/// contraste mínimo para elementos gráficos sobre la tarjeta del perfil.
+enum ProfileColorContrast {
+    static let minimumRatio = 3.0
+
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+
+        fileprivate var relativeLuminance: Double {
+            func linear(_ component: Double) -> Double {
+                component <= 0.04045
+                    ? component / 12.92
+                    : pow((component + 0.055) / 1.055, 2.4)
+            }
+
+            return 0.2126 * linear(red)
+                + 0.7152 * linear(green)
+                + 0.0722 * linear(blue)
+        }
+    }
+
+    static func contrastRatio(_ first: RGB, _ second: RGB) -> Double {
+        let lighter = max(first.relativeLuminance, second.relativeLuminance)
+        let darker = min(first.relativeLuminance, second.relativeLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    static func adjustedRGB(
+        _ foreground: RGB,
+        background: RGB,
+        minimumRatio: Double = minimumRatio
+    ) -> RGB {
+        guard contrastRatio(foreground, background) < minimumRatio else {
+            return foreground
+        }
+
+        // En claro se oscurece; en oscuro se aclara. Una búsqueda binaria
+        // obtiene el cambio mínimo que cumple el umbral y conserva el matiz.
+        let target = background.relativeLuminance > 0.5
+            ? RGB(red: 0, green: 0, blue: 0)
+            : RGB(red: 1, green: 1, blue: 1)
+        var lowerBound = 0.0
+        var upperBound = 1.0
+
+        for _ in 0..<24 {
+            let amount = (lowerBound + upperBound) / 2
+            let candidate = mix(foreground, toward: target, amount: amount)
+            if contrastRatio(candidate, background) >= minimumRatio {
+                upperBound = amount
+            } else {
+                lowerBound = amount
+            }
+        }
+
+        return mix(foreground, toward: target, amount: upperBound)
+    }
+
+    static func adjusted(_ color: Color, for colorScheme: ColorScheme) -> Color {
+        let interfaceStyle: UIUserInterfaceStyle = colorScheme == .dark ? .dark : .light
+        let traits = UITraitCollection(userInterfaceStyle: interfaceStyle)
+        let resolved = UIColor(color).resolvedColor(with: traits)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return color
+        }
+
+        let background = colorScheme == .dark
+            ? RGB(red: 30 / 255, green: 38 / 255, blue: 50 / 255)
+            : RGB(red: 250 / 255, green: 251 / 255, blue: 252 / 255)
+        let adjusted = adjustedRGB(
+            RGB(red: Double(red), green: Double(green), blue: Double(blue)),
+            background: background
+        )
+        return Color(
+            red: adjusted.red,
+            green: adjusted.green,
+            blue: adjusted.blue,
+            opacity: Double(alpha)
+        )
+    }
+
+    private static func mix(_ color: RGB, toward target: RGB, amount: Double) -> RGB {
+        RGB(
+            red: color.red + (target.red - color.red) * amount,
+            green: color.green + (target.green - color.green) * amount,
+            blue: color.blue + (target.blue - color.blue) * amount
+        )
+    }
+}
+
 // MARK: - Color helpers
 
 private extension Color {
     static let summitRed   = Color(hex: "c53030")
+    static let finishRed   = Color(hex: "e63d3d")
     static let bonusSprint = Color(hex: "f9ab00")
     static let intSprint   = Color(hex: "0f9d58")
     static let intSplit    = Color(hex: "00838f")
-    static let cobblestone = Color(hex: "b0b0b0")
-    static let sterratoTan = Color(hex: "c8a870")
+    static let cobblestone = Color(hex: "8c8c8c")
+    static let sterratoTan = Color(hex: "c4975a")
 }
 
 // MARK: - Marker model
@@ -17,14 +116,30 @@ private struct ChartMarker: Identifiable {
     enum Source {
         case summit(ProfileSummit)
         case waypoint(ProfileWaypoint)
+        case combined(ProfileSummit, ProfileWaypoint)
     }
     let id: String
     let km: Double
     let source: Source
+    let finishCompanion: Bool
+
+    init(id: String, km: Double, source: Source, finishCompanion: Bool = false) {
+        self.id = id
+        self.km = km
+        self.source = source
+        self.finishCompanion = finishCompanion
+    }
+
+    var kind: String {
+        switch source {
+        case .summit, .combined: return "summit"
+        case .waypoint(let wp): return wp.type
+        }
+    }
 
     var color: Color {
         switch source {
-        case .summit: return .summitRed
+        case .summit, .combined: return .summitRed
         case .waypoint(let wp):
             switch wp.type {
             case "bonus_sprint":        return .bonusSprint
@@ -39,7 +154,7 @@ private struct ChartMarker: Identifiable {
 
     var label: String {
         switch source {
-        case .summit(let s):  return s.category ?? "?"
+        case .summit(let s), .combined(let s, _): return s.category ?? "?"
         case .waypoint(let wp):
             switch wp.type {
             case "bonus_sprint":        return "B"
@@ -52,21 +167,70 @@ private struct ChartMarker: Identifiable {
         }
     }
 
+    var textColor: Color {
+        if case .waypoint(let wp) = source, wp.type == "bonus_sprint" { return .black }
+        return .white
+    }
+
+    var secondaryColor: Color? {
+        if finishCompanion { return .finishRed }
+        guard case .combined(_, let wp) = source else { return nil }
+        return ChartMarker(id: "secondary", km: km, source: .waypoint(wp)).color
+    }
+
+    var secondaryLabel: String? {
+        if finishCompanion { return "" }
+        guard case .combined(_, let wp) = source else { return nil }
+        return ChartMarker(id: "secondary", km: km, source: .waypoint(wp)).label
+    }
+
+    var secondaryKind: String? {
+        if finishCompanion { return "finish" }
+        guard case .combined(_, let wp) = source else { return nil }
+        return wp.type
+    }
+
+    var secondaryTextColor: Color {
+        if finishCompanion { return .white }
+        guard case .combined(_, let wp) = source, wp.type == "bonus_sprint" else { return .white }
+        return .black
+    }
+
     var lengthKm: Double? {
-        if case .waypoint(let wp) = source { return wp.lengthKm }
-        return nil
+        switch source {
+        case .waypoint(let wp), .combined(_, let wp): return wp.lengthKm
+        case .summit: return nil
+        }
     }
 
     var name: String? {
         switch source {
-        case .summit(let s):   return s.name
+        case .summit(let s), .combined(let s, _): return s.name
         case .waypoint(let wp): return wp.name
         }
     }
 
     var altitude: Int? {
-        if case .summit(let s) = source { return s.altitude }
-        return nil
+        switch source {
+        case .summit(let s), .combined(let s, _): return s.altitude
+        case .waypoint: return nil
+        }
+    }
+
+    var secondaryDescription: String? {
+        if finishCompanion { return LocaleService.t("Meta", "Finish") }
+        guard case .combined(_, let wp) = source else { return nil }
+        if let name = wp.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            return name
+        }
+        switch wp.type {
+        case "bonus_sprint":        return LocaleService.t("Bonificación", "Bonus sprint")
+        case "intermediate_sprint": return LocaleService.t("Sprint intermedio", "Intermediate sprint")
+        case "intermediate_split":  return LocaleService.t("Punto intermedio", "Intermediate point")
+        case "cobblestone":         return LocaleService.t("Pavé", "Cobbles")
+        case "sterrato":            return LocaleService.t("Sterrato", "Gravel")
+        default:                     return wp.type
+        }
     }
 }
 
@@ -116,12 +280,13 @@ private struct ChartGeometry {
 
 // MARK: - Chart Card
 
-private struct ElevationChartCard: View {
+struct ElevationChartCard: View {
     let profile: ElevationProfile
     let summits: [ProfileSummit]
     let waypoints: [ProfileWaypoint]
     var profileColor: Color = .accentColor
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedMarker: ChartMarker?
     @State private var selectedClimb: ClimbInfo?
     @State private var cursorKm: Double?
@@ -147,6 +312,10 @@ private struct ElevationChartCard: View {
         let avgGradient: Double
         let gain: Int
         let summitAlt: Int
+    }
+
+    private var visibleProfileColor: Color {
+        ProfileColorContrast.adjusted(profileColor, for: colorScheme)
     }
 
     private var climbs: [ClimbInfo] {
@@ -185,13 +354,39 @@ private struct ElevationChartCard: View {
 
     private var markers: [ChartMarker] {
         var result: [ChartMarker] = []
+        var remainingWaypoints = waypoints.filter { $0.type != "town" }
+        var finishAvailable = true
         for s in summits {
             guard let km = s.km else { continue }
-            result.append(ChartMarker(id: "summit-\(km)-\(s.name ?? "")", km: km, source: .summit(s)))
+            if finishAvailable && km == profile.distance {
+                result.append(ChartMarker(
+                    id: "summit-finish-\(km)-\(s.name ?? "")",
+                    km: km,
+                    source: .summit(s),
+                    finishCompanion: true
+                ))
+                finishAvailable = false
+            } else if let companionIndex = remainingWaypoints.firstIndex(where: { $0.km == km }) {
+                let companion = remainingWaypoints.remove(at: companionIndex)
+                result.append(ChartMarker(
+                    id: "combined-\(km)-\(s.name ?? "")-\(companion.type)",
+                    km: km,
+                    source: .combined(s, companion)
+                ))
+            } else {
+                result.append(ChartMarker(id: "summit-\(km)-\(s.name ?? "")", km: km, source: .summit(s)))
+            }
         }
-        for wp in waypoints where wp.type != "town" {
+        for wp in remainingWaypoints {
             guard let km = wp.km else { continue }
-            result.append(ChartMarker(id: "wp-\(km)-\(wp.type)", km: km, source: .waypoint(wp)))
+            let atFinish = finishAvailable && km == profile.distance
+            result.append(ChartMarker(
+                id: "wp-\(km)-\(wp.type)\(atFinish ? "-finish" : "")",
+                km: km,
+                source: .waypoint(wp),
+                finishCompanion: atFinish
+            ))
+            if atFinish { finishAvailable = false }
         }
         return result
     }
@@ -317,6 +512,30 @@ private struct ElevationChartCard: View {
         .frame(height: 240)
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(LocaleService.t("Perfil interactivo", "Interactive profile"))
+        .accessibilityValue(accessibilityCursorValue)
+        .accessibilityHint(LocaleService.t(
+            "Desliza hacia arriba o abajo para consultar distancia y altitud",
+            "Swipe up or down to explore distance and altitude"
+        ))
+        .accessibilityAdjustableAction { direction in
+            let current = cursorKm ?? 0
+            switch direction {
+            case .increment:
+                cursorKm = min(profile.distance, current + 1)
+            case .decrement:
+                cursorKm = max(0, current - 1)
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private var accessibilityCursorValue: String {
+        let km = cursorKm ?? 0
+        let altitude = Int((altitudeOnCurve(km: km) ?? Double(profile.points.first?.alt ?? 0)).rounded())
+        return "\(formatKmDecimal(km)) · \(formatAltitude(altitude))"
     }
 
     // MARK: Canvas drawing
@@ -379,7 +598,7 @@ private struct ElevationChartCard: View {
         fillPath.addLine(to: CGPoint(x: lastX, y: g.mt + g.plotHeight))
         fillPath.closeSubpath()
 
-        ctx.fill(fillPath, with: .color(profileColor.opacity(0.30)))
+        ctx.fill(fillPath, with: .color(visibleProfileColor.opacity(0.30)))
 
         // Climb zones — área bajo la curva entre startKm y km del summit
         for climb in climbs {
@@ -413,7 +632,7 @@ private struct ElevationChartCard: View {
         for pt in pts.dropFirst() {
             linePath.addLine(to: CGPoint(x: g.x(for: pt.km), y: g.y(for: Double(pt.alt))))
         }
-        ctx.stroke(linePath, with: .color(profileColor), style: StrokeStyle(lineWidth: 1.5))
+        ctx.stroke(linePath, with: .color(visibleProfileColor), style: StrokeStyle(lineWidth: 1.5))
 
         // Pavé/sterrato colored segments (those with lengthKm > 0)
         let segmentWaypoints = waypoints.filter { ($0.lengthKm ?? 0) > 0 && $0.km != nil }
@@ -449,17 +668,44 @@ private struct ElevationChartCard: View {
             guard let alt = altitudeOnCurve(km: marker.km) else { continue }
             let cx = g.x(for: marker.km)
             let cy = g.y(for: alt)
-            let rect = CGRect(x: cx - markerRadius, y: cy - markerRadius,
-                              width: markerRadius * 2, height: markerRadius * 2)
-            ctx.fill(Path(ellipseIn: rect), with: .color(marker.color))
-
-            ctx.draw(
-                Text(marker.label)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white),
-                at: CGPoint(x: cx, y: cy),
-                anchor: .center
-            )
+            var badges: [(color: Color, label: String, textColor: Color, kind: String)] = [
+                (marker.color, marker.label, marker.textColor, marker.kind)
+            ]
+            if let secondaryColor = marker.secondaryColor,
+               let secondaryLabel = marker.secondaryLabel,
+               let secondaryKind = marker.secondaryKind {
+                badges.append((secondaryColor, secondaryLabel, marker.secondaryTextColor, secondaryKind))
+            }
+            let badgeStep: CGFloat = markerRadius * 1.6
+            let centeredStartX = cx - badgeStep * CGFloat(badges.count - 1) / 2
+            let startX = min(centeredStartX, g.size.width - markerRadius - badgeStep * CGFloat(badges.count - 1))
+            for (index, badge) in badges.enumerated() {
+                let badgeX = startX + CGFloat(index) * badgeStep
+                let rect = CGRect(x: badgeX - markerRadius, y: cy - markerRadius,
+                                  width: markerRadius * 2, height: markerRadius * 2)
+                ctx.fill(Path(ellipseIn: rect), with: .color(badge.color))
+                if badge.kind == "cobblestone" || badge.kind == "sterrato" {
+                    drawSurfaceGlyph(type: badge.kind, context: ctx, center: CGPoint(x: badgeX, y: cy), diameter: markerRadius * 2)
+                } else if badge.kind == "finish" {
+                    let tile = markerRadius * 0.44
+                    let origin = CGPoint(x: badgeX - tile, y: cy - tile)
+                    var board = Path()
+                    board.addRect(CGRect(x: origin.x, y: origin.y, width: tile * 2, height: tile * 2))
+                    ctx.fill(board, with: .color(.white.opacity(0.3)))
+                    var checks = Path()
+                    checks.addRect(CGRect(x: origin.x, y: origin.y, width: tile, height: tile))
+                    checks.addRect(CGRect(x: origin.x + tile, y: origin.y + tile, width: tile, height: tile))
+                    ctx.fill(checks, with: .color(.white))
+                } else {
+                    ctx.draw(
+                        Text(badge.label)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(badge.textColor),
+                        at: CGPoint(x: badgeX, y: cy),
+                        anchor: .center
+                    )
+                }
+            }
         }
     }
 
@@ -636,7 +882,7 @@ private struct ElevationChartCard: View {
             let my = g.y(for: alt)
 
             let calloutWidth: CGFloat = 160
-            let calloutHeight: CGFloat = 70
+            let calloutHeight: CGFloat = marker.secondaryDescription == nil ? 70 : 86
             let gap: CGFloat = 14
             let preferAbove = my > 90
             let calloutY = preferAbove ? my - gap - calloutHeight : my + gap
@@ -645,14 +891,12 @@ private struct ElevationChartCard: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
-                    Circle()
-                        .fill(marker.color)
-                        .frame(width: 10, height: 10)
-                    if case .summit(let s) = marker.source, let cat = s.category {
-                        Text(cat.uppercased())
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(marker.color)
+                    markerBadge(color: marker.color, label: marker.label, textColor: marker.textColor, kind: marker.kind)
+                    if let secondaryColor = marker.secondaryColor,
+                       let secondaryLabel = marker.secondaryLabel,
+                       let secondaryKind = marker.secondaryKind {
+                        markerBadge(color: secondaryColor, label: secondaryLabel,
+                                    textColor: marker.secondaryTextColor, kind: secondaryKind)
                     }
                 }
                 if let name = marker.name {
@@ -660,6 +904,12 @@ private struct ElevationChartCard: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                         .lineLimit(2)
+                }
+                if let secondaryDescription = marker.secondaryDescription {
+                    Text(secondaryDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 HStack(spacing: 4) {
                     if let a = marker.altitude ?? (altitudeOnCurve(km: marker.km).map { Int($0) }) {
@@ -679,6 +929,33 @@ private struct ElevationChartCard: View {
             .position(x: clampedX + calloutWidth / 2, y: calloutY + calloutHeight / 2)
             .allowsHitTesting(false)
         }
+    }
+
+    private func markerBadge(color: Color, label: String, textColor: Color, kind: String) -> some View {
+        ZStack {
+            Circle().fill(color)
+            if kind == "cobblestone" || kind == "sterrato" {
+                GuideMarkerView(type: kind, category: nil)
+            } else if kind == "finish" {
+                Canvas { context, size in
+                    let tile = min(size.width, size.height) / 2
+                    var board = Path()
+                    board.addRect(CGRect(x: 0, y: 0, width: tile * 2, height: tile * 2))
+                    context.fill(board, with: .color(.white.opacity(0.3)))
+                    var checks = Path()
+                    checks.addRect(CGRect(x: 0, y: 0, width: tile, height: tile))
+                    checks.addRect(CGRect(x: tile, y: tile, width: tile, height: tile))
+                    context.fill(checks, with: .color(.white))
+                }
+                .frame(width: 7, height: 7)
+            } else {
+                Text(label)
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(textColor)
+            }
+        }
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
     }
 }
 
@@ -747,13 +1024,18 @@ private struct WaypointRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(marker.color)
+            if marker.kind == "cobblestone" || marker.kind == "sterrato" {
+                GuideMarkerView(type: marker.kind, category: nil)
                     .frame(width: 18, height: 18)
-                Text(marker.label)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white)
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(marker.color)
+                        .frame(width: 18, height: 18)
+                    Text(marker.label)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                }
             }
             VStack(alignment: .leading, spacing: 1) {
                 if let name = marker.name, !name.isEmpty {
@@ -850,6 +1132,7 @@ struct ElevationProfileView: View {
             }
             .padding(.vertical)
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

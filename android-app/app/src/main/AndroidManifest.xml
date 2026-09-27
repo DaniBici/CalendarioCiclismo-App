@@ -52,6 +52,10 @@
                       android:host="calendariociclismo.app" />
                 <data android:pathPattern="/competicion/.*" />
                 <data android:pathPattern="/jornada/.*" />
+                <data android:pathPattern="/ciclocross/.*" />
+                <data android:pathPattern="/ciclocross/" />
+                <data android:pathPattern="/en/cyclocross/.*" />
+                <data android:pathPattern="/en/cyclocross/" />
                 <data android:pathPattern="/mes.html" />
                 <data android:pathPattern="/temporada.html" />
                 <data android:pathPattern="/buscar.html" />
@@ -145,9 +149,21 @@
                 tools:node="remove" />
         </provider>
 
-        <!-- ── Widget "Hoy en el ciclismo" ──────────────────────
+        <!-- ── Widget «Carreras de hoy» ─────────────────────────
              GlanceAppWidgetReceiver que gestiona el ciclo de vida
              del widget y delega el renderizado a TodayCyclingWidget. -->
+        <!-- Configuración por instancia del widget (alcance y disciplina). -->
+        <activity
+            android:name=".widget.today.TodayWidgetConfigureActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.CalendarioCiclismo">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".widget.today.TodayCyclingWidgetReceiver"
             android:label="@string/widget_today_title"

@@ -8,6 +8,7 @@ import app.calendariociclismo.android.data.model.ProfileSummit
 import app.calendariociclismo.android.data.model.ProfileWaypoint
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceDayTranslations
+import app.calendariociclismo.android.data.model.TimeLimitBasis
 import kotlinx.serialization.json.Json
 
 @Entity(
@@ -34,6 +35,7 @@ data class RaceDayEntity(
     val primaryType: String?,
     val secondaryType: String?,
     val neutralStartTimeUtc: String?,
+    val realStartTimeUtc: String?,
     val estimatedFinishTimeUtc: String?,
     val tvStatus: String?,
     val description: String?,
@@ -49,6 +51,14 @@ data class RaceDayEntity(
     val profileWaypointsJson: String? = null,
     val profileNotViewable: Boolean = false,
     val routeGpxUrl: String? = null,
+    val raceStatus: String? = null,
+    val competitiveDistanceKm: Double? = null,
+    val timingPolicy: String = "standard",
+    val raceTimeSeconds: Double? = null,
+    val averageSpeedKmh: Double? = null,
+    val timeLimitSeconds: Double? = null,
+    val timeLimitBasisJson: String? = null,
+    val metricsUpdatedAt: String? = null,
     val cachedAt: Long,
 ) {
     fun toModel(): RaceDay = RaceDay(
@@ -68,6 +78,7 @@ data class RaceDayEntity(
         primaryType = primaryType,
         secondaryType = secondaryType,
         neutralStartTimeUtc = neutralStartTimeUtc,
+        realStartTimeUtc = realStartTimeUtc,
         estimatedFinishTimeUtc = estimatedFinishTimeUtc,
         tvStatus = tvStatus,
         description = description,
@@ -91,10 +102,31 @@ data class RaceDayEntity(
         },
         profileNotViewable = profileNotViewable,
         routeGpxUrl = routeGpxUrl,
+        raceStatus = raceStatus,
+        competitiveDistanceKm = competitiveDistanceKm,
+        timingPolicy = timingPolicy,
+        raceTimeSeconds = raceTimeSeconds,
+        averageSpeedKmh = averageSpeedKmh,
+        timeLimitSeconds = timeLimitSeconds,
+        timeLimitBasis = timeLimitBasisJson?.let {
+            runCatching { entityJson.decodeFromString<TimeLimitBasis>(it) }.getOrNull()
+        },
+        metricsUpdatedAt = metricsUpdatedAt,
     )
 
     companion object {
         private val entityJson = Json { ignoreUnknownKeys = true }
+
+        /** Las consultas amplias no incluyen elevación ni salida real. Conservar
+         * esos campos de una descarga completa al actualizar la fila slim. */
+        fun fromSlim(rd: RaceDay, cachedAt: Long, previous: RaceDayEntity?): RaceDayEntity =
+            from(rd, cachedAt).copy(
+                realStartTimeUtc = previous?.realStartTimeUtc,
+                elevationProfileJson = previous?.elevationProfileJson,
+                profileSummitsJson = previous?.profileSummitsJson,
+                profileWaypointsJson = previous?.profileWaypointsJson,
+                profileNotViewable = previous?.profileNotViewable ?: false,
+            )
 
         fun from(rd: RaceDay, cachedAt: Long): RaceDayEntity = RaceDayEntity(
             id = rd.id,
@@ -113,6 +145,7 @@ data class RaceDayEntity(
             primaryType = rd.primaryType,
             secondaryType = rd.secondaryType,
             neutralStartTimeUtc = rd.neutralStartTimeUtc,
+            realStartTimeUtc = rd.realStartTimeUtc,
             estimatedFinishTimeUtc = rd.estimatedFinishTimeUtc,
             tvStatus = rd.tvStatus,
             description = rd.description,
@@ -130,6 +163,16 @@ data class RaceDayEntity(
             profileWaypointsJson = rd.profileWaypoints?.let { entityJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(ProfileWaypoint.serializer()), it) },
             profileNotViewable = rd.profileNotViewable,
             routeGpxUrl = rd.routeGpxUrl,
+            raceStatus = rd.raceStatus,
+            competitiveDistanceKm = rd.competitiveDistanceKm,
+            timingPolicy = rd.timingPolicy,
+            raceTimeSeconds = rd.raceTimeSeconds,
+            averageSpeedKmh = rd.averageSpeedKmh,
+            timeLimitSeconds = rd.timeLimitSeconds,
+            timeLimitBasisJson = rd.timeLimitBasis?.let {
+                entityJson.encodeToString(TimeLimitBasis.serializer(), it)
+            },
+            metricsUpdatedAt = rd.metricsUpdatedAt,
             cachedAt = cachedAt,
         )
     }

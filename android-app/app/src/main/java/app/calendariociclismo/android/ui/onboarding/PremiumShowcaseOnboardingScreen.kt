@@ -4,7 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
@@ -69,24 +71,26 @@ fun PremiumShowcaseOnboardingScreen(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
+                modifier = Modifier.weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
                 Icon(
                     painterResource(R.drawable.ic_launcher_friend_foreground),
                     null,
-                    Modifier.size(84.dp),
+                    Modifier.size(72.dp),
                     tint = androidx.compose.ui.graphics.Color.Unspecified,
                 )
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(20.dp))
                 Text(
                     stringResource(R.string.onboarding_premium_title),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     stringResource(
                         if (isNewInstallation) R.string.onboarding_premium_body_new_installation
@@ -96,7 +100,7 @@ fun PremiumShowcaseOnboardingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -130,12 +134,10 @@ fun PremiumShowcaseOnboardingScreen(
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = {
                         when {
-                            friendActive || !purchaseStateReady -> finish("continue")
+                            friendActive || (!isNewInstallation && !purchaseStateReady) -> finish("continue")
                             legacyActive -> finish("open_contributions") {
                                 app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
                             }
@@ -150,34 +152,35 @@ fun PremiumShowcaseOnboardingScreen(
                 ) {
                     Text(
                         when {
-                            friendActive || !purchaseStateReady -> stringResource(R.string.onboarding_premium_cta_free)
+                            friendActive || (!isNewInstallation && !purchaseStateReady) -> stringResource(R.string.onboarding_premium_cta_free)
                             legacyActive -> LocaleHolder.t("Ver aportaciones puntuales", "View one-time contributions")
                             else -> stringResource(R.string.onboarding_premium_cta_try)
                         },
                         style = MaterialTheme.typography.titleSmall,
                     )
                 }
-                val showSecondaryButton = !isNewInstallation || friendActive || purchaseStateReady
-                if (showSecondaryButton) {
-                    TextButton(onClick = {
+                Spacer(Modifier.height(12.dp))
+                TextButton(
+                    onClick = {
                         when {
                             friendActive -> finish("manage_subscription") { app.premium.cancelSubscription() }
                             !isNewInstallation && !purchaseStateReady -> openExplanation()
                             else -> finish(if (founder) "continue_founder" else "continue_free")
                         }
-                    }) {
-                        Text(
-                            when {
-                                friendActive -> stringResource(R.string.onboarding_premium_manage)
-                                !isNewInstallation && !purchaseStateReady -> stringResource(R.string.onboarding_premium_explain)
-                                else -> stringResource(R.string.onboarding_premium_cta_free)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                ) {
+                    Text(
+                        when {
+                            friendActive -> stringResource(R.string.onboarding_premium_manage)
+                            !isNewInstallation && !purchaseStateReady -> stringResource(R.string.onboarding_premium_explain)
+                            else -> stringResource(R.string.onboarding_premium_cta_free)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Spacer(Modifier.height(36.dp))
+                Spacer(Modifier.height(32.dp))
             }
         }
     }

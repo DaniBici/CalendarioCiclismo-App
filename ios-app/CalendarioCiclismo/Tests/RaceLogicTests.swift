@@ -3,57 +3,34 @@ import XCTest
 
 final class RaceLogicTests: XCTestCase {
 
-    // MARK: - buildExtUrlA
-
-    func test_buildExtUrlA_nilIfNoExtId() {
-        let race = makeRace(extId: nil, year: 2026)
-        XCTAssertNil(RaceLogic.buildExtUrlA(race: race, stageNumber: nil))
+    @MainActor
+    func test_todayFeaturedCardsAreLimitedToCategorySortAndReturnWhenRestored() {
+        XCTAssertTrue(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .category))
+        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .tvTime))
+        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .finishTime))
+        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(false, sortMode: .category))
     }
 
-    func test_buildExtUrlA_baseUrlForOneDay() {
-        let race = makeRace(extId: 17, year: 2026)
-        let url = RaceLogic.buildExtUrlA(race: race, stageNumber: nil)
-        XCTAssertEqual(url?.absoluteString, "https://example.invalid")
+    func test_calendarYear_excludesHistoryAndUnknownYear_usingUTC() {
+        let before = ISO8601DateFormatter().date(from: "2026-12-31T23:59:59Z")!
+        let after = ISO8601DateFormatter().date(from: "2027-01-01T00:00:00Z")!
+        XCTAssertEqual(RaceLogic.calendarYear(now: before), 2026)
+        XCTAssertEqual(RaceLogic.calendarYear(now: after), 2027)
+        XCTAssertFalse(RaceLogic.hasCalendarForYear(nil, now: before))
+        XCTAssertFalse(RaceLogic.hasCalendarForYear(2025, now: before))
+        XCTAssertTrue(RaceLogic.hasCalendarForYear(2026, now: before))
+        XCTAssertFalse(RaceLogic.hasCalendarForYear(2026, now: after))
+        XCTAssertTrue(RaceLogic.hasCalendarForYear(2027, now: after))
     }
 
-    func test_buildExtUrlA_paddedStageNumber() {
-        let race = makeRace(extId: 17, year: 2026)
-        let url = RaceLogic.buildExtUrlA(race: race, stageNumber: 3)
-        XCTAssertTrue(url?.absoluteString.hasSuffix("&e=03") == true)
-    }
-
-    func test_buildExtUrlA_twoDigitStageNumber() {
-        let race = makeRace(extId: 17, year: 2026)
-        let url = RaceLogic.buildExtUrlA(race: race, stageNumber: 14)
-        XCTAssertTrue(url?.absoluteString.hasSuffix("&e=14") == true)
-    }
-
-    // MARK: - buildExtUrlB
-
-    func test_buildExtUrlB_nilIfNoExtSlug() {
-        let race = makeRace(extSlug: nil, year: 2026)
-        XCTAssertNil(RaceLogic.buildExtUrlB(race: race, stageNumber: nil))
-    }
-
-    func test_buildExtUrlB_resultForOneDay() {
-        let race = makeRace(extSlug: "tour-de-france", year: 2026)
-        let url = RaceLogic.buildExtUrlB(race: race, stageNumber: nil)
-        XCTAssertEqual(url?.absoluteString,
-            "https://example.invalid")
-    }
-
-    func test_buildExtUrlB_prologueForStageZero() {
-        let race = makeRace(extSlug: "tour-de-france", year: 2026)
-        let url = RaceLogic.buildExtUrlB(race: race, stageNumber: 0)
-        XCTAssertEqual(url?.absoluteString,
-            "https://example.invalid")
-    }
-
-    func test_buildExtUrlB_stageUrlWithoutPadding() {
-        let race = makeRace(extSlug: "giro-d-italia", year: 2026)
-        let url = RaceLogic.buildExtUrlB(race: race, stageNumber: 5)
-        XCTAssertEqual(url?.absoluteString,
-            "https://example.invalid")
+    func test_missingRaceIds_returnsOnlyUnresolvedParentsWithoutDuplicates() {
+        let loaded = makeRace(id: "tour", name: "Tour de Francia")
+        let days = [
+            makeRaceDay(id: "d1", raceId: "tour"),
+            makeRaceDay(id: "d2", raceId: "renewi"),
+            makeRaceDay(id: "d3", raceId: "renewi"),
+        ]
+        XCTAssertEqual(RaceLogic.missingRaceIds(raceDays: days, races: [loaded]), ["renewi"])
     }
 
     // MARK: - isRaceConcluded
@@ -78,6 +55,26 @@ final class RaceLogicTests: XCTestCase {
     func test_isRaceConcluded_falseFarInTheFuture() {
         let rd = makeRaceDay(dateKey: "2090-01-01", estimatedFinishTimeUtc: "2090-01-01T15:00:00Z")
         XCTAssertFalse(RaceLogic.isRaceConcluded(rd: rd))
+    }
+
+    func test_todayRaceState_prioritizesCancelledRestAndResultsBeforeWaiting() {
+        let finished = makeRaceDay(raceStatus: "finished")
+        XCTAssertEqual(RaceLogic.todayRaceState(rd: makeRaceDay(isCancelledDay: true, raceStatus: "finished"), hasInhouseResults: true), .cancelled)
+        XCTAssertEqual(RaceLogic.todayRaceState(rd: makeRaceDay(isRestDay: true, raceStatus: "finished"), hasInhouseResults: true), .rest)
+        XCTAssertEqual(RaceLogic.todayRaceState(rd: finished, hasInhouseResults: true), .results)
+    }
+
+    func test_todayRaceState_waitsAfterFinishedStatusOrEstimatedFinish() {
+        XCTAssertEqual(RaceLogic.todayRaceState(rd: makeRaceDay(raceStatus: "finished"), hasInhouseResults: false), .waiting)
+        let now = ISO8601DateFormatter().date(from: "2026-01-01T15:00:01Z")!
+        XCTAssertEqual(
+            RaceLogic.todayRaceState(
+                rd: makeRaceDay(estimatedFinishTimeUtc: "2026-01-01T15:00:00Z"),
+                hasInhouseResults: false,
+                now: now
+            ),
+            .waiting
+        )
     }
 
     // MARK: - broadcastLinkPriority
@@ -276,26 +273,6 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertEqual(name, RaceLogic.cleanFeminineDisplayName(name))
     }
 
-    // MARK: - shouldShowResults
-
-    func test_shouldShowResults_falseForRestDay() {
-        let rd = makeRaceDay(isRestDay: true)
-        let race = makeRace(extId: 1)
-        XCTAssertFalse(RaceLogic.shouldShowResults(rd: rd, race: race))
-    }
-
-    func test_shouldShowResults_falseForCancelledDay() {
-        let rd = makeRaceDay(isCancelledDay: true)
-        let race = makeRace(extId: 1)
-        XCTAssertFalse(RaceLogic.shouldShowResults(rd: rd, race: race))
-    }
-
-    func test_shouldShowResults_falseIfNoIds() {
-        let rd = makeRaceDay()
-        let race = makeRace(extId: nil, extSlug: nil)
-        XCTAssertFalse(RaceLogic.shouldShowResults(rd: rd, race: race))
-    }
-
     // MARK: - raceTimeCheck dateKey guard
 
     func test_raceTimeCheck_ignoresFinishDateBeforeDateKey() {
@@ -337,10 +314,13 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
     }
 
-    func test_hasReviveBroadcasts_usesDateFallbackWithoutFinishTime() {
-        let rd = makeRaceDay(dateKey: "2020-01-01", estimatedFinishTimeUtc: nil)
+    func test_hasReviveBroadcasts_requiresCurrentDayResults() {
         let broadcasts = [makeBroadcast(channel: "Pidcock Racing", url: "https://video.example/race", showInRevive: true)]
-        XCTAssertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, rd: rd))
+        XCTAssertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults: true))
+        XCTAssertFalse(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults: false))
+        XCTAssertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults: true, isCancelled: true))
+        XCTAssertFalse(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults: false, isCancelled: true))
+        XCTAssertFalse(RaceLogic.hasReviveBroadcasts([], hasCurrentResults: true))
     }
 
     func test_shouldShowBroadcastNote_hidesEveryNoteOnceResultsExist() {
@@ -426,9 +406,8 @@ final class RaceLogicTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeRace(
+        id: String = UUID().uuidString,
         name: String = "Test Race",
-        extId: Int? = nil,
-        extSlug: String? = nil,
         year: Int? = 2026,
         uciCategory: String? = "1.UWT",
         countryCode: String? = nil,
@@ -436,7 +415,7 @@ final class RaceLogicTests: XCTestCase {
         isGrandTour: Bool = false
     ) -> Race {
         Race(
-            id: UUID().uuidString,
+            id: id,
             name: name,
             nameEn: nil,
             abbrev: nil,
@@ -447,8 +426,6 @@ final class RaceLogicTests: XCTestCase {
             colorHex: nil,
             logoUrl: nil,
             websiteUrl: nil,
-            extId: extId,
-            extSlug: extSlug,
             hideFlag: false,
             isGrandTour: isGrandTour,
             isCancelled: false,
@@ -458,21 +435,23 @@ final class RaceLogicTests: XCTestCase {
             slug: nil,
             originalName: nil,
             startlistImportedAt: nil,
-            startlistProvisional: nil,
-            enrichedStartlist: nil
+            startlistProvisional: nil
         )
     }
 
     private func makeRaceDay(
+        id: String = UUID().uuidString,
+        raceId: String? = nil,
         dateKey: String = "2026-01-01",
         isRestDay: Bool = false,
         isCancelledDay: Bool = false,
         estimatedFinishTimeUtc: String? = nil,
-        stageNumber: Int? = 1
+        stageNumber: Int? = 1,
+        raceStatus: String? = nil
     ) -> RaceDay {
         RaceDay(
-            id: UUID().uuidString,
-            raceId: nil,
+            id: id,
+            raceId: raceId,
             dateKey: dateKey,
             slug: nil,
             isRestDay: isRestDay,
@@ -492,7 +471,8 @@ final class RaceLogicTests: XCTestCase {
             editorialStatus: "published",
             hasAssets: false,
             updatedAt: nil,
-            countryCode: nil
+            countryCode: nil,
+            raceStatus: raceStatus
         )
     }
 
@@ -567,6 +547,26 @@ final class RaceLogicTests: XCTestCase {
         } else {
             XCTFail("Esperado .time para una hora de TV futura")
         }
+    }
+
+    func test_matchesCategory_worldAndContinentalRespectGender() {
+        let worldMen = makeRace(name: "Campeonato del Mundo CRI masculino", uciCategory: "WC", gender: "male")
+        let worldWomen = makeRace(name: "Campeonato del Mundo CRI femenino", uciCategory: "WC", gender: "female")
+        let europeMen = makeRace(name: "Campeonato de Europa línea masculino", uciCategory: "CC", gender: "male")
+        let europeWomen = makeRace(name: "Campeonato de Europa línea femenino", uciCategory: "CC", gender: "female")
+        let mixedRelay = makeRace(name: "Campeonato del Mundo CRE relevo mixto", uciCategory: "WC", gender: nil)
+
+        XCTAssertTrue(RaceLogic.matchesCategory(worldMen, filter: .male))
+        XCTAssertFalse(RaceLogic.matchesCategory(worldMen, filter: .female))
+        XCTAssertTrue(RaceLogic.matchesCategory(worldWomen, filter: .female))
+        XCTAssertFalse(RaceLogic.matchesCategory(worldWomen, filter: .male))
+        XCTAssertTrue(RaceLogic.matchesCategory(europeMen, filter: .male))
+        XCTAssertFalse(RaceLogic.matchesCategory(europeMen, filter: .female))
+        XCTAssertTrue(RaceLogic.matchesCategory(europeWomen, filter: .female))
+        XCTAssertFalse(RaceLogic.matchesCategory(europeWomen, filter: .male))
+        XCTAssertTrue(RaceLogic.matchesCategory(mixedRelay, filter: .male))
+        XCTAssertTrue(RaceLogic.matchesCategory(mixedRelay, filter: .female))
+        XCTAssertTrue(RaceLogic.matchesCategory(mixedRelay, filter: .pro))
     }
 
     // MARK: - matchesCategory con Campeonatos Nacionales (CN)

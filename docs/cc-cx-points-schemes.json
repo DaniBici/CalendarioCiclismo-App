@@ -1,0 +1,1008 @@
+{
+  "checkedAt": "2026-09-12",
+  "scope": "reference_only_not_seeded",
+  "references": [
+    {
+      "tournament": "Copa del Mundo",
+      "referenceEdition": "UCI Part V 01.07.2025",
+      "pointsScheme": {
+        "version": 1,
+        "status": "reference_requires_edition_review",
+        "sourceUrls": [
+          "https://assets.ctfassets.net/761l7gh5x5an/3X0PPNdbWNAhMGaZzKly8J/7cfe482b94626424f9967d6df5cb3f38/5-CRO-20250701-E.pdf"
+        ],
+        "categories": {
+          "ME": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            }
+          },
+          "WE": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            }
+          },
+          "MU": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "bestResults",
+              "byHeldRounds": [
+                {
+                  "max": 7,
+                  "keep": 4
+                },
+                {
+                  "exact": 8,
+                  "keep": 5
+                }
+              ],
+              "outsideRules": "stopForReview"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            }
+          },
+          "MJ": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "bestResults",
+              "byHeldRounds": [
+                {
+                  "max": 7,
+                  "keep": 4
+                },
+                {
+                  "exact": 8,
+                  "keep": 5
+                }
+              ],
+              "outsideRules": "stopForReview"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            }
+          },
+          "WJ": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "bestResults",
+              "byHeldRounds": [
+                {
+                  "max": 7,
+                  "keep": 4
+                },
+                {
+                  "exact": 8,
+                  "keep": 5
+                }
+              ],
+              "outsideRules": "stopForReview"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            }
+          },
+          "WU": {
+            "mode": "points",
+            "perRank": [
+              40,
+              30,
+              25,
+              22,
+              21,
+              20,
+              19,
+              18,
+              17,
+              16,
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "countPlacings",
+                "ranksFrom": 1,
+                "ranksTo": 25,
+                "direction": "desc",
+                "droppedPlacingsPolicy": "requiresOfficialCotejo"
+              },
+              {
+                "type": "latestRoundPoints",
+                "direction": "desc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "derived": {
+                "fromCategory": "WE",
+                "ages": [
+                  19,
+                  22
+                ],
+                "ageReference": "seasonEndYear",
+                "rankPolicy": "preserveSourceRank",
+                "validation": "requiresOfficialCotejo"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "tournament": "Superprestige",
+      "referenceEdition": "2025-26",
+      "pointsScheme": {
+        "version": 1,
+        "status": "reference_requires_edition_review",
+        "sourceUrls": [
+          "https://www.superprestigecyclocross.be/nl/reglement"
+        ],
+        "categories": {
+          "ME": {
+            "mode": "points",
+            "perRank": [
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "starts",
+                "direction": "desc",
+                "excludeIrm": [
+                  "DNS"
+                ]
+              },
+              {
+                "type": "wins",
+                "direction": "desc"
+              },
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            },
+            "rounds": {
+              "expected": 8,
+              "scope": "category",
+              "requiresEditionReview": true
+            }
+          },
+          "WE": {
+            "mode": "points",
+            "perRank": [
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "starts",
+                "direction": "desc",
+                "excludeIrm": [
+                  "DNS"
+                ]
+              },
+              {
+                "type": "wins",
+                "direction": "desc"
+              },
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "sprints": {
+                "enabled": false
+              }
+            },
+            "rounds": {
+              "expected": 8,
+              "scope": "category",
+              "requiresEditionReview": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "tournament": "X2O Trofee",
+      "referenceEdition": "2025-26",
+      "pointsScheme": {
+        "version": 1,
+        "status": "reference_requires_edition_review",
+        "sourceUrls": [
+          "https://x2otrofee.be/wp-content/uploads/sites/133/2025/09/Reglement-X2O-Badkamers-trofee-veldrijden-2025-2026.pdf"
+        ],
+        "categories": {
+          "ME": {
+            "mode": "time",
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "bestSeriesRank",
+                "direction": "asc"
+              },
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "precision": "wholeSeconds",
+              "timeSource": "timeSeconds",
+              "bonusesSource": "bonusSeconds",
+              "bonusesOperation": "subtract",
+              "unknownBonusesPolicy": "stopForReview",
+              "sprints": {
+                "enabled": true,
+                "unit": "seconds",
+                "countPerRound": 1,
+                "phase": "endOfFirstLap",
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ]
+              },
+              "fastestLap": {
+                "enabled": true,
+                "unit": "seconds",
+                "excludeStartLoop": true,
+                "perRider": true,
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ],
+                "tiePolicy": "requiresOfficialReport"
+              },
+              "forfait": {
+                "gapSeconds": 300,
+                "states": [
+                  "DNS",
+                  "DNF",
+                  "LAP",
+                  "missingRound"
+                ],
+                "finishGapCapSeconds": 300,
+                "applyBeforeBonuses": true
+              },
+              "eligibility": {
+                "finishWithinWinnerSecondsAtLeastOnce": 300
+              },
+              "bonusPublication": {
+                "status": "sourceNotVerified",
+                "resultsUrl": "https://x2otrofee.be/uitslagen/",
+                "standingsUrls": [
+                  "https://x2otrofee.be/klassement-elite-mannen/",
+                  "https://x2otrofee.be/klassement-elite-vrouwen/",
+                  "https://x2otrofee.be/klassement-u23/"
+                ]
+              }
+            },
+            "rounds": {
+              "expected": 8,
+              "scope": "category",
+              "requiresEditionReview": true
+            }
+          },
+          "WE": {
+            "mode": "time",
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "bestSeriesRank",
+                "direction": "asc"
+              },
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "precision": "wholeSeconds",
+              "timeSource": "timeSeconds",
+              "bonusesSource": "bonusSeconds",
+              "bonusesOperation": "subtract",
+              "unknownBonusesPolicy": "stopForReview",
+              "sprints": {
+                "enabled": true,
+                "unit": "seconds",
+                "countPerRound": 1,
+                "phase": "endOfFirstLap",
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ]
+              },
+              "fastestLap": {
+                "enabled": true,
+                "unit": "seconds",
+                "excludeStartLoop": true,
+                "perRider": true,
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ],
+                "tiePolicy": "requiresOfficialReport"
+              },
+              "forfait": {
+                "gapSeconds": 300,
+                "states": [
+                  "DNS",
+                  "DNF",
+                  "LAP",
+                  "missingRound"
+                ],
+                "finishGapCapSeconds": 300,
+                "applyBeforeBonuses": true
+              },
+              "eligibility": {
+                "finishWithinWinnerSecondsAtLeastOnce": 300
+              },
+              "bonusPublication": {
+                "status": "sourceNotVerified",
+                "resultsUrl": "https://x2otrofee.be/uitslagen/",
+                "standingsUrls": [
+                  "https://x2otrofee.be/klassement-elite-mannen/",
+                  "https://x2otrofee.be/klassement-elite-vrouwen/",
+                  "https://x2otrofee.be/klassement-u23/"
+                ]
+              }
+            },
+            "rounds": {
+              "expected": 8,
+              "scope": "category",
+              "requiresEditionReview": true
+            }
+          },
+          "MU": {
+            "mode": "time",
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "bestSeriesRank",
+                "direction": "asc"
+              },
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": false
+              },
+              "precision": "wholeSeconds",
+              "timeSource": "timeSeconds",
+              "bonusesSource": "bonusSeconds",
+              "bonusesOperation": "subtract",
+              "unknownBonusesPolicy": "stopForReview",
+              "sprints": {
+                "enabled": true,
+                "unit": "seconds",
+                "countPerRound": 1,
+                "phase": "endOfFirstLap",
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ]
+              },
+              "fastestLap": {
+                "enabled": true,
+                "unit": "seconds",
+                "excludeStartLoop": true,
+                "perRider": true,
+                "perRank": [
+                  15,
+                  10,
+                  5
+                ],
+                "tiePolicy": "requiresOfficialReport"
+              },
+              "forfait": {
+                "gapSeconds": 300,
+                "states": [
+                  "DNS",
+                  "DNF",
+                  "LAP",
+                  "missingRound"
+                ],
+                "finishGapCapSeconds": 300,
+                "applyBeforeBonuses": true
+              },
+              "eligibility": {
+                "finishWithinWinnerSecondsAtLeastOnce": 300
+              },
+              "bonusPublication": {
+                "status": "sourceNotVerified",
+                "resultsUrl": "https://x2otrofee.be/uitslagen/",
+                "standingsUrls": [
+                  "https://x2otrofee.be/klassement-elite-mannen/",
+                  "https://x2otrofee.be/klassement-elite-vrouwen/",
+                  "https://x2otrofee.be/klassement-u23/"
+                ]
+              }
+            },
+            "rounds": {
+              "expected": 8,
+              "scope": "category",
+              "requiresEditionReview": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "tournament": "Copa de España",
+      "referenceEdition": "RFEC Title V 09.09.2025",
+      "pointsScheme": {
+        "version": 1,
+        "status": "reference_requires_edition_review",
+        "sourceUrls": [
+          "https://yosoyciclista.s3.amazonaws.com/documentos/smartweb/menu/123/doc_68c7c0ddc9db25_29075634_5-Pruebas-de-Ciclo-Cross--ap-CD-20250909_b_IZDA.pdf"
+        ],
+        "categories": {
+          "ME": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          },
+          "WE": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          },
+          "MU": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          },
+          "WU": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          },
+          "MJ": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          },
+          "WJ": {
+            "mode": "points",
+            "perRank": [
+              25,
+              20,
+              16,
+              14,
+              12,
+              10,
+              9,
+              8,
+              7,
+              6,
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            "drops": {
+              "mode": "none"
+            },
+            "tieBreakers": [
+              {
+                "type": "lastHeldRoundRank",
+                "direction": "asc"
+              }
+            ],
+            "extras": {
+              "pointAdjustments": {
+                "enabled": true,
+                "requiresAudit": true,
+                "leaderJerseyPenalty": -25
+              },
+              "sprints": {
+                "enabled": false
+              },
+              "rankPolicy": "officialCategoryRank",
+              "combinedRacePolicy": "requiresCategoryClassification"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

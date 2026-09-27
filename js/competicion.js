@@ -1,3 +1,5 @@
+import { todayRaceState, waitingResultsHtml as renderWaitingResults } from './services/race-presentation.js';
+import { arrowHtml } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  COMPETICIÓN — competicion.html?id=RACE_ID
 // ─────────────────────────────────────────────────────────────────
@@ -5,17 +7,46 @@
 import { supabase, stageLabel, countryFlag, formatTime, formatTimeUser,
          typeBadge, resolveTypeBadges, setMeta, setMetaProperty, tsSeconds, initPhTooltip, esc,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
-         extractYouTubeId, startOrderUrl, seoLongDate, seoDayMonth, buildTimeStack, buildRaceHeader,
-         articuloNombre, femaleMark }
+         extractYouTubeId, startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
+         articuloNombre, femaleMark, setRaceRobots }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
-import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
 import { buildElevationSparkline } from './elevation-profile.js';
 import { isReviveBroadcast } from './broadcast-priority.js';
+import { agendaMetaState } from './services/today-agenda-layout.js?v=20260920featured-sort';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
 import { tvBadge } from './race-assets.js';
+
+function composeCompetitionCards(content) {
+  content.querySelectorAll('.race-card--stage').forEach(card => {
+    const main = card.querySelector('.race-card__main'), meta = card.querySelector('.race-card__meta');
+    if (!main || !meta) return;
+    card.classList.add('race-card--composed');
+    const identity = document.createElement('div'); identity.className = 'race-card__identity';
+    card.prepend(identity); identity.append(main);
+    const sub = main.querySelector('.race-card__sub');
+    const route = sub?.querySelector('.race-card__route');
+    const metrics = [...(sub?.querySelectorAll('.race-card__km,.race-card__elev') || [])];
+    if (sub) {
+      sub.replaceChildren();
+      if (route) sub.append(route);
+      const values = document.createElement('span'); values.className = 'race-card__metrics';
+      metrics.forEach((node,index) => { if (index) values.append(' · '); values.append(node); });
+      sub.append(values);
+    }
+    const actions = document.createElement('div'); actions.className = 'race-card__actions';
+    main.querySelectorAll('a.badge,.badge--tv,.badge--livetext,.badge--notv,.badge--notv-es').forEach(node => actions.append(node));
+    if (actions.childNodes.length) meta.append(actions);
+    const profileNodes = card.querySelectorAll(':scope>.race-card__elevation,:scope>.race-card__ep-inds');
+    if (profileNodes.length) {
+      const profile = document.createElement('div'); profile.className = 'race-card__profile';
+      profileNodes.forEach(node => profile.append(node)); identity.after(profile);
+    }
+  });
+}
 
 function formatDateShort(dk) {
   if (!dk) return '';
@@ -46,25 +77,40 @@ const _tvSvgC     = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height=
 const _timerSvgC  = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
 const _trophySvgC = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>';
 
-function _raceTimeCheckC(rd, offsetMinutes) {
-  if (rd.estimatedFinishTimeUtc && rd.dateKey) {
-    const [y, m, d] = rd.dateKey.split('-').map(Number);
-    const finish = new Date(rd.estimatedFinishTimeUtc);
-    if (finish.getTime() >= Date.UTC(y, m - 1, d)) {
-      return new Date() >= new Date(finish.getTime() + offsetMinutes * 60 * 1000);
-    }
-  }
-  if (rd.dateKey) {
-    const [y, m, d] = rd.dateKey.split('-').map(Number);
-    return new Date() >= new Date(Date.UTC(y, m - 1, d, 18, 0, 0) + offsetMinutes * 60 * 1000);
-  }
-  return false;
+function waitingResultsHtml() {
+  return renderWaitingResults(getLang());
 }
-function _shouldShowResultsC(rd, extId, extSlug) {
-  if (rd.isRestDay || rd.isCancelledDay) return false;
-  if (!extId && !extSlug) return false;
-  if (rd._allowExternalResults === false) return false;
-  return _raceTimeCheckC(rd, 30);
+function competitionScheduleHtml(rd, state, startTU, finishTU) {
+  const schedule = agendaMetaState(state, {
+    start: startTU?.display,
+    finish: finishTU?.display,
+    lang: getLang(),
+    isTimeTrial: rd.primaryType === 'itt' || rd.primaryType === 'ttt',
+  });
+  if (schedule.kind === 'waiting') return waitingResultsHtml();
+  if (schedule.kind !== 'schedule') return '';
+  const tooltip = (schedule.time === 'finish' ? finishTU : startTU)?.tooltip;
+  const title = tooltip ? ` title="${getLang() === 'en' ? 'Madrid time' : 'Hora Madrid'} · ${esc(tooltip)}"` : '';
+  return `<div class="race-card__schedule${schedule.time === 'finish' ? ' race-card__schedule--finish' : ''}"${title}><span>${schedule.label}</span><strong>${schedule.value}</strong></div>`;
+}
+function watchCompetitionWaiting(content, days) {
+  content._waitingCleanup?.();
+  const byId = new Map(days.map(day => [day.id,day]));
+  const update = () => {
+    if (document.hidden) return;
+    content.querySelectorAll('[data-day-id]').forEach(card => {
+      const day = byId.get(card.dataset.dayId), meta = card.querySelector('.race-card__meta-top');
+      if (day && todayRaceState(day)==='waiting' && meta && !meta.querySelector('.badge--results,.race-card__schedule--waiting')) {
+        meta.innerHTML=waitingResultsHtml();
+        card.querySelector('.race-card__actions')?.remove();
+      }
+    });
+  };
+  const timer=setInterval(update,60000);
+  document.addEventListener('visibilitychange',update);
+  const cleanup=()=> { clearInterval(timer);document.removeEventListener('visibilitychange',update);window.removeEventListener('pagehide',cleanup); };
+  content._waitingCleanup=cleanup;
+  window.addEventListener('pagehide',cleanup,{once:true});
 }
 // Cablea el badge "Resultados" con un listener DIRECTO (no delegado): el badge
 // vive dentro de una fila con onclick→jornada, así que necesita stopPropagation
@@ -137,7 +183,7 @@ async function init() {
       const _isEnBack = getLang() === 'en';
       backBtn.href = _isEnBack
         ? `${enBase()}/calendar/?${qs}`
-        : CONFIG.basePath + '/calendario.html?' + qs;
+        : CONFIG.basePath + '/calendario/?' + qs;
     } else if (fromVal === 'mes') {
       // Leer mes desde URL (?month=YYYY-MM) o desde sessionStorage
       const monthParam = params.get('month');
@@ -154,10 +200,10 @@ async function init() {
       const _isEnBackM = getLang() === 'en';
       backBtn.href = _isEnBackM
         ? `${enBase()}/calendar/?${qs}`
-        : CONFIG.basePath + '/calendario.html?' + qs;
+        : CONFIG.basePath + '/calendario/?' + qs;
     } else if (fromVal === 'dia') {
       const date = params.get('date') || navState.date || '';
-      backBtn.href = CONFIG.basePath + '/index.html' + (date ? '?date=' + date : '');
+      backBtn.href = CONFIG.basePath + '/' + (date ? '?date=' + date : '');
     }
   }
 
@@ -225,11 +271,11 @@ async function init() {
           supabase.from('assets').select('*').in('raceDayId', dayIds),
           loadInhouseStageSet([id]),
         ])
-      : [{ data: [] }, { data: [] }, { has: () => false, allowsExternal: () => true }];
+      : [{ data: [] }, { data: [] }, { has: () => false }];
     const bByRd = {}, aByRd = {};
     (bResult.data || []).forEach(b => { (bByRd[b.raceDayId] = bByRd[b.raceDayId] || []).push(b); });
     (aResult.data || []).forEach(a => { (aByRd[a.raceDayId] = aByRd[a.raceDayId] || []).push(a); });
-    days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); rd._allowExternalResults = inhouseSet.allowsExternal(rd.raceId); });
+    days.forEach(rd => { const _allB = bByRd[rd.id] || []; rd._broadcasts = filterBroadcastsByRegion(_allB); rd._tvBlocked = _allB.length > 0 && rd._broadcasts.length === 0; rd._assets = aByRd[rd.id] || []; rd._hasInhouse = inhouseSet.has(rd); });
     annotateDoubleSectors(days);
 
     const flag        = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
@@ -255,14 +301,14 @@ async function init() {
     let html = buildRaceHeader({ race, nameHref: '', detail: detailC });
 
     // Lista de etapas
-    html += `<div style="max-width:860px;padding:1rem 1.5rem 3rem">`;
+    html += `<div style="padding:1rem 0 3rem">`;
 
     // Web oficial + Libro de Ruta + Inscritos. La guía se guarda una vez en
     // assets de cualquier etapa y se resuelve aquí a nivel de competición.
     const hasStartlistC = !!race.startlistImportedAt;
     let websiteBtnHtmlC = '';
     if (race.websiteUrl) {
-      websiteBtnHtmlC = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ${t('stage.websiteLabel')}</a>`;
+      websiteBtnHtmlC = `<a class="asset-btn" href="${race.websiteUrl}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="asset-btn__label">${t('stage.websiteLabel')}</span></a>`;
     }
     const technicalGuideC = days.flatMap(day => day._assets || [])
       .find(asset => asset.type === 'technicalGuide' && (asset.url || asset.filePath));
@@ -272,7 +318,7 @@ async function init() {
       const safeGuideUrl = guideUrl.replace(/'/g, "\\'");
       const guideLabel = t('assets.technicalGuide');
       const safeGuideLabel = guideLabel.replace(/'/g, "\\'");
-      technicalGuideBtnHtmlC = `<button class="asset-btn" type="button" onclick="openAssetModal('${safeGuideUrl}','${safeGuideLabel}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg> ${guideLabel}</button>`;
+      technicalGuideBtnHtmlC = `<button class="asset-btn" type="button" onclick="openAssetModal('${safeGuideUrl}','${safeGuideLabel}')"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg><span class="asset-btn__label">${guideLabel}</span></button>`;
     }
     let startlistBtnHtmlC = '';
     if (hasStartlistC) {
@@ -280,10 +326,10 @@ async function init() {
         ? `${CONFIG.basePath}/inscritos/${encodeURIComponent(race.slug)}/`
         : `${CONFIG.basePath}/inscritos.html?race=${race.id}`;
       const startlistLabelC = race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'));
-      startlistBtnHtmlC = `<a class="asset-btn" href="${inscritosHrefC}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg> ${startlistLabelC}</a>`;
+      startlistBtnHtmlC = `<a class="asset-btn" href="${inscritosHrefC}"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg><span class="asset-btn__label">${startlistLabelC}</span></a>`;
     }
     if (websiteBtnHtmlC || technicalGuideBtnHtmlC || startlistBtnHtmlC) {
-      html += `<div class="asset-links" style="margin-bottom:0.85rem">${websiteBtnHtmlC}${technicalGuideBtnHtmlC}${startlistBtnHtmlC}</div>`;
+      html += `<div class="asset-links-wrap" style="margin-bottom:0.85rem"><div class="asset-links" data-scroll-rail>${websiteBtnHtmlC}${technicalGuideBtnHtmlC}${startlistBtnHtmlC}</div>${arrowHtml('prev',getLang()==='en'?'Previous actions':'Acciones anteriores','hidden')}${arrowHtml('next',getLang()==='en'?'More actions':'Más acciones','hidden')}</div>`;
       html += `<hr style="border:none;border-top:1px solid var(--border);margin:0 0 0.85rem">`;
     }
 
@@ -317,11 +363,6 @@ async function init() {
         const elev   = _elevGainC != null ? `+${String(Math.round(_elevGainC / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEnC ? ',' : '.')} m` : '';
         const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
         const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-        const start  = startTU?.display  ?? null;
-        const finish = finishTU?.display ?? null;
-        const timeTip = (startTU?.tooltip || finishTU?.tooltip)
-          ? 'Hora Madrid · ' + [startTU?.tooltip, finishTU?.tooltip].filter(Boolean).join(' – ')
-          : null;
 
         const typeBadges = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType) : '';
         const routePart = route ? `<span class="race-card__route">${route}</span>` : '';
@@ -342,39 +383,13 @@ async function init() {
         // tipo y descripción — describen la etapa que estaba trazada. Antes se
         // quedaba muerta mientras sus hermanas sí abrían.
         const rdHasModal  = !rdClickable && hasModalData(rd);
-        // Con clasificaciones propias → modo terminado sin esperar a la heurística
-        // horaria ni exigir extId/extSlug (paridad apps: hasInhouse || shouldShowResults)
-        const showResultsC = rd._hasInhouse === true || _shouldShowResultsC(rd, race.extId, race.extSlug);
-        const hideNoIdsC = !rd._hasInhouse && !rd.isCancelledDay
-          && ((!race.extId && !race.extSlug) || rd._allowExternalResults === false)
-          && _raceTimeCheckC(rd, 0);
+        const state = todayRaceState(rd);
+        const showResultsC = state === 'results';
+        const hideNoIdsC = state === 'waiting';
         // Elevation sparkline
         const _isTimeTrial1 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-        let epSvgHtml1 = null;
-        if (rd.elevationProfile && !rd.isCancelledDay) {
-          if (showResultsC || hideNoIdsC) {
-            epSvgHtml1 = buildElevationSparkline(rd.elevationProfile, 1, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-          } else {
-            if (rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
-              const now1 = Date.now();
-              const startMs1 = new Date(rd.neutralStartTimeUtc).getTime();
-              const endMs1   = new Date(rd.estimatedFinishTimeUtc).getTime();
-              const cutMs1   = (race.extId || race.extSlug) ? endMs1 + 30 * 60 * 1000 : endMs1;
-              if (endMs1 > startMs1 && now1 >= startMs1 && now1 < cutMs1) {
-                const pct1 = _isTimeTrial1 ? 0 : Math.min(100, Math.round((now1 - startMs1) / (endMs1 - startMs1) * 100));
-                epSvgHtml1 = buildElevationSparkline(rd.elevationProfile, pct1 / 100, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-              }
-            }
-            if (!epSvgHtml1) {
-              const showStatic1 = rd.neutralStartTimeUtc
-                ? Date.now() < new Date(rd.neutralStartTimeUtc).getTime()
-                : !_raceTimeCheckC(rd, 30);
-              if (showStatic1) {
-                epSvgHtml1 = buildElevationSparkline(rd.elevationProfile, 0, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-              }
-            }
-          }
-        }
+        const epSvgHtml1 = rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
+          ? buildElevationSparkline(rd.elevationProfile, rd._hasInhouse ? 1 : 0, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []) : null;
 
         const _startOrderAsset1 = rd._assets ? rd._assets.find(a => a.url && a.type === 'startOrder') : null;
         const _showStartOrder1 = !!_startOrderAsset1 && _isTimeTrial1 && !rd.isCancelledDay && !showResultsC && !hideNoIdsC;
@@ -394,7 +409,7 @@ async function init() {
           + _startOrderBadgeHtml1
           + `</div>`;
         const _finishedC1 = showResultsC;
-        html += `<div class="race-card race-card--stage${epSvgHtml1 ? ' race-card--elevation' : ''}${rdHasModal ? ' race-card--has-modal' : ''}${_finishedC1 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml1 ? color : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal ? 'cursor:pointer' : 'cursor:default'}"
+        html += `<div data-day-id="${esc(rd.id)}" class="race-card race-card--stage${epSvgHtml1 ? ' race-card--elevation' : ''}${rdHasModal ? ' race-card--has-modal' : ''}${_finishedC1 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml1 ? color : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal ? 'cursor:pointer' : 'cursor:default'}"
           ${rdClickable ? `onclick="location.href='${jornadaUrl(rd)}'"` : rdHasModal ? `data-rdid="${rd.id}"` : `data-ph-tooltip="${phMsg1}" data-ph-flag="${esc(flag)}" data-ph-name="${esc(getRaceName(race))}" data-ph-sub="${esc(stage ? stage + ' · ' + date : date)}"`}>
           <div class="race-card__main">
             <div class="race-card__name" style="font-size:0.9rem">${stage ? `${stage}<span class="race-card__sep">·</span>${date}` : date}</div>
@@ -407,7 +422,7 @@ async function init() {
             <div class="race-card__meta-top">
               ${showResultsC
                 ? _resultsBadgesC(rd)
-                : rd.isCancelledDay ? '' : buildTimeStack(start, finish, timeTip)}
+                : rd.isCancelledDay ? '' : competitionScheduleHtml(rd, state, startTU, finishTU)}
             </div>
           </div>
           ${epSvgHtml1 || ''}
@@ -419,6 +434,8 @@ async function init() {
     days.forEach(d => { rdMap[d.id] = d; });
 
     content.innerHTML = html;
+    composeCompetitionCards(content);
+    watchCompetitionWaiting(content, Object.values(rdMap));
     _wireResultsBadges(content, rdMap, race);
 
     content.addEventListener('click', e => {
@@ -538,6 +555,7 @@ function updateSeoCompeticion(race, days) {
     ? (cleanPath.startsWith('http') ? cleanPath : `${CONFIG.webOrigin}${cleanPath}`)
     : window.location.href.split('?')[0];
   setMetaProperty('og:url', canonicalUrl);
+  setRaceRobots(race);
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.rel = 'canonical'; document.head.appendChild(canon); }
   canon.href = canonicalUrl;
@@ -607,7 +625,7 @@ function updateSeoCompeticion(race, days) {
     '@type': 'BreadcrumbList',
     'itemListElement': [
       { '@type': 'ListItem', 'position': 1, 'name': 'Inicio', 'item': `${origin}/` },
-      { '@type': 'ListItem', 'position': 2, 'name': `Temporada ${year}`, 'item': `${origin}/calendario.html?year=${year}` },
+      { '@type': 'ListItem', 'position': 2, 'name': `Temporada ${year}`, 'item': `${origin}/calendario/?year=${year}` },
       { '@type': 'ListItem', 'position': 3, 'name': `${name} ${year}` },
     ],
   });
@@ -652,7 +670,7 @@ async function loadChallenge(slug, content, params) {
       const _isEnBackCg = getLang() === 'en';
       backBtn.href = _isEnBackCg
         ? `${enBase()}/calendar/?${qs}`
-        : CONFIG.basePath + '/calendario.html?' + qs;
+        : CONFIG.basePath + '/calendario/?' + qs;
     } else if (fromVal === 'mes') {
       // Leer mes desde URL (?month=YYYY-MM) o desde sessionStorage
       const monthParam = params.get('month');
@@ -669,10 +687,10 @@ async function loadChallenge(slug, content, params) {
       const _isEnBackCgM = getLang() === 'en';
       backBtn.href = _isEnBackCgM
         ? `${enBase()}/calendar/?${qs}`
-        : CONFIG.basePath + '/calendario.html?' + qs;
+        : CONFIG.basePath + '/calendario/?' + qs;
     } else if (fromVal === 'dia') {
       const date = params.get('date') || navState.date || '';
-      backBtn.href = CONFIG.basePath + '/index.html' + (date ? '?date=' + date : '');
+      backBtn.href = CONFIG.basePath + '/' + (date ? '?date=' + date : '');
     }
   }
 
@@ -717,8 +735,6 @@ async function loadChallenge(slug, content, params) {
         rd._assets = aByRd[rd.id] || [];
         rd._raceName = raceName;
         rd._raceIsNoClickable = raceIsNoClickable;
-        rd._extId = raceData.extId || null;
-        rd._extSlug = raceData.extSlug || null;
         rd._raceGender = raceData.gender || null;
         rd._raceCountryCode = raceData.countryCode || null;
         rd._raceHideFlag = raceData.hideFlag || false;
@@ -734,7 +750,7 @@ async function loadChallenge(slug, content, params) {
     allDays.sort((a, b) => (a.dateKey || '').localeCompare(b.dateKey || ''));
     annotateDoubleSectors(allDays);
     const inhouseSetCh = await inhousePromise;
-    allDays.forEach(rd => { rd._hasInhouse = inhouseSetCh.has(rd); rd._allowExternalResults = inhouseSetCh.allowsExternal(rd.raceId); });
+    allDays.forEach(rd => { rd._hasInhouse = inhouseSetCh.has(rd); });
 
     // Hero
     let html = `<div class="jornada-hero" style="--card-color:${color}">
@@ -752,7 +768,7 @@ async function loadChallenge(slug, content, params) {
         <div class="jornada-hero__stage">${[cg.uciCategory, cg.year].filter(Boolean).join(' · ')} · ${t(allDays.length !== 1 ? 'stage.racesCount_other' : 'stage.racesCount_one').replace('{n}', allDays.length)}</div>
       </div></div></div>`;
 
-    html += `<div style="max-width:860px;padding:1rem 1.5rem 3rem">`;
+    html += `<div style="padding:1rem 0 3rem">`;
 
     if (!allDays.length) {
       html += `<div class="empty-state" style="padding:3rem 0">
@@ -768,11 +784,6 @@ async function loadChallenge(slug, content, params) {
         const elev   = _elevGainC2 != null ? `+${String(Math.round(_elevGainC2 / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEnC2 ? ',' : '.')} m` : '';
         const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
         const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-        const start  = startTU?.display  ?? null;
-        const finish = finishTU?.display ?? null;
-        const timeTip = (startTU?.tooltip || finishTU?.tooltip)
-          ? 'Hora Madrid · ' + [startTU?.tooltip, finishTU?.tooltip].filter(Boolean).join(' – ')
-          : null;
         const cardName = stage || rd._raceName || '';
         const typeBadges = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType) : '';
         const routePart = route ? `<span class="race-card__route">${route}</span>` : '';
@@ -791,37 +802,18 @@ async function loadChallenge(slug, content, params) {
         // La jornada cancelada SÍ abre su modal (ver comentario en el bloque de
         // etapas): conserva recorrido, distancia, tipo y descripción.
         const rdHasModal2 = !rdClickable && hasModalData(rd);
-        const showResultsC2 = rd._hasInhouse === true || _shouldShowResultsC(rd, rd._extId, rd._extSlug);
+        const state = todayRaceState(rd);
+        const showResultsC2 = state === 'results';
+        const waitingResultsC2 = state === 'waiting';
 
         // Elevation sparkline
         const _isTimeTrial2 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
         const rdEpColor2 = rd._colorHex || 'var(--accent)';
-        let epSvgHtml2 = null;
-        if (rd.elevationProfile && !rd.isCancelledDay) {
-          if (showResultsC2) {
-            epSvgHtml2 = buildElevationSparkline(rd.elevationProfile, 1, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-          } else if (rd.neutralStartTimeUtc && rd.estimatedFinishTimeUtc) {
-            const now2 = Date.now();
-            const startMs2 = new Date(rd.neutralStartTimeUtc).getTime();
-            const endMs2   = new Date(rd.estimatedFinishTimeUtc).getTime();
-            const cutMs2   = (rd._extId || rd._extSlug) ? endMs2 + 30 * 60 * 1000 : endMs2;
-            if (endMs2 > startMs2 && now2 >= startMs2 && now2 < cutMs2) {
-              const pct2 = _isTimeTrial2 ? 0 : Math.min(100, Math.round((now2 - startMs2) / (endMs2 - startMs2) * 100));
-              epSvgHtml2 = buildElevationSparkline(rd.elevationProfile, pct2 / 100, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-            }
-          }
-          if (!epSvgHtml2) {
-            const showStatic2 = rd.neutralStartTimeUtc
-              ? Date.now() < new Date(rd.neutralStartTimeUtc).getTime()
-              : !_raceTimeCheckC(rd, 30);
-            if (showStatic2) {
-              epSvgHtml2 = buildElevationSparkline(rd.elevationProfile, 0, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []);
-            }
-          }
-        }
+        const epSvgHtml2 = rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
+          ? buildElevationSparkline(rd.elevationProfile, rd._hasInhouse ? 1 : 0, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []) : null;
 
         const _startOrderAsset2 = rd._assets ? rd._assets.find(a => a.url && a.type === 'startOrder') : null;
-        const _showStartOrder2 = !!_startOrderAsset2 && _isTimeTrial2 && !rd.isCancelledDay;
+        const _showStartOrder2 = !!_startOrderAsset2 && _isTimeTrial2 && !rd.isCancelledDay && !showResultsC2 && !waitingResultsC2;
         const _startOrderBadgeHtml2 = _showStartOrder2 ? `<a class="badge badge--startorder" href="${startOrderUrl(rd)}" onclick="event.stopPropagation()">${_timerSvgC} ${t('assets.startOrder')}</a>` : '';
         const todayStr2 = new Date().toISOString().slice(0, 10);
         const phMsg2 = (!rdClickable && !rdHasModal2) ? (rd.isCancelledDay ? t('stage.stageCancelledTooltip') : (rd.dateKey && todayStr2 < rd.dateKey) ? t('stage.noExtraInfoSoon') : t('stage.noExtraInfo')) : '';
@@ -830,14 +822,14 @@ async function loadChallenge(slug, content, params) {
         // Cancelada → sin badge de tipo (paridad con Hoy y con las apps).
         const _showTypeBadge2 = !rd.isCancelledDay && (!epSvgHtml2 || _isTimeTrial2) && !!typeBadges;
         // Cancelada → sin TV ni Live Texto: no se emitió (paridad con Hoy y apps).
-        const _tvBadgeHtml2 = (showResultsC2 || rd.isCancelledDay) ? '' : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
+        const _tvBadgeHtml2 = (showResultsC2 || waitingResultsC2 || rd.isCancelledDay) ? '' : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
         const _badgeRow2 = `<div class="race-card__badges">`
           + (rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.stageCancelledBadge')}</span>` : '')
           + (_showTypeBadge2 ? `<span class="race-card__types--inline">${typeBadges}</span>` : '')
           + _tvBadgeHtml2
           + _startOrderBadgeHtml2
           + `</div>`;
-        html += `<div class="race-card race-card--stage${epSvgHtml2 ? ' race-card--elevation' : ''}${rdHasModal2 ? ' race-card--has-modal' : ''}${showResultsC2 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml2 ? rdEpColor2 : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal2 ? 'cursor:pointer' : 'cursor:default'}"
+        html += `<div data-day-id="${esc(rd.id)}" class="race-card race-card--stage${epSvgHtml2 ? ' race-card--elevation' : ''}${rdHasModal2 ? ' race-card--has-modal' : ''}${showResultsC2 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml2 ? rdEpColor2 : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal2 ? 'cursor:pointer' : 'cursor:default'}"
           ${rdClickable ? `onclick="location.href='${jornadaUrl(rd)}'"` : rdHasModal2 ? `data-rdid="${rd.id}"` : `data-ph-tooltip="${phMsg2}" data-ph-flag="${esc(flag)}" data-ph-name="${esc(rd._raceName || '')}" data-ph-sub="${esc(cardName ? cardName + ' · ' + date : date)}"`}>
           <div class="race-card__main">
             <div class="race-card__name" style="font-size:0.9rem">${cardName ? `${cardName}<span class="race-card__sep">·</span>${date}` : date}</div>
@@ -850,7 +842,7 @@ async function loadChallenge(slug, content, params) {
             <div class="race-card__meta-top">
               ${showResultsC2
                 ? _resultsBadgesC(rd, rdClickable)
-                : rd.isCancelledDay ? '' : buildTimeStack(start, finish, timeTip)}
+                : rd.isCancelledDay ? '' : competitionScheduleHtml(rd, state, startTU, finishTU)}
             </div>
           </div>
           ${epSvgHtml2 || ''}
@@ -860,6 +852,8 @@ async function loadChallenge(slug, content, params) {
 
     html += '</div>';
     content.innerHTML = html;
+    composeCompetitionCards(content);
+    watchCompetitionWaiting(content, allDays);
 
     const rdMap2 = {};
     allDays.forEach(d => { rdMap2[d.id] = d; });
@@ -903,36 +897,6 @@ async function loadChallenge(slug, content, params) {
 
 // window.openAssetModal / window.closeAssetModal / window.openDynPerfilModal
 // viven ahora en ./race-assets.js (instalados al importarlo arriba).
-
-// ── Tooltip zona horaria en badge--time ──────────────────────────
-(function() {
-  const container = document.getElementById('competicionContent');
-  if (!container) return;
-  let tip = null;
-  function getTip() {
-    if (!tip) { tip = document.createElement('div'); tip.id = 'tz-tip-comp'; document.body.appendChild(tip); }
-    return tip;
-  }
-  container.addEventListener('mouseover', e => {
-    if (window.innerWidth < 600) return;
-    const badge = e.target.closest('.badge--time-user');
-    if (!badge) return;
-    const t = getTip();
-    t.textContent = badge.dataset.tztip;
-    t.style.cssText = 'position:fixed;background:var(--tooltip-bg,#222);color:var(--tooltip-color,#fff);padding:4px 8px;border-radius:4px;font-size:.75rem;pointer-events:none;z-index:9999;white-space:nowrap;display:block';
-  });
-  container.addEventListener('mousemove', e => {
-    if (!tip || tip.style.display === 'none') return;
-    tip.style.left = (e.clientX + 14) + 'px';
-    tip.style.top  = (e.clientY + 14) + 'px';
-  });
-  container.addEventListener('mouseout', e => {
-    const badge = e.target.closest('.badge--time-user');
-    if (badge && !badge.contains(e.relatedTarget)) {
-      if (tip) tip.style.display = 'none';
-    }
-  });
-})();
 
 initPhTooltip();
 

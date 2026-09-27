@@ -22,7 +22,8 @@
 //
 //  Categorías (Fase 3 del plan 2.0): el campo `category` filtra el público
 //  objetivo. Default 'general' (notificaciones gratuitas que reciben todos
-//  los devices). Valores Premium: 'race_start', 'tv_start', 'results' —
+//  los devices). Tipos opcionales gratuitos: 'race_start', 'tv_start', 'results',
+//  'cyclocross' —
 //  solo se entregan a devices que las hayan activado en Ajustes.
 //
 //  Regiones (Fase 2 del plan 2.0, completado en Fase 3+): el campo
@@ -45,7 +46,7 @@
 //    Web Push: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY
 // ─────────────────────────────────────────────────────────────────
 
-const VALID_CATEGORIES = ['general', 'race_start', 'tv_start', 'results'] as const;
+const VALID_CATEGORIES = CX_PUSH_CATEGORIES;
 type PushCategory = typeof VALID_CATEGORIES[number];
 const DEFAULT_CATEGORY: PushCategory = 'general';
 
@@ -167,6 +168,7 @@ function normalizeTargetLanguages(value: unknown): PushLanguage[] | undefined | 
 }
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { CX_PUSH_CATEGORIES, resolveCxPushTarget, cxPushRaceAvailable, cxPushSubscriberQuery } from '../../../js/cx-push.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -945,6 +947,7 @@ async function doSend(
   targetCountryGroups?: PushCountryGroup[],
   targetLanguages?: PushLanguage[],
   targetToken?: string,
+  cxRaceId?: string,
 ): Promise<SendSummary> {
   type Sub = { deviceToken: string; platform: string | null };
   let subs: Sub[];
@@ -964,6 +967,11 @@ async function doSend(
     }
     subs = (rows ?? []) as Sub[];
     console.log(`[send-push] Modo debug — token=${targetToken.slice(0, 12)}… encontrados: ${subs.length}`);
+  } else if (cxRaceId) {
+    subs = await fetchAllPages<Sub>((from, to) => cxPushSubscriberQuery(adminClient, {
+      cxRaceId, regions: targetRegions, platforms: targetPlatforms,
+      countryGroups: targetCountryGroups, languages: targetLanguages,
+    }).order('deviceToken').range(from, to) as unknown as PromiseLike<PageResult<Sub>>);
   } else if (raceId || raceDayId) {
     // ── Envío segmentado por carrera y/o jornada ──────────────────
     // Cuatro grupos en paralelo:
@@ -1119,8 +1127,9 @@ async function doSend(
     : 'ALL';
   const raceLabel = raceId ? ` | Carrera: ${raceId}` : '';
   const stageLabel = raceDayId ? ` | Jornada: ${raceDayId}` : '';
+  const cxLabel = cxRaceId ? ` | Carrera CX: ${cxRaceId}` : '';
   const debugLabel = targetToken ? ` | DEBUG token=${targetToken.slice(0, 12)}…` : '';
-  console.log(`[send-push] Categoría: ${category} | Regiones: ${regionLabel} | Plataformas: ${platformLabel} | Grupos: ${countryGroupLabel} | Idiomas: ${languageLabel}${raceLabel}${stageLabel}${debugLabel} | Tokens — iOS: ${iosTokens.length}, Android: ${androidTokens.length}, Web: ${webTokens.length}`);
+  console.log(`[send-push] Categoría: ${category} | Regiones: ${regionLabel} | Plataformas: ${platformLabel} | Grupos: ${countryGroupLabel} | Idiomas: ${languageLabel}${raceLabel}${stageLabel}${cxLabel}${debugLabel} | Tokens — iOS: ${iosTokens.length}, Android: ${androidTokens.length}, Web: ${webTokens.length}`);
 
   const [apnsResult, fcmResult, webResult] = await Promise.all([
     sendApns(iosTokens, msg),
@@ -1162,6 +1171,14 @@ async function doSend(
   };
 }
 
+const CX_RACE_UNAVAILABLE = 'La carrera CX no está publicada, está cancelada o queda fuera de agosto-febrero.';
+async function cxPushRaceIsAvailable(adminClient: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await adminClient.from('cx_races')
+    .select('id,seasonKey,dateKey,endDateKey,editorialStatus,isCancelled').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return cxPushRaceAvailable(data);
+}
+
 /** Inserta un registro en push_notifications (historial de envíos). */
 async function recordSent(
   msg: PushMessage,
@@ -1175,6 +1192,7 @@ async function recordSent(
   raceDayId?: string,
   targetCountryGroups?: PushCountryGroup[],
   targetLanguages?: PushLanguage[],
+  cxRaceId?: string,
 ): Promise<void> {
   const { error } = await adminClient.from('push_notifications').insert({
     title:               msg.title,
@@ -1188,6 +1206,7 @@ async function recordSent(
     targetLanguages:     targetLanguages && targetLanguages.length > 0 ? targetLanguages : null,
     raceId:              raceId    ?? null,
     raceDayId:           raceDayId ?? null,
+    cxRaceId:            cxRaceId ?? null,
     sentBy,
     recipientCount,
   });
@@ -1209,6 +1228,7 @@ interface ScheduledRow {
   targetLanguages: string[] | null;
   raceId: string | null;
   raceDayId: string | null;
+  cxRaceId: string | null;
   scheduledAt: string;
   createdBy: string | null;
 }
@@ -1239,7 +1259,7 @@ async function handleProcessScheduled(adminClient: SupabaseClient): Promise<Resp
     .update({ status: 'processing' })
     .eq('status', 'pending')
     .lte('scheduledAt', now)
-    .select('id, title, subtitle, imageUrl, deepLink, category, targetRegions, targetPlatforms, targetCountryGroups, targetLanguages, raceId, raceDayId, scheduledAt, createdBy');
+    .select('id, title, subtitle, imageUrl, deepLink, category, targetRegions, targetPlatforms, targetCountryGroups, targetLanguages, raceId, raceDayId, cxRaceId, scheduledAt, createdBy');
 
   if (claimError) {
     console.error('[send-push][cron] Error reclamando notificaciones:', claimError.message);
@@ -1259,7 +1279,7 @@ async function handleProcessScheduled(adminClient: SupabaseClient): Promise<Resp
   const results: Array<{ id: string; status: string; sent?: number; error?: string }> = [];
 
   for (const row of rows) {
-    const category = normalizeCategory(row.category);
+    let category = normalizeCategory(row.category);
     // Filtra elementos no válidos por defensa: si en algún momento la
     // BD termina con un targetRegions corrupto, no abortamos el lote.
     const targetRegions = (row.targetRegions ?? []).filter(
@@ -1295,15 +1315,23 @@ async function handleProcessScheduled(adminClient: SupabaseClient): Promise<Resp
     };
 
     try {
-      const summary = await doSend(msg, adminClient, category, targetRegionsArg, targetPlatformsArg, raceIdArg, raceDayIdArg, targetCountryGroupsArg, targetLanguagesArg);
+      const target = resolveCxPushTarget({ category, deepLink: msg.deepLink, cxRaceId: row.cxRaceId, raceId: row.raceId, raceDayId: row.raceDayId });
+      category = target.category;
+      msg.deepLink = target.deepLink;
+      if (target.cxRaceId && !await cxPushRaceIsAvailable(adminClient, target.cxRaceId)) throw new Error(CX_RACE_UNAVAILABLE);
+      if (row.createdBy === 'cx_auto_dispatch') {
+        const { data: available, error: availabilityError } = await adminClient.rpc('cx_auto_push_is_available', { p_notification_id: row.id });
+        if (availabilityError || available !== true) throw new Error('Evento automático CX vencido, retirado o modificado');
+      }
+      const summary = await doSend(msg, adminClient, category, targetRegionsArg, targetPlatformsArg, raceIdArg, raceDayIdArg, targetCountryGroupsArg, targetLanguagesArg, undefined, target.cxRaceId);
       const sentAt  = new Date().toISOString();
 
       await adminClient
         .from('scheduled_push_notifications')
-        .update({ status: 'sent', sentAt, recipientCount: summary.totalSent })
+        .update({ status: 'sent', sentAt, recipientCount: summary.totalSent, category, cxRaceId: target.cxRaceId ?? null })
         .eq('id', row.id);
 
-      await recordSent(msg, row.createdBy, summary.totalSent, adminClient, category, targetRegionsArg, targetPlatformsArg, raceIdArg, raceDayIdArg, targetCountryGroupsArg, targetLanguagesArg);
+      await recordSent(msg, row.createdBy, summary.totalSent, adminClient, category, targetRegionsArg, targetPlatformsArg, raceIdArg, raceDayIdArg, targetCountryGroupsArg, targetLanguagesArg, target.cxRaceId);
 
       results.push({ id: row.id, status: 'sent', sent: summary.totalSent });
       console.log(`[send-push][cron] ✓ ${row.id} enviada a ${summary.totalSent} dispositivos`);
@@ -1403,7 +1431,8 @@ Deno.serve(async (req) => {
     }
     console.log('[send-push] Usuario autenticado:', user.email);
 
-    const { title, subtitle, imageUrl, deepLink, scheduledAt } = body;
+    const { title, subtitle, imageUrl, scheduledAt } = body;
+    let deepLink = body.deepLink;
     if (!title) {
       return new Response(JSON.stringify({ error: 'El título es obligatorio' }), {
         status: 400,
@@ -1426,6 +1455,23 @@ Deno.serve(async (req) => {
         });
       }
       category = body.category as PushCategory;
+    }
+
+    let cxRaceId: string | undefined;
+    try {
+      const target = resolveCxPushTarget({ category, deepLink, cxRaceId: body.cxRaceId, raceId: body.raceId, raceDayId: body.raceDayId });
+      category = target.category;
+      deepLink = target.deepLink;
+      cxRaceId = target.cxRaceId;
+    } catch (error) {
+      return new Response(JSON.stringify({ error: String(error) }), {
+        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    if (cxRaceId && !await cxPushRaceIsAvailable(adminClient, cxRaceId)) {
+      return new Response(JSON.stringify({ error: CX_RACE_UNAVAILABLE }), {
+        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
     }
 
     // Validación de targetRegions: opcional, si viene debe ser array
@@ -1530,6 +1576,7 @@ Deno.serve(async (req) => {
           imageUrl:            imageUrl      || null,
           deepLink:            deepLink      || null,
           category,
+          cxRaceId:            cxRaceId ?? null,
           targetRegions:       targetRegions ?? null,
           targetPlatforms:     targetPlatforms ?? null,
           targetCountryGroups: targetCountryGroups ?? null,
@@ -1557,10 +1604,10 @@ Deno.serve(async (req) => {
     const debugLabelImmediate = targetToken ? ` | DEBUG token=${targetToken.slice(0, 12)}…` : '';
     console.log(`[send-push] Envío inmediato (categoría: ${category}, regiones: ${regionLabelImmediate}, plataformas: ${platformLabelImmediate}, grupos: ${countryGroupLabelImmediate}, idiomas: ${languageLabelImmediate}${debugLabelImmediate}):`, JSON.stringify({ title, subtitle, imageUrl, deepLink }));
     const msg: PushMessage = { title, subtitle, imageUrl, deepLink };
-    const summary = await doSend(msg, adminClient, category, targetRegions ?? undefined, targetPlatforms ?? undefined, undefined, undefined, targetCountryGroups ?? undefined, targetLanguages ?? undefined, targetToken);
+    const summary = await doSend(msg, adminClient, category, targetRegions ?? undefined, targetPlatforms ?? undefined, undefined, undefined, targetCountryGroups ?? undefined, targetLanguages ?? undefined, targetToken, cxRaceId);
     // En modo debug no contaminamos el historial público de notificaciones.
     if (!targetToken) {
-      await recordSent(msg, user.email, summary.totalSent, adminClient, category, targetRegions ?? undefined, targetPlatforms ?? undefined, undefined, undefined, targetCountryGroups ?? undefined, targetLanguages ?? undefined);
+      await recordSent(msg, user.email ?? null, summary.totalSent, adminClient, category, targetRegions ?? undefined, targetPlatforms ?? undefined, undefined, undefined, targetCountryGroups ?? undefined, targetLanguages ?? undefined, cxRaceId);
     }
 
     const result = {

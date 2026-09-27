@@ -5,8 +5,11 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, startOrderUrl,
-         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, buildTeamBadgeSvg, setPressed } from './shared.js';
+         findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, setPressed, setRaceRobots } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
+import { mountStageProfile } from './stage-profile.js';
+import { stageContextHtml } from './stage-context.js';
+import { teamStripes, teamsForSeason } from './team-appearance.js';
 
 const STAGE_TYPE_LABELS = {
   itt: { es: 'CRI', en: 'ITT' },
@@ -119,30 +122,20 @@ async function init() {
     return;
   }
 
-  // Equipos de la carrera (para enlazar a /equipo/<slug>/): en CRI cada corredor
-  // enlaza a su equipo; en CRE cada equipo enlaza a su página. Resolvemos el slug
-  // por nombre con findMatchingTeam contra los equipos de la startlist (su teamId
-  // → teams.slug). Silencioso si falla → simplemente no se enlaza.
   let raceTeams = [];
-  {
-    const { data: slTeams } = await supabase
-      .from('startlist_teams').select('teamId').eq('raceId', rd.raceId);
-    const teamIds = [...new Set((slTeams || []).map(s => s.teamId).filter(Boolean))];
-    if (teamIds.length) {
-      const { data } = await supabase
-        .from('teams')
-        .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
-        .in('id', teamIds);
-      raceTeams = data || [];
-    }
+  const { data: startlistTeams } = await supabase
+    .from('startlist_teams').select('teamId').eq('raceId', rd.raceId);
+  const teamIds = [...new Set((startlistTeams || []).map(team => team.teamId).filter(Boolean))];
+  if (teamIds.length) {
+    const { data: teams } = await supabase
+      .from('teams')
+      .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
+      .in('id', teamIds);
+    raceTeams = await teamsForSeason(supabase, teams || [], race.year, teamIds);
   }
-  // Equipo canónico por nombre (de él salen href y chapa).
-  const teamFor = (teamName) => {
-    if (!teamName || !raceTeams.length) return null;
-    return findMatchingTeam(teamName, raceTeams) || null;
-  };
-  // Enlaces a fichas (equipo y corredor) retirados → siempre null; el render
-  // cae a texto plano. teamFor se conserva para la chapa del equipo.
+  const teamFor = teamName => teamName ? findMatchingTeam(teamName, raceTeams) : null;
+
+  // Enlaces a fichas retirados; equipos y corredores se muestran como texto.
   const teamHrefFor = (_teamName) => null;
   const riderHrefFor = (_dorsal) => null;
 
@@ -194,6 +187,7 @@ async function init() {
         : `${esOrigin}/orden-salida/${encodeURIComponent(rd.slug)}/`)
     : location.href.split('?')[0];
   setMetaProperty('og:url', canonicalUrl);
+  setRaceRobots(race);
   let canonEl = document.querySelector('link[rel="canonical"]');
   if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
   canonEl.href = canonicalUrl;
@@ -230,6 +224,7 @@ async function init() {
     ? (_isEn ? 'teams' : 'equipos')
     : (_isEn ? 'riders' : 'corredores');
   const startOrderLabel = _isEn ? 'Start order' : 'Orden de Salida';
+  const contextAssets = withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id));
 
   let html = buildRaceHeader({
     race,
@@ -238,11 +233,10 @@ async function init() {
     detail: heroSubline,
     stats: `${entries.length} ${ridersLabel}`,
   }) + buildActionButtons({
-    race, rd, view: 'startOrder', assets: withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id)),
+    race, rd, view: 'startOrder', assets: contextAssets,
     hasStartlist: !!race.startlistImportedAt,
-    style: 'max-width:860px;padding:0 1.5rem;margin:0.85rem auto',
-  }) + `
-
+    style: 'margin:0.85rem auto', standalone: true,
+  }) + `<div class="res-layout res-layout--context"><div class="res-main">
     ${hasFilters ? `
     <div class="so-filters" id="soFilters">
       <div class="so-filters__inner">
@@ -298,7 +292,8 @@ async function init() {
   entries.forEach(e => {
     const flagHtml = e.countryCode ? `<span class="so-flag">${countryFlag(e.countryCode)}</span>` : '';
     const name = e.riderName ? esc(e.riderName) : `<span style="opacity:0.45">—</span>`;
-    const team = e.teamName ? esc(e.teamName) : '';
+    const teamColors = teamStripes(teamFor(e.teamName));
+    const team = e.teamName ? `${teamColors}${esc(e.teamName)}` : '';
     const teamHref = teamHrefFor(e.teamName);
     const isTt = ttDorsals.has(e.dorsal);
     const isGc = gcDorsals.has(e.dorsal);
@@ -326,13 +321,9 @@ async function init() {
 
     if (isTtt) {
       // CRE: solo hora + equipo (sin dorsal, sin bandera, sin corredor).
-      // El equipo enlaza a su página /equipo/<slug>/ y lleva su chapa a la izda.
-      const teamObj = teamFor(e.teamName);
-      const badge = teamObj ? buildTeamBadgeSvg(teamObj, { size: 16, className: 'so-team-badge' }) : '';
-      const teamInner = e.teamName
-        ? (teamHref ? `<a class="so-link" href="${esc(teamHref)}">${esc(e.teamName)}</a>` : esc(e.teamName))
+      const teamCell = e.teamName
+        ? (teamHref ? `<a class="so-link" href="${esc(teamHref)}">${team}</a>` : team)
         : `<span style="opacity:0.45">—</span>`;
-      const teamCell = `<span class="so-team-cell">${badge}${teamInner}</span>`;
       html += `
           <tr class="so-row">
             <td class="so-td so-td--time">${timeCell}</td>
@@ -361,9 +352,14 @@ async function init() {
         </tbody>
       </table>
     </div>
+    </div>${stageContextHtml(rd, 'soProfile', { hideNeutralStart: true })}</div>
   `;
 
   content.innerHTML = html;
+  const cleanupProfile = mountStageProfile(document.getElementById('soProfile'), {
+    day: rd, race, assets: contextAssets, hidePointNames: true,
+  });
+  window.addEventListener('pagehide', cleanupProfile, { once: true });
 
   // ── Botón de edición admin (solo si hay sesión activa) ──
   supabase.auth.getSession().then(({ data: { session } }) => {

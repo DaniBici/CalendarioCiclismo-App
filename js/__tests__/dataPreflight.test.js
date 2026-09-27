@@ -2,191 +2,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  normalizePersonName,
-  normalizeStartlistExtraction,
-  normalizeStartlistDraft,
-  validateStartlistExtraction,
-  validateStartlistDraft,
-} from '../../scripts/data-preflight/startlist-preflight.mjs';
-import {
   gapToSeconds,
   normalizeAbsoluteTime,
   normalizeGap,
   normalizeResultsDocument,
   validateResultsDocument,
 } from '../../scripts/data-preflight/results-preflight.mjs';
-import { buildPlan } from '../../scripts/results-fetchers/uci-results-upsert.mjs';
+import { buildPlan } from '../../scripts/results-fetchers/results-upsert.mjs';
 
 const fixture = (name) => JSON.parse(readFileSync(resolve('scripts/data-preflight/fixtures', name), 'utf8'));
 const errorCodes = (report) => report.errors.map((entry) => entry.code);
-
-describe('preflight de startlists', () => {
-  it('emite una extracción mínima y conserva el texto fuente para revisión manual', () => {
-    const input = fixture('startlist-extraction.json');
-
-    const normalized = normalizeStartlistExtraction(input);
-
-    expect(normalized).toEqual({
-      raceId: 'eval-results',
-      expectedRiderCount: 3,
-      teams: [
-        {
-          teamName: 'TEAM VISMA | LEASE A BIKE',
-          riders: [
-            { dorsal: '1', riderName: 'MATTEO JORGENSON' },
-            { dorsal: '2', riderName: 'SEPP KUSS' },
-          ],
-        },
-        {
-          teamName: 'UAE Team Emirates - XRG',
-          riders: [{ dorsal: '11', riderName: 'Brandon McNulty' }],
-        },
-      ],
-    });
-    expect(validateStartlistExtraction(input).ok).toBe(true);
-  });
-
-  it('bloquea identificadores y decisiones de identidad en la extracción', () => {
-    const input = {
-      raceId: 'eval-results',
-      expectedRiderCount: 1,
-      teams: [{
-        teamName: 'Equipo Uno',
-        teamId: 'catalog-team',
-        riders: [{
-          dorsal: '1',
-          riderName: 'Corredor Uno',
-          globalRiderId: 'rider-1',
-          resolutionAction: 'exact',
-        }],
-      }],
-    };
-
-    const report = validateStartlistExtraction(input);
-
-    expect(errorCodes(report)).toEqual(expect.arrayContaining([
-      'EXTRACTION_CONTAINS_ENRICHMENT',
-    ]));
-    expect(report.normalized.teams[0]).toEqual({
-      teamName: 'Equipo Uno',
-      riders: [{ dorsal: '1', riderName: 'Corredor Uno' }],
-    });
-  });
-
-  it('bloquea la extracción si no conserva un dorsal único y el recuento fuente', () => {
-    const report = validateStartlistExtraction({
-      raceId: 'eval-results',
-      expectedRiderCount: 3,
-      teams: [{
-        teamName: 'Equipo Uno',
-        riders: [
-          { dorsal: '1', riderName: 'Corredor Uno' },
-          { dorsal: '001', riderName: 'Corredor Dos' },
-        ],
-      }],
-    });
-
-    expect(errorCodes(report)).toEqual(expect.arrayContaining([
-      'DUPLICATE_BIB',
-      'RIDER_COUNT_MISMATCH',
-    ]));
-  });
-
-  it('normaliza casing, espacios, apóstrofes, guiones, dorsales e ISO-2', () => {
-    const normalized = normalizeStartlistDraft(fixture('startlist-normalization.json'));
-
-    expect(normalized.teams[0].name).toBe('TEAM VISMA | LEASE A BIKE');
-    expect(normalized.teams[0].riders[0]).toMatchObject({
-      dorsal: '11',
-      firstName: 'Matteo',
-      lastName: 'Jorgenson',
-      countryCode: 'us',
-      resolutionAction: 'exact',
-    });
-    expect(normalized.teams[1].riders[0].lastName).toBe('McNulty');
-    expect(normalized.teams[1].riders[1].lastName).toBe("Wellens-D'Hoore");
-    expect(normalizePersonName("  anna   VAN-DER-breggen ")).toBe('Anna Van-Der-Breggen');
-  });
-
-  it('acepta un manifiesto aplicable con identidades declaradas', () => {
-    const report = validateStartlistDraft(fixture('startlist-normalization.json'), { phase: 'apply' });
-
-    expect(report.ok).toBe(true);
-    expect(report.summary).toMatchObject({ teams: 2, riders: 5, requestedCreations: 0 });
-  });
-
-  it('bloquea dorsales duplicados, isDev y decisiones de identidad ausentes', () => {
-    const input = fixture('startlist-normalization.json');
-    input.teams[0].isDev = false;
-    input.teams[1].riders[0].dorsal = '11';
-    delete input.teams[1].riders[1].resolutionAction;
-
-    const report = validateStartlistDraft(input, { phase: 'apply' });
-
-    expect(errorCodes(report)).toEqual(expect.arrayContaining([
-      'RETIRED_ISDEV',
-      'DUPLICATE_BIB',
-      'MISSING_RESOLUTION_ACTION',
-    ]));
-  });
-
-  it('bloquea la creación de fichas sin autorización externa', () => {
-    const input = fixture('startlist-normalization.json');
-    input.teams[0].riders[0] = {
-      ...input.teams[0].riders[0],
-      resolutionAction: 'create',
-      globalRiderId: null,
-      candidateCount: 0,
-    };
-
-    const blocked = validateStartlistDraft(input, { phase: 'apply' });
-    const authorized = validateStartlistDraft(input, { phase: 'apply', allowCreateRiders: true });
-
-    expect(errorCodes(blocked)).toContain('UNAUTHORIZED_RIDER_CREATION');
-    expect(authorized.ok).toBe(true);
-  });
-
-  it('no permite crear una ficha mientras haya candidatos', () => {
-    const input = fixture('startlist-normalization.json');
-    input.teams[0].riders[0] = {
-      ...input.teams[0].riders[0],
-      resolutionAction: 'create',
-      globalRiderId: null,
-      candidateCount: 2,
-    };
-
-    const report = validateStartlistDraft(input, { phase: 'apply', allowCreateRiders: true });
-
-    expect(errorCodes(report)).toContain('CREATE_WITH_CANDIDATES');
-  });
-
-  it('bloquea pendientes y países vacíos en fase apply', () => {
-    const input = fixture('startlist-normalization.json');
-    input.teams[0].riders[0] = {
-      ...input.teams[0].riders[0],
-      countryCode: null,
-      resolutionAction: 'unresolved',
-      globalRiderId: null,
-    };
-
-    const report = validateStartlistDraft(input, { phase: 'apply' });
-
-    expect(errorCodes(report)).toEqual(expect.arrayContaining(['MISSING_COUNTRY', 'UNRESOLVED_RIDER']));
-  });
-
-  it('bloquea fichas globales duplicadas y recuentos incompletos', () => {
-    const input = fixture('startlist-normalization.json');
-    input.expectedRiderCount = 6;
-    input.teams[1].riders[0].globalRiderId = 'rider-11';
-
-    const report = validateStartlistDraft(input, { phase: 'apply' });
-
-    expect(errorCodes(report)).toEqual(expect.arrayContaining([
-      'DUPLICATE_GLOBAL_RIDER_ID',
-      'RIDER_COUNT_MISMATCH',
-    ]));
-  });
-});
 
 describe('preflight de resultados', () => {
   it('normaliza tiempos de imprenta, gaps, mismo tiempo, absolutos e IRM', () => {
@@ -259,6 +84,28 @@ describe('preflight de resultados', () => {
     const report = validateResultsDocument(normalized);
 
     expect(errorCodes(report)).toContain('EXPECTED_ROW_COUNT_MISMATCH');
+  });
+
+  it.each(['DF', 'NR'])('conserva el estado IRM %s', (irm) => {
+    const normalized = normalizeResultsDocument({
+      raceId: 'irm-race',
+      stages: [{
+        stageNumber: 1,
+        classifications: [{
+          eventId: -170001,
+          eventName: 'Stage',
+          classKind: 'stage',
+          scope: 'stage',
+          rows: [{ bib: '11', status: irm }],
+        }],
+      }],
+    });
+
+    expect(normalized.stages[0].classifications[0].rows[0]).toMatchObject({
+      rank: null,
+      rankText: irm,
+      irm,
+    });
   });
 
   it('bloquea identificadores de carrera ausentes o incompatibles', () => {

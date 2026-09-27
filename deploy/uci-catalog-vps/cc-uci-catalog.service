@@ -1,0 +1,43 @@
+[Unit]
+Description=Calendario Ciclismo - catálogo UCI diario
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/uci-catalog-vps.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cc-uci-catalog
+Group=cc-uci-catalog
+WorkingDirectory=/opt/calendario-ciclismo
+EnvironmentFile=/etc/calendario-ciclismo/uci-catalog.env
+Environment=NODE_OPTIONS=--max-old-space-size=320
+Environment=NODE_EXTRA_CA_CERTS=/etc/cc-uci-catalog/supabase-ca.crt
+ExecStart=/usr/bin/flock -n /run/cc-uci-catalog/run.lock /usr/bin/node scripts/uci-catalog/run.mjs --shadow
+TimeoutStartSec=130min
+TimeoutStopSec=20s
+CPUQuota=25%
+CPUWeight=10
+MemoryHigh=384M
+MemoryMax=512M
+TasksMax=32
+Nice=10
+IOSchedulingClass=idle
+StateDirectory=cc-uci-catalog
+StateDirectoryMode=0700
+RuntimeDirectory=cc-uci-catalog
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

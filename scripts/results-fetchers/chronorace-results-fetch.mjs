@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // chronorace-results-fetch.mjs — parsea un dossier de resultados ChronoRace (PDF)
-// y emite el MISMO JSON intermedio que uci-results-fetch.mjs / tissot-results-fetch.mjs
-// para que lo cargue uci-results-upsert.mjs (skill cc-resultados-pdf, escenario A).
+// y emite el MISMO JSON intermedio que dataride-results-fetch.mjs / tissot-results-fetch.mjs
+// para que lo cargue results-upsert.mjs (skill cc-resultados-pdf, escenario A).
 //
 // Estrategia híbrida (la marca de agua "PROVISOIRE" intercala caracteres sueltos):
 //   - clasificaciones de 1 columna (etapa, puntos) → pdftotext -layout (línea completa)

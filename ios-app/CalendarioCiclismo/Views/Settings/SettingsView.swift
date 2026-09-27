@@ -8,7 +8,6 @@ struct SettingsView: View {
     @State private var analyticsService = AnalyticsService.shared
     @State private var themeService = ThemeService.shared
     @State private var localeService = LocaleService.shared
-    @State private var regionService = RegionService.shared
     @State private var categoryService = NotificationCategoryService.shared
     @State private var premium = PremiumService.shared
     @State private var showDeleteConfirmation = false
@@ -49,9 +48,6 @@ struct SettingsView: View {
                 // — Sección: Idioma —
                 languageSection
 
-                // — Sección: Región —
-                regionSection
-
                 // — Sección: Apariencia —
                 appearanceSection
 
@@ -61,6 +57,7 @@ struct SettingsView: View {
             }
             .padding(.bottom, 24)
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t("Ajustes", "Settings"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("settings_view")
@@ -208,8 +205,17 @@ struct SettingsView: View {
         let isLockedOn = option == .general
 
         return HStack(spacing: 12) {
-            Image(systemName: option.icon)
-                .font(.body)
+            Group {
+                if let icon = option.icon {
+                    Image(systemName: icon)
+                        .font(.body)
+                } else {
+                    Image("CyclocrossEmblem")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 11)
+                }
+            }
                 .foregroundStyle(isEnabled ? .white : Color.accentColor)
                 .frame(width: 28, height: 28)
                 .background(
@@ -349,6 +355,33 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         Text("\(raceFollow.followedStageIds.count) \(raceFollow.followedStageIds.count == 1 ? "jornada seguida" : "jornadas seguidas")")
+                            .font(.subheadline)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(12)
+            }
+            .foregroundStyle(.primary)
+            .ccCardSurface()
+
+            // Carreras de ciclocross seguidas — independiente del modo de carretera
+            NavigationLink(destination: FollowedCxRacesView()) {
+                HStack {
+                    Image("CyclocrossEmblem")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 11)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                    if raceFollow.followedCxRaceIds.isEmpty {
+                        Text("Sin carreras de ciclocross seguidas")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(raceFollow.followedCxRaceIds.count) \(raceFollow.followedCxRaceIds.count == 1 ? "carrera de ciclocross seguida" : "carreras de ciclocross seguidas")")
                             .font(.subheadline)
                     }
                     Spacer()
@@ -674,148 +707,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Región
-
-    @ViewBuilder
-    private var regionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(icon: "globe.europe.africa", title: localeService.t("Región", "Region"))
-
-            Text(localeService.t("Determina los canales de televisión que ves en cada jornada.", "Determines the TV channels shown for each stage."))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-
-            regionSelectorCard
-                .padding(.horizontal)
-        }
-    }
-
-    private var regionSelectorCard: some View {
-        VStack(spacing: 8) {
-            ForEach(RegionService.RegionPreference.allCases) { option in
-                regionOptionRow(option)
-                // Sub-selector inline expandido bajo el bucket activo, salvo
-                // SPAIN (un único grupo) y ALL (usa siempre TZ).
-                if regionService.current == option
-                    && option.availableCountryGroups.count > 1 {
-                    countryGroupSubSelector(for: option)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-        }
-        .padding(12)
-        .ccCardSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Selector de región de la app")
-    }
-
-    private func regionOptionRow(_ option: RegionService.RegionPreference) -> some View {
-        let isSelected = regionService.current == option
-        // Todas las regiones se liberaron al plan gratuito: cualquiera es
-        // seleccionable sin candado (SPAIN sigue siendo el baseline).
-        return Button {
-            guard !isSelected else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                regionService.setRegion(option)
-            }
-            Haptics.play(.selection)
-        } label: {
-            HStack(spacing: 12) {
-                Text(option.flagEmoji)
-                    .font(.body)
-                    .frame(width: 28, height: 28)
-                    .background(Color.accentColor.opacity(isSelected ? 0.18 : 0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(LocalizedStringKey(option.labelKey))
-                        .font(.subheadline)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundStyle(.primary)
-                }
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(LocalizedStringKey(option.labelKey)))
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
-        .accessibilityIdentifier("region_option_\(option.rawValue)")
-    }
-
-    @ViewBuilder
-    private func countryGroupSubSelector(for bucket: RegionService.RegionPreference) -> some View {
-        let groups = bucket.availableCountryGroups
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Tu país (ajusta la hora del aviso de TV)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .padding(.top, 4)
-
-            VStack(spacing: 4) {
-                countryGroupRow(group: nil, isSelected: regionService.preferredCountryGroup == nil)
-                ForEach(groups, id: \.self) { group in
-                    countryGroupRow(group: group, isSelected: regionService.preferredCountryGroup == group)
-                }
-            }
-        }
-        .padding(8)
-        .background(Color.accentColor.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.leading, 36)
-        .padding(.bottom, 4)
-    }
-
-    private func countryGroupRow(group: String?, isSelected: Bool) -> some View {
-        Button {
-            guard !isSelected else { return }
-            regionService.setPreferredCountryGroup(group)
-            // Re-sincroniza el push token con el nuevo grupo fino.
-            Task { await manager.healSubscriptionIfNeeded() }
-            Haptics.play(.selection)
-        } label: {
-            HStack(spacing: 10) {
-                Text(group.map { RegionService.countryGroupEmoji($0) } ?? "📍")
-                    .font(.footnote)
-                    .frame(width: 22, height: 22)
-                    .accessibilityHidden(true)
-
-                Text(group.map { LocalizedStringKey(RegionService.countryGroupLabel($0)) }
-                     ?? LocalizedStringKey("Automático (mi zona horaria)"))
-                    .font(.footnote)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
-    }
-
     // MARK: - Apariencia
 
     @ViewBuilder
@@ -998,18 +889,7 @@ struct SettingsView: View {
     private var premiumSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                HStack(spacing: 3) {
-                    Image(systemName: "calendar")
-                        .font(.title3)
-                    Image(systemName: "bicycle")
-                        .font(.title3)
-                }
-                .foregroundStyle(LinearGradient(
-                    colors: [.yellow, .orange],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .accessibilityHidden(true)
+                supportSectionIcon
                 Text(localeService.t("Apoyar Calendario Ciclismo", "Support Calendario Ciclismo"))
                     .font(.title3)
                     .fontWeight(.bold)
@@ -1090,21 +970,12 @@ struct SettingsView: View {
             premium.presentPaywall(.general)
         } label: {
             HStack(spacing: 12) {
-                HStack(spacing: 2) {
-                    Image(systemName: "calendar")
-                        .font(.caption)
-                    Image(systemName: "bicycle")
-                        .font(.caption)
-                }
-                .foregroundStyle(LinearGradient(
-                    colors: [.yellow, .orange],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 36, height: 36)
-                .background(Color.yellow.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
+                Image("SupportIconFriend")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localeService.t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"))
@@ -1170,21 +1041,12 @@ struct SettingsView: View {
     private var premiumActiveCard: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                HStack(spacing: 2) {
-                    Image(systemName: "calendar")
-                        .font(.caption)
-                    Image(systemName: "bicycle")
-                        .font(.caption)
-                }
-                .foregroundStyle(LinearGradient(
-                    colors: [.yellow, .orange],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 36, height: 36)
-                .background(Color.yellow.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
+                Image("SupportIconFriend")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localeService.t("Amigo activo", "Friend active"))
@@ -1255,18 +1117,27 @@ struct SettingsView: View {
         .ccCardSurface()
     }
 
+    private var supportSectionIcon: some View {
+        Image("OriginalAppIcon")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 28, height: 28)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
     private var supporterIconChooser: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(localeService.t("Icono de la aplicación", "App icon"))
                 .font(.subheadline)
                 .fontWeight(.semibold)
             HStack(spacing: 8) {
-                iconChoice(.standard, label: localeService.t("Original", "Original"), color: Color(red: 0.10, green: 0.45, blue: 0.91), imageName: "OriginalAppIcon")
+                iconChoice(.standard, label: localeService.t("Original", "Original"), imageName: "OriginalAppIcon")
                 if premium.isFounder {
-                    iconChoice(.founder, label: localeService.t("Fundador", "Founder"), color: Color(red: 0.06, green: 0.09, blue: 0.16), imageName: "SupportIconFounder")
+                    iconChoice(.founder, label: localeService.t("Fundador", "Founder"), imageName: "SupportIconFounder")
                 }
                 if premium.isSubscribed {
-                    iconChoice(.friend, label: localeService.t("Amigo", "Friend"), color: .white, imageName: "SupportIconFriend")
+                    iconChoice(.friend, label: localeService.t("Amigo", "Friend"), imageName: "SupportIconFriend")
                 }
             }
         }
@@ -1277,36 +1148,21 @@ struct SettingsView: View {
     private func iconChoice(
         _ icon: PremiumService.SupporterIcon,
         label: String,
-        color: Color,
-        imageName: String? = nil
+        imageName: String
     ) -> some View {
         Button {
             premium.setSupporterIcon(icon)
         } label: {
             VStack(spacing: 5) {
-                if let imageName {
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 42, height: 42)
-                        .clipShape(RoundedRectangle(cornerRadius: 9))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 9)
-                                .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-                        }
-                } else {
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(color)
-                        .frame(width: 42, height: 42)
-                        .overlay {
-                        HStack(spacing: 1) {
-                            Image(systemName: "calendar")
-                            Image(systemName: "bicycle")
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.white)
-                        }
-                }
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 42, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9)
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                    }
                 Text(label)
                     .font(.caption2)
                 if premium.supporterIcon == icon {
@@ -1567,9 +1423,7 @@ private struct CalendarFeedList: View {
     @Environment(\.openURL) private var openURL
     @State private var subscribedFeed: String?
 
-    private let year: Int = {
-        Calendar.current.component(.year, from: Date())
-    }()
+    private var year: Int { RaceLogic.calendarYear() }
 
     private var localizedFeeds: [CalendarFeed] {
         [

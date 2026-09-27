@@ -4,53 +4,7 @@ import XCTest
 @MainActor
 final class RegionServiceTests: XCTestCase {
 
-    // MARK: - allowedBroadcastGroups
-
-    func test_spain_includesBaseline() {
-        let groups = RegionService.RegionPreference.spain.allowedBroadcastGroups
-        XCTAssertTrue(groups.contains("ALL"))
-        XCTAssertTrue(groups.contains("ES"))
-        XCTAssertTrue(groups.contains("EUROPA"))
-        XCTAssertEqual(groups.count, 3, "El baseline gratuito de SPAIN debe ser exactamente {ALL, ES, EUROPA}")
-    }
-
-    func test_europe_includesAllEuropeanGroups() {
-        let groups = RegionService.RegionPreference.europe.allowedBroadcastGroups
-        for required in ["ALL", "EUROPA", "ES", "PT", "FR", "BE", "NL", "IT",
-                         "DE_AT_CH", "UK_IE", "SCANDI", "EE"] {
-            XCTAssertTrue(groups.contains(required), "EUROPE debería incluir \(required)")
-        }
-    }
-
-    func test_americas_excludesEurope() {
-        let groups = RegionService.RegionPreference.americas.allowedBroadcastGroups
-        XCTAssertEqual(groups, ["ALL", "NORTEAM", "LATAM"])
-    }
-
-    func test_asia_includesMENA() {
-        let groups = RegionService.RegionPreference.asia.allowedBroadcastGroups
-        XCTAssertTrue(groups.contains("ASIAPAC"))
-        XCTAssertTrue(groups.contains("MENA"), "MENA cubre Oriente Medio y se incluye en ASIA")
-    }
-
-    func test_africa_includesMENA() {
-        let groups = RegionService.RegionPreference.africa.allowedBroadcastGroups
-        XCTAssertTrue(groups.contains("AFRICA"))
-        XCTAssertTrue(groups.contains("MENA"), "MENA cubre Norte de África y se incluye en AFRICA")
-    }
-
-    func test_all_unionContainsEverything() {
-        let allGroups = RegionService.RegionPreference.all.allowedBroadcastGroups
-        // El bucket "ALL" del cliente debe ser superset de cualquier región concreta.
-        for region in [RegionService.RegionPreference.spain, .europe, .americas, .asia, .africa] {
-            XCTAssertTrue(
-                region.allowedBroadcastGroups.isSubset(of: allGroups),
-                "ALL no contiene los grupos de \(region.rawValue)"
-            )
-        }
-    }
-
-    // MARK: - suggestedRegion
+    // MARK: - suggestedRegion (bucket de push_subscriptions.region)
 
     func test_madridSuggestsSpain() {
         XCTAssertEqual(RegionService.suggestedRegion(timeZoneId: "Europe/Madrid"), .spain)
@@ -98,13 +52,13 @@ final class RegionServiceTests: XCTestCase {
     }
 
     func test_unknownTzFallsBackToSpain() {
-        // Preserva el baseline gratuito sin importar la TZ del dispositivo.
+        // Preserva el baseline sin importar la TZ del dispositivo.
         XCTAssertEqual(RegionService.suggestedRegion(timeZoneId: "UTC"), .spain)
         XCTAssertEqual(RegionService.suggestedRegion(timeZoneId: "Etc/Unknown"), .spain)
     }
 
     func test_neverSuggestsAll() {
-        // .all solo se elige manualmente desde Ajustes.
+        // `.all` no es un bucket detectable automáticamente.
         let tzs = ["Europe/Madrid", "Europe/Paris", "America/New_York",
                    "Asia/Tokyo", "Africa/Lagos", "UTC"]
         for tz in tzs {
@@ -116,43 +70,67 @@ final class RegionServiceTests: XCTestCase {
         }
     }
 
-    // MARK: - availableCountryGroups (sub-selector)
+    // MARK: - allowedBroadcastGroups (paridad con la web)
 
-    func test_spain_singleCountryGroup() {
-        XCTAssertEqual(RegionService.RegionPreference.spain.availableCountryGroups, ["ES"])
+    func test_spain_includesBaseline() {
+        let groups = RegionService.allowedBroadcastGroups(timeZoneId: "Europe/Madrid")
+        XCTAssertEqual(groups, ["ALL", "ES", "EUROPA"])
     }
 
-    func test_europe_exposesAllEuropeanFineGroups() {
-        let groups = RegionService.RegionPreference.europe.availableCountryGroups
-        for expected in ["ES", "PT", "FR", "BE", "NL", "IT",
-                         "DE_AT_CH", "UK_IE", "SCANDI", "EE"] {
-            XCTAssertTrue(groups.contains(expected), "EUROPE debería exponer \(expected)")
-        }
-        // EUROPA (paneuropeo) NO debe aparecer como país elegible.
-        XCTAssertFalse(groups.contains("EUROPA"))
-        XCTAssertFalse(groups.contains("ALL"))
+    func test_france_showsOnlyItsFineGroup() {
+        // Paridad web: un usuario francés no ve los canales de Bélgica o Italia.
+        let groups = RegionService.allowedBroadcastGroups(timeZoneId: "Europe/Paris")
+        XCTAssertEqual(groups, ["ALL", "FR", "EUROPA"])
     }
 
-    func test_americas_exposesTwoGroups() {
+    func test_uk_ie_excludesPanEuropean() {
+        // La marca paneuropea no opera en Reino Unido ni Irlanda.
+        let groups = RegionService.allowedBroadcastGroups(timeZoneId: "Europe/London")
+        XCTAssertEqual(groups, ["ALL", "UK_IE"])
+    }
+
+    func test_uncoveredEurope_showsPanEuropean() {
+        // TZ europea sin grupo fino (p. ej. Moscú) → ALL + EUROPA.
+        let groups = RegionService.allowedBroadcastGroups(timeZoneId: "Europe/Moscow")
+        XCTAssertEqual(groups, ["ALL", "EUROPA"])
+    }
+
+    func test_americas_showsOnlyItsFineGroup() {
         XCTAssertEqual(
-            Set(RegionService.RegionPreference.americas.availableCountryGroups),
-            Set(["NORTEAM", "LATAM"])
+            RegionService.allowedBroadcastGroups(timeZoneId: "America/New_York"),
+            ["ALL", "NORTEAM"]
+        )
+        XCTAssertEqual(
+            RegionService.allowedBroadcastGroups(timeZoneId: "America/Argentina/Buenos_Aires"),
+            ["ALL", "LATAM"]
         )
     }
 
-    func test_all_doesNotExposeSubSelector() {
-        // Por diseño: en ALL se mantiene la detección automática por TZ.
-        XCTAssertTrue(RegionService.RegionPreference.all.availableCountryGroups.isEmpty)
+    func test_asia_africa_and_mena() {
+        XCTAssertEqual(
+            RegionService.allowedBroadcastGroups(timeZoneId: "Asia/Tokyo"),
+            ["ALL", "ASIAPAC"]
+        )
+        XCTAssertEqual(
+            RegionService.allowedBroadcastGroups(timeZoneId: "Africa/Lagos"),
+            ["ALL", "AFRICA"]
+        )
+        XCTAssertEqual(
+            RegionService.allowedBroadcastGroups(timeZoneId: "Africa/Cairo"),
+            ["ALL", "MENA"]
+        )
     }
 
-    func test_availableCountryGroups_isSubsetOfAllowedBroadcastGroups() {
-        for bucket in RegionService.RegionPreference.allCases {
-            for group in bucket.availableCountryGroups {
-                XCTAssertTrue(
-                    bucket.allowedBroadcastGroups.contains(group),
-                    "\(group) está en availableCountryGroups de \(bucket.rawValue) pero no en allowedBroadcastGroups"
-                )
-            }
-        }
+    func test_unknownTz_showsOnlyGlobal() {
+        XCTAssertEqual(RegionService.allowedBroadcastGroups(timeZoneId: "UTC"), ["ALL"])
+    }
+
+    func test_isEuropean() {
+        XCTAssertTrue(RegionService.isEuropean(timeZoneId: "Europe/Madrid"))
+        XCTAssertTrue(RegionService.isEuropean(timeZoneId: "Atlantic/Reykjavik"))
+        XCTAssertTrue(RegionService.isEuropean(timeZoneId: "Asia/Istanbul"))
+        XCTAssertFalse(RegionService.isEuropean(timeZoneId: "America/New_York"))
+        XCTAssertFalse(RegionService.isEuropean(timeZoneId: "Asia/Tokyo"))
+        XCTAssertFalse(RegionService.isEuropean(timeZoneId: "UTC"))
     }
 }

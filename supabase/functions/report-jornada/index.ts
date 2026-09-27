@@ -104,20 +104,32 @@ Deno.serve(async (req: Request) => {
   );
 
   // ── Rate limiting por IP ─────────────────────────────────────────
-  if (ip !== 'unknown') {
-    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_S * 1000).toISOString();
-    const { count, error: countError } = await supabase
-      .from('reports')
-      .select('id', { count: 'exact', head: true })
-      .eq('ip_address', ip)
-      .gte('created_at', windowStart);
+  // Sin IP o sin recuento fiable no se puede aplicar el límite: cerrar el envío.
+  if (ip === 'unknown') {
+    return new Response(JSON.stringify({ error: 'No se pudo verificar el límite de reportes' }), {
+      status: 503, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
 
-    if (!countError && count !== null && count >= RATE_LIMIT_MAX) {
-      return new Response(
-        JSON.stringify({ error: 'Demasiados reportes. Inténtalo más tarde.' }),
-        { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Retry-After': String(RATE_LIMIT_WINDOW_S) } },
-      );
-    }
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_S * 1000).toISOString();
+  const { count, error: countError } = await supabase
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('ip_address', ip)
+    .gte('created_at', windowStart);
+
+  if (countError || count === null) {
+    console.error('Rate limit count error:', countError);
+    return new Response(JSON.stringify({ error: 'No se pudo verificar el límite de reportes' }), {
+      status: 503, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (count >= RATE_LIMIT_MAX) {
+    return new Response(
+      JSON.stringify({ error: 'Demasiados reportes. Inténtalo más tarde.' }),
+      { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Retry-After': String(RATE_LIMIT_WINDOW_S) } },
+    );
   }
 
   // ── Guardar en Supabase ─────────────────────────────────────────

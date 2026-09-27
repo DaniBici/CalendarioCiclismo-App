@@ -5,6 +5,7 @@ import {
   finishOnlyResultBlock,
   stageRaceType, stageDateKey,
   parsePdfYouthRows, parsePdfPointsRows, parsePdfMountainRows, parsePdfTeamRows,
+  stagePdfLinksFromArticleHtml,
 } from '../../scripts/results-fetchers/sts-results-fetch.mjs';
 
 // Formatos verificados contra La Route d'Occitanie 2025 y 2026 (primera carrera
@@ -140,6 +141,14 @@ describe('parseResultRows — INVARIANTE: timeText absoluto en TODAS, NUNCA gapT
   it('el mismo grupo comparte el tiempo del cabeza → la web pintará m.t.', () => {
     const rows = parseResultRows(xml, riderByBib);
     expect(rows[0].timeText).toBe(rows[1].timeText);
+  });
+
+  it('conserva el código de licencia STS de 11 cifras en la fila', () => {
+    const rows = parseResultRows(
+      `<R d="16" t="04h31'03" g="-" />`,
+      new Map([[16, { display: 'STAUNE-MITTET Johannes', teamName: 'DECATHLON CMA CGM TEAM', uciId: '10019759082' }]]),
+    );
+    expect(rows[0].uciId).toBe('10019759082');
   });
 });
 
@@ -524,6 +533,24 @@ CLASSEMENT ETAPE
     expect(rows).toHaveLength(4);
     expect(rows[0]).toMatchObject({ teamName: 'TOTALENERGIES', timeText: '50:29:28' });
     expect(rows[3]).toMatchObject({ teamName: 'BIKE AID', gapText: '+5:00' });
+  });
+});
+
+describe('stagePdfLinksFromArticleHtml — PDFs de etapas publicados por STS', () => {
+  it('detecta el enlace de la E1 en la estructura SPIP actual', () => {
+    const html = `<div class="spip_document_file"><figure><a href="IMG/pdf/1ere_etape_guilherand-granges_-_boffres.pdf" type="application/pdf"><img src="pdf.svg"></a><figcaption><strong>1ère étape Guilherand-Granges - Boffres</strong></figcaption></figure></div>`;
+    expect(stagePdfLinksFromArticleHtml(html, 'https://stsport.fr/?article1259')).toEqual([{
+      stageNumber: 1,
+      label: '1ère étape Guilherand-Granges - Boffres',
+      href: 'https://stsport.fr/IMG/pdf/1ere_etape_guilherand-granges_-_boffres.pdf',
+    }]);
+  });
+
+  it('recoge varios PDFs y los ordena para futuras etapas', () => {
+    const html = `
+      <a href="IMG/pdf/2eme_etape.pdf"><img></a><figcaption>2ème étape Dieulefit</figcaption>
+      <a href="IMG/pdf/1ere_etape.pdf"><img></a><figcaption>1ère étape Guilherand</figcaption>`;
+    expect(stagePdfLinksFromArticleHtml(html, 'https://stsport.fr/?article1259').map((link) => link.stageNumber)).toEqual([1, 2]);
   });
 });
 

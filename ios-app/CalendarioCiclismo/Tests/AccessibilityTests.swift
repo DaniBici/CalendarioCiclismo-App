@@ -4,6 +4,94 @@ import XCTest
 /// Accessibility tests to prevent regressions in VoiceOver labels, hints, and descriptions.
 final class AccessibilityTests: XCTestCase {
 
+    // MARK: - Mini-profile contrast
+
+    func testMiniProfileContrastLightensDarkColorsWithWebThreshold() {
+        for original in [
+            MiniProfileColorContrast.RGB(red: 0, green: 0, blue: 0),
+            MiniProfileColorContrast.RGB(red: 0.09, green: 0.08, blue: 0.41),
+            MiniProfileColorContrast.RGB(red: 0, green: 0.2, blue: 0),
+        ] {
+            let adjusted = MiniProfileColorContrast.adjustedRGB(original, for: .dark)
+            XCTAssertGreaterThanOrEqual(
+                adjusted.relativeLuminance,
+                MiniProfileColorContrast.darkMinimumLuminance
+            )
+        }
+    }
+
+    func testMiniProfileContrastDarkensLightColorsWithWebThreshold() {
+        for original in [
+            MiniProfileColorContrast.RGB(red: 1, green: 1, blue: 1),
+            MiniProfileColorContrast.RGB(red: 1, green: 1, blue: 0),
+            MiniProfileColorContrast.RGB(red: 1, green: 0.67, blue: 0.67),
+        ] {
+            let adjusted = MiniProfileColorContrast.adjustedRGB(original, for: .light)
+            XCTAssertLessThanOrEqual(
+                adjusted.relativeLuminance,
+                MiniProfileColorContrast.lightMaximumLuminance
+            )
+        }
+    }
+
+    func testMiniProfileContrastPreservesColorInsideWebRange() {
+        let original = MiniProfileColorContrast.RGB(red: 0.08, green: 0.28, blue: 0.65)
+        XCTAssertEqual(
+            MiniProfileColorContrast.adjustedRGB(original, for: .light),
+            original
+        )
+    }
+
+    // MARK: - Interactive profile contrast
+
+    func testProfileColorContrastDarkensLightRaceColorOnLightBackground() {
+        let background = ProfileColorContrast.RGB(
+            red: 250.0 / 255.0,
+            green: 251.0 / 255.0,
+            blue: 252.0 / 255.0
+        )
+        let original = ProfileColorContrast.RGB(red: 1, green: 0.95, blue: 0.1)
+
+        let adjusted = ProfileColorContrast.adjustedRGB(original, background: background)
+
+        XCTAssertGreaterThanOrEqual(
+            ProfileColorContrast.contrastRatio(adjusted, background),
+            ProfileColorContrast.minimumRatio - 0.001
+        )
+        XCTAssertLessThan(adjusted.red, original.red)
+    }
+
+    func testProfileColorContrastLightensDarkRaceColorOnDarkBackground() {
+        let background = ProfileColorContrast.RGB(
+            red: 30.0 / 255.0,
+            green: 38.0 / 255.0,
+            blue: 50.0 / 255.0
+        )
+        let original = ProfileColorContrast.RGB(red: 0.01, green: 0.04, blue: 0.12)
+
+        let adjusted = ProfileColorContrast.adjustedRGB(original, background: background)
+
+        XCTAssertGreaterThanOrEqual(
+            ProfileColorContrast.contrastRatio(adjusted, background),
+            ProfileColorContrast.minimumRatio - 0.001
+        )
+        XCTAssertGreaterThan(adjusted.blue, original.blue)
+    }
+
+    func testProfileColorContrastPreservesColorThatAlreadyPasses() {
+        let background = ProfileColorContrast.RGB(
+            red: 250.0 / 255.0,
+            green: 251.0 / 255.0,
+            blue: 252.0 / 255.0
+        )
+        let original = ProfileColorContrast.RGB(red: 0.1, green: 0.2, blue: 0.7)
+
+        XCTAssertEqual(
+            ProfileColorContrast.adjustedRGB(original, background: background),
+            original
+        )
+    }
+
     // MARK: - Country Names
 
     func testCountryNameSpanish() {
@@ -155,6 +243,18 @@ final class AccessibilityTests: XCTestCase {
         XCTAssertTrue(label.contains("sin información detallada"))
     }
 
+    func testRaceCardLabelIncludesWaitingResultsStatus() {
+        let raceDay = makeRaceDay()
+        let race = makeRace(name: "Carrera X")
+        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
+
+        let label = AccessibilityRaceDescription.raceCardLabel(
+            item: item,
+            isWaitingForResults: true
+        )
+        XCTAssertTrue(label.contains("esperando resultados"))
+    }
+
     // MARK: - Season Race Label
 
     func testSeasonRaceLabelIncludesDateRange() {
@@ -261,8 +361,6 @@ final class AccessibilityTests: XCTestCase {
             colorHex: nil,
             logoUrl: nil,
             websiteUrl: nil,
-            extId: nil,
-            extSlug: nil,
             hideFlag: false,
             isGrandTour: false,
             isCancelled: isCancelled,
@@ -272,8 +370,7 @@ final class AccessibilityTests: XCTestCase {
             slug: nil,
             originalName: nil,
             startlistImportedAt: nil,
-            startlistProvisional: nil,
-            enrichedStartlist: nil
+            startlistProvisional: nil
         )
     }
 
@@ -310,6 +407,55 @@ final class AccessibilityTests: XCTestCase {
             hasAssets: false,
             updatedAt: nil,
             countryCode: nil
+        )
+    }
+}
+
+final class AdaptiveLayoutPolicyTests: XCTestCase {
+    private struct Item: Identifiable {
+        let id: Int
+        let featured: Bool
+    }
+
+    func testFeedColumnsRequireRegularWidthAndThreshold() {
+        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 900, isRegular: false), 1)
+        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 619, isRegular: true), 1)
+        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 620, isRegular: true), 2)
+    }
+
+    func testStartlistColumnsAreBoundedFromOneToThree() {
+        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 900, isRegular: false), 1)
+        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 620, isRegular: true), 2)
+        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 920, isRegular: true), 3)
+        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 1_600, isRegular: true), 3)
+    }
+
+    func testFeaturedItemsSpanAndInterruptPairedRows() {
+        let items = [
+            Item(id: 1, featured: false), Item(id: 2, featured: false),
+            Item(id: 3, featured: true), Item(id: 4, featured: false),
+        ]
+        let rows = AdaptiveLayoutPolicy.rows(items, columns: 2, spansAllColumns: \.featured)
+        XCTAssertEqual(rows.map { $0.items.map(\.id) }, [[1, 2], [3], [4]])
+        XCTAssertEqual(rows.map(\.spansAllColumns), [false, true, false])
+    }
+
+    func testWideDetailStartsAtConfiguredThreshold() {
+        XCTAssertFalse(AdaptiveLayoutPolicy.usesWideDetail(width: 819, isRegular: true))
+        XCTAssertTrue(AdaptiveLayoutPolicy.usesWideDetail(width: 820, isRegular: true))
+    }
+
+    func testMarketDistributionPreservesWholeCategoriesAtExactBreak() {
+        XCTAssertEqual(
+            AdaptiveLayoutPolicy.balancedBreak(counts: [3, 2, 5]),
+            .init(blockIndex: 2, offset: 0)
+        )
+    }
+
+    func testMarketDistributionSplitsLongCategoryAtBalancedRow() {
+        XCTAssertEqual(
+            AdaptiveLayoutPolicy.balancedBreak(counts: [2, 7, 1]),
+            .init(blockIndex: 1, offset: 3)
         )
     }
 }

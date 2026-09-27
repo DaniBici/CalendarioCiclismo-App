@@ -5,14 +5,14 @@
     {
       "teamName": "  TEAM   VISMA | LEASE A BIKE ",
       "riders": [
-        { "dorsal": "001", "riderName": "MATTEO JORGENSON" },
-        { "dorsal": "2", "riderName": "SEPP KUSS" }
+        { "dorsal": "001", "givenName": "MATTEO", "familyName": "Jorgenson" },
+        { "dorsal": "2", "givenName": "Sepp", "familyName": "van der Kuss" }
       ]
     },
     {
       "teamName": "UAE Team Emirates - XRG",
       "riders": [
-        { "dorsal": "11", "riderName": "Brandon McNulty" }
+        { "dorsal": "11", "givenName": "Brandon", "familyName": "McNulty" }
       ]
     }
   ]

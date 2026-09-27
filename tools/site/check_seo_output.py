@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -11,7 +12,8 @@ ALLOWED_EVENT_STATUSES = {
     "https://schema.org/EventScheduled",
     "https://schema.org/EventCancelled",
 }
-CATALOG_DIRS = ("competicion", "jornada", "en/race", "en/stage")
+CATALOG_DIRS = ("competicion", "jornada", "en/race", "en/stage", "ciclocross", "en/cyclocross")
+SCRIPT_TAG = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
 
 
 class JsonLdParser(HTMLParser):
@@ -70,37 +72,48 @@ def validate_event(event):
     return errors
 
 
-def check_site(root):
+def check_paths(root, paths):
     failures = []
     html_count = 0
     event_count = 0
+    for path in paths:
+        html_count += 1
+        source = path.read_text(encoding="utf-8")
+        if "function raceName" in source:
+            failures.append(f"{path.relative_to(root)}: contiene código de raceName")
+        parser = JsonLdParser()
+        # Solo interesan los script JSON-LD. Analizar todo el HTML de cada
+        # página generada supone la mayor parte del tiempo de validación.
+        for script in SCRIPT_TAG.finditer(source):
+            opening = source[script.start():source.find(">", script.start()) + 1]
+            if "application/ld+json" in opening.lower():
+                parser.feed(script.group())
+        for block_number, block in enumerate(parser.blocks, start=1):
+            try:
+                payload = json.loads(block)
+            except json.JSONDecodeError as exc:
+                failures.append(f"{path.relative_to(root)}: JSON-LD {block_number} inválido ({exc})")
+                continue
+            for obj in iter_objects(payload):
+                if obj.get("@type") != "SportsEvent":
+                    continue
+                event_count += 1
+                for error in validate_event(obj):
+                    failures.append(f"{path.relative_to(root)}: SportsEvent {error}")
+    return html_count, event_count, failures
+
+
+def check_site(root):
+    failures = []
+    paths = []
     for relative_dir in CATALOG_DIRS:
         directory = root / relative_dir
         if not directory.is_dir():
             failures.append(f"falta el directorio generado {relative_dir}")
             continue
-        for path in directory.rglob("index.html"):
-            html_count += 1
-            source = path.read_text(encoding="utf-8")
-            if "function raceName" in source:
-                failures.append(f"{path.relative_to(root)}: contiene código de raceName")
-            parser = JsonLdParser()
-            parser.feed(source)
-            for block_number, block in enumerate(parser.blocks, start=1):
-                try:
-                    payload = json.loads(block)
-                except json.JSONDecodeError as exc:
-                    failures.append(
-                        f"{path.relative_to(root)}: JSON-LD {block_number} inválido ({exc})"
-                    )
-                    continue
-                for obj in iter_objects(payload):
-                    if obj.get("@type") != "SportsEvent":
-                        continue
-                    event_count += 1
-                    for error in validate_event(obj):
-                        failures.append(f"{path.relative_to(root)}: SportsEvent {error}")
-    return html_count, event_count, failures
+        paths.extend(directory.rglob("index.html"))
+    html_count, event_count, errors = check_paths(root, paths)
+    return html_count, event_count, failures + errors
 
 
 def main():

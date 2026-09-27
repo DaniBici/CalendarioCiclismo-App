@@ -441,6 +441,7 @@ async function main() {
       try {
         const text = fixture?.pdfTextByUrl?.[stagePdf.href] ?? await pdfToLayoutText(stagePdf.href);
         stage = classificationFromOfficialStagePdf(CODE, item.stageNumber, text, sourceRows);
+        stage.publication = {provider:'sportsoft',format:'pdf'};
         log(`  ✓ etapa ${item.stageNumber}: PDF oficial SportSoft (${stage.rows.length} filas)`);
       } catch (error) { log(`  ⚠ etapa ${item.stageNumber}: PDF oficial ignorado (${error.message})`); }
     }
@@ -450,6 +451,7 @@ async function main() {
       try {
         const text = fixture?.pdfTextByUrl?.[afterPdf.href] ?? await pdfToLayoutText(afterPdf.href);
         const official = classificationsFromOfficialAfterStagePdf(CODE, item.stageNumber, text, [...sourceRows, ...gcRows]);
+        official.forEach(classification => { classification.publication = {provider:'sportsoft',format:'pdf'}; });
         classifications.push(...official);
         log(`  ✓ acumuladas tras etapa ${item.stageNumber}: PDF oficial SportSoft (${official.map((c) => `${c.classKind}:${c.rows.length}`).join(', ')})`);
       } catch (error) { log(`  ⚠ acumuladas tras etapa ${item.stageNumber}: PDF oficial ignorado (${error.message})`); }

@@ -4,16 +4,30 @@
 
 Filtros: `all`, `pro`, `uwt`, `wwt`, `male`, `female`. Ordenación: Categoría / Hora TV / Hora meta.
 
+Las carreras seleccionadas como destacadas solo reciben prioridad y presentación especial en Categoría. En Hora TV y Hora meta se ordenan por su horario y usan tarjetas normales; la selección se conserva y el formato destacado reaparece al volver a Categoría. En layouts de varias columnas, solo las destacadas del modo Categoría ocupan todo el ancho.
+
+En web, «Hora Meta» también muestra la llegada prevista en las tarjetas, aunque
+la etapa aún no haya empezado. Al volver a Categoría o Hora TV se recupera la
+salida para las etapas pendientes; las que están en curso conservan la meta.
+Resultados y Esperando resultados mantienen su prioridad. Una meta sin horario
+definido no se sustituye por la hora de salida. En CRI/CRE, la columna usa
+«Inicio / Final» en español y «Start / End» en inglés; las demás jornadas
+conservan «Salida / Meta» y «Start / Finish».
+
 | Plataforma | ViewModel | Vista |
 |---|---|---|
 | iOS | `ViewModels/TodayViewModel.swift` | `Views/Today/TodayView.swift` |
 | Android | `ui/today/TodayViewModel.kt` | `ui/today/TodayScreen.kt` |
 | Web | `js/app.js` | `index.html` |
 
+En Android, la cabecera de Hoy contiene los accesos directos de tema y Ajustes.
+Ajustes no forma parte de `Routes.MAIN_TABS` ni de la barra inferior y presenta
+navegación de regreso explícita.
+
 ### Reglas de filtros
 
-- **CN:** excluidos excepto en `all`.
-- **CC:** solo Europa/Mundo (regex `europa|europe|mundo` iOS/Android; `europa|europe` web para CC).
+- **CN:** las pruebas élite entran en Pro y en su género; las sub23 quedan fuera de Pro/Masc/Fem.
+- **WC/CC:** Masculino exige `gender='male'` y Femenino exige `gender='female'`; el relevo mixto aparece en ambos y cualquier otra prueba sin género queda fuera. Fuera de Todas, se muestran solo Europa/Mundo (regex `europa|europe|mundo` en iOS/Android; la web aplica `europa|europe` a CC).
 - **Auto-navegación:** solo filtro `all`. Ejecutar al final de `loadDay()` directamente, no con `onChange(of:)` en SwiftUI.
 - **`nextDayWithRaces`:** recalcular al cambiar filtro. Flechas prev/next escanean 180 días; fallback ±1 día si `allRaces` no cargado.
 
@@ -42,7 +56,7 @@ Re-descarga sin togglear `isLoading`. Éxito → háptico `.success`.
 
 | Plataforma | API | Método |
 |---|---|---|
-| iOS | `.refreshable { … }` en `ScrollView` de `StageDetailView` | `StageDetailViewModel.refresh(raceDayId:)` |
+| iOS | `.refreshable { … }` en el contenedor de `StageDetailView` (no en el `ScrollView` interno) | `StageDetailViewModel.refresh(raceDayId:)` |
 | Android | `PullToRefreshBox` (`@OptIn(ExperimentalMaterial3Api::class)`) envolviendo `LazyColumn` | `loadStageData(app, stageId, raceId)` |
 
 ## Vista Temporada — Mes "Todos" + colapso por país

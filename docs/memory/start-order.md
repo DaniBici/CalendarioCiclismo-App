@@ -11,6 +11,13 @@ vista nativa (antes abrían Safari/Chrome Tabs).
   (sin dorsal, sin bandera, sin corredor) y **sin** los filtros Contrarrelojistas/General.
   Cruce por **nombre de equipo** contra `startlist_teams` (nombre canónico vía `teams`).
 
+En web, ambos modos comparten la segunda columna de Resultados: perfil
+interactivo/oficial y datos de la jornada (`js/stage-profile.js` y
+`js/stage-context.js`). La columna mide 320 px desde 1100 px de viewport; por
+debajo se coloca tras la tabla. Se respetan los vetos de perfil y se omiten los
+nombres de sus puntos, como en Resultados. Los filtros y la nota de zona horaria
+permanecen con la tabla en la columna principal.
+
 ## Tabla Supabase
 
 `start_order_entries` — migraciones 055 (creación), 056 (favoritos), 057 (dos grupos de filtros).

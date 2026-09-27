@@ -16,14 +16,38 @@ data class StartlistTeam(
     val displayName: String
         get() = teamName
 
-    /** Equipo ficticio "Individual": lo siembra resolve_uci_startlist (mig. 084)
-     *  para los corredores cuya fila de resultados UCI no trae equipo. teamId
-     *  NULL + nombre 'Individual'. Se OCULTA cosméticamente (espejo de la web):
-     *  corredores visibles, pero sin cabecera en startlist y sin equipo/chapa/
-     *  filtro en resultados. */
+    /** Estado sin equipo sembrado por la ingesta cuando la fuente no aporta
+     *  una identidad de club o selección. La fila y sus corredores se
+     *  conservan, pero no se presenta como una formación. */
+    val isNoTeamPlaceholder: Boolean
+        get() {
+            if (teamId != null) return false
+            val normalized = teamName
+                .replace('-', ' ')
+                .trim()
+                .split(Regex("\\s+"))
+                .joinToString(" ")
+                .lowercase()
+            return normalized in NO_TEAM_PLACEHOLDER_NAMES
+        }
+
+    /** Compatibilidad para consumidores antiguos; usar isNoTeamPlaceholder. */
     val isIndividualPlaceholder: Boolean
-        get() = teamId == null && teamName.trim().equals("individual", ignoreCase = true)
+        get() = isNoTeamPlaceholder && teamName
+            .replace('-', ' ')
+            .trim()
+            .split(Regex("\\s+"))
+            .joinToString(" ")
+            .lowercase() == "individual"
 }
+
+private val NO_TEAM_PLACEHOLDER_NAMES = setOf(
+    "individual",
+    "private member",
+    "sin equipo",
+    "un",
+    "un attached leinster",
+)
 
 @Serializable
 data class StartlistRider(

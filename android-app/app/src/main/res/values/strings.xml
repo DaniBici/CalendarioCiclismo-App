@@ -60,8 +60,6 @@
     <string name="today_subtitle_rest">Descanso</string>
     <string name="today_subtitle_cancelled">Cancelada</string>
     <string name="today_race_fallback">Carrera</string>
-    <string name="today_results_title">Resultados</string>
-    <string name="today_results_title_with_stage">Resultados · %1$s</string>
     <string name="today_results_cd">Resultados</string>
     <string name="today_revive_cd">Revive</string>
     <string name="today_startlist_badge">Dorsales</string>
@@ -139,12 +137,19 @@
     <string name="stage_guide_town">Localidad</string>
     <string name="stage_label_route_unknown">Jornada no encontrada</string>
     <string name="stage_doc_web_official">Web oficial</string>
+    <string name="stage_doc_classifications">Clasificaciones</string>
     <string name="stage_doc_startlist_provisional">Lista provisional</string>
     <string name="stage_doc_startlist_female">Dorsales</string>
     <string name="stage_doc_startlist_male">Dorsales</string>
     <string name="stage_doc_profile">Perfil</string>
-    <string name="stage_doc_profile_official">Perfil</string>
-    <string name="stage_doc_profile_interactive">Perfil + Datos</string>
+    <string name="stage_doc_profile_official">Perfil oficial</string>
+    <string name="stage_doc_profile_interactive">Perfil interactivo</string>
+    <string name="stage_profile_title">Perfil</string>
+    <string name="stage_profile_mode_interactive">Interactivo</string>
+    <string name="stage_profile_mode_official">Oficial</string>
+    <string name="stage_profile_official_cd">Perfil oficial. Toca dos veces para abrirlo a tamaño completo.</string>
+    <string name="stage_profile_load_error">No se ha podido cargar el perfil oficial.</string>
+    <string name="stage_profile_open">Abrir perfil</string>
     <string name="stage_doc_map">Mapa</string>
     <string name="stage_doc_map_official">Mapa</string>
     <string name="stage_doc_map_interactive">Mapa 3D</string>
@@ -184,6 +189,8 @@
     <string name="startlist_error_title">Error de carga</string>
     <string name="startlist_error_unknown">Error desconocido</string>
     <string name="startlist_empty">No hay inscritos registrados</string>
+    <string name="startlist_download_pdf">Descargar PDF</string>
+    <string name="startlist_pdf_error">No se pudo generar el PDF. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="startlist_label_teams">Equipos</string>
     <string name="startlist_label_riders_male">Corredores</string>
     <string name="startlist_label_riders_female">Corredoras</string>
@@ -263,6 +270,8 @@
     <string name="notification_category_tv_start_description">T-5 min antes de cada retransmisión</string>
     <string name="notification_category_results">Resultados al cerrar la jornada</string>
     <string name="notification_category_results_description">Podio y clasificaciones tras la meta</string>
+    <string name="notification_category_cyclocross">Ciclocross</string>
+    <string name="notification_category_cyclocross_description">Avisos de ciclocross y de las carreras que sigues</string>
 
     <!-- Settings: Experiencia -->
     <string name="settings_haptics_title">Vibraciones</string>
@@ -273,41 +282,6 @@
     <string name="settings_privacy_analytics_body">Ayúdanos a mejorar la app compartiendo datos anónimos de uso.</string>
     <string name="settings_privacy_delete_button">Borrar todos mis datos</string>
     <string name="settings_privacy_delete_body">Los datos de uso son completamente anónimos. Puedes borrar permanentemente tu registro de notificaciones y la caché local.</string>
-
-    <!-- Onboarding: región -->
-
-    <!-- Settings: Región -->
-    <string name="settings_section_region">Región</string>
-    <string name="settings_region_description">Determina los canales de televisión que ves en cada jornada.</string>
-
-    <!-- Regiones (compartido entre Ajustes y onboarding) -->
-    <string name="region_spain">España</string>
-    <string name="region_europe">Europa</string>
-    <string name="region_americas">América</string>
-    <string name="region_asia">Asia y Pacífico</string>
-    <string name="region_africa">África</string>
-    <string name="region_all">Todas las regiones</string>
-
-    <!-- Sub-selector de país preferido dentro del bucket -->
-    <string name="settings_region_country_label">Tu país (ajusta la hora del aviso de TV)</string>
-    <string name="settings_region_country_auto">Automático (mi zona horaria)</string>
-
-    <!-- Grupos finos broadcasts.country -->
-    <string name="country_group_es">España</string>
-    <string name="country_group_pt">Portugal</string>
-    <string name="country_group_fr">Francia</string>
-    <string name="country_group_be">Bélgica</string>
-    <string name="country_group_nl">Países Bajos</string>
-    <string name="country_group_it">Italia</string>
-    <string name="country_group_de_at_ch">Alemania / Austria / Suiza</string>
-    <string name="country_group_uk_ie">Reino Unido / Irlanda</string>
-    <string name="country_group_scandi">Países nórdicos</string>
-    <string name="country_group_ee">Europa del Este</string>
-    <string name="country_group_norteam">EE. UU. y Canadá</string>
-    <string name="country_group_latam">América Latina</string>
-    <string name="country_group_asiapac">Asia y Pacífico</string>
-    <string name="country_group_mena">Oriente Medio y Norte de África</string>
-    <string name="country_group_africa">África subsahariana</string>
 
     <!-- Onboarding: notificaciones -->
     <string name="onboarding_notif_title">Mantente informado</string>
@@ -454,8 +428,6 @@
     <string name="notification_channel_default_id">races_v1</string>
 
     <!-- Widget "Hoy en el ciclismo" -->
-    <string name="widget_today_title">Hoy en el ciclismo</string>
-    <string name="widget_today_description">Carreras ciclistas de hoy, hora de llegada estimada y cobertura.</string>
 
     <!-- Tercer nivel de notificaciones -->
     <string name="settings_race_follow_title">Carreras</string>
@@ -491,6 +463,11 @@
     <string name="followed_stages_empty_title">Sin jornadas seguidas</string>
     <string name="followed_stages_empty_body">Pulsa Notificaciones en cualquier jornada para añadirla.</string>
 
+    <!-- Pantalla FollowedCxRaces -->
+    <string name="followed_cx_races_title">Carreras de ciclocross seguidas</string>
+    <string name="followed_cx_races_empty_title">Sin carreras de ciclocross seguidas</string>
+    <string name="followed_cx_races_empty_body">Pulsa Notificaciones en cualquier carrera de ciclocross para añadirla.</string>
+
     <!-- Orden de salida (CRI/CRE) -->
     <string name="start_order_title">Orden de salida</string>
     <string name="start_order_empty">No hay datos de orden de salida para esta jornada.</string>
@@ -523,7 +500,12 @@
     <string name="results_filter_all_teams">Todos los equipos</string>
     <string name="results_more_classifications">Ver más clasificaciones</string>
     <string name="results_stage_final_short">F</string>
-    <string name="results_also_on">También en</string>
+    <string name="results_stage_final_accessibility">Clasificación final</string>
+    <string name="results_stage_prologue_accessibility">Prólogo</string>
+    <string name="results_stage_accessibility">Etapa %1$s</string>
+    <string name="results_previous_classifications">Clasificaciones anteriores</string>
+    <string name="asset_actions_more">Más acciones</string>
+    <string name="asset_actions_previous">Acciones anteriores</string>
 
     <!-- Feed "Últimos resultados" (pestaña Resultados, apps 3.1) -->
     <string name="results_feed_heading">Resultados</string>
@@ -536,18 +518,6 @@
     <string name="uci_ranking_women">Femenino</string>
     <string name="uci_ranking_team">Equipo</string>
     <string name="uci_ranking_points">Puntos</string>
-    <string name="uci_ranking_info_label">Fuente y reglas del ránking UCI</string>
-    <string name="uci_ranking_info_title">Sobre el Ránking UCI</string>
-    <string name="uci_ranking_updated">%1$s. DataRide publica normalmente un nuevo ránking cada martes.</string>
-    <string name="uci_ranking_projection">Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.</string>
-    <string name="uci_ranking_legend_worldteams">WorldTeams</string>
-    <string name="uci_ranking_legend_womens_worldteams">Women\'s WorldTeams</string>
-    <string name="uci_ranking_legend_worldtour">Invitaciones obligatorias a todo el WorldTour y ProSeries</string>
-    <string name="uci_ranking_legend_womens_worldtour">Invitaciones obligatorias al Women\'s WorldTour</string>
-    <string name="uci_ranking_legend_proseries">Invitaciones obligatorias a ProSeries</string>
-    <string name="uci_ranking_legend_top30">ProTeams fuera del top-30: fondo rojo</string>
-    <string name="uci_ranking_source">Abrir fuente UCI DataRide</string>
-    <string name="uci_ranking_regulations">Abrir Reglamento UCI · art. 2.1.007bis</string>
     <string name="results_feed_load_more">Cargar más resultados</string>
     <string name="results_feed_empty">No hay resultados</string>
     <string name="results_feed_gc_final">General final</string>
@@ -603,4 +573,93 @@
     <string name="transfers_info_label">Información sobre los fichajes</string>
     <string name="transfers_info_title">Mercado de fichajes</string>
     <string name="transfers_info_text">La información del mercado de fichajes —altas, bajas y renovaciones— se contrasta con los anuncios de los equipos y con el trabajo de periodistas especializados que siguen y adelantan los movimientos temporada a temporada. Agradecemos especialmente el seguimiento de:</string>
+    <string name="tab_cyclocross">Ciclocross</string>
+    <string name="cx_me">Elite masculina</string>
+    <string name="cx_we">Elite femenina</string>
+    <string name="cx_mu">Sub-23 masculina</string>
+    <string name="cx_wu">Sub-23 femenina</string>
+    <string name="cx_mj">Júnior masculina</string>
+    <string name="cx_wj">Júnior femenina</string>
+    <string name="cx_cancelled">Cancelada</string>
+    <string name="cx_result">Resultado</string>
+    <string name="cx_provisional">Provisional</string>
+    <string name="cx_pending">Pendiente</string>
+    <string name="cx_refresh">Actualizar</string>
+    <string name="cx_rounds_count">%1$d rondas</string>
+    <string name="cx_retry">Reintentar</string>
+    <string name="cx_offline">Datos guardados sin conexión</string>
+    <string name="cx_previous_month">Mes anterior</string>
+    <string name="cx_next_month">Mes siguiente</string>
+    <string name="cx_empty_title">No hay carreras</string>
+    <string name="cx_empty_body">No hay carreras programadas para este mes</string>
+    <string name="cx_empty_filter_body">No hay carreras con este filtro para el mes seleccionado</string>
+    <string name="cx_filter_all">Todas</string>
+    <string name="cx_filter_big">Big</string>
+    <string name="cx_filter_pro">Pro</string>
+    <string name="cx_filter_spain">España</string>
+    <string name="cx_filter_dialog_set_message">El filtro «%1$s» se aplicará como predeterminado solo en la agenda de Ciclocross.</string>
+    <string name="cx_filter_dialog_remove_message">Se eliminará «%1$s» como filtro predeterminado de la agenda de Ciclocross.</string>
+    <string name="cx_today">Hoy</string>
+    <string name="cx_programme">Programa</string>
+    <string name="cx_startlist">Dorsales</string>
+    <string name="cx_results">Resultados</string>
+    <string name="cx_general">General</string>
+    <string name="cx_videos">Vídeos</string>
+    <string name="cx_back">Volver</string>
+    <string name="cx_follow">Seguir carrera CX</string>
+    <string name="cx_unfollow">Dejar de seguir carrera CX</string>
+    <string name="cx_not_found">Carrera no disponible</string>
+    <string name="cx_no_general">No hay general publicada</string>
+    <string name="cx_points">Puntos</string>
+    <string name="cx_time">Tiempo</string>
+    <string name="cx_no_categories">No hay categorías publicadas</string>
+    <string name="cx_device_time">Hora del dispositivo</string>
+    <string name="cx_no_startlist">No hay inscritos publicados</string>
+    <string name="cx_no_results">Resultados pendientes de publicación</string>
+    <string name="cx_tv">TV / streaming</string>
+    <string name="cx_tv_region">Ver emisiones de mi región</string>
+    <string name="cx_tv_all">Ver todas las emisiones</string>
+    <string name="cx_no_tv">No hay emisiones para esta selección</string>
+    <string name="cx_revive">Revive</string>
+    <string name="cx_scheme_pending">Esquema pendiente</string>
+    <!-- Widget «Carreras de hoy» (5.0.9) -->
+    <string name="widget_today_title">Carreras de hoy</string>
+    <string name="widget_today_description">Carretera y ciclocross del día: TV, texto en directo y accesos a resultados.</string>
+    <string name="widget_today_label">Hoy</string>
+    <string name="widget_next">Próxima</string>
+    <string name="widget_tomorrow">mañana</string>
+    <string name="widget_empty">No hay carreras hoy</string>
+    <string name="widget_empty_followed">Hoy no corre ninguna carrera seguida</string>
+    <string name="widget_unavailable">Sin datos. Revisa la conexión</string>
+    <string name="widget_rest_day">Jornada de descanso</string>
+    <string name="widget_cancelled_day">Jornada anulada</string>
+    <string name="widget_cancelled">Anulada</string>
+    <string name="widget_finish">Meta</string>
+    <string name="widget_finished">Terminada</string>
+    <string name="widget_live_text">Live texto</string>
+    <string name="widget_full_race">Íntegra</string>
+    <string name="widget_unconfirmed">Sin confirmar</string>
+    <string name="widget_no_tv_spain">No TV España</string>
+    <string name="widget_no_tv">Sin TV</string>
+    <string name="widget_more">+%1$d más</string>
+    <string name="widget_session_finished">terminada</string>
+    <string name="widget_session_live">en curso</string>
+    <string name="widget_results">Resultados</string>
+    <string name="widget_revive">Revive la carrera</string>
+    <string name="widget_config_title">Configurar widget</string>
+    <string name="widget_config_scope">Carreras</string>
+    <string name="widget_scope_app_filter">Filtro de la app</string>
+    <string name="widget_scope_app_filter_desc">El filtro fijado en Hoy y en Ciclocross</string>
+    <string name="widget_scope_all">Todas</string>
+    <string name="widget_scope_followed">Seguidas</string>
+    <string name="widget_scope_followed_desc">Carreras, etapas y pruebas de ciclocross que sigues</string>
+    <string name="widget_config_discipline">Disciplina</string>
+    <string name="widget_discipline_both">Carretera y ciclocross</string>
+    <string name="widget_discipline_road">Carretera</string>
+    <string name="widget_discipline_cx">Ciclocross</string>
+    <string name="widget_config_save">Guardar</string>
+    <string name="widget_preview_stage">Etapa 15 · Alta montaña</string>
+    <string name="widget_preview_type">Media montaña</string>
+    <string name="widget_preview_race_1">Vuelta a España</string>
+    <string name="widget_preview_more">+4 más ›</string>
 </resources>

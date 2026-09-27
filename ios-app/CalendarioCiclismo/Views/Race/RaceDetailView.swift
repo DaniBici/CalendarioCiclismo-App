@@ -9,15 +9,11 @@ struct RaceDetailView: View {
     @State private var safariURL: URL?
     @State private var manager = NotificationManager.shared
     @State private var raceFollow = RaceFollowService.shared
-    /// Etapa cuya hoja de resultados (fuentes externas) está abierta.
-    @State private var resultsSheetItem: ResultsSheetItem?
     /// Jornadas con resultados in-house (raceDayId → stageNumber): el trofeo de
-    /// esas etapas navega a la pantalla nativa de clasificaciones en vez del modal
-    /// externos. Diferido y no bloqueante (sin red → vacío → modal clásico). Pasa las
-    /// jornadas para resolver el caso de un día/general (stage sin raceDayId).
+    /// esas etapas navega a la pantalla nativa de clasificaciones. Diferido y no
+    /// bloqueante. Pasa las jornadas para resolver el caso de un día/general
+    /// (stage sin raceDayId).
     @State private var inhouseByDay: [String: Int?] = [:]
-    @State private var hasAutomaticResultsSource = false
-    @State private var resultsSourceGateResolved = false
     /// Push programático (por valor) a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
 
@@ -53,13 +49,14 @@ struct RaceDetailView: View {
                     }
                 }
                 .safariSheet(url: $safariURL)
-                .resultsSheet(item: $resultsSheetItem)
                 // Push por valor a la pantalla de resultados in-house (trofeo).
                 .navigationDestination(item: $resultsRoute) { route in
                     ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(viewModel.race?.name ?? "Carrera")
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load(raceId: raceId) }
@@ -68,18 +65,12 @@ struct RaceDetailView: View {
             let days = viewModel.days.map { ($0.raceDay.id, $0.raceDay.stageNumber) }
             guard !days.isEmpty else {
                 inhouseByDay = [:]
-                resultsSourceGateResolved = true
                 return
             }
-            resultsSourceGateResolved = false
             let cancelled = Set(viewModel.days.filter { $0.raceDay.isCancelledDay }.map { $0.raceDay.id })
             inhouseByDay = await SupabaseService.shared.inhouseStagesForDays(
                 raceId: raceId, days: days, cancelledDayIds: cancelled
             )
-            let automaticSources = await SupabaseService.shared
-                .automaticResultsSourceRaceIds(raceIds: [raceId])
-            hasAutomaticResultsSource = automaticSources.contains(raceId)
-            resultsSourceGateResolved = true
         }
         .onChange(of: viewModel.race) { _, newRace in
             if let race = newRace {
@@ -108,13 +99,11 @@ struct RaceDetailView: View {
 
     @ViewBuilder
     private func stageRow(day: EnrichedRaceDay, race: Race) -> some View {
-        // Resultados/Revive cuando la etapa ya terminó (mismo criterio que "Hoy").
-        // In-house: si esta jornada tiene clasificación propia, el trofeo va a la
-        // pantalla nativa (no al modal externos).
+        // Resultados/Revive solo si esta jornada tiene clasificación propia: el
+        // trofeo va a la pantalla nativa.
         let hasInhouse = inhouseByDay.index(forKey: day.id) != nil
         let inhouseStage = inhouseByDay[day.id].flatMap { $0 }
-        let showResults = hasInhouse || (resultsSourceGateResolved && !hasAutomaticResultsSource
-            && RaceLogic.shouldShowResults(rd: day.raceDay, race: race))
+        let showResults = hasInhouse
         // Revive/TV solo acompaña al acceso a Resultados; la hora de meta por sí
         // sola no activa el botón en la vista de Competición.
         let reviveURL = showResults ? RaceLogic.reviveUrl(from: day.broadcasts) : nil
@@ -123,11 +112,7 @@ struct RaceDetailView: View {
             race: race,
             onShowResults: showResults ? {
                 Haptics.play(.primaryAction)
-                if hasInhouse {
-                    resultsRoute = ResultsRoute(raceId: race.id, stageNumber: inhouseStage, stageSuffix: day.raceDay.stageSuffix)
-                } else {
-                    resultsSheetItem = ResultsSheetItem(race: race, raceDay: day.raceDay)
-                }
+                resultsRoute = ResultsRoute(raceId: race.id, stageNumber: inhouseStage, stageSuffix: day.raceDay.stageSuffix)
             } : nil,
             onRevive: reviveURL != nil ? {
                 Haptics.play(.primaryAction)
@@ -154,35 +139,9 @@ struct RaceDetailView: View {
     @ViewBuilder
     private func raceHeader(_ race: Race) -> some View {
         VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                RaceLogo(race.logoUrl, size: 48)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        if race.hideFlag != true {
-                            CountryFlag(countryCode: race.countryCode)
-                        }
-                        Text(race.localizedName)
-                            .font(.title3)
-                            .fontWeight(.bold)
-
-                        if RaceLogic.shouldShowFemaleIndicator(race) {
-                            Text("♀")
-                                .foregroundStyle(AppTheme.green)
-                                .accessibilityLabel("Carrera femenina")
-                        }
-                    }
-
-                    if let original = race.originalName, original != race.name {
-                        Text(original)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-            }
-            .accessibilityElement(children: .combine)
+            RaceCompetitionIdentity(name: race.localizedName, logoUrl: race.logoUrl, countryCode: race.countryCode,
+                hideFlag: race.hideFlag == true, originalName: race.originalName.flatMap { $0 != race.name ? $0 : nil },
+                showFemale: RaceLogic.shouldShowFemaleIndicator(race))
 
             HStack(spacing: 8) {
                 CategoryBadge(category: race.uciCategory)

@@ -1,0 +1,4357 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline_single_round_points_not_full_season_cotejo",
+  "checkedAt": "2026-09-12",
+  "seasonKey": "2025-26",
+  "raceName": "Alcobendas",
+  "dateKey": "2025-11-16",
+  "rulesSourceUrl": "https://yosoyciclista.s3.amazonaws.com/documentos/smartweb/menu/123/doc_68c7c0ddc9db25_29075634_5-Pruebas-de-Ciclo-Cross--ap-CD-20250909_b_IZDA.pdf",
+  "rulesSha256": "590c0ff1d43e283346e535e240c33ce36b8eabd2f705961da0dad610514b8768",
+  "roundLinkSourceUrl": "https://www.cxalcobendas.com/p/clasificaciones_3.html",
+  "resultColumns": [
+    "rank",
+    "bib",
+    "name",
+    "nation",
+    "licenseCategory",
+    "irm"
+  ],
+  "categories": [
+    {
+      "category": "ME",
+      "officialCompetitionCategory": "ELITE-SUB23",
+      "roundSourceUrl": "https://cronosportradio.es/RESULTADOS25/ALCOBENDAS25/clasificacion-elite.pdf",
+      "roundSha256": "050c71dfa9936b7fa5d20d3328f01e69de7468872c21580590eaa38495ae9163",
+      "summary": {
+        "Participantes": 38,
+        "Clasificados": 35,
+        "DNF": 3,
+        "DNS": 6
+      },
+      "rows": [
+        [
+          1,
+          "2",
+          "INGUANZO MACHO Gonzalo",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          2,
+          "3",
+          "MIRA BONASTRE Raul",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          3,
+          "1",
+          "JUNQUERA SAN MILLAN Mario",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          4,
+          "8",
+          "DIAZ PEREZ Miguel",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          5,
+          "5",
+          "GALAN CORTAZAR Unax",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          6,
+          "36",
+          "ALEMAN AZCARRAGA Oihan",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          7,
+          "7",
+          "IVARS SIRERA David",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          8,
+          "19",
+          "MARTINEZ GARCIA Ivan",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          9,
+          "22",
+          "TRAVIESA CORO Hugo",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          10,
+          "450",
+          "VEGA GONZALEZ Mario",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          11,
+          "13",
+          "FERNANDEZ ECHEVARRIA Angel",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          12,
+          "9",
+          "SANCHEZ ALDEGUER Manuel",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          13,
+          "15",
+          "BLANCH DANIEL Gerard",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          14,
+          "10",
+          "VALLE ELEGIDO Adrian",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          15,
+          "12",
+          "DIAZ GOMEZ Martin",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          16,
+          "17",
+          "GONZALEZ GAMEZ Jorge",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          17,
+          "25",
+          "CASILLAS MARTIN Angel",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          18,
+          "34",
+          "BUCETA ARMADA Dario",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          19,
+          "31",
+          "GONZALEZ SANCHEZ Daniel",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          20,
+          "14",
+          "PUELLES LOREDO Raul",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          21,
+          "6",
+          "ZAERA GISBERT Javier",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          22,
+          "21",
+          "LOPEZ NUÑEZ Adrian",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          23,
+          "24",
+          "HERRERA CIMIANO Adrian",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          24,
+          "30",
+          "PASTOR TERUEL Joel",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          25,
+          "38",
+          "GARAIOA AREVALO Aimar",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          26,
+          "29",
+          "GARCIA RODRIGUEZ Guillermo",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          27,
+          "33",
+          "CARRERA JIMENEZ Pablo",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          28,
+          "23",
+          "MORA LAPIDO Diego",
+          "ESP",
+          "S23",
+          "LAP"
+        ],
+        [
+          29,
+          "42",
+          "RODRIGUEZ ENCINAR Alejandro",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          30,
+          "35",
+          "VAZQUEZ GOLPE Aitor",
+          "ESP",
+          "S23",
+          "LAP"
+        ],
+        [
+          31,
+          "32",
+          "HERNANDEZ ARRIBAS Jose Antonio",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          32,
+          "43",
+          "CALLE HERRERO Ruben",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          33,
+          "28",
+          "PEREZ GUILABERT Daniel",
+          "ESP",
+          "S23",
+          "LAP"
+        ],
+        [
+          34,
+          "37",
+          "ARIAS REGUEIRO Lucas",
+          "ESP",
+          "S23",
+          "LAP"
+        ],
+        [
+          35,
+          "41",
+          "GOMEZ MENDEZ Borja",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          null,
+          "40",
+          "HERRAN MARTIJA Diego",
+          "ESP",
+          "ELT",
+          "DNF"
+        ],
+        [
+          null,
+          "11",
+          "ESTEBAN AGUERO Ismael",
+          "ESP",
+          "ELT",
+          "DNF"
+        ],
+        [
+          null,
+          "27",
+          "REINOSO SANCHEZ Marcos",
+          "ESP",
+          "S23",
+          "DNF"
+        ]
+      ],
+      "standingsSourceUrl": "https://rfec.com/es/smartweb/seccion/clasificacionescircuito/rfec/2025/25COPACX/4678-ELITE-SUB23",
+      "standingsHtmlSha256": "a8f88f5bb29e4a4cc6de96d7e6729609dc0ee2348365df51046e43cdd15cbfe4",
+      "publishedStandingsLabel": "PROVISIONAL, publicada 09 DIC 2025",
+      "roundColumn": 5,
+      "standings": [
+        {
+          "name": "INGUANZO MACHO, GONZALO",
+          "publishedGeneralRank": 1,
+          "points": 146,
+          "roundPoints": [
+            14,
+            25,
+            20,
+            25,
+            25,
+            25,
+            8,
+            4
+          ]
+        },
+        {
+          "name": "JUNQUERA SAN MILLAN, MARIO",
+          "publishedGeneralRank": 2,
+          "points": 126,
+          "roundPoints": [
+            20,
+            16,
+            12,
+            20,
+            16,
+            16,
+            10,
+            16
+          ]
+        },
+        {
+          "name": "MIRA BONASTRE, RAUL",
+          "publishedGeneralRank": 3,
+          "points": 108,
+          "roundPoints": [
+            16,
+            20,
+            6,
+            14,
+            20,
+            12,
+            14,
+            6
+          ]
+        },
+        {
+          "name": "SUAREZ FERNANDEZ, KEVIN",
+          "publishedGeneralRank": 4,
+          "points": 78,
+          "roundPoints": [
+            25,
+            null,
+            25,
+            12,
+            null,
+            null,
+            16,
+            null
+          ]
+        },
+        {
+          "name": "GALAN CORTAZAR, UNAX",
+          "publishedGeneralRank": 5,
+          "points": 72,
+          "roundPoints": [
+            10,
+            14,
+            16,
+            8,
+            12,
+            5,
+            0,
+            7
+          ]
+        },
+        {
+          "name": "RODRIGUEZ NOVOA, MIGUEL",
+          "publishedGeneralRank": 6,
+          "points": 59,
+          "roundPoints": [
+            9,
+            10,
+            10,
+            10,
+            null,
+            8,
+            7,
+            5
+          ]
+        },
+        {
+          "name": "DIAZ PEREZ, MIGUEL",
+          "publishedGeneralRank": 7,
+          "points": 55,
+          "roundPoints": [
+            8,
+            null,
+            9,
+            6,
+            14,
+            null,
+            9,
+            9
+          ]
+        },
+        {
+          "name": "ORTS LLORET, FELIPE",
+          "publishedGeneralRank": 8,
+          "points": 50,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            25,
+            25
+          ]
+        },
+        {
+          "name": "LAURYSSEN, YORBEN",
+          "publishedGeneralRank": 9,
+          "points": 40,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            20,
+            20
+          ]
+        },
+        {
+          "name": "IVARS SIRERA, DAVID",
+          "publishedGeneralRank": 10,
+          "points": 39,
+          "roundPoints": [
+            3,
+            5,
+            4,
+            0,
+            9,
+            4,
+            4,
+            10
+          ]
+        },
+        {
+          "name": "GILLES, CYPRIEN",
+          "publishedGeneralRank": 11,
+          "points": 30,
+          "roundPoints": [
+            null,
+            null,
+            14,
+            16,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "DE MOYER, KENAY",
+          "publishedGeneralRank": 12,
+          "points": 26,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            12,
+            14
+          ]
+        },
+        {
+          "name": "REINOSO SANCHEZ, EMILIO",
+          "publishedGeneralRank": 13,
+          "points": 23,
+          "roundPoints": [
+            null,
+            8,
+            null,
+            1,
+            null,
+            null,
+            6,
+            8
+          ]
+        },
+        {
+          "name": "FERNANDEZ ECHEVARRIA, ANGEL",
+          "publishedGeneralRank": 14,
+          "points": 20,
+          "roundPoints": [
+            5,
+            3,
+            7,
+            0,
+            5,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "MEIN, THOMAS",
+          "publishedGeneralRank": 15,
+          "points": 20,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            20,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ESTEBAN AGUERO, ISMAEL",
+          "publishedGeneralRank": 16,
+          "points": 19,
+          "roundPoints": [
+            null,
+            9,
+            3,
+            7,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MEEUSEN, TOM",
+          "publishedGeneralRank": 17,
+          "points": 17,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            5,
+            12
+          ]
+        },
+        {
+          "name": "GROSLAMBERT, MARTIN",
+          "publishedGeneralRank": 18,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            14,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LAVIGNAC, MATTHIEU",
+          "publishedGeneralRank": 19,
+          "points": 13,
+          "roundPoints": [
+            null,
+            null,
+            8,
+            5,
+            null,
+            0,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SOUSA, RAFAEL",
+          "publishedGeneralRank": 20,
+          "points": 12,
+          "roundPoints": [
+            null,
+            12,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GARNIER, MATTEO",
+          "publishedGeneralRank": 21,
+          "points": 12,
+          "roundPoints": [
+            12,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CASANOVAS COLL, ALEIX",
+          "publishedGeneralRank": 22,
+          "points": 10,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            7,
+            2,
+            1
+          ]
+        },
+        {
+          "name": "ALEMAN AZCARRAGA, OIHAN",
+          "publishedGeneralRank": 23,
+          "points": 10,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            null,
+            10,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "BETON, DAMIEN",
+          "publishedGeneralRank": 24,
+          "points": 10,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            10,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ZAERA GISBERT, JAVIER",
+          "publishedGeneralRank": 25,
+          "points": 9,
+          "roundPoints": [
+            0,
+            0,
+            null,
+            0,
+            0,
+            6,
+            0,
+            3
+          ]
+        },
+        {
+          "name": "LOMBRAÑA VELASCO, UNAX",
+          "publishedGeneralRank": 26,
+          "points": 9,
+          "roundPoints": [
+            4,
+            null,
+            5,
+            0,
+            null,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "GAILLARD, FLORIAN",
+          "publishedGeneralRank": 27,
+          "points": 9,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            9,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GAMEZ FERRER, SERGIO",
+          "publishedGeneralRank": 28,
+          "points": 9,
+          "roundPoints": [
+            6,
+            null,
+            null,
+            null,
+            null,
+            3,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MORICHON, MATHIEU",
+          "publishedGeneralRank": 29,
+          "points": 9,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            9,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CARRIL ROJAS, ANXO",
+          "publishedGeneralRank": 30,
+          "points": 9,
+          "roundPoints": [
+            0,
+            6,
+            0,
+            3,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MARTINEZ GARCIA, IVAN",
+          "publishedGeneralRank": 31,
+          "points": 8,
+          "roundPoints": [
+            0,
+            null,
+            0,
+            0,
+            8,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "TRAVIESA CORO, HUGO",
+          "publishedGeneralRank": 32,
+          "points": 7,
+          "roundPoints": [
+            0,
+            0,
+            0,
+            0,
+            7,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "GONZALEZ CARRERA, SAMUEL",
+          "publishedGeneralRank": 33,
+          "points": 7,
+          "roundPoints": [
+            null,
+            7,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "PICHON, THIBAUT",
+          "publishedGeneralRank": 34,
+          "points": 7,
+          "roundPoints": [
+            7,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VEGA GONZALEZ, MARIO",
+          "publishedGeneralRank": 35,
+          "points": 6,
+          "roundPoints": [
+            0,
+            0,
+            0,
+            0,
+            6,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "SANCHEZ ALDEGUER, MANUEL",
+          "publishedGeneralRank": 36,
+          "points": 4,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            4,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "PUELLES LOREDO, RAUL",
+          "publishedGeneralRank": 37,
+          "points": 4,
+          "roundPoints": [
+            0,
+            4,
+            0,
+            0,
+            0,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "HERNANDEZ GUTIERREZ, AITOR",
+          "publishedGeneralRank": 38,
+          "points": 4,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            4,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VAN LOOCKE, LARS",
+          "publishedGeneralRank": 39,
+          "points": 3,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            3,
+            0
+          ]
+        },
+        {
+          "name": "BLANCH DANIEL, GERARD",
+          "publishedGeneralRank": 40,
+          "points": 3,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            0,
+            3,
+            0,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "DIAZ GOMEZ, MARTIN",
+          "publishedGeneralRank": 41,
+          "points": 3,
+          "roundPoints": [
+            2,
+            0,
+            0,
+            0,
+            1,
+            0,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CARRERE, BAPTISTE",
+          "publishedGeneralRank": 42,
+          "points": 3,
+          "roundPoints": [
+            1,
+            null,
+            2,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "DE CLERCQ, NAUD",
+          "publishedGeneralRank": 43,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            2
+          ]
+        },
+        {
+          "name": "VALLE ELEGIDO, ADRIAN",
+          "publishedGeneralRank": 44,
+          "points": 2,
+          "roundPoints": [
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "ROMERO BARCELO, MARC",
+          "publishedGeneralRank": 45,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            2,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "HOYAS FIGUERAS, EGOITZ",
+          "publishedGeneralRank": 46,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            2,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SILVA, BRUNO",
+          "publishedGeneralRank": 47,
+          "points": 2,
+          "roundPoints": [
+            null,
+            2,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "RUIZ DE ARCAUTE DIAZ DE ALDA, DIEGO",
+          "publishedGeneralRank": 48,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "CULLELL ESTAPE, JOFRE",
+          "publishedGeneralRank": 49,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SUSO ARAKAMA, ARKAITZ",
+          "publishedGeneralRank": 50,
+          "points": 1,
+          "roundPoints": [
+            0,
+            0,
+            1,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SANTOS, VITOR",
+          "publishedGeneralRank": 51,
+          "points": 1,
+          "roundPoints": [
+            null,
+            1,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "category": "WE",
+      "officialCompetitionCategory": "FEM ELITE-SUB23",
+      "roundSourceUrl": "https://cronosportradio.es/RESULTADOS25/ALCOBENDAS25/clasificacion-elt-fem.pdf",
+      "roundSha256": "bc746a7c43e9f2a245e6fd797801299b3623f3b798fe86463e65a90ba94b6075",
+      "summary": {
+        "Participantes": 24,
+        "Clasificados": 22,
+        "DNF": 1,
+        "DNS": 1
+      },
+      "rows": [
+        [
+          1,
+          "401",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          2,
+          "400",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          3,
+          "402",
+          "CUETO VEGA Sara",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          4,
+          "403",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          5,
+          "407",
+          "GARCIA BIDABURU Nahia",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          6,
+          "410",
+          "SAN JUSTO MANTECON Claudia",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          7,
+          "414",
+          "DE MIGUEL ETXEBARRIA Nahia",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          8,
+          "405",
+          "BETI PEREZ Marta",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          9,
+          "424",
+          "TRABAZO BRAGADO Irene",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          10,
+          "409",
+          "FILGUEIRAS BARCENILLA Maria",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          11,
+          "413",
+          "VELASCO GARCIA Andrea",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          12,
+          "406",
+          "BONILLO TALENS Sara",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          13,
+          "408",
+          "CARRIO HERNANDEZ Luna",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          14,
+          "415",
+          "LARA ROSE Alba",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          15,
+          "416",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          16,
+          "421",
+          "NIETO ROMERO Iria",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          17,
+          "419",
+          "CASANUEVA GARCIA Carlota",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          18,
+          "412",
+          "MAZA SOLA Selena",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          19,
+          "411",
+          "ALGUACIL SANCHEZ Adriana",
+          "ESP",
+          "S23",
+          null
+        ],
+        [
+          20,
+          "423",
+          "GALLEGO FERNANDEZ Beatriz",
+          "ESP",
+          "ELT",
+          null
+        ],
+        [
+          21,
+          "420",
+          "ARANDA CAÑIGUERAL Ana",
+          "ESP",
+          "ELT",
+          "LAP"
+        ],
+        [
+          22,
+          "417",
+          "MONTALBAN AZKETA Aintzane",
+          "ESP",
+          "S23",
+          "LAP"
+        ],
+        [
+          null,
+          "418",
+          "CONDE ALONSO Sarela",
+          "ESP",
+          "S23",
+          "DNF"
+        ]
+      ],
+      "standingsSourceUrl": "https://rfec.com/index.php/es/smartweb/seccion/clasificacionescircuito/rfec/2025/25COPACX/4684-FEM-ELITE-SUB23",
+      "standingsHtmlSha256": "f485a00ea7f50b9ac0e44f4d8b140413677f51a3833094e71ce7eef90afc4846",
+      "publishedStandingsLabel": "PROVISIONAL, publicada 09 DIC 2025",
+      "roundColumn": 5,
+      "standings": [
+        {
+          "name": "RODRIGUEZ REVERT, SOFIA",
+          "publishedGeneralRank": 1,
+          "points": 166,
+          "roundPoints": [
+            20,
+            20,
+            20,
+            25,
+            20,
+            25,
+            20,
+            16
+          ]
+        },
+        {
+          "name": "GONZALEZ BLANCO, LUCIA",
+          "publishedGeneralRank": 2,
+          "points": 137,
+          "roundPoints": [
+            25,
+            25,
+            25,
+            7,
+            25,
+            null,
+            16,
+            14
+          ]
+        },
+        {
+          "name": "CUETO VEGA, SARA",
+          "publishedGeneralRank": 3,
+          "points": 114,
+          "roundPoints": [
+            14,
+            12,
+            14,
+            16,
+            16,
+            12,
+            10,
+            20
+          ]
+        },
+        {
+          "name": "HARTOG, LARISSA",
+          "publishedGeneralRank": 4,
+          "points": 70,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            20,
+            25,
+            25
+          ]
+        },
+        {
+          "name": "PATIÑO VILLANUEVA, LORENA",
+          "publishedGeneralRank": 5,
+          "points": 66,
+          "roundPoints": [
+            null,
+            null,
+            12,
+            14,
+            null,
+            16,
+            14,
+            10
+          ]
+        },
+        {
+          "name": "BETI PEREZ, MARTA",
+          "publishedGeneralRank": 6,
+          "points": 60,
+          "roundPoints": [
+            7,
+            7,
+            8,
+            6,
+            8,
+            10,
+            7,
+            7
+          ]
+        },
+        {
+          "name": "GONZALEZ BLANCO, ALICIA",
+          "publishedGeneralRank": 7,
+          "points": 54,
+          "roundPoints": [
+            16,
+            16,
+            null,
+            null,
+            null,
+            2,
+            8,
+            12
+          ]
+        },
+        {
+          "name": "OLANO AROZENA, MAIER",
+          "publishedGeneralRank": 8,
+          "points": 46,
+          "roundPoints": [
+            10,
+            14,
+            10,
+            12,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LOPEZ BURGOS, ANA",
+          "publishedGeneralRank": 9,
+          "points": 45,
+          "roundPoints": [
+            6,
+            6,
+            2,
+            10,
+            14,
+            null,
+            1,
+            6
+          ]
+        },
+        {
+          "name": "ARANA QUINTANILLA, NAHIA",
+          "publishedGeneralRank": 10,
+          "points": 43,
+          "roundPoints": [
+            12,
+            10,
+            9,
+            8,
+            null,
+            null,
+            4,
+            null
+          ]
+        },
+        {
+          "name": "MORICHON, ANAIS",
+          "publishedGeneralRank": 11,
+          "points": 36,
+          "roundPoints": [
+            null,
+            null,
+            16,
+            20,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GARCIA BIDABURU, NAHIA",
+          "publishedGeneralRank": 12,
+          "points": 34,
+          "roundPoints": [
+            9,
+            null,
+            7,
+            1,
+            12,
+            5,
+            0,
+            null
+          ]
+        },
+        {
+          "name": "FILGUEIRAS BARCENILLA, MARIA",
+          "publishedGeneralRank": 13,
+          "points": 32,
+          "roundPoints": [
+            8,
+            9,
+            5,
+            0,
+            6,
+            null,
+            2,
+            2
+          ]
+        },
+        {
+          "name": "STERN, LEA",
+          "publishedGeneralRank": 14,
+          "points": 29,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            9,
+            12,
+            8
+          ]
+        },
+        {
+          "name": "SAN JUSTO MANTECON, CLAUDIA",
+          "publishedGeneralRank": 15,
+          "points": 22,
+          "roundPoints": [
+            null,
+            null,
+            3,
+            9,
+            10,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VELASCO GARCIA, ANDREA",
+          "publishedGeneralRank": 16,
+          "points": 18,
+          "roundPoints": [
+            5,
+            8,
+            0,
+            0,
+            5,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "DE MIGUEL ETXEBARRIA, NAHIA",
+          "publishedGeneralRank": 17,
+          "points": 17,
+          "roundPoints": [
+            4,
+            null,
+            0,
+            4,
+            9,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "KNIJNENBURG, ANNE",
+          "publishedGeneralRank": 18,
+          "points": 16,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            4,
+            9,
+            3
+          ]
+        },
+        {
+          "name": "BAELE, LOTTE",
+          "publishedGeneralRank": 19,
+          "points": 15,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            6,
+            9
+          ]
+        },
+        {
+          "name": "BONILLO TALENS, SARA",
+          "publishedGeneralRank": 20,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            4,
+            null,
+            5,
+            5
+          ]
+        },
+        {
+          "name": "TRABAZO BRAGADO, IRENE",
+          "publishedGeneralRank": 21,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            7,
+            0,
+            3,
+            4
+          ]
+        },
+        {
+          "name": "DURAFFOURG, LAURIANE",
+          "publishedGeneralRank": 22,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            14,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "TRITZ, MATHILDE",
+          "publishedGeneralRank": 23,
+          "points": 9,
+          "roundPoints": [
+            null,
+            null,
+            4,
+            5,
+            null,
+            0,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ELBUSTO ARTEAGA, AINARA",
+          "publishedGeneralRank": 24,
+          "points": 9,
+          "roundPoints": [
+            null,
+            null,
+            6,
+            3,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MOES, NOI",
+          "publishedGeneralRank": 25,
+          "points": 8,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            8,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "BARTHELS, MAITE",
+          "publishedGeneralRank": 26,
+          "points": 7,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            7,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "BARTHELS, LAYLA",
+          "publishedGeneralRank": 27,
+          "points": 6,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            6,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CONDE ALONSO, SARELA",
+          "publishedGeneralRank": 28,
+          "points": 5,
+          "roundPoints": [
+            null,
+            5,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CARRIO HERNANDEZ, LUNA",
+          "publishedGeneralRank": 29,
+          "points": 4,
+          "roundPoints": [
+            1,
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "JIMENEZ VERA Y FRIAS, CARLA",
+          "publishedGeneralRank": 30,
+          "points": 4,
+          "roundPoints": [
+            2,
+            1,
+            0,
+            0,
+            1,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "SEIJAS FERNANDEZ, TAMARA",
+          "publishedGeneralRank": 31,
+          "points": 4,
+          "roundPoints": [
+            0,
+            4,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ALGUACIL SANCHEZ, ADRIANA",
+          "publishedGeneralRank": 32,
+          "points": 3,
+          "roundPoints": [
+            3,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "BOSCH BALLUS, LAIA",
+          "publishedGeneralRank": 33,
+          "points": 3,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            3,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LALANNE, JOHANNA",
+          "publishedGeneralRank": 34,
+          "points": 3,
+          "roundPoints": [
+            null,
+            null,
+            1,
+            2,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SIMAO, LAURA",
+          "publishedGeneralRank": 35,
+          "points": 3,
+          "roundPoints": [
+            null,
+            3,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LARA ROSE, ALBA",
+          "publishedGeneralRank": 36,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            0,
+            2,
+            0,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VASCONCELOS, MARGARIDA",
+          "publishedGeneralRank": 37,
+          "points": 2,
+          "roundPoints": [
+            null,
+            2,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CUATRECASAS AGUILERA, SILVIA",
+          "publishedGeneralRank": 38,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "name": "BLASI CAIROL, PAULA",
+          "publishedGeneralRank": 39,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "category": "MJ",
+      "officialCompetitionCategory": "JUNIOR",
+      "roundSourceUrl": "https://cronosportradio.es/RESULTADOS25/ALCOBENDAS25/clasificacion-junior.pdf",
+      "roundSha256": "e9d52c48b8a32168829d719e7a1b2b2a57b02789a594c301b7fd7f715b97e86f",
+      "summary": {
+        "Participantes": 52,
+        "Clasificados": 52,
+        "DNF": 0,
+        "DNS": 3
+      },
+      "rows": [
+        [
+          1,
+          "49",
+          "NOVAL SUAREZ Benjamin",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          2,
+          "48",
+          "LOPEZ SAINZ Raul",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          3,
+          "44",
+          "FERNANDEZ GARCIA Martin",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          4,
+          "79",
+          "RODRIGUEZ NOGUEIRA Marcos",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          5,
+          "59",
+          "VIDAL FERNANDEZ Xavi",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          6,
+          "45",
+          "CASTIELLO DIAZ Samuel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          7,
+          "58",
+          "DIAZ CORBALAN Rodrigo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          8,
+          "46",
+          "GANCEDO CORRALES Pelayo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          9,
+          "50",
+          "JIMENEZ VERA Y FRIAS Pablo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          10,
+          "62",
+          "IGLESIAS URETA Markel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          11,
+          "51",
+          "MONCHO SIGNES Marc",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          12,
+          "68",
+          "JARAMILLO RUIZ Jose Andres",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          13,
+          "95",
+          "MURUJOSA LLERA Juan",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          14,
+          "47",
+          "PINTOS GOMEZ Jose Manuel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          15,
+          "87",
+          "PEREZ GARGALLO Noah",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          16,
+          "85",
+          "ALAIZA AGUILERA Asier",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          17,
+          "74",
+          "ZARAPUZ ONTORIA Hugo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          18,
+          "57",
+          "RODRIGUEZ CID Xian",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          19,
+          "61",
+          "EGIGUREN SANTAMARIA Udalatx",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          20,
+          "54",
+          "ROY MOLINA Axel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          21,
+          "94",
+          "ISABA LOPEZ Egoi",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          22,
+          "72",
+          "CASILLAS MARTIN Izan",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          23,
+          "69",
+          "ARNALTE ALEGRE Hugo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          24,
+          "65",
+          "IBORRA LAMBIEZ Marc",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          25,
+          "64",
+          "LORENZO PENA Jorge",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          26,
+          "56",
+          "GUTIERREZ MADRID Iker",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          27,
+          "78",
+          "MERCADO CONTRERAS Lorien",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          28,
+          "66",
+          "CASTRO SANCHEZ Mario",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          29,
+          "77",
+          "ALARCON GROBA Pedro Xabier",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          30,
+          "84",
+          "MAROTO MARTIN Nuño",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          31,
+          "53",
+          "DIEZ ARNAL Iker",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          32,
+          "52",
+          "LOSAS FERNANDEZ Oliver",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          33,
+          "55",
+          "LLORENTE PADURA Mikel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          34,
+          "70",
+          "FLORES TORRES Jorge",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          35,
+          "60",
+          "PELAEZ FERNANDEZ Adrian",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          36,
+          "96",
+          "IBAÑEZ LOPEZ Mauro",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          37,
+          "81",
+          "APARICIO CAMACHO Jorge",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          38,
+          "98",
+          "MATEO LEIVA Daniel",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          39,
+          "76",
+          "DE TENA TAPIADOR Marcos",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          40,
+          "89",
+          "PUENTE FRUTOS Oier",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          41,
+          "63",
+          "AVILA MARTINEZ Denilson Fabian",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          42,
+          "71",
+          "RODRIGUEZ LOPEZ Diego",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          43,
+          "67",
+          "LEDO FERNANDEZ Mateo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          44,
+          "75",
+          "PLAZA RETUERTA Jeannot",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          45,
+          "83",
+          "GARCIA YAÑEZ Jorge",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          46,
+          "86",
+          "DE LA ROSA SANCHEZ Andoni",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          47,
+          "97",
+          "GONZALEZ SANCHEZ Pablo",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          48,
+          "88",
+          "CUERDO DEL RIO David",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          49,
+          "82",
+          "CANDIL HUERTAS Alejandro",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          50,
+          "91",
+          "DE SEGOVIA MANJON Alvaro",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          51,
+          "92",
+          "GOMEZ SANCHEZ Hector",
+          "ESP",
+          "Jun",
+          "LAP"
+        ],
+        [
+          52,
+          "93",
+          "CABELLOS MARTIN Alejandro",
+          "ESP",
+          "Jun",
+          "LAP"
+        ]
+      ],
+      "standingsSourceUrl": "https://rfec.com/index.php/es/smartweb/seccion/clasificacionescircuito/rfec/2025/25COPACX/4716-JUNIOR",
+      "standingsHtmlSha256": "8eef7b26a98fb279d5a9dc704b2669f98f67a4c5ad02d1973104cdcf803d93be",
+      "publishedStandingsLabel": "PROVISIONAL, publicada 09 DIC 2025",
+      "roundColumn": 5,
+      "standings": [
+        {
+          "name": "FERNANDEZ GARCIA, MARTIN",
+          "publishedGeneralRank": 1,
+          "points": 144,
+          "roundPoints": [
+            25,
+            25,
+            25,
+            25,
+            16,
+            null,
+            12,
+            16
+          ]
+        },
+        {
+          "name": "LOPEZ SAINZ, RAUL",
+          "publishedGeneralRank": 2,
+          "points": 92,
+          "roundPoints": [
+            null,
+            null,
+            7,
+            10,
+            20,
+            25,
+            10,
+            20
+          ]
+        },
+        {
+          "name": "CASTIELLO DIAZ, SAMUEL",
+          "publishedGeneralRank": 3,
+          "points": 79,
+          "roundPoints": [
+            16,
+            12,
+            9,
+            5,
+            10,
+            9,
+            9,
+            9
+          ]
+        },
+        {
+          "name": "GANCEDO CORRALES, PELAYO",
+          "publishedGeneralRank": 4,
+          "points": 79,
+          "roundPoints": [
+            14,
+            20,
+            1,
+            7,
+            8,
+            14,
+            7,
+            8
+          ]
+        },
+        {
+          "name": "NOVAL SUAREZ, BENJAMIN",
+          "publishedGeneralRank": 5,
+          "points": 75,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            25,
+            null,
+            25,
+            25
+          ]
+        },
+        {
+          "name": "MONCHO SIGNES, MARC",
+          "publishedGeneralRank": 6,
+          "points": 63,
+          "roundPoints": [
+            4,
+            16,
+            10,
+            1,
+            5,
+            10,
+            5,
+            12
+          ]
+        },
+        {
+          "name": "VIDAL FERNANDEZ, XAVI",
+          "publishedGeneralRank": 7,
+          "points": 44,
+          "roundPoints": [
+            null,
+            null,
+            4,
+            3,
+            12,
+            12,
+            3,
+            10
+          ]
+        },
+        {
+          "name": "BOULLE, LORIS",
+          "publishedGeneralRank": 8,
+          "points": 40,
+          "roundPoints": [
+            null,
+            null,
+            20,
+            20,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VAN KERCKHOVE, SEFF",
+          "publishedGeneralRank": 9,
+          "points": 34,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            20,
+            14,
+            null
+          ]
+        },
+        {
+          "name": "CLEMENTE, ANTOINE",
+          "publishedGeneralRank": 10,
+          "points": 34,
+          "roundPoints": [
+            10,
+            null,
+            16,
+            8,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "JIMENEZ VERA Y FRIAS, PABLO",
+          "publishedGeneralRank": 11,
+          "points": 32,
+          "roundPoints": [
+            0,
+            10,
+            0,
+            0,
+            7,
+            5,
+            6,
+            4
+          ]
+        },
+        {
+          "name": "ROY MOLINA, AXEL",
+          "publishedGeneralRank": 12,
+          "points": 31,
+          "roundPoints": [
+            7,
+            8,
+            0,
+            0,
+            0,
+            16,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "CINGOLANI, TOMMASO",
+          "publishedGeneralRank": 13,
+          "points": 30,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            16,
+            14
+          ]
+        },
+        {
+          "name": "SUIRE, MALO",
+          "publishedGeneralRank": 14,
+          "points": 26,
+          "roundPoints": [
+            null,
+            null,
+            14,
+            12,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "DIAZ CORBALAN, RODRIGO",
+          "publishedGeneralRank": 15,
+          "points": 23,
+          "roundPoints": [
+            3,
+            7,
+            0,
+            2,
+            9,
+            null,
+            2,
+            0
+          ]
+        },
+        {
+          "name": "BABIN, GABRIEL",
+          "publishedGeneralRank": 16,
+          "points": 22,
+          "roundPoints": [
+            null,
+            null,
+            8,
+            14,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "RODRIGUEZ NOGUEIRA, MARCOS",
+          "publishedGeneralRank": 17,
+          "points": 21,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            14,
+            null,
+            1,
+            6
+          ]
+        },
+        {
+          "name": "IRIZAR RODRIGUEZ, ANER",
+          "publishedGeneralRank": 18,
+          "points": 21,
+          "roundPoints": [
+            null,
+            null,
+            3,
+            9,
+            null,
+            null,
+            4,
+            5
+          ]
+        },
+        {
+          "name": "BULTEAU, LUCAS",
+          "publishedGeneralRank": 19,
+          "points": 21,
+          "roundPoints": [
+            null,
+            null,
+            5,
+            16,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GRIGOLINI, FILIPPO",
+          "publishedGeneralRank": 20,
+          "points": 20,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            20,
+            null
+          ]
+        },
+        {
+          "name": "DEBENNE, MATIS",
+          "publishedGeneralRank": 21,
+          "points": 20,
+          "roundPoints": [
+            20,
+            null,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VIGARIO, JOAO",
+          "publishedGeneralRank": 22,
+          "points": 14,
+          "roundPoints": [
+            null,
+            14,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "PINTOS GOMEZ, JOSE MANUEL",
+          "publishedGeneralRank": 23,
+          "points": 13,
+          "roundPoints": [
+            0,
+            9,
+            2,
+            0,
+            2,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "LOSAS FERNANDEZ, OLIVER",
+          "publishedGeneralRank": 24,
+          "points": 12,
+          "roundPoints": [
+            12,
+            0,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "RAFFO, JOSEPH",
+          "publishedGeneralRank": 25,
+          "points": 12,
+          "roundPoints": [
+            null,
+            null,
+            12,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "CASANOVAS COLL, JAN",
+          "publishedGeneralRank": 26,
+          "points": 11,
+          "roundPoints": [
+            0,
+            null,
+            null,
+            null,
+            null,
+            8,
+            0,
+            3
+          ]
+        },
+        {
+          "name": "EGIGUREN SANTAMARIA, UDALATX",
+          "publishedGeneralRank": 27,
+          "points": 11,
+          "roundPoints": [
+            0,
+            4,
+            0,
+            0,
+            0,
+            7,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "RODRIGUEZ CID, XIAN",
+          "publishedGeneralRank": 28,
+          "points": 11,
+          "roundPoints": [
+            6,
+            5,
+            null,
+            0,
+            0,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "BOUYSSOU, CLEMENT",
+          "publishedGeneralRank": 29,
+          "points": 9,
+          "roundPoints": [
+            9,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "IGLESIAS URETA, MARKEL",
+          "publishedGeneralRank": 30,
+          "points": 8,
+          "roundPoints": [
+            0,
+            2,
+            0,
+            0,
+            6,
+            null,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "CINGOLANI, FILIPPO",
+          "publishedGeneralRank": 31,
+          "points": 8,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            8,
+            null
+          ]
+        },
+        {
+          "name": "SANZ PONCE, IKER",
+          "publishedGeneralRank": 32,
+          "points": 8,
+          "roundPoints": [
+            8,
+            null,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "FARO VALLVERDU, MARC",
+          "publishedGeneralRank": 33,
+          "points": 7,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
+            7
+          ]
+        },
+        {
+          "name": "DIEZ ARNAL, IKER",
+          "publishedGeneralRank": 34,
+          "points": 6,
+          "roundPoints": [
+            0,
+            6,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "PELAEZ FERNANDEZ, ADRIAN",
+          "publishedGeneralRank": 35,
+          "points": 6,
+          "roundPoints": [
+            5,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "THATCHER, HENRI",
+          "publishedGeneralRank": 36,
+          "points": 6,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            6,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VANAELST, BATISTE",
+          "publishedGeneralRank": 37,
+          "points": 6,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            6,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MORINIERE, LILIAN",
+          "publishedGeneralRank": 38,
+          "points": 6,
+          "roundPoints": [
+            null,
+            null,
+            6,
+            0,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ALAIZA AGUILERA, ASIER",
+          "publishedGeneralRank": 39,
+          "points": 4,
+          "roundPoints": [
+            0,
+            null,
+            0,
+            0,
+            0,
+            4,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "PEREZ GARGALLO, NOAH",
+          "publishedGeneralRank": 40,
+          "points": 4,
+          "roundPoints": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            3,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "JARAMILLO RUIZ, JOSE ANDRES",
+          "publishedGeneralRank": 41,
+          "points": 4,
+          "roundPoints": [
+            0,
+            null,
+            0,
+            0,
+            4,
+            null,
+            null,
+            0
+          ]
+        },
+        {
+          "name": "LIAÑO BASTERRECHEA, PEDRO",
+          "publishedGeneralRank": 42,
+          "points": 4,
+          "roundPoints": [
+            null,
+            0,
+            0,
+            4,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MURUJOSA LLERA, JUAN",
+          "publishedGeneralRank": 43,
+          "points": 3,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            3,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LOZANO GONZALEZ, LUCAS",
+          "publishedGeneralRank": 44,
+          "points": 3,
+          "roundPoints": [
+            0,
+            3,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ZARAPUZ ONTORIA, HUGO",
+          "publishedGeneralRank": 45,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            0,
+            0,
+            null,
+            0,
+            2
+          ]
+        },
+        {
+          "name": "POU CASELLAS, PAU",
+          "publishedGeneralRank": 46,
+          "points": 2,
+          "roundPoints": [
+            0,
+            null,
+            null,
+            null,
+            null,
+            2,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "FERNANDEZ GUTIERREZ, SERGIO",
+          "publishedGeneralRank": 47,
+          "points": 2,
+          "roundPoints": [
+            2,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "IBORRA LAMBIEZ, MARC",
+          "publishedGeneralRank": 48,
+          "points": 1,
+          "roundPoints": [
+            0,
+            null,
+            null,
+            null,
+            0,
+            null,
+            0,
+            1
+          ]
+        },
+        {
+          "name": "MISSER PALAZUELO, MAX",
+          "publishedGeneralRank": 49,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "LLORENTE PADURA, MIKEL",
+          "publishedGeneralRank": 50,
+          "points": 1,
+          "roundPoints": [
+            1,
+            null,
+            0,
+            0,
+            0,
+            null,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "category": "WJ",
+      "officialCompetitionCategory": "FEM JUNIOR",
+      "roundSourceUrl": "https://cronosportradio.es/RESULTADOS25/ALCOBENDAS25/clasificacion-junior-fem..pdf",
+      "roundSha256": "2766ce1c23af488cfa18bea8a586b9cdb1ada91915d654303b8a723c5dd9cc2e",
+      "summary": {
+        "Participantes": 19,
+        "Clasificados": 19,
+        "DNF": 0,
+        "DNS": 1
+      },
+      "rows": [
+        [
+          1,
+          "426",
+          "GUTIERREZ VELARDE Aitana",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          2,
+          "428",
+          "BAÑULS PUENTE Carla",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          3,
+          "425",
+          "GOTXI OLARTEKOETXEA Mirari",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          4,
+          "427",
+          "GUTIERREZ PEREZ Maria",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          5,
+          "434",
+          "MESTRE PUIG Maria",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          6,
+          "430",
+          "GARCIA CRESPO Irene",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          7,
+          "432",
+          "LERA GIL Laia",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          8,
+          "440",
+          "ROMO GARCIA Celia",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          9,
+          "435",
+          "SEIJO SANCHEZ Xiana",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          10,
+          "429",
+          "PORTERO VAL Jara",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          11,
+          "437",
+          "CASARES ABAD Carolina",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          12,
+          "431",
+          "IVARS SIRERA Maria",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          13,
+          "438",
+          "RINCON GONZALEZ Paula",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          14,
+          "441",
+          "ANDRES DEL REY Sofia",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          15,
+          "443",
+          "MORENO MARTINEZ Maria Victoria",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          16,
+          "442",
+          "GUMBAU RUBIO Naiara",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          17,
+          "436",
+          "COLLADO SOLER Nora",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          18,
+          "444",
+          "MARTINEZ PALACIOS Nerea",
+          "ESP",
+          "Jun",
+          null
+        ],
+        [
+          19,
+          "439",
+          "DOMINGUEZ GONZALEZ Carla",
+          "ESP",
+          "Jun",
+          "LAP"
+        ]
+      ],
+      "standingsSourceUrl": "https://rfec.com/index.php/es/smartweb/seccion/clasificacionescircuito/rfec/2025/25COPACX/4686-FEM-JUNIOR",
+      "standingsHtmlSha256": "5003fc41256bd8e789a4fc2cb09cbe05a75994c3a504b1ee6cc957bb305ba3bf",
+      "publishedStandingsLabel": "PROVISIONAL, publicada 09 DIC 2025",
+      "roundColumn": 5,
+      "standings": [
+        {
+          "name": "GUTIERREZ VELARDE, AITANA",
+          "publishedGeneralRank": 1,
+          "points": 176,
+          "roundPoints": [
+            16,
+            20,
+            25,
+            20,
+            25,
+            25,
+            20,
+            25
+          ]
+        },
+        {
+          "name": "BAÑULS PUENTE, CARLA",
+          "publishedGeneralRank": 2,
+          "points": 146,
+          "roundPoints": [
+            12,
+            25,
+            14,
+            14,
+            20,
+            16,
+            25,
+            20
+          ]
+        },
+        {
+          "name": "GOTXI OLARTEKOETXEA, MIRARI",
+          "publishedGeneralRank": 3,
+          "points": 111,
+          "roundPoints": [
+            9,
+            16,
+            20,
+            16,
+            16,
+            20,
+            14,
+            null
+          ]
+        },
+        {
+          "name": "GUTIERREZ PEREZ, MARIA",
+          "publishedGeneralRank": 4,
+          "points": 80,
+          "roundPoints": [
+            8,
+            12,
+            6,
+            9,
+            14,
+            12,
+            10,
+            9
+          ]
+        },
+        {
+          "name": "MESTRE PUIG, MARIA",
+          "publishedGeneralRank": 5,
+          "points": 67,
+          "roundPoints": [
+            7,
+            9,
+            1,
+            8,
+            12,
+            9,
+            9,
+            12
+          ]
+        },
+        {
+          "name": "JURADO ROUMIEUX, NOEMIE",
+          "publishedGeneralRank": 6,
+          "points": 61,
+          "roundPoints": [
+            20,
+            null,
+            16,
+            25,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "IVARS SIRERA, MARIA",
+          "publishedGeneralRank": 7,
+          "points": 55,
+          "roundPoints": [
+            0,
+            10,
+            7,
+            4,
+            4,
+            10,
+            12,
+            8
+          ]
+        },
+        {
+          "name": "ZUBELDIA PEÑAGARIKANO, ANE",
+          "publishedGeneralRank": 8,
+          "points": 50,
+          "roundPoints": [
+            14,
+            14,
+            10,
+            12,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "LERA GIL, LAIA",
+          "publishedGeneralRank": 9,
+          "points": 40,
+          "roundPoints": [
+            4,
+            8,
+            9,
+            3,
+            9,
+            null,
+            7,
+            null
+          ]
+        },
+        {
+          "name": "SEIJO SANCHEZ, XIANA",
+          "publishedGeneralRank": 10,
+          "points": 33,
+          "roundPoints": [
+            2,
+            7,
+            5,
+            6,
+            7,
+            null,
+            null,
+            6
+          ]
+        },
+        {
+          "name": "CASTRO DE LA SERNA, LIDIA",
+          "publishedGeneralRank": 11,
+          "points": 32,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            16,
+            16
+          ]
+        },
+        {
+          "name": "PORTERO VAL, JARA",
+          "publishedGeneralRank": 12,
+          "points": 32,
+          "roundPoints": [
+            6,
+            4,
+            3,
+            null,
+            6,
+            5,
+            6,
+            2
+          ]
+        },
+        {
+          "name": "OMPRARET, JUSTINE",
+          "publishedGeneralRank": 13,
+          "points": 32,
+          "roundPoints": [
+            10,
+            null,
+            12,
+            10,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "SAIZAR SARALEGI, MADDI",
+          "publishedGeneralRank": 14,
+          "points": 30,
+          "roundPoints": [
+            1,
+            null,
+            8,
+            7,
+            null,
+            14,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ROMO GARCIA, CELIA",
+          "publishedGeneralRank": 15,
+          "points": 26,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            8,
+            null,
+            8,
+            10
+          ]
+        },
+        {
+          "name": "PICHON, LALY",
+          "publishedGeneralRank": 16,
+          "points": 25,
+          "roundPoints": [
+            25,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GARCIA CRESPO, IRENE",
+          "publishedGeneralRank": 17,
+          "points": 24,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            10,
+            null,
+            null,
+            14
+          ]
+        },
+        {
+          "name": "GUMBAU RUBIO, NAIARA",
+          "publishedGeneralRank": 18,
+          "points": 17,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            0,
+            0,
+            7,
+            3,
+            7
+          ]
+        },
+        {
+          "name": "CASARES ABAD, CAROLINA",
+          "publishedGeneralRank": 19,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            5,
+            null,
+            5,
+            4
+          ]
+        },
+        {
+          "name": "ODRIOZOLA AIERBE, MAIXA",
+          "publishedGeneralRank": 20,
+          "points": 14,
+          "roundPoints": [
+            null,
+            null,
+            4,
+            2,
+            null,
+            8,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GREGORES LOPEZ, ALBA",
+          "publishedGeneralRank": 21,
+          "points": 14,
+          "roundPoints": [
+            3,
+            6,
+            0,
+            5,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "COLLADO SOLER, NORA",
+          "publishedGeneralRank": 22,
+          "points": 12,
+          "roundPoints": [
+            0,
+            3,
+            0,
+            0,
+            0,
+            3,
+            1,
+            5
+          ]
+        },
+        {
+          "name": "ALBARES DE ANTA, VEGA",
+          "publishedGeneralRank": 23,
+          "points": 8,
+          "roundPoints": [
+            5,
+            null,
+            2,
+            1,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MIQUEL ROIG, FOIX",
+          "publishedGeneralRank": 24,
+          "points": 6,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            6,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ORTEGA PASCUAL, JONE",
+          "publishedGeneralRank": 25,
+          "points": 5,
+          "roundPoints": [
+            0,
+            null,
+            0,
+            0,
+            null,
+            null,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "HERMIDA BASTOS, ELBA",
+          "publishedGeneralRank": 26,
+          "points": 5,
+          "roundPoints": [
+            0,
+            5,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "HERNANDEZ DIAZ, AMAYA",
+          "publishedGeneralRank": 27,
+          "points": 4,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            4,
+            null
+          ]
+        },
+        {
+          "name": "MUSQUERA FIGUEIRAL, JANNA",
+          "publishedGeneralRank": 28,
+          "points": 4,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            4,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "RINCON GONZALEZ, PAULA",
+          "publishedGeneralRank": 29,
+          "points": 3,
+          "roundPoints": [
+            0,
+            null,
+            0,
+            0,
+            3,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ARAMBURU ZALDUA, SARA",
+          "publishedGeneralRank": 30,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            0,
+            0,
+            null,
+            2,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "ANDRES DEL REY, SOFIA",
+          "publishedGeneralRank": 31,
+          "points": 2,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            2,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "VILOUTA RODRIGUEZ, CARLA",
+          "publishedGeneralRank": 32,
+          "points": 2,
+          "roundPoints": [
+            0,
+            2,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "GARCIA ALOS, ANA",
+          "publishedGeneralRank": 33,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1
+          ]
+        },
+        {
+          "name": "SOPENA MONTAGUT, ESTER",
+          "publishedGeneralRank": 34,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            null
+          ]
+        },
+        {
+          "name": "MORENO MARTINEZ, MARIA VICTORIA",
+          "publishedGeneralRank": 35,
+          "points": 1,
+          "roundPoints": [
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            null,
+            null
+          ]
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "La comparación se limita a la columna P5 de la general RFEC, publicada como provisional. No coteja las otras siete rondas ni el orden final.",
+    "Los informes enumeran clasificados y DNF, pero no los dorsales DNS indicados en sus resúmenes. No se inventan filas ausentes.",
+    "No hay un informe de sanción particular en estas fuentes. No se acredita un ajuste real de -25 ni se asume que una sanción desconocida sea cero.",
+    "Los informes Élite-Sub23 son la categoría oficial de competición RFEC; no acreditan una correspondencia con eventos separados ME/MU de DataRide ni una general sub23 separada."
+  ],
+  "dataRideEvidence": {
+    "scope": "offline_alcobendas_grouped_categories_only",
+    "disciplineId": 3,
+    "competitionId": 75840,
+    "seasonId": 455,
+    "fetchedAt": "2026-09-13T00:10:06.513Z",
+    "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+    "normalizedDataRideSha256": "59595c012f3d8e0cf04c2c27aa149c8392a0567a7fe28f9efc5fab09209a89c0",
+    "availableCategories": [
+      "ME",
+      "MJ",
+      "WE",
+      "WJ"
+    ],
+    "excludedRaceCount": 0,
+    "resultColumns": [
+      "rank",
+      "bib",
+      "name",
+      "isoCode2",
+      "birthDate",
+      "irm"
+    ],
+    "categories": [
+      {
+        "category": "ME",
+        "dataRide": {
+          "disciplineId": 3,
+          "competitionId": 75840,
+          "seasonId": 455,
+          "uciRaceId": 244239,
+          "eventId": 352472
+        },
+        "rows": [
+          [
+            1,
+            "2",
+            "INGUANZO MACHO Gonzalo",
+            "ES",
+            "2001-03-22",
+            null
+          ],
+          [
+            2,
+            "3",
+            "MIRA BONASTRE Raul",
+            "ES",
+            "2004-01-10",
+            null
+          ],
+          [
+            3,
+            "1",
+            "JUNQUERA SAN MILLAN Mario",
+            "ES",
+            "1997-01-28",
+            null
+          ],
+          [
+            4,
+            "8",
+            "DIAZ PEREZ Miguel",
+            "ES",
+            "2003-08-04",
+            null
+          ],
+          [
+            5,
+            "5",
+            "GALAN CORTAZAR Unax",
+            "ES",
+            "2006-07-17",
+            null
+          ],
+          [
+            6,
+            "36",
+            "ALEMAN AZCARRAGA Oihan",
+            "ES",
+            "2007-07-11",
+            null
+          ],
+          [
+            7,
+            "7",
+            "IVARS SIRERA David",
+            "ES",
+            "2006-04-12",
+            null
+          ],
+          [
+            8,
+            "19",
+            "MARTINEZ GARCIA Ivan",
+            "ES",
+            "2006-06-05",
+            null
+          ],
+          [
+            9,
+            "22",
+            "TRAVIESA CORO Hugo",
+            "ES",
+            "2004-09-17",
+            null
+          ],
+          [
+            10,
+            "450",
+            "VEGA GONZALEZ Mario",
+            "ES",
+            "2005-02-18",
+            null
+          ],
+          [
+            11,
+            "13",
+            "FERNANDEZ ECHEVARRIA Angel",
+            "ES",
+            "2005-01-11",
+            null
+          ],
+          [
+            12,
+            "9",
+            "SANCHEZ ALDEGUER Manuel",
+            "ES",
+            "1983-10-24",
+            null
+          ],
+          [
+            13,
+            "15",
+            "BLANCH DANIEL Gerard",
+            "ES",
+            "1997-02-14",
+            null
+          ],
+          [
+            14,
+            "10",
+            "VALLE ELEGIDO Adrian",
+            "ES",
+            "2005-05-04",
+            null
+          ],
+          [
+            15,
+            "12",
+            "DIAZ GOMEZ Martin",
+            "ES",
+            "2006-08-10",
+            null
+          ],
+          [
+            16,
+            "17",
+            "GONZALEZ GAMEZ Jorge",
+            "ES",
+            "1995-04-28",
+            null
+          ],
+          [
+            17,
+            "25",
+            "CASILLAS MARTIN Angel",
+            "ES",
+            "2001-02-06",
+            null
+          ],
+          [
+            18,
+            "34",
+            "BUCETA ARMADA Dario",
+            "ES",
+            "2007-11-10",
+            null
+          ],
+          [
+            19,
+            "31",
+            "GONZALEZ SANCHEZ Daniel",
+            "ES",
+            "2004-04-04",
+            null
+          ],
+          [
+            20,
+            "14",
+            "PUELLES LOREDO Raul",
+            "ES",
+            "2007-02-06",
+            null
+          ],
+          [
+            21,
+            "6",
+            "ZAERA GISBERT Javier",
+            "ES",
+            "2003-09-22",
+            null
+          ],
+          [
+            22,
+            "21",
+            "LOPEZ NUÑEZ Adrian",
+            "ES",
+            "2001-04-04",
+            null
+          ],
+          [
+            23,
+            "24",
+            "HERRERA CIMIANO Adrian",
+            "ES",
+            "1987-03-10",
+            null
+          ],
+          [
+            24,
+            "30",
+            "PASTOR TERUEL Joel",
+            "ES",
+            "2007-05-19",
+            null
+          ],
+          [
+            25,
+            "38",
+            "GARAIOA AREVALO Aimar",
+            "ES",
+            "2007-02-04",
+            null
+          ],
+          [
+            26,
+            "29",
+            "GARCIA RODRIGUEZ Guillermo",
+            "ES",
+            "1993-03-18",
+            null
+          ],
+          [
+            27,
+            "33",
+            "CARRERA JIMENEZ Pablo",
+            "ES",
+            "1987-10-18",
+            "LAP"
+          ],
+          [
+            28,
+            "23",
+            "MORA LAPIDO Diego",
+            "ES",
+            "2005-01-25",
+            "LAP"
+          ],
+          [
+            29,
+            "42",
+            "RODRIGUEZ ENCINAR Alejandro",
+            "ES",
+            "1998-01-01",
+            "LAP"
+          ],
+          [
+            30,
+            "35",
+            "VAZQUEZ GOLPE Aitor",
+            "ES",
+            "2007-08-11",
+            "LAP"
+          ],
+          [
+            31,
+            "32",
+            "HERNANDEZ ARRIBAS Jose Antonio",
+            "ES",
+            "1978-11-24",
+            "LAP"
+          ],
+          [
+            32,
+            "43",
+            "CALLE HERRERO Ruben",
+            "ES",
+            "1991-12-29",
+            "LAP"
+          ],
+          [
+            33,
+            "28",
+            "PEREZ GUILABERT Daniel",
+            "ES",
+            "2005-02-25",
+            "LAP"
+          ],
+          [
+            34,
+            "37",
+            "ARIAS REGUEIRO Lucas",
+            "ES",
+            "2007-05-16",
+            "LAP"
+          ],
+          [
+            35,
+            "41",
+            "GOMEZ MENDEZ Borja",
+            "ES",
+            "2002-05-20",
+            "LAP"
+          ],
+          [
+            null,
+            "40",
+            "HERRAN MARTIJA Diego",
+            "ES",
+            "2003-09-02",
+            "DNF"
+          ],
+          [
+            null,
+            "11",
+            "ESTEBAN AGUERO Ismael",
+            "ES",
+            "1983-09-16",
+            "DNF"
+          ],
+          [
+            null,
+            "27",
+            "REINOSO SANCHEZ Marcos",
+            "ES",
+            "2006-08-17",
+            "DNF"
+          ],
+          [
+            null,
+            "20",
+            "GONZALEZ BELLIDO Cesar",
+            "ES",
+            "2004-01-17",
+            "DNS"
+          ],
+          [
+            null,
+            "39",
+            "EGUIGUREN SANTAMARIA Oskitx",
+            "ES",
+            "2006-05-19",
+            "DNS"
+          ]
+        ],
+        "projectionSha256": "d93808a0c09a044fbe4800f681d61e6a0b6ab011f1fcbf6e228d63021e7513e3"
+      },
+      {
+        "category": "WE",
+        "dataRide": {
+          "disciplineId": 3,
+          "competitionId": 75840,
+          "seasonId": 455,
+          "uciRaceId": 244241,
+          "eventId": 352474
+        },
+        "rows": [
+          [
+            1,
+            "401",
+            "GONZALEZ BLANCO Lucia",
+            "ES",
+            "1990-07-09",
+            null
+          ],
+          [
+            2,
+            "400",
+            "RODRIGUEZ REVERT Sofia",
+            "ES",
+            "1999-10-21",
+            null
+          ],
+          [
+            3,
+            "402",
+            "CUETO VEGA Sara",
+            "ES",
+            "1994-02-16",
+            null
+          ],
+          [
+            4,
+            "403",
+            "LOPEZ BURGOS Ana",
+            "ES",
+            "2007-09-03",
+            null
+          ],
+          [
+            5,
+            "407",
+            "GARCIA BIDABURU Nahia",
+            "ES",
+            "2007-04-12",
+            null
+          ],
+          [
+            6,
+            "410",
+            "SAN JUSTO MANTECON Claudia",
+            "ES",
+            "2003-10-03",
+            null
+          ],
+          [
+            7,
+            "414",
+            "DE MIGUEL ETXEBARRIA Nahia",
+            "ES",
+            "2005-06-01",
+            null
+          ],
+          [
+            8,
+            "405",
+            "BETI PEREZ Marta",
+            "ES",
+            "2004-04-03",
+            null
+          ],
+          [
+            9,
+            "424",
+            "TRABAZO BRAGADO Irene",
+            "ES",
+            "1998-10-26",
+            null
+          ],
+          [
+            10,
+            "409",
+            "FILGUEIRAS BARCENILLA Maria",
+            "ES",
+            "2006-10-16",
+            null
+          ],
+          [
+            11,
+            "413",
+            "VELASCO GARCIA Andrea",
+            "ES",
+            "2004-01-22",
+            null
+          ],
+          [
+            12,
+            "406",
+            "BONILLO TALENS Sara",
+            "ES",
+            "2001-02-02",
+            null
+          ],
+          [
+            13,
+            "408",
+            "CARRIO HERNANDEZ Luna",
+            "ES",
+            "2007-03-19",
+            null
+          ],
+          [
+            14,
+            "415",
+            "LARA ROSE Alba",
+            "ES",
+            "1998-07-22",
+            null
+          ],
+          [
+            15,
+            "416",
+            "JIMENEZ VERA Y FRIAS Carla",
+            "ES",
+            "2007-11-27",
+            null
+          ],
+          [
+            16,
+            "421",
+            "NIETO ROMERO Iria",
+            "ES",
+            "1986-06-16",
+            null
+          ],
+          [
+            17,
+            "419",
+            "CASANUEVA GARCIA Carlota",
+            "ES",
+            "2004-01-26",
+            null
+          ],
+          [
+            18,
+            "412",
+            "MAZA SOLA Selena",
+            "ES",
+            "2004-10-15",
+            null
+          ],
+          [
+            19,
+            "411",
+            "ALGUACIL SANCHEZ Adriana",
+            "ES",
+            "2006-07-31",
+            null
+          ],
+          [
+            20,
+            "423",
+            "GALLEGO FERNANDEZ Beatriz",
+            "ES",
+            "1992-10-18",
+            null
+          ],
+          [
+            21,
+            "420",
+            "ARANDA CAÑIGUERAL Ana",
+            "ES",
+            "1990-03-12",
+            "LAP"
+          ],
+          [
+            22,
+            "417",
+            "MONTALBAN AZKETA Aintzane",
+            "ES",
+            "2005-08-02",
+            "LAP"
+          ],
+          [
+            null,
+            "418",
+            "CONDE ALONSO Sarela",
+            "ES",
+            "2005-08-10",
+            "DNF"
+          ],
+          [
+            null,
+            "404",
+            "ARANA QUINTANILLA Nahia",
+            "ES",
+            "2005-09-26",
+            "DNS"
+          ]
+        ],
+        "projectionSha256": "2bd98a1bb8a5672f7328e9c280d3760289ff84e22b93e0c6e51d1a8b6740cc69"
+      }
+    ],
+    "notes": [
+      "Cotejo de las categorías agrupadas ME/WE de esta ronda: no resuelve categorías homónimas de otras pruebas ni crea mangas MU/WU.",
+      "Los puestos, dorsales y estados RFEC permanecen independientes: no se añaden los DNS de DataRide a las filas del PDF ni se inventan los cuatro DNS masculinos restantes del resumen.",
+      "Nacimientos DataRide contrastados con ELT/S23 del PDF solo para validar el alcance de competición: no une ni crea fichas del catálogo."
+    ]
+  }
+}

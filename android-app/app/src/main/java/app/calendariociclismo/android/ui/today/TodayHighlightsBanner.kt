@@ -1,5 +1,8 @@
 package app.calendariociclismo.android.ui.today
 
+import app.calendariociclismo.android.util.CxPresentation
+import android.content.Context
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,11 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,9 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,6 +38,10 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.TodayHighlight
+import app.calendariociclismo.android.data.model.CxRace
+import app.calendariociclismo.android.data.model.CxTournament
+import app.calendariociclismo.android.util.CyclocrossLogic
+import kotlinx.coroutines.CancellationException
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
@@ -39,32 +49,26 @@ import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.LocaleHolder
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Cintillo "Hoy" — carrusel horizontal con destacados editados desde panel admin
  * (tabla `today_highlights`). Aparece encima del selector de días.
  * Cada slide apunta a una jornada, startlist u orden de salida.
  *
- * Auto-advance cada 5s + swipe manual + dismiss persistente por hash de contenido.
+ * Autoavance cada 5 s y navegación manual por gesto o flechas.
  */
 @Composable
-fun TodayHighlightsBanner(navController: NavController) {
+fun TodayHighlightsBanner(navController: NavController, scope: String = "road") {
     val app = rememberApp()
-    val context = LocalContext.current
     var items by remember { mutableStateOf<List<HighlightItem>>(emptyList()) }
-    var dismissedHash by remember { mutableStateOf(loadDismissedHash(context)) }
 
-    LaunchedEffect(Unit) {
-        items = runCatching { loadHighlights(app) }.getOrElse { emptyList() }
+    LaunchedEffect(scope) {
+        items = runCatching { loadHighlights(app, scope) }.getOrElse { emptyList() }
     }
-
-    val contentHash = remember(items) {
-        items.joinToString("|") { "${it.highlight.id}:${it.highlight.targetType}:${it.highlight.position}:${it.highlight.updatedAt ?: ""}" }
-    }
-    val shouldShow = items.isNotEmpty() && dismissedHash != contentHash
 
     AnimatedVisibility(
-        visible = shouldShow,
+        visible = items.isNotEmpty(),
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
@@ -72,7 +76,16 @@ fun TodayHighlightsBanner(navController: NavController) {
             items = items,
             onTap = { item ->
                 val race = item.race
+                val tournament = item.cxTournament
                 when {
+                    item.highlight.targetType == "cxRace" && item.cxRace != null -> navController.navigate(Routes.cxRace(item.cxRace.id))
+                    item.highlight.targetType == "cxTournament" && tournament != null ->
+                        navController.navigate(Routes.cxTournament(
+                            tournament.id,
+                            tournament.seasonKey ?: CyclocrossLogic.season(java.time.LocalDate.now()),
+                            if (LocaleHolder.shouldShowEnglishContent) tournament.nameEn?.takeIf(String::isNotBlank) ?: tournament.name else tournament.name,
+                            tournament.logoUrl,
+                        ))
                     item.highlight.targetType == "raceDay" && item.raceDay != null && race != null ->
                         // raceId pasado para que StageScreen pueda hidratar Room
                         // si la jornada no está cacheada localmente.
@@ -89,19 +102,27 @@ fun TodayHighlightsBanner(navController: NavController) {
                         navController.navigate(Routes.TRANSFERS_HIGHLIGHT)
                 }
             },
-            onDismiss = {
-                saveDismissedHash(context, contentHash)
-                dismissedHash = contentHash
-            },
         )
     }
 }
 
-private data class HighlightItem(
+internal data class HighlightItem(
     val highlight: TodayHighlight,
     val race: Race?,
     val raceDay: RaceDay?,
+    val cxRace: CxRace? = null,
+    val cxTournament: CxTournament? = null,
 ) {
+    companion object {
+        fun forCx(highlight: TodayHighlight, race: CxRace?): HighlightItem? =
+            race?.takeIf { highlight.targetType == "cxRace" && it.id == highlight.cxRaceId && CyclocrossLogic.raceInSeason(it) }
+                ?.let { HighlightItem(highlight, null, null, it) }
+        fun forCxTournament(highlight: TodayHighlight, tournament: CxTournament?): HighlightItem? =
+            tournament?.takeIf { highlight.targetType == "cxTournament" && it.id == highlight.cxTournamentId }
+                ?.let { HighlightItem(highlight, null, null, cxTournament = it) }
+    }
+    val logoUrl: String? get() = cxRace?.let { app.calendariociclismo.android.util.CxPresentation.logo(it) } ?: cxTournament?.logoUrl ?: race?.logoUrl
+    val accentHex: String? get() = race?.colorHex ?: cxRace?.colorHex ?: cxRace?.tournament?.colorHex ?: cxTournament?.colorHex
     val isChampionships: Boolean get() = highlight.targetType == "championships"
     val isTransfers: Boolean get() = highlight.targetType == "transfers"
 
@@ -109,6 +130,8 @@ private data class HighlightItem(
         val custom = if (isEn) highlight.customTitleEn ?: highlight.customTitle else highlight.customTitle
         if (!custom.isNullOrEmpty()) return custom
         race?.let { return it.localizedName }
+        cxRace?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
+        cxTournament?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         if (isChampionships) return LocaleHolder.t("Campeonatos Nacionales", "National Championships")
         if (isTransfers) return LocaleHolder.t("Mercado de Fichajes", "Transfer market")
         return ""
@@ -119,6 +142,13 @@ private data class HighlightItem(
         if (isChampionships) {
             return DateFormatting.formatDateRange(ChampionshipsConfig.RANGE_START, ChampionshipsConfig.RANGE_END)
         }
+        cxRace?.let { cx ->
+            if (cx.endDateKey != null && cx.endDateKey != cx.dateKey) return DateFormatting.formatDateRange(cx.dateKey, cx.endDateKey)
+            if (cx.dateKey == today) return if (isEn) "Today" else "Hoy"
+            if (cx.dateKey == tomorrow) return if (isEn) "Tomorrow" else "Mañana"
+            return DateFormatting.formatDateShort(cx.dateKey)
+        }
+        cxTournament?.let { return it.seasonKey.orEmpty() }
         raceDay?.let { rd ->
             if (rd.dateKey == today)     return if (isEn) "Today"    else "Hoy"
             if (rd.dateKey == tomorrow)  return if (isEn) "Tomorrow" else "Mañana"
@@ -130,8 +160,9 @@ private data class HighlightItem(
 
 private suspend fun loadHighlights(
     app: app.calendariociclismo.android.CalendarioCiclismoApp,
+    scope: String = "road",
 ): List<HighlightItem> {
-    val highlights = app.repository.todayHighlights()
+    val highlights = app.repository.todayHighlights(scope)
     if (highlights.isEmpty()) return emptyList()
 
     val raceIds = highlights.mapNotNull { it.raceId }.distinct()
@@ -149,7 +180,19 @@ private suspend fun loadHighlights(
         app.repository.racesByIds(missingParents).forEach { racesById[it.id] = it }
     }
 
+    val cxIds = highlights.filter { it.targetType == "cxRace" }.mapNotNull { it.cxRaceId }.distinct()
+    // En inglés se descartan las carreras nacionales y los torneos solo
+    // nacionales (CxPresentation.hiddenClasses).
+    val cxRows = (try { app.supabaseService.cxRacesByIds(cxIds) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() })
+        .filterNot(CxPresentation::isHidden)
+    val cxById = cxRows.associateBy { it.id }
+    val cxTournamentIds = highlights.filter { it.targetType == "cxTournament" }.mapNotNull { it.cxTournamentId }.distinct()
+    val cxTournamentRows = (try { app.supabaseService.cxTournamentsByIds(cxTournamentIds) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() })
+        .filter { app.cxRepository.tournamentIsVisible(it.id) }
+    val cxTournamentById = cxTournamentRows.associateBy { it.id }
     return highlights.mapNotNull { h ->
+        if (h.targetType == "cxRace") return@mapNotNull HighlightItem.forCx(h, h.cxRaceId?.let { cxById[it] })
+        if (h.targetType == "cxTournament") return@mapNotNull HighlightItem.forCxTournament(h, h.cxTournamentId?.let { cxTournamentById[it] })
         val rd = h.raceDayId?.let { raceDaysById[it] }
         // Campeonatos y Fichajes: destinos sin carrera (abren pantalla nativa).
         if (h.targetType == "championships" || h.targetType == "transfers") {
@@ -168,27 +211,57 @@ private suspend fun loadHighlights(
 private fun BannerCarousel(
     items: List<HighlightItem>,
     onTap: (HighlightItem) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     val pagerState = rememberPagerState(pageCount = { items.size })
     val isEn = LocaleHolder.shouldShowEnglishContent
+    val scope = rememberCoroutineScope()
+    var autoAdvanceEnabled by remember(items) { mutableStateOf(true) }
+    var programmaticScroll by remember { mutableStateOf(false) }
+    val animationsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
+    val context = LocalContext.current
+    val accessibilityManager = remember(context) {
+        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    }
+    var touchExplorationEnabled by remember(accessibilityManager) {
+        mutableStateOf(accessibilityManager?.isTouchExplorationEnabled == true)
+    }
+    DisposableEffect(accessibilityManager) {
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { enabled ->
+            touchExplorationEnabled = enabled
+        }
+        accessibilityManager?.addTouchExplorationStateChangeListener(listener)
+        onDispose {
+            accessibilityManager?.removeTouchExplorationStateChangeListener(listener)
+        }
+    }
 
     // Auto-advance
-    LaunchedEffect(pagerState, items.size) {
-        if (items.size <= 1) return@LaunchedEffect
-        while (true) {
+    LaunchedEffect(pagerState, items.size, autoAdvanceEnabled, touchExplorationEnabled) {
+        if (items.size <= 1 || !autoAdvanceEnabled || !animationsEnabled || touchExplorationEnabled) {
+            return@LaunchedEffect
+        }
+        while (autoAdvanceEnabled) {
             delay(5000)
             val next = (pagerState.currentPage + 1) % items.size
+            programmaticScroll = true
             runCatching { pagerState.animateScrollToPage(next) }
+            programmaticScroll = false
+        }
+    }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }.collect { moving ->
+            if (moving && !programmaticScroll) autoAdvanceEnabled = false
         }
     }
 
     val current = items.getOrNull(pagerState.currentPage) ?: return
-    val accentColor = current.race?.colorHex?.let { parseHex(it) } ?: MaterialTheme.colorScheme.primary
+    val accentColor = current.accentHex?.let { parseHex(it) } ?: MaterialTheme.colorScheme.primary
+    val bannerBackground = accentColor.copy(alpha = 0.07f)
+        .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
 
     // Tarjeta estilo "App Store Today" — paridad con iOS pero idiomática
     // Material 3: ElevatedCard con elevación tonal en vez del blur de iOS.
-    // El color de marca es un ACENTO (tinte 7% del contenedor + dot activo),
+    // El color de marca es un ACENTO (tinte 7% del contenedor),
     // no el fondo a sangre. Margen lateral propio: el padre no aporta padding.
     ElevatedCard(
         shape = RoundedCornerShape(18.dp),
@@ -204,81 +277,91 @@ private fun BannerCarousel(
                 // Tinte de marca muy leve sobre el contenedor de la card.
                 .background(accentColor.copy(alpha = 0.07f)),
         ) {
-            Column {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { page ->
-                    val item = items[page]
-                    SlideContent(
-                        item = item,
-                        isEn = isEn,
-                        hasDots = items.size > 1,
-                        onTap = { onTap(item) },
-                    )
-                }
-
-                // Indicador de página (dots) — el activo con color de marca.
-                if (items.size > 1) {
-                    PageDots(
-                        count = items.size,
-                        current = pagerState.currentPage,
-                        accent = accentColor,
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(bottom = 10.dp),
-                    )
-                }
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth(),
+            ) { page ->
+                val item = items[page]
+                SlideContent(
+                    item = item,
+                    isEn = isEn,
+                    hasControls = items.size > 1,
+                    onTap = { autoAdvanceEnabled = false; onTap(item) },
+                )
             }
 
-            // X de cierre — discreta, sin caja, top-end.
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(30.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.today_highlight_dismiss),
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                )
+            if (items.size > 1) {
+                BannerArrow(
+                    forward = false,
+                    backgroundColor = bannerBackground,
+                    modifier = Modifier.align(Alignment.CenterStart),
+                ) {
+                    autoAdvanceEnabled = false
+                    val target = (pagerState.currentPage - 1 + items.size) % items.size
+                    scope.launch {
+                        if (animationsEnabled) pagerState.animateScrollToPage(target)
+                        else pagerState.scrollToPage(target)
+                    }
+                }
+                BannerArrow(
+                    forward = true,
+                    backgroundColor = bannerBackground,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                ) {
+                    autoAdvanceEnabled = false
+                    val target = (pagerState.currentPage + 1) % items.size
+                    scope.launch {
+                        if (animationsEnabled) pagerState.animateScrollToPage(target)
+                        else pagerState.scrollToPage(target)
+                    }
+                }
             }
         }
     }
 }
 
-/** Indicador de página estilo iOS: punto activo con color de marca, resto tenue. */
 @Composable
-private fun PageDots(
-    count: Int,
-    current: Int,
-    accent: Color,
+private fun BannerArrow(
+    forward: Boolean,
+    backgroundColor: Color,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier = modifier
+            .width(48.dp)
+            .height(48.dp)
+            .semantics {
+                contentDescription = if (forward) {
+                    LocaleHolder.t("Destacado siguiente", "Next highlight")
+                } else {
+                    LocaleHolder.t("Destacado anterior", "Previous highlight")
+                }
+            }
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        repeat(count) { idx ->
-            val active = idx == current
-            Box(
-                modifier = Modifier
-                    .size(if (active) 7.dp else 6.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (active) accent
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
-                    ),
+        Box(
+            modifier = Modifier
+                .align(if (forward) Alignment.CenterEnd else Alignment.CenterStart)
+                .width(40.dp)
+                .height(48.dp)
+                .background(backgroundColor),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (forward) Icons.AutoMirrored.Filled.KeyboardArrowRight
+                else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
             )
         }
     }
 }
 
 @Composable
-private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, onTap: () -> Unit) {
+private fun SlideContent(item: HighlightItem, isEn: Boolean, hasControls: Boolean, onTap: () -> Unit) {
     val today = DateFormatting.todayKey()
     val tomorrow = remember(today) {
         val parts = today.split("-").map { it.toInt() }
@@ -286,13 +369,21 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, o
         cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
         "%04d-%02d-%02d".format(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
     }
+    val title = item.title(isEn)
+    val detail = item.detailFallback(isEn, today, tomorrow)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onTap)
-            // Padding inferior menor cuando hay dots debajo, para que el bloque
-            // no quede descompensado verticalmente.
-            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = if (hasDots) 12.dp else 14.dp),
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title, $detail"
+            }
+            .clickable(role = Role.Button, onClick = onTap)
+            .padding(
+                start = if (hasControls) 40.dp else 14.dp,
+                end = if (hasControls) 40.dp else 14.dp,
+                top = 14.dp,
+                bottom = 14.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -329,30 +420,30 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, o
                     modifier = Modifier.size(26.dp),
                 )
             }
-        } else if (!item.race?.logoUrl.isNullOrBlank()) {
+        } else if (!item.logoUrl.isNullOrBlank()) {
             Box(
                 modifier = Modifier.size(34.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                RaceLogo(url = item.race?.logoUrl, size = 34.dp)
+                RaceLogo(url = item.logoUrl, size = 34.dp)
             }
         }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            // Título con padding derecho propio (32dp) para no chocar con la X.
-            // El recorte del line-height + includeFontPadding=false ya viene
+            // El título utiliza todo el ancho central disponible entre el
+            // identificador y la flecha lateral del carrusel. El recorte del
+            // line-height + includeFontPadding=false ya viene
             // por defecto del tema (CCDefaultTextStyle vía LocalTextStyle).
             Text(
-                item.title(isEn),
+                title,
                 // Mismo peso que el título del día en la barra superior (Medium).
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
                 lineHeight = 16.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 32.dp),
             )
             // Subtítulo + chevron en la misma fila — el chevron no compite por
             // espacio con el título.
@@ -361,7 +452,7 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, o
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    item.detailFallback(isEn, today, tomorrow),
+                    detail,
                     fontWeight = FontWeight.Normal,
                     fontSize = 12.sp,
                     lineHeight = 14.sp,
@@ -382,18 +473,6 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasDots: Boolean, o
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-private const val PREF_FILE = "today_highlights_prefs"
-private const val PREF_KEY = "dismissed_hash"
-
-private fun loadDismissedHash(context: android.content.Context): String? =
-    context.getSharedPreferences(PREF_FILE, android.content.Context.MODE_PRIVATE)
-        .getString(PREF_KEY, null)
-
-private fun saveDismissedHash(context: android.content.Context, hash: String) {
-    context.getSharedPreferences(PREF_FILE, android.content.Context.MODE_PRIVATE)
-        .edit().putString(PREF_KEY, hash).apply()
-}
 
 private fun parseHex(hex: String): Color? {
     val h = hex.removePrefix("#")

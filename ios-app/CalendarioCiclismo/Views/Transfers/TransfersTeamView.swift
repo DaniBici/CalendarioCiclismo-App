@@ -18,6 +18,8 @@ struct TransfersTeamView: View {
     // Se marchan → equipo destino). Esta vista es una hoja empujada por
     // TransfersView, que NO declara este destino → lo declara ella misma.
     @State private var linkedTeamRoute: TransfersTeamRoute?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var contentWidth: CGFloat = 0
 
     var body: some View {
         Group {
@@ -31,6 +33,8 @@ struct TransfersTeamView: View {
                 content(season: season, data: data, detail: detail)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t(
             "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
             "\(String(TransfersLogic.marketSeason)) Transfer Market"
@@ -85,25 +89,23 @@ struct TransfersTeamView: View {
         let unknownTeam = localeService.t("Por confirmar", "To be confirmed")
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                // Cabecera: chapa (si está activada) + nombre + categoría·año.
-                CCCard {
-                    HStack(spacing: 12) {
-                        // Sin chapa no se monta la vista: en un HStack con
-                        // spacing, un EmptyView gastaría el hueco igual.
-                        if let badge = TransfersLogic.badgeSeason(for: season, prev: data.prevSeasonsByTeamId) {
-                            TransfersSeasonBadge(season: badge, size: 40)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(season.name ?? "")
-                                .font(.headline)
-                            Text(season.category ?? "")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(14)
+                // Cabecera cromática compacta, equivalente a la web.
+                let appearance = TransfersLogic.badgeSeason(for: season, prev: data.prevSeasonsByTeamId)
+                let background = appearance?.headerBg.map(Color.init(hex:)) ?? AppTheme.cardBackground
+                let foreground = appearance?.headerText.map(Color.init(hex:)) ?? .primary
+                HStack(spacing: 12) {
+                    Text(season.name ?? "")
+                        .font(.headline)
+                        .foregroundStyle(foreground)
+                    Spacer(minLength: 8)
+                    Text("\(season.category ?? "") · \(String(TransfersLogic.marketSeason))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(foreground)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .ccCardSurface(cornerRadius: 8, fill: background, showShadow: false)
 
                 // Aviso: la continuidad del equipo en la temporada del mercado
                 // no está confirmada (mig. 123). El equipo se lista igual.
@@ -116,83 +118,7 @@ struct TransfersTeamView: View {
                     )
                 }
 
-                // Cada sección solo se muestra si tiene contenido (una categoría
-                // vacía se oculta por completo, título incluido).
-
-                // ── Continúan ──────────────────────────────────────
-                if !detail.staying.isEmpty {
-                    sectionTitle(localeService.t("Continúan", "Staying"))
-                    CCCard {
-                        VStack(spacing: 0) {
-                            ForEach(Array(detail.staying.enumerated()), id: \.element.id) { index, row in
-                                if index > 0 { Divider().opacity(0.5) }
-                                personRow(
-                                    nationality: row.rider.nationality,
-                                    name: row.rider.fullName.isEmpty ? row.rider.id : row.rider.fullName,
-                                    detail: nil,
-                                    contractUntil: row.contractUntil,
-                                    isRumor: row.isRumor
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── En duda ────────────────────────────────────────
-                if !detail.doubtful.isEmpty {
-                    sectionTitle(localeService.t("En duda", "Undecided"))
-                    CCCard {
-                        VStack(spacing: 0) {
-                            ForEach(Array(detail.doubtful.enumerated()), id: \.element.id) { index, row in
-                                if index > 0 { Divider().opacity(0.5) }
-                                // Sin badge "Duda": ya están bajo la sección "En duda".
-                                personRow(
-                                    nationality: row.rider?.nationality,
-                                    name: {
-                                        let full = row.rider?.fullName ?? ""
-                                        return full.isEmpty ? row.riderId : full
-                                    }(),
-                                    detail: nil,
-                                    contractUntil: row.contractUntil,
-                                    isRumor: false
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── Terminan contrato ──────────────────────────────
-                // Acaban su contrato sin equipo conocido (sin destino).
-                if !detail.contractEnds.isEmpty {
-                    sectionTitle(localeService.t("Terminan contrato", "Contract ending"))
-                    CCCard {
-                        VStack(spacing: 0) {
-                            ForEach(Array(detail.contractEnds.enumerated()), id: \.element.id) { index, move in
-                                if index > 0 { Divider().opacity(0.5) }
-                                let rider = data.ridersById[move.riderId]
-                                personRow(
-                                    nationality: rider?.nationality,
-                                    name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
-                                    detail: nil,
-                                    contractUntil: nil,
-                                    isRumor: move.status == "rumor"
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── Llegan ─────────────────────────────────────────
-                if !detail.arrivals.isEmpty {
-                    sectionTitle(localeService.t("Llegan", "Arrivals"))
-                    movementCard(moves: detail.arrivals, data: data, showOrigin: true, unknownTeam: unknownTeam)
-                }
-
-                // ── Se marchan ─────────────────────────────────────
-                if !detail.departures.isEmpty {
-                    sectionTitle(localeService.t("Se marchan", "Departures"))
-                    movementCard(moves: detail.departures, data: data, showOrigin: false, unknownTeam: unknownTeam)
-                }
+                marketSections(detail: detail, data: data, unknownTeam: unknownTeam)
 
                 // Equipo sin ningún movimiento anunciado: aviso único.
                 if detail.staying.isEmpty && detail.doubtful.isEmpty && detail.contractEnds.isEmpty
@@ -203,7 +129,183 @@ struct TransfersTeamView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
+        .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.width
+        } action: { width in
+            contentWidth = width
+        }
+        .background(AppTheme.background)
         .refreshable { await load() }
+    }
+
+    private enum MarketBlock: Identifiable {
+        case staying([TransfersLogic.StayingRow], continuation: Bool)
+        case doubtful([TransfersLogic.DoubtRow], continuation: Bool)
+        case contractEnds([RiderTransfer], continuation: Bool)
+        case arrivals([RiderTransfer], continuation: Bool)
+        case departures([RiderTransfer], continuation: Bool)
+
+        var count: Int {
+            switch self {
+            case .staying(let rows, _): rows.count
+            case .doubtful(let rows, _): rows.count
+            case .contractEnds(let rows, _), .arrivals(let rows, _), .departures(let rows, _): rows.count
+            }
+        }
+
+        var id: String {
+            let suffix: String
+            switch self {
+            case .staying(let rows, let continuation): suffix = "staying:\(rows.first?.id ?? "empty"):\(continuation)"
+            case .doubtful(let rows, let continuation): suffix = "doubtful:\(rows.first?.id ?? "empty"):\(continuation)"
+            case .contractEnds(let rows, let continuation): suffix = "contracts:\(rows.first?.id ?? "empty"):\(continuation)"
+            case .arrivals(let rows, let continuation): suffix = "arrivals:\(rows.first?.id ?? "empty"):\(continuation)"
+            case .departures(let rows, let continuation): suffix = "departures:\(rows.first?.id ?? "empty"):\(continuation)"
+            }
+            return suffix
+        }
+
+        func split(at index: Int) -> (MarketBlock, MarketBlock)? {
+            guard index > 0, index < count else { return nil }
+            switch self {
+            case .staying(let rows, let continuation):
+                return (.staying(Array(rows.prefix(index)), continuation: continuation), .staying(Array(rows.dropFirst(index)), continuation: true))
+            case .doubtful(let rows, let continuation):
+                return (.doubtful(Array(rows.prefix(index)), continuation: continuation), .doubtful(Array(rows.dropFirst(index)), continuation: true))
+            case .contractEnds(let rows, let continuation):
+                return (.contractEnds(Array(rows.prefix(index)), continuation: continuation), .contractEnds(Array(rows.dropFirst(index)), continuation: true))
+            case .arrivals(let rows, let continuation):
+                return (.arrivals(Array(rows.prefix(index)), continuation: continuation), .arrivals(Array(rows.dropFirst(index)), continuation: true))
+            case .departures(let rows, let continuation):
+                return (.departures(Array(rows.prefix(index)), continuation: continuation), .departures(Array(rows.dropFirst(index)), continuation: true))
+            }
+        }
+    }
+
+    private func marketBlocks(_ detail: TransfersLogic.TeamDetail) -> [MarketBlock] {
+        var blocks: [MarketBlock] = []
+        if !detail.staying.isEmpty { blocks.append(.staying(detail.staying, continuation: false)) }
+        if !detail.doubtful.isEmpty { blocks.append(.doubtful(detail.doubtful, continuation: false)) }
+        if !detail.contractEnds.isEmpty { blocks.append(.contractEnds(detail.contractEnds, continuation: false)) }
+        if !detail.arrivals.isEmpty { blocks.append(.arrivals(detail.arrivals, continuation: false)) }
+        if !detail.departures.isEmpty { blocks.append(.departures(detail.departures, continuation: false)) }
+        return blocks
+    }
+
+    private func marketColumns(_ blocks: [MarketBlock]) -> [[MarketBlock]] {
+        let division = AdaptiveLayoutPolicy.balancedBreak(counts: blocks.map(\.count))
+        var left = Array(blocks.prefix(division.blockIndex))
+        var right = Array(blocks.dropFirst(division.blockIndex))
+        if division.offset > 0,
+           let crossing = right.first,
+           let parts = crossing.split(at: division.offset) {
+            left.append(parts.0)
+            right[0] = parts.1
+        }
+        return [left, right]
+    }
+
+    @ViewBuilder
+    private func marketSections(
+        detail: TransfersLogic.TeamDetail,
+        data: TransfersLogic.MarketData,
+        unknownTeam: String
+    ) -> some View {
+        let blocks = marketBlocks(detail)
+        let wide = AdaptiveLayoutPolicy.feedColumns(
+            width: max(0, contentWidth - 32),
+            isRegular: horizontalSizeClass == .regular
+        ) == 2
+        if wide, !blocks.isEmpty {
+            let columns = marketColumns(blocks)
+            HStack(alignment: .top, spacing: 16) {
+                marketColumn(columns[0], data: data, unknownTeam: unknownTeam)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                Divider()
+                marketColumn(columns[1], data: data, unknownTeam: unknownTeam)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else {
+            marketColumn(blocks, data: data, unknownTeam: unknownTeam)
+        }
+    }
+
+    private func marketColumn(
+        _ blocks: [MarketBlock],
+        data: TransfersLogic.MarketData,
+        unknownTeam: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(blocks) { block in
+                marketBlock(block, data: data, unknownTeam: unknownTeam)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func marketBlock(
+        _ block: MarketBlock,
+        data: TransfersLogic.MarketData,
+        unknownTeam: String
+    ) -> some View {
+        switch block {
+        case .staying(let rows, _):
+            sectionTitle(localeService.t("Continúan", "Staying"))
+            CCCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { Divider().opacity(0.5) }
+                        personRow(
+                            nationality: row.rider.nationality,
+                            name: row.rider.fullName.isEmpty ? row.rider.id : row.rider.fullName,
+                            detail: nil,
+                            contractUntil: row.contractUntil,
+                            isRumor: row.isRumor
+                        )
+                    }
+                }
+            }
+        case .doubtful(let rows, _):
+            sectionTitle(localeService.t("En duda", "Undecided"))
+            CCCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { Divider().opacity(0.5) }
+                        let riderName = row.rider?.fullName ?? ""
+                        personRow(
+                            nationality: row.rider?.nationality,
+                            name: riderName.isEmpty ? row.riderId : riderName,
+                            detail: nil,
+                            contractUntil: row.contractUntil,
+                            isRumor: false
+                        )
+                    }
+                }
+            }
+        case .contractEnds(let rows, _):
+            sectionTitle(localeService.t("Terminan contrato", "Contract ending"))
+            CCCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, move in
+                        if index > 0 { Divider().opacity(0.5) }
+                        let rider = data.ridersById[move.riderId]
+                        personRow(
+                            nationality: rider?.nationality,
+                            name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
+                            detail: nil,
+                            contractUntil: nil,
+                            isRumor: move.status == "rumor"
+                        )
+                    }
+                }
+            }
+        case .arrivals(let rows, _):
+            sectionTitle(localeService.t("Llegan", "Arrivals"))
+            movementCard(moves: rows, data: data, showOrigin: true, unknownTeam: unknownTeam)
+        case .departures(let rows, _):
+            sectionTitle(localeService.t("Se marchan", "Departures"))
+            movementCard(moves: rows, data: data, showOrigin: false, unknownTeam: unknownTeam)
+        }
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -232,40 +334,51 @@ struct TransfersTeamView: View {
         // Equipos con ficha en el mercado (destino enlazable de un nombre).
         let marketTeamIds = Set(data.seasons.map(\.teamId))
         return CCCard {
-            VStack(spacing: 0) {
-                ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
-                    if index > 0 { Divider().opacity(0.5) }
-                    let rider = data.ridersById[move.riderId]
-                    let detailText: String = {
-                        if showOrigin {
-                            return TransfersLogic.teamLabel(
-                                teamId: move.fromTeamId, freeText: move.fromTeamName,
-                                names: data.teamNameById, unknownLabel: unknownTeam,
-                                side: .from, namesPrev: data.teamNamePrev)
-                        }
-                        if move.type == "retirement" {
-                            return localeService.t("Se retira", "Retires")
-                        }
+            movementColumn(
+                moves: moves, data: data, showOrigin: showOrigin,
+                unknownTeam: unknownTeam, marketTeamIds: marketTeamIds
+            )
+        }
+    }
+
+    private func movementColumn(
+        moves: [RiderTransfer],
+        data: TransfersLogic.MarketData,
+        showOrigin: Bool,
+        unknownTeam: String,
+        marketTeamIds: Set<String>
+    ) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
+                if index > 0 { Divider().opacity(0.5) }
+                let rider = data.ridersById[move.riderId]
+                let detailText: String = {
+                    if showOrigin {
                         return TransfersLogic.teamLabel(
-                            teamId: move.toTeamId, freeText: move.toTeamName,
-                            names: data.teamNameById, unknownLabel: unknownTeam)
-                    }()
-                    // Llega → enlaza al equipo del que VENÍA (fromTeamId); se marcha
-                    // → al equipo AL QUE VA (toTeamId). Solo si ese equipo tiene
-                    // ficha en el mercado (una retirada no tiene destino).
-                    let candidate = showOrigin ? move.fromTeamId : move.toTeamId
-                    let linkTeamId = candidate.flatMap { marketTeamIds.contains($0) ? $0 : nil }
-                    personRow(
-                        nationality: rider?.nationality,
-                        name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
-                        detail: detailText,
-                        contractUntil: showOrigin ? move.contractUntil : nil,
-                        isRumor: move.status == "rumor",
-                        linkTeamId: linkTeamId
-                    )
-                }
+                            teamId: move.fromTeamId, freeText: move.fromTeamName,
+                            names: data.teamNameById, unknownLabel: unknownTeam,
+                            side: .from, namesPrev: data.teamNamePrev)
+                    }
+                    if move.type == "retirement" {
+                        return localeService.t("Se retira", "Retires")
+                    }
+                    return TransfersLogic.teamLabel(
+                        teamId: move.toTeamId, freeText: move.toTeamName,
+                        names: data.teamNameById, unknownLabel: unknownTeam)
+                }()
+                let candidate = showOrigin ? move.fromTeamId : move.toTeamId
+                let linkTeamId = candidate.flatMap { marketTeamIds.contains($0) ? $0 : nil }
+                personRow(
+                    nationality: rider?.nationality,
+                    name: rider.map { $0.fullName.isEmpty ? move.riderId : $0.fullName } ?? move.riderId,
+                    detail: detailText,
+                    contractUntil: showOrigin ? move.contractUntil : nil,
+                    isRumor: move.status == "rumor",
+                    linkTeamId: linkTeamId
+                )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     /// Aviso de continuidad del equipo en duda — espejo de `.tr-team-notice`.

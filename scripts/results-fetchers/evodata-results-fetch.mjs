@@ -202,32 +202,36 @@ function buildClassification(code, eventId, jersey, response, final = false) {
   };
 }
 
-export function buildStage(code, subEvent, payload, { totalStages = null } = {}) {
-  const stageNumber = stageNumberFor(subEvent);
-  const raceType = raceTypeFor(subEvent, payload.races);
-  const stageRows = mapTimingRows(payload.timing?.times, { timeTrial: raceType === 'ITT' });
+export function buildStage(code, subEvent, payload, { totalStages = null, oneDay = false } = {}) {
+  const sourceStageNumber = stageNumberFor(subEvent);
+  const stageNumber = oneDay ? null : sourceStageNumber;
+  const sourceRaceType = raceTypeFor(subEvent, payload.races);
+  const raceType = oneDay ? null : sourceRaceType;
+  const stageRows = mapTimingRows(payload.timing?.times, { timeTrial: sourceRaceType === 'ITT' });
   if (!stageRows.some((row) => row.rank === 1)) return [];
 
   const stageClassification = {
     eventId: synthEventId(code, subEvent.eventId, 'stage', 'stage'),
-    classKind: 'stage', scope: 'stage', eventName: 'Stage Classification', isTeamEvent: false,
+    classKind: oneDay ? 'gc' : 'stage', scope: 'stage',
+    eventName: oneDay ? 'General Classification' : 'Stage Classification', isTeamEvent: false,
     rowCount: stageRows.length,
     ...(Number(payload.timing?.tot) === stageRows.length && stageRows.length > 0 ? { expectedRowCount: stageRows.length } : {}),
     rows: stageRows,
   };
-  const generalClassifications = (payload.jerseys || [])
+  const generalClassifications = (oneDay ? [] : (payload.jerseys || []))
     .map((jersey) => buildClassification(code, subEvent.eventId, jersey, payload.generals?.[String(jersey.jerseyId)], false))
     .filter(Boolean);
-  const isLast = totalStages != null && stageNumber === Number(totalStages);
+  const isLast = totalStages != null && sourceStageNumber === Number(totalStages);
   const dateKey = clean(subEvent.date).slice(0, 10) || null;
   const common = { dateKey, sourcePdfUrl: eventsListUrl(code) };
   const stages = [{
     uciRaceId: synthRaceId(code, subEvent.eventId), stageNumber,
-    stageName: clean(subEvent.name) || `Stage ${stageNumber}`, isFinalClassification: false,
+    stageName: oneDay ? 'Final Classification' : (clean(subEvent.name) || `Stage ${stageNumber}`),
+    isFinalClassification: oneDay,
     raceType, ...common,
-    classifications: isLast ? [stageClassification] : [stageClassification, ...generalClassifications],
+    classifications: oneDay || isLast ? [stageClassification] : [stageClassification, ...generalClassifications],
   }];
-  if (isLast && generalClassifications.length) {
+  if (!oneDay && isLast && generalClassifications.length) {
     stages.push({
       uciRaceId: synthRaceId(code, subEvent.eventId, true), stageNumber: null,
       stageName: 'Final Classification', isFinalClassification: true, raceType: null, ...common,
@@ -258,24 +262,35 @@ async function getAppToken() {
 }
 
 async function fetchStagePayload(eventId, token) {
-  const [races, jerseys, timing] = await Promise.all([
+  const [races, jerseys] = await Promise.all([
     apiPost('/api/races/getRacesByEventId/', { eventId }, token),
     apiPost('/api/jerseys/getJerseysByEventId/', { eventId }, token),
+  ]);
+  if (!Array.isArray(races)) throw new Error(`EvoData: respuesta de carreras inválida para la jornada ${eventId}`);
+  // El raceId pertenece a cada jornada y no coincide necesariamente con el de
+  // la primera etapa. No inferirlo a partir del número ni elegir entre concursos.
+  if (races.length > 1) throw new Error(`EvoData: varios concursos en la jornada ${eventId}`);
+  if (!races.length) return { races, jerseys: [], timing: null, generals: {} };
+  const raceId = Number(races[0].raceId);
+  if (!Number.isSafeInteger(raceId) || raceId <= 0 || Number(races[0].eventId) !== Number(eventId)) {
+    throw new Error(`EvoData: concurso inválido para la jornada ${eventId}`);
+  }
+  const generalJerseys = (Array.isArray(jerseys) ? jerseys : []).filter((jersey) => GENERAL_TYPES[Number(jersey.type)]);
+  const [timing, ...responses] = await Promise.all([
     apiPost('/api/timing/results/getResults/', {
-      eventId, raceId: 100000001, splitNumber: -1, gender: 'all', category: 'all',
+      eventId, raceId, splitNumber: -1, gender: 'all', category: 'all',
       nationality: 'ALL', pageSize: 1000, pageIndex: 0, getBonus: false,
     }, token),
+    ...generalJerseys.map((jersey) =>
+      apiPost('/api/generalclassification/getGeneralClassification/', {
+        eventId, jerseyId: jersey.jerseyId, status: 0, pageIndex: 0, pageSize: 1000,
+      }, token)),
   ]);
-  const generalJerseys = (Array.isArray(jerseys) ? jerseys : []).filter((jersey) => GENERAL_TYPES[Number(jersey.type)]);
-  const responses = await Promise.all(generalJerseys.map((jersey) =>
-    apiPost('/api/generalclassification/getGeneralClassification/', {
-      eventId, jerseyId: jersey.jerseyId, status: 0, pageIndex: 0, pageSize: 1000,
-    }, token)));
   const generals = Object.fromEntries(generalJerseys.map((jersey, index) => [String(jersey.jerseyId), responses[index]]));
   return { races: Array.isArray(races) ? races : [], jerseys: Array.isArray(jerseys) ? jerseys : [], timing, generals };
 }
 
-export async function fetchCompetition(code, { onlyStage = null, totalStages = null, delay = 300, fixture = null } = {}) {
+export async function fetchCompetition(code, { onlyStage = null, totalStages = null, delay = 300, oneDay = false, fixture = null } = {}) {
   const parsedCode = parseCode(code);
   const token = fixture ? null : await getAppToken();
   const parentEvent = fixture?.parentEvent || await apiPost('/api/events/getEventById/', { eventId: Number(parsedCode) }, token);
@@ -286,7 +301,7 @@ export async function fetchCompetition(code, { onlyStage = null, totalStages = n
   const stages = [];
   for (const subEvent of subEvents) {
     const payload = fixture?.byEventId?.[String(subEvent.eventId)] || await fetchStagePayload(subEvent.eventId, token);
-    stages.push(...buildStage(parsedCode, subEvent, payload, { totalStages }));
+    stages.push(...buildStage(parsedCode, subEvent, payload, { totalStages, oneDay }));
     if (!fixture && delay > 0) await sleep(delay);
   }
   return stages;
@@ -298,7 +313,9 @@ async function main() {
   if (!Number.isInteger(COMPETITION_ID)) throw new Error('Falta --competition-id (o usa --suggest-id)');
   if (!Number.isFinite(DELAY) || DELAY < 0) throw new Error('--delay debe ser un número no negativo');
   const fixture = FIXTURE ? JSON.parse(readFileSync(resolve(FIXTURE), 'utf8')) : null;
-  const stages = await fetchCompetition(code, { onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES, delay: DELAY, fixture });
+  const stages = await fetchCompetition(code, {
+    onlyStage: ONLY_STAGE, totalStages: TOTAL_STAGES, delay: DELAY, oneDay: has('--one-day'), fixture,
+  });
   const output = {
     competitionId: COMPETITION_ID, disciplineId: 10, source: RESULTS_SOURCE,
     evodataCode: code, sourceUrl: eventsListUrl(code), fetchedAt: new Date().toISOString(), stages,

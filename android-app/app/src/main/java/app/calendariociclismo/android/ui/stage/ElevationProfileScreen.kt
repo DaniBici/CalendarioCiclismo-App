@@ -46,6 +46,12 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -69,11 +75,12 @@ import kotlin.math.roundToInt
 // ─── Colores ──────────────────────────────────────────────────────
 
 private val ColorSummit = Color(0xFFC53030)
+private val ColorFinish = Color(0xFFE63D3D)
 private val ColorBonusSprint = Color(0xFFF9AB00)
 private val ColorSprint = Color(0xFF0F9D58)
 private val ColorSplit = Color(0xFF00838F)
-private val ColorCobblestone = Color(0xFFB0B0B0)
-private val ColorSterrato = Color(0xFFC8A870)
+private val ColorCobblestone = Color(0xFF8C8C8C)
+private val ColorSterrato = Color(0xFFC4975A)
 
 private fun waypointColor(type: String): Color = when (type) {
     "bonus_sprint" -> ColorBonusSprint
@@ -101,6 +108,19 @@ private fun summitLetter(category: String?): String = when (category) {
     "4" -> "4"
     "M" -> "M"
     else -> "C"
+}
+
+private fun waypointDisplayName(waypoint: ProfileWaypoint): String {
+    val explicit = waypoint.name?.trim().orEmpty()
+    if (explicit.isNotEmpty()) return explicit
+    return when (waypoint.type) {
+        "bonus_sprint" -> LocaleHolder.t("Bonificación", "Bonus sprint")
+        "intermediate_sprint" -> LocaleHolder.t("Sprint intermedio", "Intermediate sprint")
+        "intermediate_split" -> LocaleHolder.t("Punto intermedio", "Intermediate point")
+        "cobblestone" -> LocaleHolder.t("Pavé", "Cobbles")
+        "sterrato" -> LocaleHolder.t("Sterrato", "Gravel")
+        else -> waypoint.type
+    }
 }
 
 // ─── Screen ───────────────────────────────────────────────────────
@@ -259,12 +279,25 @@ private fun formatDistance(km: Double): String {
 private data class MarkerPos(
     val x: Float,
     val y: Float,
+    val type: String,
     val color: Color,
     val letter: String,
+    val letterColor: Color,
+    val secondaryColor: Color? = null,
+    val secondaryLetter: String? = null,
+    val secondaryLetterColor: Color = Color.White,
+    val secondaryType: String? = null,
     val isSummit: Boolean,
     val label: String,
     val altitudeM: Int?,
     val km: Double,
+)
+
+private data class MarkerBadge(
+    val color: Color,
+    val letter: String,
+    val letterColor: Color,
+    val type: String,
 )
 
 @Composable
@@ -372,7 +405,26 @@ fun ElevationChart(
         return points.last().alt.toDouble()
     }
 
-    Box(modifier = modifier) {
+    val accessibilityKm = cursorKm ?: 0.0
+    val accessibilityState = "${formatDistance(accessibilityKm)} · ${formatAlt(interpolateAltitude(accessibilityKm).roundToInt())}"
+    Box(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = LocaleHolder.t("Perfil interactivo", "Interactive profile")
+            stateDescription = accessibilityState
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = accessibilityKm.toFloat(),
+                range = 0f..distance.toFloat(),
+                steps = 0,
+            )
+            setProgress { target ->
+                cursorKm = target.toDouble().coerceIn(0.0, distance)
+                selectedMarker = null
+                selectedClimb = null
+                frozenSegment = null
+                true
+            }
+        },
+    ) {
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -643,57 +695,110 @@ fun ElevationChart(
 
             // Calcular posiciones de marcadores
             val newMarkers = mutableListOf<MarkerPos>()
+            val remainingWaypoints = waypoints.filter { it.type != "town" }.toMutableList()
+            var finishAvailable = true
             summits.forEach { s ->
                 val sKm = s.km ?: return@forEach
                 val alt = interpolateAlt(points, sKm)
+                val atFinish = finishAvailable && sKm == distance
+                val companionIndex = if (atFinish) -1 else remainingWaypoints.indexOfFirst { it.km == sKm }
+                val companion = if (companionIndex >= 0) remainingWaypoints.removeAt(companionIndex) else null
                 newMarkers += MarkerPos(
                     x = x(sKm),
                     y = y(alt),
+                    type = "summit",
                     color = ColorSummit,
                     letter = summitLetter(s.category),
+                    letterColor = Color.White,
+                    secondaryColor = if (atFinish) ColorFinish else companion?.let { waypointColor(it.type) },
+                    secondaryLetter = if (atFinish) "" else companion?.let { waypointLetter(it.type) },
+                    secondaryLetterColor = if (companion?.type == "bonus_sprint") Color.Black else Color.White,
+                    secondaryType = if (atFinish) "finish" else companion?.type,
                     isSummit = true,
-                    label = s.name ?: "Puerto",
+                    label = buildString {
+                        append(s.name ?: LocaleHolder.t("Puerto", "Climb"))
+                        if (atFinish) append(" · ${LocaleHolder.t("Meta", "Finish")}")
+                        else companion?.let { append(" · ${waypointDisplayName(it)}") }
+                    },
                     altitudeM = s.altitude ?: alt.roundToInt(),
                     km = sKm,
                 )
+                if (atFinish) finishAvailable = false
             }
-            waypoints.filter { it.type != "town" }.forEach { wp ->
+            remainingWaypoints.forEach { wp ->
                 val wpKm = wp.km ?: return@forEach
                 val alt = interpolateAlt(points, wpKm)
+                val atFinish = finishAvailable && wpKm == distance
                 newMarkers += MarkerPos(
                     x = x(wpKm),
                     y = y(alt),
+                    type = wp.type,
                     color = waypointColor(wp.type),
                     letter = waypointLetter(wp.type),
+                    letterColor = if (wp.type == "bonus_sprint") Color.Black else Color.White,
+                    secondaryColor = if (atFinish) ColorFinish else null,
+                    secondaryLetter = if (atFinish) "" else null,
+                    secondaryType = if (atFinish) "finish" else null,
                     isSummit = false,
-                    label = wp.name ?: wp.type,
+                    label = waypointDisplayName(wp) + if (atFinish) " · ${LocaleHolder.t("Meta", "Finish")}" else "",
                     altitudeM = alt.roundToInt(),
                     km = wpKm,
                 )
+                if (atFinish) finishAvailable = false
             }
             markerPositions = newMarkers
 
             // 8. Dibujar marcadores
             newMarkers.forEach { mp ->
-                drawCircle(
-                    color = mp.color,
-                    radius = markerRadius,
-                    center = Offset(mp.x, mp.y),
-                )
-                drawIntoCanvas { canvas ->
-                    val paint = Paint().apply {
-                        textSize = if (mp.letter.length > 1) 6.5.sp.toPx() else 8.sp.toPx()
-                        color = Color.White.toArgb()
-                        textAlign = Paint.Align.CENTER
-                        typeface = Typeface.DEFAULT_BOLD
-                        isAntiAlias = true
+                val badges = buildList {
+                    add(MarkerBadge(mp.color, mp.letter, mp.letterColor, mp.type))
+                    if (mp.secondaryColor != null && mp.secondaryLetter != null) {
+                        add(MarkerBadge(mp.secondaryColor, mp.secondaryLetter, mp.secondaryLetterColor, mp.secondaryType.orEmpty()))
                     }
-                    canvas.nativeCanvas.drawText(
-                        mp.letter,
-                        mp.x,
-                        mp.y + paint.textSize / 3,
-                        paint,
+                }
+                val badgeStep = markerRadius * 1.6f
+                val centeredStartX = mp.x - badgeStep * (badges.size - 1) / 2f
+                val startX = minOf(centeredStartX, size.width - markerRadius - badgeStep * (badges.size - 1))
+                badges.forEachIndexed { index, badge ->
+                    val badgeX = startX + index * badgeStep
+                    drawCircle(
+                        color = badge.color,
+                        radius = markerRadius,
+                        center = Offset(badgeX, mp.y),
                     )
+                    if (badge.type == "cobblestone" || badge.type == "sterrato") {
+                        drawSurfaceGlyph(badge.type, Offset(badgeX, mp.y), markerRadius * 2)
+                    } else if (badge.type == "finish") {
+                        val tile = markerRadius * 0.44f
+                        val origin = Offset(badgeX - tile, mp.y - tile)
+                        drawRect(
+                            color = Color.White.copy(alpha = 0.3f),
+                            topLeft = origin,
+                            size = Size(tile * 2, tile * 2),
+                        )
+                        drawRect(Color.White, topLeft = origin, size = Size(tile, tile))
+                        drawRect(
+                            Color.White,
+                            topLeft = Offset(origin.x + tile, origin.y + tile),
+                            size = Size(tile, tile),
+                        )
+                    } else {
+                        drawIntoCanvas { canvas ->
+                            val paint = Paint().apply {
+                                textSize = if (badge.letter.length > 1) 6.5.sp.toPx() else 8.sp.toPx()
+                                color = badge.letterColor.toArgb()
+                                textAlign = Paint.Align.CENTER
+                                typeface = Typeface.DEFAULT_BOLD
+                                isAntiAlias = true
+                            }
+                            canvas.nativeCanvas.drawText(
+                                badge.letter,
+                                badgeX,
+                                mp.y + paint.textSize / 3,
+                                paint,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -790,19 +895,17 @@ fun ElevationChart(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = mp.color,
-                            modifier = Modifier.size(10.dp),
-                        ) {}
-                        Text(
-                            text = mp.letter,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = mp.color,
-                        )
+                        MarkerCalloutBadge(mp.color, mp.letter, mp.letterColor, mp.type)
+                        if (mp.secondaryColor != null && mp.secondaryLetter != null) {
+                            MarkerCalloutBadge(
+                                mp.secondaryColor,
+                                mp.secondaryLetter,
+                                mp.secondaryLetterColor,
+                                mp.secondaryType.orEmpty(),
+                            )
+                        }
                     }
                     Text(
                         text = mp.label,
@@ -885,6 +988,42 @@ fun ElevationChart(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkerCalloutBadge(color: Color, letter: String, letterColor: Color, type: String) {
+    if (type == "cobblestone" || type == "sterrato") {
+        GuideMarker(type, null, Modifier.size(16.dp))
+        return
+    }
+    Surface(
+        shape = CircleShape,
+        color = color,
+        modifier = Modifier.size(16.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (type == "finish") {
+                Canvas(modifier = Modifier.size(7.dp)) {
+                    val tile = size.width / 2f
+                    drawRect(Color.White.copy(alpha = 0.3f), size = Size(tile * 2, tile * 2))
+                    drawRect(Color.White, size = Size(tile, tile))
+                    drawRect(
+                        Color.White,
+                        topLeft = Offset(tile, tile),
+                        size = Size(tile, tile),
+                    )
+                }
+            } else {
+                Text(
+                    text = letter,
+                    color = letterColor,
+                    fontSize = if (letter.length > 1) 7.sp else 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 8.sp,
+                )
             }
         }
     }
@@ -1064,6 +1203,10 @@ private fun WaypointsSection(waypoints: List<ProfileWaypoint>, totalDistance: Do
 
 @Composable
 private fun WaypointBadge(type: String) {
+    if (type == "cobblestone" || type == "sterrato") {
+        GuideMarker(type, null, Modifier.size(28.dp))
+        return
+    }
     val color = waypointColor(type)
     val letter = waypointLetter(type)
     Surface(

@@ -1,0 +1,146 @@
+
+.cx-race-sections,#cxAgendaError {width:var(--page-width);max-width:var(--content-max);margin:0 auto;padding:1rem 0;box-sizing:border-box}
+#cxRaceContent>.race-header .race-header__main,#cxAgendaContent .race-header__main {flex:1 1 auto}
+#cxRaceContent>.cx-race-docs {width:var(--page-width);max-width:var(--content-max);margin-inline:auto;padding-inline:0;box-sizing:border-box}
+.cx-month,.cx-tournament-list {width:var(--page-width);max-width:var(--content-max);margin:0 auto;padding:.5rem 0;box-sizing:border-box}
+.cx-month,.cx-tournament-list,.cx-agenda-day {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--giro-h,0px) + var(--cx-agenda-nav-h,3rem) + .5rem)}
+.cx-day-label {margin:0;font:600 .9rem/1.35 var(--font-body);color:var(--text)}.cx-agenda-day {margin:0}.cx-day-races {padding-bottom:.25rem}
+.cx-tournament-list {display:flex;flex-direction:column;gap:16px}
+.cx-tournament-list .cx-agenda-day {border-bottom:0;padding-bottom:0}
+.cx-tournament-list .cx-day-label {padding:0 0 10px}
+.cx-tournament-list .cx-day-races {gap:10px;padding-bottom:0}
+@media(min-width:961px){.cx-tournament-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-tournament-list .cx-day-races {grid-template-columns:minmax(0,1fr)}}
+.cx-month-nav .date-bar__pills-wrap {overflow-x:auto;scrollbar-width:none}.cx-month-nav:not(.cx-months-scroll) .date-bar__left,.cx-month-nav:not(.cx-months-scroll) .date-bar__right {display:none}
+.cx-month-nav .date-pill__wd {text-transform:none;font-size:.95rem;font-weight:600;color:var(--text)}
+.cx-month-nav .date-pill__num {font-size:.65rem;color:var(--text-muted)}
+.cx-agenda-sticky .cx-month-nav {position:static;top:auto;z-index:auto;background:var(--bg);border-bottom:0}
+.cx-empty {color:var(--text-muted);font-size:.875rem;line-height:1.5}#cxAgendaError:empty {display:none}#cxAgendaError {color:var(--red)}
+.race-card--cx .race-card__name a:not(.race-card__overview-btn) {color:inherit;text-decoration:none}.race-card--cx .race-card__name a:not(.race-card__overview-btn):hover {text-decoration:underline}.race-card--cx .race-card__name {display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}.race-card--cx .cat-badge {font-size:.7rem;color:var(--text-muted)}
+.race-card--cx .race-card__logo {flex:0 0 32px;width:32px;position:static;transform:none}.race-card--cx [data-cx-logo-race] {display:block;width:32px;height:32px}.race-card--cx .race-logo-img {width:32px;height:32px;object-fit:contain}
+.race-card--cx .race-card__identity {display:flex;align-items:center;position:static}.race-card--cx.race-card--composed.race-card--compact .race-card__main {display:block}
+.race-card--cx.race-card--composed.race-card--compact {grid-template-columns:minmax(0,1fr) max-content;padding:10px 12px;gap:8px 12px;min-height:0}.race-card--cx .race-card__main {min-width:0}.race-card--cx.race-card--composed.race-card--compact .race-card__sub {white-space:normal;font-size:.75rem;line-height:1.2;margin-top:2px}
+.cx-category-times {display:grid;grid-template-columns:repeat(var(--cx-category-count,4),minmax(3.2rem,1fr));gap:2px}
+/* La rejilla hereda align-items:flex-end de .race-card__meta: fijar las cajas
+   arriba para que una copa junto a horarios no desalinee la fila. */
+.race-card__meta.cx-category-times {align-items:start}
+/* Con horarios: caja solo con el código (mismo ancho, menos alta) y horario
+   o copa debajo, fuera de la caja, con la tipografía de salida/meta de Hoy. */
+.cx-category-cell {display:flex;flex-direction:column;align-items:center;gap:2px}
+.cx-category-box {display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:24px;min-height:24px;border-radius:var(--radius-btn);padding:1px 5px;background:var(--accent-dim);color:var(--text-muted);font:600 .7rem/1.15 var(--font-body);text-decoration:none;white-space:nowrap}
+.cx-category-box:hover {outline:1px solid var(--accent)}
+.cx-category-state {display:flex;align-items:center;justify-content:center;min-height:20px;color:var(--text);font:600 .75rem var(--font-body);white-space:nowrap}
+.cx-category-hour {font:600 1rem var(--font-body);font-variant-numeric:tabular-nums;color:var(--text)}
+.cx-category-cancelled {color:var(--text-muted);font-size:.75rem}
+.cx-category-section {scroll-margin-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + 1rem);margin-bottom:16px;overflow:hidden}.cx-category-content {padding:10px 12px}.cx-category-header p {font-size:.875rem;color:var(--text-muted);margin:0}.cx-category-section .res-table-wrap {width:100%;max-width:none;padding:.4rem 0}.cx-category-section .res-publication {padding:.3rem 0}.cx-category-content>h3 {font:600 .875rem var(--font-body);margin:1rem 0 .5rem}
+.cx-category-section[hidden], [data-cx-general][hidden] {display:none!important}
+.cx-classification-nav.res-stages {width:100%;margin:0 0 12px}
+#cxRaceContent .cx-category-nav {width:var(--page-width);max-width:var(--content-max);margin:12px auto 0}
+/* Secciones y categorías fijas bajo la navegación; la fila de columnas de las tablas se fija debajo. */
+#cxRaceContent>.cx-sticky-nav {position:sticky;top:calc(var(--site-header-h,56px) + var(--primary-nav-h));z-index:21;background:var(--bg);padding-bottom:4px}
+#cxRaceContent>.cx-sticky-nav>.res-tabs-bar {position:static}
+[data-cx-section][hidden],[data-cx-classification-content][hidden],[data-cx-general-section][hidden] {display:none!important}
+.cx-race-sections>.jornada-section {width:100%;max-width:none;padding-inline:0}
+/* Sin contenido debajo, la última sección no dibuja la raya inferior. */
+.cx-race-sections>.jornada-section:last-child,.cx-programme-layout>.jornada-section:last-child {border-bottom:0}
+.cx-classification-page .res-td--rider .so-flag {display:inline-flex;flex:0 0 auto;margin-right:.4rem}
+.cx-category-content [data-cx-general]>h3 {font:600 .875rem var(--font-body);margin:.5rem 0}
+.cx-category-content .asset-links-wrap {margin:0}.cx-category-content>.jornada-section {width:100%;max-width:none;margin:0 0 12px}.cx-race-actions {display:flex;gap:.6rem;flex-wrap:wrap}.cx-race-actions a {text-decoration:none}
+.cx-startlist {display:flex;flex-direction:column}.cx-startlist .startlist-rider {border-bottom:1px solid var(--border);padding:.4rem 0}.cx-team-badge {display:inline-block;vertical-align:middle;line-height:0;margin-left:.4rem}
+.cx-media-section {margin:.75rem 0 0}
+.cx-media-label {flex:1;min-width:0;padding-right:.75rem}.cx-media-actions {display:flex;align-items:center;gap:.75rem}.cx-media-section [hidden] {display:none!important}
+.cx-video-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px;margin-top:14px}
+.cx-video-card {min-width:0}.cx-video-card h3 {font:600 .95rem/1.35 var(--font-body);margin:0 0 9px}.cx-video-card iframe {display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:6px;background:#000}.cx-video-card .tv-link-btn {margin-top:9px}
+/* TV de la jornada por categorías: encabezado compacto de cada grupo. */
+.cx-tv-group {margin-top:.75rem}
+.cx-tv-group__title {font:600 .875rem/1.35 var(--font-body);margin:0 0 .5rem;color:var(--text)}
+@media(max-width:600px){.race-card--cx.race-card--composed.race-card--compact {grid-template-columns:minmax(0,1fr);padding:10px;gap:6px}.race-card--cx .race-card__identity {display:flex;position:static}.race-card--cx .race-card__main {display:block;padding:0}.race-card--cx.race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__meta.cx-category-times {grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(var(--cx-category-count,4),minmax(0,1fr));width:100%}.cx-category-section .res-th--rider {min-width:0}}
+
+/* El copa bajo la caja replica el botón de Hoy (icono secundario); el aviso
+   de espera conserva sus dimensiones de card. */
+.cx-category-state>svg {width:20px;height:20px;color:var(--text-muted)}
+.cx-category-state>.badge--icon {min-height:20px;padding-block:0}.cx-category-state>.badge--icon svg {width:20px;height:20px}
+.cx-category-state .race-card__schedule--waiting {display:inline-flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;width:auto;max-width:none;margin:0}
+.cx-category-state .race-card__schedule--waiting>svg {width:16px;height:16px}
+@media(max-width:600px){.cx-category-cell {gap:1px}.cx-category-hour {font-size:.9rem}.race-card--cx .race-card__name a {overflow-wrap:anywhere}}
+
+@media(max-width:600px){
+ .race-card--cx.race-card--composed.race-card--compact {grid-template-columns:32px minmax(0,1fr);column-gap:10px}
+ .race-card--cx .race-card__identity {display:contents}
+ .race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
+ .race-card--cx.race-card--composed.race-card--compact .race-card__main {grid-column:2;grid-row:1}
+ .race-card--cx.race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__meta.cx-category-times {grid-column:2;grid-row:2}
+}
+
+/* Agenda CX en dos columnas en pantallas anchas. Al no haber miniperfil, la
+   ficha recupera la disposición móvil (categorías bajo el nombre) para que
+   quepan hasta seis celdas por columna sin estrechar el nombre. */
+@media(min-width:961px){
+ .cx-day-races {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+ .race-card--cx.race-card--composed.race-card--compact {grid-template-columns:32px minmax(0,1fr);column-gap:10px}
+ .race-card--cx .race-card__identity {display:contents}
+ .race-card--cx .race-card__logo {grid-column:1;grid-row:1/span 2;align-self:start}
+ .race-card--cx.race-card--composed.race-card--compact .race-card__main {grid-column:2;grid-row:1}
+ .race-card--cx.race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__meta.cx-category-times {grid-column:2;grid-row:2}
+}
+
+.race-card--cx.race-card--composed.race-card--compact {position:relative;padding-inline-end:30px}
+.cx-card-chevron {position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none}
+.cx-programme-row {padding:.75rem 0;border-bottom:1px solid var(--border)}
+.cx-programme-row:last-child {border-bottom:0;padding-bottom:0}
+.cx-programme-heading {display:flex;align-items:baseline;gap:.75rem}
+.cx-programme-heading h3 {font:inherit;font-weight:600;margin:0}
+.cx-programme-heading time {font-variant-numeric:tabular-nums}
+/* Programa en dos columnas cuando la pantalla es suficientemente ancha. */
+.cx-programme-grid {display:grid;grid-template-columns:minmax(0,1fr);column-gap:2rem}
+@media(min-width:900px){.cx-programme-grid {grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.cx-programme-grid .cx-programme-row:last-child {border-bottom:1px solid var(--border);padding-bottom:.75rem}}
+.cx-programme-layout {display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.cx-programme-layout>.jornada-section {width:100%;max-width:none;min-width:0;margin:0}
+.cx-programme-layout .cx-programme-grid {grid-template-columns:minmax(0,1fr)}
+.cx-map-preview {display:block;color:var(--text-muted);text-align:center;text-decoration:none}
+.cx-map-preview img {display:block;width:100%;height:auto;background:#fff}
+@media(min-width:900px){.cx-programme-layout {grid-template-columns:minmax(0,1.8fr) minmax(320px,1fr)}.cx-programme-layout>.cx-programme-map {order:-1}}
+/* Fila del programa: horarios a la izquierda e inscritos/resultados a la derecha. */
+.cx-programme-top {display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.cx-programme-actions {display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.cx-programme-actions .badge {text-decoration:none}
+/* Tira de documentos de la jornada CX, igual que en carretera. */
+.cx-race-docs {margin-bottom:.25rem}
+.cx-race-docs .asset-links-wrap {margin:0}
+
+.race-card--cx .race-card__logo--without-logo {align-self:center;justify-content:center}
+.race-card--cx .race-card__logo--without-logo [data-cx-logo-race] {display:none}
+
+.race-card--cx .race-card__sub a {color:inherit;text-decoration:none}.race-card--cx .race-card__sub a:hover {text-decoration:underline}
+
+.cx-round-badge {font-size:.7rem;font-weight:400;color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* Prueba sin horarios: los indicadores de categoría pasan a badges con la
+   estética de la vista Hoy, con el mismo tinte neutro que los cuadros. */
+.race-card--cx .race-card__meta.cx-category-times--badges {display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:4px;grid-template-columns:none;width:100%}
+/* Indicadores de categoría CX neutros con o sin datos (paridad apps): el
+   badge hereda el tinte pálido de .badge--uci pero el texto apagado de la
+   caja, no el azul de acento. */
+.race-card--cx .cx-category-badge {text-decoration:none;color:var(--text-muted)}
+@media(max-width:600px){.race-card--cx.race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__meta.cx-category-times.cx-category-times--badges {display:flex;flex-direction:row;grid-template-columns:none}}
+
+/* Resultados CX: separación respecto a la barra de categorías y aviso de
+   resultados pendientes con la misma caja que la columna lateral. */
+.cx-classification-page {padding-top:16px}
+.cx-classification-page .res-main .res-publication:first-child {margin-top:0}
+.cx-classification-page .res-main .cx-empty {margin:0;padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)}
+/* Columna lateral como en carretera (dos columnas desde 1100px): mapa reducido
+   y horario de la jornada; en una columna, las cajas se reparten donde quepan. */
+.cx-results-context {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;align-items:start}
+.cx-context-map {overflow:hidden}
+.cx-context-map .cx-map-preview img {max-height:420px;object-fit:contain}
+.cx-results-context .res-stage-data dl>div {padding:2px 0}
+.cx-results-context .res-stage-data__active dt,.cx-results-context .res-stage-data__active dd {color:var(--text);font-weight:700}
+/* «vuelta perdida» / «-2 vueltas» van en una línea, con la altura de las
+   demás filas. En móvil, la columna de tiempo de ancho fijo (4,4rem) se
+   ensancha solo en las tablas que tienen vueltas perdidas, lo justo para el
+   texto a .72rem, y resta el mínimo al corredor y su equipo. */
+@media(max-width:700px){.cx-classification-page .res-table--laps .res-th--result {width:5.4rem}.cx-classification-page .res-td--result .res-lap {font-size:.72rem}}
+/* En dos columnas, el mapa y el horario quedan fijos bajo la barra de
+   secciones y categorías (--res-tabs-h), a la altura del relleno superior,
+   que ya da el aire en reposo. */
+@media(min-width:1100px){.cx-classification-page.res-layout--context>.res-context {margin-top:0;--res-context-top:calc(var(--site-header-h,56px) + var(--primary-nav-h) + var(--res-tabs-h,0px) + 16px)}}

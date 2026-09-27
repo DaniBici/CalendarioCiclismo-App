@@ -14,6 +14,71 @@ enum UciResultsLogic {
     /// Orden de las pestañas de clasificación.
     static let classOrder = ["stage", "gc", "points", "kom", "youth", "teams"]
 
+    static func classificationInventory(
+        config: [RaceClassificationConfig],
+        stages: [RaceUciStage]
+    ) -> [RaceClassificationConfig] {
+        var byKind = Dictionary(uniqueKeysWithValues: config.map { ($0.classKind, $0) })
+        for stage in stages where byKind[stage.classKind] == nil {
+            byKind[stage.classKind] = RaceClassificationConfig(
+                raceId: stage.raceId,
+                classKind: stage.classKind,
+                position: classOrder.firstIndex(of: stage.classKind) ?? 10,
+                labelEs: nil,
+                labelEn: nil,
+                colorHex: nil
+            )
+        }
+        return byKind.values.sorted {
+            ($0.position, $0.classKind) < ($1.position, $1.classKind)
+        }
+    }
+
+    /// Ordena solo las clasificaciones que existen en la jornada seleccionada.
+    /// La configuración global aporta orden, etiquetas y color, pero no crea
+    /// pestañas para clasificaciones presentes únicamente en otras etapas.
+    static func visibleStageClassifications(
+        config: [RaceClassificationConfig],
+        stages: [RaceUciStage]
+    ) -> [RaceUciStage] {
+        let positions = Dictionary(uniqueKeysWithValues:
+            classificationInventory(config: config, stages: stages)
+                .enumerated()
+                .map { ($0.element.classKind, $0.offset) }
+        )
+        return stages.sorted {
+            let lhs = positions[$0.classKind] ?? Int.max
+            let rhs = positions[$1.classKind] ?? Int.max
+            return lhs == rhs ? $0.classKind < $1.classKind : lhs < rhs
+        }
+    }
+
+    static func classificationLabel(_ row: RaceClassificationConfig, isEn: Bool) -> String {
+        if isEn, let label = row.labelEn, !label.isEmpty { return label }
+        if !isEn, let label = row.labelEs, !label.isEmpty { return label }
+        switch row.classKind {
+        case "gc": return isEn ? "GC" : "General"
+        case "points": return isEn ? "Points" : "Puntos"
+        case "kom": return isEn ? "KOM" : "Montaña"
+        case "youth": return isEn ? "Youth" : "Jóvenes"
+        case "teams": return isEn ? "Teams" : "Equipos"
+        case "stage": return isEn ? "Stage" : "Etapa"
+        default: return row.classKind
+        }
+    }
+
+    static func classificationColor(_ row: RaceClassificationConfig?) -> String? {
+        guard row?.classKind != "stage", let value = row?.colorHex,
+              value.range(of: #"^#[0-9A-Fa-f]{6}$"#, options: .regularExpression) != nil else { return nil }
+        return value
+    }
+
+    static func classificationIsUpdating(_ stage: RaceUciStage, now: Date = Date()) -> Bool {
+        guard stage.publicationStatus == "provisional", stage.updating,
+              let until = stage.updatingUntil.flatMap(DateFormatting.parseISO) else { return false }
+        return now < until
+    }
+
     /// Etiquetas IRM (no clasificados). Fuente única, espejo de `js/uci-irm.js`.
     static func irmLabel(_ code: String?, isEn: Bool) -> String {
         guard let code, !code.isEmpty else { return "" }
@@ -22,6 +87,8 @@ enum UciResultsLogic {
         case "DNS": return isEn ? "DNS" : "NS"
         case "OTL": return isEn ? "OTL" : "FC"
         case "DSQ": return isEn ? "DSQ" : "EXP"
+        case "DF": return "DF"
+        case "NR": return "NR"
         default: return code   // fallback si la UCI introduce un código nuevo
         }
     }
@@ -38,6 +105,12 @@ enum UciResultsLogic {
 
     private static let abandonCodes: Set<String> = ["DNF", "ABD", "DNS", "OTL", "DSQ"]
 
+    /// IRM que no puede determinar ganador. DF y NR no implican abandono.
+    static func isNonWinnerIrm(_ code: String?) -> Bool {
+        guard let code, !code.isEmpty else { return false }
+        return abandonCodes.contains(code) || code == "DF" || code == "NR"
+    }
+
     // ── Tiempos / gaps (port de resultados.js L44–72) ──────────────────────
 
     /// "H:MM:SS" | "MM:SS" | "SS" → segundos (o nil si no parsea).
@@ -51,7 +124,7 @@ enum UciResultsLogic {
         return acc
     }
 
-    /// segundos → gap con la convención de la prensa ciclista (fuente externa):
+    /// segundos → gap con la convención de la prensa ciclista:
     ///   <1min → +SS"   ·   <1h → +M'SS"   ·   ≥1h → +H:MM:SS
     static func secondsToGap(_ sec: Int?) -> String? {
         guard let sec, sec >= 0 else { return nil }
@@ -336,10 +409,13 @@ enum UciResultsLogic {
     /// La UCI publica la etapa de CRE como "Stage Classification" listando TODOS
     /// los corredores agrupados por equipo. Hay que colapsarla a una fila por
     /// equipo. No nos fiamos de `isTeamEvent` (la UCI lo marca true en TODAS las
-    /// clasificaciones de una etapa CRE). Señal = classKind='stage' (o 'gc' final
-    /// de un día — caso CRE de carrera de un día, variante C) + jornada CRE en
-    /// nuestro catálogo (primaryType='ttt'), corroborado por la estructura
-    /// (ranks compartidos [A] o muchos rank=nil entre clasificados [B]).
+    /// clasificaciones de una etapa CRE). Es CRE SOLO si la jornada está marcada
+    /// como CRE: classKind='stage' (o 'gc' final de un día — variante C) +
+    /// primaryType='ttt' en el catálogo o raceType='TTT' de la fuente; la
+    /// estructura (ranks compartidos [A] o rank=nil entre clasificados [B])
+    /// solo corrobora. Un fallback estructural sin marca pintó como CRE la
+    /// etapa 3 del Tour de Eslovaquia 2026 (puestos vacíos transitorios del
+    /// auto-sync de resultados).
     static func isTttStage(
         rows: [RaceUciResultRow],
         classKind: String,
@@ -352,10 +428,7 @@ enum UciResultsLogic {
         let isEligibleKind = classKind == "stage" ||
             (classKind == "gc" && stageNumber == nil && isOneDay)
         if isTeams || !isEligibleKind { return false }
-        // Una jornada CRI (primaryType='itt') NUNCA es una crono por equipos: aunque
-        // tenga ex aequo reales (varios corredores con el mismo tiempo al cronómetro →
-        // mismo puesto), no se colapsa por equipos. Sin este guard, ≥3 empates en una
-        // CRI disparan la rama estructural `sharedRanks >= 3` y la pintan como CRE.
+        // Una jornada CRI (primaryType='itt') NUNCA es una crono por equipos.
         if raceDayPrimaryType == "itt" || stageRaceType == "ITT" { return false }
         let classified = rows.filter { ($0.irm ?? "").isEmpty }
         // [A] nº de puestos con ≥2 corredores.
@@ -365,10 +438,9 @@ enum UciResultsLogic {
         // [B] compañeros sin rank.
         let nullRanks = classified.filter { $0.rank == nil }.count
         let structural = sharedRanks >= 2 || nullRanks >= 2
-        let dayIsTtt = raceDayPrimaryType == "ttt"
-        // Con el tipo de jornada curado basta la estructura; sin él, exigir una
-        // estructura MUY marcada para no colapsar una crono individual con empates.
-        return structural && (dayIsTtt || sharedRanks >= 3 || nullRanks >= 6)
+        // Es CRE solo si la jornada está marcada como CRE; la estructura corrobora.
+        let markedTtt = raceDayPrimaryType == "ttt" || stageRaceType?.uppercased() == "TTT"
+        return structural && markedTtt
     }
 
     // ── Colapso de CRE a una fila por equipo — port de renderTttStage L400 ──
@@ -527,27 +599,42 @@ enum UciResultsLogic {
     /// (p. ej. "TEAM VISMA | LEASE A BIKE" de Tissot/UCI). Estrategia: coincidencia
     /// exacta normalizada (name + nameAliases) → subcadena. Port de `findMatchingTeam`.
     static func findMatchingTeam(_ teamName: String?, teams: [Team]) -> Team? {
-        guard let teamName, !teamName.isEmpty, !teams.isEmpty else { return nil }
-        let target = normalizeTeamName(teamName)
-        guard !target.isEmpty else { return nil }
-        func namesOf(_ t: Team) -> [String] {
-            ([t.name] + (t.nameAliases ?? "").components(separatedBy: "\n"))
-                .map { normalizeTeamName($0) }
-                .filter { !$0.isEmpty }
-        }
-        for t in teams where namesOf(t).contains(target) {
-            return t
-        }
-        // Fallback: contención (al menos 4 caracteres para evitar ruido).
-        if target.count >= 4 {
-            for t in teams {
-                let names = namesOf(t).filter { $0.count >= 4 }
-                if names.contains(where: { $0 == target || $0.contains(target) || target.contains($0) }) {
-                    return t
-                }
+        TeamMatcher(teams: teams).match(teamName)
+    }
+
+    /// Índice de nombres normalizados de un catálogo de equipos. Normaliza
+    /// cada nombre y alias una sola vez, de modo que casar muchas filas contra
+    /// el mismo catálogo (resultados CX contra todos los `cx_teams`) no repite
+    /// la normalización por fila. Mismo criterio que `findMatchingTeam`.
+    struct TeamMatcher {
+        private let entries: [(team: Team, names: [String])]
+        private let exact: [String: Team]
+
+        init(teams: [Team]) {
+            entries = teams.map { team in
+                (team, ([team.name] + (team.nameAliases ?? "").components(separatedBy: "\n"))
+                    .map { UciResultsLogic.normalizeTeamName($0) }
+                    .filter { !$0.isEmpty })
             }
+            // Primera coincidencia exacta en el orden del catálogo.
+            var exact: [String: Team] = [:]
+            for entry in entries {
+                for name in entry.names where exact[name] == nil { exact[name] = entry.team }
+            }
+            self.exact = exact
         }
-        return nil
+
+        func match(_ teamName: String?) -> Team? {
+            guard let teamName, !teamName.isEmpty, !entries.isEmpty else { return nil }
+            let target = UciResultsLogic.normalizeTeamName(teamName)
+            guard !target.isEmpty else { return nil }
+            if let team = exact[target] { return team }
+            // Fallback: contención (al menos 4 caracteres para evitar ruido).
+            guard target.count >= 4 else { return nil }
+            return entries.first { entry in
+                entry.names.contains { $0.count >= 4 && ($0 == target || $0.contains(target) || target.contains($0)) }
+            }?.team
+        }
     }
 
     // ── Filas individuales (etapa/general/jóvenes/puntos/montaña) ──────────
@@ -630,7 +717,7 @@ enum UciResultsLogic {
             return sec.rounded(.down) == ws.rounded(.down)
         }
         let rank1Index = rows.firstIndex { $0.rank == 1 }
-        let winnerIndex: Int? = rank1Index.flatMap { isAbandonIrm(rows[$0].irm) ? nil : $0 }
+        let winnerIndex: Int? = rank1Index.flatMap { isNonWinnerIrm(rows[$0].irm) ? nil : $0 }
         // Clasificado a efectos de TIEMPO: el ganador (ruido aparte) o cualquier fila
         // con puesto sin irm. Un rank 1 con abandono NO cuenta.
         func isRankedFinisher(_ i: Int) -> Bool {
@@ -777,7 +864,7 @@ enum UciResultsLogic {
                     }
                 }
                 if wt.isEmpty { kind = .empty; value = "" } else { kind = .winnerTime; value = wt }
-            } else if let g = effGap, !g.isEmpty, g == "+0\"", i <= headBlockEnd {
+            } else if let g = effGap, !g.isEmpty, g == "+0\"", (isTeams || i <= headBlockEnd) {
                 kind = .sameTime; value = ""
             } else if let g = effGap, !g.isEmpty {
                 rowGap = g; kind = .gap; value = g

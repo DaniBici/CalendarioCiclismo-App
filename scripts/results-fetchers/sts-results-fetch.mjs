@@ -9,10 +9,10 @@
  * VIVO durante la etapa y valida minutos tras meta — antes que UCI DataRide
  * (que en estas carreras pequeñas tarda días o no llega).
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
- * race_uci_links.source (migración 109) vía uci-results-cron.mjs.
+ * race_uci_links.source (migración 109) vía results-cron.mjs.
  *
  * CONTRATO .clax (Wiclax — verificado contra La Route d'Occitanie 2025 y 2026;
  * detalle completo en STS-TIMING-API.md):
@@ -108,6 +108,7 @@ import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
+import { normalizeUciLicense } from './uci-license.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -376,7 +377,7 @@ export function parseResultRows(blockXml, riderByBib) {
       || (trMarked && !abs && !normGap(a.g) ? 'DNF' : null);
     if (irm) {
       rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null,
-        teamName: who.teamName || null, resultValue: null, timeText: null, gapText: null,
+        teamName: who.teamName || null, uciId: who.uciId || null, resultValue: null, timeText: null, gapText: null,
         points: null, irm });
       continue;
     }
@@ -394,14 +395,14 @@ export function parseResultRows(blockXml, riderByBib) {
     // puesto, así que el rank posicional del resto no se descuadra.
     if (!abs) {
       rows.push({ rank: null, rankText: 'DNF', bib, riderDisplay: who.display || null,
-        teamName: who.teamName || null, resultValue: null, timeText: null, gapText: null,
+        teamName: who.teamName || null, uciId: who.uciId || null, resultValue: null, timeText: null, gapText: null,
         points: null, irm: 'DNF' });
       continue;
     }
     rankCounter += 1;                                  // rank posicional (solo clasificados)
     const rank = rankCounter;
     rows.push({ rank, rankText: String(rank), bib,
-      riderDisplay: who.display || null, teamName: who.teamName || null,
+      riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
       resultValue: abs, timeText: abs, gapText: null,
       points: null, irm: null });
   }
@@ -459,7 +460,7 @@ export function parseAnnexeRows(rushXml, riderByBib) {
     const abs = a.tps != null ? absTime(a.tps) : null;
     const points = a.pts != null ? Number(String(a.pts).replace(',', '.')) : null;
     rows.push({ rank, rankText: String(rank), bib: String(dos),
-      riderDisplay: who.display || null, teamName: who.teamName || null,
+      riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
       resultValue: abs || (a.pts != null ? String(a.pts) : null), timeText: abs, gapText: null,
       points, irm: null });
   }
@@ -547,7 +548,7 @@ function parsePdfIndividualRows(pdfText, riderByBib, heading, endHeading = null)
         const who = riderByBib.get(Number(bib)) || {};
         if (/^(DNS|DNF|AB|HD|DSQ)$/i.test(rankText)) {
           const irm = /^(DNS)$/i.test(rankText) ? 'DNS' : /^(HD)$/i.test(rankText) ? 'OTL' : /^(DSQ)$/i.test(rankText) ? 'DSQ' : 'DNF';
-          rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+          rows.push({ rank: null, rankText: irm, bib, riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
             resultValue: null, timeText: null, gapText: null, points: null, irm });
           continue;
         }
@@ -563,12 +564,12 @@ function parsePdfIndividualRows(pdfText, riderByBib, heading, endHeading = null)
         // tiempo allí. Se conserva el puesto/dorsal: se completará desde .clax
         // al aplicar el PDF, sin alterar el orden oficial del documento.
         if (rank !== 1 && !gap && !sameTime) {
-          rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+          rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
             resultValue: null, timeText: null, gapText: null, points: null, irm: null, pdfSameTime: false });
           continue;
         }
         if (rank === 1 && !absolute) continue;
-        rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+        rows.push({ rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
           resultValue: absolute || gap, timeText: absolute, gapText: gap, points: null, irm: null, pdfSameTime: sameTime });
       }
     }
@@ -628,7 +629,7 @@ function parsePdfPointRows(pdfText, riderByBib, heading, endHeading = null) {
   const rows = parsed.sort((a, b) => a.rank - b.rank).map(({ rank, bib, points }) => {
     const who = riderByBib.get(Number(bib)) || {};
     if (!Number.isInteger(points)) throw new Error(`puntos ausentes en puesto ${rank}`);
-    return { rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null,
+    return { rank, rankText: String(rank), bib, riderDisplay: who.display || null, teamName: who.teamName || null, uciId: who.uciId || null,
       resultValue: String(points), timeText: null, gapText: null, points, irm: null };
   });
   if (!rows.length || rows[0].rank !== 1 || rows.some((row, index) => row.rank !== index + 1)) throw new Error('puestos de puntos incompletos');
@@ -656,7 +657,7 @@ function pdfGapFromSeconds(value) {
 }
 
 function pdfTeamNamesByCode(pdfText, riderByBib) {
-  const page = String(pdfText).split('\f').find((item) => /CLASSEMENT\s+ETAPE/i.test(item) && /Nom Prénom\s+Eq\.\s+Temps/i.test(item));
+  const page = String(pdfText).split('\f').find((item) => /CLASSEMENT(?:\s+DE\s+L'ETAPE|\s+ETAPE)/i.test(item) && /Nom Prénom\s+Eq\.\s+Temps/i.test(item));
   const byCode = new Map();
   const lines = String(page || '').split(/\r?\n/);
   const header = lines.find((line) => (line.match(/\bPl\./g) || []).length >= 2 && /Nom Prénom/i.test(line));
@@ -787,7 +788,12 @@ async function main() {
       const a = attrs('<E ' + m[1] + '>');
       const d = Number(a.d);
       if (!(d > 0)) continue;
-      riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
+      riderByBib.set(d, {
+        display: clean(a.n) || null,
+        teamName: clean(a.c) || null,
+        // l2 es el código UCI de licencia; el perfil interno no aparece en este feed.
+        uciId: normalizeUciLicense(a.l2),
+      });
     }
     const raceType = stageRaceType(stg.a);
     const isTtt = raceType === 'TTT';
@@ -796,10 +802,12 @@ async function main() {
       ? parseTttResultRows(resultatsXml, riderByBib)
       : parseResultRows(resultatsXml, riderByBib);
     let pdfText = null;
+    let stageFromPdf = false;
     if (stagePdfs.has(1) && stageRows.length) {
       try {
         pdfText = await pdfToLayoutText(stagePdfs.get(1).href);
         stageRows = officialPdfRowsForStage(pdfText, riderByBib, stageRows);
+        stageFromPdf = true;
         log('  one-day: PDF STSport prioritario');
       }
       catch (error) { log(`  ⚠ one-day PDF STSport ignorado (${error.message}); se usa .clax`); }
@@ -827,14 +835,14 @@ async function main() {
             if (!rows.length) continue;
             const previous = annexes.findIndex((item) => item.classKind === classKind);
             if (previous >= 0) annexes.splice(previous, 1);
-            annexes.push({ classKind, eventName, rows, teamEvent });
+            annexes.push({ classKind, eventName, rows, teamEvent, publication:{provider:'sts',format:'pdf'} });
           } catch (error) { log(`  ⚠ one-day ${classKind} PDF STSport ignorado (${error.message})`); }
         }
       }
       // Clasificación principal = gc/stage (como las one-day de Hageland/CN) + anexas overall.
-      const classifications = [buildClassification(FINAL_SLOT, 'gc', 'stage', 'Final Classification', stageRows)];
+      const classifications = [{...buildClassification(FINAL_SLOT, 'gc', 'stage', 'Final Classification', stageRows), publication:{provider:'sts',format:stageFromPdf?'pdf':'progressive'}}];
       for (const an of annexes)
-        classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }));
+        classifications.push({...buildClassification(FINAL_SLOT, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }), publication:an.publication});
       stages.push({
         uciRaceId: synthRaceId(FINAL_SLOT),
         stageNumber: null,
@@ -864,7 +872,12 @@ async function main() {
       const a = attrs('<E ' + m[1] + '>');
       const d = Number(a.d);
       if (!(d > 0)) continue;
-      riderByBib.set(d, { display: clean(a.n) || null, teamName: clean(a.c) || null });
+      riderByBib.set(d, {
+        display: clean(a.n) || null,
+        teamName: clean(a.c) || null,
+        // l2 es el código UCI de licencia; el perfil interno no aparece en este feed.
+        uciId: normalizeUciLicense(a.l2),
+      });
     }
 
     const raceType = stageRaceType(stg.a);
@@ -877,10 +890,12 @@ async function main() {
     const pdfStageNumber = idx + 1;
     const pdfLink = stagePdfs.get(pdfStageNumber);
     let pdfText = null;
+    let stageFromPdf = false;
     if (pdfLink) {
       try {
         pdfText = await pdfToLayoutText(pdfLink.href);
         stageRows = officialPdfRowsForStage(pdfText, riderByBib, stageRows);
+        stageFromPdf = true;
         log(`  E${stageNumber}: PDF STSport prioritario`);
       } catch (error) {
         log(`  ⚠ E${stageNumber}: PDF STSport ignorado (${error.message}); se usa .clax`);
@@ -906,43 +921,40 @@ async function main() {
         const youthRows = officialPdfYouthRows(pdfText, riderByBib);
         const previousYouth = annexes.findIndex((an) => an.classKind === 'youth');
         if (previousYouth >= 0) annexes.splice(previousYouth, 1);
-        annexes.push({ classKind: 'youth', eventName: 'Overall Youth Classification', rows: youthRows });
+        annexes.push({ classKind: 'youth', eventName: 'Overall Youth Classification', rows: youthRows, publication:{provider:'sts',format:'pdf'} });
         log(`  E${stageNumber}: jóvenes desde PDF STSport prioritario`);
       } catch (error) {
         log(`  ⚠ E${stageNumber}: jóvenes PDF STSport ignorados (${error.message}); se usa .clax`);
       }
-      // En la última etapa, el PDF oficial es la única fuente completa de las
-      // complementarias definitivas de Limousin: el .clax omite jóvenes/equipos,
-      // los puntos se desactivan por configuración y la montaña puede quedar con
-      // el tanteo anterior a la etapa.
-      if (isLast) {
-        for (const [classKind, eventName, parser, teamEvent] of [
-          ['points', 'Overall Points Classification', parsePdfPointsRows, false],
-          ['kom', 'Overall Mountain Classification', parsePdfMountainRows, false],
-          ['teams', 'Overall Teams Classification', parsePdfTeamRows, true],
-        ]) {
-          try {
-            const rows = parser(pdfText, riderByBib);
-            if (!rows.length) continue;
-            const previous = annexes.findIndex((item) => item.classKind === classKind);
-            if (previous >= 0) annexes.splice(previous, 1);
-            annexes.push({ classKind, eventName, rows, teamEvent });
-            log(`  E${stageNumber}: ${classKind} desde PDF STSport prioritario`);
-          } catch (error) {
-            log(`  ⚠ E${stageNumber}: ${classKind} PDF STSport ignorado (${error.message}); se usa .clax`);
-          }
+      // Cada PDF de etapa contiene la foto oficial de las complementarias en ese
+      // momento. No limitarlo a la última etapa: el artículo STS va publicando
+      // los PDFs después de cada llegada y el live debe mostrar también E1, E2…
+      for (const [classKind, eventName, parser, teamEvent] of [
+        ['points', 'Overall Points Classification', parsePdfPointsRows, false],
+        ['kom', 'Overall Mountain Classification', parsePdfMountainRows, false],
+        ['teams', 'Overall Teams Classification', parsePdfTeamRows, true],
+      ]) {
+        try {
+          const rows = parser(pdfText, riderByBib);
+          if (!rows.length) continue;
+          const previous = annexes.findIndex((item) => item.classKind === classKind);
+          if (previous >= 0) annexes.splice(previous, 1);
+          annexes.push({ classKind, eventName, rows, teamEvent, publication:{provider:'sts',format:'pdf'} });
+          log(`  E${stageNumber}: ${classKind} desde PDF STSport prioritario`);
+        } catch (error) {
+          log(`  ⚠ E${stageNumber}: ${classKind} PDF STSport ignorado (${error.message}); se usa .clax`);
         }
       }
     }
 
     const classifications = [];
     // 1) clasificación de ETAPA (siempre).
-    classifications.push(buildClassification(stageNumber, 'stage', 'stage', 'Stage Classification', stageRows));
+    classifications.push({...buildClassification(stageNumber, 'stage', 'stage', 'Stage Classification', stageRows), publication:{provider:'sts',format:stageFromPdf?'pdf':'progressive'}});
     // 2) GC del día + anexas overall: en la ÚLTIMA etapa son las DEFINITIVAS → van
     //    SOLO a la pseudo-final (evita el duplicado "general del día E_última" ≈ "final").
     if (!isLast) {
       if (gcRows.length) classifications.push(buildClassification(stageNumber, 'gc', 'stage', 'Stage General Classification', gcRows));
-      for (const an of annexes) classifications.push(buildClassification(stageNumber, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }));
+      for (const an of annexes) classifications.push({...buildClassification(stageNumber, an.classKind, 'overall', an.eventName, an.rows, { teamEvent: an.teamEvent }), publication:an.publication});
     } else {
       lastOveralls = { stageNumber, dateKey: stageDateKey(stg.a, ep.dt2 || ep.dt1), sourcePdfUrl: pdfLink?.href || null, gcRows, annexes };
     }
@@ -972,7 +984,7 @@ async function main() {
       classifications.push(buildClassification(FINAL_SLOT, 'gc', 'stage', 'General Classification', lastOveralls.gcRows));
     const FINAL_NAMES = { kom: 'Mountain Classification', points: 'Points Classification', youth: 'Youth Classification', teams: 'Teams Classification' };
     for (const an of lastOveralls.annexes)
-      classifications.push(buildClassification(FINAL_SLOT, an.classKind, 'stage', FINAL_NAMES[an.classKind] || an.eventName, an.rows, { teamEvent: an.teamEvent }));
+      classifications.push({...buildClassification(FINAL_SLOT, an.classKind, 'stage', FINAL_NAMES[an.classKind] || an.eventName, an.rows, { teamEvent: an.teamEvent }), publication:an.publication});
     if (classifications.length) {
       stages.push({
         uciRaceId: synthRaceId(FINAL_SLOT),

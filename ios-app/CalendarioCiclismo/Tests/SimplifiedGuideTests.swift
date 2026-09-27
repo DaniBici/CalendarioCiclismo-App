@@ -83,6 +83,59 @@ final class SimplifiedGuideTests: XCTestCase {
                        ["start", "intermediate_sprint", "climb_foot", "summit", "finish"])
     }
 
+    func test_mergesSummitAndBonusOnlyAtExactDecimalKilometer() {
+        let manualTime = "2026-04-26T12:00:00.000Z"
+        let rows = SimplifiedGuide.build(
+            distanceKm: 100, neutralStartTimeUtc: nil, estimatedFinishTimeUtc: nil,
+            summits: [summit(km: 60.5, name: "Puerto", category: "1")],
+            waypoints: [
+                waypoint(km: 60.5, name: "Bonificación", type: "bonus_sprint", timeUtc: manualTime),
+                waypoint(km: 60.6, name: "Sprint", type: "intermediate_sprint"),
+            ],
+            primaryType: nil)
+        let merged = rows.first { $0.type == "summit" }
+        XCTAssertEqual(rows.filter { $0.km == 60.5 }.count, 1)
+        XCTAssertEqual(merged?.secondaryType, "bonus_sprint")
+        XCTAssertEqual(merged?.secondaryLabel, "Bonificación")
+        XCTAssertEqual(merged?.timeUtc, manualTime)
+        XCTAssertTrue(rows.contains { $0.km == 60.6 && $0.type == "intermediate_sprint" })
+    }
+
+    func test_mergesFinishWithSummitOrWaypointAtExactFinalKilometer() {
+        let summitFinish = SimplifiedGuide.build(
+            distanceKm: 100, neutralStartTimeUtc: nil, estimatedFinishTimeUtc: finish,
+            summits: [summit(km: 100, name: "Alto de meta", category: "1")],
+            waypoints: [], primaryType: nil)
+        XCTAssertEqual(summitFinish.count, 1)
+        XCTAssertEqual(summitFinish[0].type, "summit")
+        XCTAssertEqual(summitFinish[0].secondaryType, "finish")
+        XCTAssertEqual(summitFinish[0].kmToGo, 0)
+        XCTAssertEqual(summitFinish[0].timeUtc, finish)
+        XCTAssertTrue(summitFinish[0].isEstimated)
+
+        let waypointFinish = SimplifiedGuide.build(
+            distanceKm: 100, neutralStartTimeUtc: nil, estimatedFinishTimeUtc: finish,
+            summits: [],
+            waypoints: [waypoint(km: 100, name: "Sprint de meta", type: "bonus_sprint")],
+            primaryType: nil)
+        XCTAssertEqual(waypointFinish.count, 1)
+        XCTAssertEqual(waypointFinish[0].type, "bonus_sprint")
+        XCTAssertEqual(waypointFinish[0].secondaryType, "finish")
+        XCTAssertEqual(waypointFinish[0].kmToGo, 0)
+        XCTAssertEqual(waypointFinish[0].timeUtc, finish)
+        XCTAssertTrue(waypointFinish[0].isEstimated)
+
+        let withoutFinishTime = SimplifiedGuide.build(
+            distanceKm: 100, neutralStartTimeUtc: nil, estimatedFinishTimeUtc: nil,
+            summits: [summit(km: 100, name: "Alto de meta", category: "1")],
+            waypoints: [], primaryType: nil)
+        XCTAssertEqual(withoutFinishTime.count, 1)
+        XCTAssertEqual(withoutFinishTime[0].type, "summit")
+        XCTAssertEqual(withoutFinishTime[0].secondaryType, "finish")
+        XCTAssertNil(withoutFinishTime[0].timeUtc)
+        XCTAssertTrue(withoutFinishTime[0].isEstimated)
+    }
+
     func test_timeTrialNoInterpolation() {
         let splitTime = "2026-04-26T10:30:00.000Z"
         let rows = SimplifiedGuide.build(

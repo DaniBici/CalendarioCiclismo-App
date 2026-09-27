@@ -39,6 +39,11 @@ enum class NotificationCategoryPreference(
         storageValue = "results",
         labelRes = R.string.notification_category_results,
         descriptionRes = R.string.notification_category_results_description,
+    ),
+    CYCLOCROSS(
+        storageValue = "cyclocross",
+        labelRes = R.string.notification_category_cyclocross,
+        descriptionRes = R.string.notification_category_cyclocross_description,
     );
 
     companion object {

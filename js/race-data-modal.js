@@ -7,7 +7,7 @@ import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABEL
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
-import { isReviveBroadcast, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
+import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js?v=20260923revive-results';
 import { hasRenderableElevationProfile } from './profile-availability.js';
 
 const STAGE_COLORS = {
@@ -35,15 +35,6 @@ function _descriptionHtml(str) {
     .join('');
 }
 
-function _gaResultPath(raceName, stageNumber) {
-  const slug = (raceName || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  if (stageNumber == null) return `/resultados/${slug}/`;
-  if (stageNumber === 0) return `/resultados/${slug}/prologo/`;
-  return `/resultados/${slug}/etapa-${stageNumber}/`;
-}
-
 // URL de la p\u00e1gina de resultados PROPIA (in-house). Usa el slug REAL de la
 // carrera (no el derivado del nombre) \u2014 espejo de js/resultados.js (ES/EN).
 function _inhouseResultsUrl(race, stageNumber, suffix = '') {
@@ -58,33 +49,11 @@ function _inhouseResultsUrl(race, stageNumber, suffix = '') {
   return `${base}${encodeURIComponent(slug)}/${seg}`;
 }
 
-// Bloque de botones de resultados. Espejo de jornada.js: si hay p\u00e1gina propia
-// (inhouseUrl) \u2192 bot\u00f3n principal a nuestra p\u00e1gina + externos como respaldo discreto.
-// Si no \u2192 externos cl\u00e1sicos (texto plano).
-function _resultsButtonsHtml(inhouseUrl, extUrlA, extUrlB, race, stageNumber) {
-  const gaStage = stageNumber ?? '';
-  const ext = (cls, href, label) =>
-    `<a class="${cls}" href="${href}" target="_blank" rel="noopener noreferrer" data-ga-race="${esc(race.name)}" data-ga-stage="${gaStage}">${label}</a>`;
-
-  if (inhouseUrl) {
-    const alts = [
-      extUrlA  ? ext('result-alt-btn', extUrlA,  'fuente externa \u2197&#xFE0E;')    : '',
-      extUrlB ? ext('result-alt-btn', extUrlB, 'fuente externa \u2197&#xFE0E;') : '',
-    ].join('');
-    const fallback = alts
-      ? `<div class="result-fallback">
-           <span class="result-fallback__label">${t('stage.alsoOn') || 'Tambi\u00e9n en'}</span>
-           ${alts}
-         </div>`
-      : '';
-    return `<a class="result-btn result-btn--inhouse" href="${esc(inhouseUrl)}">${t('stage.viewResults')}</a>${fallback}`;
-  }
-  if (!extUrlA && !extUrlB) return '';
-  return `<div class="result-section-btns">${
-    extUrlA  ? ext('result-btn', extUrlA,  'fuente externa')    : ''
-  }${
-    extUrlB ? ext('result-btn', extUrlB, 'fuente externa') : ''
-  }</div>`;
+// Bloque de botones de resultados: CTA propio a /resultados/. Sin clasificaciones
+// propias no hay botón (no hay fuentes externas de respaldo).
+function _resultsButtonsHtml(inhouseUrl) {
+  if (!inhouseUrl) return '';
+  return `<a class="result-btn result-btn--inhouse" href="${esc(inhouseUrl)}">${t('stage.viewResults')}</a>`;
 }
 
 // \u00bfEsta etapa tiene clasificaciones propias (race_uci_stages.keepForWeb)?
@@ -98,49 +67,26 @@ async function _hasInhouseResults(raceId, raceDayId, stageNumber) {
 }
 
 // Variante batched para las cards de Hoy/Competici\u00f3n: un solo SELECT para N
-// carreras. Espejo del gate de las apps (`hasInhouse || shouldShowResults`,
-// TodayScreen/RaceScreen): si la etapa de la card tiene clasificaciones propias,
-// el trofeo se muestra sin esperar a la heur\u00edstica horaria ni exigir extId/extSlug.
-// `raceDayId` distingue los sectores A/B; `stageNumber` queda como fallback
-// exclusivo para volcados antiguos que todav\u00eda no est\u00e9n enlazados a jornada.
-// Las jornadas canceladas pueden tener p\u00e1gina propia de resultados, pero no se
-// consideran resultados disponibles para las cards: no deben activar el trofeo.
+// carreras. Si la etapa de la card tiene clasificaciones propias, el trofeo se
+// muestra. `raceDayId` distingue los sectores A/B; `stageNumber` queda como
+// fallback exclusivo para volcados antiguos que todav\u00eda no est\u00e9n enlazados a
+// jornada. Las jornadas canceladas pueden tener p\u00e1gina propia de resultados,
+// pero no se consideran resultados disponibles para las cards: no deben activar
+// el trofeo.
 export async function loadInhouseStageSet(raceIds) {
   const ids = [...new Set((raceIds || []).filter(Boolean))];
-  if (!ids.length) return { has: () => false, allowsExternal: () => true };
+  if (!ids.length) return { has: () => false };
   try {
-    const [{ data }, { data: links }] = await Promise.all([
-      supabase.from('race_uci_stages')
-        .select('raceId,raceDayId,stageNumber')
-        .eq('keepForWeb', true).gt('rowCount', 0)
-        .in('raceId', ids),
-      supabase.from('race_uci_links').select('raceId,source').in('raceId', ids),
-    ]);
+    const { data } = await supabase.from('race_uci_stages')
+      .select('raceId,raceDayId,stageNumber')
+      .eq('keepForWeb', true).gt('rowCount', 0)
+      .in('raceId', ids);
     const matcher = buildInhouseResultsMatcher(data);
-    const automaticSources = new Set((links || [])
-      .filter(link => link.source !== 'pdf')
-      .map(link => link.raceId));
-    return {
-      has: rd => !rd?.isCancelledDay && matcher.has(rd),
-      allowsExternal: raceId => !automaticSources.has(raceId),
-    };
+    return { has: rd => !rd?.isCancelledDay && matcher.has(rd) };
   } catch (_) {
-    // Sin red \u2192 gate horario cl\u00e1sico.
-    return { has: () => false, allowsExternal: () => true };
+    // Sin red \u2192 sin trofeo.
+    return { has: () => false };
   }
-}
-function _attachResultGaListeners(container) {
-  container.querySelectorAll('.result-btn[data-ga-race]').forEach(a => {
-    a.addEventListener('click', () => {
-      if (!window.gtag) return;
-      const stageRaw = a.dataset.gaStage;
-      const stage = stageRaw !== '' ? Number(stageRaw) : null;
-      gtag('event', 'page_view', {
-        page_location: window.location.origin + _gaResultPath(a.dataset.gaRace, stage),
-        page_title: a.dataset.gaRace + (stage != null ? ' – Etapa ' + stage : '') + ' — Resultados — Calendario Ciclismo',
-      });
-    });
-  });
 }
 
 const _STERRATO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><ellipse cx="7" cy="15" rx="4.5" ry="3"/><ellipse cx="17" cy="15" rx="4" ry="2.8"/><ellipse cx="12.5" cy="9" rx="4.5" ry="3"/></svg>';
@@ -178,27 +124,6 @@ function _raceTimeCheck(rd, offsetMinutes) {
   }
   return false;
 }
-function _shouldShowResults(rd, race) {
-  if (rd.isRestDay || rd.isCancelledDay) return false;
-  if (!race.extId && !race.extSlug) return false;
-  return _raceTimeCheck(rd, -30);
-}
-function _buildExtUrlA(race, stageNumber, fcSeqNum) {
-  if (!race.extId) return null;
-  const base = `https://example.invalid
-  if (stageNumber === null || stageNumber === undefined) return base;
-  const num = fcSeqNum != null ? fcSeqNum : stageNumber;
-  return base + `&e=${String(num).padStart(2, '0')}`;
-}
-function _buildExtUrlB(race, stageNumber, stageSuffix) {
-  if (!race.extSlug) return null;
-  const base = `https://example.invalid
-  if (stageNumber === null || stageNumber === undefined) return `${base}/result`;
-  if (stageNumber === 0) return `${base}/prologue/result`;
-  const suffix = stageSuffix ? stageSuffix.toLowerCase() : '';
-  return `${base}/stage-${stageNumber}${suffix}/result`;
-}
-
 function _typeLabel(t) { return TYPE_LABELS[t] || t || '—'; }
 function _typeColor(t) { return STAGE_COLORS[t] || null; }
 
@@ -355,6 +280,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     let bIdx = 0, aIdx = 1;
     if (!rdProvided) {
       rd = results[0].data;
+      if (rd && typeof rdOrId === 'object' && rdOrId._stageSuffix) rd._stageSuffix = rdOrId._stageSuffix;
       bIdx = 1; aIdx = 2;
     }
 
@@ -405,7 +331,6 @@ export async function openRaceDataModal(rdOrId, raceObj) {
     if (_sub) headerEl.innerHTML += `<div class="rd-modal__date">${_sub}</div>`;
 
     body.innerHTML = _buildBody(rd, raceObj, broadcasts, assets, hasStartlist, prevRd, inhouseStages);
-    _attachResultGaListeners(body);
 
     // Emisión embebible: abre el reproductor inline al pulsar "Ver".
     body.querySelectorAll('a.tv-link-btn--embed[data-tv-embed]').forEach(btn => {
@@ -442,25 +367,15 @@ export async function openRaceDataModal(rdOrId, raceObj) {
 }
 
 /**
- * Abre un modal simplificado con solo la cabecera + botones de resultados.
- * Usado desde las cards de Hoy y Competición al clicar el badge "Resultados".
+ * Abre la página de resultados propia de una jornada. Usado desde las cards de
+ * Hoy y Competición al pulsar el badge "Resultados". Una jornada cancelada
+ * también tiene página propia (aviso + generales arrastradas). Sin página
+ * propia no hay destino: no existen fuentes externas de respaldo.
  */
 export async function openResultsModal(rdOrId, raceObj) {
-  const _resultsDisplayName = getRaceName(raceObj);
-  const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i
-    .test(_resultsDisplayName || '');
-  const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
-  const femSpan = isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : '';
-
   const rdId       = typeof rdOrId === 'object' ? rdOrId.id : rdOrId;
   const rdProvided = (typeof rdOrId === 'object' && rdOrId.dateKey != null) ? rdOrId : null;
 
-  // ── Chequeo in-house ANTES de pintar nada ──────────────────────────
-  // Si esta etapa tiene página de resultados propia → redirigir directo,
-  // sin abrir el modal (evita el parpadeo de un modal vacío mientras se
-  // resuelve el chequeo). El modal con enlaces externos es solo el fallback.
-  // Necesitamos el rd para conocer stageNumber/raceId; si solo nos dieron
-  // el id, lo cargamos aquí (todavía no hay nada dibujado).
   let rd = rdProvided;
   try {
     if (!rd) {
@@ -470,81 +385,11 @@ export async function openResultsModal(rdOrId, raceObj) {
   } catch (err) {
     console.error('[results-modal]', err);
   }
+  if (!rd) return;
 
-  if (rd) {
-    const inhouseUrl = _inhouseResultsUrl(raceObj, rd.stageNumber, rd._stageSuffix);
-    // La cancelada va SIEMPRE a nuestra página (aviso + generales arrastradas):
-    // no tiene clasificaciones propias, así que `_hasInhouseResults` diría que no
-    // y el trofeo caería a externos, que tampoco tienen nada que enseñar.
-    if (inhouseUrl && (rd.isCancelledDay || await _hasInhouseResults(rd.raceId || raceObj.id, rd.id, rd.stageNumber))) {
-      window.location.href = inhouseUrl;
-      return;
-    }
-    const { data: link } = await supabase.from('race_uci_links')
-      .select('source').eq('raceId', rd.raceId || raceObj.id).maybeSingle();
-    if (link && link.source !== 'pdf') return;
-  }
-
-  // ── Sin página propia → abrir el modal (fallback externos) ────────────
-  const overlay  = _getOverlay();
-  const body     = overlay.querySelector('.rd-modal__body');
-  const headerEl = overlay.querySelector('.rd-modal__header-text');
-  overlay.querySelector('.rd-modal').classList.remove('rd-modal--tv');
-
-  const flag = raceObj.hideFlag ? '' : countryFlag(raceObj.countryCode);
-  headerEl.innerHTML = `${flag}<span class="rd-modal__race-name">${esc(_resultsDisplayName || '')}${femSpan}</span>`;
-
-  body.innerHTML = `<div class="rd-modal__loading"><span></span><span></span><span></span></div>`;
-  overlay.classList.add('rd-modal--open');
-  document.body.style.overflow = 'hidden';
-  _openFocusTrap(overlay);
-
-  if (window.gtag) {
-    const slug = (raceObj.name || '').toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    gtag('event', 'page_view', {
-      page_location: window.location.origin + '/modal/resultados/' + slug + '/',
-      page_title: (_resultsDisplayName || 'Modal') + ' — Resultados — Calendario Ciclismo',
-    });
-  }
-
-  try {
-    if (!rd) {
-      body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted)">${t('stage.noData')}</div>`;
-      return;
-    }
-
-    if (rd.countryCode && (raceObj.hideFlag || rd.countryCode !== raceObj.countryCode)) {
-      const newFlag = countryFlag(effectiveCountryCode(rd, raceObj));
-      headerEl.innerHTML = `${newFlag}<span class="rd-modal__race-name">${esc(_resultsDisplayName || '')}${femSpan}</span>`;
-    }
-
-    const _stage = rd.stageNumber ? stageLabel(rd.stageNumber, rd._stageSuffix) : '';
-    const _date  = rd.dateKey ? _fmtDateLong(rd.dateKey) : '';
-    const _sub   = [_stage, _date].filter(Boolean).join(' · ');
-    if (_sub) headerEl.innerHTML += `<div class="rd-modal__date">${_sub}</div>`;
-
-    const extUrlA  = _buildExtUrlA(raceObj, rd.stageNumber, rd._fcStageNumber);
-    const extUrlB = _buildExtUrlB(raceObj, rd.stageNumber, rd._stageSuffix);
-
-    if (!extUrlA && !extUrlB) {
-      body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted)">${t('stage.noData')}</div>`;
-      return;
-    }
-
-    body.innerHTML = `<div class="jornada-section">
-      <div class="jornada-section__title">${t('stage.results')}</div>
-      <div class="result-section-btns">
-        ${extUrlA  ? `<a class="result-btn" href="${extUrlA}"  target="_blank" rel="noopener noreferrer" data-ga-race="${esc(raceObj.name)}" data-ga-stage="${rd.stageNumber ?? ''}">fuente externa</a>` : ''}
-        ${extUrlB ? `<a class="result-btn" href="${extUrlB}" target="_blank" rel="noopener noreferrer" data-ga-race="${esc(raceObj.name)}" data-ga-stage="${rd.stageNumber ?? ''}">fuente externa</a>` : ''}
-      </div>
-    </div>`;
-    _attachResultGaListeners(body);
-
-  } catch (err) {
-    body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted)">${t('race.error')}</div>`;
-    console.error('[results-modal]', err);
+  const inhouseUrl = _inhouseResultsUrl(raceObj, rd.stageNumber, rd._stageSuffix);
+  if (inhouseUrl && (rd.isCancelledDay || await _hasInhouseResults(rd.raceId || raceObj.id, rd.id, rd.stageNumber))) {
+    window.location.href = inhouseUrl;
   }
 }
 
@@ -633,13 +478,6 @@ export function openYoutubeTvModal(rdOrId, raceObj, ytId) {
 }
 
 // ── Construcción del contenido ─────────────────────────────────────
-function _shouldShowPreviousResults(prevRd, currentRd, race) {
-  if (!prevRd || race.raceFormat === 'one_day') return false;
-  if (!race.extId && !race.extSlug) return false;
-  if (_shouldShowResults(currentRd, race)) return false;
-  return _raceTimeCheck(prevRd, 0);
-}
-
 function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd = null, inhouseStages = new Set()) {
   const arrowSvg = `<svg class="route-arrow" viewBox="0 0 14 22" fill="none"
     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -829,12 +667,13 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   const hasDistType  = !!(rd.distanceKm || knownPrimaryType);
   const hasRouteData = !!(hasLocation || hasDistType || hasHorarios);
   let html = '';
+  let stageDetailsHtml = '';
 
   if (hasRouteData || assetsHtml) {
     // Columnas según bloques visibles
     const blockCount = (hasLocation ? 1 : 0) + (hasDistType ? 1 : 0) + (hasHorarios ? 1 : 0);
     const gridCols = blockCount >= 3 ? '' : blockCount === 2 ? ' route-grid--2col' : ' route-grid--1col';
-    html += `<div class="jornada-section jornada-section--route-grid">
+    stageDetailsHtml = `<div class="jornada-section jornada-section--route-grid">
     ${assetsHtml}
     ${hasRouteData ? `<div class="route-grid${gridCols}">
       ${hasLocation ? `<div class="route-grid__block">
@@ -853,9 +692,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   </div>`;
   }
 
-  // — Resultados — (in-house propio O externos clásicos). Espejo de jornada.js:
-  // si hay clasificaciones propias (race_uci_stages.keepForWeb) → botón a nuestra
-  // página aunque la carrera no tenga extId/extSlug; externos quedan como respaldo.
+  // — Resultados — solo clasificaciones propias (race_uci_stages.keepForWeb).
   const _curHasInhouse = inhouseStages.has(rd);
   const _curResultsAvailable = _curHasInhouse;
 
@@ -866,7 +703,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
     // "Así está la carrera" → clasificación GENERAL (GC) de la etapa anterior,
     // no su clasificación de etapa (#gc selecciona la pestaña General en resultados.js).
     const inhouseUrl = _prevHasInhouse ? _inhouseResultsUrl(race, prevRd.stageNumber, prevRd._stageSuffix) + '#gc' : null;
-    const btns = _resultsButtonsHtml(inhouseUrl, null, null, race, prevRd.stageNumber);
+    const btns = _resultsButtonsHtml(inhouseUrl);
     if (btns) {
       html += `<div class="jornada-section">
         <div class="jornada-section__title">${t('stage.previousResults')}</div>
@@ -878,7 +715,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   // — Resultados (etapa actual) —
   if (_curResultsAvailable) {
     const inhouseUrl = _curHasInhouse ? _inhouseResultsUrl(race, rd.stageNumber, rd._stageSuffix) : null;
-    const btns = _resultsButtonsHtml(inhouseUrl, null, null, race, rd.stageNumber);
+    const btns = _resultsButtonsHtml(inhouseUrl);
     if (btns) {
       html += `<div class="jornada-section">
         <div class="jornada-section__title">${t('stage.results')}</div>
@@ -886,6 +723,10 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
       </div>`;
     }
   }
+
+  // Mantener la misma jerarquía que la página de Jornada en todos los anchos:
+  // clasificaciones → documentos → datos generales de la etapa.
+  html += stageDetailsHtml;
 
   // — Televisión —
   // En la versión EN (/en/), "unavailable_es" es irrelevante: el usuario no está en España.
@@ -895,9 +736,7 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
   const hasBroadcasts = broadcasts.length > 0;
   const hasActualResults = inhouseStages.has(rd);
   const _isRaceConcluded = !!rd.estimatedFinishTimeUtc && _raceTimeCheck(rd, 30);
-  const hasReviveBroadcast = hasBroadcasts && (rd.isCancelledDay
-    ? broadcasts.some(b => b.showInRevive === true)
-    : _isRaceConcluded && broadcasts.some(isReviveBroadcast));
+  const hasReviveBroadcast = hasReviveBroadcastsForDay(broadcasts, hasActualResults, rd.isCancelledDay);
   // Carrera concluida → solo mostrar sección si hay broadcasts de tipo Revive
   const hasTvInfo = rd.isCancelledDay ? hasReviveBroadcast : (_isRaceConcluded
     ? hasReviveBroadcast
@@ -964,10 +803,6 @@ function _buildBody(rd, race, broadcasts, assets, hasStartlist = false, prevRd =
 }
 
 // ── Exports para reutilización (p. ej. página de Campeonatos) ─────
-// URLs de resultados fuentes externas. Para carreras de un día
-// (stageNumber null) devuelven la URL de resultado de la prueba.
-export function buildExtUrlA(race, stageNumber, fcSeqNum)      { return _buildExtUrlA(race, stageNumber, fcSeqNum); }
-export function buildExtUrlB(race, stageNumber, stageSuffix)  { return _buildExtUrlB(race, stageNumber, stageSuffix); }
 // Carrera concluida ≥30 min tras la hora estimada de llegada (misma lógica que las racecards).
 export function isRaceConcluded(rd) {
   if (!rd || rd.isRestDay || rd.isCancelledDay) return false;

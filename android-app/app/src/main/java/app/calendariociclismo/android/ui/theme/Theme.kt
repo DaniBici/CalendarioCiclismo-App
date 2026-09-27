@@ -4,9 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
-import android.util.Log
-import android.view.View
 import android.view.WindowInsetsController
+import android.view.View
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -15,10 +14,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.Color
 import app.calendariociclismo.android.util.LocaleHolder
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.ui.window.DialogWindowProvider
 
 /**
  * Material 3 theme con paleta fija (sin dynamic color). Tomamos `LightAccent`
@@ -45,7 +45,16 @@ private val LightScheme = lightColorScheme(
     surface = CCColors.LightCard,
     onSurface = CCColors.LightText,
     surfaceVariant = CCColors.LightCardHover,
+    outlineVariant = CCColors.LightBorder,
     onSurfaceVariant = CCColors.LightTextMuted,
+    // Tramo de superficies tonales (contenedor de AlertDialog, menús): el
+    // lavanda por defecto de M3 se sustituye por los neutros de marca, igual
+    // que se neutralizó surfaceTint y secondaryContainer.
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = CCColors.LightCard,
+    surfaceContainer = CCColors.LightCard,
+    surfaceContainerHigh = CCColors.LightCard,
+    surfaceContainerHighest = CCColors.LightCardHover,
     // Tinte de elevación neutralizado: igualado a la superficie neutra para que
     // los ElevatedCard NO añadan el morado/rosa por defecto de M3 al elevarse.
     // El color de las tarjetas neutras lo fija CCCard explícitamente.
@@ -73,7 +82,14 @@ private val DarkScheme = darkColorScheme(
     surface = CCColors.DarkCard,
     onSurface = CCColors.DarkText,
     surfaceVariant = CCColors.DarkCardHover,
+    outlineVariant = CCColors.DarkBorder,
     onSurfaceVariant = CCColors.DarkTextMuted,
+    // Tramo de superficies tonales neutro (igual que en Light).
+    surfaceContainerLowest = CCColors.DarkBg,
+    surfaceContainerLow = CCColors.DarkCard,
+    surfaceContainer = CCColors.DarkCard,
+    surfaceContainerHigh = CCColors.DarkCard,
+    surfaceContainerHighest = CCColors.DarkCardHover,
     // Tinte de elevación neutralizado (igual que Light): evita el tinte morado
     // por defecto de M3 al elevar tarjetas en modo oscuro.
     surfaceTint = CCColors.DarkCardHover,
@@ -101,77 +117,8 @@ fun CalendarioCiclismoTheme(
     @Suppress("UNUSED_VARIABLE") val localeKey = LocaleHolder.currentState
 
     val colorScheme = if (darkTheme) DarkScheme else LightScheme
-    val view = LocalView.current
 
-    // En modo claro queremos: fondo claro (background) con iconos del sistema
-    // OSCUROS para que sean legibles. En modo oscuro: fondo oscuro con iconos
-    // CLAROS. Aplicamos los DOS controles porque cada uno por sí solo no basta:
-    //
-    // 1. window.statusBarColor — pinta el fondo de la barra del color del tema.
-    //    Está marcado como deprecated en API 35+ pero sigue siendo respetado
-    //    porque el manifest no incluye windowOptOutEdgeToEdgeEnforcement.
-    //    Sin esto, en API 35+ la barra queda transparente y los iconos se ven
-    //    sobre el wallpaper o el contenido que haya pintado debajo.
-    //
-    // 2. isAppearanceLightStatusBars — controla el color de los iconos
-    //    (true = oscuros, false = claros). findActivity() desempaqueta
-    //    ContextWrapper porque LocalView.context puede ser un wrapper y el
-    //    cast directo a Activity falla silenciosamente.
-    if (!view.isInEditMode) {
-        DisposableEffect(darkTheme) {
-            val activity = view.context.findActivity()
-            val window = activity?.window
-            if (window != null) {
-                val barBg = colorScheme.background.toArgb()
-                @Suppress("DEPRECATION")
-                window.statusBarColor = barBg
-                @Suppress("DEPRECATION")
-                window.navigationBarColor = barBg
-
-                // Triple control de la apariencia de iconos. Cada API ataca una
-                // capa distinta del sistema; aplicar las tres juntas garantiza
-                // que al menos una efectiva en cualquier versión (API 26 → 37+).
-                val lightIcons = !darkTheme
-
-                // 1. WindowCompat (compat moderna, recomendada por Google)
-                val controllerCompat = WindowCompat.getInsetsController(window, view)
-                controllerCompat.isAppearanceLightStatusBars = lightIcons
-                controllerCompat.isAppearanceLightNavigationBars = lightIcons
-
-                // 2. WindowInsetsController nativo (API 30+) — en API 35+ esta
-                // es la única ruta que respeta Android 16 Canary cuando la
-                // versión compat no se aplica por algún cambio interno.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val nativeController = window.insetsController
-                    if (nativeController != null) {
-                        val statusMask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                        val navMask = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                        val appearance =
-                            (if (lightIcons) statusMask else 0) or
-                            (if (lightIcons) navMask else 0)
-                        nativeController.setSystemBarsAppearance(appearance, statusMask or navMask)
-                    }
-                }
-
-                // 3. systemUiVisibility legacy (API 23-29). En API 30+ es noop
-                // pero no estorba; útil si algún OEM antiguo no respeta lo demás.
-                @Suppress("DEPRECATION")
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                    val decor = window.decorView
-                    val flag = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    decor.systemUiVisibility = if (lightIcons) {
-                        decor.systemUiVisibility or flag
-                    } else {
-                        decor.systemUiVisibility and flag.inv()
-                    }
-                }
-
-                onDispose { }
-            } else {
-                onDispose { }
-            }
-        }
-    }
+    SystemBarsAppearance(darkTheme)
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -183,6 +130,43 @@ fun CalendarioCiclismoTheme(
         // (antes en StartOrderRow y TodayHighlightsBanner).
         CompositionLocalProvider(LocalTextStyle provides CCDefaultTextStyle) {
             content()
+        }
+    }
+}
+
+/** Actualiza la ventana de la Activity o la del diálogo que aloja este contenido. */
+@Composable
+internal fun SystemBarsAppearance(darkTheme: Boolean) {
+    val view = LocalView.current
+    // El fondo de las barras lo dibuja la Surface de MainActivity. Los atributos
+    // XML fijan la apariencia inicial y este efecto aplica los cambios de tema.
+    // No se usan colores de Window: Android 15+ impone barras transparentes.
+    if (!view.isInEditMode) {
+        DisposableEffect(darkTheme, view) {
+            val window = generateSequence(view) { it.parent as? View }
+                .filterIsInstance<DialogWindowProvider>()
+                .firstOrNull()?.window ?: view.context.findActivity()?.window
+            fun applyAppearance() {
+                if (window == null) return
+                val darkIcons = !darkTheme
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = darkIcons
+                    isAppearanceLightNavigationBars = darkIcons
+                }
+                // Conserva la aplicación nativa que se verificó en Pixel 9a.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                        WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    window.insetsController?.setSystemBarsAppearance(
+                        if (darkIcons) mask else 0,
+                        mask,
+                    )
+                }
+            }
+            applyAppearance()
+            val reapply = Runnable { applyAppearance() }
+            window?.decorView?.post(reapply)
+            onDispose { window?.decorView?.removeCallbacks(reapply) }
         }
     }
 }

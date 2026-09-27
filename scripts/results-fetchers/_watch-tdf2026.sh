@@ -23,7 +23,7 @@ OUT=scripts/results-fetchers/_results_run/tissot-tdf2026
 JSON="$OUT/$COMPID.json"
 SIGFILE="$OUT/.e$STAGE.sig"
 FETCH=scripts/results-fetchers/tissot-results-fetch.mjs
-UPSERT=scripts/results-fetchers/uci-results-upsert.mjs
+UPSERT=scripts/results-fetchers/results-upsert.mjs
 
 mkdir -p "$OUT"
 

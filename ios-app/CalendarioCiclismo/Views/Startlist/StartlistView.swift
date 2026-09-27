@@ -1,4 +1,6 @@
 import SwiftUI
+import QuickLook
+import WebKit
 
 private extension Color {
     static func fromHex(_ hex: String) -> Color? {
@@ -16,9 +18,15 @@ private extension Color {
 
 struct StartlistView: View {
     @State private var viewModel = StartlistViewModel()
+    @State private var contentWidth: CGFloat = 0
     let raceId: String
     var showDismissButton: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var pdfExporter = StartlistPDFExporter()
+    @State private var pdfURL: URL?
+    @State private var isExportingPDF = false
+    @State private var pdfError: String?
 
     var body: some View {
         ZStack {
@@ -30,7 +38,7 @@ struct StartlistView: View {
                         .padding(.horizontal)
                         .padding(.top, 12)
                         .padding(.bottom, 12)
-                        .background(Color(.systemBackground))
+                        .background(AppTheme.background)
                 }
 
                 ScrollView {
@@ -46,8 +54,18 @@ struct StartlistView: View {
                                     .foregroundStyle(.secondary)
                                     .padding()
                             } else {
-                                // Separación entre tarjetas de equipo (antes pegadas).
-                                VStack(spacing: 8) {
+                                let count = AdaptiveLayoutPolicy.startlistColumns(
+                                    width: max(0, contentWidth - 32),
+                                    isRegular: horizontalSizeClass == .regular
+                                )
+                                LazyVGrid(
+                                    columns: Array(
+                                        repeating: GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top),
+                                        count: count
+                                    ),
+                                    alignment: .leading,
+                                    spacing: 12
+                                ) {
                                     ForEach(viewModel.teamsList) { team in
                                         StartlistTeamCard(
                                             team: team,
@@ -62,6 +80,11 @@ struct StartlistView: View {
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
+                }
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.width
+                } action: { width in
+                    contentWidth = width
                 }
                 .refreshable {
                     await viewModel.refresh(raceId: raceId)
@@ -78,6 +101,7 @@ struct StartlistView: View {
                 })
             }
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -91,6 +115,31 @@ struct StartlistView: View {
                     .accessibilityLabel(LocaleService.t("Cerrar", "Close"))
                 }
             }
+            if viewModel.race != nil && !viewModel.teamsList.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await exportPDF() }
+                    } label: {
+                        if isExportingPDF {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.down.doc")
+                        }
+                    }
+                    .disabled(isExportingPDF)
+                    .accessibilityLabel(LocaleService.t("Descargar PDF", "Download PDF"))
+                }
+            }
+        }
+        // Vista previa del sistema: guardar en Archivos, imprimir o compartir.
+        .quickLookPreview($pdfURL)
+        .alert(
+            LocaleService.t("No se pudo generar el PDF", "Couldn't generate the PDF"),
+            isPresented: Binding(get: { pdfError != nil }, set: { if !$0 { pdfError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(pdfError ?? "")
         }
         .task {
             await viewModel.load(raceId: raceId)
@@ -99,6 +148,130 @@ struct StartlistView: View {
                 "race_id": raceId,
             ])
         }
+    }
+}
+
+// MARK: - PDF
+
+extension StartlistView {
+    /// Genera el PDF con el mismo generador que la web y lo abre en Vista Rápida.
+    fileprivate func exportPDF() async {
+        guard !isExportingPDF else { return }
+        isExportingPDF = true
+        defer { isExportingPDF = false }
+        do {
+            pdfURL = try await pdfExporter.export(raceId: raceId)
+            AnalyticsService.shared.logEvent("startlist_pdf", parameters: ["race_id": raceId])
+        } catch {
+            pdfError = LocaleService.t(
+                "Comprueba la conexión e inténtalo de nuevo.",
+                "Check your connection and try again."
+            )
+        }
+    }
+}
+
+/// Carga en una vista web invisible `inscritos-pdf.html`, que genera el PDF con
+/// `js/inscritos-pdf.js` (fuente única del diseño, compartida con la web y
+/// Android) y lo devuelve en base64 por el manejador `ccStartlistPdf`.
+@MainActor
+final class StartlistPDFExporter: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    enum ExportError: Error {
+        case failed(String)
+        case timeout
+    }
+
+    private static let pageURL = "https://calendariociclismo.app/inscritos-pdf.html"
+    private static let handlerName = "ccStartlistPdf"
+    private var webView: WKWebView?
+    private var continuation: CheckedContinuation<URL, Error>?
+    private var timeoutTask: Task<Void, Never>?
+
+    func export(raceId: String) async throws -> URL {
+        finish(.failure(ExportError.failed("cancelled")))
+        var components = URLComponents(string: Self.pageURL)!
+        components.queryItems = [
+            URLQueryItem(name: "race", value: raceId),
+            URLQueryItem(name: "lang", value: LocaleService.isEnglish ? "en" : "es"),
+        ]
+        guard let url = components.url else { throw ExportError.failed("url") }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            let configuration = WKWebViewConfiguration()
+            configuration.websiteDataStore = .nonPersistent()
+            configuration.userContentController.add(WeakScriptMessageHandler(self), name: Self.handlerName)
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 800), configuration: configuration)
+            webView.navigationDelegate = self
+            // Dentro de la ventana (transparente) para que WebKit no suspenda el JS.
+            webView.alpha = 0
+            webView.isUserInteractionEnabled = false
+            if let window = UIApplication.shared.connectedScenes
+                .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
+                window.insertSubview(webView, at: 0)
+            }
+            self.webView = webView
+            webView.load(URLRequest(url: url))
+            timeoutTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(45))
+                guard !Task.isCancelled else { return }
+                self?.finish(.failure(ExportError.timeout))
+            }
+        }
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        guard type == "pdf",
+              let fileName = body["fileName"] as? String,
+              let base64 = body["base64"] as? String,
+              let data = Data(base64Encoded: base64) else {
+            finish(.failure(ExportError.failed(body["message"] as? String ?? "error")))
+            return
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        do {
+            try data.write(to: url, options: .atomic)
+            finish(.success(url))
+        } catch {
+            finish(.failure(error))
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        finish(.failure(error))
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        finish(.failure(error))
+    }
+
+    private func finish(_ result: Result<URL, Error>) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        if let webView {
+            webView.stopLoading()
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: Self.handlerName)
+            webView.removeFromSuperview()
+        }
+        webView = nil
+        continuation?.resume(with: result)
+        continuation = nil
+    }
+}
+
+/// Evita el ciclo de retención entre WKUserContentController y el exportador.
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }
 
@@ -176,7 +349,7 @@ struct StartlistHeaderView: View {
             .padding(.horizontal, 8)
         }
         .padding(12)
-        .background(Color(.systemBackground))
+        .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -254,9 +427,9 @@ struct StartlistTeamCard: View {
         // corredores. `.ccCardSurface` recorta el contenido a la forma, así que
         // el header coloreado queda enrasado con las esquinas redondeadas.
         VStack(spacing: 0) {
-            // El ficticio "Individual" va SIN cabecera (ocultación cosmética,
+            // Los estados sin equipo van SIN cabecera (ocultación cosmética,
             // espejo de la web/Android): solo se listan sus corredores.
-            if !team.isIndividualPlaceholder {
+            if !team.isNoTeamPlaceholder {
                 StartlistTeamHeaderView(team: team, isProvisional: isProvisional)
             }
 
@@ -269,9 +442,9 @@ struct StartlistTeamCard: View {
                     )
                 }
             }
-            .background(Color(.systemBackground))
+            .background(AppTheme.cardBackground)
         }
-        .ccCardSurface(showShadow: false)
+        .ccCardSurface(cornerRadius: 0, showShadow: false)
     }
 }
 
@@ -286,10 +459,6 @@ struct StartlistTeamHeaderView: View {
         let bgColor: Color = team.team.flatMap { Color.fromHex($0.headerBg) } ?? Color(.systemGray6)
 
         HStack(spacing: 10) {
-            if let globalTeam = team.team {
-                TeamBadgeView(team: globalTeam, size: 24)
-            }
-
             Text(team.displayName)
                 .font(.subheadline)
                 .fontWeight(.semibold)
@@ -381,72 +550,34 @@ struct StartlistRiderRowView: View {
         .opacity(isOut ? 0.55 : 1)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color(.systemBackground))
+        .background(AppTheme.cardBackground)
     }
 }
 
-// MARK: - Team Badge
+// MARK: - Team colors
 
-struct TeamBadgeView: View {
+/// Tres bandas cromáticas de la equipación efectiva. Resultados y orden de
+/// salida usan esta marca lineal. Las chapas circulares se han retirado de las apps.
+struct TeamColorBands: View {
     let team: Team
-    let size: Int
+    var width: CGFloat = 15
+    var height: CGFloat = 16
 
     var body: some View {
-        let torsoColor: Color = Color.fromHex(team.badgeTorsoCenter) ?? .blue
-        let sidesColor: Color = Color.fromHex(team.badgeTorsoSides) ?? .gray
-        let shortsColor: Color = Color.fromHex(team.badgeShorts) ?? .black
-        let helmetColor: Color = Color.fromHex("#8a8d91") ?? .gray
-        let innerColor: Color? = team.badgeInnerCircle.flatMap { Color.fromHex($0) }
-
-        Canvas { context, _ in
-            let s = CGFloat(size)
-            let cx = s / 2
-            let cy = s / 2
-            let rOuter = s * 0.48
-            let rInner = s * 0.38
-
-            // Polígono exterior (casco)
-            var path = Path()
-            for i in 0..<22 {
-                let angle = (CGFloat.pi * 2 * CGFloat(i)) / 22 - CGFloat.pi / 2
-                let x = cx + rOuter * cos(angle)
-                let y = cy + rOuter * sin(angle)
-                if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                else { path.addLine(to: CGPoint(x: x, y: y)) }
+        if team.hasVisibleBadge {
+            HStack(spacing: 0) {
+                Color.fromHex(team.badgeTorsoSides) ?? .clear
+                Color.fromHex(team.badgeTorsoCenter) ?? .clear
+                Color.fromHex(team.badgeShorts) ?? .clear
             }
-            path.closeSubpath()
-            context.stroke(path, with: .color(.gray), lineWidth: s * 0.02)
-            context.fill(path, with: .color(helmetColor))
-
-            // Círculo interior — clip para franjas y pantalón
-            let innerCircle = Path(ellipseIn: CGRect(x: cx - rInner, y: cy - rInner, width: rInner * 2, height: rInner * 2))
-            let stripeW = rInner * 1.4
-            let divideY = cy + rInner * 0.4
-
-            context.drawLayer { ctx in
-                ctx.clip(to: innerCircle)
-
-                let rectShorts = Path(roundedRect: CGRect(x: 0, y: divideY, width: s, height: s - divideY + 1), cornerRadius: 0)
-                ctx.fill(rectShorts, with: .color(shortsColor))
-
-                let rectSides = Path(roundedRect: CGRect(x: 0, y: 0, width: s, height: divideY), cornerRadius: 0)
-                ctx.fill(rectSides, with: .color(sidesColor))
-
-                let rectCenter = Path(roundedRect: CGRect(x: cx - stripeW / 2, y: 0, width: stripeW, height: divideY), cornerRadius: 0)
-                ctx.fill(rectCenter, with: .color(torsoColor))
-
-                if let ic = innerColor {
-                    let innerCy = cy - rInner * 0.35
-                    let innerR = rInner * 0.22
-                    let circle = Path(ellipseIn: CGRect(x: cx - innerR, y: innerCy - innerR, width: innerR * 2, height: innerR * 2))
-                    ctx.fill(circle, with: .color(ic))
-                }
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .overlay {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(AppTheme.borderLight, lineWidth: 1)
             }
-
-            // Borde interior (fuera del clip)
-            context.stroke(innerCircle, with: .color(.black.opacity(0.25)), lineWidth: s * 0.018)
+            .accessibilityHidden(true)
         }
-        .frame(width: CGFloat(size), height: CGFloat(size))
     }
 }
 

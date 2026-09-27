@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Resultados de Classificações.net → contrato intermedio de uci-results-upsert.
+ * Resultados de Classificações.net → contrato intermedio de results-upsert.
  *
  * El código es el slug de la prueba (p.ej. 86-volta-a-portugal-continente).
  * Descubre los ids de etapa y de clasificación en HTML; no se hardcodean.

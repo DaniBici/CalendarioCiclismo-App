@@ -1,0 +1,31 @@
+[Unit]
+Description=Calendario Ciclismo - sincronización del ránking UCI de equipos
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/results-vps.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cc-results
+Group=cc-results
+WorkingDirectory=/opt/calendario-ciclismo
+EnvironmentFile=/etc/calendario-ciclismo/results.env
+ExecStart=/usr/bin/node scripts/monitored-command.mjs --job=uci_team_ranking --trigger=scheduled -- /usr/bin/node scripts/results-fetchers/uci-team-ranking-sync.mjs --apply
+TimeoutStartSec=10min
+RuntimeDirectory=cc-results-ranking
+RuntimeDirectoryMode=0750
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

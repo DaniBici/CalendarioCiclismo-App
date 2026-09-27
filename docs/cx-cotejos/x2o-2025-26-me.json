@@ -1,0 +1,8516 @@
+{
+  "version": 1,
+  "scope": "offline_official_cotejo_only",
+  "seasonKey": "2025-26",
+  "category": "ME",
+  "checkedAt": "2026-09-12T22:34:15.913043+00:00",
+  "rulesSourceUrl": "https://x2otrofee.be/wp-content/uploads/sites/133/2025/09/Reglement-X2O-Badkamers-trofee-veldrijden-2025-2026.pdf",
+  "identityMethod": "same_published_uci_id_offline_only_no_catalogue_links",
+  "resultsColumns": [
+    "rank",
+    "bib",
+    "uciId",
+    "name",
+    "nation",
+    "irm",
+    "finishSeconds",
+    "publishedBonusText",
+    "completedLaps",
+    "firstLapCell",
+    "sourceTimeText"
+  ],
+  "bestLapColumns": [
+    "publishedRankText",
+    "bib",
+    "uciId",
+    "name",
+    "nation",
+    "lapText",
+    "timeText"
+  ],
+  "standingsColumns": [
+    "publishedRank",
+    "uciId",
+    "name",
+    "nation",
+    "totalSeconds",
+    "roundCells"
+  ],
+  "notes": [
+    "Bonuses are derived from first-lap cumulative placing and the independent Best lap table, then checked against the published Bonif total; never from GC differences.",
+    "Seven reports have one additional timing section before the numbered laps; Brussels has nine sections and nine laps. The first-lap section is selected from these source counts before comparing bonuses.",
+    "Temps includes elapsed time to the last timing split for LAP/DNF and 0:00 for DNS; none is a finish time. finishSeconds remains null for these states.",
+    "Null Bonif cells remain null. A zero aggregate is established only from the complete three sprint awards and three best-lap awards.",
+    "The official final Ranking includes participants that never finish within five minutes. This source is preserved without treating them as regulation-eligible."
+  ],
+  "rounds": [
+    {
+      "name": "Koppenbergcross",
+      "dateKey": "2025-11-01",
+      "context": "20251101_x2o",
+      "sourceTitle": "Koppenbergcross - 1/11/2025 Oudenaarde (BEL)",
+      "eventId": "2141578068095969",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20251101_x2o/dh?key=cms",
+        "sha256": "327067f0944de78de801e87d37ba2903fdca9f6e34b24cb6f61fee4f981ca147"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251101_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "e9af27930d8296d2b715a064ffe0fa26a1bb676752c531afd565a430ce269af1",
+        "rowCount": 36
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251101_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "19426a58cc39891d006267422c22cd78819cfda1a686ab607401e1b295bf9e10",
+        "rowCount": 36
+      },
+      "winnerLaps": 6,
+      "winnerTimingSections": 7,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          1,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          null,
+          3519,
+          "0:25",
+          "6",
+          "9:36 (3) | +0:01 (2)",
+          "58:39 | -"
+        ],
+        [
+          2,
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3540,
+          "0:25",
+          "6",
+          "9:32 (1) | 10:58 (1)",
+          "59:00 | +0:21"
+        ],
+        [
+          3,
+          9,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          null,
+          3623,
+          "0:10",
+          "6",
+          "9:36 (2) | +0:01 (3)",
+          "1:00:23 | +1:44"
+        ],
+        [
+          4,
+          16,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          3633,
+          null,
+          "6",
+          "9:51 (5) | +0:10 (5)",
+          "1:00:33 | +1:54"
+        ],
+        [
+          5,
+          3,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3642,
+          null,
+          "6",
+          "9:54 (8) | +0:17 (7)",
+          "1:00:42 | +2:03"
+        ],
+        [
+          6,
+          5,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          3646,
+          null,
+          "6",
+          "10:03 (14) | +0:32 (15)",
+          "1:00:46 | +2:07"
+        ],
+        [
+          7,
+          18,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          null,
+          3660,
+          null,
+          "6",
+          "9:53 (7) | +0:23 (8)",
+          "1:01:00 | +2:21"
+        ],
+        [
+          8,
+          10,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3677,
+          null,
+          "6",
+          "9:56 (9) | +0:24 (9)",
+          "1:01:17 | +2:38"
+        ],
+        [
+          9,
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3683,
+          null,
+          "6",
+          "10:00 (10) | +0:29 (13)",
+          "1:01:23 | +2:44"
+        ],
+        [
+          10,
+          17,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          3687,
+          null,
+          "6",
+          "10:00 (12) | +0:24 (10)",
+          "1:01:27 | +2:48"
+        ],
+        [
+          11,
+          21,
+          "10068086405",
+          "THOMAS Théo",
+          "FRA",
+          null,
+          3693,
+          null,
+          "6",
+          "10:00 (11) | +0:28 (11)",
+          "1:01:33 | +2:54"
+        ],
+        [
+          12,
+          15,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3734,
+          null,
+          "6",
+          "10:08 (15) | +0:35 (16)",
+          "1:02:14 | +3:35"
+        ],
+        [
+          13,
+          6,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          null,
+          3777,
+          null,
+          "6",
+          "10:16 (17) | +0:40 (17)",
+          "1:02:57 | +4:18"
+        ],
+        [
+          14,
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          3851,
+          null,
+          "6",
+          "9:41 (4) | +0:01 (4)",
+          "1:04:11 | +5:32"
+        ],
+        [
+          15,
+          32,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          null,
+          3887,
+          null,
+          "6",
+          "10:25 (19) | +0:45 (19)",
+          "1:04:47 | +6:08"
+        ],
+        [
+          16,
+          19,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          null,
+          3907,
+          null,
+          "6",
+          "11:10 (29) | +1:39 (28)",
+          "1:05:07 | +6:28"
+        ],
+        [
+          17,
+          20,
+          "10015700644",
+          "RECULEAU Nicolas",
+          "FRA",
+          null,
+          3941,
+          null,
+          "6",
+          "10:32 (23) | +1:01 (23)",
+          "1:05:41 | +7:02"
+        ],
+        [
+          18,
+          28,
+          "10070390456",
+          "LEMARDELE Maxence",
+          "FRA",
+          null,
+          3973,
+          null,
+          "6",
+          "10:27 (20) | +0:54 (20)",
+          "1:06:13 | +7:34"
+        ],
+        [
+          19,
+          33,
+          "10066501261",
+          "SPARFEL Louis",
+          "FRA",
+          null,
+          3996,
+          null,
+          "6",
+          "10:50 (25) | +1:23 (26)",
+          "1:06:36 | +7:57"
+        ],
+        [
+          20,
+          25,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          null,
+          4029,
+          null,
+          "6",
+          "10:30 (22) | +1:00 (22)",
+          "1:07:09 | +8:30"
+        ],
+        [
+          21,
+          36,
+          "10065015848",
+          "COOMAN Kjell",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "11:09 (28) | +1:41 (29)",
+          "-1 LAP"
+        ],
+        [
+          22,
+          29,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "4",
+          "10:50 (26) | +1:21 (25)",
+          "-2 LAP"
+        ],
+        [
+          23,
+          27,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "4",
+          "11:21 (31) | +1:53 (32)",
+          "-2 LAP"
+        ],
+        [
+          24,
+          37,
+          "10064930770",
+          "SALOMEZ Ydris",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "4",
+          "11:12 (30) | +1:47 (30)",
+          "-2 LAP"
+        ],
+        [
+          25,
+          30,
+          "10013694562",
+          "PARENTI Nicola",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "11:25 (32) | +1:53 (31)",
+          "-2 LAP"
+        ],
+        [
+          26,
+          31,
+          "10030196484",
+          "CECCHI Filippo",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "11:55 (35) | +2:27 (35)",
+          "-2 LAP"
+        ],
+        [
+          27,
+          38,
+          "10131361929",
+          "KÖPSEL Jonas",
+          "GER",
+          "LAP",
+          null,
+          null,
+          "3",
+          "10:55 (27) | +1:24 (27)",
+          "-3 LAP"
+        ],
+        [
+          28,
+          34,
+          "10014760047",
+          "JANSMAN Emiel",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "3",
+          "11:41 (33) | +2:17 (34)",
+          "-3 LAP"
+        ],
+        [
+          null,
+          24,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "3",
+          "10:12 (16) | +0:31 (14)",
+          "DNF"
+        ],
+        [
+          null,
+          8,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "2",
+          "9:52 (6) | +0:16 (6)",
+          "DNF"
+        ],
+        [
+          null,
+          7,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "DNF",
+          null,
+          null,
+          "2",
+          "10:28 (21) | +0:56 (21)",
+          "DNF"
+        ],
+        [
+          null,
+          23,
+          "10036188458",
+          "OBERTEICHER Matteo",
+          "GER",
+          "DNF",
+          null,
+          null,
+          "2",
+          "11:43 (34) | +2:14 (33)",
+          "DNF"
+        ],
+        [
+          null,
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "2",
+          "10:03 (13) | +0:29 (12)",
+          "DNF"
+        ],
+        [
+          null,
+          12,
+          "10016225959",
+          "MEIN Thomas",
+          "GBR",
+          "DNF",
+          null,
+          null,
+          "2",
+          "10:42 (24) | +1:08 (24)",
+          "DNF"
+        ],
+        [
+          null,
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "DNF",
+          null,
+          null,
+          "1",
+          "10:18 (18) | +0:45 (18)",
+          "DNF"
+        ],
+        [
+          null,
+          26,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "DNF",
+          null,
+          null,
+          "1",
+          "14:36 (36) | +5:14 (36)",
+          "DNF"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          1,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          "#2",
+          "9:23.400"
+        ],
+        [
+          "2.",
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#1",
+          "9:31.838"
+        ],
+        [
+          "3.",
+          9,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          "#1",
+          "9:35.853"
+        ],
+        [
+          "4.",
+          5,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#6",
+          "9:36.408"
+        ],
+        [
+          "5.",
+          3,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#6",
+          "9:39.099"
+        ],
+        [
+          "6.",
+          16,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#6",
+          "9:40.107"
+        ],
+        [
+          "7.",
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#1",
+          "9:41.045"
+        ],
+        [
+          "8.",
+          10,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#6",
+          "9:46.640"
+        ],
+        [
+          "9.",
+          17,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#6",
+          "9:48.254"
+        ],
+        [
+          "10.",
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#6",
+          "9:50.755"
+        ],
+        [
+          "11.",
+          18,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "#2",
+          "9:51.097"
+        ],
+        [
+          "12.",
+          15,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#2",
+          "9:52.957"
+        ],
+        [
+          "13.",
+          21,
+          "10068086405",
+          "THOMAS Théo",
+          "FRA",
+          "#6",
+          "9:55.789"
+        ],
+        [
+          "14.",
+          6,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "#2",
+          "9:58.155"
+        ],
+        [
+          "15.",
+          19,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          "#4",
+          "10:10.476"
+        ],
+        [
+          "16.",
+          32,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          "#1",
+          "10:25.339"
+        ],
+        [
+          "17.",
+          28,
+          "10070390456",
+          "LEMARDELE Maxence",
+          "FRA",
+          "#1",
+          "10:27.658"
+        ],
+        [
+          "18.",
+          25,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#1",
+          "10:29.394"
+        ],
+        [
+          "19.",
+          20,
+          "10015700644",
+          "RECULEAU Nicolas",
+          "FRA",
+          "#1",
+          "10:31.455"
+        ],
+        [
+          "20.",
+          33,
+          "10066501261",
+          "SPARFEL Louis",
+          "FRA",
+          "#2",
+          "10:38.401"
+        ],
+        [
+          "21.",
+          29,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "#1",
+          "10:50.768"
+        ],
+        [
+          "22.",
+          38,
+          "10131361929",
+          "KÖPSEL Jonas",
+          "GER",
+          "#1",
+          "10:55.137"
+        ],
+        [
+          "23.",
+          36,
+          "10065015848",
+          "COOMAN Kjell",
+          "BEL",
+          "#1",
+          "11:09.394"
+        ],
+        [
+          "24.",
+          37,
+          "10064930770",
+          "SALOMEZ Ydris",
+          "BEL",
+          "#1",
+          "11:11.875"
+        ],
+        [
+          "25.",
+          27,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "#1",
+          "11:20.794"
+        ],
+        [
+          "26.",
+          30,
+          "10013694562",
+          "PARENTI Nicola",
+          "ITA",
+          "#1",
+          "11:24.910"
+        ],
+        [
+          "27.",
+          34,
+          "10014760047",
+          "JANSMAN Emiel",
+          "NED",
+          "#1",
+          "11:40.313"
+        ],
+        [
+          "28.",
+          31,
+          "10030196484",
+          "CECCHI Filippo",
+          "ITA",
+          "#2",
+          "11:40.392"
+        ],
+        [
+          "DNF",
+          8,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          "#1",
+          "9:51.987"
+        ],
+        [
+          "DNF",
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "#1",
+          "10:02.888"
+        ],
+        [
+          "DNF",
+          24,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#1",
+          "10:12.693"
+        ],
+        [
+          "DNF",
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#1",
+          "10:17.784"
+        ],
+        [
+          "DNF",
+          7,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "#1",
+          "10:28.022"
+        ],
+        [
+          "DNF",
+          12,
+          "10016225959",
+          "MEIN Thomas",
+          "GBR",
+          "#1",
+          "10:41.727"
+        ],
+        [
+          "DNF",
+          23,
+          "10036188458",
+          "OBERTEICHER Matteo",
+          "GER",
+          "#1",
+          "11:43.365"
+        ],
+        [
+          "DNF",
+          26,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#1",
+          "14:35.793"
+        ]
+      ]
+    },
+    {
+      "name": "Rapencross",
+      "dateKey": "2025-11-02",
+      "context": "20251102_x2o",
+      "sourceTitle": "Rapencross - 02/11/2025 Lokeren (BEL) ",
+      "eventId": "2141578068095976",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20251102_x2o/dh?key=cms",
+        "sha256": "76f95844b1840c58edf33cc489f924f537fe61d1feeab3d4f4eed3478bd59ef6"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251102_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "d4218c1d72248e5ac351e05aa7d804caf070a167dd859367eaef4024085c1a5c",
+        "rowCount": 35
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251102_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "0f3cedbe3da08cb0bad3e44554c58cd9cfc5a787811bc19b2edcf61b94391a03",
+        "rowCount": 35
+      },
+      "winnerLaps": 9,
+      "winnerTimingSections": 10,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          10,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3680,
+          "0:15",
+          "9",
+          "7:04 (8) | +0:08 (9)",
+          "1:01:20 | -"
+        ],
+        [
+          2,
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null,
+          3728,
+          "0:10",
+          "9",
+          "6:57 (2) | +0:00 (2)",
+          "1:02:08 | +0:48"
+        ],
+        [
+          3,
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3738,
+          "0:25",
+          "9",
+          "6:57 (1) | 7:04 (1)",
+          "1:02:18 | +0:58"
+        ],
+        [
+          4,
+          9,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null,
+          3743,
+          null,
+          "9",
+          "7:01 (4) | +0:05 (5)",
+          "1:02:23 | +1:03"
+        ],
+        [
+          5,
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          3745,
+          null,
+          "9",
+          "7:05 (10) | +0:09 (10)",
+          "1:02:25 | +1:05"
+        ],
+        [
+          6,
+          3,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3746,
+          "0:05",
+          "9",
+          "7:03 (7) | +0:06 (7)",
+          "1:02:26 | +1:06"
+        ],
+        [
+          7,
+          7,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          null,
+          3763,
+          null,
+          "9",
+          "7:04 (9) | +0:08 (8)",
+          "1:02:43 | +1:23"
+        ],
+        [
+          8,
+          5,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          null,
+          3770,
+          "0:05",
+          "9",
+          "7:01 (3) | +0:04 (3)",
+          "1:02:50 | +1:30"
+        ],
+        [
+          9,
+          6,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          3774,
+          null,
+          "9",
+          "7:02 (5) | +0:05 (4)",
+          "1:02:54 | +1:34"
+        ],
+        [
+          10,
+          15,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3777,
+          null,
+          "9",
+          "7:12 (15) | +0:16 (15)",
+          "1:02:57 | +1:37"
+        ],
+        [
+          11,
+          17,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          3809,
+          null,
+          "9",
+          "7:08 (11) | +0:11 (11)",
+          "1:03:29 | +2:09"
+        ],
+        [
+          12,
+          12,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          null,
+          3845,
+          null,
+          "9",
+          "7:10 (12) | +0:14 (12)",
+          "1:04:05 | +2:45"
+        ],
+        [
+          13,
+          18,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          3864,
+          null,
+          "9",
+          "7:27 (20) | +0:31 (20)",
+          "1:04:24 | +3:04"
+        ],
+        [
+          14,
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3867,
+          null,
+          "9",
+          "7:14 (16) | +0:17 (16)",
+          "1:04:27 | +3:07"
+        ],
+        [
+          15,
+          1,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          null,
+          3897,
+          null,
+          "9",
+          "7:10 (13) | +0:14 (13)",
+          "1:04:57 | +3:37"
+        ],
+        [
+          16,
+          20,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          null,
+          3902,
+          null,
+          "9",
+          "7:32 (24) | +0:36 (24)",
+          "1:05:02 | +3:42"
+        ],
+        [
+          17,
+          24,
+          "10022873085",
+          "GROENENDAAL Justin Bailey",
+          "DEN",
+          null,
+          3910,
+          null,
+          "9",
+          "7:31 (23) | +0:35 (23)",
+          "1:05:10 | +3:50"
+        ],
+        [
+          18,
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3919,
+          null,
+          "9",
+          "7:13 (17) | +0:17 (17)",
+          "1:05:19 | +3:59"
+        ],
+        [
+          19,
+          21,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          null,
+          3940,
+          null,
+          "9",
+          "7:16 (18) | +0:20 (18)",
+          "1:05:40 | +4:20"
+        ],
+        [
+          20,
+          8,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null,
+          3956,
+          null,
+          "9",
+          "7:01 (6) | +0:05 (6)",
+          "1:05:56 | +4:36"
+        ],
+        [
+          21,
+          23,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          null,
+          3995,
+          null,
+          "9",
+          "7:11 (14) | +0:15 (14)",
+          "1:06:35 | +5:15"
+        ],
+        [
+          22,
+          33,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          null,
+          4011,
+          null,
+          "9",
+          "7:35 (26) | +0:39 (26)",
+          "1:06:51 | +5:31"
+        ],
+        [
+          23,
+          28,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "8",
+          "7:37 (27) | +0:41 (27)",
+          "-1 LAP"
+        ],
+        [
+          24,
+          36,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "6",
+          "7:48 (29) | +0:52 (29)",
+          "-3 LAP"
+        ],
+        [
+          25,
+          38,
+          "10064985132",
+          "D´HOLLANDER Senne",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "6",
+          "7:47 (28) | +0:51 (28)",
+          "-3 LAP"
+        ],
+        [
+          26,
+          25,
+          "10036188458",
+          "OBERTEICHER Matteo",
+          "GER",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:00 (32) | +1:04 (32)",
+          "-3 LAP"
+        ],
+        [
+          27,
+          34,
+          "10030196484",
+          "CECCHI Filippo",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:59 (31) | +1:03 (31)",
+          "-4 LAP"
+        ],
+        [
+          28,
+          37,
+          "10090550894",
+          "VAN DE MORTEL Sjoerd",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:08 (33) | +1:12 (33)",
+          "-4 LAP"
+        ],
+        [
+          29,
+          32,
+          "10013694562",
+          "PARENTI Nicola",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "8:26 (34) | +1:30 (34)",
+          "-5 LAP"
+        ],
+        [
+          30,
+          31,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:12 (35) | +2:16 (35)",
+          "-6 LAP"
+        ],
+        [
+          null,
+          30,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "6",
+          "7:27 (21) | +0:31 (21)",
+          "DNF"
+        ],
+        [
+          null,
+          27,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "DNF",
+          null,
+          null,
+          "6",
+          "7:34 (25) | +0:38 (25)",
+          "DNF"
+        ],
+        [
+          null,
+          19,
+          "10049010545",
+          "HAVERDINGS David",
+          "NED",
+          "DNF",
+          null,
+          null,
+          "4",
+          "7:17 (19) | +0:21 (19)",
+          "DNF"
+        ],
+        [
+          null,
+          22,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "3",
+          "7:30 (22) | +0:34 (22)",
+          "DNF"
+        ],
+        [
+          null,
+          35,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "3",
+          "7:53 (30) | +0:57 (30)",
+          "DNF"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          10,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#6",
+          "6:38.601"
+        ],
+        [
+          "2.",
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#9",
+          "6:40.582"
+        ],
+        [
+          "3.",
+          3,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#9",
+          "6:44.338"
+        ],
+        [
+          "4.",
+          1,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          "#5",
+          "6:46.028"
+        ],
+        [
+          "5.",
+          15,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#9",
+          "6:46.211"
+        ],
+        [
+          "6.",
+          9,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          "#9",
+          "6:46.363"
+        ],
+        [
+          "7.",
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "#5",
+          "6:46.568"
+        ],
+        [
+          "8.",
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#9",
+          "6:48.045"
+        ],
+        [
+          "9.",
+          7,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "#7",
+          "6:50.853"
+        ],
+        [
+          "10.",
+          5,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          "#8",
+          "6:53.211"
+        ],
+        [
+          "11.",
+          6,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#9",
+          "6:53.780"
+        ],
+        [
+          "12.",
+          12,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          "#3",
+          "6:56.871"
+        ],
+        [
+          "13.",
+          17,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#4",
+          "6:57.126"
+        ],
+        [
+          "14.",
+          8,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "#2",
+          "6:59.381"
+        ],
+        [
+          "15.",
+          18,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#6",
+          "6:59.609"
+        ],
+        [
+          "16.",
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#2",
+          "7:03.858"
+        ],
+        [
+          "17.",
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#2",
+          "7:04.008"
+        ],
+        [
+          "18.",
+          20,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          "#7",
+          "7:04.072"
+        ],
+        [
+          "19.",
+          21,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          "#2",
+          "7:05.123"
+        ],
+        [
+          "20.",
+          24,
+          "10022873085",
+          "GROENENDAAL Justin Bailey",
+          "DEN",
+          "#7",
+          "7:06.782"
+        ],
+        [
+          "21.",
+          23,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          "#2",
+          "7:08.736"
+        ],
+        [
+          "22.",
+          33,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#6",
+          "7:12.464"
+        ],
+        [
+          "23.",
+          28,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#2",
+          "7:15.662"
+        ],
+        [
+          "24.",
+          36,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          "#3",
+          "7:40.027"
+        ],
+        [
+          "25.",
+          38,
+          "10064985132",
+          "D´HOLLANDER Senne",
+          "BEL",
+          "#3",
+          "7:42.416"
+        ],
+        [
+          "26.",
+          25,
+          "10036188458",
+          "OBERTEICHER Matteo",
+          "GER",
+          "#2",
+          "7:45.943"
+        ],
+        [
+          "27.",
+          34,
+          "10030196484",
+          "CECCHI Filippo",
+          "ITA",
+          "#1",
+          "7:58.293"
+        ],
+        [
+          "28.",
+          37,
+          "10090550894",
+          "VAN DE MORTEL Sjoerd",
+          "NED",
+          "#2",
+          "8:06.271"
+        ],
+        [
+          "29.",
+          32,
+          "10013694562",
+          "PARENTI Nicola",
+          "ITA",
+          "#3",
+          "8:15.323"
+        ],
+        [
+          "30.",
+          31,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#1",
+          "9:12.214"
+        ],
+        [
+          "DNF",
+          19,
+          "10049010545",
+          "HAVERDINGS David",
+          "NED",
+          "#2",
+          "7:04.198"
+        ],
+        [
+          "DNF",
+          30,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "#2",
+          "7:08.046"
+        ],
+        [
+          "DNF",
+          22,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "#2",
+          "7:11.613"
+        ],
+        [
+          "DNF",
+          27,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "#2",
+          "7:27.889"
+        ],
+        [
+          "DNF",
+          35,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          "#2",
+          "7:36.346"
+        ]
+      ]
+    },
+    {
+      "name": "Flandriencross",
+      "dateKey": "2025-11-16",
+      "context": "20251116_x2o",
+      "sourceTitle": "Rectavit Flandriencross - 16/11/2025 Hamme (BEL)",
+      "eventId": "2141578068095983",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20251116_x2o/dh?key=cms",
+        "sha256": "3d1bece807c88a2922e59c25a1286616bfc8c9bf38fb330c917e00d858ac0aea"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251116_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "cb09debc90cee124792b04f53af1e8b022f36c661c2fa0e700040673b2eb76a1",
+        "rowCount": 30
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251116_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "1007cca91a6b6ae12a50c2ac0fd5c722bbd28fe0dc94761cf5f8c0edd626dbb3",
+        "rowCount": 30
+      },
+      "winnerLaps": 10,
+      "winnerTimingSections": 11,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          2,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          null,
+          3673,
+          "0:05",
+          "10",
+          "6:12 (7) | +0:04 (6)",
+          "1:01:13 | -"
+        ],
+        [
+          2,
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3674,
+          "0:15",
+          "10",
+          "6:18 (10) | +0:10 (10)",
+          "1:01:14 | +0:01"
+        ],
+        [
+          3,
+          11,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3685,
+          "0:10",
+          "10",
+          "6:27 (19) | +0:19 (19)",
+          "1:01:25 | +0:12"
+        ],
+        [
+          4,
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          3687,
+          null,
+          "10",
+          "6:18 (12) | +0:10 (12)",
+          "1:01:27 | +0:14"
+        ],
+        [
+          5,
+          6,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          null,
+          3705,
+          null,
+          "10",
+          "6:25 (17) | +0:17 (16)",
+          "1:01:45 | +0:32"
+        ],
+        [
+          6,
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3708,
+          "0:10",
+          "10",
+          "6:10 (2) | +0:01 (2)",
+          "1:01:48 | +0:35"
+        ],
+        [
+          7,
+          8,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null,
+          3723,
+          "0:15",
+          "10",
+          "6:08 (1) | 6:25 (1)",
+          "1:02:03 | +0:50"
+        ],
+        [
+          8,
+          14,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          3733,
+          null,
+          "10",
+          "6:13 (6) | +0:05 (7)",
+          "1:02:13 | +1:00"
+        ],
+        [
+          9,
+          3,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null,
+          3764,
+          null,
+          "10",
+          "6:19 (13) | +0:11 (13)",
+          "1:02:44 | +1:31"
+        ],
+        [
+          10,
+          10,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          null,
+          3777,
+          null,
+          "10",
+          "6:12 (5) | +0:03 (5)",
+          "1:02:57 | +1:44"
+        ],
+        [
+          11,
+          20,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          3777,
+          null,
+          "10",
+          "6:26 (16) | +0:18 (18)",
+          "1:02:57 | +1:44"
+        ],
+        [
+          12,
+          23,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          null,
+          3788,
+          null,
+          "10",
+          "6:25 (15) | +0:17 (15)",
+          "1:03:08 | +1:55"
+        ],
+        [
+          13,
+          15,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          null,
+          3798,
+          null,
+          "10",
+          "6:14 (8) | +0:06 (8)",
+          "1:03:18 | +2:05"
+        ],
+        [
+          14,
+          17,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3804,
+          null,
+          "10",
+          "6:25 (14) | +0:17 (14)",
+          "1:03:24 | +2:11"
+        ],
+        [
+          15,
+          26,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          null,
+          3808,
+          null,
+          "10",
+          "6:14 (9) | +0:06 (9)",
+          "1:03:28 | +2:15"
+        ],
+        [
+          16,
+          25,
+          "10009360884",
+          "LOOCKX Lander",
+          "BEL",
+          null,
+          3835,
+          null,
+          "10",
+          "6:31 (20) | +0:23 (20)",
+          "1:03:55 | +2:42"
+        ],
+        [
+          17,
+          16,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3844,
+          null,
+          "10",
+          "6:18 (11) | +0:10 (11)",
+          "1:04:04 | +2:51"
+        ],
+        [
+          18,
+          9,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null,
+          3855,
+          null,
+          "10",
+          "6:11 (4) | +0:03 (4)",
+          "1:04:15 | +3:02"
+        ],
+        [
+          19,
+          18,
+          "10007584572",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          null,
+          3859,
+          null,
+          "10",
+          "6:35 (25) | +0:27 (25)",
+          "1:04:19 | +3:06"
+        ],
+        [
+          20,
+          24,
+          "10022873085",
+          "GROENENDAAL Justin Bailey",
+          "DEN",
+          null,
+          3864,
+          null,
+          "10",
+          "6:32 (22) | +0:24 (21)",
+          "1:04:24 | +3:11"
+        ],
+        [
+          21,
+          12,
+          "10071735019",
+          "STROHMEYER Andrew",
+          "USA",
+          null,
+          3882,
+          null,
+          "10",
+          "6:32 (23) | +0:24 (23)",
+          "1:04:42 | +3:29"
+        ],
+        [
+          22,
+          29,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          null,
+          3951,
+          null,
+          "10",
+          "6:38 (26) | +0:30 (26)",
+          "1:05:51 | +4:38"
+        ],
+        [
+          23,
+          30,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          null,
+          3987,
+          null,
+          "10",
+          "6:33 (24) | +0:25 (24)",
+          "1:06:27 | +5:14"
+        ],
+        [
+          24,
+          27,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "9",
+          "6:38 (27) | +0:30 (27)",
+          "-1 LAP"
+        ],
+        [
+          25,
+          22,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "9",
+          "6:32 (21) | +0:24 (22)",
+          "-1 LAP"
+        ],
+        [
+          26,
+          31,
+          "10064985132",
+          "D´HOLLANDER Senne",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:21 (29) | +1:13 (28)",
+          "-3 LAP"
+        ],
+        [
+          27,
+          32,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:21 (28) | +1:14 (29)",
+          "-5 LAP"
+        ],
+        [
+          28,
+          28,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "7:40 (30) | +1:33 (30)",
+          "-7 LAP"
+        ],
+        [
+          null,
+          5,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "6",
+          "6:26 (18) | +0:18 (17)",
+          "DNF"
+        ],
+        [
+          null,
+          34,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "DNF",
+          null,
+          "0:05",
+          "5",
+          "6:09 (3) | +0:01 (3)",
+          "DNF"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          13,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#4",
+          "5:58.435"
+        ],
+        [
+          "2.",
+          11,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#10",
+          "5:58.543"
+        ],
+        [
+          "3.",
+          2,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          "#5",
+          "5:59.418"
+        ],
+        [
+          "4.",
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#7",
+          "6:01.912"
+        ],
+        [
+          "5.",
+          6,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          "#8",
+          "6:02.127"
+        ],
+        [
+          "6.",
+          8,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "#8",
+          "6:02.178"
+        ],
+        [
+          "7.",
+          3,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "#5",
+          "6:03.032"
+        ],
+        [
+          "8.",
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#5",
+          "6:04.455"
+        ],
+        [
+          "9.",
+          14,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#7",
+          "6:04.861"
+        ],
+        [
+          "10.",
+          10,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          "#10",
+          "6:06.966"
+        ],
+        [
+          "11.",
+          9,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          "#3",
+          "6:07.963"
+        ],
+        [
+          "12.",
+          17,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#2",
+          "6:09.683"
+        ],
+        [
+          "13.",
+          23,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          "#2",
+          "6:10.575"
+        ],
+        [
+          "14.",
+          20,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#2",
+          "6:10.745"
+        ],
+        [
+          "15.",
+          15,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          "#4",
+          "6:11.110"
+        ],
+        [
+          "16.",
+          26,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#2",
+          "6:12.941"
+        ],
+        [
+          "17.",
+          12,
+          "10071735019",
+          "STROHMEYER Andrew",
+          "USA",
+          "#2",
+          "6:13.556"
+        ],
+        [
+          "18.",
+          25,
+          "10009360884",
+          "LOOCKX Lander",
+          "BEL",
+          "#6",
+          "6:14.113"
+        ],
+        [
+          "19.",
+          18,
+          "10007584572",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          "#4",
+          "6:15.783"
+        ],
+        [
+          "20.",
+          16,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#8",
+          "6:16.389"
+        ],
+        [
+          "21.",
+          24,
+          "10022873085",
+          "GROENENDAAL Justin Bailey",
+          "DEN",
+          "#6",
+          "6:17.688"
+        ],
+        [
+          "22.",
+          29,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#3",
+          "6:17.810"
+        ],
+        [
+          "23.",
+          30,
+          "10009859123",
+          "ALDERWEIRELD Robin",
+          "BEL",
+          "#2",
+          "6:20.010"
+        ],
+        [
+          "24.",
+          27,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "#2",
+          "6:26.886"
+        ],
+        [
+          "25.",
+          22,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          "#3",
+          "6:29.387"
+        ],
+        [
+          "26.",
+          31,
+          "10064985132",
+          "D´HOLLANDER Senne",
+          "BEL",
+          "#5",
+          "6:39.645"
+        ],
+        [
+          "27.",
+          32,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "#2",
+          "7:07.202"
+        ],
+        [
+          "28.",
+          28,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#1",
+          "7:40.442"
+        ],
+        [
+          "DNF",
+          34,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#1",
+          "6:09.309"
+        ],
+        [
+          "DNF",
+          5,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "#2",
+          "6:19.930"
+        ]
+      ]
+    },
+    {
+      "name": "Plage Cross",
+      "dateKey": "2025-12-22",
+      "context": "20251222_x2o",
+      "sourceTitle": "Plage Cross - Hofstade, 22 December 2025, BEL",
+      "eventId": "2141578068095990",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20251222_x2o/dh?key=cms",
+        "sha256": "9c83dd4c0b6c28ca15a71fbe7bbd3d9e0bb1344d93711a7b8b9850a17ae497be"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251222_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "9377abe3b93df264cb8bfb9dfe2e45f0280bbe2939788a1c2928b7a9f96a5de7",
+        "rowCount": 40
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251222_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "5f2028f8d32147b1fe935992620e748c32348e82865334a83ee6332dc0fba6bd",
+        "rowCount": 40
+      },
+      "winnerLaps": 9,
+      "winnerTimingSections": 10,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          null,
+          3533,
+          "0:15",
+          "9",
+          "6:44 (4) | +0:01 (4)",
+          "58:53 | -"
+        ],
+        [
+          2,
+          11,
+          "10007585986",
+          "VAN AERT Wout",
+          "BEL",
+          null,
+          3581,
+          "0:05",
+          "9",
+          "6:46 (7) | +0:03 (7)",
+          "59:41 | +0:48"
+        ],
+        [
+          3,
+          5,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3595,
+          null,
+          "9",
+          "6:47 (8) | +0:04 (8)",
+          "59:55 | +1:02"
+        ],
+        [
+          4,
+          3,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          null,
+          3596,
+          "0:10",
+          "9",
+          "6:45 (6) | +0:02 (6)",
+          "59:56 | +1:03"
+        ],
+        [
+          5,
+          7,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          null,
+          3598,
+          "0:10",
+          "9",
+          "6:44 (2) | +0:00 (2)",
+          "59:58 | +1:05"
+        ],
+        [
+          6,
+          6,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3600,
+          "0:15",
+          "9",
+          "6:43 (1) | 6:52 (1)",
+          "1:00:00 | +1:07"
+        ],
+        [
+          7,
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3604,
+          "0:05",
+          "9",
+          "6:44 (3) | +0:01 (3)",
+          "1:00:04 | +1:11"
+        ],
+        [
+          8,
+          9,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3606,
+          null,
+          "9",
+          "6:44 (5) | +0:01 (5)",
+          "1:00:06 | +1:13"
+        ],
+        [
+          9,
+          12,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3649,
+          null,
+          "9",
+          "6:59 (16) | +0:16 (16)",
+          "1:00:49 | +1:56"
+        ],
+        [
+          10,
+          10,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3662,
+          null,
+          "9",
+          "6:53 (11) | +0:10 (11)",
+          "1:01:02 | +2:09"
+        ],
+        [
+          11,
+          14,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          3666,
+          null,
+          "9",
+          "6:57 (14) | +0:14 (14)",
+          "1:01:06 | +2:13"
+        ],
+        [
+          12,
+          23,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          null,
+          3667,
+          null,
+          "9",
+          "6:59 (15) | +0:16 (15)",
+          "1:01:07 | +2:14"
+        ],
+        [
+          13,
+          8,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          3687,
+          null,
+          "9",
+          "6:55 (13) | +0:12 (13)",
+          "1:01:27 | +2:34"
+        ],
+        [
+          14,
+          21,
+          "10064971590",
+          "LAURYSSEN Yorben",
+          "BEL",
+          null,
+          3711,
+          null,
+          "9",
+          "7:00 (17) | +0:17 (17)",
+          "1:01:51 | +2:58"
+        ],
+        [
+          15,
+          15,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          3751,
+          null,
+          "9",
+          "6:49 (9) | +0:06 (9)",
+          "1:02:31 | +3:38"
+        ],
+        [
+          16,
+          20,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          null,
+          3755,
+          null,
+          "9",
+          "6:50 (10) | +0:07 (10)",
+          "1:02:35 | +3:42"
+        ],
+        [
+          17,
+          33,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          null,
+          3823,
+          null,
+          "9",
+          "7:10 (18) | +0:28 (18)",
+          "1:03:43 | +4:50"
+        ],
+        [
+          18,
+          31,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          null,
+          3825,
+          null,
+          "9",
+          "7:18 (23) | +0:35 (22)",
+          "1:03:45 | +4:52"
+        ],
+        [
+          19,
+          37,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          null,
+          3829,
+          null,
+          "9",
+          "7:16 (21) | +0:34 (21)",
+          "1:03:49 | +4:56"
+        ],
+        [
+          20,
+          13,
+          "10007946102",
+          "BERTOLINI Gioele",
+          "ITA",
+          null,
+          3843,
+          null,
+          "9",
+          "7:19 (24) | +0:36 (24)",
+          "1:04:03 | +5:10"
+        ],
+        [
+          21,
+          28,
+          "10064936632",
+          "JANSE Stef",
+          "BEL",
+          null,
+          3856,
+          null,
+          "9",
+          "7:14 (19) | +0:32 (20)",
+          "1:04:16 | +5:23"
+        ],
+        [
+          22,
+          32,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          null,
+          3856,
+          null,
+          "9",
+          "7:22 (26) | +0:39 (26)",
+          "1:04:16 | +5:23"
+        ],
+        [
+          23,
+          17,
+          "10007584572",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          null,
+          3885,
+          null,
+          "9",
+          "7:15 (20) | +0:32 (19)",
+          "1:04:45 | +5:52"
+        ],
+        [
+          24,
+          44,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:25 (28) | +0:43 (28)",
+          "-2 LAP"
+        ],
+        [
+          25,
+          18,
+          "10070472706",
+          "GROSLAMBERT Martin",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:17 (22) | +0:35 (23)",
+          "-2 LAP"
+        ],
+        [
+          26,
+          36,
+          "10027913954",
+          "SAVIGNARD Maël",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:25 (27) | +0:43 (27)",
+          "-2 LAP"
+        ],
+        [
+          27,
+          22,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:20 (25) | +0:37 (25)",
+          "-2 LAP"
+        ],
+        [
+          28,
+          19,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "6",
+          "6:55 (12) | +0:12 (12)",
+          "-3 LAP"
+        ],
+        [
+          29,
+          24,
+          "10055184492",
+          "ROSENDAHL Karl-Erik",
+          "DEN",
+          "LAP",
+          null,
+          null,
+          "6",
+          "7:31 (29) | +0:48 (30)",
+          "-3 LAP"
+        ],
+        [
+          30,
+          46,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:38 (32) | +0:57 (33)",
+          "-4 LAP"
+        ],
+        [
+          31,
+          40,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:38 (31) | +0:56 (31)",
+          "-4 LAP"
+        ],
+        [
+          32,
+          25,
+          "10011196511",
+          "HAMM Florian",
+          "GER",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:31 (30) | +0:48 (29)",
+          "-4 LAP"
+        ],
+        [
+          33,
+          26,
+          "10059315480",
+          "GAßNER Michael",
+          "GER",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:39 (33) | +0:57 (32)",
+          "-4 LAP"
+        ],
+        [
+          34,
+          47,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:54 (34) | +1:12 (34)",
+          "-4 LAP"
+        ],
+        [
+          35,
+          27,
+          "10073966726",
+          "JUNGE Frederick",
+          "USA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "8:05 (37) | +1:23 (37)",
+          "-5 LAP"
+        ],
+        [
+          36,
+          38,
+          "10104149486",
+          "NICHVOLODOV Artur",
+          "UKR",
+          "LAP",
+          null,
+          null,
+          "4",
+          "7:55 (35) | +1:13 (35)",
+          "-5 LAP"
+        ],
+        [
+          37,
+          39,
+          "10041885489",
+          "GOMEZ VEGA Marcos",
+          "ESP",
+          "LAP",
+          null,
+          null,
+          "4",
+          "8:02 (36) | +1:20 (36)",
+          "-5 LAP"
+        ],
+        [
+          38,
+          29,
+          "10011058889",
+          "KAJI Tetsuki",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "8:25 (38) | +1:43 (38)",
+          "-6 LAP"
+        ],
+        [
+          39,
+          35,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "8:30 (39) | +1:47 (39)",
+          "-6 LAP"
+        ],
+        [
+          40,
+          41,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "2",
+          "9:03 (40) | +2:22 (40)",
+          "-7 LAP"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          "#3",
+          "6:22.562"
+        ],
+        [
+          "2.",
+          3,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          "#6",
+          "6:27.912"
+        ],
+        [
+          "3.",
+          11,
+          "10007585986",
+          "VAN AERT Wout",
+          "BEL",
+          "#4",
+          "6:28.791"
+        ],
+        [
+          "4.",
+          5,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#7",
+          "6:29.812"
+        ],
+        [
+          "5.",
+          6,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#9",
+          "6:31.147"
+        ],
+        [
+          "6.",
+          7,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          "#5",
+          "6:33.931"
+        ],
+        [
+          "7.",
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#3",
+          "6:34.246"
+        ],
+        [
+          "8.",
+          9,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#4",
+          "6:35.698"
+        ],
+        [
+          "9.",
+          23,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "#6",
+          "6:36.052"
+        ],
+        [
+          "10.",
+          12,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#9",
+          "6:36.969"
+        ],
+        [
+          "11.",
+          14,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#9",
+          "6:37.978"
+        ],
+        [
+          "12.",
+          10,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#5",
+          "6:38.505"
+        ],
+        [
+          "13.",
+          8,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#5",
+          "6:41.471"
+        ],
+        [
+          "14.",
+          15,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#3",
+          "6:45.439"
+        ],
+        [
+          "15.",
+          21,
+          "10064971590",
+          "LAURYSSEN Yorben",
+          "BEL",
+          "#5",
+          "6:45.526"
+        ],
+        [
+          "16.",
+          20,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#1",
+          "6:50.138"
+        ],
+        [
+          "17.",
+          19,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          "#2",
+          "6:53.249"
+        ],
+        [
+          "18.",
+          33,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#3",
+          "6:56.301"
+        ],
+        [
+          "19.",
+          37,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#4",
+          "6:56.557"
+        ],
+        [
+          "20.",
+          13,
+          "10007946102",
+          "BERTOLINI Gioele",
+          "ITA",
+          "#4",
+          "6:56.728"
+        ],
+        [
+          "21.",
+          31,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          "#9",
+          "6:57.834"
+        ],
+        [
+          "22.",
+          17,
+          "10007584572",
+          "SUAREZ FERNANDEZ Kevin",
+          "ESP",
+          "#7",
+          "7:01.153"
+        ],
+        [
+          "23.",
+          32,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          "#7",
+          "7:01.408"
+        ],
+        [
+          "24.",
+          28,
+          "10064936632",
+          "JANSE Stef",
+          "BEL",
+          "#4",
+          "7:01.595"
+        ],
+        [
+          "25.",
+          18,
+          "10070472706",
+          "GROSLAMBERT Martin",
+          "FRA",
+          "#3",
+          "7:02.756"
+        ],
+        [
+          "26.",
+          44,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          "#3",
+          "7:04.718"
+        ],
+        [
+          "27.",
+          36,
+          "10027913954",
+          "SAVIGNARD Maël",
+          "FRA",
+          "#2",
+          "7:07.604"
+        ],
+        [
+          "28.",
+          22,
+          "10023530059",
+          "MARASCO Lorenzo",
+          "FRA",
+          "#5",
+          "7:08.889"
+        ],
+        [
+          "29.",
+          46,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          "#3",
+          "7:17.214"
+        ],
+        [
+          "30.",
+          40,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "#2",
+          "7:18.960"
+        ],
+        [
+          "31.",
+          24,
+          "10055184492",
+          "ROSENDAHL Karl-Erik",
+          "DEN",
+          "#3",
+          "7:19.364"
+        ],
+        [
+          "32.",
+          25,
+          "10011196511",
+          "HAMM Florian",
+          "GER",
+          "#2",
+          "7:22.393"
+        ],
+        [
+          "33.",
+          47,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "#4",
+          "7:27.532"
+        ],
+        [
+          "34.",
+          26,
+          "10059315480",
+          "GAßNER Michael",
+          "GER",
+          "#2",
+          "7:27.802"
+        ],
+        [
+          "35.",
+          27,
+          "10073966726",
+          "JUNGE Frederick",
+          "USA",
+          "#3",
+          "7:54.338"
+        ],
+        [
+          "36.",
+          38,
+          "10104149486",
+          "NICHVOLODOV Artur",
+          "UKR",
+          "#1",
+          "7:55.046"
+        ],
+        [
+          "37.",
+          39,
+          "10041885489",
+          "GOMEZ VEGA Marcos",
+          "ESP",
+          "#2",
+          "7:59.325"
+        ],
+        [
+          "38.",
+          29,
+          "10011058889",
+          "KAJI Tetsuki",
+          "JPN",
+          "#2",
+          "8:18.288"
+        ],
+        [
+          "39.",
+          35,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#2",
+          "8:19.457"
+        ],
+        [
+          "40.",
+          41,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "#1",
+          "9:03.477"
+        ]
+      ]
+    },
+    {
+      "name": "Azencross",
+      "dateKey": "2025-12-29",
+      "context": "20251229_x2o",
+      "sourceTitle": "Azencross - Loenhout, 29 December 2025, BEL",
+      "eventId": "2152959731400274",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20251229_x2o/dh?key=cms",
+        "sha256": "b53a76b43f47f4902812ab0645f97fab5cb81ba3b8534b4631ba0bb6e88237f2"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251229_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "8885f2e75bfde2dddde3cbe75cb529c6c30632aee825f3d1840d72142cc49a40",
+        "rowCount": 52
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20251229_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "4cf85abe519d0bab6b1c8b4624dc8a2e7c5ec66048bc1a146eecdeeab2e8ee5f",
+        "rowCount": 51
+      },
+      "winnerLaps": 8,
+      "winnerTimingSections": 9,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          null,
+          3468,
+          "0:15",
+          "8",
+          "7:24 (4) | +0:01 (7)",
+          "57:48 | -"
+        ],
+        [
+          2,
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3514,
+          "0:25",
+          "8",
+          "7:24 (3) | 7:35 (1)",
+          "58:34 | +0:46"
+        ],
+        [
+          3,
+          6,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3525,
+          "0:10",
+          "8",
+          "7:23 (1) | +0:00 (2)",
+          "58:45 | +0:57"
+        ],
+        [
+          4,
+          10,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3525,
+          null,
+          "8",
+          "7:24 (7) | +0:01 (5)",
+          "58:45 | +0:57"
+        ],
+        [
+          5,
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3525,
+          "0:05",
+          "8",
+          "7:25 (6) | +0:01 (3)",
+          "58:45 | +0:57"
+        ],
+        [
+          6,
+          13,
+          "10007946102",
+          "BERTOLINI Gioele",
+          "ITA",
+          null,
+          3527,
+          null,
+          "8",
+          "7:35 (16) | +0:12 (17)",
+          "58:47 | +0:59"
+        ],
+        [
+          7,
+          22,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          null,
+          3528,
+          null,
+          "8",
+          "7:33 (12) | +0:10 (12)",
+          "58:48 | +1:00"
+        ],
+        [
+          8,
+          9,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3531,
+          null,
+          "8",
+          "7:29 (10) | +0:06 (9)",
+          "58:51 | +1:03"
+        ],
+        [
+          9,
+          26,
+          "10064971590",
+          "LAURYSSEN Yorben",
+          "BEL",
+          null,
+          3543,
+          null,
+          "8",
+          "7:35 (13) | +0:12 (14)",
+          "59:03 | +1:15"
+        ],
+        [
+          10,
+          8,
+          "10007585986",
+          "VAN AERT Wout",
+          "BEL",
+          null,
+          3554,
+          "0:05",
+          "8",
+          "7:24 (2) | +0:01 (4)",
+          "59:14 | +1:26"
+        ],
+        [
+          11,
+          24,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          null,
+          3554,
+          null,
+          "8",
+          "7:24 (5) | +0:01 (6)",
+          "59:14 | +1:26"
+        ],
+        [
+          12,
+          43,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          null,
+          3556,
+          null,
+          "8",
+          "7:34 (15) | +0:12 (16)",
+          "59:16 | +1:28"
+        ],
+        [
+          13,
+          11,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3558,
+          null,
+          "8",
+          "7:38 (18) | +0:15 (18)",
+          "59:18 | +1:30"
+        ],
+        [
+          14,
+          12,
+          "10016225959",
+          "MEIN Thomas",
+          "GBR",
+          null,
+          3576,
+          null,
+          "8",
+          "7:24 (8) | +0:01 (8)",
+          "59:36 | +1:48"
+        ],
+        [
+          15,
+          44,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          null,
+          3586,
+          null,
+          "8",
+          "7:42 (22) | +0:19 (22)",
+          "59:46 | +1:58"
+        ],
+        [
+          16,
+          23,
+          "10068081250",
+          "BETON Damien",
+          "FRA",
+          null,
+          3612,
+          null,
+          "8",
+          "7:41 (20) | +0:18 (20)",
+          "1:00:12 | +2:24"
+        ],
+        [
+          17,
+          30,
+          "10030718971",
+          "FERRI Tommaso",
+          "ITA",
+          null,
+          3641,
+          null,
+          "8",
+          "7:29 (9) | +0:06 (10)",
+          "1:00:41 | +2:53"
+        ],
+        [
+          18,
+          21,
+          "10030659458",
+          "AGOSTINACCHIO Filippo",
+          "ITA",
+          null,
+          3654,
+          null,
+          "8",
+          "7:53 (30) | +0:30 (29)",
+          "1:00:54 | +3:06"
+        ],
+        [
+          19,
+          53,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          null,
+          3655,
+          null,
+          "8",
+          "7:46 (24) | +0:24 (24)",
+          "1:00:55 | +3:07"
+        ],
+        [
+          20,
+          19,
+          "10010779310",
+          "ODA Hijiri",
+          "JPN",
+          null,
+          3663,
+          null,
+          "8",
+          "7:40 (19) | +0:17 (19)",
+          "1:01:03 | +3:15"
+        ],
+        [
+          21,
+          55,
+          "10064927538",
+          "BERCKMOES Jenno",
+          "BEL",
+          null,
+          3663,
+          null,
+          "8",
+          "7:48 (25) | +0:26 (25)",
+          "1:01:03 | +3:15"
+        ],
+        [
+          22,
+          27,
+          "10066821664",
+          "BARNES Daniel",
+          "GBR",
+          null,
+          3685,
+          null,
+          "8",
+          "7:42 (21) | +0:19 (21)",
+          "1:01:25 | +3:37"
+        ],
+        [
+          23,
+          71,
+          "10093715118",
+          "JUTEL Paul François",
+          "FRA",
+          null,
+          3691,
+          null,
+          "8",
+          "7:59 (32) | +0:37 (32)",
+          "1:01:31 | +3:43"
+        ],
+        [
+          24,
+          51,
+          "10070390456",
+          "LEMARDELE Maxence",
+          "FRA",
+          null,
+          3693,
+          null,
+          "8",
+          "7:52 (28) | +0:30 (27)",
+          "1:01:33 | +3:45"
+        ],
+        [
+          25,
+          59,
+          "10015530589",
+          "SMITS Rune",
+          "BEL",
+          null,
+          3701,
+          null,
+          "8",
+          "7:58 (31) | +0:36 (31)",
+          "1:01:41 | +3:53"
+        ],
+        [
+          26,
+          63,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          null,
+          3704,
+          null,
+          "8",
+          "7:52 (29) | +0:30 (28)",
+          "1:01:44 | +3:56"
+        ],
+        [
+          27,
+          20,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          null,
+          3712,
+          null,
+          "8",
+          "7:33 (11) | +0:10 (11)",
+          "1:01:52 | +4:04"
+        ],
+        [
+          28,
+          61,
+          "10022686866",
+          "ALVARADO Salvador",
+          "NED",
+          null,
+          3753,
+          null,
+          "8",
+          "7:52 (27) | +0:30 (30)",
+          "1:02:33 | +4:45"
+        ],
+        [
+          29,
+          37,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          null,
+          3753,
+          null,
+          "8",
+          "7:49 (26) | +0:26 (26)",
+          "1:02:33 | +4:45"
+        ],
+        [
+          30,
+          33,
+          "10055184492",
+          "ROSENDAHL Karl-Erik",
+          "DEN",
+          null,
+          3762,
+          null,
+          "8",
+          "8:01 (33) | +0:39 (33)",
+          "1:02:42 | +4:54"
+        ],
+        [
+          31,
+          32,
+          "10068082462",
+          "GAILLARD Florian",
+          "FRA",
+          null,
+          3764,
+          null,
+          "8",
+          "8:04 (35) | +0:42 (34)",
+          "1:02:44 | +4:56"
+        ],
+        [
+          32,
+          57,
+          "10022796596",
+          "BRONSWIJK Mike",
+          "NED",
+          null,
+          3794,
+          null,
+          "8",
+          "8:05 (36) | +0:45 (37)",
+          "1:03:14 | +5:26"
+        ],
+        [
+          33,
+          41,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          null,
+          3866,
+          null,
+          "8",
+          "8:06 (37) | +0:43 (36)",
+          "1:04:26 | +6:38"
+        ],
+        [
+          34,
+          64,
+          "10090550894",
+          "VAN DE MORTEL Sjoerd",
+          "NED",
+          null,
+          3866,
+          null,
+          "8",
+          "8:09 (38) | +0:47 (38)",
+          "1:04:26 | +6:38"
+        ],
+        [
+          35,
+          31,
+          "10011080818",
+          "REMONDET Valentin",
+          "FRA",
+          null,
+          3921,
+          null,
+          "8",
+          "7:46 (23) | +0:24 (23)",
+          "1:05:21 | +7:33"
+        ],
+        [
+          36,
+          60,
+          "10126807575",
+          "CARDIJN Jorre",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:18 (42) | +0:56 (41)",
+          "-2 LAP"
+        ],
+        [
+          37,
+          47,
+          "10016550709",
+          "MAILLEFER Simon",
+          "SUI",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:18 (43) | +0:56 (40)",
+          "-2 LAP"
+        ],
+        [
+          38,
+          50,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:11 (39) | +0:48 (39)",
+          "-2 LAP"
+        ],
+        [
+          39,
+          45,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:23 (46) | +1:01 (46)",
+          "-2 LAP"
+        ],
+        [
+          40,
+          48,
+          "10041885489",
+          "GOMEZ VEGA Marcos",
+          "ESP",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:19 (44) | +0:57 (44)",
+          "-2 LAP"
+        ],
+        [
+          41,
+          69,
+          "10014819358",
+          "GARGANTINI Dario",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:17 (40) | +0:56 (42)",
+          "-2 LAP"
+        ],
+        [
+          42,
+          62,
+          "10093295085",
+          "VICINI Tito",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:18 (41) | +0:57 (43)",
+          "-2 LAP"
+        ],
+        [
+          43,
+          17,
+          "10042107478",
+          "INGUANZO MACHO Gonzalo",
+          "ESP",
+          "LAP",
+          null,
+          null,
+          "5",
+          "7:35 (17) | +0:12 (15)",
+          "-3 LAP"
+        ],
+        [
+          44,
+          39,
+          "10011058889",
+          "KAJI Tetsuki",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:21 (45) | +0:59 (45)",
+          "-3 LAP"
+        ],
+        [
+          45,
+          68,
+          "10034794284",
+          "GARNIER Léo",
+          "SUI",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:40 (49) | +1:19 (49)",
+          "-3 LAP"
+        ],
+        [
+          46,
+          70,
+          "10013624339",
+          "VASNIER Dylan",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:23 (47) | +1:03 (48)",
+          "-3 LAP"
+        ],
+        [
+          47,
+          56,
+          "10119344336",
+          "VAN DER VEEN Steyn",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:03 (34) | +0:43 (35)",
+          "-3 LAP"
+        ],
+        [
+          48,
+          38,
+          "10046072253",
+          "BRUYNSEELS Dries",
+          "SVK",
+          "LAP",
+          null,
+          null,
+          "4",
+          "8:25 (48) | +1:03 (47)",
+          "-4 LAP"
+        ],
+        [
+          49,
+          72,
+          "10157872029",
+          "OSKAM Maurits",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:27 (51) | +2:08 (51)",
+          "-5 LAP"
+        ],
+        [
+          50,
+          67,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:25 (50) | +2:06 (50)",
+          "-5 LAP"
+        ],
+        [
+          null,
+          5,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "4",
+          "7:35 (14) | +0:12 (13)",
+          "DNF"
+        ],
+        [
+          null,
+          29,
+          "10034999503",
+          "BETTENDORFF Loïc",
+          "LUX",
+          "DNS",
+          null,
+          null,
+          "-",
+          "",
+          "DNS"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          "#4",
+          "6:58.976"
+        ],
+        [
+          "2.",
+          4,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#6",
+          "7:03.715"
+        ],
+        [
+          "3.",
+          8,
+          "10007585986",
+          "VAN AERT Wout",
+          "BEL",
+          "#3",
+          "7:04.223"
+        ],
+        [
+          "4.",
+          6,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#6",
+          "7:10.540"
+        ],
+        [
+          "5.",
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#8",
+          "7:10.893"
+        ],
+        [
+          "6.",
+          10,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#6",
+          "7:11.532"
+        ],
+        [
+          "7.",
+          13,
+          "10007946102",
+          "BERTOLINI Gioele",
+          "ITA",
+          "#6",
+          "7:12.230"
+        ],
+        [
+          "8.",
+          22,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          "#3",
+          "7:12.356"
+        ],
+        [
+          "9.",
+          26,
+          "10064971590",
+          "LAURYSSEN Yorben",
+          "BEL",
+          "#3",
+          "7:12.463"
+        ],
+        [
+          "10.",
+          11,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#7",
+          "7:13.398"
+        ],
+        [
+          "11.",
+          43,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          "#3",
+          "7:13.919"
+        ],
+        [
+          "12.",
+          9,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#7",
+          "7:14.663"
+        ],
+        [
+          "13.",
+          24,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#4",
+          "7:19.736"
+        ],
+        [
+          "14.",
+          44,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#3",
+          "7:19.838"
+        ],
+        [
+          "15.",
+          12,
+          "10016225959",
+          "MEIN Thomas",
+          "GBR",
+          "#4",
+          "7:20.044"
+        ],
+        [
+          "16.",
+          23,
+          "10068081250",
+          "BETON Damien",
+          "FRA",
+          "#3",
+          "7:22.586"
+        ],
+        [
+          "17.",
+          21,
+          "10030659458",
+          "AGOSTINACCHIO Filippo",
+          "ITA",
+          "#4",
+          "7:25.754"
+        ],
+        [
+          "18.",
+          20,
+          "10016419858",
+          "HORNY Clement",
+          "BEL",
+          "#3",
+          "7:26.709"
+        ],
+        [
+          "19.",
+          30,
+          "10030718971",
+          "FERRI Tommaso",
+          "ITA",
+          "#3",
+          "7:26.724"
+        ],
+        [
+          "20.",
+          55,
+          "10064927538",
+          "BERCKMOES Jenno",
+          "BEL",
+          "#3",
+          "7:27.372"
+        ],
+        [
+          "21.",
+          31,
+          "10011080818",
+          "REMONDET Valentin",
+          "FRA",
+          "#3",
+          "7:28.471"
+        ],
+        [
+          "22.",
+          19,
+          "10010779310",
+          "ODA Hijiri",
+          "JPN",
+          "#3",
+          "7:28.740"
+        ],
+        [
+          "23.",
+          17,
+          "10042107478",
+          "INGUANZO MACHO Gonzalo",
+          "ESP",
+          "#2",
+          "7:29.682"
+        ],
+        [
+          "24.",
+          53,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#3",
+          "7:30.089"
+        ],
+        [
+          "25.",
+          27,
+          "10066821664",
+          "BARNES Daniel",
+          "GBR",
+          "#3",
+          "7:30.933"
+        ],
+        [
+          "26.",
+          71,
+          "10093715118",
+          "JUTEL Paul François",
+          "FRA",
+          "#8",
+          "7:31.529"
+        ],
+        [
+          "27.",
+          37,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "#2",
+          "7:32.543"
+        ],
+        [
+          "28.",
+          51,
+          "10070390456",
+          "LEMARDELE Maxence",
+          "FRA",
+          "#8",
+          "7:33.428"
+        ],
+        [
+          "29.",
+          63,
+          "10023391532",
+          "STORMS Miel",
+          "NED",
+          "#6",
+          "7:34.630"
+        ],
+        [
+          "30.",
+          59,
+          "10015530589",
+          "SMITS Rune",
+          "BEL",
+          "#2",
+          "7:36.888"
+        ],
+        [
+          "31.",
+          61,
+          "10022686866",
+          "ALVARADO Salvador",
+          "NED",
+          "#6",
+          "7:40.858"
+        ],
+        [
+          "32.",
+          56,
+          "10119344336",
+          "VAN DER VEEN Steyn",
+          "NED",
+          "#2",
+          "7:42.237"
+        ],
+        [
+          "33.",
+          33,
+          "10055184492",
+          "ROSENDAHL Karl-Erik",
+          "DEN",
+          "#6",
+          "7:43.464"
+        ],
+        [
+          "34.",
+          32,
+          "10068082462",
+          "GAILLARD Florian",
+          "FRA",
+          "#6",
+          "7:43.618"
+        ],
+        [
+          "35.",
+          57,
+          "10022796596",
+          "BRONSWIJK Mike",
+          "NED",
+          "#4",
+          "7:44.764"
+        ],
+        [
+          "36.",
+          41,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "#2",
+          "7:54.399"
+        ],
+        [
+          "37.",
+          64,
+          "10090550894",
+          "VAN DE MORTEL Sjoerd",
+          "NED",
+          "#3",
+          "7:54.875"
+        ],
+        [
+          "38.",
+          47,
+          "10016550709",
+          "MAILLEFER Simon",
+          "SUI",
+          "#5",
+          "8:04.516"
+        ],
+        [
+          "39.",
+          50,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "#5",
+          "8:04.584"
+        ],
+        [
+          "40.",
+          60,
+          "10126807575",
+          "CARDIJN Jorre",
+          "BEL",
+          "#5",
+          "8:04.922"
+        ],
+        [
+          "41.",
+          69,
+          "10014819358",
+          "GARGANTINI Dario",
+          "ITA",
+          "#3",
+          "8:14.566"
+        ],
+        [
+          "42.",
+          62,
+          "10093295085",
+          "VICINI Tito",
+          "ITA",
+          "#3",
+          "8:14.675"
+        ],
+        [
+          "43.",
+          39,
+          "10011058889",
+          "KAJI Tetsuki",
+          "JPN",
+          "#3",
+          "8:16.020"
+        ],
+        [
+          "44.",
+          68,
+          "10034794284",
+          "GARNIER Léo",
+          "SUI",
+          "#4",
+          "8:16.514"
+        ],
+        [
+          "45.",
+          45,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#4",
+          "8:16.851"
+        ],
+        [
+          "46.",
+          48,
+          "10041885489",
+          "GOMEZ VEGA Marcos",
+          "ESP",
+          "#3",
+          "8:17.525"
+        ],
+        [
+          "47.",
+          70,
+          "10013624339",
+          "VASNIER Dylan",
+          "FRA",
+          "#1",
+          "8:23.468"
+        ],
+        [
+          "48.",
+          38,
+          "10046072253",
+          "BRUYNSEELS Dries",
+          "SVK",
+          "#1",
+          "8:25.091"
+        ],
+        [
+          "49.",
+          67,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "#1",
+          "9:25.448"
+        ],
+        [
+          "50.",
+          72,
+          "10157872029",
+          "OSKAM Maurits",
+          "NED",
+          "#1",
+          "9:27.826"
+        ],
+        [
+          "DNF",
+          5,
+          "10006912646",
+          "SWEECK Laurens",
+          "BEL",
+          "#3",
+          "7:12.376"
+        ]
+      ]
+    },
+    {
+      "name": "GP Sven Nys",
+      "dateKey": "2026-01-01",
+      "context": "20260101_x2o",
+      "sourceTitle": "GP Sven Nys - Baal, 1 Januari 2026, BEL",
+      "eventId": null,
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20260101_x2o/dh?key=cms",
+        "sha256": "4ddd2b17be497900a63b26d70aad04b4e6c02496f3506f5fdfac1af3e72b671a"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260101_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "b0eec7b0a71603e44b284ef916374b2907568412a89d03adc00bfad3fa164732",
+        "rowCount": 35
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260101_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "7d00878709090a88933a0da2f5b4cc4d56ab38e1587f309a33423da332f4d799",
+        "rowCount": 33
+      },
+      "winnerLaps": 8,
+      "winnerTimingSections": 9,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          null,
+          3544,
+          "0:20",
+          "8",
+          "7:32 (3) | +0:01 (3)",
+          "59:04 | -"
+        ],
+        [
+          2,
+          6,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          null,
+          3581,
+          "0:10",
+          "8",
+          "7:32 (5) | +0:01 (5)",
+          "59:41 | +0:37"
+        ],
+        [
+          3,
+          3,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          null,
+          3620,
+          null,
+          "8",
+          "7:35 (8) | +0:04 (8)",
+          "1:00:20 | +1:16"
+        ],
+        [
+          4,
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3628,
+          "0:15",
+          "8",
+          "7:31 (2) | +0:00 (2)",
+          "1:00:28 | +1:24"
+        ],
+        [
+          5,
+          5,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3630,
+          null,
+          "8",
+          "7:32 (4) | +0:01 (4)",
+          "1:00:30 | +1:26"
+        ],
+        [
+          6,
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          3663,
+          null,
+          "8",
+          "7:32 (6) | +0:02 (6)",
+          "1:01:03 | +1:59"
+        ],
+        [
+          7,
+          15,
+          "10016518878",
+          "FONTANA Filippo",
+          "ITA",
+          null,
+          3691,
+          null,
+          "8",
+          "7:37 (9) | +0:07 (10)",
+          "1:01:31 | +2:27"
+        ],
+        [
+          8,
+          9,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3702,
+          null,
+          "8",
+          "7:49 (18) | +0:18 (17)",
+          "1:01:42 | +2:38"
+        ],
+        [
+          9,
+          14,
+          "10006736228",
+          "MENUT David",
+          "FRA",
+          null,
+          3710,
+          null,
+          "8",
+          "7:37 (11) | +0:07 (11)",
+          "1:01:50 | +2:46"
+        ],
+        [
+          10,
+          38,
+          "10007945189",
+          "HERMANS Quinten",
+          "BEL",
+          null,
+          3727,
+          null,
+          "8",
+          "7:43 (15) | +0:14 (15)",
+          "1:02:07 | +3:03"
+        ],
+        [
+          11,
+          19,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          null,
+          3750,
+          null,
+          "8",
+          "7:37 (10) | +0:06 (9)",
+          "1:02:30 | +3:26"
+        ],
+        [
+          12,
+          18,
+          "10068081250",
+          "BETON Damien",
+          "FRA",
+          null,
+          3754,
+          null,
+          "8",
+          "7:42 (12) | +0:12 (12)",
+          "1:02:34 | +3:30"
+        ],
+        [
+          13,
+          8,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3756,
+          "0:15",
+          "8",
+          "7:30 (1) | 7:40 (1)",
+          "1:02:36 | +3:32"
+        ],
+        [
+          14,
+          27,
+          "10006656204",
+          "VERMEERSCH Gianni",
+          "BEL",
+          null,
+          3773,
+          null,
+          "8",
+          "7:44 (14) | +0:14 (14)",
+          "1:02:53 | +3:49"
+        ],
+        [
+          15,
+          12,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          3776,
+          null,
+          "8",
+          "7:43 (13) | +0:13 (13)",
+          "1:02:56 | +3:52"
+        ],
+        [
+          16,
+          41,
+          "10065062934",
+          "DOCKX Aaron",
+          "BEL",
+          null,
+          3784,
+          null,
+          "8",
+          "7:49 (20) | +0:19 (19)",
+          "1:03:04 | +4:00"
+        ],
+        [
+          17,
+          10,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3796,
+          null,
+          "8",
+          "7:35 (7) | +0:04 (7)",
+          "1:03:16 | +4:12"
+        ],
+        [
+          18,
+          42,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          null,
+          3804,
+          null,
+          "8",
+          "7:45 (16) | +0:15 (16)",
+          "1:03:24 | +4:20"
+        ],
+        [
+          19,
+          21,
+          "10011080818",
+          "REMONDET Valentin",
+          "FRA",
+          null,
+          3880,
+          null,
+          "8",
+          "7:59 (21) | +0:29 (21)",
+          "1:04:40 | +5:36"
+        ],
+        [
+          20,
+          26,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          null,
+          3896,
+          null,
+          "8",
+          "7:59 (22) | +0:30 (23)",
+          "1:04:56 | +5:52"
+        ],
+        [
+          21,
+          16,
+          "10034779534",
+          "SOMMER Lars",
+          "SUI",
+          null,
+          3908,
+          null,
+          "8",
+          "7:48 (17) | +0:18 (18)",
+          "1:05:08 | +6:04"
+        ],
+        [
+          22,
+          36,
+          "10093715118",
+          "JUTEL Paul François",
+          "FRA",
+          null,
+          3946,
+          null,
+          "8",
+          "7:59 (24) | +0:30 (25)",
+          "1:05:46 | +6:42"
+        ],
+        [
+          23,
+          29,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "7",
+          "8:00 (25) | +0:30 (24)",
+          "-1 LAP"
+        ],
+        [
+          24,
+          20,
+          "10066821664",
+          "BARNES Daniel",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "6",
+          "7:59 (23) | +0:29 (22)",
+          "-2 LAP"
+        ],
+        [
+          25,
+          22,
+          "10068082462",
+          "GAILLARD Florian",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:15 (26) | +0:46 (26)",
+          "-2 LAP"
+        ],
+        [
+          26,
+          13,
+          "10062779188",
+          "VAN KEMPEN Jules",
+          "USA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:25 (27) | +0:56 (27)",
+          "-2 LAP"
+        ],
+        [
+          27,
+          37,
+          "10013624339",
+          "VASNIER Dylan",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "8:48 (28) | +1:19 (28)",
+          "-4 LAP"
+        ],
+        [
+          28,
+          34,
+          "10013655055",
+          "HUTCHINGS Oscar",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "3",
+          "8:55 (29) | +1:26 (29)",
+          "-5 LAP"
+        ],
+        [
+          29,
+          33,
+          "10093295085",
+          "VICINI Tito",
+          "ITA",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:20 (30) | +1:50 (30)",
+          "-5 LAP"
+        ],
+        [
+          30,
+          35,
+          "10023091438",
+          "ERRENS Sam",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:29 (32) | +2:01 (32)",
+          "-5 LAP"
+        ],
+        [
+          31,
+          30,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:27 (31) | +1:57 (31)",
+          "-5 LAP"
+        ],
+        [
+          32,
+          25,
+          "10036592525",
+          "LUKŠAS Dovydas",
+          "LTU",
+          "LAP",
+          null,
+          null,
+          "2",
+          "10:01 (33) | +2:32 (33)",
+          "-6 LAP"
+        ],
+        [
+          null,
+          28,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "3",
+          "7:48 (19) | +0:19 (20)",
+          "DNF"
+        ],
+        [
+          null,
+          32,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "DNF",
+          null,
+          null,
+          "0",
+          "",
+          "DNF"
+        ],
+        [
+          null,
+          23,
+          "10073966726",
+          "JUNGE Frederick",
+          "USA",
+          "DNS",
+          null,
+          null,
+          "-",
+          "",
+          "DNS"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          1,
+          "10007946203",
+          "VAN DER POEL Mathieu",
+          "NED",
+          "#6",
+          "7:10.225"
+        ],
+        [
+          "2.",
+          6,
+          "10064972705",
+          "VERSTRYNGE Emiel",
+          "BEL",
+          "#3",
+          "7:15.273"
+        ],
+        [
+          "3.",
+          2,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#2",
+          "7:22.408"
+        ],
+        [
+          "4.",
+          3,
+          "10065004835",
+          "NYS Thibau",
+          "BEL",
+          "#6",
+          "7:22.941"
+        ],
+        [
+          "5.",
+          5,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#2",
+          "7:27.038"
+        ],
+        [
+          "6.",
+          11,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#2",
+          "7:28.920"
+        ],
+        [
+          "7.",
+          8,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#1",
+          "7:30.330"
+        ],
+        [
+          "8.",
+          14,
+          "10006736228",
+          "MENUT David",
+          "FRA",
+          "#2",
+          "7:32.640"
+        ],
+        [
+          "9.",
+          15,
+          "10016518878",
+          "FONTANA Filippo",
+          "ITA",
+          "#2",
+          "7:33.226"
+        ],
+        [
+          "10.",
+          9,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#2",
+          "7:33.550"
+        ],
+        [
+          "11.",
+          10,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#1",
+          "7:34.755"
+        ],
+        [
+          "12.",
+          38,
+          "10007945189",
+          "HERMANS Quinten",
+          "BEL",
+          "#3",
+          "7:34.868"
+        ],
+        [
+          "13.",
+          19,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#1",
+          "7:37.138"
+        ],
+        [
+          "14.",
+          41,
+          "10065062934",
+          "DOCKX Aaron",
+          "BEL",
+          "#4",
+          "7:41.509"
+        ],
+        [
+          "15.",
+          18,
+          "10068081250",
+          "BETON Damien",
+          "FRA",
+          "#1",
+          "7:42.132"
+        ],
+        [
+          "16.",
+          12,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#1",
+          "7:42.988"
+        ],
+        [
+          "17.",
+          27,
+          "10006656204",
+          "VERMEERSCH Gianni",
+          "BEL",
+          "#1",
+          "7:43.535"
+        ],
+        [
+          "18.",
+          42,
+          "10007573660",
+          "SOETE Daan",
+          "BEL",
+          "#1",
+          "7:44.893"
+        ],
+        [
+          "19.",
+          16,
+          "10034779534",
+          "SOMMER Lars",
+          "SUI",
+          "#1",
+          "7:47.959"
+        ],
+        [
+          "20.",
+          26,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          "#2",
+          "7:55.620"
+        ],
+        [
+          "21.",
+          21,
+          "10011080818",
+          "REMONDET Valentin",
+          "FRA",
+          "#3",
+          "7:56.858"
+        ],
+        [
+          "22.",
+          20,
+          "10066821664",
+          "BARNES Daniel",
+          "GBR",
+          "#1",
+          "7:58.932"
+        ],
+        [
+          "23.",
+          36,
+          "10093715118",
+          "JUTEL Paul François",
+          "FRA",
+          "#1",
+          "7:58.984"
+        ],
+        [
+          "24.",
+          29,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "#1",
+          "7:59.955"
+        ],
+        [
+          "25.",
+          22,
+          "10068082462",
+          "GAILLARD Florian",
+          "FRA",
+          "#2",
+          "8:05.557"
+        ],
+        [
+          "26.",
+          13,
+          "10062779188",
+          "VAN KEMPEN Jules",
+          "USA",
+          "#2",
+          "8:13.992"
+        ],
+        [
+          "27.",
+          37,
+          "10013624339",
+          "VASNIER Dylan",
+          "FRA",
+          "#1",
+          "8:47.828"
+        ],
+        [
+          "28.",
+          34,
+          "10013655055",
+          "HUTCHINGS Oscar",
+          "GBR",
+          "#1",
+          "8:54.801"
+        ],
+        [
+          "29.",
+          33,
+          "10093295085",
+          "VICINI Tito",
+          "ITA",
+          "#2",
+          "9:17.758"
+        ],
+        [
+          "30.",
+          30,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#1",
+          "9:27.405"
+        ],
+        [
+          "31.",
+          35,
+          "10023091438",
+          "ERRENS Sam",
+          "NED",
+          "#2",
+          "9:27.922"
+        ],
+        [
+          "32.",
+          25,
+          "10036592525",
+          "LUKŠAS Dovydas",
+          "LTU",
+          "#1",
+          "10:00.661"
+        ],
+        [
+          "DNF",
+          28,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#2",
+          "7:47.390"
+        ]
+      ]
+    },
+    {
+      "name": "Krawatencross",
+      "dateKey": "2026-02-08",
+      "context": "20260208_x2o",
+      "sourceTitle": "Krawatencross - 08/02/2026 Lille (BEL)",
+      "eventId": "2152959731400284",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20260208_x2o/dh?key=cms",
+        "sha256": "eef33d1326011f357380ded3c742dbc4f54f7d3f9a3f97e6c7431d52b5555ab4"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260208_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "a05acb50a7f93b71d7cf7beb29f6ac66ea2bb9de40dac67994e93cac25d88bfd",
+        "rowCount": 37
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260208_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "b418fcdeb27934e171072fea94b48a321c3e800288fc433a644bda292fcd0e79",
+        "rowCount": 37
+      },
+      "winnerLaps": 8,
+      "winnerTimingSections": 9,
+      "firstLapSection": 2,
+      "results": [
+        [
+          1,
+          2,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3538,
+          "0:30",
+          "8",
+          "7:22 (1) | 7:40 (1)",
+          "58:58 | -"
+        ],
+        [
+          2,
+          5,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null,
+          3566,
+          "0:15",
+          "8",
+          "7:22 (2) | +0:01 (2)",
+          "59:26 | +0:28"
+        ],
+        [
+          3,
+          4,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null,
+          3595,
+          null,
+          "8",
+          "7:41 (8) | +0:20 (8)",
+          "59:55 | +0:57"
+        ],
+        [
+          4,
+          3,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3596,
+          "0:10",
+          "8",
+          "7:30 (5) | +0:09 (5)",
+          "59:56 | +0:58"
+        ],
+        [
+          5,
+          1,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          null,
+          3613,
+          null,
+          "8",
+          "7:29 (4) | +0:08 (4)",
+          "1:00:13 | +1:15"
+        ],
+        [
+          6,
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          3626,
+          null,
+          "8",
+          "7:41 (10) | +0:20 (10)",
+          "1:00:26 | +1:28"
+        ],
+        [
+          7,
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          3628,
+          null,
+          "8",
+          "7:43 (11) | +0:22 (11)",
+          "1:00:28 | +1:30"
+        ],
+        [
+          8,
+          6,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          null,
+          3646,
+          "0:05",
+          "8",
+          "7:27 (3) | +0:05 (3)",
+          "1:00:46 | +1:48"
+        ],
+        [
+          9,
+          8,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          null,
+          3661,
+          null,
+          "8",
+          "7:51 (16) | +0:30 (15)",
+          "1:01:01 | +2:03"
+        ],
+        [
+          10,
+          13,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          null,
+          3663,
+          null,
+          "8",
+          "7:46 (12) | +0:25 (12)",
+          "1:01:03 | +2:05"
+        ],
+        [
+          11,
+          10,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          3663,
+          null,
+          "8",
+          "7:41 (9) | +0:20 (9)",
+          "1:01:03 | +2:05"
+        ],
+        [
+          12,
+          9,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          null,
+          3667,
+          null,
+          "8",
+          "7:39 (6) | +0:18 (6)",
+          "1:01:07 | +2:09"
+        ],
+        [
+          13,
+          21,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          null,
+          3674,
+          null,
+          "8",
+          "7:48 (14) | +0:27 (14)",
+          "1:01:14 | +2:16"
+        ],
+        [
+          14,
+          17,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          3679,
+          null,
+          "8",
+          "7:47 (13) | +0:26 (13)",
+          "1:01:19 | +2:21"
+        ],
+        [
+          15,
+          12,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          3679,
+          null,
+          "8",
+          "8:01 (19) | +0:41 (19)",
+          "1:01:19 | +2:21"
+        ],
+        [
+          16,
+          15,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          null,
+          3704,
+          null,
+          "8",
+          "7:40 (7) | +0:19 (7)",
+          "1:01:44 | +2:46"
+        ],
+        [
+          17,
+          16,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          3716,
+          null,
+          "8",
+          "7:51 (15) | +0:30 (16)",
+          "1:01:56 | +2:58"
+        ],
+        [
+          18,
+          20,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          null,
+          3730,
+          null,
+          "8",
+          "7:54 (17) | +0:33 (17)",
+          "1:02:10 | +3:12"
+        ],
+        [
+          19,
+          22,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          null,
+          3775,
+          null,
+          "8",
+          "8:03 (20) | +0:42 (20)",
+          "1:02:55 | +3:57"
+        ],
+        [
+          20,
+          19,
+          "10022873085",
+          "GROENENDAAL Bailey",
+          "DEN",
+          null,
+          3784,
+          null,
+          "8",
+          "8:01 (18) | +0:40 (18)",
+          "1:03:04 | +4:06"
+        ],
+        [
+          21,
+          29,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          null,
+          3807,
+          null,
+          "8",
+          "8:10 (26) | +0:50 (26)",
+          "1:03:27 | +4:29"
+        ],
+        [
+          22,
+          27,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          null,
+          3817,
+          null,
+          "8",
+          "8:07 (24) | +0:47 (24)",
+          "1:03:37 | +4:39"
+        ],
+        [
+          23,
+          28,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          null,
+          3819,
+          null,
+          "8",
+          "8:02 (21) | +0:42 (22)",
+          "1:03:39 | +4:41"
+        ],
+        [
+          24,
+          11,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3830,
+          null,
+          "8",
+          "8:03 (22) | +0:42 (21)",
+          "1:03:50 | +4:52"
+        ],
+        [
+          25,
+          24,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          null,
+          3879,
+          null,
+          "8",
+          "8:08 (23) | +0:47 (23)",
+          "1:04:39 | +5:41"
+        ],
+        [
+          26,
+          18,
+          "10011230055",
+          "CEOLIN Federico",
+          "ITA",
+          null,
+          3896,
+          null,
+          "8",
+          "8:09 (25) | +0:48 (25)",
+          "1:04:56 | +5:58"
+        ],
+        [
+          27,
+          35,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          null,
+          3958,
+          null,
+          "8",
+          "8:28 (29) | +1:08 (29)",
+          "1:05:58 | +7:00"
+        ],
+        [
+          28,
+          30,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "6",
+          "8:19 (27) | +0:59 (27)",
+          "-2 LAP"
+        ],
+        [
+          29,
+          26,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:36 (30) | +1:15 (30)",
+          "-3 LAP"
+        ],
+        [
+          30,
+          38,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:51 (32) | +1:31 (32)",
+          "-3 LAP"
+        ],
+        [
+          31,
+          34,
+          "10071758964",
+          "MULON Hugo",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "5",
+          "8:42 (31) | +1:22 (31)",
+          "-3 LAP"
+        ],
+        [
+          32,
+          36,
+          "10015545545",
+          "JARVIS Kieran",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "4",
+          "9:13 (33) | +1:54 (34)",
+          "-4 LAP"
+        ],
+        [
+          33,
+          25,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "4",
+          "9:36 (36) | +2:16 (36)",
+          "-4 LAP"
+        ],
+        [
+          34,
+          37,
+          "10004858367",
+          "BLANPAIN Kévin",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "4",
+          "9:34 (35) | +2:15 (35)",
+          "-4 LAP"
+        ],
+        [
+          35,
+          40,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "3",
+          "9:14 (34) | +1:53 (33)",
+          "-5 LAP"
+        ],
+        [
+          36,
+          32,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "2",
+          "10:41 (37) | +3:23 (37)",
+          "-6 LAP"
+        ],
+        [
+          null,
+          39,
+          "10015530589",
+          "SMITS Rune",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "1",
+          "8:24 (28) | +1:03 (28)",
+          "DNF"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          2,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#5",
+          "7:13.468"
+        ],
+        [
+          "2.",
+          3,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#6",
+          "7:18.905"
+        ],
+        [
+          "3.",
+          5,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "#5",
+          "7:19.762"
+        ],
+        [
+          "4.",
+          4,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "#6",
+          "7:20.051"
+        ],
+        [
+          "5.",
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#8",
+          "7:23.432"
+        ],
+        [
+          "6.",
+          14,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#4",
+          "7:23.756"
+        ],
+        [
+          "7.",
+          13,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          "#7",
+          "7:23.764"
+        ],
+        [
+          "8.",
+          1,
+          "10007586087",
+          "AERTS Toon",
+          "BEL",
+          "#3",
+          "7:24.291"
+        ],
+        [
+          "9.",
+          8,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "#4",
+          "7:24.785"
+        ],
+        [
+          "10.",
+          6,
+          "10016519484",
+          "HENDRIKX Mees",
+          "NED",
+          "#1",
+          "7:26.940"
+        ],
+        [
+          "11.",
+          12,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#4",
+          "7:27.759"
+        ],
+        [
+          "12.",
+          21,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "#7",
+          "7:29.437"
+        ],
+        [
+          "13.",
+          9,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          "#7",
+          "7:29.749"
+        ],
+        [
+          "14.",
+          10,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#4",
+          "7:30.127"
+        ],
+        [
+          "15.",
+          15,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "#5",
+          "7:30.285"
+        ],
+        [
+          "16.",
+          17,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#3",
+          "7:31.986"
+        ],
+        [
+          "17.",
+          16,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#3",
+          "7:32.638"
+        ],
+        [
+          "18.",
+          20,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          "#4",
+          "7:35.283"
+        ],
+        [
+          "19.",
+          22,
+          "10016322656",
+          "FERDINANDE Anton",
+          "BEL",
+          "#4",
+          "7:40.063"
+        ],
+        [
+          "20.",
+          27,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "#4",
+          "7:41.902"
+        ],
+        [
+          "21.",
+          28,
+          "10003341632",
+          "MEEUSEN Tom",
+          "BEL",
+          "#4",
+          "7:42.150"
+        ],
+        [
+          "22.",
+          19,
+          "10022873085",
+          "GROENENDAAL Bailey",
+          "DEN",
+          "#2",
+          "7:42.534"
+        ],
+        [
+          "23.",
+          29,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          "#4",
+          "7:43.192"
+        ],
+        [
+          "24.",
+          18,
+          "10011230055",
+          "CEOLIN Federico",
+          "ITA",
+          "#2",
+          "7:44.179"
+        ],
+        [
+          "25.",
+          11,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#7",
+          "7:47.551"
+        ],
+        [
+          "26.",
+          24,
+          "10022684139",
+          "DELNOIJE Remon",
+          "NED",
+          "#5",
+          "7:48.392"
+        ],
+        [
+          "27.",
+          35,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          "#2",
+          "8:05.475"
+        ],
+        [
+          "28.",
+          30,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "#2",
+          "8:10.577"
+        ],
+        [
+          "29.",
+          38,
+          "10064969065",
+          "MERTENS Jonas",
+          "BEL",
+          "#3",
+          "8:22.887"
+        ],
+        [
+          "30.",
+          26,
+          "10075822658",
+          "LEMBRECHTS Ruben",
+          "BEL",
+          "#3",
+          "8:25.361"
+        ],
+        [
+          "31.",
+          34,
+          "10071758964",
+          "MULON Hugo",
+          "FRA",
+          "#4",
+          "8:28.282"
+        ],
+        [
+          "32.",
+          36,
+          "10015545545",
+          "JARVIS Kieran",
+          "GBR",
+          "#2",
+          "8:56.625"
+        ],
+        [
+          "33.",
+          37,
+          "10004858367",
+          "BLANPAIN Kévin",
+          "FRA",
+          "#2",
+          "8:59.694"
+        ],
+        [
+          "34.",
+          25,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#3",
+          "9:02.363"
+        ],
+        [
+          "35.",
+          40,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "#1",
+          "9:13.772"
+        ],
+        [
+          "36.",
+          32,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "#1",
+          "10:40.989"
+        ],
+        [
+          "DNF",
+          39,
+          "10015530589",
+          "SMITS Rune",
+          "BEL",
+          "#1",
+          "8:24.041"
+        ]
+      ]
+    },
+    {
+      "name": "Brussels Universities Cyclocross",
+      "dateKey": "2026-02-15",
+      "context": "20260215_x2o",
+      "sourceTitle": "Brussels Universities Cycloross - 15/02/2026, Brussels (BEL)",
+      "eventId": "2152959731400292",
+      "cmsSource": {
+        "url": "https://results.chronorace.be/api/results/generic/uci/20260215_x2o/dh?key=cms",
+        "sha256": "213a40ac16d29ef6fff4419d68d34eeacd9b9476a9f488eee40a2dcee44ade8f"
+      },
+      "resultsSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260215_x2o/RES31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "72022277359651ff98910d56965a5f9b88f95bd11a1d960b0d7c59b69365de72",
+        "rowCount": 26
+      },
+      "bestLapSource": {
+        "url": "https://results.chronorace.be/api/results/table/search/20260215_x2o/BEST31?srch=&fromRecord=0&pageSize=500",
+        "sha256": "4ab49cd6a4bb2ac92a7721e0364ec9aa4630db075daadc5b2ba9caa0312c6c89",
+        "rowCount": 23
+      },
+      "winnerLaps": 9,
+      "winnerTimingSections": 9,
+      "firstLapSection": 1,
+      "results": [
+        [
+          1,
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          null,
+          3854,
+          "0:20",
+          "9",
+          "6:26 (3) | +0:01 (3)",
+          "1:04:14 | -"
+        ],
+        [
+          2,
+          1,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          null,
+          3895,
+          "0:25",
+          "9",
+          "6:25 (1) | 6:25 (1)",
+          "1:04:55 | +0:41"
+        ],
+        [
+          3,
+          14,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          null,
+          3927,
+          "0:05",
+          "9",
+          "6:28 (4) | +0:03 (4)",
+          "1:05:27 | +1:13"
+        ],
+        [
+          4,
+          4,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          null,
+          3953,
+          null,
+          "9",
+          "6:35 (6) | +0:10 (6)",
+          "1:05:53 | +1:39"
+        ],
+        [
+          5,
+          3,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          null,
+          3972,
+          "0:10",
+          "9",
+          "6:26 (2) | +0:01 (2)",
+          "1:06:12 | +1:58"
+        ],
+        [
+          6,
+          10,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          null,
+          3975,
+          null,
+          "9",
+          "6:50 (10) | +0:25 (10)",
+          "1:06:15 | +2:01"
+        ],
+        [
+          7,
+          8,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          null,
+          4002,
+          null,
+          "9",
+          "6:30 (5) | +0:05 (5)",
+          "1:06:42 | +2:28"
+        ],
+        [
+          8,
+          13,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          null,
+          4023,
+          null,
+          "9",
+          "6:50 (11) | +0:25 (11)",
+          "1:07:03 | +2:49"
+        ],
+        [
+          9,
+          9,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          null,
+          4054,
+          null,
+          "9",
+          "6:45 (8) | +0:20 (8)",
+          "1:07:34 | +3:20"
+        ],
+        [
+          10,
+          6,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          null,
+          4063,
+          null,
+          "9",
+          "6:55 (13) | +0:30 (13)",
+          "1:07:43 | +3:29"
+        ],
+        [
+          11,
+          12,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          null,
+          4071,
+          null,
+          "9",
+          "6:56 (14) | +0:31 (14)",
+          "1:07:51 | +3:37"
+        ],
+        [
+          12,
+          15,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          null,
+          4087,
+          null,
+          "9",
+          "6:56 (15) | +0:31 (15)",
+          "1:08:07 | +3:53"
+        ],
+        [
+          13,
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          null,
+          4114,
+          null,
+          "9",
+          "6:42 (7) | +0:17 (7)",
+          "1:08:34 | +4:20"
+        ],
+        [
+          14,
+          16,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          null,
+          4140,
+          null,
+          "9",
+          "7:09 (18) | +0:44 (18)",
+          "1:09:00 | +4:46"
+        ],
+        [
+          15,
+          25,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          null,
+          4159,
+          null,
+          "9",
+          "7:00 (16) | +0:35 (16)",
+          "1:09:19 | +5:05"
+        ],
+        [
+          16,
+          11,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          null,
+          4167,
+          null,
+          "9",
+          "6:49 (9) | +0:24 (9)",
+          "1:09:27 | +5:13"
+        ],
+        [
+          17,
+          18,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          "LAP",
+          null,
+          null,
+          "7",
+          "7:01 (17) | +0:36 (17)",
+          "-2 LAP"
+        ],
+        [
+          18,
+          21,
+          "10069167953",
+          "ANANIE Ugo",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "6",
+          "6:53 (12) | +0:28 (12)",
+          "-3 LAP"
+        ],
+        [
+          19,
+          26,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "6",
+          "7:17 (20) | +0:52 (20)",
+          "-3 LAP"
+        ],
+        [
+          20,
+          27,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "LAP",
+          null,
+          null,
+          "4",
+          "7:37 (21) | +1:12 (21)",
+          "-5 LAP"
+        ],
+        [
+          21,
+          30,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "LAP",
+          null,
+          null,
+          "3",
+          "7:39 (22) | +1:14 (22)",
+          "-6 LAP"
+        ],
+        [
+          22,
+          22,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "LAP",
+          null,
+          null,
+          "3",
+          "7:44 (23) | +1:19 (23)",
+          "-6 LAP"
+        ],
+        [
+          23,
+          28,
+          "10127163445",
+          "LEZARD William",
+          "GBR",
+          "LAP",
+          null,
+          null,
+          "2",
+          "8:54 (24) | +2:29 (24)",
+          "-7 LAP"
+        ],
+        [
+          null,
+          29,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          "DNF",
+          null,
+          null,
+          "3",
+          "7:09 (19) | +0:44 (19)",
+          "DNF"
+        ],
+        [
+          null,
+          19,
+          "10064972095",
+          "JANSSEN Wout",
+          "BEL",
+          "DNS",
+          null,
+          null,
+          "-",
+          "",
+          "DNS"
+        ],
+        [
+          null,
+          24,
+          "10065033935",
+          "SOONTJENS Arthur",
+          "BEL",
+          "DNS",
+          null,
+          null,
+          "-",
+          "",
+          "DNS"
+        ]
+      ],
+      "bestLaps": [
+        [
+          "1.",
+          2,
+          "10007155651",
+          "VANTHOURENHOUT Michael",
+          "BEL",
+          "#1",
+          "6:47.908"
+        ],
+        [
+          "2.",
+          1,
+          "10016327609",
+          "VANDEPUTTE Niels",
+          "BEL",
+          "#2",
+          "6:52.338"
+        ],
+        [
+          "3.",
+          14,
+          "10016322757",
+          "KUYPERS Gerben",
+          "BEL",
+          "#2",
+          "6:53.017"
+        ],
+        [
+          "4.",
+          4,
+          "10009004715",
+          "ORTS LLORET Felipe",
+          "ESP",
+          "#1",
+          "6:58.220"
+        ],
+        [
+          "5.",
+          10,
+          "10023574923",
+          "MASON Cameron",
+          "GBR",
+          "#1",
+          "7:00.345"
+        ],
+        [
+          "6.",
+          9,
+          "10065014333",
+          "MICHELS Jente",
+          "BEL",
+          "#2",
+          "7:03.771"
+        ],
+        [
+          "7.",
+          3,
+          "10008705833",
+          "NIEUWENHUIS Joris",
+          "NED",
+          "#1",
+          "7:04.250"
+        ],
+        [
+          "8.",
+          8,
+          "10009746763",
+          "KUHN Kevin",
+          "SUI",
+          "#1",
+          "7:05.035"
+        ],
+        [
+          "9.",
+          13,
+          "10010943604",
+          "VANDEBOSCH Toon",
+          "BEL",
+          "#1",
+          "7:07.101"
+        ],
+        [
+          "10.",
+          11,
+          "10023356166",
+          "KAMP Ryan",
+          "NED",
+          "#1",
+          "7:07.709"
+        ],
+        [
+          "11.",
+          7,
+          "10006118660",
+          "VAN DER HAAR Lars",
+          "NED",
+          "#1",
+          "7:08.079"
+        ],
+        [
+          "12.",
+          15,
+          "10064931679",
+          "MEEUSSEN Witse",
+          "BEL",
+          "#1",
+          "7:08.567"
+        ],
+        [
+          "13.",
+          16,
+          "10064985940",
+          "VAN DE PUTTE Victor",
+          "BEL",
+          "#1",
+          "7:12.479"
+        ],
+        [
+          "14.",
+          6,
+          "10064921777",
+          "WYSEURE Joran",
+          "BEL",
+          "#2",
+          "7:14.271"
+        ],
+        [
+          "15.",
+          12,
+          "10023108212",
+          "RONHAAR Pim",
+          "NED",
+          "#1",
+          "7:15.005"
+        ],
+        [
+          "16.",
+          25,
+          "10064979472",
+          "BAERS Arne",
+          "BEL",
+          "#1",
+          "7:15.339"
+        ],
+        [
+          "17.",
+          21,
+          "10069167953",
+          "ANANIE Ugo",
+          "FRA",
+          "#1",
+          "7:29.027"
+        ],
+        [
+          "18.",
+          18,
+          "10023320093",
+          "VAN LIEROP Danny",
+          "NED",
+          "#2",
+          "7:36.287"
+        ],
+        [
+          "19.",
+          26,
+          "10016393182",
+          "DE VET Sander",
+          "BEL",
+          "#1",
+          "7:40.711"
+        ],
+        [
+          "20.",
+          27,
+          "10009523057",
+          "VERHEYEN Thomas",
+          "BEL",
+          "#1",
+          "7:58.346"
+        ],
+        [
+          "21.",
+          30,
+          "10073510624",
+          "CRISPIN Mickaël",
+          "FRA",
+          "#1",
+          "8:42.542"
+        ],
+        [
+          "22.",
+          22,
+          "10021324321",
+          "OKAYAMA Yuta",
+          "JPN",
+          "#1",
+          "8:52.448"
+        ],
+        [
+          "DNF",
+          29,
+          "10065000589",
+          "CLARYSSE Elio",
+          "BEL",
+          "#2",
+          "8:13.758"
+        ]
+      ]
+    }
+  ],
+  "standingsSource": {
+    "url": "https://results.chronorace.be/api/results/table/search/20260215_x2o/RNK31?srch=&fromRecord=0&pageSize=500",
+    "sha256": "12752edf59f05cc8d9dc26d30ae0280a7392717b9f0db07fe0ac5e02669a4f5b",
+    "rowCount": 111
+  },
+  "standingsContext": "20260215_x2o",
+  "officialStandings": [
+    [
+      1,
+      "10008705833",
+      "NIEUWENHUIS Joris",
+      "NED",
+      29295,
+      [
+        "1:01:17 (8)",
+        "1:01:05 (1)",
+        "1:01:15 (3)",
+        "59:45 (6)",
+        "58:35 (3)",
+        "1:00:30 (5)",
+        "59:46 (4)",
+        "1:06:02 (5)"
+      ]
+    ],
+    [
+      2,
+      "10016327609",
+      "VANDEPUTTE Niels",
+      "BEL",
+      29400,
+      [
+        "1:01:23 (9)",
+        "1:01:53 (3)",
+        "1:01:38 (6)",
+        "59:55 (3)",
+        "58:09 (2)",
+        "-",
+        "58:28 (1)",
+        "1:04:30 (2)"
+      ]
+    ],
+    [
+      3,
+      "10023574923",
+      "MASON Cameron",
+      "GBR",
+      29724,
+      [
+        "58:35 (2)",
+        "1:04:27 (14)",
+        "1:00:59 (2)",
+        "1:00:06 (8)",
+        "58:51 (8)",
+        "1:02:21 (13)",
+        "1:03:50 (24)",
+        "1:06:15 (6)"
+      ]
+    ],
+    [
+      4,
+      "10007586087",
+      "AERTS Toon",
+      "BEL",
+      29855,
+      [
+        "1:00:42 (5)",
+        "1:02:21 (6)",
+        "-",
+        "59:59 (7)",
+        "58:40 (5)",
+        "1:00:13 (4)",
+        "1:00:13 (5)",
+        "-"
+      ]
+    ],
+    [
+      5,
+      "10010943604",
+      "VANDEBOSCH Toon",
+      "BEL",
+      30020,
+      [
+        "1:02:14 (12)",
+        "1:02:57 (10)",
+        "1:03:24 (14)",
+        "1:00:49 (9)",
+        "59:18 (13)",
+        "1:03:16 (17)",
+        "1:01:19 (15)",
+        "1:07:03 (8)"
+      ]
+    ],
+    [
+      6,
+      "10065004835",
+      "NYS Thibau",
+      "BEL",
+      30025,
+      [
+        "58:14 (1)",
+        "1:04:57 (15)",
+        "1:01:08 (1)",
+        "59:46 (4)",
+        "-",
+        "1:00:20 (3)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      7,
+      "10006118660",
+      "VAN DER HAAR Lars",
+      "NED",
+      30146,
+      [
+        "1:00:46 (6)",
+        "1:02:54 (9)",
+        "1:01:27 (4)",
+        "1:01:27 (13)",
+        "-",
+        "-",
+        "1:00:26 (6)",
+        "1:08:34 (13)"
+      ]
+    ],
+    [
+      8,
+      "10007155651",
+      "VANTHOURENHOUT Michael",
+      "BEL",
+      30175,
+      [
+        "1:03:39",
+        "1:01:58 (2)",
+        "1:02:44 (9)",
+        "-",
+        "-",
+        "-",
+        "59:55 (3)",
+        "1:03:54 (1)"
+      ]
+    ],
+    [
+      9,
+      "10023356166",
+      "KAMP Ryan",
+      "NED",
+      30253,
+      [
+        "1:03:39",
+        "1:05:19 (18)",
+        "1:04:04 (17)",
+        "1:01:02 (10)",
+        "58:45 (4)",
+        "1:01:42 (8)",
+        "1:00:28 (7)",
+        "1:09:14 (16)"
+      ]
+    ],
+    [
+      10,
+      "10007946203",
+      "VAN DER POEL Mathieu",
+      "NED",
+      30259,
+      [
+        "-",
+        "-",
+        "-",
+        "58:38 (1)",
+        "57:33 (1)",
+        "58:44 (1)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      11,
+      "10065014333",
+      "MICHELS Jente",
+      "BEL",
+      30278,
+      [
+        "1:03:39 (14)",
+        "1:02:25 (5)",
+        "1:02:13 (8)",
+        "-",
+        "-",
+        "1:01:03 (6)",
+        "1:01:03 (11)",
+        "1:07:34 (9)"
+      ]
+    ],
+    [
+      12,
+      "10064931679",
+      "MEEUSSEN Witse",
+      "BEL",
+      30409,
+      [
+        "1:01:27 (10)",
+        "1:04:24 (13)",
+        "1:02:57 (11)",
+        "1:01:06 (11)",
+        "-",
+        "-",
+        "1:01:56 (17)",
+        "1:08:07 (12)"
+      ]
+    ],
+    [
+      13,
+      "10009004715",
+      "ORTS LLORET Felipe",
+      "ESP",
+      30432,
+      [
+        "1:03:39",
+        "1:05:56 (20)",
+        "1:01:48 (7)",
+        "-",
+        "-",
+        "-",
+        "59:11 (2)",
+        "1:05:53 (4)"
+      ]
+    ],
+    [
+      14,
+      "10006912646",
+      "SWEECK Laurens",
+      "BEL",
+      30481,
+      [
+        "-",
+        "1:02:45 (8)",
+        "1:01:45 (5)",
+        "59:48 (5)",
+        "1:02:48",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      15,
+      "10064972095",
+      "JANSSEN Wout",
+      "BEL",
+      30494,
+      [
+        "1:03:39",
+        "-",
+        "1:03:28 (15)",
+        "1:02:35 (16)",
+        "59:14 (11)",
+        "1:02:30 (11)",
+        "1:01:14 (13)",
+        "1:09:14"
+      ]
+    ],
+    [
+      16,
+      "10016322757",
+      "KUYPERS Gerben",
+      "BEL",
+      30518,
+      [
+        "1:01:00 (7)",
+        "1:06:20",
+        "-",
+        "1:01:07 (12)",
+        "-",
+        "-",
+        "1:01:44 (16)",
+        "1:05:22 (3)"
+      ]
+    ],
+    [
+      17,
+      "10064985940",
+      "VAN DE PUTTE Victor",
+      "BEL",
+      30529,
+      [
+        "1:00:33 (4)",
+        "1:03:29 (11)",
+        "-",
+        "1:02:31 (15)",
+        "-",
+        "1:02:56 (15)",
+        "1:01:19 (14)",
+        "1:09:00 (14)"
+      ]
+    ],
+    [
+      18,
+      "10064972705",
+      "VERSTRYNGE Emiel",
+      "BEL",
+      30581,
+      [
+        "1:03:39",
+        "1:02:23 (4)",
+        "1:04:15 (18)",
+        "-",
+        "-",
+        "59:31 (2)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      19,
+      "10064921777",
+      "WYSEURE Joran",
+      "BEL",
+      30682,
+      [
+        "1:02:57 (13)",
+        "1:02:43 (7)",
+        "1:06:13",
+        "-",
+        "-",
+        "-",
+        "1:01:01 (9)",
+        "1:07:43 (10)"
+      ]
+    ],
+    [
+      20,
+      "10009746763",
+      "KUHN Kevin",
+      "SUI",
+      30690,
+      [
+        "-",
+        "-",
+        "1:02:57 (10)",
+        "-",
+        "-",
+        "-",
+        "1:01:07 (12)",
+        "1:06:42 (7)"
+      ]
+    ],
+    [
+      21,
+      "10016519484",
+      "HENDRIKX Mees",
+      "NED",
+      30702,
+      [
+        "-",
+        "1:04:05 (12)",
+        "1:03:18 (13)",
+        "-",
+        "-",
+        "-",
+        "1:00:41 (8)",
+        "-"
+      ]
+    ],
+    [
+      22,
+      "10016322656",
+      "FERDINANDE Anton",
+      "BEL",
+      30721,
+      [
+        "-",
+        "1:06:20 (21)",
+        "1:03:08 (12)",
+        "-",
+        "58:48 (7)",
+        "-",
+        "1:02:55 (19)",
+        "-"
+      ]
+    ],
+    [
+      23,
+      "10007585986",
+      "VAN AERT Wout",
+      "BEL",
+      30733,
+      [
+        "-",
+        "-",
+        "-",
+        "59:36 (2)",
+        "59:09 (10)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      24,
+      "10023108212",
+      "RONHAAR Pim",
+      "NED",
+      30745,
+      [
+        "1:00:13 (3)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:03 (10)",
+        "1:07:51 (11)"
+      ]
+    ],
+    [
+      25,
+      "10064971590",
+      "LAURYSSEN Yorben",
+      "BEL",
+      30862,
+      [
+        "-",
+        "-",
+        "-",
+        "1:01:51 (14)",
+        "59:03 (9)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      26,
+      "10007573660",
+      "SOETE Daan",
+      "BEL",
+      30949,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:45 (18)",
+        "59:16 (12)",
+        "1:03:24 (18)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      27,
+      "10068081250",
+      "BETON Damien",
+      "FRA",
+      30963,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:00:12 (16)",
+        "1:02:34 (12)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      28,
+      "10007946102",
+      "BERTOLINI Gioele",
+      "ITA",
+      30968,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (20)",
+        "58:47 (6)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      29,
+      "10022873085",
+      "GROENENDAAL Bailey",
+      "DEN",
+      30976,
+      [
+        "-",
+        "1:05:10 (17)",
+        "1:04:24 (20)",
+        "-",
+        "-",
+        "-",
+        "1:03:04 (20)",
+        "-"
+      ]
+    ],
+    [
+      30,
+      "10003341632",
+      "MEEUSEN Tom",
+      "BEL",
+      30998,
+      [
+        "-",
+        "1:06:20 (22)",
+        "1:06:13",
+        "1:03:43 (17)",
+        "59:46 (15)",
+        "1:04:04",
+        "1:03:39 (23)",
+        "-"
+      ]
+    ],
+    [
+      31,
+      "10016225959",
+      "MEIN Thomas",
+      "GBR",
+      31017,
+      [
+        "1:03:39",
+        "-",
+        "-",
+        "-",
+        "59:36 (14)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      32,
+      "10023320093",
+      "VAN LIEROP Danny",
+      "NED",
+      31023,
+      [
+        "-",
+        "1:05:02 (16)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:10 (18)",
+        "1:09:14 (17)"
+      ]
+    ],
+    [
+      33,
+      "10016518878",
+      "FONTANA Filippo",
+      "ITA",
+      31056,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:31 (7)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      34,
+      "10016393182",
+      "DE VET Sander",
+      "BEL",
+      31070,
+      [
+        "1:03:39 (20)",
+        "1:06:20 (23)",
+        "1:05:51 (22)",
+        "1:03:49 (19)",
+        "1:00:55 (19)",
+        "-",
+        "-",
+        "1:09:14 (19)"
+      ]
+    ],
+    [
+      35,
+      "10009360884",
+      "LOOCKX Lander",
+      "BEL",
+      31071,
+      [
+        "-",
+        "-",
+        "1:03:55 (16)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      36,
+      "10006736228",
+      "MENUT David",
+      "FRA",
+      31075,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:50 (9)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      37,
+      "10030718971",
+      "FERRI Tommaso",
+      "ITA",
+      31082,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:00:41 (17)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      38,
+      "10068086405",
+      "THOMAS Théo",
+      "FRA",
+      31083,
+      [
+        "1:01:33 (11)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      39,
+      "10007945189",
+      "HERMANS Quinten",
+      "BEL",
+      31092,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:07 (10)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      40,
+      "10007584572",
+      "SUAREZ FERNANDEZ Kevin",
+      "ESP",
+      31095,
+      [
+        "-",
+        "-",
+        "1:04:19 (19)",
+        "1:03:53 (23)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      41,
+      "10030659458",
+      "AGOSTINACCHIO Filippo",
+      "ITA",
+      31095,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:00:54 (18)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      42,
+      "10010779310",
+      "ODA Hijiri",
+      "JPN",
+      31104,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:03 (20)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      43,
+      "10064927538",
+      "BERCKMOES Jenno",
+      "BEL",
+      31104,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:03 (21)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      44,
+      "10016419858",
+      "HORNY Clement",
+      "BEL",
+      31113,
+      [
+        "-",
+        "1:05:40 (19)",
+        "-",
+        "1:03:53 (28)",
+        "1:01:52 (27)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      45,
+      "10071735019",
+      "STROHMEYER Andrew",
+      "USA",
+      31118,
+      [
+        "-",
+        "-",
+        "1:04:42 (21)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      46,
+      "10066821664",
+      "BARNES Daniel",
+      "GBR",
+      31126,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:25 (22)",
+        "1:04:04 (24)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      47,
+      "10093715118",
+      "JUTEL Paul François",
+      "FRA",
+      31132,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:31 (23)",
+        "1:04:04 (22)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      48,
+      "10070390456",
+      "LEMARDELE Maxence",
+      "FRA",
+      31134,
+      [
+        "1:03:39 (18)",
+        "-",
+        "-",
+        "-",
+        "1:01:33 (24)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      49,
+      "10006656204",
+      "VERMEERSCH Gianni",
+      "BEL",
+      31138,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:53 (14)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      50,
+      "10015530589",
+      "SMITS Rune",
+      "BEL",
+      31142,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:01:41 (25)",
+        "-",
+        "1:03:58",
+        "-"
+      ]
+    ],
+    [
+      51,
+      "10023391532",
+      "STORMS Miel",
+      "NED",
+      31145,
+      [
+        "-",
+        "1:06:20 (24)",
+        "-",
+        "1:03:53 (30)",
+        "1:01:44 (26)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      52,
+      "10065062934",
+      "DOCKX Aaron",
+      "BEL",
+      31149,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:03:04 (16)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      53,
+      "10064979472",
+      "BAERS Arne",
+      "BEL",
+      31178,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (22)",
+        "-",
+        "1:04:04 (20)",
+        "1:03:27 (21)",
+        "1:09:14 (15)"
+      ]
+    ],
+    [
+      54,
+      "10065033935",
+      "SOONTJENS Arthur",
+      "BEL",
+      31188,
+      [
+        "-",
+        "1:06:20",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (23)",
+        "1:03:37 (22)",
+        "1:09:14"
+      ]
+    ],
+    [
+      55,
+      "10022684139",
+      "DELNOIJE Remon",
+      "NED",
+      31194,
+      [
+        "-",
+        "1:06:20",
+        "1:06:13 (24)",
+        "-",
+        "1:02:33 (29)",
+        "-",
+        "1:03:58 (25)",
+        "-"
+      ]
+    ],
+    [
+      56,
+      "10022686866",
+      "ALVARADO Salvador",
+      "NED",
+      31194,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:33 (28)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      57,
+      "10055184492",
+      "ROSENDAHL Karl-Erik",
+      "DEN",
+      31203,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (29)",
+        "1:02:42 (30)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      58,
+      "10068082462",
+      "GAILLARD Florian",
+      "FRA",
+      31205,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:44 (31)",
+        "1:04:04 (25)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      59,
+      "10021324321",
+      "OKAYAMA Yuta",
+      "JPN",
+      31209,
+      [
+        "1:03:39",
+        "1:06:20 (30)",
+        "1:06:13 (28)",
+        "1:03:53 (39)",
+        "1:02:48 (39)",
+        "1:04:04 (31)",
+        "1:03:58 (33)",
+        "1:09:14 (22)"
+      ]
+    ],
+    [
+      60,
+      "10009523057",
+      "VERHEYEN Thomas",
+      "BEL",
+      31209,
+      [
+        "1:03:39 (23)",
+        "-",
+        "-",
+        "1:03:53 (31)",
+        "-",
+        "-",
+        "1:03:58 (28)",
+        "1:09:14 (20)"
+      ]
+    ],
+    [
+      61,
+      "10127163445",
+      "LEZARD William",
+      "GBR",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (40)",
+        "1:02:48 (50)",
+        "1:04:04",
+        "1:03:58 (36)",
+        "1:09:14 (23)"
+      ]
+    ],
+    [
+      62,
+      "10023530059",
+      "MARASCO Lorenzo",
+      "FRA",
+      31209,
+      [
+        "1:03:39 (16)",
+        "-",
+        "1:06:13 (25)",
+        "1:03:53 (27)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      63,
+      "10075822658",
+      "LEMBRECHTS Ruben",
+      "BEL",
+      31209,
+      [
+        "1:03:39 (22)",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (33)",
+        "-",
+        "1:03:58 (29)",
+        "-"
+      ]
+    ],
+    [
+      64,
+      "10064969065",
+      "MERTENS Jonas",
+      "BEL",
+      31209,
+      [
+        "-",
+        "-",
+        "1:06:13 (27)",
+        "1:03:53 (34)",
+        "-",
+        "-",
+        "1:03:58 (30)",
+        "-"
+      ]
+    ],
+    [
+      65,
+      "10073510624",
+      "CRISPIN Mickaël",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (38)",
+        "-",
+        "1:03:58 (35)",
+        "1:09:14 (21)"
+      ]
+    ],
+    [
+      66,
+      "10009859123",
+      "ALDERWEIRELD Robin",
+      "BEL",
+      31209,
+      [
+        "1:03:39 (15)",
+        "1:06:20",
+        "1:06:13 (23)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      67,
+      "10065000589",
+      "CLARYSSE Elio",
+      "BEL",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (24)",
+        "-",
+        "-",
+        "1:03:58 (27)",
+        "1:09:14"
+      ]
+    ],
+    [
+      68,
+      "10064985132",
+      "D´HOLLANDER Senne",
+      "BEL",
+      31209,
+      [
+        "-",
+        "1:06:20 (25)",
+        "1:06:13 (26)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      69,
+      "10030196484",
+      "CECCHI Filippo",
+      "ITA",
+      31209,
+      [
+        "1:03:39 (26)",
+        "1:06:20 (27)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      70,
+      "10011080818",
+      "REMONDET Valentin",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (35)",
+        "1:04:04 (19)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      71,
+      "10013694562",
+      "PARENTI Nicola",
+      "ITA",
+      31209,
+      [
+        "1:03:39 (25)",
+        "1:06:20 (29)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      72,
+      "10090550894",
+      "VAN DE MORTEL Sjoerd",
+      "NED",
+      31209,
+      [
+        "-",
+        "1:06:20 (28)",
+        "-",
+        "-",
+        "1:02:48 (34)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      73,
+      "10093295085",
+      "VICINI Tito",
+      "ITA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (42)",
+        "1:04:04 (29)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      74,
+      "10013624339",
+      "VASNIER Dylan",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (46)",
+        "1:04:04 (27)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      75,
+      "10041885489",
+      "GOMEZ VEGA Marcos",
+      "ESP",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (37)",
+        "1:02:48 (40)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      76,
+      "10011058889",
+      "KAJI Tetsuki",
+      "JPN",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (38)",
+        "1:02:48 (44)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      77,
+      "10015700644",
+      "RECULEAU Nicolas",
+      "FRA",
+      31209,
+      [
+        "1:03:39 (17)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      78,
+      "10069167953",
+      "ANANIE Ugo",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:09:14 (18)"
+      ]
+    ],
+    [
+      79,
+      "10066501261",
+      "SPARFEL Louis",
+      "FRA",
+      31209,
+      [
+        "1:03:39 (19)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      80,
+      "10034779534",
+      "SOMMER Lars",
+      "SUI",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (21)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      81,
+      "10064936632",
+      "JANSE Stef",
+      "BEL",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (21)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      82,
+      "10065015848",
+      "COOMAN Kjell",
+      "BEL",
+      31209,
+      [
+        "1:03:39 (21)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      83,
+      "10064930770",
+      "SALOMEZ Ydris",
+      "BEL",
+      31209,
+      [
+        "1:03:39 (24)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      84,
+      "10070472706",
+      "GROSLAMBERT Martin",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (25)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      85,
+      "10011230055",
+      "CEOLIN Federico",
+      "ITA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:03:58 (26)",
+        "-"
+      ]
+    ],
+    [
+      86,
+      "10062779188",
+      "VAN KEMPEN Jules",
+      "USA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (26)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      87,
+      "10027913954",
+      "SAVIGNARD Maël",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (26)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      88,
+      "10036188458",
+      "OBERTEICHER Matteo",
+      "GER",
+      31209,
+      [
+        "1:03:39",
+        "1:06:20 (26)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      89,
+      "10131361929",
+      "KÖPSEL Jonas",
+      "GER",
+      31209,
+      [
+        "1:03:39 (27)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      90,
+      "10013655055",
+      "HUTCHINGS Oscar",
+      "GBR",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (28)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      91,
+      "10014760047",
+      "JANSMAN Emiel",
+      "NED",
+      31209,
+      [
+        "1:03:39 (28)",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      92,
+      "10023091438",
+      "ERRENS Sam",
+      "NED",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (30)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      93,
+      "10071758964",
+      "MULON Hugo",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:03:58 (31)",
+        "-"
+      ]
+    ],
+    [
+      94,
+      "10015545545",
+      "JARVIS Kieran",
+      "GBR",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:03:58 (32)",
+        "-"
+      ]
+    ],
+    [
+      95,
+      "10036592525",
+      "LUKŠAS Dovydas",
+      "LTU",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:04:04 (32)",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      96,
+      "10022796596",
+      "BRONSWIJK Mike",
+      "NED",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (32)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      97,
+      "10011196511",
+      "HAMM Florian",
+      "GER",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (32)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      98,
+      "10059315480",
+      "GAßNER Michael",
+      "GER",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (33)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      99,
+      "10004858367",
+      "BLANPAIN Kévin",
+      "FRA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:03:58 (34)",
+        "-"
+      ]
+    ],
+    [
+      100,
+      "10073966726",
+      "JUNGE Frederick",
+      "USA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (35)",
+        "-",
+        "1:04:04",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      101,
+      "10126807575",
+      "CARDIJN Jorre",
+      "BEL",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (36)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      102,
+      "10104149486",
+      "NICHVOLODOV Artur",
+      "UKR",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "1:03:53 (36)",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      103,
+      "10016550709",
+      "MAILLEFER Simon",
+      "SUI",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (37)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      104,
+      "10014819358",
+      "GARGANTINI Dario",
+      "ITA",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (41)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      105,
+      "10042107478",
+      "INGUANZO MACHO Gonzalo",
+      "ESP",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (43)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      106,
+      "10034794284",
+      "GARNIER Léo",
+      "SUI",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (45)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      107,
+      "10119344336",
+      "VAN DER VEEN Steyn",
+      "NED",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (47)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      108,
+      "10046072253",
+      "BRUYNSEELS Dries",
+      "SVK",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (48)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      109,
+      "10157872029",
+      "OSKAM Maurits",
+      "NED",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48 (49)",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      110,
+      "10034999503",
+      "BETTENDORFF Loïc",
+      "LUX",
+      31209,
+      [
+        "-",
+        "-",
+        "-",
+        "-",
+        "1:02:48",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      111,
+      "10049010545",
+      "HAVERDINGS David",
+      "NED",
+      31209,
+      [
+        "-",
+        "1:06:20",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ]
+  ],
+  "rulesSourceSha256": "7acb953d867a7364085b2b06891f316eb6a85d5b2c2fc20a4ec59af06a2d0c64"
+}

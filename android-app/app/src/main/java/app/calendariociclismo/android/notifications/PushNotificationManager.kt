@@ -47,6 +47,7 @@ class PushNotificationManager(
                 followedRaces = currentFollowedRaces(),
                 raceFilters = currentRaceFilters(),
                 followedStages = currentFollowedStages(),
+                followedCxRaces = prefs.snapshotFollowedCxRaceIds().toList(),
             )
             token
         }.onFailure {
@@ -69,6 +70,7 @@ class PushNotificationManager(
                 followedRaces = currentFollowedRaces(),
                 raceFilters = currentRaceFilters(),
                 followedStages = currentFollowedStages(),
+                followedCxRaces = prefs.snapshotFollowedCxRaceIds().toList(),
             )
         }.onFailure { Log.w(TAG, "Subscribe falló: ${it.message}") }
         return true
@@ -89,6 +91,7 @@ class PushNotificationManager(
                 followedRaces = currentFollowedRaces(),
                 raceFilters = currentRaceFilters(),
                 followedStages = currentFollowedStages(),
+                followedCxRaces = prefs.snapshotFollowedCxRaceIds().toList(),
             )
         }.onFailure { Log.w(TAG, "Unsubscribe falló: ${it.message}") }
     }
@@ -110,26 +113,17 @@ class PushNotificationManager(
                 followedRaces = currentFollowedRaces(),
                 raceFilters = currentRaceFilters(),
                 followedStages = currentFollowedStages(),
+                followedCxRaces = prefs.snapshotFollowedCxRaceIds().toList(),
             )
         }.onFailure { Log.w(TAG, "syncCategories falló: ${it.message}") }
     }
 
     private suspend fun currentRegion(): String =
-        prefs.snapshotRegionPreference().name
+        RegionDetector.suggestedRegion().name
 
-    /**
-     * Grupo fino efectivo para enviar al servidor. Si el usuario eligió
-     * "país preferido" en Ajustes y el override sigue siendo válido para el
-     * bucket actual, se usa; si no, cae al detectado por TZ.
-     */
-    private suspend fun currentCountryGroup(): String? {
-        val region = prefs.snapshotRegionPreference()
-        val override = prefs.snapshotPreferredCountryGroup()
-        if (override != null && override in region.availableCountryGroups) {
-            return override
-        }
-        return RegionDetector.detectedCountryGroup()
-    }
+    /** Grupo fino `broadcasts.country` detectado por TZ. */
+    private suspend fun currentCountryGroup(): String? =
+        RegionDetector.detectedCountryGroup()
 
     private suspend fun currentLanguage(): String =
         prefs.snapshotAppLocale().tag

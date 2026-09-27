@@ -8,6 +8,8 @@ import app.calendariociclismo.android.data.model.ElevationProfile
 import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
+import app.calendariociclismo.android.ui.today.TodayViewModel
+import app.calendariociclismo.android.ui.today.shouldDisplayTodayRaceAsFeatured
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -15,10 +17,42 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.Locale
+import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
 class RaceLogicTest {
+
+    @Test
+    fun todayFeaturedCardsAreLimitedToCategorySortAndReturnWhenRestored() {
+        assertTrue(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.CATEGORY))
+        assertFalse(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.TV_TIME))
+        assertFalse(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.FINISH_TIME))
+        assertFalse(shouldDisplayTodayRaceAsFeatured(false, TodayViewModel.SortMode.CATEGORY))
+    }
+
+    @Test
+    fun calendarYear_excludesHistoryAndUnknownYear_usingUTC() {
+        val before = Instant.parse("2026-12-31T23:59:59Z")
+        val after = Instant.parse("2027-01-01T00:00:00Z")
+        assertEquals(2026, RaceLogic.calendarYear(before))
+        assertEquals(2027, RaceLogic.calendarYear(after))
+        assertFalse(RaceLogic.hasCalendarForYear(null, before))
+        assertFalse(RaceLogic.hasCalendarForYear(2025, before))
+        assertTrue(RaceLogic.hasCalendarForYear(2026, before))
+        assertFalse(RaceLogic.hasCalendarForYear(2026, after))
+        assertTrue(RaceLogic.hasCalendarForYear(2027, after))
+    }
+
+    @Test
+    fun `missingRaceIds devuelve solo padres no resueltos y sin duplicados`() {
+        val days = listOf(
+            raceDay(id = "d1", raceId = "tour"),
+            raceDay(id = "d2", raceId = "renewi"),
+            raceDay(id = "d3", raceId = "renewi"),
+        )
+        assertEquals(listOf("renewi"), RaceLogic.missingRaceIds(days, listOf(race(id = "tour"))))
+    }
 
     @Test
     fun prefersNativeApp_matchesSupportedHostsAndSubdomains() {
@@ -41,64 +75,6 @@ class RaceLogicTest {
         // que `resolveTypeLabel` (p. ej. "Monopuerto") sea determinista.
         LocaleHolder.system = Locale("es", "ES")
         LocaleHolder.current = Locale("es", "ES")
-    }
-
-    // ── buildExtUrlA ─────────────────────────────────────────────────
-
-    @Test
-    fun `buildExtUrlA devuelve null si la carrera no tiene extId`() {
-        val race = race(extId = null, year = 2026)
-        assertNull(RaceLogic.buildExtUrlA(race, stageNumber = null))
-    }
-
-    @Test
-    fun `buildExtUrlA devuelve url base para clasica sin numero de etapa`() {
-        val race = race(extId = 17, year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlA(race, stageNumber = null))
-    }
-
-    @Test
-    fun `buildExtUrlA anade numero de etapa con padding de dos digitos`() {
-        val race = race(extId = 17, year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlA(race, stageNumber = 3))
-    }
-
-    @Test
-    fun `buildExtUrlA anade numero de etapa de dos digitos sin padding extra`() {
-        val race = race(extId = 17, year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlA(race, stageNumber = 14))
-    }
-
-    // ── buildExtUrlB ────────────────────────────────────────────────
-
-    @Test
-    fun `buildExtUrlB devuelve null si la carrera no tiene extSlug`() {
-        val race = race(extSlug = null, year = 2026)
-        assertNull(RaceLogic.buildExtUrlB(race, stageNumber = null))
-    }
-
-    @Test
-    fun `buildExtUrlB devuelve url de resultado general para clasica`() {
-        val race = race(extSlug = "tour-de-france", year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlB(race, stageNumber = null))
-    }
-
-    @Test
-    fun `buildExtUrlB devuelve url de prologo`() {
-        val race = race(extSlug = "tour-de-france", year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlB(race, stageNumber = 0))
-    }
-
-    @Test
-    fun `buildExtUrlB devuelve url de etapa sin padding`() {
-        val race = race(extSlug = "giro-d-italia", year = 2026)
-        assertEquals("https://example.invalid",
-            RaceLogic.buildExtUrlB(race, stageNumber = 3))
     }
 
     // ── typeLabel ──────────────────────────────────────────────────
@@ -174,29 +150,6 @@ class RaceLogicTest {
     fun `cleanFeminineDisplayName no elimina excepcion conocida`() {
         val name = "Women Cycling Pro"
         assertEquals(name, RaceLogic.cleanFeminineDisplayName(name))
-    }
-
-    // ── shouldShowResults ──────────────────────────────────────────
-
-    @Test
-    fun `shouldShowResults false para dia de descanso`() {
-        val rd = raceDay(isRestDay = true)
-        val race = race(extId = 1)
-        assertFalse(RaceLogic.shouldShowResults(rd, race))
-    }
-
-    @Test
-    fun `shouldShowResults false para etapa cancelada`() {
-        val rd = raceDay(isCancelledDay = true)
-        val race = race(extId = 1)
-        assertFalse(RaceLogic.shouldShowResults(rd, race))
-    }
-
-    @Test
-    fun `shouldShowResults false si carrera no tiene extId ni extSlug`() {
-        val rd = raceDay()
-        val race = race(extId = null, extSlug = null)
-        assertFalse(RaceLogic.shouldShowResults(rd, race))
     }
 
     // ── raceTimeCheck dateKey guard ───────────────────────────────
@@ -301,12 +254,15 @@ class RaceLogicTest {
     }
 
     @Test
-    fun `hasReviveBroadcasts usa fallback de fecha sin hora de meta`() {
-        val rd = raceDay(dateKey = "2020-01-01", estimatedFinishTimeUtc = null)
+    fun `hasReviveBroadcasts exige resultados de la jornada`() {
         val broadcasts = listOf(broadcast(
             channel = "Pidcock Racing", url = "https://video.example/race", showInRevive = true,
         ))
-        assertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, rd))
+        assertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults = true))
+        assertFalse(RaceLogic.hasReviveBroadcasts(broadcasts, hasCurrentResults = false))
+        assertTrue(RaceLogic.hasReviveBroadcasts(broadcasts, true, isCancelled = true))
+        assertFalse(RaceLogic.hasReviveBroadcasts(broadcasts, false, isCancelled = true))
+        assertFalse(RaceLogic.hasReviveBroadcasts(emptyList(), hasCurrentResults = true))
     }
 
     @Test
@@ -491,9 +447,32 @@ class RaceLogicTest {
         )
     }
 
+    @Test
+    fun `estado Hoy prioriza cancelacion descanso y resultados antes de espera`() {
+        val finished = raceDay(raceStatus = "finished")
+        assertEquals(RaceLogic.TodayRaceState.CANCELLED, RaceLogic.todayRaceState(finished.copy(isCancelledDay = true), true))
+        assertEquals(RaceLogic.TodayRaceState.REST, RaceLogic.todayRaceState(finished.copy(isRestDay = true), true))
+        assertEquals(RaceLogic.TodayRaceState.RESULTS, RaceLogic.todayRaceState(finished, true))
+    }
+
+    @Test
+    fun `estado Hoy espera por estado finished o por meta superada`() {
+        assertEquals(
+            RaceLogic.TodayRaceState.WAITING,
+            RaceLogic.todayRaceState(raceDay(raceStatus = "finished"), false),
+        )
+        assertEquals(
+            RaceLogic.TodayRaceState.WAITING,
+            RaceLogic.todayRaceState(
+                raceDay(estimatedFinishTimeUtc = "2026-01-01T15:00:00Z"),
+                false,
+                Instant.parse("2026-01-01T15:00:01Z"),
+            ),
+        )
+    }
+
     private fun race(
-        extId: Int? = null,
-        extSlug: String? = null,
+        id: String = "r1",
         year: Int? = 2026,
         uciCategory: String? = "1.UWT",
         gender: String? = null,
@@ -502,29 +481,32 @@ class RaceLogicTest {
         raceFormat: String? = null,
         isGrandTour: Boolean = false,
     ) = Race(
-        id = "r1",
+        id = id,
         name = name,
         uciCategory = uciCategory,
         gender = gender,
         raceFormat = raceFormat,
         countryCode = countryCode,
-        extId = extId,
-        extSlug = extSlug,
         year = year,
         isGrandTour = isGrandTour,
     )
 
     private fun raceDay(
+        id: String = "rd1",
+        raceId: String? = null,
         dateKey: String = "2026-01-01",
         isRestDay: Boolean = false,
         isCancelledDay: Boolean = false,
         estimatedFinishTimeUtc: String? = null,
+        raceStatus: String? = null,
     ) = RaceDay(
-        id = "rd1",
+        id = id,
+        raceId = raceId,
         dateKey = dateKey,
         isRestDay = isRestDay,
         isCancelledDay = isCancelledDay,
         estimatedFinishTimeUtc = estimatedFinishTimeUtc,
+        raceStatus = raceStatus,
     )
 
     /** EnrichedRaceDay con (o sin) miniperfil para los tests de orden. */
@@ -598,6 +580,26 @@ class RaceLogicTest {
         val state = RaceLogic.championshipTvState(bcs)
         assertTrue(state is RaceLogic.ChampionshipTvState.Time)
         assertTrue((state as RaceLogic.ChampionshipTvState.Time).display.isNotEmpty())
+    }
+
+    @Test fun `WC y CC respetan el genero del filtro`() {
+        val worldMen = race(uciCategory = "WC", name = "Campeonato del Mundo CRI masculino", gender = "male")
+        val worldWomen = race(uciCategory = "WC", name = "Campeonato del Mundo CRI femenino", gender = "female")
+        val europeMen = race(uciCategory = "CC", name = "Campeonato de Europa línea masculino", gender = "male")
+        val europeWomen = race(uciCategory = "CC", name = "Campeonato de Europa línea femenino", gender = "female")
+        val mixedRelay = race(uciCategory = "WC", name = "Campeonato del Mundo CRE relevo mixto", gender = null)
+
+        assertTrue(RaceLogic.matchesCategory(worldMen, Constants.CategoryFilter.MALE))
+        assertFalse(RaceLogic.matchesCategory(worldMen, Constants.CategoryFilter.FEMALE))
+        assertTrue(RaceLogic.matchesCategory(worldWomen, Constants.CategoryFilter.FEMALE))
+        assertFalse(RaceLogic.matchesCategory(worldWomen, Constants.CategoryFilter.MALE))
+        assertTrue(RaceLogic.matchesCategory(europeMen, Constants.CategoryFilter.MALE))
+        assertFalse(RaceLogic.matchesCategory(europeMen, Constants.CategoryFilter.FEMALE))
+        assertTrue(RaceLogic.matchesCategory(europeWomen, Constants.CategoryFilter.FEMALE))
+        assertFalse(RaceLogic.matchesCategory(europeWomen, Constants.CategoryFilter.MALE))
+        assertTrue(RaceLogic.matchesCategory(mixedRelay, Constants.CategoryFilter.MALE))
+        assertTrue(RaceLogic.matchesCategory(mixedRelay, Constants.CategoryFilter.FEMALE))
+        assertTrue(RaceLogic.matchesCategory(mixedRelay, Constants.CategoryFilter.PRO))
     }
 
     // ── matchesCategory con Campeonatos Nacionales (CN) ────────────

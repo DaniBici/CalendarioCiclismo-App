@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -60,7 +60,7 @@
   }
   </script>
   <script src="/js/theme.js"></script>
-  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/app.css?v=20260920tint">
   <style>
     .static-prerender{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
     .static-prerender h1,.static-prerender h2,.static-prerender p,.static-prerender ul,.static-prerender li,.static-prerender a{all:revert}
@@ -84,7 +84,7 @@
        mismo alto en flujo → desplazamiento neto cero). -->
   <script>!function(){try{if(/Android/i.test(navigator.userAgent)&&!localStorage.getItem('cc_android_banner_dismissed'))document.documentElement.classList.add('cc-android-banner-pending')}catch(e){}}()</script>
     <header class="site-header" id="siteHeader"></header>
-<script type="module" src="/js/header.js"></script>
+<script type="module" src="/js/header.js?v=20260914cxmenu"></script>
 
   <div id="giroCountdown" class="giro-countdown" hidden></div>
 
@@ -127,8 +127,8 @@
       <h2>Secciones principales</h2>
       <ul>
         <li><a href="/">Hoy</a>: las carreras de hoy con horarios y dónde verlas.</li>
-        <li><a href="/calendario.html?vista=mes">Calendario mensual</a>: agenda del mes con todas las carreras.</li>
-        <li><a href="/calendario.html">Calendario de temporada</a>: todas las carreras del año, filtrables por categoría y país.</li>
+        <li><a href="/en/calendar/?vista=mes">Calendario mensual</a>: agenda del mes con todas las carreras.</li>
+        <li><a href="/en/calendar/">Calendario de temporada</a>: todas las carreras del año, filtrables por categoría y país.</li>
         <li><a href="/subscription/">Suscripción al calendario</a>: feeds iCal para Apple, Google y Outlook.</li>
         <li><a href="/about/">Sobre nosotros</a>: el proyecto, ideado y editado por Dani Sánchez.</li>
       </ul>
@@ -149,7 +149,7 @@
   <script src="/js/config.js"></script>
   <script src="/js/cookie-consent.js"></script>
   <script src="/js/analytics.js"></script>
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=20260924sitefix"></script>
 
   <footer class="site-footer">
     <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/privacy/">Privacy</a></p>

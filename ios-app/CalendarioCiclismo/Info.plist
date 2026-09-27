@@ -68,6 +68,10 @@
 		<key>UIImageName</key>
 		<string>LaunchLogo</string>
 	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>GoogleSans-Medium.ttf</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

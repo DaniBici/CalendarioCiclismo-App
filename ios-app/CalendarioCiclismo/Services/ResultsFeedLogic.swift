@@ -13,13 +13,23 @@ import Foundation
 ///    (grandes vueltas → nivel pro → género → categoría UCI → hora → nombre).
 ///  · stageDate puede venir NULL (volcados PDF, migración 090) → la fecha se
 ///    resuelve por raceDayId→race_days.dateKey o por las fechas de la carrera.
-///  · Sin resultados in-house pero jornada concluida y externos → fila con los
-///    enlaces externos; se convierte sola cuando el cron vuelque.
+///  · El feed solo contiene clasificaciones propias.
 
-/// Tipo de entrada del feed: clasificación in-house o fallback externos.
+/// Tipo de entrada del feed. El feed público solo admite clasificaciones propias.
 enum FeedEntryKind: String {
     case inhouse
-    case ext
+}
+
+struct FeedComplementaryClassification: Hashable, Identifiable {
+    let stageRef: String
+    let classKind: String
+    let labelEs: String
+    let labelEn: String
+    let colorHex: String?
+    let winner: String
+
+    var id: String { stageRef }
+    var localizedLabel: String { LocaleService.shouldShowEnglishContent ? labelEn : labelEs }
 }
 
 /// Una fila del feed. Nombres espejo de la versión Android (`FeedEntry` en
@@ -57,6 +67,9 @@ struct FeedEntry: Identifiable, Hashable {
     /// 'gc' FINAL? (espejo de `_finalGc`; permite que la fila `stage` previa
     /// sea sustituida por la final cuando llega).
     var oneDayFinalGc: Bool = false
+    /// Solo las entradas seleccionadas por `featured_races_for_dates` amplían la tarjeta.
+    var isFeatured: Bool = false
+    var complementary: [FeedComplementaryClassification] = []
 
     var id: String { key }
 }
@@ -111,17 +124,12 @@ enum ResultsFeedLogic {
     /// Espejo de `fetchEntries` en la web sin la capa de red (el ganador
     /// canónico lo refina después la capa de datos).
     ///
-    /// - Parameter isConcluded: gate del fallback externos — en producción,
-    ///   `RaceLogic.shouldShowResults` (el mismo que gobierna el trofeo de las
-    ///   cards); inyectable para que los tests no dependan del reloj.
     static func buildEntries(
         stages: [RaceUciStage],
         raceDays: [RaceDay],
         races: [Race],
         fromKey: String,
-        toKey: String,
-        automaticSourceRaceIds: Set<String> = [],
-        isConcluded: (RaceDay, Race) -> Bool
+        toKey: String
     ) -> [FeedEntry] {
         // El feed recibe jornadas sin el campo transitorio stageSuffix. Se anotan
         // sobre copias para distinguir 1A/1B sin mutar los modelos del llamador.
@@ -154,24 +162,6 @@ enum ResultsFeedLogic {
         let raceById = Dictionary(uniqueKeysWithValues: races.map { ($0.id, $0) })
 
         // ── Entradas in-house ──────────────────────────────────────────
-        // raceDayId es la identidad canónica. El fallback raceId+stageNumber se
-        // mantiene solo para volcados antiguos sin raceDayId y se desactiva si
-        // el mismo número ya tiene una clasificación enlazada: de otro modo una
-        // 1A enlazada ocultaría el fallback externo legítimo de la 1B.
-        let inhouseDayIds = Set(stages.compactMap(\.raceDayId))
-        let linkedStageKeys = Set(stages.filter { $0.raceDayId != nil }.map {
-            stageEntryKey(raceId: $0.raceId, stageNumber: $0.stageNumber)
-        })
-        var legacyStageKeys = Set(stages.filter { $0.raceDayId == nil }.map {
-            stageEntryKey(raceId: $0.raceId, stageNumber: $0.stageNumber)
-        })
-        legacyStageKeys.subtract(linkedStageKeys)
-        func hasInhouse(_ rd: RaceDay) -> Bool {
-            inhouseDayIds.contains(rd.id)
-                || legacyStageKeys.contains(stageEntryKey(
-                    raceId: rd.raceId ?? "", stageNumber: rd.stageNumber
-                ))
-        }
         var entries: [FeedEntry] = []
         var seen = Set<String>()
         var indexByKey: [String: Int] = [:]
@@ -247,23 +237,6 @@ enum ResultsFeedLogic {
                 ))
             }
             // gc por etapa de una vuelta (GC del día) → NO es entrada.
-        }
-
-        // ── Fallback externos: jornadas concluidas SIN volcado in-house ─────
-        for rd in days {
-            if rd.isRestDay || rd.isCancelledDay { continue }
-            guard let raceId = rd.raceId, let race = raceById[raceId] else { continue }
-            guard race.extId != nil || race.extSlug != nil else { continue }
-            guard !automaticSourceRaceIds.contains(raceId) else { continue }
-            let isOneDay = race.raceFormat == "one_day"
-            let covered = hasInhouse(rd) || (isOneDay && seen.contains("\(raceId)#oneday"))
-            if covered { continue }
-            guard isConcluded(rd, race) else { continue }
-            entries.append(FeedEntry(
-                key: "ext#\(rd.id)", kind: .ext, date: rd.dateKey, race: race,
-                stageNumber: isOneDay ? nil : rd.stageNumber,
-                stageSuffix: isOneDay ? "" : (rd.stageSuffix ?? ""), subOrder: 1, rd: rd
-            ))
         }
 
         assignSortTimes(&entries)

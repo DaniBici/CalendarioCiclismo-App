@@ -3,6 +3,7 @@ package app.calendariociclismo.android.ui.onboarding
 import android.os.Build
 import android.os.Bundle
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,15 +13,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,19 +123,24 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.weight(1f))
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+            Spacer(Modifier.height(32.dp))
 
             Icon(
                 imageVector = Icons.Filled.Language,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(72.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             Text(
                 text = stringResource(R.string.onboarding_language_title),
@@ -140,6 +149,8 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
+
+            Spacer(Modifier.height(48.dp))
 
             // Botón primario: Español (acción predeterminada, mayoría de usuarios).
             Button(
@@ -164,13 +175,9 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
             Spacer(Modifier.height(12.dp))
 
             // Botón secundario: English.
-            OutlinedButton(
+            TextButton(
                 onClick = { choose(LocalePreference.ENGLISH) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 32.dp),
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(vertical = 14.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -179,12 +186,13 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
                     Text("🇬🇧")
                     Text(
                         stringResource(R.string.onboarding_language_cta_english),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(32.dp))
+            }
         }
     }
 }

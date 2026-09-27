@@ -1,0 +1,14 @@
+[Unit]
+Description=Calendario Ciclismo - comprobación tras el reinicio de mantenimiento
+Wants=network-online.target ssh.service
+After=network-online.target nginx.service ssh.service ssh.socket timers.target
+ConditionPathExists=/var/lib/cc-maintenance-20260907/state.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cc-maintenance-20260907 verify
+TimeoutStartSec=10min
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

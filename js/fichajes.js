@@ -1,3 +1,4 @@
+import { marketTeamColors } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 //  FICHAJES — /fichajes/ (+ EN /en/transfers/)
 //  Mercado de fichajes de la temporada 2027 (tabla rider_transfers, mig. 122).
@@ -30,7 +31,7 @@
 //  Cambiar de división es replaceState (no apila).
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag, buildTeamBadgeSvg, trapFocus } from './shared.js';
+import { supabase, countryFlag, trapFocus } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 
 const SEASON = 2027;
@@ -45,7 +46,7 @@ const FEED_MAX_ITEMS = 8;
 // solicitado para Women's ProTeams.
 const FEED_CATEGORY_RANK = { WT: 0, PT: 1, WWT: 2, PRW: 3, PTW: 3 };
 
-// Periodistas acreditados en /abierto.html. Se mantienen aquí para que los
+// Periodistas acreditados en /abierto/. Se mantienen aquí para que los
 // enlaces del aviso de fuentes sean interactivos también en el modal web.
 const TRANSFER_SOURCES = [
   { name: 'Nacho Labarga', outlet: 'MARCA', url: 'https://x.com/nacholabarga' },
@@ -145,7 +146,7 @@ async function loadData() {
       .select('teamId, name, category, gender, badgeVisible, continuityDoubt, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
       .eq('year', SEASON),
     supabase.from('team_seasons')
-      .select('teamId, name, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
+      .select('teamId, name, headerBg, headerText, badgeTorsoCenter, badgeTorsoSides, badgeInnerCircle, badgeShorts')
       .eq('year', PREV_SEASON),
     supabase.from('rider_transfers')
       .select('*')
@@ -162,7 +163,7 @@ async function loadData() {
   // Varias marcas tienen equipo masculino Y femenino con el MISMO nombre
   // (Cofidis, Lidl-Trek, Movistar…): su slug base colisiona. En ese caso se
   // desambigua por GÉNERO con el sufijo -me (men's elite) / -we (women's
-  // elite) — la misma convención neutra que usa fuente externa, así el slug es idéntico
+  // elite), una convención neutra, así el slug es idéntico
   // en la web ES y en la EN (/en/transfers/ comparte este módulo y el slug se
   // arrastra tal cual al cambiar de idioma). Estable, a diferencia del sufijo
   // -2 posicional anterior que dependía del orden de la query. Los equipos sin
@@ -303,13 +304,9 @@ function feedRowHtml(x) {
   return `<div class="tr-row">${inner}</div>`;
 }
 
-function renderFeed() {
-  const box = $('trFeed');
-  if (!box) return;
-  const feed = _activeFeed === 'renewals' ? renewalFeed() : confirmedFeed();
+function feedHtml(feed) {
   if (feed.length === 0) {
-    box.innerHTML = `<div class="tr-empty">${esc(t('transfers.feedEmpty'))}</div>`;
-    return;
+    return `<div class="tr-empty">${esc(t('transfers.feedEmpty'))}</div>`;
   }
   // Corte del feed: hasta FEED_MAX_DAYS fechas distintas O FEED_MAX_ITEMS
   // fichajes, lo que se alcance antes (el feed viene en orden cronológico
@@ -331,7 +328,16 @@ function renderFeed() {
     html += feedRowHtml(x);
     itemsShown++;
   }
-  box.innerHTML = html;
+  return html;
+}
+
+function renderFeed() {
+  const box = $('trFeed');
+  if (!box) return;
+  box.innerHTML = [
+    ['signings', t('transfers.feedSignings'), confirmedFeed()],
+    ['renewals', t('transfers.feedRenewals'), renewalFeed()],
+  ].map(([kind, title, feed]) => `<section class="tr-feed-column${kind === _activeFeed ? ' tr-feed-column--active' : ''}"><h3 class="tr-feed-title">${esc(title)}</h3>${feedHtml(feed)}</section>`).join('');
 }
 
 // ── Divisiones + lista de equipos ─────────────────────────────────
@@ -341,20 +347,9 @@ function divisionTeams(div) {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
 }
 
-function badgeOrPlaceholder(season, size) {
-  // Colores 2027 PUBLICADOS: la chapa se pinta con un true EXPLÍCITO. Un dato
-  // ausente (fila sembrada por SQL, columna fuera del select) NO cuenta como
-  // publicado — enseñar un kit 2027 inventado es peor que no enseñar ninguno.
-  if (season && season.badgeVisible === true) {
-    return buildTeamBadgeSvg(season, { size });
-  }
-  // Chapa 2027 sin publicar: si el equipo YA existía en la temporada en curso,
-  // se muestran sus colores ANTIGUOS (los que la gente conoce) hasta que se
-  // anuncie el kit 2027 (decisión Dani 2026-07-18). Un equipo NUEVO (nacido en
-  // 2027, sin fila 2026 → mig. 129) no tiene colores antiguos → queda vacío.
-  const prev = season && _prevColorsByTeamId.get(season.teamId);
-  if (prev) return buildTeamBadgeSvg(prev, { size });
-  return '';
+function marketColorsStyle(season) {
+  const colors = marketTeamColors(season, _prevColorsByTeamId.get(season?.teamId));
+  return `--team-bg:${colors.background};--team-text:${colors.text}`;
 }
 
 function renderTeams() {
@@ -383,12 +378,11 @@ function renderTeams() {
     return;
   }
   grid.innerHTML = teams.map(s => `
-    <button class="tr-team-card" data-team="${esc(s.teamId)}">
-      ${badgeOrPlaceholder(s, 34)}
+    <button class="tr-team-card" data-team="${esc(s.teamId)}" style="${marketColorsStyle(s)}">
       <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
         <span class="tr-team-card__name">${esc(s.name)}</span>
         ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
-      </span>
+      </span><span class="tr-team-chevron" aria-hidden="true">›</span>
     </button>`).join('');
   grid.querySelectorAll('[data-team]').forEach(el =>
     el.addEventListener('click', () => openTeam(el.dataset.team))
@@ -409,6 +403,7 @@ async function loadRoster(teamId) {
 
   const { data: affs, error: affErr } = await supabase.from('rider_team_affiliations')
     .select('riderId, riderGender, dateTo')
+    .eq('affiliationType', 'regular')
     .eq('year', SEASON)
     .eq('teamId', teamId);
   if (affErr) throw affErr;
@@ -459,6 +454,41 @@ function personRowHtml({ flagCode, name, detail = '', contract = null, isRumor =
   return `<div class="tr-row tr-row--team">${inner}</div>`;
 }
 
+// En escritorio, las secciones del equipo se distribuyen con CSS multicolumna.
+// Cuando una sección cruza el salto de columna, el navegador conserva su título
+// únicamente en la primera; se añade una copia delante de la primera fila de la
+// siguiente columna para que el contexto no se pierda. La copia se recalcula
+// después de cada repintado y al cambiar el ancho de la ventana.
+function refreshSplitSectionTitles() {
+  const sections = $('trTeamView')?.querySelector('.tr-team-sections');
+  if (!sections) return;
+
+  sections.querySelectorAll('.tr-section-title--duplicate').forEach(title => title.remove());
+  if (!window.matchMedia('(min-width: 761px)').matches) return;
+
+  sections.querySelectorAll(':scope > section:not([hidden])').forEach(section => {
+    const title = section.querySelector(':scope > .tr-section-title');
+    const content = title?.nextElementSibling;
+    if (!title || !content) return;
+
+    const rows = [...content.children].filter(child => child.matches('.tr-row'));
+    if (rows.length < 2) return;
+
+    const firstColumnLeft = rows[0].getBoundingClientRect().left;
+    const firstRowInNextColumn = rows.find(row =>
+      Math.abs(row.getBoundingClientRect().left - firstColumnLeft) > 1
+    );
+    if (!firstRowInNextColumn) return;
+
+    const duplicate = title.cloneNode(true);
+    duplicate.classList.add('tr-section-title--duplicate');
+    duplicate.setAttribute('aria-hidden', 'true');
+    content.insertBefore(duplicate, firstRowInNextColumn);
+  });
+}
+
+window.addEventListener('resize', refreshSplitSectionTitles);
+
 async function openTeam(teamId, { push = true } = {}) {
   const season = _seasonsByTeamId.get(teamId);
   if (!season) return;
@@ -489,11 +519,10 @@ async function openTeam(teamId, { push = true } = {}) {
     window.ccHeaderBack({ onClick: () => history.back(), label: t('transfers.back') });
   }
   view.innerHTML = `
-    <div class="tr-team-header">
-      ${badgeOrPlaceholder(season, 44)}
+    <div class="tr-team-header" style="${marketColorsStyle(season)}">
       <div class="tr-team-header__text">
         <h2 class="tr-team-header__name">${esc(season.name)}</h2>
-        <span class="tr-team-header__cat">${esc(season.category || '')}</span>
+        <span class="tr-team-header__cat">${esc(season.category || '')} · ${SEASON}</span>
       </div>
     </div>
     ${season.continuityDoubt
@@ -690,6 +719,8 @@ async function openTeam(teamId, { push = true } = {}) {
     const sec = $('trSecStaying'); if (sec) sec.hidden = false;
     $('trStaying').innerHTML = `<div class="tr-empty">${esc(t('transfers.loadError'))}</div>`;
   }
+
+  refreshSplitSectionTitles();
 }
 
 // Repinta la home de mercado (oculta el detalle de equipo). Es SOLO visual: NO

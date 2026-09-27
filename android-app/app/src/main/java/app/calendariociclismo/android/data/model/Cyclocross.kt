@@ -1,0 +1,205 @@
+package app.calendariociclismo.android.data.model
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+
+@Serializable
+data class CxTournament(
+    val id: String,
+    val name: String,
+    val nameEn: String? = null,
+    val slug: String,
+    val colorHex: String? = null,
+    val logoUrl: String? = null,
+    val pointsScheme: JsonObject? = null,
+    val seasonKey: String? = null,
+)
+
+@Serializable
+data class CxStandingState(val category: String, val status: String, val roundIds: List<String> = emptyList())
+
+/** Fila mínima para numerar las rondas de un torneo; espejo del select ligero web. */
+@Serializable
+data class CxRoundEntry(val dateKey: String? = null, val startTimeUtc: String? = null)
+
+@Serializable
+data class CxRoundRow(
+    val id: String,
+    val tournamentId: String? = null,
+    val dateKey: String,
+    val seasonKey: String? = null,
+    @SerialName("cx_race_categories") val categories: List<CxRoundEntry> = emptyList(),
+)
+
+/** Número de prueba de una carrera dentro de su torneo (1-indexado). */
+data class CxRound(val n: Int, val total: Int)
+
+@Serializable
+data class CxCategory(
+    val category: String,
+    val startTimeUtc: String? = null,
+    val dateKey: String? = null,
+    val sortOrder: Int = 0,
+    val isCancelled: Boolean = false,
+    val resultsStatus: String = "pending",
+    val winnerName: String? = null,
+    val durationFormat: String? = null,
+    val durationRuleVersion: String? = null,
+    val durationMinutes: Int? = null,
+    val durationRuleSourceUrl: String? = null,
+    val startlistImportedAt: String? = null,
+)
+
+/** Documento de carrera CX (Libro de Ruta / Mapa); espejo de `assets` con cxRaceId. */
+@Serializable
+data class CxAsset(
+    val id: String? = null,
+    val type: String? = null,
+    val url: String? = null,
+)
+
+@Serializable
+data class CxRace(
+    val id: String,
+    val name: String,
+    val nameEn: String? = null,
+    val abbrev: String? = null,
+    val slug: String,
+    val slugEn: String? = null,
+    val seasonKey: String,
+    val dateKey: String,
+    val endDateKey: String? = null,
+    @SerialName("class") val raceClass: String,
+    val countryCode: String? = null,
+    val venue: String? = null,
+    val tournamentId: String? = null,
+    val colorHex: String? = null,
+    val logoUrl: String? = null,
+    val websiteUrl: String? = null,
+    val timezone: String? = null,
+    val isCancelled: Boolean = false,
+    val assets: List<CxAsset> = emptyList(),
+    @SerialName("cx_tournaments") val tournament: CxTournament? = null,
+    @SerialName("cx_race_categories") val categories: List<CxCategory> = emptyList(),
+    @SerialName("cx_broadcasts") val broadcasts: List<CxBroadcast> = emptyList(),
+    @SerialName("cx_videos") val videos: List<CxVideo> = emptyList(),
+)
+
+@Serializable
+data class CxStartlistRider(
+    val id: String,
+    val raceId: String,
+    val category: String,
+    val bib: String? = null,
+    val firstName: String,
+    val lastName: String,
+    val countryCode: String? = null,
+    val teamId: String? = null,
+    val globalRiderId: String? = null,
+    val sortOrder: Int = 0,
+)
+
+@Serializable
+data class CxTeam(
+    val id: String,
+    val name: String,
+    val uciCode: String,
+    val colorHex: String,
+    val countryCode: String? = null,
+    // Identidad cromática alineada con carretera (teams). Defaults = paleta
+    // neutra de la base de datos: sin colores curados no se dibuja chapa.
+    val headerBg: String = "#1f2937",
+    val headerText: String = "#ffffff",
+    val badgeTorsoCenter: String = "#ffffff",
+    val badgeTorsoSides: String = "#000000",
+    val badgeInnerCircle: String? = null,
+    val badgeShorts: String = "#000000",
+    val nameAliases: List<String>? = null,
+) {
+    /** Equipo en el modelo de carretera: resultados, generales y dorsales CX
+     *  usan `findMatchingTeam`, `hasVisibleBadge` y `TeamColorBands` de ruta. */
+    val roadTeam: Team
+        get() = Team(
+            id = id, name = name,
+            badgeTorsoCenter = badgeTorsoCenter, badgeTorsoSides = badgeTorsoSides, badgeShorts = badgeShorts,
+            badgeInnerCircle = badgeInnerCircle, headerBg = headerBg, headerText = headerText,
+            nameAliases = nameAliases?.joinToString("\n"),
+        )
+
+    /** La chapa solo se muestra con colores de equipación curados (regla de carretera). */
+    val hasVisibleBadge: Boolean get() = roadTeam.hasVisibleBadge
+}
+
+@Serializable
+data class CxResult(
+    val id: Long,
+    val raceId: String,
+    val category: String,
+    val rank: Int? = null,
+    val rankText: String? = null,
+    val bib: String? = null,
+    val riderDisplay: String,
+    val teamName: String? = null,
+    val isoCode2: String? = null,
+    val timeText: String? = null,
+    val gapText: String? = null,
+    val points: Double? = null,
+    val bonusPoints: Double? = null,
+    val timeSeconds: Long? = null,
+    val bonusSeconds: Int? = null,
+    val irm: String? = null,
+    val sortOrder: Int = 0,
+)
+
+@Serializable
+data class CxStanding(
+    val id: String,
+    val tournamentId: String,
+    val seasonKey: String,
+    val category: String,
+    val rank: Int,
+    val riderDisplay: String,
+    val teamName: String? = null,
+    val isoCode2: String? = null,
+    val points: Double? = null,
+    val timeSeconds: Long? = null,
+)
+
+@Serializable
+data class CxBroadcast(
+    val id: String,
+    val raceId: String,
+    val category: String? = null,
+    val channel: String? = null,
+    val startTimeUtc: String? = null,
+    val url: String? = null,
+    val note: String? = null,
+    val country: String? = null,
+    val sortOrder: Int = 0,
+    val showInRevive: Boolean = false,
+    val isSporza: Boolean = false,
+)
+
+@Serializable
+data class CxVideo(
+    val id: String,
+    val raceId: String,
+    val category: String? = null,
+    val title: String,
+    val url: String,
+    val sortOrder: Int = 0,
+)
+
+@Serializable
+data class CxDetail(
+    val race: CxRace,
+    val startlist: List<CxStartlistRider> = emptyList(),
+    val results: List<CxResult> = emptyList(),
+    val broadcasts: List<CxBroadcast> = emptyList(),
+    val videos: List<CxVideo> = emptyList(),
+    val teams: List<CxTeam> = emptyList(),
+    val standings: List<CxStanding> = emptyList(),
+    val standingsState: List<CxStandingState> = emptyList(),
+    val assets: List<CxAsset> = emptyList(),
+)

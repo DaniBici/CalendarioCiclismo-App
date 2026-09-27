@@ -1,0 +1,1391 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline_official_cotejo_only",
+  "category": "ME",
+  "dateKey": "2025-11-16",
+  "raceName": "Alcobendas",
+  "seasonKey": "2025-26",
+  "checkedAt": "2026-09-13T00:25:51.057Z",
+  "classEvidence": {
+    "sourceUrl": "https://dataride.uci.ch/iframe/Competitions/",
+    "catalogSha256": "3732c3b21d57a37ccc81c072e271e8db0ebbe20494ce093e6eef8fb42a6894d0",
+    "competitionId": 75840,
+    "date": "16 Nov 2025",
+    "countryCode": "ES",
+    "classCode": "C2",
+    "competitionName": "Copa de España de Ciclo-Cross #5 - Alcobendas Ciudad Europea Del Ponte"
+  },
+  "originalOfficialFactsSha256": "e9efc897fbb2623e39319e706262403cf2d640833bf5eb47d885d2c6e473b8fc",
+  "originalNormalizedDataRideSha256": "1508d049ca2a842492b6f25818da5da01cd12c9694685559c94ed426233c33e3",
+  "rawDataRideSnapshotSha256": "b59d26bcf911a381d6ed27607b6a33e8a387371cb4b5d1a794481205145c7d4a",
+  "previousNormalizedDataRideSha256": "59595c012f3d8e0cf04c2c27aa149c8392a0567a7fe28f9efc5fab09209a89c0",
+  "normalizationChanges": [
+    {
+      "bib": "33",
+      "before": {
+        "timeText": "-2",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-2 LAP"
+      }
+    },
+    {
+      "bib": "23",
+      "before": {
+        "timeText": "-2",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-2 LAP"
+      }
+    },
+    {
+      "bib": "42",
+      "before": {
+        "timeText": "-3",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-3 LAP"
+      }
+    },
+    {
+      "bib": "35",
+      "before": {
+        "timeText": "-3",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-3 LAP"
+      }
+    },
+    {
+      "bib": "32",
+      "before": {
+        "timeText": "-3",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-3 LAP"
+      }
+    },
+    {
+      "bib": "43",
+      "before": {
+        "timeText": "-3",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-3 LAP"
+      }
+    },
+    {
+      "bib": "28",
+      "before": {
+        "timeText": "-3",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-3 LAP"
+      }
+    },
+    {
+      "bib": "37",
+      "before": {
+        "timeText": "-4",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-4 LAP"
+      }
+    },
+    {
+      "bib": "41",
+      "before": {
+        "timeText": "-5",
+        "gapText": null
+      },
+      "after": {
+        "timeText": null,
+        "gapText": "-5 LAP"
+      }
+    }
+  ],
+  "rawResultColumns": [
+    "Rank",
+    "RankNumber",
+    "Bib",
+    "DisplayName",
+    "ResultValue",
+    "Irm"
+  ],
+  "rawResultRows": [
+    [
+      "1",
+      1,
+      "2",
+      "INGUANZO MACHO Gonzalo",
+      "00:58:10",
+      null
+    ],
+    [
+      "2",
+      2,
+      "3",
+      "MIRA BONASTRE Raul",
+      "00:58:32",
+      null
+    ],
+    [
+      "3",
+      3,
+      "1",
+      "JUNQUERA SAN MILLAN Mario",
+      "00:59:10",
+      null
+    ],
+    [
+      "4",
+      4,
+      "8",
+      "DIAZ PEREZ Miguel",
+      "00:59:17",
+      null
+    ],
+    [
+      "5",
+      5,
+      "5",
+      "GALAN CORTAZAR Unax",
+      "01:01:19",
+      null
+    ],
+    [
+      "6",
+      6,
+      "36",
+      "ALEMAN AZCARRAGA Oihan",
+      "01:01:54",
+      null
+    ],
+    [
+      "7",
+      7,
+      "7",
+      "IVARS SIRERA David",
+      "01:02:09",
+      null
+    ],
+    [
+      "8",
+      8,
+      "19",
+      "MARTINEZ GARCIA Ivan",
+      "01:02:20",
+      null
+    ],
+    [
+      "9",
+      9,
+      "22",
+      "TRAVIESA CORO Hugo",
+      "01:02:33",
+      null
+    ],
+    [
+      "10",
+      10,
+      "450",
+      "VEGA GONZALEZ Mario",
+      "01:02:45",
+      null
+    ],
+    [
+      "11",
+      11,
+      "13",
+      "FERNANDEZ ECHEVARRIA Angel",
+      "01:02:56",
+      null
+    ],
+    [
+      "12",
+      12,
+      "9",
+      "SANCHEZ ALDEGUER Manuel",
+      "01:04:49",
+      null
+    ],
+    [
+      "13",
+      13,
+      "15",
+      "BLANCH DANIEL Gerard",
+      "01:05:04",
+      null
+    ],
+    [
+      "14",
+      14,
+      "10",
+      "VALLE ELEGIDO Adrian",
+      "01:05:26",
+      null
+    ],
+    [
+      "15",
+      15,
+      "12",
+      "DIAZ GOMEZ Martin",
+      "01:05:46",
+      null
+    ],
+    [
+      "16",
+      16,
+      "17",
+      "GONZALEZ GAMEZ Jorge",
+      "01:05:49",
+      null
+    ],
+    [
+      "17",
+      17,
+      "25",
+      "CASILLAS MARTIN Angel",
+      "01:06:09",
+      null
+    ],
+    [
+      "18",
+      18,
+      "34",
+      "BUCETA ARMADA Dario",
+      "01:06:16",
+      null
+    ],
+    [
+      "19",
+      19,
+      "31",
+      "GONZALEZ SANCHEZ Daniel",
+      "01:06:39",
+      null
+    ],
+    [
+      "20",
+      20,
+      "14",
+      "PUELLES LOREDO Raul",
+      "01:06:54",
+      null
+    ],
+    [
+      "21",
+      21,
+      "6",
+      "ZAERA GISBERT Javier",
+      "01:07:37",
+      null
+    ],
+    [
+      "22",
+      22,
+      "21",
+      "LOPEZ NUÑEZ Adrian",
+      "01:07:37",
+      null
+    ],
+    [
+      "23",
+      23,
+      "24",
+      "HERRERA CIMIANO Adrian",
+      "01:07:53",
+      null
+    ],
+    [
+      "24",
+      24,
+      "30",
+      "PASTOR TERUEL Joel",
+      "01:08:02",
+      null
+    ],
+    [
+      "25",
+      25,
+      "38",
+      "GARAIOA AREVALO Aimar",
+      "01:08:25",
+      null
+    ],
+    [
+      "26",
+      26,
+      "29",
+      "GARCIA RODRIGUEZ Guillermo",
+      "01:08:25",
+      null
+    ],
+    [
+      "27",
+      27,
+      "33",
+      "CARRERA JIMENEZ Pablo",
+      "-2",
+      "LAP"
+    ],
+    [
+      "28",
+      28,
+      "23",
+      "MORA LAPIDO Diego",
+      "-2",
+      "LAP"
+    ],
+    [
+      "29",
+      29,
+      "42",
+      "RODRIGUEZ ENCINAR Alejandro",
+      "-3",
+      "LAP"
+    ],
+    [
+      "30",
+      30,
+      "35",
+      "VAZQUEZ GOLPE Aitor",
+      "-3",
+      "LAP"
+    ],
+    [
+      "31",
+      31,
+      "32",
+      "HERNANDEZ ARRIBAS Jose Antonio",
+      "-3",
+      "LAP"
+    ],
+    [
+      "32",
+      32,
+      "43",
+      "CALLE HERRERO Ruben",
+      "-3",
+      "LAP"
+    ],
+    [
+      "33",
+      33,
+      "28",
+      "PEREZ GUILABERT Daniel",
+      "-3",
+      "LAP"
+    ],
+    [
+      "34",
+      34,
+      "37",
+      "ARIAS REGUEIRO Lucas",
+      "-4",
+      "LAP"
+    ],
+    [
+      "35",
+      35,
+      "41",
+      "GOMEZ MENDEZ Borja",
+      "-5",
+      "LAP"
+    ],
+    [
+      "",
+      null,
+      "40",
+      "HERRAN MARTIJA Diego",
+      null,
+      "DNF"
+    ],
+    [
+      "",
+      null,
+      "11",
+      "ESTEBAN AGUERO Ismael",
+      null,
+      "DNF"
+    ],
+    [
+      "",
+      null,
+      "27",
+      "REINOSO SANCHEZ Marcos",
+      null,
+      "DNF"
+    ],
+    [
+      "",
+      null,
+      "20",
+      "GONZALEZ BELLIDO Cesar",
+      null,
+      "DNS"
+    ],
+    [
+      "",
+      null,
+      "39",
+      "EGUIGUREN SANTAMARIA Oskitx",
+      null,
+      "DNS"
+    ]
+  ],
+  "official": {
+    "sourceUrl": "https://cronosportradio.es/RESULTADOS25/ALCOBENDAS25/clasificacion-elite.pdf",
+    "organizerUrl": "https://www.cxalcobendas.com/p/clasificaciones_3.html",
+    "sourcePdfSha256": "050c71dfa9936b7fa5d20d3328f01e69de7468872c21580590eaa38495ae9163",
+    "coverage": "named_rows_with_unlisted_dns",
+    "summary": {
+      "namedParticipants": 38,
+      "classified": 35,
+      "dnf": 3,
+      "unlistedDns": 6
+    },
+    "rows": [
+      [
+        1,
+        "2",
+        "INGUANZO MACHO Gonzalo",
+        "58:10"
+      ],
+      [
+        2,
+        "3",
+        "MIRA BONASTRE Raul",
+        "58:32"
+      ],
+      [
+        3,
+        "1",
+        "JUNQUERA SAN MILLAN Mario",
+        "59:10"
+      ],
+      [
+        4,
+        "8",
+        "DIAZ PEREZ Miguel",
+        "59:17"
+      ],
+      [
+        5,
+        "5",
+        "GALAN CORTAZAR Unax",
+        "1:01:19"
+      ],
+      [
+        6,
+        "36",
+        "ALEMAN AZCARRAGA Oihan",
+        "1:01:54"
+      ],
+      [
+        7,
+        "7",
+        "IVARS SIRERA David",
+        "1:02:09"
+      ],
+      [
+        8,
+        "19",
+        "MARTINEZ GARCIA Ivan",
+        "1:02:20"
+      ],
+      [
+        9,
+        "22",
+        "TRAVIESA CORO Hugo",
+        "1:02:33"
+      ],
+      [
+        10,
+        "450",
+        "VEGA GONZALEZ Mario",
+        "1:02:45"
+      ],
+      [
+        11,
+        "13",
+        "FERNANDEZ ECHEVARRIA Angel",
+        "1:02:56"
+      ],
+      [
+        12,
+        "9",
+        "SANCHEZ ALDEGUER Manuel",
+        "1:04:49"
+      ],
+      [
+        13,
+        "15",
+        "BLANCH DANIEL Gerard",
+        "1:05:04"
+      ],
+      [
+        14,
+        "10",
+        "VALLE ELEGIDO Adrian",
+        "1:05:26"
+      ],
+      [
+        15,
+        "12",
+        "DIAZ GOMEZ Martin",
+        "1:05:46"
+      ],
+      [
+        16,
+        "17",
+        "GONZALEZ GAMEZ Jorge",
+        "1:05:49"
+      ],
+      [
+        17,
+        "25",
+        "CASILLAS MARTIN Angel",
+        "1:06:09"
+      ],
+      [
+        18,
+        "34",
+        "BUCETA ARMADA Dario",
+        "1:06:16"
+      ],
+      [
+        19,
+        "31",
+        "GONZALEZ SANCHEZ Daniel",
+        "1:06:39"
+      ],
+      [
+        20,
+        "14",
+        "PUELLES LOREDO Raul",
+        "1:06:54"
+      ],
+      [
+        21,
+        "6",
+        "ZAERA GISBERT Javier",
+        "1:07:37"
+      ],
+      [
+        22,
+        "21",
+        "LOPEZ NUÑEZ Adrian",
+        "1:07:37"
+      ],
+      [
+        23,
+        "24",
+        "HERRERA CIMIANO Adrian",
+        "1:07:53"
+      ],
+      [
+        24,
+        "30",
+        "PASTOR TERUEL Joel",
+        "1:08:02"
+      ],
+      [
+        25,
+        "38",
+        "GARAIOA AREVALO Aimar",
+        "1:08:25"
+      ],
+      [
+        26,
+        "29",
+        "GARCIA RODRIGUEZ Guillermo",
+        "1:08:25"
+      ],
+      [
+        27,
+        "33",
+        "CARRERA JIMENEZ Pablo",
+        "-2 LAP"
+      ],
+      [
+        28,
+        "23",
+        "MORA LAPIDO Diego",
+        "-2 LAP"
+      ],
+      [
+        29,
+        "42",
+        "RODRIGUEZ ENCINAR Alejandro",
+        "-3 LAP"
+      ],
+      [
+        30,
+        "35",
+        "VAZQUEZ GOLPE Aitor",
+        "-3 LAP"
+      ],
+      [
+        31,
+        "32",
+        "HERNANDEZ ARRIBAS Jose Antonio",
+        "-3 LAP"
+      ],
+      [
+        32,
+        "43",
+        "CALLE HERRERO Ruben",
+        "-3 LAP"
+      ],
+      [
+        33,
+        "28",
+        "PEREZ GUILABERT Daniel",
+        "-3 LAP"
+      ],
+      [
+        34,
+        "37",
+        "ARIAS REGUEIRO Lucas",
+        "-4 LAP"
+      ],
+      [
+        35,
+        "41",
+        "GOMEZ MENDEZ Borja",
+        "-5 LAP"
+      ],
+      [
+        null,
+        "40",
+        "HERRAN MARTIJA Diego",
+        "DNF"
+      ],
+      [
+        null,
+        "11",
+        "ESTEBAN AGUERO Ismael",
+        "DNF"
+      ],
+      [
+        null,
+        "27",
+        "REINOSO SANCHEZ Marcos",
+        "DNF"
+      ]
+    ],
+    "publishedTimeColumns": [
+      "rank",
+      "bib",
+      "timeText",
+      "gapText",
+      "laps"
+    ],
+    "publishedTimeRows": [
+      [
+        1,
+        "2",
+        "58:10",
+        "-",
+        6
+      ],
+      [
+        2,
+        "3",
+        "58:32",
+        "+0:22",
+        6
+      ],
+      [
+        3,
+        "1",
+        "59:10",
+        "+01:00",
+        6
+      ],
+      [
+        4,
+        "8",
+        "59:17",
+        "+01:07",
+        6
+      ],
+      [
+        5,
+        "5",
+        "1:01:19",
+        "+03:09",
+        6
+      ],
+      [
+        6,
+        "36",
+        "1:01:54",
+        "+03:44",
+        6
+      ],
+      [
+        7,
+        "7",
+        "1:02:09",
+        "+03:59",
+        6
+      ],
+      [
+        8,
+        "19",
+        "1:02:20",
+        "+04:10",
+        6
+      ],
+      [
+        9,
+        "22",
+        "1:02:33",
+        "+04:23",
+        6
+      ],
+      [
+        10,
+        "450",
+        "1:02:45",
+        "+04:35",
+        6
+      ],
+      [
+        11,
+        "13",
+        "1:02:56",
+        "+04:46",
+        6
+      ],
+      [
+        12,
+        "9",
+        "1:04:49",
+        "+06:39",
+        6
+      ],
+      [
+        13,
+        "15",
+        "1:05:04",
+        "+06:54",
+        6
+      ],
+      [
+        14,
+        "10",
+        "1:05:26",
+        "+07:16",
+        6
+      ],
+      [
+        15,
+        "12",
+        "1:05:46",
+        "+07:36",
+        6
+      ],
+      [
+        16,
+        "17",
+        "1:05:49",
+        "+07:39",
+        6
+      ],
+      [
+        17,
+        "25",
+        "1:06:09",
+        "+07:59",
+        6
+      ],
+      [
+        18,
+        "34",
+        "1:06:16",
+        "+08:06",
+        6
+      ],
+      [
+        19,
+        "31",
+        "1:06:39",
+        "+08:29",
+        6
+      ],
+      [
+        20,
+        "14",
+        "1:06:54",
+        "+08:44",
+        6
+      ],
+      [
+        21,
+        "6",
+        "1:07:37",
+        "+09:27",
+        6
+      ],
+      [
+        22,
+        "21",
+        "1:07:37",
+        "+09:27",
+        6
+      ],
+      [
+        23,
+        "24",
+        "1:07:53",
+        "+09:43",
+        6
+      ],
+      [
+        24,
+        "30",
+        "1:08:02",
+        "+09:52",
+        6
+      ],
+      [
+        25,
+        "38",
+        "1:08:25",
+        "+10:15",
+        6
+      ],
+      [
+        26,
+        "29",
+        "1:08:25",
+        "+10:15",
+        6
+      ],
+      [
+        27,
+        "33",
+        "47:38",
+        "+ 2 vueltas",
+        4
+      ],
+      [
+        28,
+        "23",
+        "47:41",
+        "+ 2 vueltas",
+        4
+      ],
+      [
+        29,
+        "42",
+        "37:28",
+        "+ 3 vueltas",
+        3
+      ],
+      [
+        30,
+        "35",
+        "37:28",
+        "+ 3 vueltas",
+        3
+      ],
+      [
+        31,
+        "32",
+        "37:49",
+        "+ 3 vueltas",
+        3
+      ],
+      [
+        32,
+        "43",
+        "37:53",
+        "+ 3 vueltas",
+        3
+      ],
+      [
+        33,
+        "28",
+        "38:47",
+        "+ 3 vueltas",
+        3
+      ],
+      [
+        34,
+        "37",
+        "26:01",
+        "+ 4 vueltas",
+        2
+      ],
+      [
+        35,
+        "41",
+        "15:27",
+        "+ 5 vueltas",
+        1
+      ]
+    ],
+    "publishedDnfColumns": [
+      "bib",
+      "timeText",
+      "laps"
+    ],
+    "publishedDnfRows": [
+      [
+        "40",
+        "Abandono",
+        1
+      ],
+      [
+        "11",
+        "Abandono",
+        1
+      ],
+      [
+        "27",
+        "Abandono",
+        1
+      ]
+    ]
+  },
+  "normalizedDataRide": {
+    "schemaVersion": 1,
+    "source": "dataride",
+    "disciplineId": 3,
+    "competitionId": 75840,
+    "seasonId": 455,
+    "seasonKey": "2025-26",
+    "fetchedAt": "2026-09-13T00:25:51.057Z",
+    "categories": [
+      {
+        "category": "ME",
+        "dateKey": "2025-11-16",
+        "uciRaceId": 244239,
+        "eventId": 352472,
+        "rows": [
+          {
+            "rank": 1,
+            "bib": "2",
+            "riderDisplay": "INGUANZO MACHO Gonzalo",
+            "timeText": "00:58:10",
+            "timeSeconds": "3490",
+            "gapText": null,
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 2,
+            "bib": "3",
+            "riderDisplay": "MIRA BONASTRE Raul",
+            "timeText": "00:58:32",
+            "timeSeconds": "3512",
+            "gapText": "+22",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 3,
+            "bib": "1",
+            "riderDisplay": "JUNQUERA SAN MILLAN Mario",
+            "timeText": "00:59:10",
+            "timeSeconds": "3550",
+            "gapText": "+60",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 4,
+            "bib": "8",
+            "riderDisplay": "DIAZ PEREZ Miguel",
+            "timeText": "00:59:17",
+            "timeSeconds": "3557",
+            "gapText": "+67",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 5,
+            "bib": "5",
+            "riderDisplay": "GALAN CORTAZAR Unax",
+            "timeText": "01:01:19",
+            "timeSeconds": "3679",
+            "gapText": "+189",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 6,
+            "bib": "36",
+            "riderDisplay": "ALEMAN AZCARRAGA Oihan",
+            "timeText": "01:01:54",
+            "timeSeconds": "3714",
+            "gapText": "+224",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 7,
+            "bib": "7",
+            "riderDisplay": "IVARS SIRERA David",
+            "timeText": "01:02:09",
+            "timeSeconds": "3729",
+            "gapText": "+239",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 8,
+            "bib": "19",
+            "riderDisplay": "MARTINEZ GARCIA Ivan",
+            "timeText": "01:02:20",
+            "timeSeconds": "3740",
+            "gapText": "+250",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 9,
+            "bib": "22",
+            "riderDisplay": "TRAVIESA CORO Hugo",
+            "timeText": "01:02:33",
+            "timeSeconds": "3753",
+            "gapText": "+263",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 10,
+            "bib": "450",
+            "riderDisplay": "VEGA GONZALEZ Mario",
+            "timeText": "01:02:45",
+            "timeSeconds": "3765",
+            "gapText": "+275",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 11,
+            "bib": "13",
+            "riderDisplay": "FERNANDEZ ECHEVARRIA Angel",
+            "timeText": "01:02:56",
+            "timeSeconds": "3776",
+            "gapText": "+286",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 12,
+            "bib": "9",
+            "riderDisplay": "SANCHEZ ALDEGUER Manuel",
+            "timeText": "01:04:49",
+            "timeSeconds": "3889",
+            "gapText": "+399",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 13,
+            "bib": "15",
+            "riderDisplay": "BLANCH DANIEL Gerard",
+            "timeText": "01:05:04",
+            "timeSeconds": "3904",
+            "gapText": "+414",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 14,
+            "bib": "10",
+            "riderDisplay": "VALLE ELEGIDO Adrian",
+            "timeText": "01:05:26",
+            "timeSeconds": "3926",
+            "gapText": "+436",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 15,
+            "bib": "12",
+            "riderDisplay": "DIAZ GOMEZ Martin",
+            "timeText": "01:05:46",
+            "timeSeconds": "3946",
+            "gapText": "+456",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 16,
+            "bib": "17",
+            "riderDisplay": "GONZALEZ GAMEZ Jorge",
+            "timeText": "01:05:49",
+            "timeSeconds": "3949",
+            "gapText": "+459",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 17,
+            "bib": "25",
+            "riderDisplay": "CASILLAS MARTIN Angel",
+            "timeText": "01:06:09",
+            "timeSeconds": "3969",
+            "gapText": "+479",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 18,
+            "bib": "34",
+            "riderDisplay": "BUCETA ARMADA Dario",
+            "timeText": "01:06:16",
+            "timeSeconds": "3976",
+            "gapText": "+486",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 19,
+            "bib": "31",
+            "riderDisplay": "GONZALEZ SANCHEZ Daniel",
+            "timeText": "01:06:39",
+            "timeSeconds": "3999",
+            "gapText": "+509",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 20,
+            "bib": "14",
+            "riderDisplay": "PUELLES LOREDO Raul",
+            "timeText": "01:06:54",
+            "timeSeconds": "4014",
+            "gapText": "+524",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 21,
+            "bib": "6",
+            "riderDisplay": "ZAERA GISBERT Javier",
+            "timeText": "01:07:37",
+            "timeSeconds": "4057",
+            "gapText": "+567",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 22,
+            "bib": "21",
+            "riderDisplay": "LOPEZ NUÑEZ Adrian",
+            "timeText": "01:07:37",
+            "timeSeconds": "4057",
+            "gapText": "+567",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 23,
+            "bib": "24",
+            "riderDisplay": "HERRERA CIMIANO Adrian",
+            "timeText": "01:07:53",
+            "timeSeconds": "4073",
+            "gapText": "+583",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 24,
+            "bib": "30",
+            "riderDisplay": "PASTOR TERUEL Joel",
+            "timeText": "01:08:02",
+            "timeSeconds": "4082",
+            "gapText": "+592",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 25,
+            "bib": "38",
+            "riderDisplay": "GARAIOA AREVALO Aimar",
+            "timeText": "01:08:25",
+            "timeSeconds": "4105",
+            "gapText": "+615",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 26,
+            "bib": "29",
+            "riderDisplay": "GARCIA RODRIGUEZ Guillermo",
+            "timeText": "01:08:25",
+            "timeSeconds": "4105",
+            "gapText": "+615",
+            "irm": null,
+            "sourceConflict": null
+          },
+          {
+            "rank": 27,
+            "bib": "33",
+            "riderDisplay": "CARRERA JIMENEZ Pablo",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-2 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 28,
+            "bib": "23",
+            "riderDisplay": "MORA LAPIDO Diego",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-2 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 29,
+            "bib": "42",
+            "riderDisplay": "RODRIGUEZ ENCINAR Alejandro",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-3 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 30,
+            "bib": "35",
+            "riderDisplay": "VAZQUEZ GOLPE Aitor",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-3 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 31,
+            "bib": "32",
+            "riderDisplay": "HERNANDEZ ARRIBAS Jose Antonio",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-3 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 32,
+            "bib": "43",
+            "riderDisplay": "CALLE HERRERO Ruben",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-3 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 33,
+            "bib": "28",
+            "riderDisplay": "PEREZ GUILABERT Daniel",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-3 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 34,
+            "bib": "37",
+            "riderDisplay": "ARIAS REGUEIRO Lucas",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-4 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": 35,
+            "bib": "41",
+            "riderDisplay": "GOMEZ MENDEZ Borja",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": "-5 LAP",
+            "irm": "LAP",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "40",
+            "riderDisplay": "HERRAN MARTIJA Diego",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": null,
+            "irm": "DNF",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "11",
+            "riderDisplay": "ESTEBAN AGUERO Ismael",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": null,
+            "irm": "DNF",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "27",
+            "riderDisplay": "REINOSO SANCHEZ Marcos",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": null,
+            "irm": "DNF",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "20",
+            "riderDisplay": "GONZALEZ BELLIDO Cesar",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": null,
+            "irm": "DNS",
+            "sourceConflict": null
+          },
+          {
+            "rank": null,
+            "bib": "39",
+            "riderDisplay": "EGUIGUREN SANTAMARIA Oskitx",
+            "timeText": null,
+            "timeSeconds": null,
+            "gapText": null,
+            "irm": "DNS",
+            "sourceConflict": null
+          }
+        ]
+      }
+    ],
+    "exclusions": []
+  }
+}

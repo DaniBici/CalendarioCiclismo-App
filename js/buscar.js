@@ -4,7 +4,7 @@
 
 import { supabase, countryFlag, stageLabel, categoryBadge, initPhTooltip, jornadaUrl, raceUrl, femaleMark }
   from './shared.js';
-import { hasModalData, openRaceDataModal } from './race-data-modal.js';
+import { hasModalData, openRaceDataModal } from './race-data-modal.js?v=20260924sitefix';
 import { t, initI18n } from './i18n.js';
 
 const YEAR  = new Date().getFullYear();

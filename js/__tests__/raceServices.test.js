@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { annotateDoubleSectors, buildInhouseResultsMatcher } from '../services/races.js';
+import { annotateDoubleSectors, buildInhouseResultsMatcher,
+  shouldShowCompletedNoResultsProfile } from '../services/races.js';
 
 // ── annotateDoubleSectors ──────────────────────────────────────────
 
@@ -80,36 +81,6 @@ describe('annotateDoubleSectors', () => {
     expect(days[1]._stageSuffix).toBeUndefined();
   });
 
-  it('calcula _fcStageNumber correctamente en carrera simple', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-02', stageNumber: 2 }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-03', stageNumber: 3 }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._fcStageNumber).toBe(1);
-    expect(days[1]._fcStageNumber).toBe(2);
-    expect(days[2]._fcStageNumber).toBe(3);
-  });
-
-  it('calcula _fcStageNumber contando cada sector como etapa en doble sector', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T08:00:00Z' }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T13:00:00Z' }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-02', stageNumber: 2 }),
-    ];
-    annotateDoubleSectors(days);
-    const fcNums = days.map(d => d._fcStageNumber).sort((a, b) => a - b);
-    expect(fcNums).toEqual([1, 2, 3]);
-  });
-
-  it('no asigna _fcStageNumber con skipFcNumbers=true', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-    ];
-    annotateDoubleSectors(days, { skipFcNumbers: true });
-    expect(days[0]._fcStageNumber).toBeUndefined();
-  });
 });
 
 describe('buildInhouseResultsMatcher', () => {
@@ -139,6 +110,24 @@ describe('buildInhouseResultsMatcher', () => {
 
     expect(matcher.has({ id: 'stage-1a', raceId: 'r1', stageNumber: 1 })).toBe(true);
     expect(matcher.has({ id: 'stage-1b', raceId: 'r1', stageNumber: 1 })).toBe(false);
+  });
+});
+
+describe('shouldShowCompletedNoResultsProfile', () => {
+  const stage = { isRestDay: false, isCancelledDay: false };
+
+  it('conserva el miniperfil completo tras la meta si faltan resultados propios', () => {
+    expect(shouldShowCompletedNoResultsProfile(stage, false, true)).toBe(true);
+  });
+
+  it('no fuerza el perfil antes de la meta ni cuando ya hay resultados propios', () => {
+    expect(shouldShowCompletedNoResultsProfile(stage, false, false)).toBe(false);
+    expect(shouldShowCompletedNoResultsProfile(stage, true, true)).toBe(false);
+  });
+
+  it('no muestra el perfil de jornadas de descanso o canceladas', () => {
+    expect(shouldShowCompletedNoResultsProfile({ ...stage, isRestDay: true }, false, true)).toBe(false);
+    expect(shouldShowCompletedNoResultsProfile({ ...stage, isCancelledDay: true }, false, true)).toBe(false);
   });
 });
 

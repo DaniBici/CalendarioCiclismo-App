@@ -18,6 +18,37 @@ import java.time.temporal.ChronoUnit
  */
 object RaceLogic {
 
+    fun calendarYear(now: Instant = Instant.now()): Int = now.atOffset(ZoneOffset.UTC).year
+
+    fun hasCalendarForYear(year: Int?, now: Instant = Instant.now()): Boolean =
+        year != null && year >= calendarYear(now)
+
+    enum class TodayRaceState { CANCELLED, REST, RESULTS, WAITING, RUNNING, SCHEDULED }
+
+    fun todayRaceState(
+        rd: RaceDay,
+        hasInhouseResults: Boolean,
+        now: Instant = Instant.now(),
+    ): TodayRaceState {
+        if (rd.isCancelledDay) return TodayRaceState.CANCELLED
+        if (rd.isRestDay) return TodayRaceState.REST
+        if (hasInhouseResults) return TodayRaceState.RESULTS
+        if (rd.raceStatus == "finished") return TodayRaceState.WAITING
+        val finish = runCatching { rd.estimatedFinishTimeUtc?.let(Instant::parse) }.getOrNull()
+        if (finish != null && !now.isBefore(finish)) return TodayRaceState.WAITING
+        if (rd.raceStatus == "running") return TodayRaceState.RUNNING
+        val start = runCatching { rd.neutralStartTimeUtc?.let(Instant::parse) }.getOrNull()
+        if (start != null && !now.isBefore(start)) return TodayRaceState.RUNNING
+        return TodayRaceState.SCHEDULED
+    }
+
+    /** Carreras referenciadas por jornadas que no estaban en la consulta por
+     * solapamiento de fechas del mes. */
+    fun missingRaceIds(raceDays: List<RaceDay>, races: List<Race>): List<String> {
+        val loadedIds = races.mapTo(hashSetOf()) { it.id }
+        return raceDays.mapNotNull { it.raceId }.distinct().filterNot { it in loadedIds }
+    }
+
     // ── Resultados post-carrera ─────────────────────────────────
 
     /** Comprueba si la hora actual supera `estimatedFinishTimeUtc + offsetMinutes`. Fallback: dateKey 18:00 UTC + offset. */
@@ -45,36 +76,12 @@ object RaceLogic {
         } catch (_: Exception) { false }
     }
 
-    /** True si mostrar botones de resultados en las race cards: >=30 min DESPUÉS de la llegada. */
-    fun shouldShowResults(rd: RaceDay, race: Race?): Boolean {
-        if (rd.isRestDay || rd.isCancelledDay) return false
-        if (race?.extId == null && race?.extSlug == null) return false
-        return raceTimeCheck(rd, 30)
-    }
-
-    /** True si mostrar botones de resultados en la ficha de jornada: >=30 min ANTES de la llegada. */
-    fun shouldShowResultsDetail(rd: RaceDay, race: Race?): Boolean {
-        if (rd.isRestDay || rd.isCancelledDay) return false
-        if (race?.extId == null && race?.extSlug == null) return false
-        return raceTimeCheck(rd, -30)
-    }
-
-    /** True si mostrar "Así está la carrera" — la etapa previa ha terminado y
-     *  los resultados de la actual aún no están disponibles. */
-    fun shouldShowPreviousResults(prevRd: RaceDay, currentRd: RaceDay, race: Race?): Boolean {
-        if (race?.raceFormat == "one_day") return false
-        if (race?.extId == null && race?.extSlug == null) return false
-        if (shouldShowResultsDetail(currentRd, race)) return false
-        return raceTimeCheck(prevRd, 0)
-    }
-
     /** True si la carrera ya concluyó: >=30 min tras la hora estimada de llegada,
      *  con FALLBACK a `dateKey` 18:00 UTC cuando no hay hora de meta (lo aporta
-     *  `raceTimeCheck`). Espejo FIEL de la `isRaceConcluded(rd)` EXPORTADA en
+     *  `raceTimeCheck`). Espejo de la `isRaceConcluded(rd)` exportada en
      *  `js/race-data-modal.js`, que NO exige `estimatedFinishTimeUtc`: los
-     *  Campeonatos Nacionales no tienen hora de meta curada y aun así deben
-     *  mostrar los resultados externos al terminar (lo usa la rejilla de
-     *  Campeonatos). El guard antiguo los dejaba como "no concluidos" siempre. */
+     *  Campeonatos Nacionales no tienen hora de meta curada (lo usa la rejilla
+     *  de Campeonatos). */
     fun isRaceConcluded(rd: RaceDay): Boolean {
         if (rd.isRestDay || rd.isCancelledDay) return false
         return raceTimeCheck(rd, 30)
@@ -106,36 +113,6 @@ object RaceLogic {
         return ChampionshipTvState.Time(display)
     }
 
-    /** True si la carrera ya terminó pero no tiene extId/extSlug (solo Revive). */
-    fun noIdsAndPastDeadline(rd: RaceDay, race: Race?): Boolean {
-        if (rd.isRestDay || rd.isCancelledDay) return false
-        if (race?.extId != null || race?.extSlug != null) return false
-        return raceTimeCheck(rd, 0)
-    }
-
-    /** URL de fuente externa para la etapa dada. */
-    fun buildExtUrlA(race: Race, stageNumber: Int?): String? {
-        val extId = race.extId ?: return null
-        val year = race.year ?: return null
-        val base = "https://example.invalid"
-        return if (stageNumber != null) "$base&e=${"%02d".format(stageNumber)}" else base
-    }
-
-    /** URL de fuente externa para la etapa dada. */
-    fun buildExtUrlB(race: Race, stageNumber: Int?, stageSuffix: String? = null): String? {
-        val slug = race.extSlug ?: return null
-        val year = race.year ?: return null
-        val base = "https://example.invalid"
-        return when {
-            stageNumber == null -> "$base/result"
-            stageNumber == 0 -> "$base/prologue/result"
-            else -> {
-                val suffix = stageSuffix?.lowercase().orEmpty()
-                "$base/stage-$stageNumber$suffix/result"
-            }
-        }
-    }
-
     // ── Filtro por grupo regional ───────────────────────────────
 
     /**
@@ -159,10 +136,10 @@ object RaceLogic {
         broadcasts: List<Broadcast>,
         allowedGroups: Set<String> = DEFAULT_BROADCAST_GROUPS,
     ): List<Broadcast> =
-        broadcasts.filter { b ->
-            val c = b.country
-            c.isNullOrEmpty() || c in allowedGroups
-        }
+        broadcasts.filter { broadcastMatchesRegion(it.country, allowedGroups) }
+
+    fun broadcastMatchesRegion(country: String?, allowedGroups: Set<String>): Boolean =
+        country.isNullOrEmpty() || country in allowedGroups
 
     /**
      * Prioridad del enlace del badge de TV en directo (Hoy / Competición). Decide a qué
@@ -225,8 +202,10 @@ object RaceLogic {
     fun shouldShowBroadcastNote(hasResults: Boolean, isRevive: Boolean, showInRevive: Boolean): Boolean =
         !hasResults && (!isRevive || showInRevive)
 
-    fun hasReviveBroadcasts(broadcasts: List<Broadcast>, rd: RaceDay): Boolean =
-        raceTimeCheck(rd, 30) && broadcasts.any(::isReviveBroadcast)
+    fun hasReviveBroadcasts(
+        broadcasts: List<Broadcast>, hasCurrentResults: Boolean, isCancelled: Boolean = false,
+    ): Boolean = hasCurrentResults && reviveBroadcasts(broadcasts, isCancelled)
+        .any { !it.url.isNullOrEmpty() }
 
     fun reviveBroadcasts(broadcasts: List<Broadcast>, isCancelled: Boolean): List<Broadcast> =
         if (isCancelled) broadcasts.filter { it.showInRevive }
@@ -460,6 +439,10 @@ object RaceLogic {
     private fun isTourDelPorvenir(name: String): Boolean =
         name.containsIgnoreCase("tour del porvenir")
 
+    private fun isMixedRelayChampionship(category: String, name: String): Boolean =
+        (category == "WC" || category == "CC") &&
+            (name.containsIgnoreCase("relevo mixto") || name.containsIgnoreCase("mixed relay"))
+
     fun matchesCategory(race: Race, filter: Constants.CategoryFilter): Boolean {
         if (filter == Constants.CategoryFilter.ALL) return true
         val cat = race.uciCategory.orEmpty()
@@ -488,11 +471,11 @@ object RaceLogic {
             Constants.CategoryFilter.UWT -> cat == "1.UWT" || cat == "2.UWT"
             Constants.CategoryFilter.WWT -> cat == "1.WWT" || cat == "2.WWT"
             Constants.CategoryFilter.MALE ->
-                (gender != "female" || cat == "WC" || cat == "CC") &&
+                (gender == "male" || isMixedRelayChampionship(cat, name)) &&
                     cat != "1.2" && cat != "2.2" &&
                     ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name))
             Constants.CategoryFilter.FEMALE ->
-                (gender == "female" || cat == "WC" || cat == "CC") &&
+                (gender == "female" || isMixedRelayChampionship(cat, name)) &&
                     ((cat != "1.2U" && cat != "2.2U") || isTourDelPorvenir(name)) &&
                     ((cat != "1.2" && cat != "2.2") || cc in Constants.EUROPE_COUNTRIES)
         }

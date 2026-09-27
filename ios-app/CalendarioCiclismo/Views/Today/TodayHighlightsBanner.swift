@@ -7,7 +7,8 @@ import SwiftUI
 /// Diseño: tarjeta estilo "App Store Today" — superficie con esquinas
 /// redondeadas, márgenes laterales y material translúcido. El color de marca
 /// de la carrera se usa como ACENTO (barra lateral + tinte muy leve del
-/// material), no como fondo a sangre. Indicador de página (dots) en la base.
+/// material), no como fondo a sangre. Las flechas quedan contenidas en los
+/// límites laterales y no se muestran indicadores de página adicionales.
 struct TodayHighlightsBanner: View {
     /// Navegación a la pantalla de Campeonatos: la delega el PADRE (TodayView),
     /// que la empuja por VALOR (`ChampionshipsRoute`) sobre el `NavigationStack`.
@@ -22,18 +23,34 @@ struct TodayHighlightsBanner: View {
     /// pantalla y solo al pulsar atrás aparece el campeonato". Sacar el destino
     /// del banner volátil y empujarlo por valor desde el root estable lo arregla.
     var onTapChampionships: (() -> Void)? = nil
+    /// Entrega el destino al contenedor estable que posee el `NavigationStack`.
+    /// Evita registrar destinos dentro del carrusel, que puede quedar alojado en
+    /// un contenedor diferido y ser ignorado por SwiftUI 27.1.
+    var onOpenTarget: ((TodayHighlightTarget) -> Void)? = nil
 
-    @State private var viewModel = TodayHighlightsViewModel()
+    /// Sección del cintillo: "road" en Hoy/carretera y "cx" en la agenda de
+    /// Ciclocross. Independiza ambas fuentes editoriales.
+    let scope: String
+
+    init(
+        scope: String = "road",
+        onTapChampionships: (() -> Void)? = nil,
+        onOpenTarget: ((TodayHighlightTarget) -> Void)? = nil
+    ) {
+        self.scope = scope
+        self.onTapChampionships = onTapChampionships
+        self.onOpenTarget = onOpenTarget
+        _viewModel = State(initialValue: TodayHighlightsViewModel(scope: scope))
+    }
+
+    @State private var viewModel: TodayHighlightsViewModel
     @State private var currentIndex: Int = 0
     /// Dirección del último cambio de slide (+1 adelante, -1 atrás). Gobierna
     /// la dirección de la transición de deslizamiento.
     @State private var slideForward: Bool = true
     @State private var advanceTimer: Timer?
-    /// Wrappers para presentar el destino del slide tocado.
-    @State private var stageDestination: IdentifiableID?
-    @State private var raceDestination: IdentifiableID?
-    @State private var startlistDestination: IdentifiableID?
-    @State private var startOrderDestination: IdentifiableID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     // MARK: - Métricas de diseño
 
@@ -49,43 +66,26 @@ struct TodayHighlightsBanner: View {
             }
         }
         .task { await viewModel.load() }
-        .sheet(item: $startlistDestination) { wrapper in
-            NavigationStack {
-                StartlistView(raceId: wrapper.id, showDismissButton: true)
-            }
-        }
-        .sheet(item: $startOrderDestination) { wrapper in
-            NavigationStack {
-                StartOrderView(raceDayId: wrapper.id, showDismissButton: true)
-            }
-        }
-        .navigationDestination(item: $stageDestination) { wrapper in
-            StageDetailView(raceDayId: wrapper.id)
-        }
-        .navigationDestination(item: $raceDestination) { wrapper in
-            RaceDetailView(raceId: wrapper.id)
-        }
     }
 
     // MARK: - Tarjeta
 
     private var bannerCard: some View {
-        // La tarjeta toma su altura del contenido (slide + dots). El color de
-        // marca tiñe muy levemente el material y pinta una barra lateral; el
-        // dismiss vive dentro de la tarjeta, top-trailing, discreto.
+        // La tarjeta toma su altura del contenido. El color de
+        // marca tiñe muy levemente el material.
         //
         // Un único slide visible: el auto-advance / swipe cambia el índice y la
         // transición `.move` desliza en la dirección del gesto. No se usa
         // TabView (infla con chrome interno y captura el gesto antes que el
         // DragGesture) ni ScrollView paging (binding Int? frágil).
-        VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                slideRow
-                dismissButton
-            }
+        ZStack {
+            slideRow
             if viewModel.items.count > 1 {
-                pageDots
-                    .padding(.bottom, 10)
+                HStack(spacing: 0) {
+                    bannerArrow(forward: false)
+                    Spacer(minLength: 0)
+                    bannerArrow(forward: true)
+                }
             }
         }
         .background(cardSurface)
@@ -111,12 +111,18 @@ struct TodayHighlightsBanner: View {
                     guard abs(dx) > 30, abs(dx) > abs(dy) * 1.5 else { return }
                     stopAdvance()
                     advance(forward: dx < 0)
-                    startAdvance()
                 }
         )
         .onAppear { startAdvance() }
         .onDisappear { stopAdvance() }
         .onChange(of: viewModel.items.count) { _, _ in startAdvance() }
+        .onChange(of: voiceOverEnabled) { _, enabled in
+            if enabled {
+                stopAdvance()
+            } else {
+                startAdvance()
+            }
+        }
     }
 
     /// Fila principal del slide actual (logo + textos), con su transición
@@ -132,18 +138,25 @@ struct TodayHighlightsBanner: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture { tapSlide(item) }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(item.title), \(item.detail)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(LocaleService.t(
+                    "Pulsa dos veces para abrir este destacado",
+                    "Double-tap to open this highlight"
+                ))
+                .accessibilityAction { tapSlide(item) }
                 .id(currentIndex)
                 .transition(slideTransition)
         }
     }
 
     /// Superficie de la tarjeta: material translúcido con un tinte muy leve del
-    /// color de marca encima. Sin barra de acento lateral — la identidad de
-    /// color vive en el tinte del material y en el dot activo de paginación.
+    /// color de marca encima y sin barra de acento lateral.
     @ViewBuilder
     private var cardSurface: some View {
         ZStack {
-            Rectangle().fill(.regularMaterial)
+            Rectangle().fill(AppTheme.cardBackground)
             if let accent = currentAccentColor {
                 accent.opacity(0.07)
             }
@@ -157,39 +170,25 @@ struct TodayHighlightsBanner: View {
         return color
     }
 
-    /// X discreta de dismiss, dentro de la tarjeta (top-trailing).
-    private var dismissButton: some View {
+    private func bannerArrow(forward: Bool) -> some View {
         Button {
-            Haptics.play(.selection)
             stopAdvance()
-            withAnimation { viewModel.dismiss() }
+            advance(forward: forward)
         } label: {
-            Image(systemName: "xmark")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .opacity(0.55)
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
+            Image(systemName: forward ? "chevron.right" : "chevron.left")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 44, height: 44)
+                // La flecha forma parte de la superficie del cintillo: replica
+                // tanto el fondo de tarjeta como su tinte de carrera.
+                .background(cardSurface)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(LocaleService.t("Cerrar destacado", "Dismiss highlight"))
-    }
-
-    /// Indicador de página estilo iOS: punto activo con color de marca, resto
-    /// en quaternary. Animación de tamaño al cambiar de slide.
-    private var pageDots: some View {
-        HStack(spacing: 6) {
-            ForEach(viewModel.items.indices, id: \.self) { idx in
-                Circle()
-                    .fill(idx == currentIndex
-                          ? (currentAccentColor ?? Color.accentColor)
-                          : Color.secondary.opacity(0.28))
-                    .frame(width: idx == currentIndex ? 7 : 6,
-                           height: idx == currentIndex ? 7 : 6)
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: currentIndex)
-        .accessibilityHidden(true)
+        .accessibilityLabel(
+            forward
+                ? LocaleService.t("Destacado siguiente", "Next highlight")
+                : LocaleService.t("Destacado anterior", "Previous highlight")
+        )
     }
 
     private func slideLabel(item: TodayHighlightView) -> some View {
@@ -219,6 +218,8 @@ struct TodayHighlightsBanner: View {
                     .padding(6)
                     .foregroundStyle(currentAccentColor ?? Color.accentColor)
                     .frame(width: logoSide, height: logoSide)
+            } else if item.cxRace != nil || item.cxTournament != nil {
+                RaceLogo(item.logoUrl, size: logoSide)
             } else if let logoUrl = item.logoUrl, let url = URL(string: logoUrl) {
                 AsyncImage(url: url) { phase in
                     if let img = phase.image {
@@ -231,12 +232,12 @@ struct TodayHighlightsBanner: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                // Título con padding derecho propio para no chocar con la X.
+                // El título utiliza todo el ancho central disponible entre el
+                // identificador y la flecha lateral del carrusel.
                 Text(item.title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .padding(.trailing, 30)
                 // Subtítulo + chevron en la misma fila — el chevron no compite
                 // por espacio con el título.
                 HStack(spacing: 5) {
@@ -249,12 +250,12 @@ struct TodayHighlightsBanner: View {
                         .foregroundStyle(.secondary.opacity(0.55))
                 }
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Padding interno generoso y simétrico en los lados.
-        .padding(.horizontal, 14)
+        .padding(.horizontal, viewModel.items.count > 1 ? 44 : 14)
         .padding(.top, 14)
-        .padding(.bottom, viewModel.items.count > 1 ? 12 : 14)
+        .padding(.bottom, 14)
         .contentShape(Rectangle())
     }
 
@@ -272,16 +273,22 @@ struct TodayHighlightsBanner: View {
         stopAdvance()
         guard let target = item.target else { return }
         switch target {
-        case .stage(let id):       stageDestination     = IdentifiableID(id: id)
-        case .race(let id):        raceDestination      = IdentifiableID(id: id)
-        case .startlist(let id):   startlistDestination = IdentifiableID(id: id)
-        case .startOrder(let id):  startOrderDestination = IdentifiableID(id: id)
+        case .stage, .race, .startlist, .startOrder:
+            onOpenTarget?(target)
         // El push a Campeonatos lo hace el padre por VALOR (ver `onTapChampionships`).
         case .championships:       onTapChampionships?()
         // Fichajes vive como TAB propio (4.0): se conmuta la pestaña vía el
         // mismo canal que los deep links en vez de empujar al stack de Hoy.
         case .transfers:
             NotificationManager.shared.pendingDeepLink = .tab(2)
+        case .cxRace(let id):
+            NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
+        case .cxTournament:
+            // La página de torneo se resuelve por slug; el destino reutiliza el
+            // deep link nativo de series.
+            if let slug = item.cxTournament?.slug {
+                NotificationManager.shared.pendingDeepLink = .cxTournamentSlug(slug)
+            }
         }
     }
 
@@ -292,7 +299,7 @@ struct TodayHighlightsBanner: View {
     private func advance(forward: Bool) {
         guard viewModel.items.count > 1 else { return }
         slideForward = forward
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
             if forward {
                 currentIndex = (currentIndex + 1) % viewModel.items.count
             } else {
@@ -303,7 +310,7 @@ struct TodayHighlightsBanner: View {
 
     private func startAdvance() {
         stopAdvance()
-        guard viewModel.items.count > 1 else { return }
+        guard viewModel.items.count > 1, !reduceMotion, !voiceOverEnabled else { return }
         advanceTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 advance(forward: true)

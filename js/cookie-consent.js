@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────
 //  Cookie Consent Banner + Modal de gestión
-//  - Banner en primera visita: exige una elección expresa.
+//  - Banner en primera visita: auto-cierre en 10s (acepta).
 //  - Rueda ⚙ "Elegiré más tarde": cierra sin guardar elección.
 //  - Botón "Gestión de cookies" en el footer → modal para cambiar.
 // ─────────────────────────────────────────────────────────────────
@@ -38,7 +38,9 @@
     ? 'We use essential cookies and visit measurement cookies. If you’d rather not be tracked, click Reject.'
     : 'Utilizamos cookies esenciales y de medici\u00f3n de visitas. Si quieres que no te rastreemos, dale a Rechazar.';
 
-  var BANNER_TEXT = MODAL_TEXT;
+  var BANNER_TEXT = _isEN
+    ? MODAL_TEXT + ' This notice will auto-close in 10 seconds.'
+    : MODAL_TEXT + ' Este aviso se autoocultar\u00e1 en 10 segundos.';
 
   document.addEventListener('DOMContentLoaded', function () {
 
@@ -70,7 +72,10 @@
       banner.offsetHeight; // eslint-disable-line no-unused-expressions
       banner.classList.add('cookie-banner--visible');
 
+      var timer = null;
+
       function closeBanner(consent) {
+        if (timer) clearTimeout(timer);
         if (consent) {
           localStorage.setItem(KEY, consent);
           window.__cookieConsent = consent;
@@ -118,6 +123,10 @@
         tip.style.top = (e.clientY + 18) + 'px';
       });
 
+      // Auto-cierre en 10 segundos → equivale a aceptar
+      timer = setTimeout(function () {
+        closeBanner('accepted');
+      }, 10000);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -176,10 +185,12 @@
       window.__cookieConsent = consent;
       closeModal();
 
-      var gaId = (typeof CONFIG !== 'undefined' && CONFIG.gaId) ? CONFIG.gaId : null;
-      if (gaId) window['ga-disable-' + gaId] = consent === 'rejected';
       if (consent === 'accepted' && typeof window.__loadAnalytics === 'function') {
         window.__loadAnalytics();
+      }
+      // Si rechaza y GA ya estaba cargado, desactivar para futuras cargas
+      if (consent === 'rejected' && window['ga-disable-' + (typeof CONFIG !== 'undefined' && CONFIG.gaId)]) {
+        window['ga-disable-' + CONFIG.gaId] = true;
       }
     }
 

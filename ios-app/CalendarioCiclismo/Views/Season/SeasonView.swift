@@ -6,13 +6,14 @@ struct SeasonView: View {
     /// Acción del toggle Temporada↔Mes (solo cuando se renderiza dentro de
     /// `CalendarTabView`, apps 3.1). nil = sin botón de alternar.
     var switchAction: (() -> Void)? = nil
+    var embedded = false
+    var onOpenStage: ((String) -> Void)?
+    var onOpenRace: ((String) -> Void)?
     @State private var viewModel = SeasonViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
     @State private var loadingOneDayRaceId: String?
-    @State private var oneDayRaceDayId: String?
     @State private var loadingStageRaceId: String?
-    @State private var stageRaceNavigationId: String?
     /// Índice de la página (mes) visible en el TabView.
     @State private var currentMonthIndex: Int = 0
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
@@ -20,6 +21,16 @@ struct SeasonView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if embedded {
+                HStack(spacing: 10) {
+                    Text(localeService.t("Calendario", "Calendar"))
+                        .font(.headline)
+                    Spacer()
+                    seasonFiltersContent
+                }
+                .padding(.horizontal)
+                .frame(minHeight: 44)
+            }
             // Filtros de categoría
             categoryFilterBar
 
@@ -120,6 +131,7 @@ struct SeasonView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
             }
         }
+        .background(AppTheme.background.ignoresSafeArea())
         .onAppear {
             AnalyticsService.shared.logScreenView("season", parameters: [
                 "year": String(viewModel.year),
@@ -139,19 +151,19 @@ struct SeasonView: View {
             // basta: hay que ocultar su fondo compartido con
             // `.sharedBackgroundVisibility(.hidden)` (iOS 26+) para que manden las
             // cápsulas propias del año/país.
-            if #available(iOS 26, *) {
+            if #available(iOS 26, *), !embedded {
                 ToolbarItem(placement: .topBarLeading) {
                     seasonFiltersContent
                 }
                 .sharedBackgroundVisibility(.hidden)
-            } else {
+            } else if !embedded {
                 ToolbarItem(placement: .topBarLeading) {
                     seasonFiltersContent
                 }
             }
             // Toggle Temporada→Mes (solo dentro de la pestaña Calendario; las
             // acciones propias de Temporada van en topBarLeading).
-            if let switchAction {
+            if !embedded, let switchAction {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Haptics.play(.navigation)
@@ -166,15 +178,6 @@ struct SeasonView: View {
         .onChange(of: viewModel.year) { _, _ in
             currentMonthIndex = 0
             Task { await viewModel.loadSeason() }
-        }
-        .navigationDestination(item: $oneDayRaceDayId) { dayId in
-            StageDetailView(raceDayId: dayId)
-        }
-        .navigationDestination(item: $stageRaceNavigationId) { raceId in
-            RaceDetailView(raceId: raceId)
-        }
-        .navigationDestination(for: ChampionshipsRoute.self) { _ in
-            ChampionshipsView()
         }
         .placeholderModal(item: $placeholderItem)
         .task { await viewModel.loadSeason() }
@@ -344,7 +347,9 @@ struct SeasonView: View {
 
                 Color.clear.frame(height: 16)
             }
+            .frame(maxWidth: 760)
         }
+        .background(AppTheme.background)
         .accessibilityIdentifier("season_race_list")
     }
 
@@ -546,11 +551,15 @@ struct SeasonView: View {
     // MARK: - One-day race async loading
 
     private func handleOneDayRaceTap(_ race: Race) async {
+        if race.isCancelled {
+            placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
+            return
+        }
         loadingOneDayRaceId = race.id
         do {
             let days = try await SupabaseService.shared.raceDays(byRaceId: race.id)
             if let first = days.first {
-                oneDayRaceDayId = first.id
+                onOpenStage?(first.id)
             } else {
                 placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
             }
@@ -561,13 +570,17 @@ struct SeasonView: View {
     }
 
     private func handleStageRaceTap(_ race: Race) async {
+        if race.isCancelled {
+            placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
+            return
+        }
         loadingStageRaceId = race.id
         do {
             let days = try await SupabaseService.shared.raceDays(byRaceId: race.id)
             if days.isEmpty {
                 placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
             } else {
-                stageRaceNavigationId = race.id
+                onOpenRace?(race.id)
             }
         } catch {
             placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
@@ -654,35 +667,36 @@ private struct SeasonRaceRow: View {
             showShadow: false
         ) {
             HStack(spacing: 10) {
-                RaceLogo(race.logoUrl, size: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        if race.hideFlag != true {
-                            CountryFlag(countryCode: race.countryCode)
-                        }
-                        Text(displayName)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-
-                        if showFemale {
-                            Text("♀")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.green)
-                        }
-                    }
-
-                    HStack(spacing: 6) {
-                        CategoryBadge(category: race.uciCategory)
-
-                        Text(DateFormatting.formatDateRange(start: race.startDate, end: race.endDate))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                if race.hideFlag != true {
+                    CountryFlag(countryCode: race.countryCode)
                 }
 
-                Spacer(minLength: 0)
+                RaceLogo(race.logoUrl, size: 28)
+
+                HStack(spacing: 4) {
+                    Text(displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .strikethrough(race.isCancelled)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if showFemale {
+                        Text("♀")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.green)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    Text(DateFormatting.formatDateRange(start: race.startDate, end: race.endDate))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    CategoryBadge(category: race.uciCategory)
+                }
+                .fixedSize(horizontal: true, vertical: false)
 
                 if isLoading {
                     ProgressView()

@@ -25,7 +25,9 @@ Flag histórico `PREMIUM_TEST_BUILD`, reutilizado para simular Amigo activo:
 - **Script pre-build:** `ios-app/ci_scripts/ci_pre_xcodebuild.sh`. Xcode Cloud lo ejecuta automáticamente.
 - El formato xcconfig trata `//` como comentario; el script escapa con `$()` para que `https://…` sobreviva.
 - **Archivos `.swift` nuevos:** Xcode Cloud compila del `.pbxproj` commiteado (no regenera con XcodeGen). Al añadir un `.swift` nuevo hay que registrarlo en el `.pbxproj` — corriendo `./setup.sh` (XcodeGen) y commiteando el resultado, o añadiendo a mano sus 4 entradas (PBXBuildFile + PBXFileReference + grupo + fase Sources) para los targets correspondientes.
-- **Contador efectivo (2026-08-25):** Xcode Cloud ha alcanzado la build **1306**. El proyecto queda sincronizado en `CURRENT_PROJECT_VERSION = 1306`; el próximo cambio iOS debe asignar un valor superior.
+- **Scheme manual:** `setup.sh`/XcodeGen no declara en `project.yml` el scheme manual `CalendarioAnalytics.xcscheme`; cada regeneración lo borra. Restaurarlo desde `origin/main` tras cada `setup.sh` y vigilar en futuras regeneraciones.
+- **Versión de release:** `ios-app/project.yml` es la fuente de verdad que el pre-build de Xcode Cloud aplica sobre el `.pbxproj`. Un bump debe actualizar `MARKETING_VERSION` y `CURRENT_PROJECT_VERSION` tanto en `project.yml` (base + target principal) como en el proyecto generado; cambiar solo el `.pbxproj` se revierte en Cloud.
+- **Contador efectivo (2026-09-07):** Xcode Cloud ha alcanzado la build **1343**. Dani fija **1344** como siguiente compilación de iOS, manteniendo marketing **4.4.1**. Los valores locales de `CURRENT_PROJECT_VERSION` se han sincronizado a **1344** en `project.yml` y el proyecto Xcode para la corrección de marca en carga y Ajustes. Comprobar el contador de Cloud antes de posteriores incrementos.
 
 ### Script post-build — reporte de errores en GitHub
 

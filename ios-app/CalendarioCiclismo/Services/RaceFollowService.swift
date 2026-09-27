@@ -61,12 +61,14 @@ final class RaceFollowService {
     private static let racesKey   = "followed_race_ids"
     private static let filtersKey = "race_group_filters"
     private static let stagesKey  = "followed_stage_ids"
+    private static let cxRacesKey = "followed_cx_race_ids"
 
     private(set) var followMode: FollowMode
     private(set) var followedRaceIds: Set<String>
     private(set) var activeFilters: Set<GroupFilter>
     /// IDs de jornadas seguidas individualmente. Independiente del followMode de carreras.
     private(set) var followedStageIds: Set<String>
+    private(set) var followedCxRaceIds: Set<String>
 
     private init() {
         let rawMode = UserDefaults.standard.string(forKey: Self.modeKey) ?? ""
@@ -80,6 +82,8 @@ final class RaceFollowService {
             rawFilters.split(separator: ",").compactMap { GroupFilter(rawValue: String($0)) }
         )
 
+        let rawCxRaces = UserDefaults.standard.string(forKey: Self.cxRacesKey) ?? ""
+        followedCxRaceIds = Set(rawCxRaces.split(separator: ",").map(String.init))
         let rawStages = UserDefaults.standard.string(forKey: Self.stagesKey) ?? ""
         followedStageIds = rawStages.isEmpty ? [] : Set(rawStages.split(separator: ",").map(String.init))
     }
@@ -89,6 +93,17 @@ final class RaceFollowService {
     func isFollowing(_ raceId: String) -> Bool {
         followedRaceIds.contains(raceId)
     }
+
+    func isFollowingCx(_ raceId: String) -> Bool { followedCxRaceIds.contains(raceId) }
+
+    /// El seguimiento CX no cambia el modo ni las preferencias de carretera.
+    func setFollowingCx(_ raceId: String, following: Bool) {
+        if following { followedCxRaceIds.insert(raceId) } else { followedCxRaceIds.remove(raceId) }
+        UserDefaults.standard.set(followedCxRaceIds.sorted().joined(separator: ","), forKey: Self.cxRacesKey)
+        Task { await NotificationManager.shared.healSubscriptionIfNeeded() }
+    }
+
+    var followedCxRacesForRpc: [String] { followedCxRaceIds.sorted() }
 
     func isFollowingStage(_ raceDayId: String) -> Bool {
         followedStageIds.contains(raceDayId)

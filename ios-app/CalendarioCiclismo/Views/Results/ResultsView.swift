@@ -66,6 +66,10 @@ struct ResultsView: View {
     /// etapa). Se incrementa en cada pull-to-refresh y entra en la clave de
     /// carga del hijo → re-pide `race_uci_results` sin parpadeo.
     @State private var rowsReloadToken = 0
+    @State private var isLoadingResults = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var safariURL: URL?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         Group {
@@ -92,31 +96,81 @@ struct ResultsView: View {
                 content(data)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(LocaleService.t("Clasificaciones", "Classifications"))
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: raceId) { await load(resetSelection: true) }
+        .toolbar {
+            if let race = stageRaceForToolbar {
+                if #available(iOS 26, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        raceToolbarLink(race)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        raceToolbarLink(race)
+                    }
+                }
+            }
+        }
+        .task(id: "\(raceId)-\(scenePhase)") {
+            guard scenePhase == .active else { return }
+            await load(resetSelection: activeStageKey == nil)
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                await load(resetSelection: false)
+            }
+        }
+        .safariSheet(url: $safariURL)
+    }
+
+    private var stageRaceForToolbar: Race? {
+        guard case .ready(let data) = state, data.race.isStageRace else { return nil }
+        return data.race
+    }
+
+    private func raceToolbarLink(_ race: Race) -> some View {
+        NavigationLink(destination: RaceDetailView(raceId: race.id)) {
+            RaceLogo(race.logoUrl, size: 24)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(LocaleService.t(
+            "Ver todas las etapas de \(race.localizedName)",
+            "View all stages of \(race.localizedName)"
+        ))
     }
 
     // MARK: - Carga
 
     private func load(resetSelection: Bool) async {
+        guard !isLoadingResults else { return }
+        isLoadingResults = true
+        defer { isLoadingResults = false }
         do {
             guard let data = try await SupabaseService.shared.loadResultsData(raceId: raceId) else {
                 state = .empty
                 return
             }
+            try Task.checkCancellation()
             state = .ready(data)
+            rowsReloadToken &+= 1
             // Selección inválida tras un refresh (la etapa activa ya no existe)
             // → re-aplicar la selección por defecto.
             let keyInvalid = activeStageKey.map { stagesByKey(data)[$0] == nil } ?? true
             if resetSelection || keyInvalid {
                 applyInitialSelection(data)
+            } else {
+                refreshHeaderRaceDay(data, logView: false)
             }
             // El screen_view de Resultados se emite en `logStageView` (lo dispara
             // `applyInitialSelection`→`refreshHeaderRaceDay` y cada cambio de etapa),
             // para que lleve stage_name/race_day_id de la etapa realmente mostrada
             // y aparezca en "etapas más vistas" como `stage_detail`.
         } catch {
+            guard !Task.isCancelled else { return }
             if case .ready = state { return }   // pull-to-refresh fallido: conservar datos
             state = .error(error.localizedDescription)
         }
@@ -178,13 +232,14 @@ struct ResultsView: View {
         stagesByKey(data).keys.sorted { stageKeyRank($0) < stageKeyRank($1) }
     }
 
-    private func classOrderIndex(_ classKind: String) -> Int {
-        UciResultsLogic.classOrder.firstIndex(of: classKind) ?? 99
-    }
-
     private func sortedStages(_ data: UciResultsData, for key: String?) -> [RaceUciStage] {
         guard let key else { return [] }
-        return (stagesByKey(data)[key] ?? []).sorted { classOrderIndex($0.classKind) < classOrderIndex($1.classKind) }
+        let existing = (stagesByKey(data)[key] ?? [])
+            .filter { key != "final" || $0.classKind != "stage" }
+        return UciResultsLogic.visibleStageClassifications(
+            config: data.classificationConfig,
+            stages: existing
+        )
     }
 
     /// RaceDay del header al cambiar de etapa. Se resuelve de las jornadas ya
@@ -193,7 +248,8 @@ struct ResultsView: View {
     /// de país por jornada (p. ej. et1 en Francia de una carrera italiana). Si la
     /// etapa activa no casa por ninguno (un día / general final), se conserva
     /// `data.raceDay`, NUNCA se pone a nil (perdería ruta/distancia).
-    private func refreshHeaderRaceDay(_ data: UciResultsData) {
+    private func refreshHeaderRaceDay(_ data: UciResultsData, logView: Bool = true) {
+        headerRaceDay = data.raceDay
         let active = sortedStages(data, for: activeStageKey)
         let daysById = Dictionary(uniqueKeysWithValues: data.raceDays.map { ($0.id, $0) })
         var daysByStage: [Int: RaceDay] = [:]
@@ -211,7 +267,7 @@ struct ResultsView: View {
         }
         // `headerRaceDay` ya refleja la etapa activa → loguear con su stage_name.
         // (Si la etapa no casa —un día / final— se conserva data.raceDay.)
-        logStageView(data)
+        if logView { logStageView(data) }
     }
 
     /// Emite el `screen_view` de Resultados con el contexto de la etapa activa,
@@ -234,28 +290,98 @@ struct ResultsView: View {
     @ViewBuilder
     private func content(_ data: UciResultsData) -> some View {
         let isEn = LocaleService.shouldShowEnglishContent
-        let keys = stageKeys(data)
         let activeStages = sortedStages(data, for: activeStageKey)
         let activeStage = activeStages.first { $0.classKind == activeClassKind } ?? activeStages.first
 
         VStack(spacing: 0) {
-            // Bloque FIJO arriba (no scrollea con la tabla): cabecera de carrera +
-            // selector de etapa + barra de clasificaciones/filtro de equipo. Así,
-            // al recorrer una clasificación larga, el contexto (qué etapa y qué
-            // clasificación se miran) permanece siempre visible. El padding
-            // inferior generoso forma un "colchón" bajo el filtro/pestañas para
-            // que las filas se deslicen por debajo con aire. Paridad con
-            // ResultsScreen (Android) y con la cabecera sticky de Inscritos.
-            VStack(alignment: .leading, spacing: 16) {
+            // La ficha general permanece fuera del scroll. Documentación y
+            // selector de etapas se desplazan; las pestañas de clasificación
+            // quedan fijadas al recorrer los resultados.
+            VStack(alignment: .leading, spacing: 0) {
                 if let rd = headerRaceDay {
-                    StageInfoHeader(raceDay: rd, race: data.race)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .ccCardSurface()
+                    resultsHeader(raceDay: rd, race: data.race)
                 } else {
                     ResultsPlainHeader(race: data.race)
                 }
+            }
+            .padding(.horizontal)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .background(AppTheme.background)
 
+            if let activeStage {
+                if horizontalSizeClass == .regular,
+                   let rd = headerRaceDay,
+                   hasResultsStageContext(rd) {
+                    HStack(alignment: .top, spacing: 16) {
+                        resultsList(data: data, stage: activeStage, isEn: isEn, contextBelow: nil)
+                        ScrollView {
+                            ResultsStageContext(
+                                raceDay: rd,
+                                race: data.race
+                            )
+                        }
+                        .frame(width: 320)
+                        .padding(.trailing)
+                    }
+                } else {
+                    resultsList(
+                        data: data,
+                        stage: activeStage,
+                        isEn: isEn,
+                        contextBelow: headerRaceDay
+                    )
+                }
+            } else {
+                Spacer()
+            }
+        }
+        .background(AppTheme.background)
+    }
+
+    /// Precarga las clasificaciones contiguas a la visible, como los días
+    /// vecinos de Hoy: el deslizamiento las muestra ya pintadas.
+    private func prefetchNeighbors(of stage: RaceUciStage, in data: UciResultsData) async {
+        let stages = sortedStages(data, for: activeStageKey)
+        guard let index = stages.firstIndex(where: { $0.id == stage.id }) else { return }
+        for neighbor in [index + 1, index - 1] where stages.indices.contains(neighbor) {
+            let target = stages[neighbor]
+            guard !target.isCancelledStage, !target.isPendingClassification, !Task.isCancelled else { continue }
+            _ = await ResultsRowsCache.shared.bundle(
+                stageRef: target.id, token: rowsReloadToken, byDorsal: data.byDorsal, raceYear: data.race.year
+            )
+        }
+    }
+
+    private func hasResultsStageContext(_ raceDay: RaceDay) -> Bool {
+        raceDay.hasElevationProfile || raceDay.distanceKm != nil
+            || raceDay.elevationProfile?.elevationGain != nil || raceDay.neutralStartTimeUtc != nil
+            || raceDay.averageSpeedKmh != nil
+            || raceDay.hasValidTimeLimit
+    }
+
+    private func resultsList(
+        data: UciResultsData,
+        stage: RaceUciStage,
+        isEn: Bool,
+        contextBelow: RaceDay?
+    ) -> some View {
+        let config = data.classificationConfig.first { $0.classKind == stage.classKind }
+        let classificationLabel = config.map { UciResultsLogic.classificationLabel($0, isEn: isEn) }
+            ?? resultsClassLabel(stage.classKind)
+        let classKinds = sortedStages(data, for: activeStageKey).map(\.classKind)
+        return ScrollView {
+            // Las pestañas de clasificación son la cabecera fijada; las tablas
+            // no fijan su fila de columnas para no superponerse a ellas.
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if let rd = headerRaceDay {
+                    resultsAssetStrip(data: data, raceDay: rd)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 8)
+                }
+
+                let keys = stageKeys(data)
                 if keys.count > 1 {
                     ResultsStageSelector(
                         stageKeys: keys,
@@ -266,50 +392,337 @@ struct ResultsView: View {
                             refreshHeaderRaceDay(data)
                         }
                     )
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
                 }
 
-                if let activeStage {
+                Section {
+                    ResultsPublicationStatus(
+                        stage: stage,
+                        classificationLabel: classificationLabel,
+                        showClassificationLabel: !data.race.isOneDay
+                    )
+                        .padding(.horizontal)
+                        .padding(.top, 2)
+                        .padding(.bottom, 4)
+                    if stage.isPendingClassification {
+                        EmptyStateView(
+                            icon: "hourglass",
+                            title: LocaleService.t("Pendiente de publicación", "Pending publication"),
+                            subtitle: LocaleService.t(
+                                "La clasificación está declarada, pero todavía no tiene filas publicadas.",
+                                "The classification is available, but its rows have not been published yet."
+                            )
+                        )
+                        .classificationSwipe(options: classKinds, current: stage.classKind) { activeClassKind = $0 }
+                    } else {
+                        ResultsTableView(
+                            stage: stage,
+                            byDorsal: data.byDorsal,
+                            raceTeams: data.raceTeams,
+                            raceDayPrimaryType: headerRaceDay?.primaryType,
+                            raceYear: data.race.year,
+                            isOneDay: data.race.isOneDay,
+                            isEn: isEn,
+                            selectedTeam: selectedTeam,
+                            reloadToken: rowsReloadToken,
+                            onTeamsResolved: { teamsAvailable = $0 }
+                        )
+                        .id(stage.id)
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                        .contentShape(Rectangle())
+                        .classificationSwipe(options: classKinds, current: stage.classKind) { activeClassKind = $0 }
+                        .task(id: stage.id) { await prefetchNeighbors(of: stage, in: data) }
+                    }
+                    if let rd = contextBelow, hasResultsStageContext(rd) {
+                        ResultsStageContext(
+                            raceDay: rd,
+                            race: data.race
+                        )
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                    }
+                } header: {
                     ResultsClassTabsBar(
-                        stages: activeStages,
-                        activeClassKind: activeStage.classKind,
+                        stages: sortedStages(data, for: activeStageKey),
+                        classificationConfig: data.classificationConfig,
+                        activeClassKind: stage.classKind,
                         teamsAvailable: teamsAvailable,
                         selectedTeam: selectedTeam,
                         onSelectClass: { activeClassKind = $0 },
                         onSelectTeam: { selectedTeam = $0 }
                     )
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
-            .background(Color(.systemBackground))
-
-            if let activeStage {
-                ScrollView {
-                    // `.id` fuerza un estado limpio de la tabla al cambiar de
-                    // clasificación o etapa (recarga de filas + reset de CRE).
-                    ResultsTableView(
-                        stage: activeStage,
-                        byDorsal: data.byDorsal,
-                        raceTeams: data.raceTeams,
-                        raceDayPrimaryType: headerRaceDay?.primaryType,
-                        isOneDay: data.race.isOneDay,
-                        isEn: isEn,
-                        selectedTeam: selectedTeam,
-                        reloadToken: rowsReloadToken,
-                        onTeamsResolved: { teamsAvailable = $0 }
-                    )
-                    .id(activeStage.id)
                     .padding(.horizontal)
-                    .padding(.bottom, 16)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.background)
                 }
-                .refreshable {
-                    rowsReloadToken &+= 1
-                    await load(resetSelection: false)
-                }
-            } else {
-                Spacer()
             }
+        }
+        .refreshable {
+            await load(resetSelection: false)
+        }
+    }
+
+    private func resultsHeader(raceDay: RaceDay, race: Race) -> some View {
+        StageInfoHeader(raceDay: raceDay, race: race)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ccCardSurface()
+    }
+
+    /// Barra documental de la jornada activa. Mantiene el orden de Jornada,
+    /// pero excluye su perfil oficial externo; el acceso de regreso se inserta
+    /// tras el Libro de Ruta.
+    @ViewBuilder
+    private func resultsAssetStrip(data: UciResultsData, raceDay: RaceDay) -> some View {
+        let assets = resultsDocumentationAssets(data: data, raceDay: raceDay)
+        let profileIndex = Constants.assetOrder.firstIndex(of: "profile") ?? Constants.assetOrder.count
+        let hasInteractiveProfile = raceDay.hasElevationProfile
+        let hasStaticProfile = assets.contains { $0.type == "profile" }
+        let hasInteractiveMap = raceDay.routeGpxUrl?.isEmpty == false
+        let hasStaticMap = assets.contains { $0.type == "map" }
+        let bothMaps = hasInteractiveMap && hasStaticMap
+        let technicalGuide = assets.first { $0.type == "technicalGuide" }
+        let assetsBeforeProfile = assets.filter { asset in
+            asset.type != "technicalGuide" &&
+                (Constants.assetOrder.firstIndex(of: asset.type ?? "") ?? Constants.assetOrder.count) < profileIndex
+        }
+        let officialMap = bothMaps ? assets.first { $0.type == "map" } : nil
+        let assetsFromProfile = assets.filter { asset in
+            if asset.type == "profile" { return false }
+            if asset.type == "map" && bothMaps { return false }
+            return (Constants.assetOrder.firstIndex(of: asset.type ?? "") ?? Constants.assetOrder.count) >= profileIndex
+        }
+
+        ResultsScrollRail(height: 60, spacing: 0, framed: true) {
+            if let website = data.race.websiteUrl, let url = URL(string: website) {
+                Button { safariURL = url } label: {
+                    ActionStripTile(icon: "globe", label: LocaleService.t("Web oficial", "Official website"))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let asset = technicalGuide,
+               let urlString = asset.url,
+               let url = URL(string: urlString) {
+                Button { safariURL = url } label: {
+                    ActionStripTile(icon: resultsAssetIcon(for: asset.type), label: asset.typeLabel)
+                }
+                .buttonStyle(.plain)
+            }
+
+            NavigationLink(destination: StageDetailView(raceDayId: raceDay.id)) {
+                ActionStripTile(
+                    icon: "cc.cursor",
+                    label: data.race.isOneDay
+                        ? LocaleService.t("Ir a la carrera", "Go to the race")
+                        : LocaleService.t("Ir a la etapa", "Go to the stage")
+                )
+            }
+            .buttonStyle(.plain)
+
+            if data.race.startlistImportedAt != nil {
+                let provisional = data.race.startlistProvisional == true
+                NavigationLink(destination: StartlistView(raceId: data.race.id)) {
+                    ActionStripTile(
+                        icon: "person.2",
+                        label: provisional
+                            ? LocaleService.t("Lista provisional", "Provisional Startlist")
+                            : LocaleService.t("Dorsales", "Startlist")
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            ForEach(assetsBeforeProfile) { asset in
+                if asset.type == "startOrder" {
+                    NavigationLink(destination: StartOrderView(raceDayId: raceDay.id)) {
+                        ActionStripTile(icon: "timer", label: LocaleService.t("Orden de salida", "Start order"))
+                    }
+                    .buttonStyle(.plain)
+                } else if let urlString = asset.url, let url = URL(string: urlString) {
+                    let effectiveType = resultsEffectiveAssetType(asset, race: data.race, raceDay: raceDay, hasProfile: hasStaticProfile || hasInteractiveProfile)
+                    Button { safariURL = url } label: {
+                        ActionStripTile(
+                            icon: resultsAssetIcon(for: effectiveType),
+                            label: Constants.assetTexts[effectiveType] ?? asset.typeLabel
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if hasInteractiveProfile {
+                NavigationLink(destination: ElevationProfileView(raceDay: raceDay, race: data.race)) {
+                    ActionStripTile(
+                        icon: resultsAssetIcon(for: "profile"),
+                        label: LocaleService.t("Perfil", "Profile")
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let asset = officialMap,
+               let urlString = asset.url,
+               let url = URL(string: urlString) {
+                Button { safariURL = url } label: {
+                    ActionStripTile(icon: resultsAssetIcon(for: "map"), label: LocaleService.t("Mapa", "Map"))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if hasInteractiveMap {
+                NavigationLink(destination: RouteMapView(raceDay: raceDay, race: data.race)) {
+                    ActionStripTile(
+                        icon: resultsAssetIcon(for: "map"),
+                        label: bothMaps
+                            ? LocaleService.t("Mapa 3D", "3D Map")
+                            : LocaleService.t("Mapa", "Map")
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            ForEach(assetsFromProfile) { asset in
+                if let urlString = asset.url, let url = URL(string: urlString) {
+                    let effectiveType = resultsEffectiveAssetType(asset, race: data.race, raceDay: raceDay, hasProfile: hasStaticProfile || hasInteractiveProfile)
+                    Button { safariURL = url } label: {
+                        ActionStripTile(
+                            icon: resultsAssetIcon(for: effectiveType),
+                            label: Constants.assetTexts[effectiveType] ?? asset.typeLabel
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func resultsDocumentationAssets(data: UciResultsData, raceDay: RaceDay) -> [Asset] {
+        let technicalGuide = data.assets.first {
+            $0.type == "technicalGuide" && !($0.url ?? "").isEmpty
+        }
+        let stageAssets = data.assets.filter {
+            $0.raceDayId == raceDay.id && $0.type != "technicalGuide" && $0.type != "live_text"
+                && ($0.type == "startOrder" || !($0.url ?? "").isEmpty)
+        }
+        var seenTypes = Set<String>()
+        return ((technicalGuide.map { [$0] } ?? []) + stageAssets)
+            .filter { asset in
+                let key = asset.type ?? asset.id
+                return seenTypes.insert(key).inserted
+            }
+            .sorted { lhs, rhs in
+                let left = Constants.assetOrder.firstIndex(of: lhs.type ?? "") ?? Int.max
+                let right = Constants.assetOrder.firstIndex(of: rhs.type ?? "") ?? Int.max
+                return left < right
+            }
+    }
+
+    private func resultsEffectiveAssetType(
+        _ asset: Asset,
+        race: Race,
+        raceDay: RaceDay,
+        hasProfile: Bool
+    ) -> String {
+        guard asset.type == "ports", !hasProfile, raceDay.primaryType == "sterrato" else {
+            return asset.type ?? ""
+        }
+        return race.countryCode?.uppercased() == "FR" ? "ribinou" : "sterrato"
+    }
+
+    private func resultsAssetIcon(for type: String?) -> String {
+        switch type {
+        case "startOrder": return "timer"
+        case "profile": return "chart.line.uptrend.xyaxis"
+        case "map": return "map"
+        case "roadbook": return "doc.text"
+        case "ports": return "mountain.2"
+        case "pave": return "hexagon"
+        case "sterrato", "ribinou": return "circle.grid.3x3.fill"
+        default: return "doc"
+        }
+    }
+
+}
+
+struct ResultsStageContext: View {
+    let raceDay: RaceDay
+    let race: Race
+    var officialProfileAsset: Asset? = nil
+
+    private var hasMetrics: Bool {
+        raceDay.distanceKm != nil || raceDay.elevationProfile?.elevationGain != nil
+            || raceDay.neutralStartTimeUtc != nil || raceDay.averageSpeedKmh != nil
+            || raceDay.hasValidTimeLimit
+    }
+
+    var body: some View {
+        if raceDay.hasElevationProfile || officialProfileAsset != nil || hasMetrics {
+            VStack(alignment: .leading, spacing: 10) {
+                if let profile = raceDay.elevationProfile, raceDay.hasElevationProfile {
+                    NavigationLink(destination: ElevationProfileView(raceDay: raceDay, race: race)) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(LocaleService.t("Perfil y datos", "Profile and data"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            MiniElevationProfile(
+                                profile: profile,
+                                summits: raceDay.profileSummits ?? [],
+                                waypoints: raceDay.profileWaypoints ?? [],
+                                tint: race.colorHex.map { Color(hex: $0) } ?? .accentColor,
+                                height: 58,
+                                primaryType: raceDay.primaryType,
+                                forceCompleted: true
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                if let asset = officialProfileAsset,
+                   let urlString = asset.url,
+                   let url = URL(string: urlString) {
+                    Link(destination: url) {
+                        HStack(spacing: 8) {
+                            Text(LocaleService.t("Perfil oficial", "Official profile"))
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                }
+                if let value = raceDay.distanceFormatted {
+                    contextMetric(LocaleService.t("Distancia", "Distance"), value)
+                }
+                if let value = raceDay.elevationGainFormatted {
+                    contextMetric(LocaleService.t("Desnivel", "Elevation gain"), value)
+                }
+                if let raw = raceDay.neutralStartTimeUtc,
+                   let value = DateFormatting.formatTimeLocal(raw) {
+                    contextMetric(LocaleService.t("Salida neutralizada", "Neutral start"), value)
+                }
+                if let value = raceDay.averageSpeedKmh {
+                    contextMetric(LocaleService.t("Velocidad media", "Average speed"), String(format: "%.1f km/h", value))
+                }
+                if raceDay.hasValidTimeLimit,
+                   let value = RaceDay.formatDuration(seconds: raceDay.timeLimitSeconds) {
+                    contextMetric(LocaleService.t("Fuera de control", "Time limit"), value)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ccCardSurface()
+        }
+    }
+
+    private func contextMetric(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(.caption.weight(.semibold)).monospacedDigit()
         }
     }
 }

@@ -3,6 +3,7 @@ package app.calendariociclismo.android.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +15,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
@@ -26,6 +28,7 @@ import app.calendariociclismo.android.data.model.ProfileWaypoint
 import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 private val SUMMIT_COLOR  = Color(0xFFC53030)
 /** Color neutro de la porción aún "no recorrida" cuando se muestra progreso. */
@@ -40,6 +43,52 @@ private val SUPPORTED_WAYPOINT_TYPES = setOf(
     "intermediate_sprint", "bonus_sprint", "intermediate_split",
     "cobblestone", "sterrato",
 )
+
+/** Umbrales exactos de `profileThemeColor()` en el miniperfil web. */
+internal const val MINI_PROFILE_DARK_MIN_LUMINANCE = 0.27
+internal const val MINI_PROFILE_LIGHT_MAX_LUMINANCE = 0.17
+
+internal fun miniProfileRelativeLuminance(color: Color): Double {
+    fun linear(component: Float): Double {
+        val value = component.toDouble()
+        return if (value <= 0.04045) value / 12.92
+        else ((value + 0.055) / 1.055).pow(2.4)
+    }
+    return 0.2126 * linear(color.red) +
+        0.7152 * linear(color.green) +
+        0.0722 * linear(color.blue)
+}
+
+/**
+ * Conserva el matiz y mezcla solo lo necesario hacia blanco en oscuro o hacia
+ * negro en claro, con la misma búsqueda binaria y los mismos umbrales que web.
+ */
+internal fun adjustedMiniProfileColor(color: Color, darkTheme: Boolean): Color {
+    val threshold = if (darkTheme) MINI_PROFILE_DARK_MIN_LUMINANCE
+        else MINI_PROFILE_LIGHT_MAX_LUMINANCE
+    fun needsCorrection(candidate: Color): Boolean = if (darkTheme) {
+        miniProfileRelativeLuminance(candidate) < threshold
+    } else {
+        miniProfileRelativeLuminance(candidate) > threshold
+    }
+    if (!needsCorrection(color)) return color
+
+    val target = if (darkTheme) 1f else 0f
+    fun mixed(amount: Double) = Color(
+        red = color.red + (target - color.red) * amount.toFloat(),
+        green = color.green + (target - color.green) * amount.toFloat(),
+        blue = color.blue + (target - color.blue) * amount.toFloat(),
+        alpha = color.alpha,
+    )
+
+    var lowerBound = 0.0
+    var upperBound = 1.0
+    repeat(16) {
+        val amount = (lowerBound + upperBound) / 2
+        if (needsCorrection(mixed(amount))) lowerBound = amount else upperBound = amount
+    }
+    return mixed(upperBound)
+}
 
 private fun waypointColor(type: String): Color = when (type) {
     "intermediate_sprint" -> COLOR_SPRINT
@@ -91,6 +140,10 @@ fun MiniElevationProfile(
     /** Fuerza 100% cuando la tarjeta ya muestra Resultados o Revive. */
     forceCompleted: Boolean = false,
 ) {
+    val adjustedTint = adjustedMiniProfileColor(
+        tint,
+        darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
+    )
     // Reloj que avanza cada 60 s mientras la etapa está en curso. `remember`
     // y `LaunchedEffect` se invocan siempre (las condiciones van dentro) para
     // no romper las reglas de composición.
@@ -222,12 +275,12 @@ fun MiniElevationProfile(
             drawPath(fillPath, color = PROGRESS_BASE.copy(alpha = 0.28f))
             drawPath(strokePath, color = PROGRESS_BASE.copy(alpha = 0.5f), style = Stroke(width = 1.4f))
             clipRect(left = 0f, top = 0f, right = size.width * progress, bottom = size.height) {
-                drawPath(fillPath, color = tint.copy(alpha = 0.20f))
-                drawPath(strokePath, color = tint.copy(alpha = 0.95f), style = Stroke(width = 1.4f))
+                drawPath(fillPath, color = adjustedTint.copy(alpha = 0.20f))
+                drawPath(strokePath, color = adjustedTint.copy(alpha = 0.95f), style = Stroke(width = 1.4f))
             }
         } else {
-            drawPath(fillPath, color = tint.copy(alpha = 0.15f))
-            drawPath(strokePath, color = tint.copy(alpha = 0.85f), style = Stroke(width = 1.4f))
+            drawPath(fillPath, color = adjustedTint.copy(alpha = 0.15f))
+            drawPath(strokePath, color = adjustedTint.copy(alpha = 0.85f), style = Stroke(width = 1.4f))
         }
 
         // Indicadores: summits primero, luego waypoints (mismo orden que iOS).

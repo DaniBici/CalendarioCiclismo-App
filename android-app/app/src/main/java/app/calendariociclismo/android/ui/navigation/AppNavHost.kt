@@ -1,32 +1,24 @@
 package app.calendariociclismo.android.ui.navigation
 
+import android.app.Activity
+import android.os.Bundle
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SyncAlt
-import androidx.compose.material3.HorizontalDivider
+import app.calendariociclismo.android.ui.cyclocross.CyclocrossScreen
+import app.calendariociclismo.android.ui.cyclocross.CxRaceScreen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,19 +26,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import app.calendariociclismo.android.R
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -60,6 +47,7 @@ import app.calendariociclismo.android.ui.calendar.CalendarScreen
 import app.calendariociclismo.android.ui.championships.ChampionshipsScreen
 import app.calendariociclismo.android.ui.race.RaceScreen
 import app.calendariociclismo.android.ui.resultsfeed.ResultsFeedScreen
+import app.calendariociclismo.android.ui.settings.FollowedCxRacesScreen
 import app.calendariociclismo.android.ui.settings.FollowedRacesScreen
 import app.calendariociclismo.android.ui.settings.FollowedStagesScreen
 import app.calendariociclismo.android.ui.settings.SettingsScreen
@@ -77,11 +65,12 @@ import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.today.TodayScreen
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.rememberHaptics
+import com.google.android.play.core.review.ReviewManagerFactory
+import kotlinx.coroutines.tasks.await
 
 /**
- * Scaffold principal con bottom bar de 5 pestañas + NavHost.
- * Pestañas 3.1: Hoy / Resultados / Calendario (Mes+Temporada fusionadas) /
- * Buscar / Ajustes — paridad con iOS.
+ * Navegación principal adaptativa: barra inferior en móvil y rail en ventanas
+ * amplias. Ajustes se abre desde la cabecera de Hoy, en paridad con iOS.
  */
 @Composable
 fun AppNavHost(navController: NavHostController) {
@@ -89,6 +78,7 @@ fun AppNavHost(navController: NavHostController) {
     val currentRoute = backStackEntry?.destination?.route
     val haptic = rememberHaptics()
     val app = rememberApp()
+    val context = LocalContext.current
     val isSubscribed by app.premium.isSubscribed.collectAsState()
     val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     var showContributionPrompt by remember { mutableStateOf(false) }
@@ -127,46 +117,108 @@ fun AppNavHost(navController: NavHostController) {
             route.startsWith("start_order/") || route.startsWith("results/") ||
             route.startsWith("transfers_team/")
         if (!contentRoute) return@LaunchedEffect
+        val meaningfulAction = route.startsWith("race/") || route.startsWith("stage/") ||
+            route.startsWith("elevation_profile/") || route.startsWith("route_map/") ||
+            route.startsWith("startlist/") || route.startsWith("start_order/") ||
+            route.startsWith("results/") || route.startsWith("transfers_team/")
         if (app.preferences.recordContributionContentView(
                 route == Routes.TODAY,
                 isSubscribed || legacyPremiumActive,
+                meaningfulAction,
             )
         ) {
             showContributionPrompt = true
             app.analytics.logEvent("contribution_prompt_view")
         }
-    }
-
-    // Scaffold exterior solo se encarga de la bottom bar; cada pantalla tiene
-    // su propio Scaffold con TopAppBar y gestiona sus insets superiores. Por
-    // eso pasamos `contentWindowInsets = WindowInsets(0)` y consumimos el
-    // padding que nos da el Scaffold, para que no se sume dos veces el inset
-    // del status bar.
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            if (currentRoute in Routes.MAIN_TABS) {
-                AppBottomBar(currentRoute = currentRoute, onSelect = { dest ->
-                    haptic(Haptics.Event.Navigation)
-                    navController.navigate(dest) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+        if (app.preferences.recordReviewContentView(route == Routes.TODAY, meaningfulAction)) {
+            val activity = context as? Activity ?: return@LaunchedEffect
+            app.preferences.markReviewRequested()
+            runCatching {
+                val manager = ReviewManagerFactory.create(context)
+                val reviewInfo = manager.requestReviewFlow().await()
+                manager.launchReviewFlow(activity, reviewInfo).await()
+            }.onFailure { error ->
+                app.analytics.logEvent("review_prompt_error", Bundle().apply {
+                    putString("reason", error::class.simpleName)
                 })
             }
         }
-    ) { padding ->
+    }
+
+    val showPrimaryNavigation = currentRoute in Routes.MAIN_TABS
+    val navigationSuiteState = rememberNavigationSuiteScaffoldState()
+    val tabLabels = tabs.map { stringResource(it.labelRes) }
+    LaunchedEffect(showPrimaryNavigation) {
+        if (showPrimaryNavigation) navigationSuiteState.show() else navigationSuiteState.hide()
+    }
+
+    // La suite cambia automáticamente entre barra inferior y rail lateral según
+    // la ventana disponible. Las rutas de detalle —incluidos dorsales y orden de
+    // salida— siguen siendo destinos jerárquicos y ocultan la navegación primaria.
+    NavigationSuiteScaffold(
+        state = navigationSuiteState,
+        containerColor = MaterialTheme.colorScheme.background,
+        navigationSuiteItems = {
+            tabs.forEachIndexed { index, tab ->
+                val selected = currentRoute == tab.route ||
+                    (currentRoute != null && tab.route == currentRoute.split("/").firstOrNull())
+                val label = tabLabels[index]
+                item(
+                    selected = selected,
+                    onClick = {
+                        if (!selected) {
+                            haptic(Haptics.Event.Navigation)
+                            navController.navigate(tab.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            painter = tab.iconResource?.let { painterResource(it) }
+                                ?: rememberVectorPainter(requireNotNull(tab.icon)),
+                            contentDescription = label,
+                            modifier = Modifier.size(
+                                width = if (tab.route == Routes.CYCLOCROSS) 36.dp else 24.dp,
+                                height = 24.dp,
+                            ),
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
+                        )
+                    },
+                )
+            }
+        },
+    ) {
         NavHost(
             navController = navController,
             startDestination = Routes.TODAY,
             modifier = Modifier
-                .padding(padding)
-                .consumeWindowInsets(padding),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             composable(Routes.TODAY) { TodayScreen(navController) }
             composable(Routes.RESULTS_FEED) { ResultsFeedScreen(navController) }
             composable(Routes.CALENDAR) { CalendarScreen(navController) }
+            composable(Routes.CYCLOCROSS) { CyclocrossScreen(navController) }
+            composable(Routes.CX_TOURNAMENT, arguments = listOf(
+                navArgument("tournamentId") { type = NavType.StringType },
+                navArgument("season") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType },
+                navArgument("logo") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )) { entry -> CyclocrossScreen(navController, entry.arguments?.getString("tournamentId"), entry.arguments?.getString("season"), entry.arguments?.getString("name"), entry.arguments?.getString("logo")) }
+            composable(Routes.CX_RACE, arguments = listOf(
+                navArgument("raceId") { type = NavType.StringType },
+                navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )) { entry -> CxRaceScreen(navController, entry.arguments?.getString("raceId").orEmpty(), entry.arguments?.getString("category")) }
             composable(Routes.TRANSFERS) { TransfersScreen(navController, showBackArrow = false) }
             composable(Routes.TRANSFERS_HIGHLIGHT) { TransfersScreen(navController, showBackArrow = true) }
             composable(Routes.SETTINGS) { SettingsScreen(navController) }
@@ -272,6 +324,10 @@ fun AppNavHost(navController: NavHostController) {
                 FollowedStagesScreen(navController = navController)
             }
 
+            composable(route = Routes.FOLLOWED_CX_RACES) {
+                FollowedCxRacesScreen(navController = navController)
+            }
+
             composable(route = Routes.CHAMPIONSHIPS) {
                 ChampionshipsScreen(navController = navController)
             }
@@ -309,85 +365,17 @@ fun AppNavHost(navController: NavHostController) {
  * `labelRes` se resuelve via `stringResource(...)` en cada render —
  * cambia automáticamente al idioma activo cuando el usuario lo modifica.
  */
-private data class TabItem(val route: String, val labelRes: Int, val icon: ImageVector)
+private data class TabItem(
+    val route: String,
+    val labelRes: Int,
+    val icon: ImageVector? = null,
+    val iconResource: Int? = null,
+)
 
 private val tabs = listOf(
     TabItem(Routes.TODAY, R.string.tab_today, Icons.Filled.CalendarToday),
     TabItem(Routes.RESULTS_FEED, R.string.tab_results, Icons.Filled.EmojiEvents),
     TabItem(Routes.TRANSFERS, R.string.tab_transfers, Icons.Filled.SyncAlt),
+    TabItem(Routes.CYCLOCROSS, R.string.tab_cyclocross, iconResource = R.drawable.ic_cyclocross),
     TabItem(Routes.CALENDAR, R.string.tab_calendar, Icons.Filled.CalendarMonth),
-    TabItem(Routes.SETTINGS, R.string.tab_settings, Icons.Filled.Settings),
 )
-
-/**
- * Barra inferior con el lenguaje del cintillo: superficie del tema con un
- * hairline superior fino (sin la sombra/tono por defecto de M3), y el ítem
- * activo marcado con una cápsula azul de marca al 15% bajo el icono — el mismo
- * gesto suave que los chips de filtro y el día seleccionado.
- */
-@Composable
-private fun AppBottomBar(currentRoute: String?, onSelect: (String) -> Unit) {
-    val primary = MaterialTheme.colorScheme.primary
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-    ) {
-        Column {
-            // Hairline de definición superior (sustituye la sombra de M3).
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                tabs.forEach { tab ->
-                    val selected = currentRoute == tab.route ||
-                        (currentRoute != null && tab.route == currentRoute.split("/").firstOrNull())
-                    val label = stringResource(tab.labelRes)
-                    val tint = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable(role = Role.Tab) { if (!selected) onSelect(tab.route) }
-                            .semantics { this.selected = selected }
-                            .padding(vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        // Cápsula azul suave bajo el icono cuando está activo.
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(
-                                    if (selected) primary.copy(alpha = 0.15f) else Color.Transparent
-                                )
-                                .padding(horizontal = 16.dp, vertical = 3.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                tab.icon,
-                                contentDescription = label,
-                                tint = tint,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = tint,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}

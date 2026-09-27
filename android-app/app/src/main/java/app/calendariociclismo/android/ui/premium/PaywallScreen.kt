@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -49,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import app.calendariociclismo.android.ui.theme.SystemBarsAppearance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -109,9 +112,10 @@ fun PaywallSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        contentWindowInsets = { WindowInsets(0) },
+        contentWindowInsets = { WindowInsets.safeDrawing },
         containerColor = MaterialTheme.colorScheme.background,
     ) {
+        SystemBarsAppearance(MaterialTheme.colorScheme.background.luminance() < 0.5f)
         Column(
             modifier = Modifier
                 .fillMaxWidth()

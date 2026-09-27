@@ -74,8 +74,7 @@ final class SeasonViewModel {
     private var filteredRaces: [Race] {
         races
             .filter {
-                !($0.isCancelled)
-                    && !ChampionshipsConfig.isChampionship($0)
+                !ChampionshipsConfig.isChampionship($0)
                     && RaceLogic.matchesCategory($0, filter: activeFilter)
                     && matchesCountry($0)
             }

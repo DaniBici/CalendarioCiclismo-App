@@ -8,6 +8,82 @@
 // ── Diccionario ES (fuente de verdad) ────────────────────────────
 const LOCALES = {
   es: {
+    cx: {
+      "title": "Ciclocross",
+      "metaTitle": "Ciclocross — Calendario Ciclismo",
+      "metaDescription": "Calendario de ciclocross UCI 2026-27: horarios por categoría, dorsales, resultados y clasificaciones de la Copa del Mundo, Superprestige, X2O y Copa de España.",
+      "season": "Temporada",
+      "previousMonth": "Mes anterior",
+      "nextMonth": "Mes siguiente",
+      "filter": { "all": "Todas", "big": "Big", "pro": "Pro", "spain": "España" },
+      "noRaces": "No hay carreras programadas para este mes",
+      "noRacesFilter": "No hay carreras con este filtro para el mes seleccionado",
+      "categories": "Categorías",
+      "programme": "Programa",
+      "result": "Resultado",
+      "round": "{n}/{total}",
+      "roundAria": "Prueba {n} de {total}",
+      "loading": "Cargando ciclocross",
+      "estimatedFinished": "Final estimado alcanzado",
+      "pendingShort": "Pendiente",
+      "phFuture": "Por ahora sin información extra",
+      "phNoInfo": "Sin información extra",
+      "scheduled": "Manga prevista",
+      "estimatedEnd": "Final estimado: {time}",
+      "loadError": "No se pudo cargar el calendario.",
+      "back": "Agenda de ciclocross",
+      "rider": "Corredor",
+      "team": "Equipo",
+      "time": "Tiempo",
+      "totalTime": "Tiempo total",
+      "points": "Puntos",
+      "lapOne": "-1 vuelta",
+      "laps": "-{n} vueltas",
+      "lapped": "vuelta perdida",
+      "startlist": "Dorsales",
+      "noStartlist": "Dorsales pendientes.",
+      "noResults": "Resultados pendientes.",
+      "noStandings": "Clasificación general pendiente.",
+      "noCategories": "Programa de categorías pendiente.",
+      "noRules": "Reglamento de categoría pendiente de verificar.",
+      "retry": "Reintentar",
+      "notFound": "Carrera de ciclocross no encontrada.",
+      "tv": "TV y streaming",
+      "revive": "Revive",
+      "videos": "Vídeos",
+      "noVideos": "Vídeos pendientes.",
+      "standings": "Clasificación general",
+      "official": "Resultados oficiales",
+      "provisional": "Resultados provisionales",
+      "raceDescription": "Horarios, dorsales, TV, resultados y vídeos de {name} ({class}, {date})",
+      "category": {
+        "ME": "Elite masculina",
+        "WE": "Elite femenina",
+        "MU": "Sub-23 masculina",
+        "WU": "Sub-23 femenina",
+        "MJ": "Júnior masculina",
+        "WJ": "Júnior femenina"
+      },
+      "regions": {
+        "ALL": "Todo el mundo",
+        "ES": "España",
+        "EUROPA": "Europa",
+        "PT": "Portugal",
+        "FR": "Francia",
+        "BE": "Bélgica",
+        "NL": "Países Bajos",
+        "IT": "Italia",
+        "DE_AT_CH": "Alemania, Austria y Suiza",
+        "UK_IE": "Reino Unido e Irlanda",
+        "SCANDI": "Escandinavia",
+        "EE": "Europa del Este",
+        "LATAM": "Latinoamérica",
+        "NORTEAM": "Norteamérica",
+        "ASIAPAC": "Asia y Pacífico",
+        "AFRICA": "África",
+        "MENA": "Oriente Medio y norte de África"
+      }
+    },
     nav: {
       today: 'Hoy', month: 'Mes', apps: 'Apps', about: 'Sobre',
       search: 'Buscar', themeToggle: 'Cambiar tema',
@@ -111,10 +187,10 @@ const LOCALES = {
     },
     assets: {
       startOrder: 'Orden Salida', technicalGuide: 'Libro de Ruta', roadbook: 'Rutómetro', profile: 'Perfil',
-      profileOfficial: 'Perfil', profileInteractive: 'Perfil + Datos',
+      profileOfficial: 'Perfil', profileInteractive: 'Perfil interactivo',
       ports: 'Puertos', pave: 'Pavé', sterrato: 'Sterrato', ribinou: 'Ribinou',
       map: 'Mapa', mapOfficial: 'Mapa', mapInteractive: 'Mapa 3D',
-      live_text: 'Live texto', general: 'General',
+      live_text: 'Live texto', general: 'General', classifications: 'Clasificaciones',
     },
     months: {
       short: ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'],
@@ -257,7 +333,7 @@ let _enLoaded = false;
 async function _loadEN() {
   if (_enLoaded || LOCALES.en) return;
   try {
-    const res = await fetch('/i18n/en.json');
+    const res = await fetch('/i18n/en.json?v=20260914cxsections2');
     LOCALES.en = await res.json();
     _enLoaded = true;
   } catch { /* fallback to ES */ }
@@ -268,6 +344,8 @@ async function _loadEN() {
 // El idioma lo determina exclusivamente la URL/hostname, no localStorage,
 // para evitar que cc_lang='en' contamine páginas del dominio español.
 function _detectLang() {
+  // Entorno sin navegador (pruebas node): español por defecto.
+  if (typeof window === 'undefined') return 'es';
   // EN_DOMAIN se inyecta desde config.js (vacío hasta que exista el dominio inglés)
   const _enHost = (typeof CONFIG !== 'undefined' && CONFIG.enDomain) || window.EN_DOMAIN || null;
   if (_enHost && window.location.hostname === _enHost) {

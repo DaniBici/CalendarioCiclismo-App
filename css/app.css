@@ -7,14 +7,24 @@
 
 /* ── Variables (modo oscuro por defecto) ──────────────────────── */
 :root {
-  --primary-nav-h: 42px;
-  --bg:            #111318;
-  --bg-card:       #1c1e24;
-  --bg-card-hover: #24262d;
-  --border:        #2e3038;
-  --border-light:  #3c3f4a;
+  --profile-dark-correction: 1;
+  --profile-light-correction: 0;
+  /* A 55% sobre --bg-card compone un gris azulado oscuro: mantiene visible la
+     silueta pendiente y deja al menos ~3:1 frente a colores de carrera desde
+     la luminancia mínima corregida. El gris claro anterior componía #838990 y
+     se confundía con identificativos claros como el #999999 de Flandrien. */
+  --profile-pending-color: #465568;
+  --content-max: 1440px;
+  --page-gutter: 16px;
+  --page-width: min(var(--content-max), calc(100vw - 2 * var(--page-gutter)));
+  --primary-nav-h: var(--primary-nav-measured-h, 42px);
+  --bg:            #141923;
+  --bg-card:       #1e2632;
+  --bg-card-hover: #293443;
+  --border:        #354252;
+  --border-light:  #465568;
   --text:          #e2e2e9;
-  --text-muted:    #8e9099;
+  --text-muted:    #b7c1ce;
   --text-dim:      #9296a3;
   --accent:        #1a73e8;
   --accent-dim:    rgba(26,115,232,0.12);
@@ -40,7 +50,15 @@
   --radius-soft: 12px;         /* esquina suave para botones rectangulares       */
   --radius-lg:   12px;
   --transition:  0.15s ease;
-  --bg-header:   rgba(17,19,24,0.97);
+  --bg-header:   #202938;
+  /* Los diálogos consumen la misma jerarquía cromática que la web. Estos
+     alias evitan que una superficie modal conserve una paleta independiente
+     cuando cambian los fondos, bordes o cabeceras globales. */
+  --modal-scrim:      rgba(0,0,0,0.6);
+  --modal-surface:    var(--bg-card);
+  --modal-header:     var(--bg-header);
+  --modal-field:      var(--bg);
+  --modal-border:     var(--border);
   /* Elevación de tarjetas: en oscuro se eleva con LUZ (glow blanco tenue),
      no con sombra oscura — sobre fondo casi negro una sombra no contrasta.
      Paridad conceptual con la elevación de CCCard en las apps. */
@@ -100,10 +118,13 @@
 
 /* ── Tema claro ───────────────────────────────────────────────── */
 html.light {
-  --bg:            #ffffff;
-  --bg-card:       #ffffff;
-  --bg-card-hover: #f1f3f4;
-  --border:        #e0e0e0;
+  --profile-dark-correction: 0;
+  --profile-light-correction: 1;
+  --profile-pending-color: #657185;
+  --bg:            #f3f5f8;
+  --bg-card:       #fafbfc;
+  --bg-card-hover: #e9edf3;
+  --border:        #d8dee8;
   --border-light:  #c8cacf;
   --text:          #1f1f1f;
   --text-muted:    #5f6368;
@@ -120,7 +141,7 @@ html.light {
   --dorsal-bg-a: #eeeff2;
 
   --header-text:   #1f1f1f;
-  --bg-header:     rgba(255,255,255,0.97);
+  --bg-header:     #edf1f6;
   /* En claro la elevación sí es una sombra oscura suave, idéntica a la de
      CCCard en iOS/Android (negro 6-8% sobre fondo claro). */
   --card-shadow: 0 2px 6px rgba(0,0,0,0.08);
@@ -164,10 +185,10 @@ html.light {
 
 @media (prefers-color-scheme: light) {
   html:not(.dark) {
-    --bg:            #ffffff;
-    --bg-card:       #ffffff;
-    --bg-card-hover: #f1f3f4;
-    --border:        #e0e0e0;
+    --bg:            #f3f5f8;
+    --bg-card:       #fafbfc;
+    --bg-card-hover: #e9edf3;
+    --border:        #d8dee8;
     --border-light:  #c8cacf;
     --text:          #1f1f1f;
     --text-muted:    #5f6368;
@@ -182,7 +203,7 @@ html.light {
     --orange:        #e37400;
 
     --header-text:   #1f1f1f;
-    --bg-header:     rgba(255,255,255,0.97);
+    --bg-header:     #edf1f6;
     --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
 
     --badge-wt-bg:     #d3e3fd;
@@ -294,7 +315,7 @@ main:focus, main:focus-visible { outline: none; }
    darles margen de scroll hace que el navegador desplace la página en cada
    tabulación —subiendo de card en card antes de llegar a la lista—. */
 main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 9rem; }
-:where(.site-header, .primary-nav, .hoy-sticky, .temporada-filters, .cal-mes-bar)
+:where(.site-header, .primary-nav, .hoy-sticky, .cx-agenda-sticky, .temporada-filters, .cal-mes-bar)
   :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top: 0; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -333,7 +354,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   flex-shrink: 0;
 }
 .site-logo__text { color: var(--header-text); }
-/* ── Cluster de utilidades (siempre visible: buscar·Apps·idioma·tema·menú) ── */
+/* ── Cluster de utilidades (siempre visible: Apps·Apoyar·idioma·tema) ── */
 .header-actions {
   display: flex;
   align-items: center;
@@ -366,20 +387,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   height: 18px;
   background: var(--border);
 }
-
-/* Buscar inline (lupa) — visible en desktop; en móvil va al menú */
-.nav-search-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--header-text);
-  padding: 0.3rem 0.4rem;
-  border-radius: 7px;
-  opacity: 0.72;
-  transition: opacity var(--transition), background var(--transition), color var(--transition);
-}
-.nav-search-link:hover { opacity: 1; background: rgba(128,128,128,0.10); }
-.nav-search-link.active { opacity: 1; color: var(--accent-text); }
 
 /* ── Botón Apps ───────────────────────────────────────────────── */
 .nav-apps-btn {
@@ -447,14 +454,14 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 /* ── Navegación global — tabs de las apps adaptados a web ─────── */
 .primary-nav {
   position: sticky;
-  top: calc(56px + env(safe-area-inset-top));
+  top: var(--site-header-h, 56px);
   z-index: 99;
   background: var(--bg-header);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
 .primary-nav__inner {
-  width: min(100%, 860px);
+  width: var(--page-width);
   margin: 0 auto;
   padding: 0 1.5rem;
   display: flex;
@@ -529,195 +536,38 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   .primary-nav__divider { margin-right: 0.2rem; margin-left: 0.2rem; }
 }
 
-/* ── Cintillo "Hoy" — tarjeta editorial (carrusel, estilo apps) ────
-   Lengua visual de las apps: tarjeta redondeada sobre superficie
-   --bg-card, tinte del color de carrera, hairline + sombra suave,
-   logo grande, dos líneas (título + detalle), dots y X. La franja
-   .giro-countdown es el carril sticky opaco (--bg) que evita que las
-   cards se vean a través de los márgenes/esquinas de la tarjeta. */
+/* Cintillo editorial compacto, sin control de descarte. El cintillo y los
+   controles específicos de cada agenda forman una única cabecera apilada. */
 .giro-countdown {
   position: sticky;
-  top: calc(56px + var(--primary-nav-h) + env(safe-area-inset-top));
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
   z-index: 95;
-  background: var(--bg);
-  padding: 8px 1.5rem 10px;
-}
-.giro-card {
-  position: relative;
-  max-width: 812px;
-  margin: 0 auto;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  box-shadow: var(--card-shadow);
-}
-.giro-bg {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
-}
-.giro-bg--active { opacity: 1; }
-.giro-countdown__inner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  padding: 0.6rem 0.85rem;
-  min-height: 58px;
-}
-.giro-text-area {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  align-self: stretch;
-}
-.giro-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.45s ease;
-  pointer-events: none;
-}
-.giro-text--active { opacity: 1; pointer-events: auto; }
-.giro-countdown__link {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  color: var(--text);
-  text-decoration: none;
-  font-family: var(--font-body);
-  width: 100%;
-  min-width: 0;
-}
-.giro-countdown__logo {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  border-radius: 9px;
-  background: rgba(127,127,127,0.08);
-  flex-shrink: 0;
-}
-/* Slot vacío (slide sin logo): reserva el espacio pero sin caja visible */
-.giro-countdown__logo:empty { background: none; }
-/* Fichajes: las flechas se muestran sin la pastilla translúcida del logo. */
-.giro-countdown__logo--transfers { background: none; }
-/* Icono inline (bandera de meta de Campeonatos): se tiñe con --accent dentro de
-   una caja con el fondo accent-dim, igual que el icono de las apps. El propio
-   dibujo ya trae márgenes internos, así que basta un padding ligero. */
-.giro-countdown__logo--icon {
-  color: var(--accent-text);
-  padding: 5px;
-  background: var(--accent-dim);
-}
-.giro-countdown__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-/* Fila título + flecha: la flecha va pegada al final del título, no al
-   borde de la tarjeta. La fila se encoge a su contenido. */
-.giro-countdown__title-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.giro-countdown__name {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.giro-countdown__days {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.giro-countdown__days strong { color: var(--accent-text); font-weight: 600; }
-.giro-countdown__chevron {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  opacity: 0.6;
-  margin-left: 0.3rem;
-}
-.giro-countdown__close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  /* ≥24px de área táctil (WCAG target-size); el icono sigue siendo 12px. */
-  min-width: 24px;
-  min-height: 24px;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: color 0.15s, background 0.15s;
-}
-.giro-countdown__close:hover { color: var(--text); background: var(--border); }
-.giro-countdown__dots {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding-bottom: 8px;
-}
-/* El BOTÓN conserva su área táctil (24×24, WCAG target-size) — transparente;
-   el punto visible de 6px lo dibuja ::before centrado. Los botones se solapan
-   con margen horizontal negativo para que los puntos queden juntos
-   visualmente, sin renunciar a la caja real de 24px que mide Lighthouse. */
-.gc-dot {
-  width: 24px;
-  height: 24px;
-  margin: 0 -6px;
-  border: none;
-  background: none;
-  cursor: pointer;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--bg);
 }
-.gc-dot::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  opacity: 0.4;
-  transition: background 0.25s, opacity 0.25s;
-}
-.gc-dot--active::before { background: var(--accent); opacity: 1; }
-@media (max-width: 600px) {
-  .giro-countdown { padding: 6px 0.75rem 8px; }
-  .giro-countdown__chevron { display: none; }
+.giro-card { display:flex; width:var(--page-width); margin:auto; align-items:stretch; border-bottom:1px solid var(--border); }
+.giro-text-area { flex:1; min-width:0; }
+.giro-countdown__link { display:flex; align-items:center; justify-content:center; gap:8px; min-height:32px; padding:3px 8px; color:var(--text); }
+.giro-countdown__logo { width:22px; height:22px; object-fit:contain; flex:none; }
+.giro-countdown__body { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; min-width:0; }
+.giro-countdown__title-row { display:flex; align-items:center; gap:5px; }
+.giro-countdown__name { font-size:.9rem; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.giro-countdown__days { font-size:.82rem; color:var(--text-muted); line-height:1.3; overflow-wrap:anywhere; }
+.giro-countdown__days strong { font-weight:600; }
+.giro-countdown__chevron { flex:none; color:var(--accent-text); }
+.giro-card>.cc-scroll-arrow { background:transparent; }
+@media(max-width:600px) {
+ .giro-countdown__link { justify-content:flex-start; min-height:52px; padding-block:8px; }
+ .giro-countdown__logo { align-self:center; margin-top:0; }
+ .giro-countdown__body { flex-direction:column; align-items:flex-start; }
 }
 
-/* ── Bloque "Hoy" sticky (tira de fechas + título + filtros) ──────
-   Todo el bloque se ancla como una unidad bajo el header (+ giro),
-   y las race cards scrollean por debajo. El fondo --bg evita que las
-   cards se vean a través del hueco del título. */
-.hoy-sticky {
+/* Cabeceras de las agendas: mantienen todos sus controles en una unidad y
+   dejan pasar las tarjetas por debajo de una superficie opaca. */
+.hoy-sticky,
+.cx-agenda-sticky {
   position: sticky;
-  top: calc(56px + var(--primary-nav-h) + var(--giro-h, 0px));
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--giro-h, 0px));
   z-index: 90;
   background: var(--bg);
 }
@@ -728,6 +578,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   padding: 0.75rem 1.5rem 0.5rem 1.5rem;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
 }
 /* El swipe de cambio de día también se inicia sobre el selector (ver
@@ -745,21 +596,23 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   flex-shrink: 0;
 }
 
-/* Tira de pastillas — los 7 días reparten el ancho disponible (sin scroll) */
+/* Tira de pastillas — unidad compacta centrada. En pantallas anchas no se
+   dispersan siete etiquetas cortas por los 1440 px de la agenda. */
 .date-bar__pills-wrap {
-  flex: 1;
+  flex: 0 1 52rem;
   min-width: 0;
   position: relative;
 }
 
 .date-bar__pills {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: stretch;
   gap: 0.25rem;
   padding: 0 0.25rem;
 }
-.date-pill { flex: 1; width: auto; max-width: 4.5rem; }
+.date-pill { flex: 1 1 0; width: auto; min-width: 0; max-width: none; }
 
 /* Controles derechos: flecha */
 .date-bar__right {
@@ -794,6 +647,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   color: var(--text-muted);
   transition: color var(--transition);
 }
+.date-pill__wd-long { display: none; }
 .date-pill__num {
   font-size: 0.95rem;
   font-weight: 500;
@@ -812,18 +666,29 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 .date-pill.active .date-pill__wd { color: var(--accent-text); }
 .date-pill.active .date-pill__num { color: var(--accent-text); font-weight: 700; }
 
-/* Escritorio: día en una sola línea ("Mar 9") en vez de dos */
+/* Tablet: día abreviado en una sola línea ("Mar 9"). */
 @media (min-width: 601px) {
   .date-pill {
     flex-direction: row;
     gap: 0.3rem;
-    max-width: 5.5rem;
   }
   .date-pill__wd {
     text-transform: none;
     font-size: 0.85rem;
   }
   .date-pill__num { font-size: 0.85rem; }
+}
+
+/* Escritorio: el carril compacto permite nombres completos sin crear huecos. */
+@media (min-width: 1100px) {
+  .date-pill {
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+  .date-pill__wd { font-size: 0.75rem; }
+  .date-pill__num { font-size: 0.8rem; }
+  .date-pill__wd-short { display: none; }
+  .date-pill__wd-long { display: inline; }
 }
 
 .date-today-btn {
@@ -883,7 +748,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   padding: 0;
 }
 .agenda-filters__inner {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.25rem 1.5rem 0.6rem;
   display: flex;
@@ -961,7 +826,7 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: 860px;
+  max-width: var(--content-max);
   margin-left: auto;
   margin-right: auto;
   width: 100%;
@@ -1307,7 +1172,7 @@ a.badge { min-height: 24px; }
    réplica del estilo de las apps — glifo apagado, sin píldora ni etiqueta,
    centrado en un blanco cuadrado de ~44px (objetivo táctil). Sustituye al
    badge de texto en mayúsculas. No tocar .badge--results/--tv globales: esas
-   clases las comparten los enlaces externos de Campeonatos y el badge "ver en TV". */
+   clases las comparten los enlaces de resultados de Campeonatos y el badge "ver en TV". */
 .badge--icon {
   background: none;
   padding: 0;
@@ -1554,7 +1419,7 @@ html.cc-booting::before {
 .race-header {
   padding: 2rem 1.5rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   position: relative;
 }
@@ -1939,7 +1804,7 @@ h2.jornada-section__title {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0,0,0,0.6);
+  background: var(--modal-scrim);
   align-items: center;
   justify-content: center;
   padding: 1rem;
@@ -1947,7 +1812,9 @@ h2.jornada-section__title {
 }
 .sg-overlay.sg-overlay--open { display: flex; }
 .sg-modal {
-  background: var(--bg);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -1962,8 +1829,8 @@ h2.jornada-section__title {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 1rem;
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
+  background: var(--modal-header);
+  border-bottom: 1px solid var(--modal-border);
   flex-shrink: 0;
 }
 .sg-modal__title {
@@ -2189,24 +2056,8 @@ h2.jornada-section__title {
 .asset-btn:last-child { border-right: none; }
 .asset-btn:hover { color: var(--text); background: var(--accent-dim); }
 
-/* ── Botones de resultados externos (fuentes externas) ─────── */
-/* `.result-btn` hereda el look de `.tv-link-btn` (botón "Ver") y se
-   expande para que la suma de los dos botones cubra todo el ancho.
-   En modales estrechos donde "fuente externa ↗" no cabe al lado de
-   "fuente externa ↗", `flex-wrap` los apila en dos líneas en vez de
-   partir el texto de un botón en dos renglones. */
-.result-section-btns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.result-section-btns .result-btn {
-  flex: 1;
-  justify-content: center;
-  white-space: nowrap;
-}
-
-/* Resultados propios (in-house): CTA principal a ancho completo. */
+/* ── Botón de resultados propios (in-house) ──────────────────── */
+/* `.result-btn` hereda el look de `.tv-link-btn` (botón "Ver"). */
 .result-btn--inhouse {
   display: flex;
   width: 100%;
@@ -2216,23 +2067,6 @@ h2.jornada-section__title {
   font-size: 0.9rem;
 }
 .result-btn--inhouse:hover { background: var(--accent); filter: brightness(1.08); }
-/* externos quedan como respaldo discreto bajo el botón propio. */
-.result-fallback {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 0.6rem;
-  margin-top: 0.6rem;
-}
-.result-fallback__label { font-size: 0.78rem; color: var(--text-muted); }
-.result-alt-btn {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--transition);
-}
-.result-alt-btn:hover { color: var(--accent-text); text-decoration: underline; }
 
 /* ── Modal de assets ──────────────────────────────────────────── */
 #assetModalOverlay {
@@ -2240,7 +2074,7 @@ h2.jornada-section__title {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0,0,0,0.75);
+  background: var(--modal-scrim);
   align-items: center;
   justify-content: center;
   padding: 1rem;
@@ -2250,7 +2084,9 @@ h2.jornada-section__title {
   display: flex;
 }
 .asset-modal {
-  background: var(--bg);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: 10px;
   overflow: hidden;
   display: flex;
@@ -2273,8 +2109,8 @@ h2.jornada-section__title {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 1rem;
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
+  background: var(--modal-header);
+  border-bottom: 1px solid var(--modal-border);
   flex-shrink: 0;
   gap: 0.75rem;
 }
@@ -2317,7 +2153,7 @@ h2.jornada-section__title {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  background: var(--bg);
+  background: var(--modal-surface);
 }
 .asset-modal--document .asset-modal__body {
   background: #fff;
@@ -2358,13 +2194,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   .race-list { padding: 0.5rem 1rem 1rem; }
   .race-card { grid-template-columns: auto 1fr; row-gap: 0.3rem; }
   .race-card__logo, .race-card__flag { grid-row: 1 / span 2; align-self: center; }
-  /* Horario apilado a la derecha, IGUAL que en escritorio (salida ↓ llegada).
-     El meta se coloca en la MISMA celda de la rejilla que el contenido (fila 1,
-     col 2) y se centra ahí, de modo que queda centrado verticalmente sobre el
-     bloque Etapa·datos·TV — NO sobre toda la card (que incluye la banda de
-     perfil al fondo). El contenido reserva su ancho a la derecha y se funde por
-     debajo. La banda de perfil ocupa su propia fila implícita, sin afectar al
-     centrado. */
+  /* El estado horario ocupa la derecha del bloque de texto. El perfil conserva
+     una banda inferior completa y no interviene en su centrado vertical. */
   .race-card__main { grid-row: 1; grid-column: 2; padding-right: 4rem; }
   /* Ruta (salida › llegada) oculta en móvil SOLO en la home (#raceList): con el
      ancho reducido + km/desnivel + iconos, la ruta colapsaba a un muñón ("Brus…")
@@ -2376,6 +2207,19 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   /* Modo terminado: 2 iconos (copa+TV) necesitan algo más de hueco que el
      horario apilado → reserva 4.9rem para que no rocen el texto fundido. */
   .race-card--finished .race-card__main { padding-right: 4.9rem; }
+  #raceList .race-card:not(.race-card--composed) .race-card__schedule {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  #raceList .race-card:not(.race-card--composed) .race-card__schedule--waiting {
+    flex-direction: row;
+    justify-content: flex-end;
+    max-width: 7.5rem;
+    line-height: 1.2;
+    text-align: right;
+    white-space: normal;
+  }
   .race-card__meta {
     grid-row: 1;
     grid-column: 2;
@@ -2408,6 +2252,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 .race-logo-img {
   width: 32px;
   height: 32px;
+  max-width: none;
+  flex: none;
   object-fit: contain;
   border-radius: 3px;
 }
@@ -2470,14 +2316,15 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0,0,0,0.55);
+  background: var(--modal-scrim);
 }
 .report-modal-overlay.report-modal--open { display: flex; }
 
 .report-modal {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: calc(var(--radius) * 2);
   width: 100%;
   max-width: 440px;
@@ -2540,8 +2387,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 .report-modal__input,
 .report-modal__select,
 .report-modal__textarea {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--modal-field);
+  border: 1px solid var(--modal-border);
   border-radius: var(--radius);
   padding: 0.6rem 0.75rem;
   font-family: var(--font-body);
@@ -2665,11 +2512,13 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 /* ── Max-width centrado (escritorio) ─────────────────────────── */
 .site-header__inner {
   width: 100%;
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 /* En páginas con botón atrás: logo pegado al botón, nav empujado a la derecha */
@@ -2682,7 +2531,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 #raceList,
 #jornadaContent,
 #competicionContent {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
@@ -2706,7 +2555,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 }
 
 .date-bar {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin-left: auto;
   margin-right: auto;
   width: 100%;
@@ -2715,9 +2564,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 
 @media (max-width: 600px) {
   :root { --primary-nav-h: 0px; }
-  /* Logo solo iconos; la lupa inline se oculta en móvil. */
+  /* Logo solo iconos. */
   .site-logo__text { display: none; }
-  .header-actions .nav-search-link { display: none; }
 
   /* En móvil se convierte en la barra inferior de las apps. */
   body { padding-bottom: calc(65px + env(safe-area-inset-bottom)); }
@@ -2752,6 +2600,9 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     scroll-snap-align: start;
     background: var(--bg-header);
   }
+  /* La reducción secundaria de escritorio no debe aumentar su texto en móvil. */
+  .primary-nav__inner a.primary-nav__secondary,
+  .primary-nav__inner button.primary-nav__secondary { font-size: 0.68rem !important; }
   .primary-nav__inner a:not(:first-child)::before,
   .primary-nav__inner button:not(:first-child)::before {
     content: '';
@@ -2830,6 +2681,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 .footer-link {
   font-family: var(--font-display);
@@ -2877,11 +2729,11 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: calc(56px + var(--primary-nav-h));
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
   z-index: 50;
 }
 .temporada-filters__inner {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.6rem 1.5rem;
   display: flex;
@@ -2975,12 +2827,13 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-scrim);
   backdrop-filter: blur(2px);
 }
 #ph-banner-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: calc(var(--radius) * 2);
   width: 100%;
   max-width: 360px;
@@ -2993,7 +2846,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1rem 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  background: var(--modal-header);
+  border-bottom: 1px solid var(--modal-border);
 }
 .ph-banner__header-text {
   flex: 1;
@@ -3061,12 +2915,13 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
 
 /* Contenedor del botón bajo mes y agenda */
 .ical-bar {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 1.5rem auto 0;
   padding: 0 1.5rem 1.5rem;
   display: flex;
   justify-content: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* ── Segunda fila filtros temporada (cats + suscribirse) ─────── */
@@ -3153,15 +3008,16 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-scrim);
   backdrop-filter: blur(2px);
 }
 .rd-modal-overlay.rd-modal--open { display: flex; }
 
 .rd-modal {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: calc(var(--radius) * 2);
   width: 100%;
   max-width: 540px;
@@ -3179,12 +3035,14 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1rem 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--modal-border);
   position: sticky;
   top: 0;
-  background: var(--bg-card);
+  background: var(--modal-header);
   z-index: 1;
 }
+
+.rd-modal__body { background: var(--modal-surface); }
 
 .rd-modal__header-text {
   flex: 1;
@@ -3292,8 +3150,8 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   width: 44px;
   height: 44px;
   border-radius: calc(var(--radius) * 1.5);
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--modal-field);
+  border: 1px solid var(--modal-border);
   flex-shrink: 0;
   color: var(--text);
 }
@@ -3345,7 +3203,7 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
   cursor: pointer;
   transition: color var(--transition), background var(--transition);
 }
-.apps-modal__continue:hover { color: var(--text); background: var(--bg); }
+.apps-modal__continue:hover { color: var(--text); background: var(--modal-field); }
 .apps-modal__continue[hidden] { display: none; }
 
 /* ── Android App Banner ──────────────────────────────────────── */
@@ -3436,7 +3294,7 @@ html.cc-android-banner-pending body::before {
   max-height: 250px;
 }
 .cookie-banner__inner {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.85rem 1.5rem;
   display: flex;
@@ -3542,12 +3400,13 @@ html.cc-android-banner-pending body::before {
 .cookie-modal__overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: var(--modal-scrim);
 }
 .cookie-modal__box {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--modal-surface);
+  border: 1px solid var(--modal-border);
+  color: var(--text);
   border-radius: calc(var(--radius) * 2);
   width: 100%;
   max-width: 480px;
@@ -3603,7 +3462,7 @@ html.cc-android-banner-pending body::before {
 .startlist-hero {
   padding: 2rem 1.5rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   position: relative;
 }
@@ -3681,7 +3540,7 @@ html.cc-android-banner-pending body::before {
 
 /* ── Toolbar: disclaimer para vueltas ────────────────────────── */
 .startlist-toolbar {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.5rem 1.5rem 1.25rem;
 }
@@ -3707,7 +3566,7 @@ html.cc-android-banner-pending body::before {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem 1.5rem 3rem;
 }
@@ -3947,7 +3806,7 @@ html.cc-android-banner-pending body::before {
 }
 
 /* ── Perfil de elevación (perfil.html / perfil/{slug}/) ── */
-.pfe-wrap { max-width: 860px; margin: 0 auto; padding: 0.5rem 1rem 4rem; }
+.pfe-wrap { max-width: var(--content-max); margin: 0 auto; padding: 0.5rem 1rem 4rem; }
 .pfe-svg-wrap { background: var(--bg-card); border: 1px solid var(--border);
                 border-radius: var(--radius-lg); padding: 1.25rem 0.75rem 0.75rem;
                 overflow-x: auto; margin-bottom: 1.5rem; }
@@ -4027,7 +3886,7 @@ html.cc-android-banner-pending body::before {
 body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expandir */
 
 /* ── Orden de Salida ───────────────────────────────────────────── */
-.so-table-wrap { max-width: 860px; margin: 1.25rem auto 2rem; padding: 0 1rem; overflow-x: auto; }
+.so-table-wrap { max-width: var(--content-max); margin: 1.25rem auto 2rem; padding: 0 1rem; overflow-x: auto; }
 .so-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .so-th { padding: 0.5rem 0.75rem; text-align: left; font-family: var(--font-display);
          font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
@@ -4046,9 +3905,6 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
                  font-size: 0.82rem; }
 .so-td--rider { font-weight: 500; }
 .so-td--team  { font-size: 0.82rem; color: var(--text-muted); }
-/* Chapa del equipo a la izquierda (CRE). Inline, sin elevar la altura de fila. */
-.so-team-cell { display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; }
-.so-team-badge { flex: 0 0 auto; display: block; width: 16px; height: 16px; }
 .so-flag { margin-right: 0.4rem; }
 /* CRE (contrarreloj por equipos): el equipo es la columna principal, no la
    secundaria muteada. Mismo peso/color/tamaño que el corredor en CRI. */
@@ -4094,13 +3950,13 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 /* Barra de filtros en orden de salida */
 .so-filters {
   position: sticky;
-  top: calc(56px + var(--primary-nav-h));
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
   z-index: 50;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
 .so-filters__inner {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.55rem 1.5rem;
   display: flex;
@@ -4116,7 +3972,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 .so-table-wrap.so-filter--gc .so-row:not([data-is-gc]) { display: none; }
 
 .so-tz-note {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0.75rem auto -0.25rem;
   padding: 0.5rem 1rem;
   font-size: 0.82rem;
@@ -4143,16 +3999,13 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 }
 
 /* ─── Página de resultados (/resultados/) ─────────────────────────── */
-/* Selector de etapa — botones circulares pequeños, sticky bajo el header. */
+/* Selector de etapa — botones circulares pequeños dentro del flujo. */
 .res-stages {
-  position: sticky;
-  top: calc(56px + var(--primary-nav-h));
-  z-index: 51;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 .res-stages__inner {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.4rem 1.5rem;
   display: flex;
@@ -4185,29 +4038,26 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 .res-stage-btn--active { color: #fff; background: var(--accent); }
 
 /* Pestañas de clasificación — heredan el look de .tcat-btn. */
-/* Carril exterior a sangre: lleva el sticky y el FONDO OPACO. Sin él las filas
-   de la clasificación se transparentan bajo las pestañas y el selector de
-   equipos al scrollear. Va aquí y no en .res-tabs porque esa fila está acotada
-   a 860px y centrada: pintarle el fondo directamente deja los márgenes
-   laterales transparentes en pantallas anchas. Misma estructura que
-   .res-stages / .so-filters (contenedor full-bleed + inner centrado). */
+/* Carril exterior a sangre para las pestañas y el filtro por equipo. Va aquí y
+   no en .res-tabs porque esa fila está acotada a 860px y centrada: pintarle el
+   fondo directamente deja los márgenes laterales transparentes en pantallas
+   anchas. La fila queda fija bajo la navegación y la fila de columnas de la
+   tabla se fija debajo de ella (--res-tabs-h, medido en resultados.js). */
 .res-tabs-bar {
-  position: sticky;
-  top: calc(56px + var(--primary-nav-h));
-  z-index: 50;
   background: var(--bg);
+  position: sticky;
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
+  z-index: 21;
 }
 .res-tabs {
   /* Fila a 860px: pestañas (izq) + filtro por equipo (der), misma línea. */
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.45rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-/* Con selector de etapas encima, el carril se ancla bajo él (no bajo el header). */
-.res-stages + .res-tabs-bar { top: calc(56px + var(--primary-nav-h) + 3rem); }
 /* Envoltura de las pestañas: posiciona el chevron de overflow sobre el borde
    derecho sin que reste sitio al área scrolleable. */
 .res-tabs__scroll {
@@ -4294,13 +4144,24 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 /* Tabla de resultados — extiende .so-table. */
 /* Mismo ancho/centrado que el selector de etapa y las pestañas (860px). */
 .res-table-wrap {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.4rem 1.5rem 2rem;
-  overflow-x: auto;
+  /* Sin ancestro con scroll propio: el thead puede fijarse al viewport. */
+  overflow: visible;
 }
 .res-table .so-th { padding: 0.38rem 0.55rem; }
 .res-table .so-td { padding: 0.4rem 0.55rem; }
+/* La fila de columnas se fija bajo las pestañas de clasificación, en
+   escritorio y en móvil. */
+.res-table thead .so-th {
+  position: sticky;
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--res-tabs-h, 0px));
+  z-index: 20;
+  background: #252e3b;
+  box-shadow: 0 1px 0 var(--border);
+}
+html.light .res-table thead .so-th { background: #fff; }
 .res-th--rank   { width: 2.25rem; text-align: center; }
 .res-th--rider  { min-width: 10rem; }
 .res-th--team   { min-width: 8rem; color: var(--text-muted); }
@@ -4314,7 +4175,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
 .res-td--rider  { font-weight: 500; }
 .res-rider-main { display: inline; }
 /* El equipo va como columna propia en desktop → el subtítulo se oculta. */
-.res-rider-team { display: none; }
+.res-rider-team { display: none; font-weight: 400; color: var(--text-muted); }
 .res-td--team   { font-size: 0.82rem; color: var(--text-muted); }
 .res-td--uci    { text-align: right; white-space: nowrap; font-family: var(--font-display);
                   font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
@@ -4322,6 +4183,8 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
                   font-size: 0.85rem; }
 .res-table .res-time { font-weight: 700; color: var(--accent-text); letter-spacing: 0.02em; }
 .res-table .res-gap  { color: var(--text-muted); }
+/* Vueltas perdidas CX ("-2 vueltas"): misma atenuación que el gap, en cursiva. */
+.res-table .res-lap  { color: var(--text-muted); font-style: italic; }
 /* "m.t."/"s.t." se ve como un gap normal: misma tipografía, sin cursiva. */
 .res-table .res-pts  { font-weight: 600; color: var(--text); }
 .res-rank-dnf { color: var(--text-muted); font-weight: 600; }
@@ -4364,11 +4227,10 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   .res-tabs__filter { max-width: 42%; }
   .res-teamfilter__select { max-width: 7.5rem; }
   .res-table-wrap { padding-left: 1rem; padding-right: 1rem; }
-  .res-th--team, .res-td--team { display: none; }
   /* Anchos deterministas: el hueco restante pertenece al corredor. Así la
      futura columna UCI cabe sin crear scroll horizontal en 360/390 px. */
   .res-table { table-layout: fixed; }
-  .res-th--rider { min-width: 0; }
+  .res-th--rider, .res-table--ttt .res-th--rider { min-width: 0; }
   .res-table .so-th { padding: 0.34rem 0.35rem; }
   .res-table .so-td { padding: 0.42rem 0.35rem; }
   .res-th--rank { width: 2rem; }
@@ -4396,7 +4258,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   .res-rider-team {
     display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; font-size: 0.68rem; line-height: 1.1;
-    font-weight: 400; color: var(--text-muted); margin-top: 0.08rem;
+    margin-top: 0.08rem;
   }
   .res-td--uci { font-size: 0.75rem; }
   .res-td--result { font-size: 0.8rem; }
@@ -4407,11 +4269,24 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   .res-ttt-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
+/* Con columna Equipo (más de 700px), cada fila ocupa una línea: anchos
+   deterministas (Equipo al 36%, Corredor con el resto) y puntos suspensivos
+   en los nombres que no caben, en lugar de filas de doble altura. */
+@media (min-width: 701px) {
+  .res-table { table-layout: fixed; }
+  .res-th--team { width: 36%; min-width: 0; }
+  .res-th--rider, .res-table--ttt .res-th--rider { min-width: 0; }
+  .res-td--rider, .res-td--team { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .res-team-cell { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .res-ttt-team { max-width: 100%; overflow: hidden; }
+  .res-ttt-team-name { overflow: hidden; text-overflow: ellipsis; }
+}
+
 /* ══ Feed "Últimos resultados" (2026-06-11) ══ */
 
 /* ── Feed /resultados/ (índice de últimos resultados) ─────────────── */
 .feed-hero {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1.4rem 1.5rem 0.4rem;
 }
@@ -4447,7 +4322,7 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   font-weight: 600;
 }
 .feed-day {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0 1.5rem;
 }
@@ -4460,9 +4335,8 @@ body.cc-map-expanded-lock { overflow: hidden; } /* sin scroll de fondo al expand
   color: var(--text-muted);
   margin: 1.1rem 0 0.3rem;
 }
-/* Card con el MISMO tinte que las cards de Hoy (.race-card): color de la
-   carrera (--card-color, inline por fila) al 4% sobre --bg-card + borde al
-   12%. Las generales finales, ligeramente más fuertes (8%/20%). */
+/* Todas las filas de Resultados comparten el tinte base de las cards de Hoy:
+   color de carrera al 4% sobre --bg-card y borde al 12%. */
 .feed-row {
   display: flex;
   align-items: center;
@@ -4486,13 +4360,6 @@ button.feed-row {
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-.feed-row--gc {
-  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
-  border-color: color-mix(in srgb, var(--card-color, var(--border)) 22%, var(--border));
-}
-.feed-row--gc:hover {
-  background: color-mix(in srgb, var(--card-color, var(--accent)) 12%, var(--bg-card));
 }
 .feed-row__gclabel {
   font-weight: 600;
@@ -4528,13 +4395,13 @@ button.feed-row {
   display: block;
   border-radius: 1px;
 }
-/* Columna del logo de la carrera (como en las cards de Hoy): logo 32px
-   (.race-logo-img, clase compartida con las cards) con la bandera debajo. */
+/* Columna de 32px incluso sin logo, con la bandera centrada debajo si lo hay. */
 .feed-row__logo {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
+  width: 32px;
   flex-shrink: 0;
 }
 .feed-row__logo .feed-row__flag {
@@ -4577,7 +4444,7 @@ button.feed-row {
   flex-shrink: 0;
 }
 .feed-more-wrap {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem 1.5rem 2rem;
   text-align: center;
@@ -4597,10 +4464,14 @@ button.feed-row {
 .feed-more:hover {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
+.feed-more:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
 
 /* ══ Ránking UCI de equipos ═══════════════════════════════════════ */
 .uci-ranking {
-  max-width: 860px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 0.25rem 1.5rem 2.5rem;
 }
@@ -4625,57 +4496,6 @@ button.feed-row {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.75rem;
-}
-.uci-ranking-info-button {
-  display: inline-grid;
-  place-items: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  padding: 0;
-  border: 1px solid var(--text-muted);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-muted);
-  font: 700 0.78rem/1 var(--font-body);
-  cursor: pointer;
-}
-.uci-ranking-info-button:hover,
-.uci-ranking-info-button:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-.uci-ranking-info-tooltip {
-  display: none;
-  position: absolute;
-  z-index: 40;
-  top: 0;
-  left: calc(100% + 0.55rem);
-  width: min(29rem, calc(100vw - 2rem));
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  background: var(--bg-card);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
-  color: var(--text);
-  font: 400 0.8rem/1.45 var(--font-body);
-}
-.uci-ranking-info-tooltip p {
-  margin: 0;
-}
-.uci-ranking-info-tooltip p + p,
-.uci-ranking-info-tooltip ul + p {
-  margin-top: 0.55rem;
-}
-.uci-ranking-info-tooltip a,
-.uci-ranking-info-modal__body a {
-  color: var(--accent-text);
-  text-underline-offset: 0.12em;
-}
-@media (min-width: 769px) {
-  .uci-ranking-heading-row:hover .uci-ranking-info-tooltip,
-  .uci-ranking-heading-row:focus-within .uci-ranking-info-tooltip {
-    display: block;
-  }
 }
 .uci-ranking-gender-tabs {
   margin: 0.8rem 0 0.65rem;
@@ -4796,59 +4616,7 @@ html.light .uci-ranking-row--green .uci-ranking-row__category { color: var(--tex
   opacity: 1;
   transform: translateY(0);
 }
-.uci-ranking-legend {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0.65rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-.uci-ranking-legend li {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-.uci-ranking-swatch {
-  display: inline-block;
-  flex: 0 0 1.7rem;
-  height: 0.72rem;
-  border: 1px solid var(--border);
-  border-radius: 0.2rem;
-  background: var(--bg-card);
-}
-.uci-ranking-swatch--wt {
-  border-color: color-mix(in srgb, var(--badge-wt-color) 35%, var(--border));
-  background: var(--badge-wt-bg);
-}
-.uci-ranking-swatch--orange {
-  border-color: color-mix(in srgb, var(--orange) 35%, var(--border));
-  background: color-mix(in srgb, var(--orange) 16%, var(--bg-card));
-}
-.uci-ranking-swatch--green {
-  border-color: color-mix(in srgb, var(--green) 35%, var(--border));
-  background: color-mix(in srgb, var(--green) 15%, var(--bg-card));
-}
-.uci-ranking-swatch--excluded {
-  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
-  background: color-mix(in srgb, var(--red) 15%, var(--bg-card));
-}
-.uci-ranking-info-modal__body {
-  padding: 1rem 1.25rem 1.35rem;
-  color: var(--text);
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-.uci-ranking-info-modal__body p {
-  margin: 0;
-}
-.uci-ranking-info-modal__body p + p,
-.uci-ranking-info-modal__body ul + p {
-  margin-top: 0.65rem;
-}
 @media (max-width: 768px) {
-  .uci-ranking-info-tooltip {
-    display: none !important;
-  }
   .uci-ranking-row--explained:not(.uci-ranking-row--tooltip-open)::after {
     opacity: 0;
     transform: translateY(0.2rem);
@@ -4881,4 +4649,475 @@ html.light .uci-ranking-row--green .uci-ranking-row__category { color: var(--tex
   .uci-ranking-row__points {
     font-size: 0.76rem;
   }
+}
+
+/* Composición pública CC: un único margen exterior, independiente de los paneles. */
+@media (min-width:700px) { :root { --page-gutter:24px; } }
+@media (min-width:1200px) { :root { --page-gutter:32px; } }
+.site-header { padding-inline:0; }
+.site-header__inner, .date-bar, .agenda-filters__inner, .temporada-filters__inner,
+#raceList, #jornadaContent, #competicionContent, .race-header, .startlist-hero,
+.startlist-toolbar, .startlist-grid, .pfe-wrap, .so-table-wrap, .so-filters__inner,
+.so-tz-note, .res-stages__inner, .res-tabs, .res-table-wrap, .feed-hero, .feed-day,
+.feed-more-wrap, .uci-ranking, .ical-bar, .cookie-banner__inner, .cc-public-document,
+.cc-assets-standalone {
+  width:var(--page-width); max-width:var(--content-max); margin-inline:auto; padding-inline:0;
+  box-sizing:border-box;
+}
+#jornadaContent>.race-header, #competicionContent>.race-header,
+#jornadaContent .jornada-section, #competicionContent .jornada-section,
+.pfe-wrap>.race-header, .pfe-wrap .jornada-section { width:100%; max-width:none; padding-inline:0; }
+.cc-public-document { padding-block:3rem; }
+.cc-public-document>p, .cc-public-document>section, .cc-public-document>div,
+.cc-public-document>ul, .cc-public-document>ol { max-width:75ch; margin-inline:auto; }
+.cc-editorial { max-width:75ch; }
+.site-footer { width:var(--page-width); margin-inline:auto; padding-inline:0; }
+.primary-nav__inner a, .primary-nav__inner button, .tcat-btn, .date-day { font-weight:600; }
+.primary-nav__inner .active, .tcat-btn--active, .date-day--selected { font-weight:700; }
+
+/* Flechas compartidas: zona propia, separadores y extremos desactivados. */
+.cc-scroll-arrow, .date-week-arrow {
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 28px;
+  width:28px; min-width:28px; padding:0; border:0; border-radius:0;
+  color:var(--text-muted); background:transparent; font:400 26px/1 var(--font-body);
+  cursor:pointer; align-self:stretch; transition:background var(--transition);
+}
+.cc-scroll-arrow[hidden] { display:none; }
+.cc-scroll-arrow:disabled, .date-week-arrow:disabled { opacity:.3; cursor:default; }
+.cc-scroll-arrow:not(:disabled):hover, .date-week-arrow:not(:disabled):hover { color:var(--accent-text); background:var(--accent-dim); }
+.cc-scroll-arrow:focus-visible, .date-week-arrow:focus-visible { outline:2px solid var(--accent-text); outline-offset:-2px; }
+.cc-scroll-arrow[data-direction=prev], .date-week-arrow:first-child { border-right:1px solid var(--border); }
+.cc-scroll-arrow[data-direction=next], .date-week-arrow:last-child { border-left:1px solid var(--border); }
+.cc-scroll-arrow[data-direction=up], .cc-scroll-arrow[data-direction=down] { width:100%; min-height:28px; flex-basis:28px; }
+.cc-scroll-arrow[data-direction=up] span, .cc-scroll-arrow[data-direction=down] span { transform:rotate(90deg); }
+.cc-scroll-arrow[data-direction=up] { border-bottom:1px solid var(--border); }
+.cc-scroll-arrow[data-direction=down] { border-top:1px solid var(--border); }
+.primary-nav__shell { display:flex; width:var(--page-width); margin-inline:auto; }
+.primary-nav__inner { width:auto; flex:1; min-width:0; padding:0; overflow-x:auto; scrollbar-width:none; }
+.primary-nav__inner>* { flex-shrink:0; }
+.primary-nav__inner .primary-nav__divider { display:block; flex:0 0 1px; margin-inline:8px; }
+.primary-nav__inner a { white-space:nowrap; }
+.primary-nav__shell .cc-scroll-arrow { min-height:42px; }
+@media(max-width:420px) {
+ .header-support-link>span:last-child, .nav-apps-btn>span:last-child { display:none; }
+ .header-support-link, .nav-apps-btn { padding:6px; min-height:32px; }
+ .header-actions { gap:5px; }
+}
+@media (max-width:600px) {
+  .primary-nav__shell { width:100%; }
+  .primary-nav__inner a.primary-nav__main, .primary-nav__inner a.primary-nav__secondary { flex:0 0 25%; min-width:max-content; padding-inline:8px; }
+  .primary-nav__inner a:not(:first-child)::before { display:none; }
+  .primary-nav__shell .cc-scroll-arrow { min-height:64px; }
+}
+
+.asset-links-wrap { display:flex; min-width:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--bg-card-hover); }
+.asset-links { display:flex; order:1; flex:1; min-width:0; gap:0; padding:0; margin:0; overflow-x:auto; scrollbar-width:none; }
+.asset-links-wrap>.cc-scroll-arrow:first-of-type { order:0; }
+.asset-links-wrap>.cc-scroll-arrow:last-of-type { order:2; }
+.asset-btn { display:inline-flex; flex:0 0 auto; flex-direction:row; gap:8px; min-height:50px; padding:10px 16px; border:0; border-right:1px solid var(--border); border-radius:0; background:transparent; color:var(--text); }
+.asset-btn svg { color:var(--accent-text); flex:none; }
+.asset-btn__label { font-size:.85rem; font-weight:600; white-space:normal; }
+@media(max-width:600px) { .asset-btn { flex-direction:column; min-height:66px; width:max-content; min-width:88px; max-width:150px; padding:8px 10px; text-align:center; } }
+.team-stripes { display:inline-flex; width:14px; height:15px; flex:none; border:1px solid var(--border-light); vertical-align:-2px; margin-right:5px; }
+.team-stripes i { flex:1; min-width:0; }
+.startlist-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:16px; }
+.startlist-team__header { min-height:38px; padding:8px 10px; }
+.startlist-team__rider { min-height:34px; padding-block:6px; }
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; } }
+
+.date-pill, .date-today-btn { min-height:40px; border-radius:14px; font-size:.85rem; font-weight:600; text-transform:none; letter-spacing:normal; }
+.date-pill__wd, .date-pill__num { font-weight:600; }
+.date-pill.active .date-pill__wd, .date-pill.active .date-pill__num { font-weight:700; }
+.date-today-btn { align-self:stretch; border-color:transparent; }
+.giro-card>.cc-scroll-arrow { background:transparent; }
+
+/* Hoy: columnas estables, miniperfil completo y seguimiento agrupado. */
+.race-card--composed { display:grid; grid-template-columns:300px minmax(0,1fr) 190px; column-gap:16px; row-gap:10px; padding:12px 16px; min-height:0; }
+.race-card--composed:not(:has(.race-card__profile)) { grid-template-columns:minmax(0,1fr) 190px; }
+.race-card__identity { display:flex; align-items:flex-start; gap:10px; min-width:0; }
+.race-card--composed .race-card__main { min-width:0; overflow:visible; padding-right:0; }
+.race-card--composed .race-card__name { line-height:1.2; white-space:normal; overflow:visible; text-overflow:clip; }
+.race-card--composed .race-card__name>span { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.race-card--composed .race-card__sub { display:flex; flex-wrap:wrap; flex-direction:column; align-items:flex-start; gap:2px; margin-top:0; overflow:visible; line-height:1.25; }
+.race-card--composed .race-card__route { display:inline; white-space:normal; overflow:visible; text-overflow:clip; }
+.race-card--composed .race-card__meta { position:static; grid-row:auto; margin-left:0; width:auto; min-width:0; justify-self:stretch; align-self:center; }
+.race-card--composed .race-card__meta-top { justify-content:flex-end; flex-wrap:wrap; gap:4px 5px; }
+.race-card__profile { position:relative; width:100%; height:66px; min-width:0; }
+.race-card__profile>.race-card__elevation, .race-card__profile>.race-card__ep-inds { height:100%; }
+.race-card__actions { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:8px 5px; margin-top:6px; }
+.race-card--composed.race-card--finished .race-card__meta { gap:4px; }
+.race-card--composed.race-card--finished .race-card__actions { margin-top:0; row-gap:4px; }
+.race-card--composed .badge { border-radius:0; }
+.race-card--composed .badge--icon { width:auto; min-width:0; height:auto; padding:0.18rem 0.5rem; gap:0.35rem; font:600 0.68rem var(--font-body); letter-spacing:0.02em; text-transform:uppercase; }
+.race-card--composed .badge--icon .badge__label { display:inline; position:static; width:auto; height:auto; padding:0; margin:0; overflow:visible; clip:auto; clip-path:none; white-space:normal; }
+.race-card--composed:not(.race-card--featured) .race-card__sub { flex-direction:row; gap:2px 6px; line-height:1.25; }
+.race-card__stage-route { min-width:0; white-space:normal; }
+.race-card--composed:not(.race-card--featured) .race-card__metrics { flex-basis:100%; }
+.race-card--composed:not(.race-card--featured) .race-card__badges { margin-top:2px; }
+.badge--stage { color:var(--accent-text); background:var(--accent-dim); }
+.race-card__schedule { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:4px 8px; font-variant-numeric:tabular-nums; }
+.race-card__schedule>span { color:var(--text-muted); font-size:.8rem; }
+.race-card__schedule>strong { font-size:1rem; }
+.race-card__metrics { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 4px; max-width:100%; }
+.race-card--composed.race-card--featured .race-card__sub { font-size:.8rem; }
+.race-card--composed.race-card--featured .race-card__metrics { font-size:inherit; }
+.race-card--composed .race-card__types--inline { flex-wrap:wrap; }
+.race-card--composed.race-card--featured .race-card__profile { height:82px; }
+.race-card--composed.race-card--finished .race-card__main { mask-image:none; padding-right:0; }
+/* Competición: si los controles hacen crecer la fila, el perfil conserva el
+   mismo borde inferior y ninguno queda por debajo de su silueta. */
+#competicionContent .race-card--composed .race-card__profile { align-self:end; }
+#competicionContent .race-card--composed .race-card__schedule:not(.race-card__schedule--waiting) {
+  flex-direction:column;
+  flex-wrap:nowrap;
+  align-items:flex-end;
+  gap:2px;
+  white-space:nowrap;
+}
+/* Hoy: ficha única con el miniperfil como banda inferior. Nombre, ruta, km y
+   desnivel fluyen en varias líneas para no perder los datos de escritorio. */
+@media(min-width:601px) {
+ #raceList .race-card:not(.race-card--composed) .race-card__name { flex-wrap:wrap; }
+ #raceList .race-card:not(.race-card--composed) .race-card__name>span:first-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+ #raceList .race-card:not(.race-card--composed) .race-card__sub { white-space:normal; flex-wrap:wrap; row-gap:0.15rem; }
+ #raceList .race-card:not(.race-card--composed) .race-card__route-wrap { white-space:normal; overflow:visible; text-overflow:clip; }
+}
+/* Rejilla de dos columnas: cada columna mantiene el ancho de una ficha móvil,
+   de modo que el perfil nunca se estira a lo ancho de toda la página. Las dos
+   fichas de una fila comparten altura (stretch) y la banda de perfil queda
+   alineada al pie de ambas. */
+@media(min-width:761px) {
+ #raceList { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ #raceList>* { grid-column:auto; }
+ #raceList>:is(.loading,.empty-state) { grid-column:1/-1; }
+ #raceList>.race-card--featured { grid-column:1/-1; }
+ #raceList>.race-card:only-child { grid-column:1/-1; }
+ #raceList .race-card__identity>:is(.race-card__logo,.race-card__flag) { align-self:center; }
+}
+@media(min-width:1281px) {
+ .race-card--composed.race-card--featured { padding:18px 16px; column-gap:16px; }
+ .race-card--composed.race-card--featured .race-card__profile { height:96px; }
+}
+@media (min-width:761px) and (max-width:1199px) {
+ .race-card--composed { grid-template-columns:250px minmax(0,1fr) 180px; }
+}
+@media(max-width:760px) {
+ /* Superficies con fichas compuestas (p. ej. competición): pila de una sola
+    columna. Las no destacadas de Hoy ya no componen: usan el perfil en banda. */
+ .race-card--composed, .race-card--composed:not(:has(.race-card__profile)) { grid-template-columns:minmax(0,1fr); gap:10px; padding:12px; }
+ .race-card--composed .race-card__meta { width:100%; grid-column:1; }
+ .race-card--composed .race-card__logo, .race-card--composed .race-card__flag { align-self:flex-start; }
+ .race-card--composed .race-card__profile { grid-column:1/-1; width:100%; }
+ /* Destacadas: conservan la ficha compuesta, con el perfil exento entre los
+    datos (izquierda) y los botones (derecha), también en tablet estrecha. */
+ .race-card--composed.race-card--featured { grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,max-content); gap:8px 12px; padding:12px; }
+ .race-card--composed.race-card--featured .race-card__meta { width:auto; grid-column:auto; }
+ .race-card--composed.race-card--featured .race-card__profile { grid-column:auto; width:100%; }
+}
+@media(max-width:900px) {
+ /* Competición recupera la banda inferior de Hoy antes de que la columna
+    central reduzca el perfil a una silueta demasiado estrecha. Identidad y
+    controles comparten la fila superior en todo el intervalo móvil/tablet. */
+ #competicionContent .race-card--stage.race-card--composed {
+   grid-template-columns:minmax(0,1fr) auto;
+   column-gap:8px;
+   row-gap:0;
+   padding:12px;
+ }
+ #competicionContent .race-card--stage.race-card--composed:has(.race-card__profile) {
+   padding-bottom:70px;
+ }
+ #competicionContent .race-card--stage.race-card--composed .race-card__identity {
+   grid-column:1;
+   grid-row:1;
+ }
+ #competicionContent .race-card--stage.race-card--composed .race-card__main {
+   padding-right:0;
+ }
+ #competicionContent .race-card--stage.race-card--composed .race-card__meta {
+   grid-column:2;
+   grid-row:1;
+   width:auto;
+   margin-left:0;
+   justify-self:end;
+   align-self:center;
+ }
+ #competicionContent .race-card--stage.race-card--composed .race-card__profile {
+   position:absolute;
+   inset:auto 0 0 0;
+   grid-column:auto;
+   grid-row:auto;
+   width:100%;
+   height:58px;
+ }
+ #competicionContent .race-card--stage.race-card--composed .badge--icon {
+   width:32px;
+   height:32px;
+   padding:5px;
+   justify-content:center;
+ }
+ #competicionContent .race-card--stage.race-card--composed .badge--icon .badge__label {
+   position:absolute;
+   width:1px;
+   height:1px;
+   margin:-1px;
+   padding:0;
+   overflow:hidden;
+   clip-path:inset(50%);
+   white-space:nowrap;
+ }
+}
+
+.stage-profile-layout { container-type:inline-size; display:grid; grid-template-columns:minmax(0,1fr); gap:24px; margin-block:20px; }
+.stage-profile-panel, .stage-key-panel { min-width:0; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); }
+.stage-profile-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border); }
+.stage-profile-heading h2 { font-size:1rem; font-weight:600; margin:0; }
+.stage-profile-modes { display:flex; flex-wrap:wrap; gap:2px; }
+.stage-profile-modes button, .stage-key-toggle { border:0; border-radius:6px; padding:7px 9px; font:600 .82rem var(--font-body); color:var(--accent-text); background:transparent; cursor:pointer; }
+.stage-profile-modes [aria-pressed=true] { background:var(--accent-dim); }
+.stage-profile-graphic { min-width:0; width:100%; position:relative; touch-action:pan-y; }
+.stage-profile-graphic>svg { width:100%; height:auto; }
+.stage-profile-official { width:100%; height:auto; display:block; background:white; }
+.stage-profile-official-pdf { width:100%; height:400px; border:0; background:white; display:block; }
+.stage-profile-readout { display:block; min-height:28px; padding:3px 12px 7px; font-size:.85rem; font-variant-numeric:tabular-nums; }
+.stage-profile-selection { stroke:var(--accent-text); stroke-width:1.5; stroke-dasharray:4 3; pointer-events:none; }
+.stage-key-panel { display:flex; flex-direction:column; overflow:hidden; }
+.stage-key-shell { display:flex; flex-direction:column; min-height:0; }
+.stage-key-list { overflow-y:auto; scrollbar-width:thin; min-height:0; }
+.stage-key-row { display:grid; grid-template-columns:60px max-content minmax(0,1fr); gap:8px; width:100%; align-items:center; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); padding:10px 12px; text-align:left; font:400 .875rem/1.35 var(--font-body); }
+button.stage-key-row { cursor:pointer; }
+.stage-key-row[aria-pressed=true] { background:var(--accent-dim); }
+.stage-key-name { overflow-wrap:anywhere; }
+.stage-key-name small { display:block; color:var(--text-muted); font-size:.8rem; margin-top:2px; }
+.stage-key-km { font-variant-numeric:tabular-nums; color:var(--text-muted); }
+@media(min-width:1024px) { .stage-profile-layout--points { grid-template-columns:minmax(0,1fr) 330px; align-items:start; } }
+
+/* Clasificaciones (in-house): primer botón de la barra de assets. Fondo azul de
+   marca (--accent, idéntico en claro y oscuro) con texto e icono en blanco. */
+.asset-btn--results,
+.asset-btn--results:hover { background: var(--accent); color: #fff; }
+.asset-btn--results svg { color: #fff; }
+.asset-btn--results:hover { filter: brightness(1.08); }
+.jornada-description { max-width:75ch; text-align:left; }
+.jornada-description p { text-align:left; }
+.jornada-section__title-badge { flex:0 1 auto; flex-wrap:wrap; }
+.jornada-section__title-row { justify-content:flex-start; flex-wrap:wrap; gap:8px; }
+.tv-filter-btn { display:inline-flex; align-items:center; min-height:40px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); color:var(--accent-text); font-size:.875rem; font-weight:700; }
+.tv-live-text { color:var(--green); }
+.stage-tv-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr)); gap:0 24px; }
+.stage-tv-grid .tv-embed-block { grid-column:1/-1; }
+@media(max-width:760px) {
+ .stage-tv-grid { grid-template-columns:1fr; }
+}
+
+.res-layout { width:var(--page-width); margin:auto; display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; }
+.res-main, .res-context { min-width:0; }
+.res-stages { display:flex; width:var(--page-width); margin-inline:auto; }
+.res-stages[hidden] { display:none; }
+.res-stages .res-stages__inner { width:auto; flex:1; min-width:0; padding:6px; }
+.res-layout .res-tabs, .res-layout .res-table-wrap,
+.res-layout .so-table-wrap, .res-layout .so-filters__inner,
+.res-layout .so-tz-note { width:100%; max-width:none; padding-inline:0; }
+.res-main > .so-table-wrap:first-child { margin-top:0; }
+.res-tabs { flex-wrap:wrap; }
+.res-tabs__scroll { display:flex; flex:1 1 320px; min-width:0; overflow:hidden; }
+.res-tabs__inner { flex:1; min-width:0; }
+.res-tab { position:relative; padding:12px 10px; border-radius:0; background:transparent; font-weight:600; border-bottom:3px solid transparent; }
+.res-tab[style*="--class-color"]::before { content:''; position:absolute; top:2px; left:10px; right:10px; height:3px; background:var(--class-color); box-shadow:0 0 0 1px var(--border); }
+.res-tab--active { background:var(--bg-card-hover); color:var(--text); border-bottom-color:var(--text-muted); font-weight:700; }
+.res-tabs__filter { margin-left:auto; max-width:100%; }
+.res-teamfilter__select, .agenda-sort-select { font:600 .85rem var(--font-body); min-height:36px; max-width:100%; border:1px solid var(--border); border-radius:8px; padding:7px 30px 7px 10px; background-color:var(--bg-card-hover); }
+.res-table { min-width:18rem; background:#252e3b; color:#f4f6fa; font-variant-numeric:tabular-nums; --text:#f4f6fa; --text-muted:#c4cbd5; }
+.res-table-wrap { overflow:visible; }
+/* En una columna, la columna lateral sigue a la tabla: basta la separación de
+   la rejilla (24px), sin el relleno inferior de 32px de la tabla. */
+@media(max-width:1099px) { .res-layout--context .res-table-wrap { padding-bottom:0; } }
+html.light .res-table { background:#fff; color:#202124; --text:#202124; --text-muted:#5f6368; }
+.res-table .so-td { padding-block:6px; }
+.res-rider-name { font-weight:600; }
+.res-publication { margin:10px 0; font-size:.82rem; color:var(--text-muted); }
+.res-publication-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
+.res-publication-line strong { color:var(--text); font-size:.95rem; }
+.res-status-icon { vertical-align:-3px; flex:none; margin-right:6px; }
+.res-refreshing { display:inline-flex; align-items:center; gap:6px; }
+.res-refreshing .res-status-icon { margin-right:0; transform-origin:center; transform-box:fill-box; animation:res-refresh-spin 1s linear infinite; }
+@keyframes res-refresh-spin { to {transform:rotate(360deg);} }
+@media(prefers-reduced-motion:reduce) { .res-refreshing .res-status-icon {animation:none;} }
+.res-update-note { margin-top:8px; background:var(--accent-dim); color:var(--accent-text); padding:9px 12px; }
+.res-update-note.res-refreshing { width:fit-content; max-width:100%; }
+.res-update-note button { margin-left:10px; }
+.res-context .stage-profile-layout { margin-top:0; }
+.res-stage-data { border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-card); }
+.res-stage-data h2 { font-size:1rem; margin:0 0 12px; }
+.res-stage-data dl { margin:0; }
+.res-stage-data dl>div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 12px; margin-top:8px; font-size:.85rem; }
+.res-stage-data dt { color:var(--text-muted); }
+.res-stage-data dd { margin:0; font-variant-numeric:tabular-nums; }
+@media(min-width:1100px) { /* Detalle de resultados: la ficha de carrera permanece visible. Documentos
+   y selector de etapa siguen el flujo normal; las pestañas se fijan debajo. */
+#resultsContent > .race-header {
+  position: sticky;
+  top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
+  z-index: 60;
+  background: var(--bg);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* La altura se mide en resultados.js: evita que las pestañas y el thead
+   fijos se solapen con el logo, nombre y metadatos de la carrera. */
+.res-tabs-bar {
+  top: calc(
+    var(--site-header-h, 56px)
+    + var(--primary-nav-h)
+    + var(--results-race-header-h, 0px)
+  );
+}
+.res-table thead .so-th {
+  top: calc(
+    var(--site-header-h, 56px)
+    + var(--primary-nav-h)
+    + var(--results-race-header-h, 0px)
+    + var(--res-tabs-h, 0px)
+  );
+}
+
+.res-layout--context { grid-template-columns:minmax(0,1fr) 320px; }
+/* La columna lateral (perfil y datos de la jornada) deja 16px bajo la raya
+   del selector de etapas en reposo y queda fija 16px bajo la ficha mientras
+   la clasificación se desplaza. Si supera el alto disponible, se desplaza
+   dentro de su propia caja. CX redefine --res-context-top y el margen. */
+.res-layout--context > .res-context {
+  margin-top: 16px;
+  --res-context-top: calc(
+    var(--site-header-h, 56px)
+    + var(--primary-nav-h)
+    + var(--results-race-header-h, 0px)
+    + 16px
+  );
+  position: sticky;
+  top: var(--res-context-top);
+  max-height: calc(100vh - var(--res-context-top) - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+} }
+@media(max-width:700px) {
+ /* La columna y el subtítulo del equipo comparten el mismo punto de corte. */
+ .res-th--team, .res-td--team { display:none; }
+ .res-tabs { flex-wrap:nowrap; }
+ .res-tabs__scroll { flex:1 1 0; }
+ .res-tabs__filter { flex:0 1 10rem; min-width:0; max-width:46%; margin-left:0; text-align:right; }
+ .res-tabs__sep { display:none; }
+ .res-teamfilter__select { width:100%; max-width:100%; }
+ .res-table .res-td--rider { display:table-cell; overflow:visible; }
+ .res-rider-main { display:inline; overflow:visible; }
+ .res-rider-name { display:inline; white-space:normal; overflow:visible; overflow-wrap:anywhere; }
+ .res-rider-team { display:block; white-space:normal; overflow:visible; font-size:.8rem; line-height:1.3; margin-top:3px; }
+ .res-rider-badge { display:none; }
+ .res-team-cell, .res-ttt-team, .res-team-cell .so-link, .res-ttt-team-name { white-space:normal; overflow:visible; overflow-wrap:anywhere; }
+ .res-table .so-td { padding-block:7px; }
+}
+
+/* Resultados: cada resumen permanece unido a su jornada y clasificación. */
+/* Las filas no destacadas conservan la presentación anterior al rediseño. */
+.feed-day>.feed-row { --bg-card:#1c1e24; --border:#2e3038; --text-muted:#8e9099; }
+.feed-day>.feed-row .feed-row__race { position:relative; }
+html.light .feed-day>.feed-row { --bg-card:#fff; --border:#e0e0e0; --text-muted:#5f6368; }
+@media(prefers-color-scheme:light) {
+  html:not(.dark) .feed-day>.feed-row { --bg-card:#fff; --border:#e0e0e0; --text-muted:#5f6368; }
+}
+/* Destacada de vuelta por etapas (espejo de FeedRowView en las apps): fila
+   normal con divisor y clasificaciones complementarias debajo. */
+.feed-row--featured { align-items:flex-start; }
+.feed-row--featured .feed-row__chevron { align-self:center; }
+.feed-row__leaders { display:grid; gap:2px; margin-top:4px; padding-top:5px; border-top:1px solid var(--border); }
+.feed-row__leader { display:flex; align-items:center; gap:6px; min-width:0; font-size:.72rem; line-height:1.3; }
+.feed-row__leader-dot { width:7px; height:7px; border-radius:50%; flex:none; }
+.feed-row__leader-label { font-weight:600; color:var(--text-muted); flex:none; }
+.feed-row__leader-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Escritorio: dos columnas en todo momento, aunque el día tenga un solo
+   resultado. La destacada ocupa una columna y abarca las filas que calcula
+   packFeaturedEntries (resultados-feed.js); las filas normales rellenan en
+   orden denso la otra columna. */
+@media(min-width:961px) {
+ .feed-day { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:row dense; gap:10px; }
+ .feed-day>* { grid-column:1/-1; }
+ .feed-day>.feed-day__hdr { margin-bottom:0; }
+ .feed-day>.feed-row { grid-column:auto; margin:0; }
+}
+
+/* Reflujo con texto ampliado; los offsets siguen la altura visible. */
+.site-header { height:auto; min-height:calc(56px + env(safe-area-inset-top)); }
+.site-header__inner { min-height:56px; padding-block:6px; }
+.header-actions { margin-left:auto; }
+.stage-tv-grid .tv-entry { min-width:0; flex-wrap:wrap; gap:8px; }
+.stage-tv-grid .tv-entry>div { min-width:0; max-width:100%; flex-wrap:wrap; }
+.stage-tv-grid .tv-entry__platform { overflow-wrap:anywhere; }
+.race-header__main { flex-wrap:wrap; }
+.race-header__text { flex:1 1 200px; overflow-wrap:anywhere; }
+
+/* El acceso a Competición mantiene su área pulsable sin ensanchar la línea del nombre. */
+.race-card--composed .race-card__overview-btn { height:1.25em; min-height:20px; margin-block:0; position:relative; }
+.race-card--composed .race-card__overview-btn::after { content:''; position:absolute; inset:-2px 0; }
+/* Categoría .2: nombre, datos y categoría en tres líneas, con seguimiento lateral. */
+.race-card--composed.race-card--compact { grid-template-columns:minmax(0,1fr) auto; gap:10px; padding-block:10px; }
+.race-card--compact .race-card__main { flex:1; }
+.race-card--composed.race-card--compact .race-card__name>span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.race-card--composed.race-card--compact .race-card__sub { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+.race-card--compact .race-card__badges { flex-wrap:nowrap; }
+.race-card--compact .race-card__actions { margin:0; flex-wrap:nowrap; gap:4px; }
+.race-card--composed.race-card--compact .race-card__meta { grid-column:2; grid-row:1; width:auto; }
+.race-card--compact .race-card__schedule { flex-direction:column; gap:2px; align-items:flex-end; }
+.race-card--compact .race-card__schedule>span { font-size:.7rem; }
+#raceList .race-card .race-card__schedule.race-card__schedule--finish { flex-direction:column; flex-wrap:nowrap; align-items:flex-end; gap:2px; white-space:nowrap; }
+/* El cartel (Salida/Meta/Inicio/Final) y la hora van en filas distintas. */
+#raceList .race-card .race-card__schedule:not(.race-card__schedule--waiting) { flex-direction:column; flex-wrap:nowrap; align-items:flex-end; gap:2px; }
+#raceList .race-card--compact .badge:is(.badge--results,.badge--revive) { width:32px; height:32px; min-width:32px; padding:5px; }
+.race-card--composed.race-card--compact .race-card__meta-top { flex-wrap:nowrap; }
+.race-card--composed.race-card--compact :is(.badge--results,.badge--revive) .badge__label { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+:is(#raceList,#competicionContent) .badge:is(.badge--results,.badge--revive,.badge--stage) { font:600 .68rem/1.3 var(--font-body); letter-spacing:.02em; text-transform:uppercase; }
+@media(min-width:1024px) {
+  :is(#raceList,#competicionContent) .race-card--composed:not(.race-card--compact) .race-card__actions>.badge,
+  :is(#raceList,#competicionContent) .race-card--composed:not(.race-card--compact) .race-card__meta-top>.badge:is(.badge--results,.badge--revive) {
+    width:auto; min-width:0; height:auto; min-height:28px; padding:4px 8px;
+    gap:5px; font-size:.73rem;
+  }
+  :is(#raceList,#competicionContent) .race-card--composed:not(.race-card--compact) :is(.race-card__actions,.race-card__meta-top)>.badge svg { width:17px; height:17px; }
+}
+/* En las .2, los enlaces de seguimiento mantienen la escala de la fila de categoría. */
+#raceList .race-card--compact .race-card__badges .badge:is(.badge--tv,.badge--livetext) { position:relative; min-height:0; padding:.18rem .5rem; font-size:.68rem; gap:.25rem; }
+#raceList .race-card--compact .race-card__badges .badge:is(.badge--tv,.badge--livetext) svg { width:1em; height:1em; }
+#raceList .race-card--compact .race-card__badges a.badge:is(.badge--tv,.badge--livetext)::after { content:''; position:absolute; inset:-2px 0; }
+@media(max-width:760px) {
+  .race-card--composed.race-card--compact { grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; padding-left:54px; }
+  .race-card--compact .race-card__identity, .race-card--composed.race-card--compact .race-card__main { display:contents; }
+  .race-card--compact .race-card__logo, .race-card--compact .race-card__flag { position:absolute; top:50%; left:12px; transform:translateY(-50%); }
+  .race-card--compact .race-card__name { grid-column:1; grid-row:1; }
+  .race-card--composed.race-card--compact .race-card__sub { grid-column:1/-1; grid-row:2; }
+  .race-card--compact .race-card__badges { grid-column:1/-1; grid-row:3; margin-top:0; }
+  /* Sin miniperfil, el horario o Resultados/Revive se centran contra todo el
+     bloque de texto. Al no dimensionar la fila del nombre, desaparece el hueco
+     artificial que introducían los controles de 32 px antes de los datos. */
+  .race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__main { display:block; grid-column:1; grid-row:1; }
+  .race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__badges { margin-top:4px; }
+  .race-card--composed.race-card--compact:not(:has(.race-card__profile)) .race-card__meta { grid-column:2; grid-row:1; align-self:center; }
+}
+
+/* La copa y Revive comparten escala para mantener el mismo grosor de trazo. */
+:is(#raceList,#competicionContent) .badge:is(.badge--results,.badge--revive) svg { width:20px; height:20px; stroke-width:2; }
+
+.race-card__schedule--waiting { flex-direction:row; flex-wrap:nowrap; align-items:center; gap:6px; color:var(--text-muted); white-space:nowrap; }
+.race-card__schedule--waiting>svg { width:20px; height:20px; flex-shrink:0; }
+.race-card__waiting-dots circle { animation:waiting-dot 1.2s ease-in-out infinite; }
+.race-card__waiting-dots circle:nth-child(2) { animation-delay:.15s; }
+.race-card__waiting-dots circle:nth-child(3) { animation-delay:.3s; }
+@keyframes waiting-dot {
+  0%, 60%, 100% { transform:translateY(0); opacity:.35; }
+  30% { transform:translateY(-3px); opacity:1; }
+}
+@media(prefers-reduced-motion:reduce) { .race-card__waiting-dots circle { animation:none; } }
+@media(max-width:760px) {
+  .race-card--composed.race-card--compact.race-card--waiting .race-card__name { grid-column:1/-1; }
+  .race-card--composed.race-card--compact.race-card--waiting .race-card__badges { grid-column:1; }
+  .race-card--composed.race-card--compact.race-card--waiting .race-card__meta { grid-row:3; }
 }

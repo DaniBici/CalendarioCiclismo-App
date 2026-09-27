@@ -1,6 +1,7 @@
 package app.calendariociclismo.android.util
 
 import app.calendariociclismo.android.data.model.RaceUciResultRow
+import app.calendariociclismo.android.data.model.RaceClassificationConfig
 import app.calendariociclismo.android.data.model.RaceUciStage
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.Team
@@ -21,6 +22,67 @@ object UciResultsLogic {
     /** Orden de las pestañas de clasificación. */
     val CLASS_ORDER = listOf("stage", "gc", "points", "kom", "youth", "teams")
 
+    fun classificationInventory(
+        config: List<RaceClassificationConfig>,
+        stages: List<RaceUciStage>,
+    ): List<RaceClassificationConfig> {
+        val byKind = config.associateBy { it.classKind }.toMutableMap()
+        stages.forEach { stage ->
+            byKind.putIfAbsent(
+                stage.classKind,
+                RaceClassificationConfig(
+                    raceId = stage.raceId,
+                    classKind = stage.classKind,
+                    position = CLASS_ORDER.indexOf(stage.classKind).takeIf { it >= 0 } ?: 10,
+                ),
+            )
+        }
+        return byKind.values.sortedWith(compareBy<RaceClassificationConfig> { it.position }.thenBy { it.classKind })
+    }
+
+    /**
+     * Ordena solo las clasificaciones que existen en la jornada seleccionada.
+     * La configuración global aporta orden, etiquetas y color, pero no puede
+     * crear pestañas para clasificaciones presentes únicamente en otras etapas.
+     */
+    fun visibleStageClassifications(
+        config: List<RaceClassificationConfig>,
+        stages: List<RaceUciStage>,
+    ): List<RaceUciStage> {
+        val positions = classificationInventory(config, stages)
+            .mapIndexed { index, row -> row.classKind to index }
+            .toMap()
+        return stages.sortedWith(
+            compareBy<RaceUciStage> { positions[it.classKind] ?: Int.MAX_VALUE }
+                .thenBy { it.classKind },
+        )
+    }
+
+    fun classificationLabel(row: RaceClassificationConfig, isEn: Boolean): String {
+        val custom = if (isEn) row.labelEn else row.labelEs
+        if (!custom.isNullOrEmpty()) return custom
+        return when (row.classKind) {
+            "gc" -> if (isEn) "GC" else "General"
+            "points" -> if (isEn) "Points" else "Puntos"
+            "kom" -> if (isEn) "KOM" else "Montaña"
+            "youth" -> if (isEn) "Youth" else "Jóvenes"
+            "teams" -> if (isEn) "Teams" else "Equipos"
+            "stage" -> if (isEn) "Stage" else "Etapa"
+            else -> row.classKind
+        }
+    }
+
+    fun classificationColor(row: RaceClassificationConfig?): String? {
+        if (row == null || row.classKind == "stage") return null
+        return row.colorHex?.takeIf { Regex("^#[0-9A-Fa-f]{6}$").matches(it) }
+    }
+
+    fun classificationIsUpdating(stage: RaceUciStage, now: java.time.Instant = java.time.Instant.now()): Boolean {
+        if (stage.publicationStatus != "provisional" || !stage.updating) return false
+        val until = runCatching { java.time.Instant.parse(stage.updatingUntil) }.getOrNull() ?: return false
+        return now.isBefore(until)
+    }
+
     /** Etiquetas IRM (no clasificados). Fuente única, espejo de `js/uci-irm.js`. */
     fun irmLabel(code: String?, isEn: Boolean): String {
         if (code.isNullOrEmpty()) return ""
@@ -29,6 +91,8 @@ object UciResultsLogic {
             "DNS" -> if (isEn) "DNS" else "NS"
             "OTL" -> if (isEn) "OTL" else "FC"
             "DSQ" -> if (isEn) "DSQ" else "EXP"
+            "DF" -> "DF"
+            "NR" -> "NR"
             else -> code   // fallback si la UCI introduce un código nuevo
         }
     }
@@ -45,6 +109,10 @@ object UciResultsLogic {
 
     private val ABANDON_CODES = setOf("DNF", "ABD", "DNS", "OTL", "DSQ")
 
+    /** IRM que no puede determinar ganador. DF y NR no implican abandono. */
+    fun isNonWinnerIrm(code: String?): Boolean =
+        !code.isNullOrEmpty() && (code in ABANDON_CODES || code == "DF" || code == "NR")
+
     // ── Tiempos / gaps (port de resultados.js L44–72) ──────────────────────
 
     /** "H:MM:SS" | "MM:SS" | "SS" → segundos (o null si no parsea). */
@@ -55,7 +123,7 @@ object UciResultsLogic {
     }
 
     /**
-     * segundos → gap con la convención de la prensa ciclista (fuente externa):
+     * segundos → gap con la convención de la prensa ciclista:
      *   <1min → +SS"   ·   <1h → +M'SS"   ·   ≥1h → +H:MM:SS
      */
     fun secondsToGap(sec: Int?): String? {
@@ -343,10 +411,13 @@ object UciResultsLogic {
      * La UCI publica la etapa de CRE como "Stage Classification" listando TODOS
      * los corredores agrupados por equipo. Hay que colapsarla a una fila por
      * equipo. No nos fiamos de `isTeamEvent` (la UCI lo marca true en TODAS las
-     * clasificaciones de una etapa CRE). Señal = classKind='stage' (o 'gc' final
-     * de un día — caso CRE de carrera de un día, variante C) + jornada CRE en
-     * nuestro catálogo (primaryType='ttt'), corroborado por la estructura
-     * (ranks compartidos [A] o muchos rank=null entre clasificados [B]).
+     * clasificaciones de una etapa CRE). Es CRE SOLO si la jornada está marcada
+     * como CRE: classKind='stage' (o 'gc' final de un día — variante C) +
+     * primaryType='ttt' en el catálogo o raceType='TTT' de la fuente; la
+     * estructura (ranks compartidos [A] o rank=null entre clasificados [B])
+     * solo corrobora. Un fallback estructural sin marca pintó como CRE la
+     * etapa 3 del Tour de Eslovaquia 2026 (puestos vacíos transitorios del
+     * auto-sync de resultados).
      */
     fun isTttStage(
         rows: List<RaceUciResultRow>,
@@ -360,10 +431,7 @@ object UciResultsLogic {
         val isEligibleKind = classKind == "stage" ||
             (classKind == "gc" && stageNumber == null && isOneDay)
         if (isTeams || !isEligibleKind) return false
-        // Una jornada CRI (primaryType='itt') NUNCA es una crono por equipos: aunque
-        // tenga ex aequo reales (varios corredores con el mismo tiempo al cronómetro →
-        // mismo puesto), no se colapsa por equipos. Sin este guard, ≥3 empates en una
-        // CRI disparan la rama estructural `sharedRanks >= 3` y la pintan como CRE.
+        // Una jornada CRI (primaryType='itt') NUNCA es una crono por equipos.
         if (raceDayPrimaryType == "itt" || stageRaceType == "ITT") return false
         val classified = rows.filter { it.irm.isNullOrEmpty() }
         // [A] nº de puestos con ≥2 corredores.
@@ -375,10 +443,10 @@ object UciResultsLogic {
         // [B] compañeros sin rank.
         val nullRanks = classified.count { it.rank == null }
         val structural = sharedRanks >= 2 || nullRanks >= 2
-        val dayIsTtt = raceDayPrimaryType == "ttt"
-        // Con el tipo de jornada curado basta la estructura; sin él, exigir una
-        // estructura MUY marcada para no colapsar una crono individual con empates.
-        return structural && (dayIsTtt || sharedRanks >= 3 || nullRanks >= 6)
+        // Es CRE solo si la jornada está marcada como CRE; la estructura corrobora.
+        val markedTtt = raceDayPrimaryType == "ttt"
+            || stageRaceType?.equals("TTT", ignoreCase = true) == true
+        return structural && markedTtt
     }
 
     // ── Colapso de CRE a una fila por equipo — port de renderTttStage L400 ──
@@ -519,25 +587,34 @@ object UciResultsLogic {
     /** Busca en `teams` el equipo que corresponde al nombre crudo `teamName`
      *  (p. ej. "TEAM VISMA | LEASE A BIKE" de Tissot/UCI). Estrategia: coincidencia
      *  exacta normalizada (name + nameAliases) → subcadena. Port de `findMatchingTeam`. */
-    fun findMatchingTeam(teamName: String?, teams: List<Team>): Team? {
-        if (teamName.isNullOrEmpty() || teams.isEmpty()) return null
-        val target = normalizeTeamName(teamName)
-        if (target.isEmpty()) return null
-        fun namesOf(t: Team): List<String> =
-            (listOf(t.name) + (t.nameAliases ?: "").split("\n"))
+    fun findMatchingTeam(teamName: String?, teams: List<Team>): Team? = TeamMatcher(teams).match(teamName)
+
+    /** Índice de nombres normalizados de un catálogo de equipos. Normaliza cada
+     *  nombre y alias una sola vez, de modo que casar muchas filas contra el
+     *  mismo catálogo (resultados CX contra todos los `cx_teams`) no repite la
+     *  normalización por fila. Mismo criterio que `findMatchingTeam`. */
+    class TeamMatcher(teams: List<Team>) {
+        private val catalog: List<Pair<Team, List<String>>> = teams.map { t ->
+            t to (listOf(t.name) + (t.nameAliases ?: "").split("\n"))
                 .map { normalizeTeamName(it) }
                 .filter { it.isNotEmpty() }
-        for (t in teams) {
-            if (target in namesOf(t)) return t
         }
-        // Fallback: contención (al menos 4 caracteres para evitar ruido).
-        if (target.length >= 4) {
-            for (t in teams) {
-                val names = namesOf(t).filter { it.length >= 4 }
-                if (names.any { it == target || it.contains(target) || target.contains(it) }) return t
-            }
+        // Primera coincidencia exacta en el orden del catálogo.
+        private val exact: Map<String, Team> = buildMap {
+            for ((team, names) in catalog) for (name in names) if (name !in this) put(name, team)
         }
-        return null
+
+        fun match(teamName: String?): Team? {
+            if (teamName.isNullOrEmpty() || catalog.isEmpty()) return null
+            val target = normalizeTeamName(teamName)
+            if (target.isEmpty()) return null
+            exact[target]?.let { return it }
+            // Fallback: contención (al menos 4 caracteres para evitar ruido).
+            if (target.length < 4) return null
+            return catalog.firstOrNull { (_, names) ->
+                names.any { it.length >= 4 && (it == target || it.contains(target) || target.contains(it)) }
+            }?.first
+        }
     }
 
     // ── Filas individuales (etapa/general/jóvenes/puntos/montaña) ──────────
@@ -608,7 +685,7 @@ object UciResultsLogic {
         //     Colombia Femenina — rank 1 con DNS, el tiempo de cabeza es el del rank 2.
         // → `winnerRow` solo cuenta como ganadora si su irm NO es de abandono.
         val rank1Row = rows.firstOrNull { it.rank == 1 }
-        val winnerRow = rank1Row?.takeUnless { isAbandonIrm(it.irm) }
+        val winnerRow = rank1Row?.takeUnless { isNonWinnerIrm(it.irm) }
         // Clasificado a efectos de TIEMPO: el ganador (ruido aparte) o cualquier fila
         // con puesto sin irm. Un rank 1 con abandono NO cuenta.
         fun isRankedFinisher(r: RaceUciResultRow) =
@@ -766,7 +843,7 @@ object UciResultsLogic {
                     }
                     if (wt.isNotEmpty()) ValueKind.WINNER_TIME to wt else ValueKind.EMPTY to ""
                 }
-                !effGap.isNullOrBlank() && effGap == "+0\"" && rowIndex <= headBlockEnd ->
+                !effGap.isNullOrBlank() && effGap == "+0\"" && (isTeams || rowIndex <= headBlockEnd) ->
                     ValueKind.SAME_TIME to ""
                 !effGap.isNullOrBlank() -> { rowGap = effGap; ValueKind.GAP to effGap }
                 else -> ValueKind.RAW to (r.timeText ?: r.resultValue.orEmpty())

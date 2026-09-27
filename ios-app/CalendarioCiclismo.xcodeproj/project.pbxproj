@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3651F965C3ADE08DD8868D /* UciResult.swift */; };
 		063D89A631EACB963C91DF96 /* FollowedRacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D3962AC7A3D12B5D18111 /* FollowedRacesView.swift */; };
+		06A905A4897CEFC6E0DC7C95 /* WidgetSample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2587A4C3EC2BEC8E793B7E25 /* WidgetSample.swift */; };
 		07492AB7F89E89B4D8DF30C6 /* ChampionshipsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9C3A664AD224C48C4196E9 /* ChampionshipsConfig.swift */; };
 		0B5C91D33E92E115ACEA20B2 /* StartOrderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E937000522A5EC4B04ADCD83 /* StartOrderView.swift */; };
 		0EE10A80D87242DA56F59C89 /* ChampionshipsConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDFDA2062D4A19B449D8E0E2 /* ChampionshipsConfigTests.swift */; };
@@ -19,26 +20,37 @@
 		1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */; };
 		1D96090FF66C9A5585A2F95F /* FirebaseAnalyticsWithoutAdIdSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 265ADF6C6006C82A616BABA8 /* FirebaseAnalyticsWithoutAdIdSupport */; };
 		1E2D019C46203E886E6E3E7C /* FlagRenderAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E785AA0ACD6B894B4244B044 /* FlagRenderAuditTests.swift */; };
+		206B684001F9D3FA899E23DE /* ReviewPromptPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E454526BA7E1E81A5F72B631 /* ReviewPromptPolicyTests.swift */; };
 		254B8B7BE4832DB34FF86FDB /* ElevationProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4461E2F63974BDE7CA989245 /* ElevationProfileView.swift */; };
 		26E8DC343F910C5C9446E51C /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9760C23396DE90D30F7DD243 /* CacheManager.swift */; };
 		27D69B27E68A304EF28C79B4 /* ProfileDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC572EA9623AC82543357E70 /* ProfileDestinationView.swift */; };
 		2A9DCFCB56EF967CF8E7F3C2 /* CalendarTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA4282987543E6D2F35303A /* CalendarTabView.swift */; };
 		2B43CECAD914DF21A9BF7EE8 /* PremiumServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510E10AD16CCABDC4B4ECA4A /* PremiumServiceTests.swift */; };
+		2CE7FF0A88CC9734B1B9AAC1 /* SupabaseService+Cyclocross.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC35F0759C613CBD10CF374 /* SupabaseService+Cyclocross.swift */; };
+		30917CFA58703AEAFA66FBD7 /* CxRaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AD3BE2D5D047F33591E5AF /* CxRaceDetailView.swift */; };
+		32496D20A4CFC135A2E05D6A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39999894CF76DCFE283F1CA0 /* Localizable.xcstrings */; };
 		3300591CCF9E81E8222D2588 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD984740158A331D289F46E1 /* NotificationManager.swift */; };
 		340398D765D1197EB7A0F757 /* AppIconFounder.icon in Resources */ = {isa = PBXBuildFile; fileRef = 357FAF5D25E73ABF9C6401E4 /* AppIconFounder.icon */; };
 		36293990D303F6743D421A93 /* FollowedStagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0811885F83B6EABBFD87270 /* FollowedStagesView.swift */; };
+		3695B0BAAFC5DF0A19C1E943 /* WidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2AEADA23EA969AFFA2A257 /* WidgetViews.swift */; };
 		385244A97900B41E18D5BBFC /* PlaceholderModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */; };
 		388E6D1B1FF25CB5F0320864 /* SimplifiedGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */; };
+		3985A8303466057709E9F567 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F410AB613DDCE9F8F0BAD6 /* WidgetShared.swift */; };
 		3B52A990E027BAAC784D6325 /* NotificationServiceExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 955A90C67B81CFC59D9F9F5C /* NotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3B654C7A8A56522E6C260516 /* CxMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B587D9C5B3687CE26C19DE74 /* CxMapView.swift */; };
 		3C17EFBA098E9566014F7A64 /* SeasonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6833BA62D6085B0309D60937 /* SeasonView.swift */; };
 		3C8121A4604883D9DA705D1D /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C3D78A02E9DAA1C06A553A /* SafariView.swift */; };
+		3EA67DC5C454F1DB5BC30206 /* WidgetComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94929C262D2DBFB276F47E84 /* WidgetComponents.swift */; };
 		42066B4F05AE4303D2D4EB13 /* RaceFollowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F8AEBCD527F96AD9FC75C /* RaceFollowService.swift */; };
 		429BAB94FF2EC495C5001C52 /* AccessibilityHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF4E785EB18C1E580828423 /* AccessibilityHelpers.swift */; };
 		4522FC4C6FBC98F313F01BA6 /* TodayHighlightsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD7BDBEE7EF58501E285A50F /* TodayHighlightsBanner.swift */; };
 		477786CBA0B9C16A9BE41B5D /* SupabaseService+Transfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493A6548104A38662359470C /* SupabaseService+Transfers.swift */; };
 		490809882B75F134850C169F /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */; };
 		49395434A3D9AF42D7C18049 /* LanguageAnnouncementOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B00C847CE81C5F63CA3FD2D /* LanguageAnnouncementOnboardingView.swift */; };
+		4D09AB500D4CF1D5C75AAEBA /* Flags.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ECAEF742B151429F3F65D887 /* Flags.xcassets */; };
 		54ACBA1A99E51438FB852362 /* AppIconFriend.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1909CFDC5B0915D1E9B026D8 /* AppIconFriend.icon */; };
+		54D62F7F616B5A3CA184113A /* CyclocrossPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D50D72CA43EF20185F08598 /* CyclocrossPresentation.swift */; };
+		56058034D14A55950812E287 /* CyclocrossTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3692C84AB61A1B2E31815AF /* CyclocrossTests.swift */; };
 		574C94A43BABE95AF4D4AD2E /* DateFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDFEAC0A589AFE48C8CE3EE /* DateFormattingTests.swift */; };
 		5819834FB8F79399636465F0 /* PremiumShowcaseOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2057A3037AEE913460F62A /* PremiumShowcaseOnboardingView.swift */; };
 		590F1CF043E90DBA9C84CA1A /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714E1EBF959304DB05BEE579 /* Haptics.swift */; };
@@ -47,14 +59,17 @@
 		5F9E5F96DDDAEBC35010522C /* StartlistTeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E21AA16D681FECC7BFC7ED5 /* StartlistTeam.swift */; };
 		5FE5028A0621415A53F0646D /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177FAB8B603DF443D9FD7908 /* DateFormatting.swift */; };
 		6370196F5C67453BFA1AFCA6 /* TransfersLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5226BF87D70D9670F0D46D21 /* TransfersLogic.swift */; };
+		63D5D259611DB259B1552B8E /* WidgetDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F2CBAFCAF3B3F34636D515 /* WidgetDataSource.swift */; };
 		65402F16E90FDF1408C07006 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B092494268057641ED882D /* SupabaseService.swift */; };
 		65960C19C110A6530F6F894A /* ElevationProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */; };
 		6A398CFF70A46920EABBB087 /* RouteMapLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122A04AF5748EF3E37189B1E /* RouteMapLogicTests.swift */; };
 		6C8AF229EAE53767CA9434CD /* LocaleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1109A4E64314AA3634866E /* LocaleService.swift */; };
 		6DD6E74D1FBA8B548F7E1510 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F94BBFA47CC5EA0A0D8D43 /* CachedAsyncImage.swift */; };
+		6E50F3EC0659388577748F7F /* WidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E03E47A0EDEBECCAAAC99C /* WidgetConfiguration.swift */; };
 		6E53393CC2DC6D91612D7AB1 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0C75F2E38677C4B313E14 /* ResultsView.swift */; };
 		71082A04A4FDA68A726F156D /* StartlistViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0747B0937E6F689CD7E54BD /* StartlistViewModel.swift */; };
 		71FBBD4801E6EF08E707E4F4 /* ResultsFeedLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A8280CFC316531A7598A7 /* ResultsFeedLogic.swift */; };
+		7220AC9F4A75673C4B845736 /* CyclocrossAgendaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F8ED534D277CF85F234D3EC /* CyclocrossAgendaModel.swift */; };
 		735A627CED3D4FBF3D00DE8B /* RaceCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E260BD1DB107754B3CD3A4C7 /* RaceCardView.swift */; };
 		735E8EF9355BDFC7B9192E4A /* TeamSeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAECCCB7643871D151DCE7F2 /* TeamSeason.swift */; };
 		76DF36E547BE94AA415D3572 /* RaceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB09DB4C005F23EC644C08C /* RaceDetailViewModel.swift */; };
@@ -63,6 +78,7 @@
 		7AE69F0808E064FE9416EB6B /* MonthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A6AAAFC9E8A365D38F7D6 /* MonthView.swift */; };
 		7C06C12783559130AC188E12 /* StageTypeBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA12EE3D2BCE3DAB1F18685 /* StageTypeBadge.swift */; };
 		7C154DC5087436ED29616287 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F266247CBB68CEB3EE2862 /* ContentView.swift */; };
+		7D0D2E072A224C4FDDC2ED10 /* WidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565B870EDE9C8BF2875CF633 /* WidgetProvider.swift */; };
 		7F832FD3E5B830B3B73483AD /* ResultsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85215561F64F3E9BF0C0D1C5 /* ResultsComponents.swift */; };
 		7FA7EEE20400BD3613295B60 /* CalendarioCiclismoWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9937AA1AC3A4D7C7D9273D /* CalendarioCiclismoWidget.swift */; };
 		82221FBFFF6BE60914DB5839 /* UciResultsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBD791D932656CF55E63CDB /* UciResultsLogic.swift */; };
@@ -73,10 +89,14 @@
 		885FF19017FEF27A971CE6C1 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CFC3A064B481CFBD974E40 /* MarkdownText.swift */; };
 		8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */; };
 		8B0B2B5E24E758AC81E3DFAF /* UciTeamRankingLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C034C44A8BF5AE421240FA5C /* UciTeamRankingLogicTests.swift */; };
+		8C5600615396FB120D57CC09 /* Cyclocross.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0149F2A9C0D0E456F6BA5C /* Cyclocross.swift */; };
 		8EADA7E810C2E0E724D08C3E /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6203864B1F1CC402ED4D6C8D /* AppIcon.icon */; };
 		92DFE13B12A339F837758268 /* LocaleServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEE9E16A073346D055C32B4 /* LocaleServiceTests.swift */; };
+		9750FA6894BF635AA3674BA5 /* GoogleSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E54FA9E26639FB7E11086729 /* GoogleSans-Medium.ttf */; };
 		97CE02822015EDA09BD3FBC7 /* TodayHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA357FBE0F960823BC0EB19 /* TodayHighlight.swift */; };
+		98399FEA23FCF018CD4EF7F8 /* RaceCardIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA342C89A12FC55180449AD /* RaceCardIdentity.swift */; };
 		9848EE160C33576A783036AC /* ResultsFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF019505A2CAFB9F41393E6C /* ResultsFeedView.swift */; };
+		99D82402505E85F18A2B1E17 /* CyclocrossLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB3C9BE027811D0FC524455 /* CyclocrossLogic.swift */; };
 		9A7727C6041955D8E4CF3C17 /* RaceLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18679C62EF0371AD001964A3 /* RaceLogic.swift */; };
 		9AECFBAAEB4CBE96A6086906 /* NotificationOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6A2B67906034CD85F7CF9D /* NotificationOnboardingView.swift */; };
 		9D42A07BD375321F1871B5E9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DFED355E7AE1E58684F3E673 /* Assets.xcassets */; };
@@ -88,11 +108,14 @@
 		A2E87701565BBDD3B3FDF2ED /* SimplifiedGuideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D1A8FF79CF07970E1703D7 /* SimplifiedGuideTests.swift */; };
 		A40AC58EA87FC83B62B91667 /* RegionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 569313D924D61EEFAC8A2E5A /* RegionServiceTests.swift */; };
 		A40B44F0C4881350A548D411 /* Broadcast.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA42312F27D44A1C05E34701 /* Broadcast.swift */; };
+		A491BDF801450E05F29F4BB4 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F410AB613DDCE9F8F0BAD6 /* WidgetShared.swift */; };
 		A58F58D4F5E0248170C9A874 /* NotificationCategoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC94B5A84FB5302532B485A /* NotificationCategoryService.swift */; };
 		AADE534CEF4E0DCFBBC09523 /* DayData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7AD8A779D5FD8D0AB05FEA /* DayData.swift */; };
+		B23A57AA022C570EACC1732C /* CachedAsyncImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC294C6587658CC17208040 /* CachedAsyncImageTests.swift */; };
 		B3066A52F7EFA54DC64C9830 /* CalendarioCiclismoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E4143BEF13149F9C0D47FB /* CalendarioCiclismoApp.swift */; };
-		B3F401208AE468161F6614F7 /* ResultsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B2FABEB19EBCC6F24E73FA /* ResultsSheet.swift */; };
+		B49ECC141C25CA405DCAFF59 /* WidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02EBF66C1C6FF57668A5A593 /* WidgetBridge.swift */; };
 		B5B1F5DA596D0B26F84F4C27 /* TodayHighlightsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B80DAE35DBD0DA2DBDCC33 /* TodayHighlightsViewModel.swift */; };
+		B5CEBA01088E3D827640FB71 /* WidgetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F397E2CA4DAAF4A3012B3F /* WidgetPresentation.swift */; };
 		B8F703B4A91C93B29B2B4D12 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A986943DE31FB8737566D72F /* PrivacyInfo.xcprivacy */; };
 		BA263C15F6A2BA949527CB81 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA53E83B4EC195716011709 /* NotificationService.swift */; };
 		BCC962F781ACEA474307D0FA /* Team.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ED2633097AC8C280F68A1AA /* Team.swift */; };
@@ -103,6 +126,9 @@
 		C5B5EDF8EEA823DB58EDA384 /* MiniElevationProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C83C7A101911C96B812B45 /* MiniElevationProfile.swift */; };
 		C6AA1F13AD2E3F5D4C267FF6 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33B7CECF50AB095079F8724 /* PaywallView.swift */; };
 		C7E8F2510598F720EFA3F5FD /* RaceLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5811508CAE536EB9B4C6EB /* RaceLogo.swift */; };
+		C829F4CC13A0D760F62722C4 /* CyclocrossRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB830637ACFE8917D59C8E7 /* CyclocrossRepository.swift */; };
+		C8F10F654475D708C86318AE /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AFF922534DD63F535F407D0 /* WidgetModels.swift */; };
+		C90037F5053B3A9E336CFFC8 /* Flags.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ECAEF742B151429F3F65D887 /* Flags.xcassets */; };
 		CE796463544EBABAC59E226C /* TVBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF4A2A4A4205FF96FF5489B /* TVBadge.swift */; };
 		D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */ = {isa = PBXBuildFile; fileRef = B270A77DFF32A6444C93BA91 /* BundledLogos */; };
 		D0E28E42F6CD6235825ECC1E /* RaceDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */; };
@@ -124,11 +150,13 @@
 		E82D44621198CE27085ABC49 /* ChampionshipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CFBD39D57D29B620060B08 /* ChampionshipsViewModel.swift */; };
 		EA23539DD23AF813E6162046 /* ResultsFeedLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F12AB2A72EF4FF21C4A3386 /* ResultsFeedLogicTests.swift */; };
 		EB2B97B64D8293C336EC7F5C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E27EF87587619B6617F053DA /* Localizable.xcstrings */; };
+		EF9A18A19361582630A662A4 /* HeaderBrandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8869C4F1206A3C38BEF499AF /* HeaderBrandView.swift */; };
 		F02D8A321C704A63CE94FC3C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 121FA3ABE19C2E9CFD01A503 /* Assets.xcassets */; };
 		F1CF450C2E4F26C59928D55E /* CategoryBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33EBE13A16CA79590D76F05D /* CategoryBadge.swift */; };
 		F4CFD4660913CA2A8844AB00 /* RouteMapLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1344DD8023E08DB7656C31EE /* RouteMapLogic.swift */; };
 		F6ADD8EAF4A9C790AE6FD1D6 /* Asset.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15916F5EE82A196760F85BD /* Asset.swift */; };
 		F6DF75E3BCC55E3409C10098 /* NotificationCategoryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BC3AE982ED3A51D71724F4 /* NotificationCategoryServiceTests.swift */; };
+		F76A47B509B13457B472A912 /* CyclocrossView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6882E3E9450B033DAEF0D0 /* CyclocrossView.swift */; };
 		F7E0535F6C4F2CD8C5C23D75 /* RiderTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354EC95B971E9572BBE3B6DB /* RiderTransfer.swift */; };
 		F9BB1DE5E10094A2754D05F7 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6355226666B1F46947BD209D /* LoadingView.swift */; };
 		FBBFFA7FF879DF8D3BD2925C /* TransfersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982C21DD698245740AF2F4C6 /* TransfersView.swift */; };
@@ -176,8 +204,10 @@
 
 /* Begin PBXFileReference section */
 		02A51405DE542C58C527923A /* UciResultsLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResultsLogicTests.swift; sourceTree = "<group>"; };
+		02EBF66C1C6FF57668A5A593 /* WidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetBridge.swift; sourceTree = "<group>"; };
 		0336EA81D15ADA7B2C343ADF /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		05EF6EAE65F6B30257021A0E /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		06F410AB613DDCE9F8F0BAD6 /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
 		0CBA1E6741D58920B10C4815 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0D657CDFDE6DBCD52B28BE55 /* RouteMapDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapDestinationView.swift; sourceTree = "<group>"; };
 		0D9C7A2775B18372B4A6D309 /* RouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapView.swift; sourceTree = "<group>"; };
@@ -190,19 +220,26 @@
 		177FAB8B603DF443D9FD7908 /* DateFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		18679C62EF0371AD001964A3 /* RaceLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceLogic.swift; sourceTree = "<group>"; };
 		1909CFDC5B0915D1E9B026D8 /* AppIconFriend.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIconFriend.icon; sourceTree = "<group>"; };
+		1D50D72CA43EF20185F08598 /* CyclocrossPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossPresentation.swift; sourceTree = "<group>"; };
+		1DC35F0759C613CBD10CF374 /* SupabaseService+Cyclocross.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+Cyclocross.swift"; sourceTree = "<group>"; };
 		1E0236C5253451C5FAFCE767 /* PremiumService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumService.swift; sourceTree = "<group>"; };
 		23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlag.swift; sourceTree = "<group>"; };
+		2587A4C3EC2BEC8E793B7E25 /* WidgetSample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSample.swift; sourceTree = "<group>"; };
 		2906973A5C2ECBEC4B619C27 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		2C2057A3037AEE913460F62A /* PremiumShowcaseOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumShowcaseOnboardingView.swift; sourceTree = "<group>"; };
 		2DA357FBE0F960823BC0EB19 /* TodayHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayHighlight.swift; sourceTree = "<group>"; };
 		2DEE9E16A073346D055C32B4 /* LocaleServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleServiceTests.swift; sourceTree = "<group>"; };
+		2EA342C89A12FC55180449AD /* RaceCardIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceCardIdentity.swift; sourceTree = "<group>"; };
+		2EB830637ACFE8917D59C8E7 /* CyclocrossRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossRepository.swift; sourceTree = "<group>"; };
 		33EBE13A16CA79590D76F05D /* CategoryBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryBadge.swift; sourceTree = "<group>"; };
 		33F707763849CE075EE394A2 /* DateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateBarView.swift; sourceTree = "<group>"; };
 		354EC95B971E9572BBE3B6DB /* RiderTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiderTransfer.swift; sourceTree = "<group>"; };
 		357FAF5D25E73ABF9C6401E4 /* AppIconFounder.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIconFounder.icon; sourceTree = "<group>"; };
 		36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderModal.swift; sourceTree = "<group>"; };
 		37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfile.swift; sourceTree = "<group>"; };
+		39999894CF76DCFE283F1CA0 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		39D0C75F2E38677C4B313E14 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		3AFF922534DD63F535F407D0 /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModels.swift; sourceTree = "<group>"; };
 		3B00C847CE81C5F63CA3FD2D /* LanguageAnnouncementOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageAnnouncementOnboardingView.swift; sourceTree = "<group>"; };
 		3D75CB6D992AD56AAF59C30A /* ChampionshipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionshipsView.swift; sourceTree = "<group>"; };
 		4036B32A7F508C88A7A02F37 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
@@ -221,6 +258,7 @@
 		510E10AD16CCABDC4B4ECA4A /* PremiumServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumServiceTests.swift; sourceTree = "<group>"; };
 		5226BF87D70D9670F0D46D21 /* TransfersLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersLogic.swift; sourceTree = "<group>"; };
 		553D8E4CEE0690C4D5E69834 /* OfflineBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineBanner.swift; sourceTree = "<group>"; };
+		565B870EDE9C8BF2875CF633 /* WidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetProvider.swift; sourceTree = "<group>"; };
 		569313D924D61EEFAC8A2E5A /* RegionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionServiceTests.swift; sourceTree = "<group>"; };
 		57C3FE824DFD028979A3FA2F /* StartOrderEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartOrderEntry.swift; sourceTree = "<group>"; };
 		5DF4E785EB18C1E580828423 /* AccessibilityHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityHelpers.swift; sourceTree = "<group>"; };
@@ -229,6 +267,7 @@
 		6203864B1F1CC402ED4D6C8D /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		6355226666B1F46947BD209D /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		63C8E6AA25033D6DBC2DC40C /* StartOrderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartOrderViewModel.swift; sourceTree = "<group>"; };
+		67E03E47A0EDEBECCAAAC99C /* WidgetConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConfiguration.swift; sourceTree = "<group>"; };
 		6833BA62D6085B0309D60937 /* SeasonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonView.swift; sourceTree = "<group>"; };
 		69BC3AE982ED3A51D71724F4 /* NotificationCategoryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCategoryServiceTests.swift; sourceTree = "<group>"; };
 		6A88BDBC8B030F38B464CD06 /* RegionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionService.swift; sourceTree = "<group>"; };
@@ -246,16 +285,20 @@
 		85215561F64F3E9BF0C0D1C5 /* ResultsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsComponents.swift; sourceTree = "<group>"; };
 		879CF24BDCD7593C97FD996D /* CalendarioCiclismoWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarioCiclismoWidgetBundle.swift; sourceTree = "<group>"; };
 		87C83C7A101911C96B812B45 /* MiniElevationProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniElevationProfile.swift; sourceTree = "<group>"; };
+		8869C4F1206A3C38BEF499AF /* HeaderBrandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderBrandView.swift; sourceTree = "<group>"; };
 		8C6AC123A990B0C9E6BCF37F /* RaceLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceLogicTests.swift; sourceTree = "<group>"; };
 		8E21AA16D681FECC7BFC7ED5 /* StartlistTeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartlistTeam.swift; sourceTree = "<group>"; };
 		8E34A4C4222E1431F536CC4C /* MonthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthViewModel.swift; sourceTree = "<group>"; };
 		90B092494268057641ED882D /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		92F2CBAFCAF3B3F34636D515 /* WidgetDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataSource.swift; sourceTree = "<group>"; };
+		94929C262D2DBFB276F47E84 /* WidgetComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetComponents.swift; sourceTree = "<group>"; };
 		955A90C67B81CFC59D9F9F5C /* NotificationServiceExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9760C23396DE90D30F7DD243 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
 		982C21DD698245740AF2F4C6 /* TransfersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersView.swift; sourceTree = "<group>"; };
 		9B1109A4E64314AA3634866E /* LocaleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleService.swift; sourceTree = "<group>"; };
 		9B9C3A664AD224C48C4196E9 /* ChampionshipsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionshipsConfig.swift; sourceTree = "<group>"; };
 		9E3651F965C3ADE08DD8868D /* UciResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResult.swift; sourceTree = "<group>"; };
+		9F8ED534D277CF85F234D3EC /* CyclocrossAgendaModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossAgendaModel.swift; sourceTree = "<group>"; };
 		A138FE4E71CC2E93FA5A0E10 /* RaceDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDay.swift; sourceTree = "<group>"; };
 		A1D1A8FF79CF07970E1703D7 /* SimplifiedGuideTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedGuideTests.swift; sourceTree = "<group>"; };
 		A3103FB9FC17FCBE12387011 /* UciTeamRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciTeamRanking.swift; sourceTree = "<group>"; };
@@ -267,9 +310,13 @@
 		ACF8EDBB20E63C2E6C8B54C2 /* StageDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageDetailViewModel.swift; sourceTree = "<group>"; };
 		AD7BDBEE7EF58501E285A50F /* TodayHighlightsBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayHighlightsBanner.swift; sourceTree = "<group>"; };
 		ADE31A37494F3E9D1BE1B22A /* StageRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageRowView.swift; sourceTree = "<group>"; };
+		AE2AEADA23EA969AFFA2A257 /* WidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetViews.swift; sourceTree = "<group>"; };
 		AE82A26A86F42D70CF769777 /* AccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityTests.swift; sourceTree = "<group>"; };
 		B01263F19C6BD474F6A332EB /* TransfersTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersTeamView.swift; sourceTree = "<group>"; };
 		B270A77DFF32A6444C93BA91 /* BundledLogos */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BundledLogos; path = CalendarioCiclismo/BundledLogos; sourceTree = SOURCE_ROOT; };
+		B3692C84AB61A1B2E31815AF /* CyclocrossTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossTests.swift; sourceTree = "<group>"; };
+		B4F397E2CA4DAAF4A3012B3F /* WidgetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPresentation.swift; sourceTree = "<group>"; };
+		B587D9C5B3687CE26C19DE74 /* CxMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CxMapView.swift; sourceTree = "<group>"; };
 		B72C6EE34E7E857B3E11B5DE /* NotificationServiceExtensionDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotificationServiceExtensionDebug.entitlements; sourceTree = "<group>"; };
 		BB5A757FF80BEB3AE007249C /* Race.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Race.swift; sourceTree = "<group>"; };
 		BC572EA9623AC82543357E70 /* ProfileDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileDestinationView.swift; sourceTree = "<group>"; };
@@ -282,13 +329,14 @@
 		C0811885F83B6EABBFD87270 /* FollowedStagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowedStagesView.swift; sourceTree = "<group>"; };
 		C15916F5EE82A196760F85BD /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
 		C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransfersLogicTests.swift; sourceTree = "<group>"; };
-		C4B2FABEB19EBCC6F24E73FA /* ResultsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsSheet.swift; sourceTree = "<group>"; };
 		C8BE671B3FFB237363959748 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CCC294C6587658CC17208040 /* CachedAsyncImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImageTests.swift; sourceTree = "<group>"; };
 		CEB09DB4C005F23EC644C08C /* RaceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDetailViewModel.swift; sourceTree = "<group>"; };
 		CF019505A2CAFB9F41393E6C /* ResultsFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsFeedView.swift; sourceTree = "<group>"; };
 		D2BAFEAD9A7705A75925642F /* SeasonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonViewModel.swift; sourceTree = "<group>"; };
 		D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedGuide.swift; sourceTree = "<group>"; };
 		D7AEF801C0A7E4A20304BC02 /* StartlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartlistView.swift; sourceTree = "<group>"; };
+		DA0149F2A9C0D0E456F6BA5C /* Cyclocross.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cyclocross.swift; sourceTree = "<group>"; };
 		DAECCCB7643871D151DCE7F2 /* TeamSeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSeason.swift; sourceTree = "<group>"; };
 		DB1B170ACC9D3F708726F967 /* CalendarioCiclismoWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CalendarioCiclismoWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBBD791D932656CF55E63CDB /* UciResultsLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UciResultsLogic.swift; sourceTree = "<group>"; };
@@ -299,9 +347,15 @@
 		E260BD1DB107754B3CD3A4C7 /* RaceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceCardView.swift; sourceTree = "<group>"; };
 		E27EF87587619B6617F053DA /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E2CFBD39D57D29B620060B08 /* ChampionshipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionshipsViewModel.swift; sourceTree = "<group>"; };
+		E454526BA7E1E81A5F72B631 /* ReviewPromptPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptPolicyTests.swift; sourceTree = "<group>"; };
+		E54FA9E26639FB7E11086729 /* GoogleSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GoogleSans-Medium.ttf"; sourceTree = "<group>"; };
 		E785AA0ACD6B894B4244B044 /* FlagRenderAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlagRenderAuditTests.swift; sourceTree = "<group>"; };
 		E937000522A5EC4B04ADCD83 /* StartOrderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartOrderView.swift; sourceTree = "<group>"; };
+		EAB3C9BE027811D0FC524455 /* CyclocrossLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossLogic.swift; sourceTree = "<group>"; };
 		EC9937AA1AC3A4D7C7D9273D /* CalendarioCiclismoWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarioCiclismoWidget.swift; sourceTree = "<group>"; };
+		ECAEF742B151429F3F65D887 /* Flags.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Flags.xcassets; sourceTree = "<group>"; };
+		EE6882E3E9450B033DAEF0D0 /* CyclocrossView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclocrossView.swift; sourceTree = "<group>"; };
+		F0AD3BE2D5D047F33591E5AF /* CxRaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CxRaceDetailView.swift; sourceTree = "<group>"; };
 		F33B7CECF50AB095079F8724 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		F4E7BF5976FB449CA43AC193 /* CalendarioCiclismoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CalendarioCiclismoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8BA1FC98995EC7AF3384436 /* CalendarioCiclismo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CalendarioCiclismo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -347,11 +401,13 @@
 				33EBE13A16CA79590D76F05D /* CategoryBadge.swift */,
 				50F80B81FFF567DD76291684 /* CCCard.swift */,
 				23D3CF0D563ED3AEC227FE10 /* CountryFlag.swift */,
+				8869C4F1206A3C38BEF499AF /* HeaderBrandView.swift */,
 				6355226666B1F46947BD209D /* LoadingView.swift */,
 				43CFC3A064B481CFBD974E40 /* MarkdownText.swift */,
 				87C83C7A101911C96B812B45 /* MiniElevationProfile.swift */,
 				553D8E4CEE0690C4D5E69834 /* OfflineBanner.swift */,
 				36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */,
+				2EA342C89A12FC55180449AD /* RaceCardIdentity.swift */,
 				6B5811508CAE536EB9B4C6EB /* RaceLogo.swift */,
 				E1C3D78A02E9DAA1C06A553A /* SafariView.swift */,
 				6FA12EE3D2BCE3DAB1F18685 /* StageTypeBadge.swift */,
@@ -377,6 +433,7 @@
 				226764A1427626F79A1EC35E /* Config */,
 				6B079FC110DC8E400BCE234B /* IconComposer */,
 				1F3D9AB2DABEC977B163DEF1 /* NotificationServiceExtension */,
+				B6154B4F37A0C6651A1051FD /* Shared */,
 				5E1610A306371EC470CC6B4A /* Tests */,
 				7058EB8341C583D66576ABC8 /* Products */,
 			);
@@ -467,6 +524,7 @@
 				7ADD2CE1247A99893EE2FC07 /* Calendar */,
 				AE4969D9B7DAE5F5A3CE5011 /* Championships */,
 				140D88496BF90BD04E44B87E /* Components */,
+				821FAF9093B7323E3C857E9D /* Cyclocross */,
 				B5891621CDC04FF24048817D /* Month */,
 				22DBB960C7415C7461C02A6E /* Notifications */,
 				4EF74ECEEE6FCE22C277211A /* Onboarding */,
@@ -489,7 +547,9 @@
 			isa = PBXGroup;
 			children = (
 				AE82A26A86F42D70CF769777 /* AccessibilityTests.swift */,
+				CCC294C6587658CC17208040 /* CachedAsyncImageTests.swift */,
 				BDFDA2062D4A19B449D8E0E2 /* ChampionshipsConfigTests.swift */,
+				B3692C84AB61A1B2E31815AF /* CyclocrossTests.swift */,
 				ACDFEAC0A589AFE48C8CE3EE /* DateFormattingTests.swift */,
 				ACF4E526F300BEC6A5E89CEE /* DeepLinkTests.swift */,
 				E785AA0ACD6B894B4244B044 /* FlagRenderAuditTests.swift */,
@@ -499,6 +559,7 @@
 				8C6AC123A990B0C9E6BCF37F /* RaceLogicTests.swift */,
 				569313D924D61EEFAC8A2E5A /* RegionServiceTests.swift */,
 				5F12AB2A72EF4FF21C4A3386 /* ResultsFeedLogicTests.swift */,
+				E454526BA7E1E81A5F72B631 /* ReviewPromptPolicyTests.swift */,
 				122A04AF5748EF3E37189B1E /* RouteMapLogicTests.swift */,
 				A1D1A8FF79CF07970E1703D7 /* SimplifiedGuideTests.swift */,
 				C1F72DF2E585825994438EF6 /* TransfersLogicTests.swift */,
@@ -515,6 +576,7 @@
 				C15916F5EE82A196760F85BD /* Asset.swift */,
 				FA42312F27D44A1C05E34701 /* Broadcast.swift */,
 				7C285846953C4712DA7DF74A /* ChampionshipCountry.swift */,
+				DA0149F2A9C0D0E456F6BA5C /* Cyclocross.swift */,
 				BC7AD8A779D5FD8D0AB05FEA /* DayData.swift */,
 				37B4734E553E0F21E4F3F4FE /* ElevationProfile.swift */,
 				BB5A757FF80BEB3AE007249C /* Race.swift */,
@@ -559,6 +621,15 @@
 				EC9937AA1AC3A4D7C7D9273D /* CalendarioCiclismoWidget.swift */,
 				879CF24BDCD7593C97FD996D /* CalendarioCiclismoWidgetBundle.swift */,
 				C8BE671B3FFB237363959748 /* Info.plist */,
+				39999894CF76DCFE283F1CA0 /* Localizable.xcstrings */,
+				94929C262D2DBFB276F47E84 /* WidgetComponents.swift */,
+				67E03E47A0EDEBECCAAAC99C /* WidgetConfiguration.swift */,
+				92F2CBAFCAF3B3F34636D515 /* WidgetDataSource.swift */,
+				3AFF922534DD63F535F407D0 /* WidgetModels.swift */,
+				B4F397E2CA4DAAF4A3012B3F /* WidgetPresentation.swift */,
+				565B870EDE9C8BF2875CF633 /* WidgetProvider.swift */,
+				2587A4C3EC2BEC8E793B7E25 /* WidgetSample.swift */,
+				AE2AEADA23EA969AFFA2A257 /* WidgetViews.swift */,
 			);
 			path = CalendarioCiclismoWidget;
 			sourceTree = "<group>";
@@ -579,6 +650,16 @@
 			path = Season;
 			sourceTree = "<group>";
 		};
+		821FAF9093B7323E3C857E9D /* Cyclocross */ = {
+			isa = PBXGroup;
+			children = (
+				B587D9C5B3687CE26C19DE74 /* CxMapView.swift */,
+				F0AD3BE2D5D047F33591E5AF /* CxRaceDetailView.swift */,
+				EE6882E3E9450B033DAEF0D0 /* CyclocrossView.swift */,
+			);
+			path = Cyclocross;
+			sourceTree = "<group>";
+		};
 		8EAF1F84D0FAD8E88D9B612D /* Premium */ = {
 			isa = PBXGroup;
 			children = (
@@ -594,6 +675,10 @@
 				9760C23396DE90D30F7DD243 /* CacheManager.swift */,
 				9B9C3A664AD224C48C4196E9 /* ChampionshipsConfig.swift */,
 				2906973A5C2ECBEC4B619C27 /* Constants.swift */,
+				9F8ED534D277CF85F234D3EC /* CyclocrossAgendaModel.swift */,
+				EAB3C9BE027811D0FC524455 /* CyclocrossLogic.swift */,
+				1D50D72CA43EF20185F08598 /* CyclocrossPresentation.swift */,
+				2EB830637ACFE8917D59C8E7 /* CyclocrossRepository.swift */,
 				177FAB8B603DF443D9FD7908 /* DateFormatting.swift */,
 				714E1EBF959304DB05BEE579 /* Haptics.swift */,
 				9B1109A4E64314AA3634866E /* LocaleService.swift */,
@@ -608,11 +693,13 @@
 				1344DD8023E08DB7656C31EE /* RouteMapLogic.swift */,
 				D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */,
 				90B092494268057641ED882D /* SupabaseService.swift */,
+				1DC35F0759C613CBD10CF374 /* SupabaseService+Cyclocross.swift */,
 				493A6548104A38662359470C /* SupabaseService+Transfers.swift */,
 				468893C68879486E9A3D9859 /* SupabaseService+UciResults.swift */,
 				5EB6CB8843541873DD56705B /* ThemeService.swift */,
 				5226BF87D70D9670F0D46D21 /* TransfersLogic.swift */,
 				DBBD791D932656CF55E63CDB /* UciResultsLogic.swift */,
+				02EBF66C1C6FF57668A5A593 /* WidgetBridge.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -642,6 +729,15 @@
 			path = Month;
 			sourceTree = "<group>";
 		};
+		B6154B4F37A0C6651A1051FD /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				ECAEF742B151429F3F65D887 /* Flags.xcassets */,
+				06F410AB613DDCE9F8F0BAD6 /* WidgetShared.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		C0C5386E2072977C86819908 /* CalendarioCiclismo */ = {
 			isa = PBXGroup;
 			children = (
@@ -666,6 +762,7 @@
 			isa = PBXGroup;
 			children = (
 				E27EF87587619B6617F053DA /* Localizable.xcstrings */,
+				DD3E824DE5612E567820DD5E /* Fonts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -691,12 +788,19 @@
 			path = Stage;
 			sourceTree = "<group>";
 		};
+		DD3E824DE5612E567820DD5E /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				E54FA9E26639FB7E11086729 /* GoogleSans-Medium.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		F704F2BF7B4524009CC5DAC0 /* Today */ = {
 			isa = PBXGroup;
 			children = (
 				33F707763849CE075EE394A2 /* DateBarView.swift */,
 				E260BD1DB107754B3CD3A4C7 /* RaceCardView.swift */,
-				C4B2FABEB19EBCC6F24E73FA /* ResultsSheet.swift */,
 				AD7BDBEE7EF58501E285A50F /* TodayHighlightsBanner.swift */,
 				4036B32A7F508C88A7A02F37 /* TodayView.swift */,
 			);
@@ -790,7 +894,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2710;
 				TargetAttributes = {
 					1FFD50DCE93E07797954DDEB = {
 						DevelopmentTeam = 67VKJ7LF55;
@@ -843,6 +947,8 @@
 				54ACBA1A99E51438FB852362 /* AppIconFriend.icon in Resources */,
 				9D42A07BD375321F1871B5E9 /* Assets.xcassets in Resources */,
 				D07F8AC1AD7A46D2E2C376E9 /* BundledLogos in Resources */,
+				C90037F5053B3A9E336CFFC8 /* Flags.xcassets in Resources */,
+				9750FA6894BF635AA3674BA5 /* GoogleSans-Medium.ttf in Resources */,
 				DAE065EAF9E2782551CC9E31 /* GoogleService-Info.plist in Resources */,
 				EB2B97B64D8293C336EC7F5C /* Localizable.xcstrings in Resources */,
 				B8F703B4A91C93B29B2B4D12 /* PrivacyInfo.xcprivacy in Resources */,
@@ -854,6 +960,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F02D8A321C704A63CE94FC3C /* Assets.xcassets in Resources */,
+				4D09AB500D4CF1D5C75AAEBA /* Flags.xcassets in Resources */,
+				32496D20A4CFC135A2E05D6A /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -874,6 +982,15 @@
 			files = (
 				7FA7EEE20400BD3613295B60 /* CalendarioCiclismoWidget.swift in Sources */,
 				E60267868BEE8A11B2D53864 /* CalendarioCiclismoWidgetBundle.swift in Sources */,
+				3EA67DC5C454F1DB5BC30206 /* WidgetComponents.swift in Sources */,
+				6E50F3EC0659388577748F7F /* WidgetConfiguration.swift in Sources */,
+				63D5D259611DB259B1552B8E /* WidgetDataSource.swift in Sources */,
+				C8F10F654475D708C86318AE /* WidgetModels.swift in Sources */,
+				B5CEBA01088E3D827640FB71 /* WidgetPresentation.swift in Sources */,
+				7D0D2E072A224C4FDDC2ED10 /* WidgetProvider.swift in Sources */,
+				06A905A4897CEFC6E0DC7C95 /* WidgetSample.swift in Sources */,
+				3985A8303466057709E9F567 /* WidgetShared.swift in Sources */,
+				3695B0BAAFC5DF0A19C1E943 /* WidgetViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -882,7 +999,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1A322FBD968C708496FE95B /* AccessibilityTests.swift in Sources */,
+				B23A57AA022C570EACC1732C /* CachedAsyncImageTests.swift in Sources */,
 				0EE10A80D87242DA56F59C89 /* ChampionshipsConfigTests.swift in Sources */,
+				56058034D14A55950812E287 /* CyclocrossTests.swift in Sources */,
 				574C94A43BABE95AF4D4AD2E /* DateFormattingTests.swift in Sources */,
 				E537B6E1F89A345AAA7B61BB /* DeepLinkTests.swift in Sources */,
 				1E2D019C46203E886E6E3E7C /* FlagRenderAuditTests.swift in Sources */,
@@ -892,6 +1011,7 @@
 				1AB0E49910E4AA0114AFA6C0 /* RaceLogicTests.swift in Sources */,
 				A40AC58EA87FC83B62B91667 /* RegionServiceTests.swift in Sources */,
 				EA23539DD23AF813E6162046 /* ResultsFeedLogicTests.swift in Sources */,
+				206B684001F9D3FA899E23DE /* ReviewPromptPolicyTests.swift in Sources */,
 				6A398CFF70A46920EABBB087 /* RouteMapLogicTests.swift in Sources */,
 				A2E87701565BBDD3B3FDF2ED /* SimplifiedGuideTests.swift in Sources */,
 				8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */,
@@ -922,6 +1042,14 @@
 				DE83A3927A22F104E70F7438 /* Constants.swift in Sources */,
 				7C154DC5087436ED29616287 /* ContentView.swift in Sources */,
 				490809882B75F134850C169F /* CountryFlag.swift in Sources */,
+				3B654C7A8A56522E6C260516 /* CxMapView.swift in Sources */,
+				30917CFA58703AEAFA66FBD7 /* CxRaceDetailView.swift in Sources */,
+				8C5600615396FB120D57CC09 /* Cyclocross.swift in Sources */,
+				7220AC9F4A75673C4B845736 /* CyclocrossAgendaModel.swift in Sources */,
+				99D82402505E85F18A2B1E17 /* CyclocrossLogic.swift in Sources */,
+				54D62F7F616B5A3CA184113A /* CyclocrossPresentation.swift in Sources */,
+				C829F4CC13A0D760F62722C4 /* CyclocrossRepository.swift in Sources */,
+				F76A47B509B13457B472A912 /* CyclocrossView.swift in Sources */,
 				C0093C899A3DA58C13549C41 /* DateBarView.swift in Sources */,
 				5FE5028A0621415A53F0646D /* DateFormatting.swift in Sources */,
 				AADE534CEF4E0DCFBBC09523 /* DayData.swift in Sources */,
@@ -930,6 +1058,7 @@
 				063D89A631EACB963C91DF96 /* FollowedRacesView.swift in Sources */,
 				36293990D303F6743D421A93 /* FollowedStagesView.swift in Sources */,
 				590F1CF043E90DBA9C84CA1A /* Haptics.swift in Sources */,
+				EF9A18A19361582630A662A4 /* HeaderBrandView.swift in Sources */,
 				49395434A3D9AF42D7C18049 /* LanguageAnnouncementOnboardingView.swift in Sources */,
 				F9BB1DE5E10094A2754D05F7 /* LoadingView.swift in Sources */,
 				6C8AF229EAE53767CA9434CD /* LocaleService.swift in Sources */,
@@ -948,6 +1077,7 @@
 				5819834FB8F79399636465F0 /* PremiumShowcaseOnboardingView.swift in Sources */,
 				27D69B27E68A304EF28C79B4 /* ProfileDestinationView.swift in Sources */,
 				83DF14C6908FA6AF6F4977BB /* Race.swift in Sources */,
+				98399FEA23FCF018CD4EF7F8 /* RaceCardIdentity.swift in Sources */,
 				735A627CED3D4FBF3D00DE8B /* RaceCardView.swift in Sources */,
 				D0E28E42F6CD6235825ECC1E /* RaceDay.swift in Sources */,
 				8442F5771BBE32C44901880D /* RaceDetailView.swift in Sources */,
@@ -959,7 +1089,6 @@
 				7F832FD3E5B830B3B73483AD /* ResultsComponents.swift in Sources */,
 				71FBBD4801E6EF08E707E4F4 /* ResultsFeedLogic.swift in Sources */,
 				9848EE160C33576A783036AC /* ResultsFeedView.swift in Sources */,
-				B3F401208AE468161F6614F7 /* ResultsSheet.swift in Sources */,
 				6E53393CC2DC6D91612D7AB1 /* ResultsView.swift in Sources */,
 				F7E0535F6C4F2CD8C5C23D75 /* RiderTransfer.swift in Sources */,
 				10B9DB6AEE3E728A17FFAC78 /* RouteMapDestinationView.swift in Sources */,
@@ -980,6 +1109,7 @@
 				5F9E5F96DDDAEBC35010522C /* StartlistTeam.swift in Sources */,
 				FCD40B4B6FD197A7AF426C09 /* StartlistView.swift in Sources */,
 				71082A04A4FDA68A726F156D /* StartlistViewModel.swift in Sources */,
+				2CE7FF0A88CC9734B1B9AAC1 /* SupabaseService+Cyclocross.swift in Sources */,
 				477786CBA0B9C16A9BE41B5D /* SupabaseService+Transfers.swift in Sources */,
 				1BA369ACE1E2544F1967C46D /* SupabaseService+UciResults.swift in Sources */,
 				65402F16E90FDF1408C07006 /* SupabaseService.swift in Sources */,
@@ -998,6 +1128,8 @@
 				03356C53FFB7B0A6FFE797E0 /* UciResult.swift in Sources */,
 				82221FBFFF6BE60914DB5839 /* UciResultsLogic.swift in Sources */,
 				1BC97CBFA0A844F16D6CCDA9 /* UciTeamRanking.swift in Sources */,
+				B49ECC141C25CA405DCAFF59 /* WidgetBridge.swift in Sources */,
+				A491BDF801450E05F29F4BB4 /* WidgetShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1058,7 +1190,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1308;
+				CURRENT_PROJECT_VERSION = 1437;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1077,7 +1209,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.3.3;
+				MARKETING_VERSION = 5.0.9;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1126,7 +1258,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1308;
+				CURRENT_PROJECT_VERSION = 1437;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1139,7 +1271,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 4.3.3;
+				MARKETING_VERSION = 5.0.9;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1201,7 +1333,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1308;
+				CURRENT_PROJECT_VERSION = 1437;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1210,7 +1342,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.3.3;
+				MARKETING_VERSION = 5.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1234,7 +1366,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1308;
+				CURRENT_PROJECT_VERSION = 1437;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1243,7 +1375,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.3.3;
+				MARKETING_VERSION = 5.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

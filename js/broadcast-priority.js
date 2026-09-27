@@ -41,6 +41,11 @@ export function reviveBroadcastsForDay(broadcasts, isCancelled) {
   return (broadcasts || []).filter(b => isCancelled ? b.showInRevive === true : isReviveBroadcast(b));
 }
 
+export function hasReviveBroadcastsForDay(broadcasts, hasCurrentResults, isCancelled) {
+  return hasCurrentResults === true
+    && reviveBroadcastsForDay(broadcasts, isCancelled).some(b => !!b.url);
+}
+
 export function broadcastLinkPriority(url) {
   const u = url || '';
   if (isCyltvPlayerUrl(u)) return -1;

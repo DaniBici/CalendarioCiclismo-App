@@ -1,0 +1,3357 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline_official_cotejo_only",
+  "checkedAt": "2026-09-12",
+  "seasonKey": "2025-26",
+  "category": "WE",
+  "rulesSourceUrl": "https://www.superprestigecyclocross.be/nl/reglement",
+  "roundColumns": [
+    "rank",
+    "bib",
+    "name",
+    "nation",
+    "irm"
+  ],
+  "rounds": [
+    {
+      "race": "Ruddervoorde",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/2da493a3-acef-11f0-9f83-0050569301fd/1760880371",
+      "sha256": "4d52514160dde124e4038c528fc4f7e800d26a25873232bf3e1d947f58b1dc16",
+      "dateKey": "2025-10-19",
+      "rows": [
+        [
+          1,
+          "2",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          null
+        ],
+        [
+          2,
+          "5",
+          "CASASOLA Sara",
+          "ITA",
+          null
+        ],
+        [
+          3,
+          "9",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          4,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          5,
+          "7",
+          "BENTVELD Leonie",
+          "NED",
+          null
+        ],
+        [
+          6,
+          "1",
+          "VAN EMPEL Fem",
+          "NED",
+          null
+        ],
+        [
+          7,
+          "11",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          8,
+          "8",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          9,
+          "13",
+          "VERDONSCHOT Laura",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "10",
+          "BETSEMA Denise",
+          "NED",
+          null
+        ],
+        [
+          11,
+          "6",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "4",
+          "BAKKER Manon",
+          "NED",
+          null
+        ],
+        [
+          13,
+          "14",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "19",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "24",
+          "VAN DE STEENE Kim",
+          "BEL",
+          null
+        ],
+        [
+          16,
+          "15",
+          "KAY Anna",
+          "GBR",
+          null
+        ],
+        [
+          17,
+          "18",
+          "MOLENGRAAF Lauren",
+          "NED",
+          null
+        ],
+        [
+          18,
+          "20",
+          "DAY Elena",
+          "GBR",
+          null
+        ],
+        [
+          19,
+          "34",
+          "DOBBELAERE Jana",
+          "BEL",
+          null
+        ],
+        [
+          20,
+          "33",
+          "SEYNAVE Ilken",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "23",
+          "SONNEMANS Sara",
+          "NED",
+          null
+        ],
+        [
+          22,
+          "27",
+          "HOEFMANS Pem",
+          "NED",
+          null
+        ],
+        [
+          23,
+          "22",
+          "INGLIS Hope",
+          "GBR",
+          "LAP"
+        ],
+        [
+          24,
+          "29",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          "LAP"
+        ],
+        [
+          25,
+          "21",
+          "DEFOUR Lara",
+          "BEL",
+          "LAP"
+        ],
+        [
+          26,
+          "32",
+          "GADEMAN Sera",
+          "NED",
+          "LAP"
+        ],
+        [
+          27,
+          "28",
+          "DEVIGNE Camille",
+          "FRA",
+          "LAP"
+        ],
+        [
+          28,
+          "31",
+          "PERRYMAN Amy",
+          "GBR",
+          "LAP"
+        ],
+        [
+          29,
+          "35",
+          "SCHOLLAERT Shanaya Esther",
+          "BEL",
+          "LAP"
+        ],
+        [
+          30,
+          "25",
+          "WATABE Kasuga",
+          "JPN",
+          "LAP"
+        ],
+        [
+          31,
+          "36",
+          "DE CUYPER Emily",
+          "BEL",
+          "LAP"
+        ],
+        [
+          32,
+          "30",
+          "WOODVINE Rebecca",
+          "GBR",
+          "LAP"
+        ],
+        [
+          33,
+          "38",
+          "YANNIC Tifenn",
+          "FRA",
+          "LAP"
+        ],
+        [
+          34,
+          "37",
+          "HARINCK Tiger-Lil",
+          "BEL",
+          "LAP"
+        ],
+        [
+          null,
+          "26",
+          "LANDRIN ZEBERT Flavie",
+          "FRA",
+          "DNF"
+        ],
+        [
+          null,
+          "17",
+          "MUSGRAVE Kaya",
+          "USA",
+          "DNS"
+        ]
+      ],
+      "dnf": 1,
+      "dns": 1,
+      "participants": 36
+    },
+    {
+      "race": "Overijse",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/dba76876-b272-11f0-9f83-0050569301fd/1761494003",
+      "sha256": "a8a3d468ab01dce98e293d9fbf89dd937b7bd06b7501041a91b77d99f3a7cd41",
+      "dateKey": "2025-10-26",
+      "rows": [
+        [
+          1,
+          "6",
+          "CASASOLA Sara",
+          "ITA",
+          null
+        ],
+        [
+          2,
+          "3",
+          "BRAND Lucinda",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "10",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "8",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          5,
+          "4",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          6,
+          "2",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "11",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          8,
+          "16",
+          "CRABBÉ Kiona",
+          "BEL",
+          null
+        ],
+        [
+          9,
+          "7",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          null
+        ],
+        [
+          11,
+          "14",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "21",
+          "DRAKE Ffion",
+          "GBR",
+          null
+        ],
+        [
+          13,
+          "5",
+          "VAS Kata Blanka",
+          "HUN",
+          null
+        ],
+        [
+          14,
+          "19",
+          "MUSGRAVE Kaya",
+          "USA",
+          null
+        ],
+        [
+          15,
+          "15",
+          "KAY Anna",
+          "GBR",
+          null
+        ],
+        [
+          16,
+          "32",
+          "SEYNAVE Ilken",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "28",
+          "EYEINGTON Kacey",
+          "GBR",
+          null
+        ],
+        [
+          18,
+          "24",
+          "DE SCHOESITTER Shanyl",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "27",
+          "COLLING Alice",
+          "GBR",
+          null
+        ],
+        [
+          20,
+          "25",
+          "VAN DE STEENE Kim",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "23",
+          "MITCHINSON Ellie",
+          "GBR",
+          "LAP"
+        ],
+        [
+          22,
+          "34",
+          "WHITESIDE Freya",
+          "IRL",
+          "LAP"
+        ],
+        [
+          23,
+          "36",
+          "DE CUYPER Emily",
+          "BEL",
+          "LAP"
+        ],
+        [
+          24,
+          "30",
+          "WOODVINE Rebecca",
+          "GBR",
+          "LAP"
+        ],
+        [
+          25,
+          "33",
+          "SCHOLLAERT Shanaya Esther",
+          "BEL",
+          "LAP"
+        ],
+        [
+          26,
+          "26",
+          "WATABE Kasuga",
+          "JPN",
+          "LAP"
+        ],
+        [
+          27,
+          "37",
+          "WILLEMS Meadow",
+          "NED",
+          "LAP"
+        ],
+        [
+          28,
+          "38",
+          "POLFLIET Alana",
+          "BEL",
+          "LAP"
+        ],
+        [
+          29,
+          "31",
+          "PARKER Zoe",
+          "GBR",
+          "LAP"
+        ],
+        [
+          30,
+          "35",
+          "GASCOIGNE Ingrid",
+          "GBR",
+          "LAP"
+        ],
+        [
+          null,
+          "20",
+          "DE BEER Jamie",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "22",
+          "VERVLOET Sterre",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 2,
+      "dns": 0,
+      "participants": 32
+    },
+    {
+      "race": "Niel",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/ce072feb-bf06-11f0-9f83-0050569301fd/1762869639",
+      "sha256": "e9a2dffe4c40c4c82c144dd427e1c4a53ba7201a9ca0741e57808aa81223fe3a",
+      "dateKey": "2025-11-11",
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "3",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "6",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "8",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          5,
+          "5",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "7",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          7,
+          "9",
+          "VERDONSCHOT Laura",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "26",
+          "BETSEMA Denise",
+          "NED",
+          null
+        ],
+        [
+          9,
+          "13",
+          "HARTOG Larissa",
+          "NED",
+          null
+        ],
+        [
+          10,
+          "15",
+          "DRAKE Ffion",
+          "GBR",
+          null
+        ],
+        [
+          11,
+          "10",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "17",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          null
+        ],
+        [
+          13,
+          "11",
+          "KAY Anna",
+          "GBR",
+          null
+        ],
+        [
+          14,
+          "14",
+          "CLAUZEL Perrine",
+          "FRA",
+          null
+        ],
+        [
+          15,
+          "12",
+          "BIALEK Antonina",
+          "POL",
+          "LAP"
+        ],
+        [
+          16,
+          "29",
+          "BARTHELS Maïté",
+          "LUX",
+          "LAP"
+        ],
+        [
+          17,
+          "19",
+          "WENZEL Liv",
+          "LUX",
+          "LAP"
+        ],
+        [
+          18,
+          "23",
+          "HOEFMANS Pem",
+          "NED",
+          "LAP"
+        ],
+        [
+          19,
+          "24",
+          "DELCOMMUNE Juline",
+          "BEL",
+          "LAP"
+        ],
+        [
+          20,
+          "21",
+          "SECCHI Giorgia",
+          "ITA",
+          "LAP"
+        ],
+        [
+          21,
+          "22",
+          "BASZTA Magdalena",
+          "POL",
+          "LAP"
+        ],
+        [
+          22,
+          "28",
+          "MENANT Yulizh",
+          "FRA",
+          "LAP"
+        ],
+        [
+          null,
+          "27",
+          "DE CUYPER Emily",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "4",
+          "CASASOLA Sara",
+          "ITA",
+          "DNS"
+        ]
+      ],
+      "dnf": 1,
+      "dns": 1,
+      "participants": 24
+    },
+    {
+      "race": "Merksplas",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/4163aa0c-c22e-11f0-9f83-0050569301fd/1763216436",
+      "sha256": "babc10e914478890c9adcc0ea1d5b7ea452a698d30c75fb6be065bf92ff743e2",
+      "dateKey": "2025-11-15",
+      "rows": [
+        [
+          1,
+          "2",
+          "BRAND Lucinda",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "7",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "1",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "5",
+          "BENTVELD Leonie",
+          "NED",
+          null
+        ],
+        [
+          5,
+          "10",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          6,
+          "3",
+          "BAKKER Manon",
+          "NED",
+          null
+        ],
+        [
+          7,
+          "6",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          8,
+          "8",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          9,
+          "9",
+          "BETSEMA Denise",
+          "NED",
+          null
+        ],
+        [
+          10,
+          "11",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          11,
+          "14",
+          "MOLENGRAAF Lauren",
+          "NED",
+          null
+        ],
+        [
+          12,
+          "13",
+          "HARTOG Larissa",
+          "NED",
+          null
+        ],
+        [
+          13,
+          "21",
+          "HLADÍKOVÁ Kateina",
+          "CZE",
+          null
+        ],
+        [
+          14,
+          "17",
+          "VERVLOET Sterre",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "27",
+          "MOS Anniek",
+          "NED",
+          null
+        ],
+        [
+          16,
+          "12",
+          "KAY Anna",
+          "GBR",
+          null
+        ],
+        [
+          17,
+          "15",
+          "CLAUZEL Perrine",
+          "FRA",
+          null
+        ],
+        [
+          18,
+          "16",
+          "DE BEER Jamie",
+          "NED",
+          null
+        ],
+        [
+          19,
+          "23",
+          "WENZEL Liv",
+          "LUX",
+          null
+        ],
+        [
+          20,
+          "22",
+          "SONNEMANS Sara",
+          "NED",
+          null
+        ],
+        [
+          21,
+          "19",
+          "MOES Noï",
+          "NED",
+          null
+        ],
+        [
+          22,
+          "26",
+          "HOEFMANS Pem",
+          "NED",
+          null
+        ],
+        [
+          23,
+          "39",
+          "LENFERINK Femke",
+          "NED",
+          null
+        ],
+        [
+          24,
+          "42",
+          "DETILLEUX Emeline",
+          "BEL",
+          null
+        ],
+        [
+          25,
+          "24",
+          "DE RAEDEMAEKER Alexe",
+          "BEL",
+          null
+        ],
+        [
+          26,
+          "29",
+          "BLIECK Phebe",
+          "BEL",
+          null
+        ],
+        [
+          27,
+          "30",
+          "SCHOLLAERT Shanaya Esther",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "33",
+          "LEYSSENS Mart",
+          "BEL",
+          null
+        ],
+        [
+          29,
+          "38",
+          "POLFLIET Alana",
+          "BEL",
+          "LAP"
+        ],
+        [
+          30,
+          "37",
+          "KOOREMANS Britt",
+          "BEL",
+          "LAP"
+        ],
+        [
+          31,
+          "41",
+          "BUURMEIJER Mirthe",
+          "NED",
+          "LAP"
+        ],
+        [
+          32,
+          "36",
+          "COPPELMANS Fenny",
+          "NED",
+          "LAP"
+        ],
+        [
+          33,
+          "31",
+          "VISSENBERG Febe",
+          "BEL",
+          "LAP"
+        ],
+        [
+          null,
+          "35",
+          "DE CUYPER Emily",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "40",
+          "PARTHOENS Yana",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 2,
+      "dns": 0,
+      "participants": 35
+    },
+    {
+      "race": "Heusden-Zolder",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/a83069bc-e009-11f0-9f83-0050569301fd/1766499252",
+      "sha256": "a03a155695def3f23fb0a516773d537d5f6468064db1d6323a3068fe6471d3c6",
+      "dateKey": "2025-12-23",
+      "rows": [
+        [
+          1,
+          "6",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          2,
+          "5",
+          "VAS Kata Blanka",
+          "HUN",
+          null
+        ],
+        [
+          3,
+          "3",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "1",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          5,
+          "2",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          null
+        ],
+        [
+          6,
+          "40",
+          "MOORS Fleur",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "9",
+          "SCHREIBER Marie",
+          "LUX",
+          null
+        ],
+        [
+          8,
+          "28",
+          "NEFF Jolanda",
+          "SUI",
+          null
+        ],
+        [
+          9,
+          "7",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          10,
+          "10",
+          "CARRIER Rafaelle",
+          "CAN",
+          null
+        ],
+        [
+          11,
+          "36",
+          "BURQUIER Line",
+          "FRA",
+          null
+        ],
+        [
+          12,
+          "37",
+          "KALIS Bloeme",
+          "NED",
+          null
+        ],
+        [
+          13,
+          "25",
+          "WORST Annemarie",
+          "NED",
+          null
+        ],
+        [
+          14,
+          "16",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          15,
+          "15",
+          "GUNSALUS Elizabeth",
+          "USA",
+          null
+        ],
+        [
+          16,
+          "20",
+          "ESTERMANN Rebekka",
+          "SUI",
+          null
+        ],
+        [
+          17,
+          "32",
+          "KRAHL Judith",
+          "GER",
+          null
+        ],
+        [
+          18,
+          "39",
+          "BORGHESI Letizia",
+          "ITA",
+          null
+        ],
+        [
+          19,
+          "14",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          null
+        ],
+        [
+          20,
+          "44",
+          "TRUYEN Marthe",
+          "BEL",
+          null
+        ],
+        [
+          21,
+          "22",
+          "CABACA Mae",
+          "NED",
+          null
+        ],
+        [
+          22,
+          "11",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          null
+        ],
+        [
+          23,
+          "30",
+          "WENZEL Liv",
+          "LUX",
+          null
+        ],
+        [
+          24,
+          "17",
+          "MOLENGRAAF Lauren",
+          "NED",
+          null
+        ],
+        [
+          25,
+          "12",
+          "BORELLO Carlotta",
+          "ITA",
+          null
+        ],
+        [
+          26,
+          "21",
+          "HEIGL Nadja",
+          "AUT",
+          null
+        ],
+        [
+          27,
+          "43",
+          "MOS Anniek",
+          "NED",
+          null
+        ],
+        [
+          28,
+          "41",
+          "SONNEMANS Sara",
+          "NED",
+          null
+        ],
+        [
+          29,
+          "48",
+          "BAELE Lotte",
+          "BEL",
+          null
+        ],
+        [
+          30,
+          "53",
+          "INGLIS Grace",
+          "GBR",
+          null
+        ],
+        [
+          31,
+          "26",
+          "BARTHELS Maïté",
+          "LUX",
+          null
+        ],
+        [
+          32,
+          "74",
+          "VAN DER MEULEN Julia",
+          "NED",
+          null
+        ],
+        [
+          33,
+          "42",
+          "BARTHELS Layla",
+          "LUX",
+          null
+        ],
+        [
+          34,
+          "55",
+          "HOEFMANS Pem",
+          "NED",
+          null
+        ],
+        [
+          35,
+          "18",
+          "ZOERNER Lauren",
+          "USA",
+          null
+        ],
+        [
+          36,
+          "19",
+          "KNOLL Nico",
+          "CAN",
+          null
+        ],
+        [
+          37,
+          "47",
+          "COPPENS Nette",
+          "BEL",
+          null
+        ],
+        [
+          38,
+          "31",
+          "GONZALEZ BLANCO Alicia",
+          "ESP",
+          null
+        ],
+        [
+          39,
+          "27",
+          "VAN SINAEY Xaydee",
+          "BEL",
+          null
+        ],
+        [
+          40,
+          "50",
+          "VIKOVÁ Hanka",
+          "CZE",
+          null
+        ],
+        [
+          41,
+          "35",
+          "VERKERK Katja",
+          "CAN",
+          null
+        ],
+        [
+          42,
+          "71",
+          "GADEMAN Sera",
+          "NED",
+          null
+        ],
+        [
+          43,
+          "23",
+          "HURTELOUP Adèle",
+          "FRA",
+          null
+        ],
+        [
+          44,
+          "29",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          null
+        ],
+        [
+          45,
+          "64",
+          "BOND Jorja",
+          "USA",
+          null
+        ],
+        [
+          46,
+          "72",
+          "WILLEMS Meadow",
+          "NED",
+          null
+        ],
+        [
+          47,
+          "46",
+          "TAMBOSCO Ilaria",
+          "ITA",
+          null
+        ],
+        [
+          48,
+          "38",
+          "PERRON Dorothee",
+          "CAN",
+          null
+        ],
+        [
+          49,
+          "62",
+          "SEDLÁKOVÁ Veronika",
+          "CZE",
+          null
+        ],
+        [
+          50,
+          "75",
+          "LENFERINK Femke",
+          "NED",
+          null
+        ],
+        [
+          51,
+          "67",
+          "SCHEVENELS Lies´L",
+          "BEL",
+          null
+        ],
+        [
+          52,
+          "49",
+          "SANTIN Gaia",
+          "ITA",
+          "LAP"
+        ],
+        [
+          53,
+          "68",
+          "HUYBRECHTS Laure",
+          "BEL",
+          "LAP"
+        ],
+        [
+          54,
+          "69",
+          "DE VOS Nele",
+          "BEL",
+          "LAP"
+        ],
+        [
+          55,
+          "57",
+          "STEFFENHAGEN Diana",
+          "GER",
+          "LAP"
+        ],
+        [
+          56,
+          "70",
+          "ADAM Lucie",
+          "FRA",
+          "LAP"
+        ],
+        [
+          57,
+          "61",
+          "JOZKOWICZ Maja",
+          "POL",
+          "LAP"
+        ],
+        [
+          58,
+          "54",
+          "SCHÄTTI Michelle",
+          "SUI",
+          "LAP"
+        ],
+        [
+          59,
+          "66",
+          "JIMENEZ VERA Y FRIAS Carla",
+          "ESP",
+          "LAP"
+        ],
+        [
+          null,
+          "13",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          "DNF"
+        ],
+        [
+          null,
+          "24",
+          "BRUCHNER Regina",
+          "HUN",
+          "DNF"
+        ],
+        [
+          null,
+          "33",
+          "DE BEER Jamie",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "59",
+          "CASASOLA Nadia",
+          "ITA",
+          "DNF"
+        ]
+      ],
+      "dnf": 4,
+      "dns": 0,
+      "participants": 63
+    },
+    {
+      "race": "Diegem",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/46481a6a-e5af-11f0-9f83-0050569301fd/1767120140",
+      "sha256": "0163d1ae9ba240ac50cab06590762cddbcde7a5962d8b79205f76193ee2becf4",
+      "dateKey": "2025-12-30",
+      "rows": [
+        [
+          1,
+          "4",
+          "PIETERSE Puck",
+          "NED",
+          null
+        ],
+        [
+          2,
+          "9",
+          "SCHREIBER Marie",
+          "LUX",
+          null
+        ],
+        [
+          3,
+          "6",
+          "ALVARADO Ceylin Del Carmen",
+          "NED",
+          null
+        ],
+        [
+          4,
+          "7",
+          "VAS Kata Blanka",
+          "HUN",
+          null
+        ],
+        [
+          5,
+          "39",
+          "NEFF Jolanda",
+          "SUI",
+          null
+        ],
+        [
+          6,
+          "17",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          null
+        ],
+        [
+          7,
+          "3",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          8,
+          "56",
+          "BURQUIER Line",
+          "FRA",
+          null
+        ],
+        [
+          9,
+          "66",
+          "BORGHESI Letizia",
+          "ITA",
+          null
+        ],
+        [
+          10,
+          "19",
+          "HARTOG Larissa",
+          "NED",
+          null
+        ],
+        [
+          11,
+          "8",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          12,
+          "24",
+          "ASELTINE Mia",
+          "USA",
+          null
+        ],
+        [
+          13,
+          "36",
+          "SARKISOV Alyssa",
+          "USA",
+          null
+        ],
+        [
+          14,
+          "27",
+          "ESTERMANN Rebekka",
+          "SUI",
+          null
+        ],
+        [
+          15,
+          "28",
+          "FERRI Elisa",
+          "ITA",
+          null
+        ],
+        [
+          16,
+          "11",
+          "CARRIER Rafaelle",
+          "CAN",
+          null
+        ],
+        [
+          17,
+          "12",
+          "GUNSALUS Elizabeth",
+          "USA",
+          null
+        ],
+        [
+          18,
+          "31",
+          "KNOLL Nico",
+          "CAN",
+          null
+        ],
+        [
+          19,
+          "10",
+          "BORELLO Carlotta",
+          "ITA",
+          null
+        ],
+        [
+          20,
+          "34",
+          "CABACA Mae",
+          "NED",
+          null
+        ],
+        [
+          21,
+          "41",
+          "SARKISOV Katherine",
+          "USA",
+          null
+        ],
+        [
+          22,
+          "14",
+          "BRAMATI Lucia",
+          "ITA",
+          null
+        ],
+        [
+          23,
+          "21",
+          "CUSACK Lidia",
+          "USA",
+          null
+        ],
+        [
+          24,
+          "50",
+          "WENZEL Liv",
+          "LUX",
+          null
+        ],
+        [
+          25,
+          "79",
+          "INGLIS Grace",
+          "GBR",
+          null
+        ],
+        [
+          26,
+          "49",
+          "HLADÍKOVÁ Kateina",
+          "CZE",
+          null
+        ],
+        [
+          27,
+          "77",
+          "DETILLEUX Emeline",
+          "BEL",
+          null
+        ],
+        [
+          28,
+          "25",
+          "CLAUZEL Perrine",
+          "FRA",
+          null
+        ],
+        [
+          29,
+          "32",
+          "HEIGL Nadja",
+          "AUT",
+          null
+        ],
+        [
+          30,
+          "22",
+          "ZOERNER Lauren",
+          "USA",
+          null
+        ],
+        [
+          31,
+          "37",
+          "BRUCHNER Regina",
+          "HUN",
+          null
+        ],
+        [
+          32,
+          "35",
+          "HURTELOUP Adèle",
+          "FRA",
+          null
+        ],
+        [
+          33,
+          "43",
+          "MOORE Elly",
+          "CAN",
+          null
+        ],
+        [
+          34,
+          "67",
+          "BARTHELS Layla",
+          "LUX",
+          null
+        ],
+        [
+          35,
+          "72",
+          "BAELE Lotte",
+          "BEL",
+          null
+        ],
+        [
+          36,
+          "40",
+          "SONNEMANN Lyllie",
+          "USA",
+          null
+        ],
+        [
+          37,
+          "44",
+          "PANUŠOVÁ Anna",
+          "CZE",
+          null
+        ],
+        [
+          38,
+          "42",
+          "DAY Elena",
+          "GBR",
+          null
+        ],
+        [
+          39,
+          "80",
+          "COLLING Alice",
+          "GBR",
+          null
+        ],
+        [
+          40,
+          "73",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          null
+        ],
+        [
+          41,
+          "53",
+          "GLAUS Jana",
+          "SUI",
+          null
+        ],
+        [
+          42,
+          "94",
+          "DELCOMMUNE Juline",
+          "BEL",
+          null
+        ],
+        [
+          43,
+          "83",
+          "WHITESIDE Freya",
+          "IRL",
+          null
+        ],
+        [
+          44,
+          "45",
+          "HAVILAND Alexa",
+          "CAN",
+          null
+        ],
+        [
+          45,
+          "74",
+          "COPPENS Nette",
+          "BEL",
+          null
+        ],
+        [
+          46,
+          "59",
+          "NIELSEN Mille",
+          "DEN",
+          null
+        ],
+        [
+          47,
+          "55",
+          "MULLINS Kira",
+          "USA",
+          null
+        ],
+        [
+          48,
+          "96",
+          "CORABOEUF Lea",
+          "FRA",
+          null
+        ],
+        [
+          49,
+          "68",
+          "INGLIS Hope",
+          "GBR",
+          null
+        ],
+        [
+          50,
+          "57",
+          "DAUME Graden",
+          "USA",
+          null
+        ],
+        [
+          51,
+          "47",
+          "PETITGIRARD Marlène",
+          "FRA",
+          null
+        ],
+        [
+          52,
+          "64",
+          "BEEBE Tessa",
+          "USA",
+          null
+        ],
+        [
+          53,
+          "70",
+          "HAUBER Clare",
+          "CAN",
+          null
+        ],
+        [
+          54,
+          "100",
+          "COOPER Madeline",
+          "GBR",
+          null
+        ],
+        [
+          55,
+          "85",
+          "VIKOVÁ Hanka",
+          "CZE",
+          "LAP"
+        ],
+        [
+          56,
+          "90",
+          "PERSSON Thea",
+          "SWE",
+          "LAP"
+        ],
+        [
+          57,
+          "61",
+          "PERRON Dorothee",
+          "CAN",
+          "LAP"
+        ],
+        [
+          58,
+          "63",
+          "MACKINNON Claire",
+          "CAN",
+          "LAP"
+        ],
+        [
+          59,
+          "78",
+          "DENK Rosalie",
+          "AUT",
+          "LAP"
+        ],
+        [
+          60,
+          "69",
+          "OLESEN Anna",
+          "USA",
+          "LAP"
+        ],
+        [
+          61,
+          "88",
+          "VILLAR THIERY Faustine",
+          "FRA",
+          "LAP"
+        ],
+        [
+          62,
+          "86",
+          "CERMANOVÁ Antonie",
+          "CZE",
+          "LAP"
+        ],
+        [
+          63,
+          "65",
+          "GUTIERREZ PEREZ Maria",
+          "ESP",
+          "LAP"
+        ],
+        [
+          64,
+          "76",
+          "DEFOUR Lara",
+          "BEL",
+          "LAP"
+        ],
+        [
+          65,
+          "71",
+          "SECCHI Giorgia",
+          "ITA",
+          "LAP"
+        ],
+        [
+          66,
+          "95",
+          "PATTERSON Anna",
+          "GBR",
+          "LAP"
+        ],
+        [
+          67,
+          "87",
+          "LEHMAN Stella",
+          "USA",
+          "LAP"
+        ],
+        [
+          68,
+          "92",
+          "DE RAEDEMAEKER Alexe",
+          "BEL",
+          "LAP"
+        ],
+        [
+          69,
+          "81",
+          "NORRIS Annabelle",
+          "USA",
+          "LAP"
+        ],
+        [
+          70,
+          "60",
+          "MOLNAR Hadley",
+          "USA",
+          "LAP"
+        ],
+        [
+          71,
+          "82",
+          "MAHONEY Georgia",
+          "GBR",
+          "LAP"
+        ],
+        [
+          72,
+          "93",
+          "STEFFENHAGEN Diana",
+          "GER",
+          "LAP"
+        ],
+        [
+          null,
+          "1",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          "DNF"
+        ],
+        [
+          null,
+          "16",
+          "PEETERS Jinse",
+          "BEL",
+          "DNF"
+        ],
+        [
+          null,
+          "52",
+          "KRAHL Judith",
+          "GER",
+          "DNF"
+        ],
+        [
+          null,
+          "84",
+          "PIRINGER Johanna",
+          "AUT",
+          "DNF"
+        ],
+        [
+          null,
+          "48",
+          "LOPEZ BURGOS Ana",
+          "ESP",
+          "DNS"
+        ]
+      ],
+      "dnf": 4,
+      "dns": 1,
+      "participants": 77
+    },
+    {
+      "race": "Gullegem",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/1057fa2a-e8ad-11f0-9f83-0050569301fd/1767449044",
+      "sha256": "43856808d02788adea0c55bce461c6e3d551427538af883dff45996553756402",
+      "dateKey": "2026-01-03",
+      "rows": [
+        [
+          1,
+          "4",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          2,
+          "2",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          null
+        ],
+        [
+          3,
+          "11",
+          "CARRIER Rafaelle",
+          "CAN",
+          null
+        ],
+        [
+          4,
+          "3",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          5,
+          "8",
+          "BACKSTEDT Zoe",
+          "GBR",
+          null
+        ],
+        [
+          6,
+          "20",
+          "BURQUIER Line",
+          "FRA",
+          null
+        ],
+        [
+          7,
+          "6",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          8,
+          "17",
+          "NEFF Jolanda",
+          "SUI",
+          null
+        ],
+        [
+          9,
+          "25",
+          "BORGHESI Letizia",
+          "ITA",
+          null
+        ],
+        [
+          10,
+          "24",
+          "LANGENBARG Puck",
+          "NED",
+          null
+        ],
+        [
+          11,
+          "27",
+          "VAN DE STEENE Kim",
+          "BEL",
+          null
+        ],
+        [
+          12,
+          "9",
+          "RODRIGUEZ REVERT Sofia",
+          "ESP",
+          null
+        ],
+        [
+          13,
+          "15",
+          "CLAUZEL Perrine",
+          "FRA",
+          null
+        ],
+        [
+          14,
+          "12",
+          "GONZALEZ BLANCO Lucia",
+          "ESP",
+          null
+        ],
+        [
+          15,
+          "45",
+          "KNIJNENBURG Anne",
+          "NED",
+          null
+        ],
+        [
+          16,
+          "28",
+          "DEVIGNE Camille",
+          "FRA",
+          null
+        ],
+        [
+          17,
+          "32",
+          "DE BRUYCKERE Xenna",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "33",
+          "SEYNAVE Ilken",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "38",
+          "INGLIS Grace",
+          "GBR",
+          null
+        ],
+        [
+          20,
+          "18",
+          "BRUCHNER Regina",
+          "HUN",
+          null
+        ],
+        [
+          21,
+          "35",
+          "DETILLEUX Emeline",
+          "BEL",
+          null
+        ],
+        [
+          22,
+          "30",
+          "KLAES Lise",
+          "FRA",
+          null
+        ],
+        [
+          23,
+          "39",
+          "PERSSON Thea",
+          "SWE",
+          null
+        ],
+        [
+          24,
+          "37",
+          "DEFOUR Lara",
+          "BEL",
+          null
+        ],
+        [
+          25,
+          "57",
+          "GUNSALUS Elizabeth",
+          "USA",
+          null
+        ],
+        [
+          26,
+          "36",
+          "COPPENS Nette",
+          "BEL",
+          null
+        ],
+        [
+          27,
+          "19",
+          "HURTELOUP Adèle",
+          "FRA",
+          null
+        ],
+        [
+          28,
+          "54",
+          "DE VOS Nele",
+          "BEL",
+          null
+        ],
+        [
+          29,
+          "23",
+          "VERKERK Katja",
+          "CAN",
+          null
+        ],
+        [
+          30,
+          "50",
+          "ADAM Lucie",
+          "FRA",
+          null
+        ],
+        [
+          31,
+          "53",
+          "ZWAENEPOEL Tessa",
+          "BEL",
+          null
+        ],
+        [
+          32,
+          "47",
+          "DE BRUYNE Meg",
+          "BEL",
+          null
+        ],
+        [
+          33,
+          "46",
+          "ELF BOBERG Saga",
+          "SWE",
+          "LAP"
+        ],
+        [
+          34,
+          "56",
+          "ROMBOUTS Tine",
+          "BEL",
+          "LAP"
+        ],
+        [
+          35,
+          "51",
+          "VERDIER Juliette",
+          "FRA",
+          "LAP"
+        ],
+        [
+          36,
+          "52",
+          "POLFLIET Alana",
+          "BEL",
+          "LAP"
+        ],
+        [
+          37,
+          "49",
+          "YANNIC Tifenn",
+          "FRA",
+          "LAP"
+        ],
+        [
+          null,
+          "13",
+          "HARTOG Larissa",
+          "NED",
+          "DNF"
+        ]
+      ],
+      "dnf": 1,
+      "dns": 0,
+      "participants": 38
+    },
+    {
+      "race": "Middelkerke",
+      "category": "WE",
+      "url": "https://www.superprestigecyclocross.be/nl/files/7ee1f435-042c-11f1-9f83-0050569301fd/1770472457",
+      "sha256": "31036f6c7097d46732ff78c0006d7afd4458df1aa342f1b22c5897bdb7e99748",
+      "dateKey": "2026-02-07",
+      "rows": [
+        [
+          1,
+          "3",
+          "FOUQUENET Amandine",
+          "FRA",
+          null
+        ],
+        [
+          2,
+          "5",
+          "ALVARADO Ceylin Del Carmen",
+          "NED",
+          null
+        ],
+        [
+          3,
+          "11",
+          "SCHREIBER Marie",
+          "LUX",
+          null
+        ],
+        [
+          4,
+          "2",
+          "NORBERT RIBEROLLE Marion",
+          "BEL",
+          null
+        ],
+        [
+          5,
+          "9",
+          "CLAUZEL Hélène",
+          "FRA",
+          null
+        ],
+        [
+          6,
+          "8",
+          "BROUWERS Julie",
+          "BEL",
+          null
+        ],
+        [
+          7,
+          "6",
+          "BENTVELD Leonie",
+          "NED",
+          null
+        ],
+        [
+          8,
+          "4",
+          "VAN ALPHEN Aniek",
+          "NED",
+          null
+        ],
+        [
+          9,
+          "1",
+          "VAN DER HEIJDEN Inge",
+          "NED",
+          null
+        ],
+        [
+          10,
+          "13",
+          "WORST Annemarie",
+          "NED",
+          null
+        ],
+        [
+          11,
+          "12",
+          "GARIBOLDI Rebecca",
+          "ITA",
+          null
+        ],
+        [
+          12,
+          "19",
+          "HLADÍKOVÁ Kateina",
+          "CZE",
+          null
+        ],
+        [
+          13,
+          "14",
+          "CRABBÉ Kiona",
+          "BEL",
+          null
+        ],
+        [
+          14,
+          "17",
+          "CLAUZEL Perrine",
+          "FRA",
+          null
+        ],
+        [
+          15,
+          "20",
+          "BRAMATI Lucia",
+          "ITA",
+          null
+        ],
+        [
+          16,
+          "25",
+          "VAN DE STEENE Kim",
+          "BEL",
+          null
+        ],
+        [
+          17,
+          "15",
+          "FRANCK Alicia",
+          "BEL",
+          null
+        ],
+        [
+          18,
+          "16",
+          "PEETERS Jinse",
+          "BEL",
+          null
+        ],
+        [
+          19,
+          "24",
+          "BARTHELS Maïté",
+          "LUX",
+          null
+        ],
+        [
+          20,
+          "22",
+          "KAY Anna",
+          "GBR",
+          null
+        ],
+        [
+          21,
+          "26",
+          "MOS Anniek",
+          "NED",
+          null
+        ],
+        [
+          22,
+          "27",
+          "BAELE Lotte",
+          "BEL",
+          "LAP"
+        ],
+        [
+          23,
+          "21",
+          "HURTELOUP Adèle",
+          "FRA",
+          "LAP"
+        ],
+        [
+          24,
+          "30",
+          "DELCOMMUNE Juline",
+          "BEL",
+          "LAP"
+        ],
+        [
+          25,
+          "28",
+          "DEFOUR Lara",
+          "BEL",
+          "LAP"
+        ],
+        [
+          26,
+          "36",
+          "WOODVINE Rebecca",
+          "GBR",
+          "LAP"
+        ],
+        [
+          27,
+          "31",
+          "MITCHINSON Ellie",
+          "GBR",
+          "LAP"
+        ],
+        [
+          28,
+          "32",
+          "PERRYMAN Amy",
+          "GBR",
+          "LAP"
+        ],
+        [
+          29,
+          "23",
+          "BUDDE Kaija",
+          "GER",
+          "LAP"
+        ],
+        [
+          30,
+          "34",
+          "DE CUYPER Emily",
+          "BEL",
+          "LAP"
+        ],
+        [
+          31,
+          "39",
+          "YANNIC Tifenn",
+          "FRA",
+          "LAP"
+        ],
+        [
+          32,
+          "38",
+          "POLFLIET Alana",
+          "BEL",
+          "LAP"
+        ],
+        [
+          33,
+          "29",
+          "STEFFENHAGEN Diana",
+          "GER",
+          "LAP"
+        ],
+        [
+          null,
+          "33",
+          "VAN DER VEKEN Jana",
+          "BEL",
+          "DNF"
+        ]
+      ],
+      "dnf": 1,
+      "dns": 0,
+      "participants": 34
+    }
+  ],
+  "standings": {
+    "sourceUrl": "https://www.superprestigecyclocross.be/nl/files/5f6b0eba-ad06-11f0-9f83-0050569301fd/1770635225",
+    "sha256": "7b85483ac3ac8775001b209cabe1ddab52abc5464512f44f0e6920e5e7882ab0",
+    "rows": [
+      {
+        "publishedRank": 1,
+        "name": "Aniek van Alphen",
+        "nation": "NED",
+        "points": 91,
+        "roundPoints": [
+          9,
+          13,
+          13,
+          14,
+          13,
+          9,
+          12,
+          8
+        ]
+      },
+      {
+        "publishedRank": 2,
+        "name": "Amandine Fouquenet",
+        "nation": "FRA",
+        "points": 91,
+        "roundPoints": [
+          13,
+          12,
+          10,
+          11,
+          15,
+          0,
+          15,
+          15
+        ]
+      },
+      {
+        "publishedRank": 3,
+        "name": "Inge van der Heijden",
+        "nation": "NED",
+        "points": 69,
+        "roundPoints": [
+          12,
+          11,
+          14,
+          13,
+          12,
+          0,
+          0,
+          7
+        ]
+      },
+      {
+        "publishedRank": 4,
+        "name": "Hélène Clauzel",
+        "nation": "FRA",
+        "points": 62,
+        "roundPoints": [
+          8,
+          9,
+          12,
+          8,
+          0,
+          5,
+          9,
+          11
+        ]
+      },
+      {
+        "publishedRank": 5,
+        "name": "Marion Norbert Riberolle",
+        "nation": "BEL",
+        "points": 62,
+        "roundPoints": [
+          15,
+          10,
+          0,
+          0,
+          11,
+          0,
+          14,
+          12
+        ]
+      },
+      {
+        "publishedRank": 6,
+        "name": "Julie Brouwers",
+        "nation": "BEL",
+        "points": 49,
+        "roundPoints": [
+          5,
+          7,
+          11,
+          9,
+          7,
+          0,
+          0,
+          10
+        ]
+      },
+      {
+        "publishedRank": 7,
+        "name": "Lucinda Brand",
+        "nation": "NED",
+        "points": 44,
+        "roundPoints": [
+          0,
+          14,
+          15,
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 8,
+        "name": "Marie Schreiber",
+        "nation": "LUX",
+        "points": 36,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          9,
+          14,
+          0,
+          13
+        ]
+      },
+      {
+        "publishedRank": 9,
+        "name": "Leonie Bentveld",
+        "nation": "NED",
+        "points": 32,
+        "roundPoints": [
+          11,
+          0,
+          0,
+          12,
+          0,
+          0,
+          0,
+          9
+        ]
+      },
+      {
+        "publishedRank": 10,
+        "name": "Blanka Kata Vas",
+        "nation": "HUN",
+        "points": 29,
+        "roundPoints": [
+          0,
+          3,
+          0,
+          0,
+          14,
+          12,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 11,
+        "name": "Sara Casasola",
+        "nation": "ITA",
+        "points": 29,
+        "roundPoints": [
+          14,
+          15,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 12,
+        "name": "Denise Betsema",
+        "nation": "NED",
+        "points": 27,
+        "roundPoints": [
+          6,
+          6,
+          8,
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Jolanda Neff",
+        "nation": "SUI",
+        "points": 27,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          8,
+          11,
+          8,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Ceylin del Carmen Alvarado",
+        "nation": "NED",
+        "points": 27,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          13,
+          0,
+          14
+        ]
+      },
+      {
+        "publishedRank": 15,
+        "name": "Line Burquier",
+        "nation": "FRA",
+        "points": 23,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          5,
+          8,
+          10,
+          0
+        ]
+      },
+      {
+        "publishedRank": 16,
+        "name": "Jinse Peeters",
+        "nation": "BEL",
+        "points": 21,
+        "roundPoints": [
+          3,
+          5,
+          5,
+          6,
+          2,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 17,
+        "name": "Rafaelle Carrier",
+        "nation": "CAN",
+        "points": 19,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          6,
+          0,
+          13,
+          0
+        ]
+      },
+      {
+        "publishedRank": 18,
+        "name": "Larissa Hartog",
+        "nation": "NED",
+        "points": 17,
+        "roundPoints": [
+          0,
+          0,
+          7,
+          4,
+          0,
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 19,
+        "name": "Laura Verdonschot",
+        "nation": "BEL",
+        "points": 16,
+        "roundPoints": [
+          7,
+          0,
+          9,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 20,
+        "name": "Puck Pieterse",
+        "nation": "NED",
+        "points": 15,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          15,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Rebecca Gariboldi",
+        "nation": "ITA",
+        "points": 15,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          10,
+          0,
+          5
+        ]
+      },
+      {
+        "publishedRank": 22,
+        "name": "Manon Bakker",
+        "nation": "NED",
+        "points": 14,
+        "roundPoints": [
+          4,
+          0,
+          0,
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Letizia Borghesi",
+        "nation": "ITA",
+        "points": 14,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          7,
+          7,
+          0
+        ]
+      },
+      {
+        "publishedRank": 24,
+        "name": "Zoe Bäckstedt",
+        "nation": "GBR",
+        "points": 11,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          11,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Kiona Crabbé",
+        "nation": "BEL",
+        "points": 11,
+        "roundPoints": [
+          0,
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3
+        ]
+      },
+      {
+        "publishedRank": 26,
+        "name": "Fem van Empel",
+        "nation": "NED",
+        "points": 10,
+        "roundPoints": [
+          10,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Ffion Drake",
+        "nation": "GBR",
+        "points": 10,
+        "roundPoints": [
+          0,
+          4,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Fleur Moors",
+        "nation": "BEL",
+        "points": 10,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          10,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 29,
+        "name": "Annemarie Worst",
+        "nation": "NED",
+        "points": 9,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          6
+        ]
+      },
+      {
+        "publishedRank": 30,
+        "name": "Perrine Clauzel",
+        "nation": "FRA",
+        "points": 7,
+        "roundPoints": [
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          3,
+          2
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Katerina Hladikova",
+        "nation": "CZE",
+        "points": 7,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          4
+        ]
+      },
+      {
+        "publishedRank": 32,
+        "name": "Kim Van de Steene",
+        "nation": "BEL",
+        "points": 6,
+        "roundPoints": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Puck Langenbarg",
+        "nation": "NED",
+        "points": 6,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          0
+        ]
+      },
+      {
+        "publishedRank": 34,
+        "name": "Lauren Molengraaf",
+        "nation": "NED",
+        "points": 5,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 35,
+        "name": "Anna Kay",
+        "nation": "GBR",
+        "points": 4,
+        "roundPoints": [
+          0,
+          1,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Anna Panusova",
+        "nation": "CZE",
+        "points": 4,
+        "roundPoints": [
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Bloeme Kalis",
+        "nation": "NED",
+        "points": 4,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Mia Aseltine",
+        "nation": "USA",
+        "points": 4,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Sofia Rodriguez Revert",
+        "nation": "ESP",
+        "points": 4,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0
+        ]
+      },
+      {
+        "publishedRank": 40,
+        "name": "Alyssa Sarkisov",
+        "nation": "USA",
+        "points": 3,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": 41,
+        "name": "Shanyl De Schoesitter",
+        "nation": "BEL",
+        "points": 2,
+        "roundPoints": [
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Kaya Musgrave",
+        "nation": "USA",
+        "points": 2,
+        "roundPoints": [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Sterre Vervloet",
+        "nation": "BEL",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Rebekka Estermann",
+        "nation": "SUI",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Lucia Gonzalez Blanco",
+        "nation": "ESP",
+        "points": 2,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0
+        ]
+      },
+      {
+        "publishedRank": 46,
+        "name": "Antonina Bialek",
+        "nation": "POL",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Anniek Mos",
+        "nation": "NED",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Elizabeth Gunsalus",
+        "nation": "USA",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Elisa Ferri",
+        "nation": "ITA",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Anne Knijnenburg",
+        "nation": "NED",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "publishedRank": null,
+        "name": "Lucia Bramati",
+        "nation": "ITA",
+        "points": 1,
+        "roundPoints": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "offlineAliases": [
+    {
+      "from": "HLADÍKOVÁ Kateina",
+      "to": "Katerina Hladikova",
+      "nation": "CZE",
+      "reason": "Alias exclusivo del cotejo. La errata Kateina comparte UCI ID 10047765309 en Merksplas, Diegem y Middelkerke; el informe UEC independiente acredita HLADÍKOVÁ Katerina/CZE/2004 con ese identificador. No enlaza ni crea fichas del catálogo.",
+      "evidence": {
+        "sourceUrl": "https://www.uec.ch/resources/2025%20Events/cyclocross%20middelkerke/lists/res/54_Result_Wom_U23.pdf",
+        "sha256": "e7371cda120c1accc5a82feada4ffaf316116452d245b8ac9bd7f83ca69d6145",
+        "uciId": "10047765309",
+        "roundReferences": [
+          {
+            "round": "Merksplas",
+            "bib": "21",
+            "rank": 13
+          },
+          {
+            "round": "Diegem",
+            "bib": "49",
+            "rank": 26
+          },
+          {
+            "round": "Middelkerke",
+            "bib": "19",
+            "rank": 12
+          }
+        ]
+      }
+    }
+  ],
+  "sourceDiscrepancies": [
+    {
+      "sourceUrl": "https://www.superprestigecyclocross.be/nl/klassement",
+      "field": "summaryPoints",
+      "names": [
+        "Aniek van Alphen",
+        "Amandine Fouquenet"
+      ],
+      "htmlSummary": [
+        92,
+        92
+      ],
+      "independentFinalPdf": [
+        91,
+        91
+      ],
+      "action": "Conservar los hechos PDF y comprobar contra las ocho rondas; no corregir fuentes para forzar coincidencia."
+    }
+  ]
+}

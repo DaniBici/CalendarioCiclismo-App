@@ -94,6 +94,63 @@ describe('buildSimplifiedGuide', () => {
     expect(types).toEqual(['start', 'intermediate_sprint', 'climb_foot', 'summit', 'finish']);
   });
 
+  it('fusiona cima y bonificación solo cuando coincide el km decimal exacto', () => {
+    const rows = buildSimplifiedGuide({
+      distanceKm: 100,
+      summits: [{ km: 60.5, name: 'Puerto', category: '1' }],
+      waypoints: [
+        { km: 60.5, name: 'Bonificación', type: 'bonus_sprint', timeUtc: '2026-04-26T12:00:00.000Z' },
+        { km: 60.6, name: 'Sprint', type: 'intermediate_sprint' },
+      ],
+    });
+    const summit = rows.find(row => row.type === 'summit');
+    expect(rows.filter(row => row.km === 60.5)).toHaveLength(1);
+    expect(summit.secondaryType).toBe('bonus_sprint');
+    expect(summit.secondaryLabel).toBe('Bonificación');
+    expect(summit.timeUtc).toBe('2026-04-26T12:00:00.000Z');
+    expect(rows.some(row => row.km === 60.6 && row.type === 'intermediate_sprint')).toBe(true);
+  });
+
+  it('fusiona la meta con una cima o waypoint solo en el km final exacto', () => {
+    const summitFinish = buildSimplifiedGuide({
+      distanceKm: 100,
+      estimatedFinishTimeUtc: FINISH,
+      summits: [{ km: 100, name: 'Alto de meta', category: '1' }],
+    });
+    expect(summitFinish).toHaveLength(1);
+    expect(summitFinish[0]).toMatchObject({
+      type: 'summit',
+      secondaryType: 'finish',
+      secondaryLabel: null,
+      kmToGo: 0,
+      timeUtc: FINISH,
+      isEstimated: true,
+    });
+
+    const waypointFinish = buildSimplifiedGuide({
+      distanceKm: 100,
+      estimatedFinishTimeUtc: FINISH,
+      waypoints: [{ km: 100, name: 'Sprint de meta', type: 'bonus_sprint' }],
+    });
+    expect(waypointFinish).toHaveLength(1);
+    expect(waypointFinish[0]).toMatchObject({
+      type: 'bonus_sprint',
+      secondaryType: 'finish',
+      kmToGo: 0,
+      timeUtc: FINISH,
+      isEstimated: true,
+    });
+
+    const withoutFinishTime = buildSimplifiedGuide({
+      distanceKm: 100,
+      summits: [{ km: 100, name: 'Alto de meta', category: '1' }],
+    });
+    expect(withoutFinishTime).toHaveLength(1);
+    expect(withoutFinishTime[0]).toMatchObject({
+      type: 'summit', secondaryType: 'finish', timeUtc: null, isEstimated: true,
+    });
+  });
+
   it('en CRI/CRE no interpola y solo muestra puntos intermedios manuales', () => {
     const splitTime = '2026-04-26T10:30:00.000Z';
     const rows = buildSimplifiedGuide({

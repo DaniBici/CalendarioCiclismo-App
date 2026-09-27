@@ -52,6 +52,8 @@ function isWaypointVisible(type, isTimeTrial) {
  *                           sterrato|town|finish
  * @property {string|null} label    nombre del punto (puerto/waypoint)
  * @property {string|null} category categoría del puerto (HC|1|2|3|4|M)
+ * @property {string|null} secondaryType tipo del punto fusionado (waypoint o meta)
+ * @property {string|null} secondaryLabel nombre del punto fusionado
  * @property {string|null} timeUtc  ISO 8601 UTC (hora de paso) o null
  * @property {boolean} isEstimated  true si la hora se interpoló/estimó
  */
@@ -69,6 +71,7 @@ function isWaypointVisible(type, isTimeTrial) {
 export function buildSimplifiedGuide({
   distanceKm = null,
   neutralStartTimeUtc = null,
+  realStartTimeUtc = null,
   estimatedFinishTimeUtc = null,
   summits = [],
   waypoints = [],
@@ -78,9 +81,10 @@ export function buildSimplifiedGuide({
   const rows = [];
 
   // — Salida (km 0) —
-  if (neutralStartTimeUtc) {
+  const startTimeUtc = realStartTimeUtc || neutralStartTimeUtc;
+  if (startTimeUtc) {
     rows.push({ km: 0, type: 'start', label: null, category: null,
-                timeUtc: neutralStartTimeUtc, isEstimated: false });
+                timeUtc: startTimeUtc, isEstimated: false });
   }
 
   // — Puertos: pie (estimado) + cima (manual si la hubiera) —
@@ -105,9 +109,11 @@ export function buildSimplifiedGuide({
   }
 
   // — Llegada (km = distancia) —
-  if (estimatedFinishTimeUtc && distanceKm != null && Number.isFinite(distanceKm)) {
+  // La meta existe aunque no haya hora prevista: su presencia permite
+  // combinarla con una cima o waypoint del kilómetro final.
+  if (distanceKm != null && Number.isFinite(distanceKm)) {
     rows.push({ km: distanceKm, type: 'finish', label: null, category: null,
-                timeUtc: estimatedFinishTimeUtc, isEstimated: false });
+                timeUtc: estimatedFinishTimeUtc, isEstimated: !estimatedFinishTimeUtc });
   }
 
   // — Orden por km (sort estable: pie < cima por construcción) —
@@ -125,8 +131,44 @@ export function buildSimplifiedGuide({
     deduped.push(r);
   }
 
+  // — Fusionar anotaciones en el mismo km EXACTO —
+  // Es un único punto del recorrido, representado con dos iconos. La meta
+  // tiene prioridad como acompañante de una cima o waypoint; si no coincide
+  // con ninguno, se conserva la fusión cima + waypoint existente. No usamos
+  // tolerancia: 60,5 y 60,6 km son puntos distintos.
+  const merged = [];
+  const consumed = new Set();
+  const mergeableWaypoint = type => !['start','finish','climb_foot','summit'].includes(type);
+  for (let i = 0; i < deduped.length; i++) {
+    if (consumed.has(i)) continue;
+    const row = deduped[i];
+    if (row.type === 'summit' || mergeableWaypoint(row.type)) {
+      const finishIndex = deduped.findIndex((candidate, j) => j !== i && !consumed.has(j)
+        && candidate.type === 'finish' && candidate.km === row.km);
+      const waypointIndex = row.type === 'summit'
+        ? deduped.findIndex((candidate, j) => j !== i && !consumed.has(j)
+          && mergeableWaypoint(candidate.type) && candidate.km === row.km)
+        : -1;
+      const companionIndex = finishIndex >= 0 ? finishIndex : waypointIndex;
+      if (companionIndex >= 0) {
+        const companion = deduped[companionIndex];
+        const combined = { ...row, secondaryType:companion.type, secondaryLabel:companion.label ?? null };
+        if (combined.timeUtc == null && companion.timeUtc != null) {
+          combined.timeUtc = companion.timeUtc;
+          // La hora estimada de meta no convierte el punto intermedio en un
+          // ancla manual del rutómetro ni activa por sí sola la guía.
+          if (companion.type !== 'finish') combined.isEstimated = companion.isEstimated;
+        }
+        merged.push(combined);
+        consumed.add(companionIndex);
+        continue;
+      }
+    }
+    merged.push(row);
+  }
+
   // — kmToGo —
-  for (const r of deduped) {
+  for (const r of merged) {
     r.kmToGo = (distanceKm != null && Number.isFinite(distanceKm))
       ? round1(distanceKm - r.km) : null;
   }
@@ -135,11 +177,11 @@ export function buildSimplifiedGuide({
   // En CRI/CRE no se interpola: cada corredor/equipo pasa en un momento
   // distinto, así que solo se muestran las horas manuales (anclas).
   if (!isTimeTrial) {
-    const anchors = deduped
+    const anchors = merged
       .map((r, i) => ({ i, km: r.km, ms: parseMs(r.timeUtc) }))
       .filter(a => a.ms != null);
     if (anchors.length >= 2) {
-      for (const r of deduped) {
+      for (const r of merged) {
         if (r.timeUtc != null) continue;
         let prev = null, next = null;
         for (const a of anchors) {
@@ -155,7 +197,7 @@ export function buildSimplifiedGuide({
     }
   }
 
-  return deduped;
+  return merged;
 }
 
 /** True si la jornada tiene una guía que merezca enseñarse. Es **opt-in**:

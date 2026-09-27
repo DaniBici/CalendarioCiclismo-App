@@ -13,10 +13,6 @@ import app.calendariociclismo.android.MainActivity
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.prefs.NotificationCategoryPreference
 import app.calendariociclismo.android.util.RegionDetector
-import coil3.ImageLoader
-import coil3.request.ImageRequest
-import coil3.request.SuccessResult
-import coil3.toBitmap
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +46,7 @@ class CCFirebaseMessagingService : FirebaseMessagingService() {
                     app.supabaseService.upsertPushToken(
                         token,
                         isActive = true,
-                        region = app.preferences.snapshotRegionPreference().name,
+                        region = RegionDetector.suggestedRegion().name,
                         countryGroup = RegionDetector.detectedCountryGroup(),
                         language = app.preferences.snapshotAppLocale().tag,
                         categories = NotificationCategoryPreference.toRawList(
@@ -80,12 +76,7 @@ class CCFirebaseMessagingService : FirebaseMessagingService() {
 
     private suspend fun loadBitmap(url: String): Bitmap? {
         return runCatching {
-            val loader = ImageLoader(this)
-            val req = ImageRequest.Builder(this).data(url).build()
-            when (val r = loader.execute(req)) {
-                is SuccessResult -> r.image.toBitmap()
-                else -> null
-            }
+            loadNotificationBitmap(applicationContext, url)
         }.onFailure { Log.w(TAG, "Error cargando imagen: ${it.message}") }.getOrNull()
     }
 

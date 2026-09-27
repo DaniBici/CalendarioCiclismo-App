@@ -16,8 +16,9 @@ import { supabase, toDateKey, stageLabel, proLevel, countryFlag, effectiveCountr
 import { isTourDelPorvenir } from './category-filter.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
-import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js';
+import { mergeRaces, missingRaceIds, monthDateRange } from './services/month-data.js';
+import { hasModalData, openRaceDataModal } from './race-data-modal.js?v=20260924sitefix';
+import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js?v=20260924sitefix';
 
 // ── Estado ────────────────────────────────────────────────────────
 const today = new Date();
@@ -28,33 +29,52 @@ let _initialized = false;
 let _scrolledToToday = false;
 
 // Cachés por sesión de vista (se invalidan al recargar la página)
-const _racesByYear = {};   // year → [races]
+const _racesByMonth = {};  // 'YYYY-MM' → [races solapadas o referenciadas]
 const _daysByMonth = {};   // 'YYYY-MM' → [race_days publicados]
 let _rowRefs = new Map();  // id de fila → { rd, race } para la delegación de clics
 
 const MIN_YEAR = 2026;
+const MONTH_DAY_COLUMNS = 'id,raceId,dateKey,stageNumber,slug,slugEn,startLocation,startLocationEn,finishLocation,finishLocationEn,countryCode,primaryType,isRestDay,isCancelledDay,hasAssets,elevationProfile,profileNotViewable,distanceKm,neutralStartTimeUtc,estimatedFinishTimeUtc,tvStatus,description,notes';
+const MONTH_RACE_COLUMNS = 'id,name,nameEn,slug,slugEn,year,startDate,endDate,raceFormat,uciCategory,gender,countryCode,colorHex,logoUrl,hideFlag,isCancelled,isNoClickable,websiteUrl';
 
 const LOADING_HTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text"></p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
 // ── Datos ─────────────────────────────────────────────────────────
 async function loadMonthData(year, month0) {
-  const m = String(month0 + 1).padStart(2, '0');
-  const monthKey = `${year}-${m}`;
-  const lastDay = new Date(year, month0 + 1, 0).getDate();
-  const startKey = `${monthKey}-01`;
-  const endKey   = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+  const { monthKey, startKey, endKey, lastDay } = monthDateRange(year, month0);
 
-  const queries = [];
-  queries.push(_daysByMonth[monthKey]
-    ? Promise.resolve(_daysByMonth[monthKey])
-    : supabase.from('race_days').select('*').gte('dateKey', startKey).lte('dateKey', endKey)
-        .eq('editorialStatus', 'published').then(r => (_daysByMonth[monthKey] = r.data || [])));
-  queries.push(_racesByYear[year]
-    ? Promise.resolve(_racesByYear[year])
-    : supabase.from('races').select('*').eq('year', year)
-        .then(r => (_racesByYear[year] = r.data || [])));
+  const daysQuery = _daysByMonth[monthKey]
+    ? Promise.resolve({ data: _daysByMonth[monthKey], error: null })
+    : supabase.from('race_days').select(MONTH_DAY_COLUMNS).gte('dateKey', startKey).lte('dateKey', endKey)
+        .eq('editorialStatus', 'published');
+  const racesQuery = _racesByMonth[monthKey]
+    ? Promise.resolve({ data: _racesByMonth[monthKey], error: null })
+    : supabase.from('races').select(MONTH_RACE_COLUMNS).lte('startDate', endKey).gte('endDate', startKey);
 
-  const [rdDocs, races] = await Promise.all(queries);
+  const [daysResponse, racesResponse] = await Promise.all([daysQuery, racesQuery]);
+  if (daysResponse.error) throw daysResponse.error;
+  if (racesResponse.error) throw racesResponse.error;
+
+  const rdDocs = daysResponse.data || [];
+  let races = racesResponse.data || [];
+  const missingIds = missingRaceIds(rdDocs, races);
+  if (missingIds.length) {
+    const chunks = [];
+    for (let index = 0; index < missingIds.length; index += 100) {
+      chunks.push(missingIds.slice(index, index + 100));
+    }
+    const responses = await Promise.all(chunks.map(ids =>
+      supabase.from('races').select(MONTH_RACE_COLUMNS).in('id', ids)));
+    const recovered = [];
+    responses.forEach(response => {
+      if (response.error) throw response.error;
+      recovered.push(...(response.data || []));
+    });
+    races = mergeRaces(races, recovered);
+  }
+
+  _daysByMonth[monthKey] = rdDocs;
+  _racesByMonth[monthKey] = races;
   const raceMap = {};
   races.forEach(r => { raceMap[r.id] = r; setCachedRace(r.id, r); });
   return { rdDocs, races, raceMap, startKey, endKey, lastDay };
@@ -122,17 +142,18 @@ function passesCategoryFilter(rd) {
   const cat    = rd._race?.uciCategory || '';
   const gender = rd._race?.gender || '';
   const name   = rd._race?.name || '';
+  const isMixedRelay = (cat === 'WC' || cat === 'CC') && /relevo mixto|mixed relay/i.test(name);
   // CN nunca como fila suelta (los Campeonatos van en su fila sintética).
   if (cat === 'CN') return false;
-  if ((cat === 'WC' || cat === 'CC') && activeCat !== 'all' && activeCat !== 'female') {
+  if ((cat === 'WC' || cat === 'CC') && activeCat !== 'all') {
     if (!/europa|mundo/i.test(name)) return false;
   }
   const isAsia1 = (cat === '1.1' || cat === '2.1') && ASIA_1.test(rd._race?.countryCode || '');
   if (activeCat === 'pro')    return !isAsia1 && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
   if (activeCat === 'uwt')    return cat === '1.UWT' || cat === '2.UWT';
   if (activeCat === 'wwt')    return cat === '1.WWT' || cat === '2.WWT';
-  if (activeCat === 'male')   return !isAsia1 && gender !== 'female' && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
-  if (activeCat === 'female') return !isAsia1 && gender === 'female' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
+  if (activeCat === 'male')   return !isAsia1 && (gender === 'male' || isMixedRelay) && cat !== '1.2' && cat !== '2.2' && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name));
+  if (activeCat === 'female') return !isAsia1 && (gender === 'female' || isMixedRelay) && (cat !== '1.2U' && cat !== '2.2U' || isTourDelPorvenir(name)) && ((cat !== '1.2' && cat !== '2.2') || EUROPE.has((rd._race?.countryCode || '').toUpperCase()));
   return true; // 'all'
 }
 
@@ -191,7 +212,7 @@ function raceRowHtml(rd, refId) {
   const isRestDay = rd.isRestDay === true;
   const cancelled = race.isCancelled === true || rd.isCancelledDay === true;
 
-  const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race));
+  const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race), { lazy: true });
   const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(race.name || '');
   const isFemale = race.gender === 'female' && !nameImpliesFemale && activeCat !== 'female' && activeCat !== 'wwt';
   const name = cleanFemaleName(raceName(race) || '—');
@@ -292,7 +313,7 @@ async function renderMes() {
     if (!byDate[rd.dateKey]) byDate[rd.dateKey] = [];
     byDate[rd.dateKey].push(rd);
   }
-  annotateDoubleSectors(rdDocs, { skipFcNumbers: true });
+  annotateDoubleSectors(rdDocs);
 
   const coveredRaceIds = new Set(rdDocs.map(rd => rd.raceId).filter(Boolean));
   const placeholders = buildPlaceholders(races, coveredRaceIds, startKey, endKey, viewYear);
@@ -348,8 +369,9 @@ function scrollToToday(smooth = true) {
   const el = document.getElementById(`cal-day-${toDateKey(today)}`);
   if (!el) return;
   const headerH = document.querySelector('.site-header')?.offsetHeight || 56;
+  const navH = document.querySelector('.primary-nav')?.offsetHeight || 0;
   const barH = document.getElementById('mesBar')?.offsetHeight || 0;
-  const top = el.getBoundingClientRect().top + window.scrollY - headerH - barH - 6;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerH - navH - barH - 6;
   window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'instant' });
 }
 
@@ -396,6 +418,7 @@ function buildBar() {
   // con el ratón, manteniendo el clic normal para seleccionar un mes.
   let pointerStartX = 0;
   let pointerStartScroll = 0;
+  let activePointerId = null;
   let isDragging = false;
   chips.addEventListener('pointerdown', e => {
     // En táctil el propio ScrollView horizontal del navegador ya gestiona el
@@ -403,13 +426,13 @@ function buildBar() {
     // en un drag y anulaba el clic de los meses.
     if (e.pointerType !== 'mouse') return;
     if (e.button !== 0) return;
+    activePointerId = e.pointerId;
     pointerStartX = e.clientX;
     pointerStartScroll = chips.scrollLeft;
     isDragging = false;
-    chips.setPointerCapture(e.pointerId);
   });
   chips.addEventListener('pointermove', e => {
-    if (!chips.hasPointerCapture(e.pointerId)) return;
+    if (e.pointerId !== activePointerId) return;
     const distance = e.clientX - pointerStartX;
     if (!isDragging && Math.abs(distance) < 4) return;
     isDragging = true;
@@ -417,8 +440,8 @@ function buildBar() {
     chips.scrollLeft = pointerStartScroll - distance;
   });
   const stopDragging = e => {
-    if (!chips.hasPointerCapture(e.pointerId)) return;
-    chips.releasePointerCapture(e.pointerId);
+    if (e.pointerId !== activePointerId) return;
+    activePointerId = null;
     chips.classList.remove('cal-month-chips--dragging');
     if (isDragging) {
       chips.dataset.dragged = 'true';
@@ -429,6 +452,7 @@ function buildBar() {
   };
   chips.addEventListener('pointerup', stopDragging);
   chips.addEventListener('pointercancel', stopDragging);
+  chips.addEventListener('pointerleave', stopDragging);
 
   // Selector de año
   const yearSel = document.getElementById('mesYear');
@@ -479,7 +503,7 @@ function buildBar() {
       sessionStorage.setItem('cc_nav', JSON.stringify({ from: 'mes', month: viewMonth, year: viewYear }));
       return; // el <a> navega solo
     }
-    if (row.dataset.modal) { openRaceDataModal(rd, rd._race); return; }
+    if (row.dataset.modal) { openRaceDataModal({ id: rd.id, _stageSuffix: rd._stageSuffix }, rd._race); return; }
     if (row.dataset.ph) {
       const todayStr = new Date().toISOString().slice(0, 10);
       row.dataset.phMsg = rd._race?.isCancelled

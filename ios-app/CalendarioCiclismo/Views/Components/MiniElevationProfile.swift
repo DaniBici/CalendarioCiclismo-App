@@ -1,5 +1,96 @@
 import SwiftUI
 
+/// Regla cromática de los miniperfiles web (`profileThemeColor`). Conserva el
+/// matiz original y mezcla solo lo necesario hacia blanco en tema oscuro o
+/// hacia negro en tema claro. Los umbrales corresponden a un contraste superior
+/// a 4,5:1 sobre las tarjetas `#1e2632` y `#fafbfc`.
+enum MiniProfileColorContrast {
+    static let darkMinimumLuminance = 0.27
+    static let lightMaximumLuminance = 0.17
+
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+
+        var relativeLuminance: Double {
+            func linear(_ component: Double) -> Double {
+                component <= 0.04045
+                    ? component / 12.92
+                    : pow((component + 0.055) / 1.055, 2.4)
+            }
+
+            return 0.2126 * linear(red)
+                + 0.7152 * linear(green)
+                + 0.0722 * linear(blue)
+        }
+    }
+
+    static func adjustedRGB(_ color: RGB, for colorScheme: ColorScheme) -> RGB {
+        let isDark = colorScheme == .dark
+        let threshold = isDark ? darkMinimumLuminance : lightMaximumLuminance
+        let needsCorrection = isDark
+            ? color.relativeLuminance < threshold
+            : color.relativeLuminance > threshold
+        guard needsCorrection else { return color }
+
+        let target = isDark
+            ? RGB(red: 1, green: 1, blue: 1)
+            : RGB(red: 0, green: 0, blue: 0)
+        var lowerBound = 0.0
+        var upperBound = 1.0
+
+        // Misma búsqueda binaria de 16 iteraciones que la implementación web.
+        for _ in 0..<16 {
+            let amount = (lowerBound + upperBound) / 2
+            let candidate = mix(color, toward: target, amount: amount)
+            let stillNeedsCorrection = isDark
+                ? candidate.relativeLuminance < threshold
+                : candidate.relativeLuminance > threshold
+            if stillNeedsCorrection {
+                lowerBound = amount
+            } else {
+                upperBound = amount
+            }
+        }
+
+        return mix(color, toward: target, amount: upperBound)
+    }
+
+    static func adjusted(_ color: Color, for colorScheme: ColorScheme) -> Color {
+        let interfaceStyle: UIUserInterfaceStyle = colorScheme == .dark ? .dark : .light
+        let resolved = UIColor(color).resolvedColor(
+            with: UITraitCollection(userInterfaceStyle: interfaceStyle)
+        )
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return color
+        }
+
+        let adjusted = adjustedRGB(
+            RGB(red: Double(red), green: Double(green), blue: Double(blue)),
+            for: colorScheme
+        )
+        return Color(
+            red: adjusted.red,
+            green: adjusted.green,
+            blue: adjusted.blue,
+            opacity: Double(alpha)
+        )
+    }
+
+    private static func mix(_ color: RGB, toward target: RGB, amount: Double) -> RGB {
+        RGB(
+            red: color.red + (target.red - color.red) * amount,
+            green: color.green + (target.green - color.green) * amount,
+            blue: color.blue + (target.blue - color.blue) * amount
+        )
+    }
+}
+
 /// Mini-perfil de elevación compacto para racecards de "Hoy".
 ///
 /// Renderiza la silueta de altimetría más un set de indicadores circulares
@@ -16,6 +107,8 @@ import SwiftUI
 /// contra los bordes — su centro puede quedar ligeramente por encima o
 /// por debajo de la curva si esta pasa muy cerca del borde.
 struct MiniElevationProfile: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let profile: ElevationProfile
     /// Summits a marcar sobre la curva (un círculo rojo con la categoría).
     var summits: [ProfileSummit] = []
@@ -87,7 +180,8 @@ struct MiniElevationProfile: View {
     /// Dibuja la silueta. `progress == nil` → tinte completo (aspecto clásico);
     /// `progress != nil` → base gris + porción teñida recortada al avance.
     private func profileCanvas(progress: Double?) -> some View {
-        Canvas { ctx, size in
+        let profileTint = MiniProfileColorContrast.adjusted(tint, for: colorScheme)
+        return Canvas { ctx, size in
             guard profile.points.count >= 2 else { return }
 
             let xs = profile.points.map { $0.km }
@@ -188,11 +282,11 @@ struct MiniElevationProfile: View {
                 ctx.stroke(strokePath, with: .color(Self.progressBaseColor.opacity(0.5)), style: lineStyle)
                 var tinted = ctx
                 tinted.clip(to: Path(CGRect(x: 0, y: 0, width: size.width * CGFloat(progress), height: size.height)))
-                tinted.fill(fillPath, with: .color(tint.opacity(0.20)))
-                tinted.stroke(strokePath, with: .color(tint.opacity(0.95)), style: lineStyle)
+                tinted.fill(fillPath, with: .color(profileTint.opacity(0.20)))
+                tinted.stroke(strokePath, with: .color(profileTint.opacity(0.95)), style: lineStyle)
             } else {
-                ctx.fill(fillPath, with: .color(tint.opacity(0.15)))
-                ctx.stroke(strokePath, with: .color(tint.opacity(0.85)), style: lineStyle)
+                ctx.fill(fillPath, with: .color(profileTint.opacity(0.15)))
+                ctx.stroke(strokePath, with: .color(profileTint.opacity(0.85)), style: lineStyle)
             }
 
             // Indicadores: summits primero (los círculos más grandes/visibles),

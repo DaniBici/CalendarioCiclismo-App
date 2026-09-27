@@ -1,5 +1,7 @@
-import json, os
+import json, os, shutil
+from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from datetime import datetime, timezone, timedelta, date as dt_date
 
@@ -31,11 +33,28 @@ def type_label(t):
     return TYPE_LABELS.get(t, t) if t else ""
 
 def supabase_get(path):
-    req = Request(f"{SUPABASE_URL}/rest/v1/{path}")
-    req.add_header("apikey", ANON_KEY)
-    req.add_header("Authorization", f"Bearer {ANON_KEY}")
-    with urlopen(req) as res:
-        return json.loads(res.read())
+    """Agota la consulta con orden estable; nunca acepta una página truncada."""
+    rows = []
+    offset = 0
+    while True:
+        req = Request(f"{SUPABASE_URL}/rest/v1/{path}")
+        req.add_header("apikey", ANON_KEY)
+        req.add_header("Authorization", f"Bearer {ANON_KEY}")
+        req.add_header("Range-Unit", "items")
+        req.add_header("Range", f"{offset}-{offset + 999}")
+        try:
+            with urlopen(req, timeout=60) as res:
+                page = json.loads(res.read())
+        except HTTPError as error:
+            if error.code == 416 and rows:
+                return rows
+            raise
+        if not isinstance(page, list):
+            raise ValueError("La consulta de feeds no devolvió filas")
+        rows.extend(page)
+        if len(page) < 1000:
+            return rows
+        offset += 1000
 
 # ── Helpers iCal ───────────────────────────────────────────
 def normalize_date(date_str):
@@ -83,8 +102,8 @@ def fold_line(line):
         out.append(current)
     return "\r\n".join(out)
 
-def build_vcalendar(vevents, year, key):
-    calname = {
+def build_vcalendar(vevents, year, key, name=None):
+    calname = name or {
         "todo": f"Ciclismo {year}",
         "wt":   f"WorldTour {year}",
         "wwt":  f"WorldTour Fem. {year}",
@@ -225,170 +244,6 @@ def build_stage_vevent(race, day, dtstamp):
     lines.append("END:VEVENT")
     return lines
 
-# ── Queries ────────────────────────────────────────────────
-def fetch_races(year, key):
-    params = {
-        "year": f"eq.{year}",
-        "isCancelled": "eq.false",
-        "order": "startDate.asc",
-        "select": "id,name,slug,startDate,endDate,uciCategory,gender,countryCode,raceFormat",
-    }
-    if key == "wt":
-        params["uciCategory"] = "in.(1.UWT,2.UWT)"
-        params["gender"] = "eq.male"
-    elif key == "wwt":
-        params["uciCategory"] = "in.(1.WWT,2.WWT)"
-        params["gender"] = "eq.female"
-    elif key == "masc":
-        params["gender"] = "eq.male"
-        params["uciCategory"] = f'in.({",".join(CATS_PRO)})'
-    elif key == "fem":
-        params["gender"] = "eq.female"
-        params["uciCategory"] = f'in.({",".join(CATS_FEM)})'
-    elif key == "pro":
-        params["uciCategory"] = f'in.({",".join(CATS_PRO)})'
-    return supabase_get(f"races?{urlencode(params)}")
-
-def fetch_race_days(race_ids):
-    if not race_ids:
-        return []
-    params = {
-        "raceId": f'in.({",".join(race_ids)})',
-        "editorialStatus": "eq.published",
-        "order": "dateKey.asc,stageNumber.asc",
-        "select": "id,raceId,dateKey,slug,stageNumber,startLocation,finishLocation,distanceKm,primaryType,secondaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,isRestDay,isCancelledDay",
-    }
-    return supabase_get(f"race_days?{urlencode(params)}")
-
-# ── Años con datos ─────────────────────────────────────────
-years_rows = supabase_get("races?select=year&order=year")
-years = sorted({r.get("year") for r in years_rows if r.get("year")})
-if not years:
-    # Sin datos → al menos generar el año en curso para no dejar 404
-    years = [datetime.now(timezone.utc).year]
-print(f"Años con datos: {years}")
-
-dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-os.makedirs("feed", exist_ok=True)
-
-total_files = 0
-for year in years:
-    for key in FEED_KEYS:
-        races = fetch_races(year, key)
-        if key == "fem":
-            races = [r for r in races
-                     if r.get("uciCategory") not in ("1.2", "2.2")
-                     or (r.get("countryCode") or "").upper() in EUROPE]
-
-        race_ids = [r["id"] for r in races]
-        all_days = fetch_race_days(race_ids)
-
-        days_by_race = {}
-        for d in all_days:
-            days_by_race.setdefault(d["raceId"], []).append(d)
-
-        vevents = []
-        for race in races:
-            days = days_by_race.get(race["id"], [])
-            if race.get("raceFormat") == "stage_race" and days:
-                for d in days:
-                    ev = build_stage_vevent(race, d, dtstamp)
-                    if ev:
-                        vevents.extend(ev)
-            else:
-                day = days[0] if len(days) == 1 else None
-                ev = build_race_vevent(race, dtstamp, day)
-                if ev:
-                    vevents.extend(ev)
-
-        ical = build_vcalendar(vevents, year, key)
-        filename = f"{year}.ics" if key == "todo" else f"{year}-{key}.ics"
-        path = f"feed/{filename}"
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            f.write(ical)
-        total_files += 1
-        print(f"  {path}: {len(races)} carreras, {sum(1 for l in vevents if l == 'BEGIN:VEVENT')} eventos")
-
-print(f"Total: {total_files} .ics generados en feed/")
-
-# ── Feeds individuales por jornada ─────────────────────────
-os.makedirs("feed/event", exist_ok=True)
-
-event_files = 0
-for year in years:
-    year_params = {
-        "year": f"eq.{year}",
-        "isCancelled": "eq.false",
-        "order": "startDate.asc",
-        "select": "id,name,slug,startDate,endDate,uciCategory,gender,countryCode,raceFormat",
-    }
-    year_races = supabase_get(f"races?{urlencode(year_params)}")
-    year_race_ids = [r["id"] for r in year_races]
-    if not year_race_ids:
-        continue
-
-    day_params = {
-        "raceId": f'in.({",".join(year_race_ids)})',
-        "editorialStatus": "eq.published",
-        "isRestDay": "eq.false",
-        "isCancelledDay": "eq.false",
-        "order": "dateKey.asc",
-        "select": "id,raceId,dateKey,slug,stageNumber,startLocation,finishLocation,distanceKm,primaryType,secondaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,isRestDay,isCancelledDay",
-    }
-    year_days = supabase_get(f"race_days?{urlencode(day_params)}")
-
-    races_by_id = {r["id"]: r for r in year_races}
-    for day in year_days:
-        slug = day.get("slug")
-        if not slug:
-            continue
-        race = races_by_id.get(day.get("raceId"))
-        if not race:
-            continue
-
-        if race.get("raceFormat") == "stage_race":
-            ev = build_stage_vevent(race, day, dtstamp)
-        else:
-            ev = build_race_vevent(race, dtstamp, day)
-        if not ev:
-            continue
-
-        ev_year = str(race.get('startDate', ''))[:4]
-        ev_year_str = f' {ev_year}' if ev_year else ''
-        if race.get('raceFormat') == 'stage_race':
-            ev_sn = day.get('stageNumber')
-            if ev_sn == 0: ev_stage = 'Prólogo'
-            elif ev_sn is not None: ev_stage = f'Etapa {ev_sn}'
-            else: ev_stage = None
-            ev_calname = (f'{race.get("name","")}{ev_year_str} · {ev_stage}'
-                         if ev_stage else f'{race.get("name","")}{ev_year_str}')
-        else:
-            ev_calname = f'{race.get("name","")}{ev_year_str}'
-        cal_lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Calendario Ciclismo//calendariociclismo.app//ES",
-            f"X-WR-CALNAME:{escape_text(ev_calname)}",
-            "X-WR-TIMEZONE:Europe/Madrid",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
-            "X-PUBLISHED-TTL:PT6H",
-        ]
-        cal_lines.extend(ev)
-        cal_lines.append("END:VCALENDAR")
-        ical_content = "\r\n".join(fold_line(l) for l in cal_lines)
-
-        path = f"feed/event/{slug}.ics"
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            f.write(ical_content)
-        event_files += 1
-
-print(f"Total: {event_files} per-event .ics generados en feed/event/")
-
-# ── Feeds EN ────────────────────────────────────────────────
-os.makedirs("en/feed/event", exist_ok=True)
-
 EN_CALNAMES = {
     "todo": "Cycling {year}",
     "wt":   "WorldTour {year}",
@@ -404,33 +259,15 @@ def type_label_en(t):
             "itt":"ITT","ttt":"TTT","summit_finish":"Summit finish",
             "uphill_finish":"Uphill finish","chrono_climb":"Uphill time trial"}.get(t, t)
 
-def fetch_races_en(year, key):
-    """Igual que fetch_races pero incluye nameEn y slugEn."""
-    params = {
-        "year": f"eq.{year}",
-        "isCancelled": "eq.false",
-        "order": "startDate.asc",
-        "select": "id,name,nameEn,slug,slugEn,startDate,endDate,uciCategory,gender,countryCode,raceFormat",
-    }
-    races_en = supabase_get(f"races?{urlencode(params)}")
-    if key == "wt":
-        races_en = [r for r in races_en if r.get("uciCategory") in ("1.UWT","2.UWT")]
-    elif key == "wwt":
-        races_en = [r for r in races_en if r.get("uciCategory") in ("1.WWT","2.WWT")]
-    elif key == "pro":
-        races_en = [r for r in races_en if r.get("uciCategory") not in (None,"CN")]
-    elif key == "masc":
-        races_en = [r for r in races_en if r.get("gender") != "female"]
-    elif key == "fem":
-        races_en = [r for r in races_en if r.get("gender") == "female"]
-    return races_en
-
 def build_vevent_en(race, dtstamp, day=None):
     """VEVENT con SUMMARY en inglés usando nameEn cuando existe."""
     # Las carreras anunciadas sin fecha (p. ej. mientras la UCI confirma una
     # edición) deben seguir en el calendario web, pero no pueden convertirse en
     # un VEVENT: DTSTART es obligatorio y un DTEND vacío invalida todo el feed.
     if not (day and day.get("dateKey")) and not race.get("startDate"):
+        return None
+
+    if day and (day.get("isRestDay") or day.get("isCancelledDay")):
         return None
 
     name_en = race.get("nameEn") or race.get("name", "")
@@ -498,153 +335,320 @@ def build_vevent_en(race, dtstamp, day=None):
     lines.append("END:VEVENT")
     return lines
 
-en_total = 0
-for year in years:
-    for key in FEED_KEYS:
-        races_en = fetch_races_en(year, key)
-        if key == "fem":
-            races_en = [r for r in races_en if r.get("uciCategory") not in ("1.2","2.2")
-                        or (r.get("countryCode") or "").upper() in EUROPE]
-        race_ids_en = [r["id"] for r in races_en]
-        all_days_en = fetch_race_days(race_ids_en) if race_ids_en else []
-        # añadir slugEn y locationEn a los days
-        day_slugs_needed = [d["id"] for d in all_days_en]
-        days_en_extra = {}
-        if day_slugs_needed:
-            chunk = day_slugs_needed[:500]
-            extra = supabase_get(f"race_days?id=in.({','.join(chunk)})&select=id,slugEn,startLocationEn,finishLocationEn")
-            for e in extra:
-                days_en_extra[e["id"]] = e
-        for d in all_days_en:
-            extra = days_en_extra.get(d["id"], {})
-            d["slugEn"]          = extra.get("slugEn")
-            d["startLocationEn"] = extra.get("startLocationEn")
-            d["finishLocationEn"]= extra.get("finishLocationEn")
 
-        days_by_race_en = {}
-        for d in all_days_en:
-            days_by_race_en.setdefault(d["raceId"], []).append(d)
+def eligible_calendar_year(year, now=None):
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).year
+    return isinstance(year, int) and not isinstance(year, bool) and year >= current
 
-        vevents_en = []
-        for race in races_en:
-            days = days_by_race_en.get(race["id"], [])
-            if race.get("raceFormat") == "stage_race" and days:
-                for d in days:
-                    ev = build_vevent_en(race, dtstamp, d)
-                    if ev:
-                        vevents_en.extend(ev)
-            else:
-                day = days[0] if len(days) == 1 else None
-                ev = build_vevent_en(race, dtstamp, day)
-                if ev:
-                    vevents_en.extend(ev)
 
-        calname_en = EN_CALNAMES.get(key, "Cycling {year}").replace("{year}", str(year))
-        cal_lines_en = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Cycling Calendar//calendariociclismo.app//EN",
-            f"X-WR-CALNAME:{escape_text(calname_en)}",
-            "X-WR-TIMEZONE:Europe/Madrid",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
-            "X-PUBLISHED-TTL:PT6H",
-        ]
-        cal_lines_en.extend(vevents_en)
-        cal_lines_en.append("END:VCALENDAR")
-        ical_en = "\r\n".join(fold_line(l) for l in cal_lines_en)
-        filename_en = f"{year}.ics" if key == "todo" else f"{year}-{key}.ics"
-        path_en = f"en/feed/{filename_en}"
-        with open(path_en, "w", encoding="utf-8", newline="") as f:
-            f.write(ical_en)
-        en_total += 1
+def filter_races(races, key, lang):
+    """Conserva los filtros ES/EN existentes, aunque no sean equivalentes."""
+    def matches(race):
+        category, gender = race.get("uciCategory"), race.get("gender")
+        if lang == "en":
+            if key == "wt": return category in ("1.UWT", "2.UWT")
+            if key == "wwt": return category in ("1.WWT", "2.WWT")
+            if key == "pro": return category not in (None, "CN")
+            if key == "masc": return gender != "female"
+            if key == "fem": return gender == "female"
+        else:
+            if key == "wt": return category in ("1.UWT", "2.UWT") and gender == "male"
+            if key == "wwt": return category in ("1.WWT", "2.WWT") and gender == "female"
+            if key == "pro": return category in CATS_PRO
+            if key == "masc": return gender == "male" and category in CATS_PRO
+            if key == "fem": return gender == "female" and category in CATS_FEM
+        return True
 
-print(f"Total EN: {en_total} .ics generados en en/feed/")
+    return [race for race in races if matches(race)
+            and (key != "fem" or race.get("uciCategory") not in ("1.2", "2.2")
+                 or (race.get("countryCode") or "").upper() in EUROPE)]
 
-# ── Feeds EN por jornada suelta ────────────────────────────
-en_event_files = 0
-for year in years:
-    year_params_ev = {
-        "year": f"eq.{year}",
-        "isCancelled": "eq.false",
-        "order": "startDate.asc",
-        "select": "id,name,nameEn,slug,slugEn,startDate,endDate,uciCategory,gender,countryCode,raceFormat",
-    }
-    year_races_ev = supabase_get(f"races?{urlencode(year_params_ev)}")
-    year_race_ids_ev = [r["id"] for r in year_races_ev]
-    if not year_race_ids_ev:
-        continue
 
-    day_params_ev = {
-        "raceId": f'in.({",".join(year_race_ids_ev)})',
-        "editorialStatus": "eq.published",
-        "isRestDay": "eq.false",
-        "isCancelledDay": "eq.false",
-        "order": "dateKey.asc",
-        "select": "id,raceId,dateKey,slug,stageNumber,startLocation,finishLocation,distanceKm,primaryType,secondaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,isRestDay,isCancelledDay",
-    }
-    year_days_ev = supabase_get(f"race_days?{urlencode(day_params_ev)}")
+RACE_FIELDS = "id,year,name,nameEn,slug,slugEn,startDate,endDate,uciCategory,gender,countryCode,raceFormat"
+DAY_FIELDS = ("id,raceId,dateKey,slug,slugEn,stageNumber,startLocation,finishLocation,startLocationEn,"
+              "finishLocationEn,distanceKm,primaryType,secondaryType,neutralStartTimeUtc,estimatedFinishTimeUtc,"
+              "isRestDay,isCancelledDay")
+DAY_ORDER = "dateKey.asc,stageNumber.asc,id.asc"
 
-    day_ids_ev = [d["id"] for d in year_days_ev]
-    days_en_extra_ev = {}
-    if day_ids_ev:
-        chunk = day_ids_ev[:500]
-        extra_rows = supabase_get(f"race_days?id=in.({','.join(chunk)})&select=id,slugEn,startLocationEn,finishLocationEn")
-        for e in extra_rows:
-            days_en_extra_ev[e["id"]] = e
-    for d in year_days_ev:
-        extra = days_en_extra_ev.get(d["id"], {})
-        d["slugEn"]           = extra.get("slugEn")
-        d["startLocationEn"]  = extra.get("startLocationEn")
-        d["finishLocationEn"] = extra.get("finishLocationEn")
 
-    races_by_id_ev = {r["id"]: r for r in year_races_ev}
-    for day in year_days_ev:
-        slug = day.get("slugEn") or day.get("slug")
+def in_list(values):
+    return "in.(" + ",".join(f'"{value}"' for value in sorted(values)) + ")"
+
+
+def fetch_year(year):
+    races = supabase_get("races?" + urlencode({
+        "year": f"eq.{year}", "isCancelled": "eq.false",
+        "order": "startDate.asc,id.asc",
+        "select": RACE_FIELDS,
+    }))
+    days = []
+    ids = [race["id"] for race in races]
+    for offset in range(0, len(ids), 100):
+        days.extend(supabase_get("race_days?" + urlencode({
+            "raceId": f'in.({",".join(ids[offset:offset + 100])})',
+            "editorialStatus": "eq.published",
+            "order": DAY_ORDER,
+            "select": DAY_FIELDS,
+        })))
+    return races, days
+
+
+def calendar_en(events, name):
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0",
+             "PRODID:-//Cycling Calendar//calendariociclismo.app//EN",
+             f"X-WR-CALNAME:{escape_text(name)}", "X-WR-TIMEZONE:Europe/Madrid",
+             "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+             "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H",
+             *events, "END:VCALENDAR"]
+    return "\r\n".join(fold_line(line) for line in lines)
+
+
+def write_feed(path, content):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content.encode("utf-8"))
+
+
+def annual_name(year, key):
+    return f"{year}.ics" if key == "todo" else f"{year}-{key}.ics"
+
+
+def annual_calendar(events, year, key, lang):
+    return (build_vcalendar(events, year, key) if lang == "es" else
+            calendar_en(events, EN_CALNAMES[key].format(year=year)))
+
+
+def race_annual_events(race, race_days, lang, stamp):
+    """VEVENTs de una carrera en los feeds anuales."""
+    events = []
+    selected = race_days if race.get("raceFormat") == "stage_race" and race_days else [
+        race_days[0] if len(race_days) == 1 else None]
+    for day in selected:
+        if day and (day.get("isRestDay") or day.get("isCancelledDay")):
+            continue
+        event = (build_vevent_en(race, stamp, day) if lang == "en" else
+                 build_stage_vevent(race, day, stamp) if day and race.get("raceFormat") == "stage_race" else
+                 build_race_vevent(race, stamp, day))
+        events.extend(event or [])
+    return events
+
+
+def individual_slug(day, lang):
+    slug = (day.get("slugEn") or day.get("slug")) if lang == "en" else day.get("slug")
+    if slug and (Path(slug).name != slug or slug in (".", "..")):
+        raise ValueError("Slug de feed individual no permitido")
+    return slug
+
+
+def write_individual_feeds(race, race_days, lang, base, stamp, year, prune=False):
+    """Un feed por jornada; con prune retira los de jornadas sin evento."""
+    count = 0
+    for day in race_days:
+        slug = individual_slug(day, lang)
         if not slug:
             continue
-        race = races_by_id_ev.get(day.get("raceId"))
-        if not race:
+        path = Path(f"{base}/event/{slug}.ics")
+        event = None
+        if not (day.get("isRestDay") or day.get("isCancelledDay")):
+            event = (build_vevent_en(race, stamp, day) if lang == "en" else
+                     build_stage_vevent(race, day, stamp) if race.get("raceFormat") == "stage_race" else
+                     build_race_vevent(race, stamp, day))
+        if not event:
+            if prune and path.is_file():
+                path.unlink()
             continue
-
-        ev = build_vevent_en(race, dtstamp, day)
-        if not ev:
-            continue
-
-        name_en = race.get("nameEn") or race.get("name", "")
-        ev_year = str(race.get("startDate", ""))[:4]
-        ev_year_str = f" {ev_year}" if ev_year else ""
-        if race.get("raceFormat") == "stage_race":
-            ev_sn = day.get("stageNumber")
-            if ev_sn == 0:
-                ev_stage = " — Prologue"
-            elif ev_sn is not None:
-                ev_stage = f" — Stage {ev_sn}"
-            else:
-                ev_stage = ""
-            ev_calname_en = f"{name_en}{ev_year_str}{ev_stage}"
+        if lang == "en":
+            name = f'{race.get("nameEn") or race.get("name", "")} {year}'
+            stage = day.get("stageNumber")
+            if race.get("raceFormat") == "stage_race":
+                name += " — Prologue" if stage == 0 else f" — Stage {stage}" if stage is not None else ""
+            content = calendar_en(event, name)
         else:
-            ev_calname_en = f"{name_en}{ev_year_str}"
+            stage = day.get("stageNumber")
+            label = "Prólogo" if stage == 0 else f"Etapa {stage}" if stage is not None else None
+            name = f'{race.get("name", "")} {year}'
+            if race.get("raceFormat") == "stage_race" and label:
+                name += f" · {label}"
+            content = build_vcalendar(event, year, "todo", name)
+        write_feed(path, content)
+        count += 1
+    return count
 
-        cal_lines_ev = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Cycling Calendar//calendariociclismo.app//EN",
-            f"X-WR-CALNAME:{escape_text(ev_calname_en)}",
-            "X-WR-TIMEZONE:Europe/Madrid",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
-            "X-PUBLISHED-TTL:PT6H",
-        ]
-        cal_lines_ev.extend(ev)
-        cal_lines_ev.append("END:VCALENDAR")
-        ical_content_ev = "\r\n".join(fold_line(l) for l in cal_lines_ev)
 
-        path_ev = f"en/feed/event/{slug}.ics"
-        with open(path_ev, "w", encoding="utf-8", newline="") as f:
-            f.write(ical_content_ev)
-        en_event_files += 1
+def write_year(year, races, days, stamp, totals, now):
+    races = [race for race in races if race.get("year") == year
+             and eligible_calendar_year(race.get("year"), now)
+             and not race.get("isCancelled")]
+    by_race = {}
+    for day in days:
+        by_race.setdefault(day.get("raceId"), []).append(day)
 
-print(f"Total EN events: {en_event_files} per-event .ics generados en en/feed/event/")
+    for lang, base in (("es", "feed"), ("en", "en/feed")):
+        for key in FEED_KEYS:
+            events = []
+            for race in filter_races(races, key, lang):
+                events.extend(race_annual_events(race, by_race.get(race["id"], []), lang, stamp))
+            name = annual_name(year, key)
+            write_feed(f"{base}/{name}", annual_calendar(events, year, key, lang))
+            totals["annual"] += 1
+            print(f"  {base}/{name}: {events.count('BEGIN:VEVENT')} eventos")
+
+        for race in races:
+            totals["events"] += write_individual_feeds(
+                race, by_race.get(race["id"], []), lang, base, stamp, year)
+
+
+def generate_feeds(now=None):
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    # El filtro precede a cualquier consulta de jornadas históricas.
+    year_rows = supabase_get("races?" + urlencode({
+        "select": "id,year", "year": f"gte.{now.year}", "order": "year.asc,id.asc",
+    }))
+    years = sorted({row["year"] for row in year_rows
+                    if eligible_calendar_year(row.get("year"), now)})
+    years = sorted(set(years) | {now.year})
+    print(f"Años iCal elegibles: {years}")
+    # Destinos generados exclusivos. No se mezclan con fuentes ni slugs viejos.
+    for destination in ("feed", "en/feed"):
+        directory = Path(destination)
+        if directory.is_symlink():
+            raise ValueError(f"Destino iCal no permitido: {directory}")
+        if directory.exists():
+            shutil.rmtree(directory)
+        (directory / "event").mkdir(parents=True)
+
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    totals = {"annual": 0, "events": 0}
+    for year in years:
+        races, days = fetch_year(year)
+        write_year(year, races, days, stamp, totals, now)
+    print(f"Total iCal: {totals['annual']} anuales y {totals['events']} individuales")
+    return years, totals
+
+
+# ── Modo incremental: sustituye en los feeds cacheados las carreras de unas
+# jornadas, sin consultar el resto del catálogo.
+def split_calendar(content):
+    lines = content.split("\r\n")
+    if not lines or lines[0] != "BEGIN:VCALENDAR" or lines[-1] != "END:VCALENDAR":
+        raise ValueError("Feed iCal cacheado inválido")
+    first = lines.index("BEGIN:VEVENT") if "BEGIN:VEVENT" in lines else len(lines) - 1
+    blocks, current = [], None
+    for line in lines[first:-1]:
+        if line == "BEGIN:VEVENT":
+            current = []
+        if current is None:
+            raise ValueError("Feed iCal cacheado inválido")
+        current.append(line)
+        if line == "END:VEVENT":
+            blocks.append(current)
+            current = None
+    if current is not None:
+        raise ValueError("Feed iCal cacheado inválido")
+    return lines[:first], blocks
+
+
+def block_uid(block):
+    logical = []
+    for line in block:
+        if line.startswith(" ") and logical:
+            logical[-1] += line[1:]
+        else:
+            logical.append(line)
+    return next((line[4:] for line in logical if line.startswith("UID:")), None)
+
+
+def race_uids(race, race_days):
+    """UIDs que una carrera y sus jornadas pueden haber emitido en ES y EN."""
+    es = {race.get("slug"), race.get("id")} | {day.get(field) for day in race_days for field in ("slug", "id")}
+    en = ({race.get("slugEn"), race.get("slug"), race.get("id")}
+          | {day.get(field) for day in race_days for field in ("slugEn", "slug")})
+    return ({f"{value}@calendariociclismo.app" for value in es if value}
+            | {f"{value}@en.calendariociclismo.app" for value in en if value})
+
+
+def splice_calendar(content, uids, events):
+    """Retira los VEVENT con esos UID e inserta los nuevos en su lugar."""
+    header, blocks = split_calendar(content)
+    kept, position = [], None
+    for block in blocks:
+        if block_uid(block) in uids:
+            position = len(kept) if position is None else position
+            continue
+        kept.append(block)
+    position = len(kept) if position is None else position
+    lines = (header + [line for block in kept[:position] for line in block]
+             + [fold_line(line) for line in events]
+             + [line for block in kept[position:] for line in block] + ["END:VCALENDAR"])
+    return "\r\n".join(lines), len(blocks) - len(kept)
+
+
+def update_feeds(stage_slugs, now=None):
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    refs = supabase_get("race_days?" + urlencode({
+        "select": "slug,raceId", "editorialStatus": "eq.published", "slug": in_list(stage_slugs),
+        "order": "slug.asc"}))
+    refs = [row for row in refs if row.get("slug") in stage_slugs]
+    missing = set(stage_slugs) - {row["slug"] for row in refs}
+    race_ids = {row.get("raceId") for row in refs}
+    if missing or None in race_ids:
+        raise ValueError(f"Jornadas no publicadas o sin carrera: {sorted(missing)}")
+    races = supabase_get("races?" + urlencode({
+        "id": in_list(race_ids), "order": "startDate.asc,id.asc",
+        "select": RACE_FIELDS + ",isCancelled"}))
+    days = supabase_get("race_days?" + urlencode({
+        "raceId": in_list(race_ids), "editorialStatus": "eq.published",
+        "order": DAY_ORDER, "select": DAY_FIELDS}))
+    by_race = {}
+    for day in days:
+        by_race.setdefault(day.get("raceId"), []).append(day)
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    totals = {"annual": 0, "events": 0}
+    for year in sorted({race.get("year") for race in races
+                        if eligible_calendar_year(race.get("year"), now)}):
+        year_races = [race for race in races if race.get("year") == year]
+        if not all(Path(f"{base}/{annual_name(year, key)}").is_file()
+                   for base in ("feed", "en/feed") for key in FEED_KEYS):
+            # Año nuevo sin feeds cacheados: se genera completo.
+            print(f"  {year}: sin feeds anuales en caché; generación completa del año")
+            year_rows, year_days = fetch_year(year)
+            write_year(year, year_rows, year_days, stamp, totals, now)
+            continue
+        active = [race for race in year_races if not race.get("isCancelled")]
+        uids = set().union(*(race_uids(race, by_race.get(race["id"], [])) for race in year_races))
+        for lang, base in (("es", "feed"), ("en", "en/feed")):
+            for key in FEED_KEYS:
+                events = []
+                for race in filter_races(active, key, lang):
+                    events.extend(race_annual_events(race, by_race.get(race["id"], []), lang, stamp))
+                path = Path(f"{base}/{annual_name(year, key)}")
+                content, removed = splice_calendar(path.read_bytes().decode("utf-8"), uids, events)
+                write_feed(path, content)
+                totals["annual"] += 1
+                print(f"  {path}: {removed} eventos sustituidos por {events.count('BEGIN:VEVENT')}")
+            for race in year_races:
+                race_days = by_race.get(race["id"], [])
+                if race.get("isCancelled"):
+                    for day in race_days:
+                        slug = individual_slug(day, lang)
+                        if slug and Path(f"{base}/event/{slug}.ics").is_file():
+                            Path(f"{base}/event/{slug}.ics").unlink()
+                    continue
+                totals["events"] += write_individual_feeds(
+                    race, race_days, lang, base, stamp, year, prune=True)
+    print(f"Total iCal incremental: {len(race_ids)} carreras, {totals['annual']} anuales "
+          f"y {totals['events']} individuales reescritos")
+    return totals
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stage-slugs", help="Actualiza los feeds cacheados con estas jornadas")
+    arguments = parser.parse_args()
+    if not ANON_KEY:
+        raise SystemExit("Falta SUPABASE_ANON_KEY en secretos del repositorio.")
+    if arguments.stage_slugs:
+        update_feeds(set(arguments.stage_slugs.split(",")))
+    else:
+        generate_feeds()

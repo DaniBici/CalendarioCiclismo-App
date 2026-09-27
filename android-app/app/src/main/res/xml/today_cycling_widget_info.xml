@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Widget «Carreras de hoy». Tamaños adaptativos (2x2, 4x2, 4x4) resueltos
+     en TodayCyclingWidget con SizeMode.Responsive. La configuración es
+     opcional al añadirlo y se puede reabrir desde el launcher (Android 12+). -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
+    android:minWidth="110dp"
     android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"
+    android:configure="app.calendariociclismo.android.widget.today.TodayWidgetConfigureActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:initialLayout="@layout/widget_today_preview"
-    android:previewImage="@drawable/widget_preview"
+    android:previewLayout="@layout/widget_today_preview"
     android:description="@string/widget_today_description" />

@@ -41,4 +41,18 @@ describe('getBroadcastEmbed', () => {
     expect(getBroadcastEmbed('https://www.youtube.com/watch?v=abcdefghijk', false)).toBe(null);
     expect(getBroadcastEmbed('https://example.com/live')).toBe(null);
   });
+
+  it('no extrae un ID falso de un parámetro v= fuera de YouTube', () => {
+    // Caso real: Tour de Gatineau 2026, Facebook Live con ID de 16 dígitos.
+    // La regex sin validar host tomaba los primeros 11 chars como ID de YouTube.
+    const url = 'https://www.facebook.com/watch/live/?ref=watch_permalink&v=1387931809525547';
+    expect(extractYouTubeId(url)).toBe(null);
+    expect(getBroadcastEmbed(url)).toBe(null);
+    expect(extractYouTubeId('https://www.youtube.com/watch?v=abcdefghijk')).toBe('abcdefghijk');
+    expect(extractYouTubeId('https://youtu.be/abcdefghijk')).toBe('abcdefghijk');
+    expect(extractYouTubeId('https://www.youtube.com/live/abcdefghijk')).toBe('abcdefghijk');
+    expect(extractYouTubeId('https://fakeyoutube.com/watch?v=abcdefghijk')).toBe(null);
+    expect(extractYouTubeId('https://example.com/?v=abcdefghijk')).toBe(null);
+    expect(extractYouTubeId('no es una url')).toBe(null);
+  });
 });

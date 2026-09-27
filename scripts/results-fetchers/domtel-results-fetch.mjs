@@ -4,10 +4,10 @@
  * (domtel-sport.pl), cronometrador polaco (Course de Solidarność i Olimpijczyków
  * UCI Europe Tour, y otras carreras de Polonia).
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
- * race_uci_links.source (migración 118) vía uci-results-cron.mjs.
+ * race_uci_links.source (migración 118) vía results-cron.mjs.
  *
  * ENDPOINT (público, sin auth): POST
  *   https://wyniki.domtel-sport.pl/wp-admin/admin-ajax.php

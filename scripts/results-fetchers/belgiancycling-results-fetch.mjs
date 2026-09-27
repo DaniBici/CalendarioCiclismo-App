@@ -13,6 +13,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { normalizeUciLicense } from './uci-license.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const index = argv.indexOf(name); return index < 0 ? fallback : argv[index + 1]; };
@@ -58,7 +59,7 @@ export const resultPdfUrl = (code) => {
 };
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
-const compactUciId = (value) => clean(value).replace(/\s/g, '');
+const compactUciId = (value) => normalizeUciLicense(value);
 const placeholderPattern = /Info nog niet beschikbaar|Les informations pas encore disponible|Information not yet available/i;
 export const isPlaceholder = (text) => placeholderPattern.test(String(text || ''));
 
@@ -88,11 +89,19 @@ function timeToGap(value) {
 // `pdftotext -layout` puede pegar el IOC al UCI ID (SWE100...) cuando la
 // columna queda estrecha. El UCI ID es el ancla estable para recuperar la fila.
 const rowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*((?:\d{3}\s*){3}\d{2})\s+(.+?)\s{2,}([A-Z0-9]{2,4})\s{2,}(.+?)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
+// Los clubes amateurs se imprimen sin código UCI: una sola columna de equipo
+// (Kampioenschap van Vlaanderen 2026, 5 clasificados y 2 DNF de AARCO).
+const clubRowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*((?:\d{3}\s*){3}\d{2})\s+(.+?)\s{2,}(\S+)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
 
 export function parseResultRow(line, irm = null) {
   const match = String(line).match(rowPattern);
-  if (!match) return null;
-  const [, rankText, bib, ioc, uciId, riderDisplay, teamCode, teamName, resultTime] = match;
+  const clubMatch = match ? null : String(line).match(clubRowPattern);
+  if (!match && !clubMatch) return null;
+  const g = match ?? clubMatch;
+  const [rankText, bib, ioc, uciId, riderDisplay] = [g[1], g[2], g[3], g[4], g[5]];
+  const teamCode = match ? g[6] : null;
+  const teamName = match ? g[7] : g[6];
+  const resultTime = match ? g[8] : g[7];
   if (!rankText && !irm) return null;
   if (rankText && !resultTime) return null;
   if (irm && (rankText || resultTime)) return null;
@@ -131,10 +140,18 @@ export function parsePdfText(code, text, expectedDate = null) {
   if (isPlaceholder(text)) return null;
   if (!/UITSLAG\s*-\s*RESULTAT\s*-\s*RESULT/i.test(text)) throw new Error('el PDF no contiene una clasificación Belgian Cycling reconocible');
 
-  const dateKey = normalizedDate(text);
+  let dateKey = normalizedDate(text);
   if (!dateKey) throw new Error('el PDF no contiene fecha');
   if (dateKey.slice(0, 4) !== parsedCode.slice(0, 4)) throw new Error(`el PDF es de ${dateKey.slice(0, 4)}, no de ${parsedCode.slice(0, 4)}`);
-  if (expectedDate && dateKey !== expectedDate) throw new Error(`el PDF es de ${dateKey}, no de ${expectedDate}`);
+  // La fecha impresa puede llevar errata de un día (Kampioenschap van Vlaanderen
+  // 2026 imprime 19/09 por una prueba del 18/09). Con --date, un desfase de hasta
+  // un día se avisa y se normaliza a la fecha de la jornada; más de un día se rechaza.
+  if (expectedDate && dateKey !== expectedDate) {
+    const diffDays = Math.round((Date.parse(`${dateKey}T00:00:00Z`) - Date.parse(`${expectedDate}T00:00:00Z`)) / 86400000);
+    if (!Number.isFinite(diffDays) || Math.abs(diffDays) > 1) throw new Error(`el PDF es de ${dateKey}, no de ${expectedDate}`);
+    log(`Belgian Cycling ${parsedCode}: el PDF imprime ${dateKey}; se toma la fecha de la jornada ${expectedDate}`);
+    dateKey = expectedDate;
+  }
 
   // `Deelnemers` cuenta a quienes tomaron la salida. Los DNS se publican en la
   // misma clasificación, pero no entran en ese total; se suman tras extraerlos.

@@ -19,8 +19,8 @@ final class StartlistViewModel {
     }
 
     var teamCount: Int {
-        // El ficticio "Individual" no cuenta como equipo (sus corredores sí).
-        teamsList.filter { !$0.isIndividualPlaceholder }.count
+        // Los estados sin equipo no cuentan como formaciones (sus corredores sí).
+        teamsList.filter { !$0.isNoTeamPlaceholder }.count
     }
 
     var riderCount: Int {
@@ -93,12 +93,14 @@ final class StartlistViewModel {
         // Agrupar riders por teamId
         let ridersByTeam = Dictionary(grouping: ridersData, by: { $0.teamId })
 
-        // Equipos globales si la lista es enriquecida
+        // Todas las listas usan sus equipos canónicos, solo para los ids presentes.
         var globalTeamMap: [String: Team] = [:]
         var seasonMap: [String: TeamSeason] = [:]
-        if race.enrichedStartlist == true {
+        let globalTeamIds = Array(Set(teamsData.compactMap { $0.teamId }))
+        if !globalTeamIds.isEmpty {
             let globalTeams = try await service.client.from("teams")
                 .select()
+                .in("id", values: globalTeamIds)
                 .execute()
                 .value as [Team]
             globalTeamMap = Dictionary(uniqueKeysWithValues: globalTeams.map { ($0.id, $0) })
@@ -109,9 +111,13 @@ final class StartlistViewModel {
                 let seasons = try await service.client.from("team_seasons")
                     .select()
                     .eq("year", value: year)
+                    .in("teamId", values: globalTeamIds)
                     .execute()
                     .value as [TeamSeason]
                 seasonMap = Dictionary(seasons.map { ($0.teamId, $0) }, uniquingKeysWith: { a, _ in a })
+            }
+            for id in globalTeamIds where globalTeamMap[id] == nil {
+                globalTeamMap[id] = seasonMap[id]?.asTeam()
             }
         }
 
@@ -217,9 +223,9 @@ struct StartlistTeamWithRiders: Identifiable {
     let team: Team?
     let riders: [StartlistRiderView]
 
-    /// Ficticio "Individual" → se oculta su cabecera y no cuenta como equipo.
-    var isIndividualPlaceholder: Bool {
-        isIndividualPlaceholderTeam(teamId: teamId, teamName: teamName)
+    /// Estado sin equipo → se oculta su cabecera y no cuenta como equipo.
+    var isNoTeamPlaceholder: Bool {
+        isNoTeamPlaceholderTeam(teamId: teamId, teamName: teamName)
     }
 }
 

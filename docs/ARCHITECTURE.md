@@ -97,8 +97,11 @@ Panel / Supabase pg_cron
 
 ```
 Fuentes oficiales (HTML / JSON / PDF)
-    └── Hetzner VPS: systemd timer → uci-results-cron.mjs --configured
-            └── fetcher por cronometrador → contrato JSON → upsert
+    └── Hetzner VPS: systemd timer → results-vps-runner.mjs
+            ├── dataride-live-linker.mjs (cada 5 min, carreras actuales sin fuente)
+            │       └── enlace UCI + volcado inmediato de la jornada actual
+            └── results-cron.mjs --configured
+                    └── fetcher por cronometrador → contrato JSON → upsert
                     └── PostgreSQL (race_uci_stages + race_uci_results)
                             ├── Web → lectura en vivo desde Supabase
                             ├── iOS → SupabaseService
@@ -110,11 +113,15 @@ la cadencia según la capacidad de la fuente. Los botones manuales insertan una
 solicitud en una cola privada de PostgreSQL que el mismo timer reclama. GitHub
 Actions conserva el script como fallback manual, sin programación automática.
 
+El enlazador live solo crea enlaces para carreras del día sin ninguna fila previa
+en `race_uci_links`. Una coincidencia ambigua, una colisión de competición o una
+fuente ya enlazada no se modifica automáticamente.
+
 El ránking UCI de equipos usa un servicio separado del VPS. DataRide se consulta
 cada hora durante lunes y martes y una vez el miércoles; una fecha ya almacenada
 no provoca una nueva escritura.
 
-HBO Max y la guía de RTVE se consultan con un servicio y un rol PostgreSQL
+HBO Max, RTVE, EITB, Sporza y RTBF se consultan con un servicio y un rol PostgreSQL
 separados. El modo de aplicación exige dos observaciones estables, fuente oficial, emparejamiento
 único y ausencia de ediciones manuales concurrentes; nunca elimina emisiones.
 
@@ -134,7 +141,8 @@ calendario-ciclismo/
 │   └── functions/                                Edge Functions (TypeScript/Deno)
 ├── scripts/results-fetchers/                      Watcher, fetchers y upsert de resultados
 ├── scripts/broadcasts-sync/                       Observación y sincronización de emisiones
-├── deploy/uci-results-vps/                        Unidades systemd de resultados y ránking
+├── deploy/results-vps/                            Unidades systemd de resultados
+├── deploy/uci-ranking-vps/                        Unidades systemd del ránking UCI
 ├── deploy/broadcasts-vps/                         Unidades systemd de emisiones
 ├── ios-app/CalendarioCiclismo/
 │   ├── Models/                                   Race, RaceDay, Broadcast, …
@@ -165,7 +173,7 @@ calendario-ciclismo/
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Supabase Edge Function `send-push` | Supabase Dashboard → Edge Functions → Secrets |
 | APNs key | Supabase Edge Function `send-push` | Supabase Dashboard → Edge Functions → Secrets |
 | R2 API keys | Supabase Edge Function `r2-upload` | Supabase Dashboard → Edge Functions → Secrets |
-| `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/uci-results.env` (`0640`, fuera del repo) + copia de recuperación privada |
+| `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/results.env` (`0640`, fuera del repo) + copia de recuperación privada |
 | `BROADCASTS_DATABASE_URL` del rol `cc_broadcasts_login` | Sincronizador de emisiones del VPS | `/etc/calendario-ciclismo/broadcasts.env` (`0600`, fuera del repo) |
 
 ## Decisiones clave

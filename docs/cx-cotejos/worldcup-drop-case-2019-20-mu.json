@@ -1,0 +1,2993 @@
+{
+  "scope": "offline_official_dropped_places_case_only",
+  "seasonKey": "2019-20",
+  "category": "MU",
+  "checkedAt": "2026-09-12",
+  "rulesSourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/3/3.pdf?t=1604561483",
+  "officialStandingsSourceUrl": "https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/3/3.pdf?t=1604561483",
+  "officialStandingsSha256": "13ebb50737d985f148edeca7a01794af6f65962fa9267ceccf0e3be51508e6c0",
+  "rules": {
+    "perRank": [
+      60,
+      50,
+      45,
+      40,
+      35,
+      30,
+      28,
+      26,
+      24,
+      22,
+      20,
+      19,
+      18,
+      17,
+      16,
+      15,
+      14,
+      13,
+      12,
+      11,
+      10,
+      9,
+      8,
+      7,
+      6,
+      5,
+      4,
+      3,
+      2,
+      1
+    ],
+    "heldRounds": 7,
+    "keepBest": 4,
+    "countPlacingsRanksTo": 30,
+    "latestRoundPointsPolicy": "lastHeldRound"
+  },
+  "resultColumns": [
+    "rank",
+    "bib",
+    "riderDisplay",
+    "nation",
+    "yearOfBirth",
+    "irm"
+  ],
+  "standingsColumns": [
+    "rank",
+    "riderDisplay",
+    "nation",
+    "yearOfBirth",
+    "points",
+    "roundCells"
+  ],
+  "officialCase": [
+    [
+      4,
+      "MEIN Thomas",
+      "GBR",
+      1999,
+      173,
+      [
+        "24 (9)",
+        "60 (1)",
+        "40 (4)",
+        "0",
+        "28 (7)",
+        "45 (3)",
+        "0"
+      ]
+    ],
+    [
+      5,
+      "VANDEPUTTE Niels",
+      "BEL",
+      2000,
+      173,
+      [
+        "22 (10)",
+        "-",
+        "60 (1)",
+        "28 (7)",
+        "40 (4)",
+        "-",
+        "45 (3)"
+      ]
+    ]
+  ],
+  "rounds": [
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Bern",
+      "dateKey": "2019-10-20",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57742,
+        "seasonId": 141,
+        "uciRaceId": 145144,
+        "eventId": 193952
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:39.713Z",
+      "normalizedDataRideSha256": "701630ffec1fcf175784958b16757e5d4487ef5442907c8cdacbfb8f764a5ec3",
+      "rowCount": 45,
+      "rows": [
+        [
+          1,
+          "35",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          2,
+          "13",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          3,
+          "34",
+          "ROUILLER Loris",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          4,
+          "20",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          5,
+          "2",
+          "TURNER Ben",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          6,
+          "10",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          7,
+          "5",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          8,
+          "9",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          9,
+          "3",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          10,
+          "6",
+          "VANDEPUTTE Niels",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          11,
+          "21",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          12,
+          "7",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          13,
+          "17",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          14,
+          "15",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          15,
+          "24",
+          "REMONDET Valentin",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          16,
+          "29",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          17,
+          "14",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          18,
+          "43",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          19,
+          "25",
+          "THOMAS Théo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          20,
+          "18",
+          "VERBURG Luke",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          21,
+          "40",
+          "FOLCARELLI Antonio",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          22,
+          "38",
+          "SOMMER Jan",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          23,
+          "42",
+          "TONEATTI Davide",
+          "ITA",
+          2001,
+          null
+        ],
+        [
+          24,
+          "4",
+          "TULETT Ben",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          25,
+          "16",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          26,
+          "22",
+          "NAVARRO Quentin",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          27,
+          "28",
+          "KOPECKÝ Tomas",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          28,
+          "47",
+          "SCHÄTTI Luca",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          29,
+          "39",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          30,
+          "45",
+          "LINDNER Tom",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          31,
+          "23",
+          "DELBOVE Joris",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          32,
+          "36",
+          "LÜTHI Eric",
+          "SUI",
+          1999,
+          null
+        ],
+        [
+          33,
+          "41",
+          "CEOLIN Federico",
+          "ITA",
+          2000,
+          null
+        ],
+        [
+          34,
+          "30",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          35,
+          "46",
+          "OBERTEICHER Matteo",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          36,
+          "44",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          37,
+          "37",
+          "DUFAUX Loïs",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          38,
+          "31",
+          "VANÍČEK Šimon",
+          "CZE",
+          1999,
+          null
+        ],
+        [
+          39,
+          "32",
+          "HULA Robert",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          40,
+          "52",
+          "MEYER Marino",
+          "SUI",
+          2001,
+          null
+        ],
+        [
+          41,
+          "48",
+          "CONOD Nicolas",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          42,
+          "50",
+          "KAUFMANN David",
+          "SUI",
+          2001,
+          null
+        ],
+        [
+          43,
+          "49",
+          "HEINIGER Lars",
+          "SUI",
+          2001,
+          null
+        ],
+        [
+          44,
+          "51",
+          "MAILLEFER Simon",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          null,
+          "8",
+          "BELLENS Jarno",
+          "BEL",
+          2000,
+          "DNS"
+        ]
+      ],
+      "projectionSha256": "c188db816eadab9c368d30d1d7d8003c46145aa010ddf700bbff76ef99b9440a"
+    },
+    {
+      "name": "Coupe du Monde UCI / UCI World Cup Tabor",
+      "dateKey": "2019-11-16",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57743,
+        "seasonId": 141,
+        "uciRaceId": 145146,
+        "eventId": 193946
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:40.854Z",
+      "normalizedDataRideSha256": "775f7f717ad2be65900e3395dcba498918de9a4e4df0cee00eda39eb844a2884",
+      "rowCount": 42,
+      "rows": [
+        [
+          1,
+          "3",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          2,
+          "30",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          3,
+          "21",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          4,
+          "11",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          5,
+          "13",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          6,
+          "10",
+          "BELLENS Jarno",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          7,
+          "4",
+          "MASON Cameron",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          8,
+          "29",
+          "ROUILLER Loris",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          9,
+          "20",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          10,
+          "32",
+          "FONTANA Filippo",
+          "ITA",
+          2000,
+          null
+        ],
+        [
+          11,
+          "16",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          12,
+          "9",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          13,
+          "6",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          14,
+          "8",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          15,
+          "17",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          16,
+          "24",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          17,
+          "15",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          18,
+          "12",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          19,
+          "22",
+          "LEGRAND Matthieu",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          20,
+          "43",
+          "VAS Balázs",
+          "HUN",
+          2000,
+          null
+        ],
+        [
+          21,
+          "14",
+          "DEKKER Jens",
+          "NED",
+          1998,
+          null
+        ],
+        [
+          22,
+          "25",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          23,
+          "18",
+          "VERBURG Luke",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          24,
+          "31",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          25,
+          "28",
+          "ŤOUPALÍK Jakub",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          26,
+          "27",
+          "HULA Robert",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          27,
+          "33",
+          "TONEATTI Davide",
+          "ITA",
+          2001,
+          null
+        ],
+        [
+          28,
+          "35",
+          "MÖBIS Maximilian",
+          "GER",
+          1998,
+          null
+        ],
+        [
+          29,
+          "45",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          30,
+          "34",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          31,
+          "39",
+          "JENČUŠ Jakub",
+          "SVK",
+          2001,
+          null
+        ],
+        [
+          32,
+          "46",
+          "KUNÁŠEK Josef",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          33,
+          "49",
+          "BAKUS Tomáš",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          34,
+          "42",
+          "CONROY David",
+          "IRL",
+          1998,
+          null
+        ],
+        [
+          35,
+          "26",
+          "VANÍČEK Šimon",
+          "CZE",
+          1999,
+          null
+        ],
+        [
+          36,
+          "47",
+          "KUČERA Jakub",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          37,
+          "36",
+          "HERRMANN Lukas",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          38,
+          "50",
+          "STLOUKAL Štěpán",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          39,
+          "44",
+          "KRASTS Alekss",
+          "LAT",
+          2001,
+          null
+        ],
+        [
+          40,
+          "40",
+          "BANIAR Matúš",
+          "SVK",
+          2001,
+          null
+        ],
+        [
+          null,
+          "2",
+          "TURNER Ben",
+          "GBR",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "37",
+          "LINDNER Tom",
+          "GER",
+          2001,
+          "DNS"
+        ]
+      ],
+      "projectionSha256": "873159750c9677c50e102bb78b8e8c9197096fd2418055a66d132eb5bac17934"
+    },
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Koksijde",
+      "dateKey": "2019-11-24",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57744,
+        "seasonId": 141,
+        "uciRaceId": 145148,
+        "eventId": 193960
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:41.620Z",
+      "normalizedDataRideSha256": "b79820112e96b37b9a1f8067a9b60e675d1b8804a2ae265220bab655ab9d55c1",
+      "rowCount": 44,
+      "rows": [
+        [
+          1,
+          "50",
+          "VANDEPUTTE Niels",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          2,
+          "51",
+          "CAMPS Jelle",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          3,
+          "13",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          4,
+          "3",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          5,
+          "36",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          6,
+          "7",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          7,
+          "11",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          8,
+          "17",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          9,
+          "8",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          10,
+          "25",
+          "THOMAS Théo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          11,
+          "21",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          12,
+          "12",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          13,
+          "52",
+          "FERDINANDE Anton",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          14,
+          "14",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          15,
+          "10",
+          "BELLENS Jarno",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          16,
+          "6",
+          "TULETT Ben",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          17,
+          "16",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          18,
+          "20",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          19,
+          "34",
+          "ŤOUPALÍK Jakub",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          20,
+          "53",
+          "MEEUSSEN Witse",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          21,
+          "4",
+          "MASON Cameron",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          22,
+          "28",
+          "HECHT Gage",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          23,
+          "29",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          24,
+          "54",
+          "VERVOORT Wout",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          25,
+          "41",
+          "FONTANA Filippo",
+          "ITA",
+          2000,
+          null
+        ],
+        [
+          26,
+          "55",
+          "CORTJENS Ryan",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          27,
+          "39",
+          "SOMMER Jan",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          28,
+          "45",
+          "MÖBIS Maximilian",
+          "GER",
+          1998,
+          null
+        ],
+        [
+          29,
+          "19",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          30,
+          "42",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          31,
+          "30",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          32,
+          "49",
+          "CONROY David",
+          "IRL",
+          1998,
+          null
+        ],
+        [
+          33,
+          "18",
+          "VERBURG Luke",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          34,
+          "32",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          35,
+          "23",
+          "DELBOVE Joris",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          36,
+          "33",
+          "HULA Robert",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          37,
+          "40",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          38,
+          "38",
+          "DUFAUX Loïs",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          39,
+          "24",
+          "JOT Hugo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          40,
+          "5",
+          "YOUNG Jenson",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          41,
+          "22",
+          "BENOIST Almenzo",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          42,
+          "37",
+          "LÜTHI Eric",
+          "SUI",
+          1999,
+          null
+        ],
+        [
+          43,
+          "44",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          null,
+          "9",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          "DNF"
+        ]
+      ],
+      "projectionSha256": "dac5bde427476b8d001f0d8d4f4ae3c80fbaaa888c52b1d3a382ba92bf8c16e3"
+    },
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Namur",
+      "dateKey": "2019-12-22",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57745,
+        "seasonId": 141,
+        "uciRaceId": 145150,
+        "eventId": 193956
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:42.331Z",
+      "normalizedDataRideSha256": "6da6acda35121b72f5be209f1f3c73a92df601d135f4f661d1b376f3e79cf152",
+      "rowCount": 56,
+      "rows": [
+        [
+          1,
+          "42",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          2,
+          "13",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          3,
+          "47",
+          "DORIGONI Jakob",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          4,
+          "7",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          5,
+          "22",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          6,
+          "3",
+          "TURNER Ben",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          7,
+          "8",
+          "VANDEPUTTE Niels",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          8,
+          "14",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          9,
+          "16",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          10,
+          "41",
+          "ROUILLER Loris",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          11,
+          "34",
+          "KOPECKÝ Tomas",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          12,
+          "67",
+          "CORTJENS Ryan",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          13,
+          "12",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          14,
+          "11",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          15,
+          "29",
+          "HECHT Gage",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          16,
+          "9",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          17,
+          "4",
+          "MASON Cameron",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          18,
+          "50",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          19,
+          "49",
+          "FOLCARELLI Antonio",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          20,
+          "64",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          21,
+          "68",
+          "VERVOORT Wout",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          22,
+          "33",
+          "MORTON Alex",
+          "USA",
+          2001,
+          null
+        ],
+        [
+          23,
+          "25",
+          "GAGNAIRE Maxime",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          24,
+          "35",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          25,
+          "66",
+          "WYSEURE Joran",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          26,
+          "63",
+          "BELLENS Jarno",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          27,
+          "24",
+          "REMONDET Valentin",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          28,
+          "21",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          29,
+          "65",
+          "FERDINANDE Anton",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          30,
+          "30",
+          "MAHER Lane",
+          "USA",
+          2000,
+          null
+        ],
+        [
+          31,
+          "31",
+          "BRUNNER Eric",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          32,
+          "48",
+          "FONTANA Filippo",
+          "ITA",
+          2000,
+          null
+        ],
+        [
+          33,
+          "23",
+          "DELBOVE Joris",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          34,
+          "5",
+          "FLYNN Sean",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          35,
+          "15",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          36,
+          "51",
+          "MURIAS GARCIA Xabier",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          37,
+          "37",
+          "VANÍČEK Šimon",
+          "CZE",
+          1999,
+          null
+        ],
+        [
+          38,
+          "57",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          39,
+          "17",
+          "HENDRIKX Mees",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          40,
+          "36",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          41,
+          "43",
+          "DUFAUX Loïs",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          42,
+          "32",
+          "NOEL Sam",
+          "USA",
+          2000,
+          null
+        ],
+        [
+          43,
+          "18",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          44,
+          "58",
+          "MÖBIS Maximilian",
+          "GER",
+          1998,
+          null
+        ],
+        [
+          45,
+          "38",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          46,
+          "26",
+          "THOMAS Théo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          47,
+          "44",
+          "SOMMER Jan",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          48,
+          "56",
+          "BARTON Malcolm",
+          "CAN",
+          1998,
+          null
+        ],
+        [
+          49,
+          "46",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          50,
+          "45",
+          "SCHÄTTI Luca",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          51,
+          "60",
+          "OBERTEICHER Matteo",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          52,
+          "55",
+          "SANDERSON Brody",
+          "CAN",
+          1999,
+          null
+        ],
+        [
+          53,
+          "61",
+          "NILSSON Elias",
+          "SWE",
+          2001,
+          null
+        ],
+        [
+          null,
+          "2",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "62",
+          "CONROY David",
+          "IRL",
+          1998,
+          "DNF"
+        ],
+        [
+          null,
+          "54",
+          "CANAL BLANCO Carlos",
+          "ESP",
+          2001,
+          "DNS"
+        ]
+      ],
+      "projectionSha256": "a0f86579722566c843892cb44bacc4fa9206e4adfddeb699ed01084af545c172"
+    },
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Heusden-Zolder",
+      "dateKey": "2019-12-26",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57746,
+        "seasonId": 141,
+        "uciRaceId": 145153,
+        "eventId": 193954
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:43.098Z",
+      "normalizedDataRideSha256": "cff69e897a29cc2fad9d719cbecd2e97f5ab003a1609cd23cad2c041bb8e321c",
+      "rowCount": 61,
+      "rows": [
+        [
+          1,
+          "39",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          2,
+          "21",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          3,
+          "38",
+          "ROUILLER Loris",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          4,
+          "7",
+          "VANDEPUTTE Niels",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          5,
+          "13",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          6,
+          "44",
+          "DORIGONI Jakob",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          7,
+          "2",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          8,
+          "25",
+          "BONNET Thomas",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          9,
+          "65",
+          "BELLENS Jarno",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          10,
+          "14",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          11,
+          "8",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          12,
+          "11",
+          "CORTJENS Ryan",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          13,
+          "16",
+          "HENDRIKX Mees",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          14,
+          "69",
+          "WYSEURE Joran",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          15,
+          "68",
+          "FERDINANDE Anton",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          16,
+          "66",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          17,
+          "45",
+          "FONTANA Filippo",
+          "ITA",
+          2000,
+          null
+        ],
+        [
+          18,
+          "5",
+          "TULETT Ben",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          19,
+          "9",
+          "CAMPS Jelle",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          20,
+          "47",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          21,
+          "32",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          22,
+          "26",
+          "HECHT Gage",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          23,
+          "28",
+          "MAHER Lane",
+          "USA",
+          2000,
+          null
+        ],
+        [
+          24,
+          "27",
+          "BRUNNER Eric",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          25,
+          "30",
+          "MORTON Alex",
+          "USA",
+          2001,
+          null
+        ],
+        [
+          26,
+          "46",
+          "FOLCARELLI Antonio",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          27,
+          "70",
+          "VERVOORT Wout",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          28,
+          "6",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          29,
+          "17",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          30,
+          "42",
+          "SCHÄTTI Luca",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          31,
+          "10",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          32,
+          "4",
+          "ASKEY Lewis",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          33,
+          "23",
+          "NAVARRO Quentin",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          34,
+          "15",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          35,
+          "31",
+          "KOPECKÝ Tomas",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          36,
+          "41",
+          "SOMMER Jan",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          37,
+          "49",
+          "INGUANZO MACHO Gonzalo",
+          "ESP",
+          2001,
+          null
+        ],
+        [
+          38,
+          "55",
+          "SANDERSON Brody",
+          "CAN",
+          1999,
+          null
+        ],
+        [
+          39,
+          "63",
+          "CONROY David",
+          "IRL",
+          1998,
+          null
+        ],
+        [
+          40,
+          "40",
+          "DUFAUX Loïs",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          41,
+          "20",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          42,
+          "22",
+          "LEGRAND Matthieu",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          43,
+          "33",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          44,
+          "52",
+          "ODA Hijiri",
+          "JPN",
+          1998,
+          null
+        ],
+        [
+          45,
+          "37",
+          "JEŽEK Tomáš",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          46,
+          "56",
+          "BARTON Malcolm",
+          "CAN",
+          1998,
+          null
+        ],
+        [
+          47,
+          "51",
+          "KLINKE Mads",
+          "DEN",
+          2000,
+          null
+        ],
+        [
+          48,
+          "60",
+          "OBERTEICHER Matteo",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          49,
+          "29",
+          "NOEL Sam",
+          "USA",
+          2000,
+          null
+        ],
+        [
+          50,
+          "54",
+          "KOCKELMANN Raphaël",
+          "LUX",
+          1999,
+          null
+        ],
+        [
+          51,
+          "59",
+          "OBERTEICHER Marco",
+          "GER",
+          1999,
+          null
+        ],
+        [
+          52,
+          "53",
+          "TSUMITA Ren",
+          "JPN",
+          2000,
+          null
+        ],
+        [
+          53,
+          "62",
+          "NILSSON Elias",
+          "SWE",
+          2001,
+          null
+        ],
+        [
+          54,
+          "61",
+          "MÖRTSELL RÖRFORS Lukas",
+          "SWE",
+          2001,
+          null
+        ],
+        [
+          55,
+          "64",
+          "KALASHNIKOV Grigorii",
+          "RUS",
+          1999,
+          null
+        ],
+        [
+          null,
+          "24",
+          "THOMAS Théo",
+          "FRA",
+          2001,
+          "DNF"
+        ],
+        [
+          null,
+          "3",
+          "TURNER Ben",
+          "GBR",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "43",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          "DNF"
+        ],
+        [
+          null,
+          "12",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          "DNF"
+        ],
+        [
+          null,
+          "67",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "35",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          "DNF"
+        ]
+      ],
+      "projectionSha256": "37c562f2c9d01d6e6070a068b86877b223a0bac216b88213f99415a7c14eff33"
+    },
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Nommay Pays de Montbeliard",
+      "dateKey": "2020-01-19",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57748,
+        "seasonId": 141,
+        "uciRaceId": 145158,
+        "eventId": 193966
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:43.886Z",
+      "normalizedDataRideSha256": "bc5c143901eea7942f089a1b969fe8497c3faaa1c5f5e0d9ab08f4867d3ed468",
+      "rowCount": 48,
+      "rows": [
+        [
+          1,
+          "10",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          2,
+          "31",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          3,
+          "2",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          4,
+          "9",
+          "CORTJENS Ryan",
+          "BEL",
+          2001,
+          null
+        ],
+        [
+          5,
+          "11",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          6,
+          "5",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          7,
+          "21",
+          "GAGNAIRE Maxime",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          8,
+          "3",
+          "MASON Cameron",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          9,
+          "4",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          10,
+          "38",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          11,
+          "12",
+          "HENDRIKX Mees",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          12,
+          "7",
+          "KUYPERS Gerben",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          13,
+          "22",
+          "HECHT Gage",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          14,
+          "8",
+          "FERDINANDE Anton",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          15,
+          "26",
+          "KOPECKÝ Tomas",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          16,
+          "15",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          17,
+          "13",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          18,
+          "23",
+          "BRUNNER Eric",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          19,
+          "36",
+          "FOLCARELLI Antonio",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          20,
+          "37",
+          "DORIGONI Jakob",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          21,
+          "20",
+          "THOMAS Théo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          22,
+          "18",
+          "REMONDET Valentin",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          23,
+          "27",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          24,
+          "49",
+          "AUFFRET Ronan",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          25,
+          "19",
+          "BONNET Thomas",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          26,
+          "46",
+          "THOMAS Victor",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          27,
+          "50",
+          "JOT Hugo",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          28,
+          "47",
+          "BENOIST Almenzo",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          29,
+          "43",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          30,
+          "32",
+          "STEHLI Felix",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          31,
+          "16",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          32,
+          "14",
+          "VERBURG Luke",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          33,
+          "33",
+          "SCHÄTTI Luca",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          34,
+          "48",
+          "HUBY Antoine",
+          "FRA",
+          2001,
+          null
+        ],
+        [
+          35,
+          "35",
+          "SOMMER Jan",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          36,
+          "25",
+          "MORTON Alex",
+          "USA",
+          2001,
+          null
+        ],
+        [
+          37,
+          "51",
+          "GILLES Cyprien",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          38,
+          "34",
+          "DUFAUX Loïs",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          39,
+          "28",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          40,
+          "30",
+          "JEŽEK Tomáš",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          41,
+          "39",
+          "MURIAS GARCIA Xabier",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          42,
+          "45",
+          "CONROY David",
+          "IRL",
+          1998,
+          null
+        ],
+        [
+          43,
+          "44",
+          "HERRMANN Lukas",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          44,
+          "42",
+          "BARTON Malcolm",
+          "CAN",
+          1998,
+          null
+        ],
+        [
+          45,
+          "17",
+          "DELBOVE Joris",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          null,
+          "6",
+          "GOEMAN Andreas",
+          "BEL",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "24",
+          "MAHER Lane",
+          "USA",
+          2000,
+          "DNF"
+        ],
+        [
+          null,
+          "41",
+          "CANAL BLANCO Carlos",
+          "ESP",
+          2001,
+          "DNS"
+        ]
+      ],
+      "projectionSha256": "36bff6019979086fb3ba7ee386cb5c05ac4ab7c8a83d87769c4f3829ac1bbdde"
+    },
+    {
+      "name": "2019-2020 Telenet UCI Cyclo-cross World Cup, Hoogerheide Provincie Noord-Brabant",
+      "dateKey": "2020-01-26",
+      "dataRide": {
+        "disciplineId": 3,
+        "competitionId": 57747,
+        "seasonId": 141,
+        "uciRaceId": 145160,
+        "eventId": 193970
+      },
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T23:50:44.576Z",
+      "normalizedDataRideSha256": "ae326fc62e1a8bd013df067b00ef34f971dd717911429810ebd3e4e4e3321bfa",
+      "rowCount": 49,
+      "rows": [
+        [
+          1,
+          "12",
+          "KAMP Ryan",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          2,
+          "19",
+          "BENOIST Antoine",
+          "FRA",
+          1999,
+          null
+        ],
+        [
+          3,
+          "7",
+          "VANDEPUTTE Niels",
+          "BEL",
+          2000,
+          null
+        ],
+        [
+          4,
+          "5",
+          "TULETT Ben",
+          "GBR",
+          2001,
+          null
+        ],
+        [
+          5,
+          "4",
+          "MASON Cameron",
+          "GBR",
+          2000,
+          null
+        ],
+        [
+          6,
+          "14",
+          "VAN DIJKE Tim",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          7,
+          "37",
+          "DORIGONI Jakob",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          8,
+          "15",
+          "HENDRIKX Mees",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          9,
+          "13",
+          "RONHAAR Pim",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          10,
+          "39",
+          "FEIJOO ALBERTE Ivan",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          11,
+          "9",
+          "CAMPS Jelle",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          12,
+          "10",
+          "BEKAERT Yentl",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          13,
+          "23",
+          "HECHT Gage",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          14,
+          "26",
+          "SWARTZ Caleb",
+          "USA",
+          1999,
+          null
+        ],
+        [
+          15,
+          "24",
+          "BRUNNER Eric",
+          "USA",
+          1998,
+          null
+        ],
+        [
+          16,
+          "17",
+          "AGTERBERG Kyle",
+          "NED",
+          1999,
+          null
+        ],
+        [
+          17,
+          "41",
+          "CULLELL ESTAPE Jofre",
+          "ESP",
+          1999,
+          null
+        ],
+        [
+          18,
+          "50",
+          "DEKKER Jens",
+          "NED",
+          1998,
+          null
+        ],
+        [
+          19,
+          "6",
+          "VANDEBOSCH Toon",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          20,
+          "8",
+          "KIELICH Timo",
+          "BEL",
+          1999,
+          null
+        ],
+        [
+          21,
+          "27",
+          "MORTON Alex",
+          "USA",
+          2001,
+          null
+        ],
+        [
+          22,
+          "29",
+          "JELÍNEK Josef",
+          "CZE",
+          1998,
+          null
+        ],
+        [
+          23,
+          "30",
+          "ŘÍMAN Jakub",
+          "CZE",
+          2000,
+          null
+        ],
+        [
+          24,
+          "3",
+          "TURNER Ben",
+          "GBR",
+          1999,
+          null
+        ],
+        [
+          25,
+          "34",
+          "ROUILLER Loris",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          26,
+          "52",
+          "VREESWIJK Noah",
+          "NED",
+          2001,
+          null
+        ],
+        [
+          27,
+          "36",
+          "FOLCARELLI Antonio",
+          "ITA",
+          1998,
+          null
+        ],
+        [
+          28,
+          "16",
+          "ARTZ Bart",
+          "NED",
+          2000,
+          null
+        ],
+        [
+          29,
+          "20",
+          "DELBOVE Joris",
+          "FRA",
+          2000,
+          null
+        ],
+        [
+          30,
+          "21",
+          "GAGNAIRE Maxime",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          31,
+          "32",
+          "JEŽEK Tomáš",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          32,
+          "43",
+          "ODA Hijiri",
+          "JPN",
+          1998,
+          null
+        ],
+        [
+          33,
+          "44",
+          "ORSCHEL Tyler",
+          "CAN",
+          1998,
+          null
+        ],
+        [
+          34,
+          "31",
+          "CAMRDA Karel",
+          "CZE",
+          2001,
+          null
+        ],
+        [
+          35,
+          "48",
+          "TÖMKE Pascal",
+          "GER",
+          2000,
+          null
+        ],
+        [
+          36,
+          "49",
+          "HERRMANN Lukas",
+          "GER",
+          2001,
+          null
+        ],
+        [
+          37,
+          "53",
+          "CONROY David",
+          "IRL",
+          1998,
+          null
+        ],
+        [
+          38,
+          "45",
+          "BARTON Malcolm",
+          "CAN",
+          1998,
+          null
+        ],
+        [
+          39,
+          "33",
+          "KUHN Kevin",
+          "SUI",
+          1998,
+          null
+        ],
+        [
+          40,
+          "18",
+          "CRISPIN Mickaël",
+          "FRA",
+          1998,
+          null
+        ],
+        [
+          41,
+          "25",
+          "MAHER Lane",
+          "USA",
+          2000,
+          null
+        ],
+        [
+          42,
+          "35",
+          "BARD Nicolas",
+          "SUI",
+          2000,
+          null
+        ],
+        [
+          null,
+          "2",
+          "MEIN Thomas",
+          "GBR",
+          1999,
+          "DNF"
+        ],
+        [
+          null,
+          "11",
+          "CORTJENS Ryan",
+          "BEL",
+          2001,
+          "DNF"
+        ],
+        [
+          null,
+          "28",
+          "KOPECKÝ Tomas",
+          "CZE",
+          2000,
+          "DNF"
+        ],
+        [
+          null,
+          "51",
+          "VERBURG Luke",
+          "NED",
+          2001,
+          "DNF"
+        ],
+        [
+          null,
+          "46",
+          "LINDNER Tom",
+          "GER",
+          2001,
+          "DNF"
+        ],
+        [
+          null,
+          "22",
+          "BONNET Thomas",
+          "FRA",
+          1998,
+          "DNF"
+        ],
+        [
+          null,
+          "42",
+          "CANAL BLANCO Carlos",
+          "ESP",
+          2001,
+          "DNS"
+        ]
+      ],
+      "projectionSha256": "eac6cdac423bea5a0b5b581310ae5c0a647efaa249ae653027e7febe131ff9e5"
+    }
+  ],
+  "notes": [
+    "Caso discriminante de los puestos 4/5, no un cotejo de toda la general ni autorización de ingesta histórica.",
+    "Los resultados completos de las siete rondas proceden de DataRide; la general separada procede del PDF enlazado por el organizador.",
+    "Las fuentes Type 3 de la general carecen de Unicode. Se contrastan sus dos páginas mediante render/OCR local y se decodifican las celdas originales; no se modifica el PDF.",
+    "Los resultados de Mein/Vandeputte y las ausencias se contrastan con las tablas completas DataRide, conservando sus dorsales, puestos, nombres, países y años.",
+    "El encabezado de la general imprime DEC 18 para Heusden-Zolder; el calendario oficial de resultados y DataRide sitúan la ronda el 26-12-2019. Se conserva esa discrepancia editorial y no se usa para cambiar la fecha de ronda.",
+    "La escala 60…1 para 30 plazas y cuatro mejores de siete pertenece a esta edición antigua; no sustituye la escala actual ni activa reglas 2026–27."
+  ]
+}

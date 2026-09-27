@@ -1,19 +1,19 @@
 package app.calendariociclismo.android.util
 
-import androidx.annotation.StringRes
-import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.prefs.RegionPreference
 import java.util.TimeZone
 
 /**
- * Detecta la región sugerida para el usuario a partir de la zona horaria del
- * dispositivo. Port simplificado de `_COUNTRY_TZ_MAP` y `_extracontinentalGroup`
- * en `js/shared.js`.
+ * Detecta la región del usuario a partir de la zona horaria del dispositivo,
+ * igual que la web (`_detectUserGroup` y `filterBroadcastsByRegion` en
+ * `js/shared.js`). No hay selección manual en Ajustes.
  *
- * El criterio agrupa los grupos finos de broadcasts.country en los 5 buckets
- * de [RegionPreference] (excluyendo [RegionPreference.ALL], que solo se elige
- * manualmente). El sexto bucket [RegionPreference.SPAIN] se usa como fallback
- * cuando la TZ no permite afinar más allá de "Europa".
+ * - [suggestedRegion] devuelve el bucket continental que se envía como
+ *   `push_subscriptions.region` (nunca [RegionPreference.ALL]).
+ * - [allowedBroadcastGroups] devuelve los grupos finos `broadcasts.country`
+ *   visibles, con paridad exacta con la web.
+ *
+ * Paridad con `RegionService.swift` en iOS: al cambiar uno, cambiar el otro.
  */
 object RegionDetector {
 
@@ -32,10 +32,9 @@ object RegionDetector {
     )
 
     /**
-     * Devuelve la [RegionPreference] sugerida según la TZ del dispositivo.
-     * Nunca devuelve [RegionPreference.ALL] (esa solo se elige manualmente).
-     * Si la TZ no encaja en ningún bucket, vuelve a [RegionPreference.SPAIN]
-     * (preserva el baseline gratuito).
+     * Devuelve el bucket continental sugerido según la TZ del dispositivo.
+     * Nunca devuelve [RegionPreference.ALL] (no es detectable). Si la TZ no
+     * encaja en ningún bucket, vuelve a [RegionPreference.SPAIN].
      */
     fun suggestedRegion(timeZoneId: String = TimeZone.getDefault().id): RegionPreference {
         if (timeZoneId in SPAIN_TZS) return RegionPreference.SPAIN
@@ -57,7 +56,7 @@ object RegionDetector {
         return RegionPreference.SPAIN
     }
 
-    // ─── Grupo fino para auto_dispatch `tv_start` ───────────────────
+    // ─── Grupo fino para visibilidad de TV y `tv_start` ─────────────
 
     /**
      * Mapa TZ → grupo `broadcasts.country` fino (paridad con
@@ -128,11 +127,16 @@ object RegionDetector {
         "America/Regina",
     )
 
+    /** True si la TZ pertenece a Europa (cubierta o no por un grupo fino). */
+    fun isEuropean(timeZoneId: String = TimeZone.getDefault().id): Boolean {
+        if (timeZoneId in FINE_TZ_MAP) return true
+        return timeZoneId.startsWith("Europe/") || timeZoneId in EUROPE_EXTRA_TZS
+    }
+
     /**
      * Devuelve el grupo fino `broadcasts.country` para la TZ del device,
      * o `null` si no hay match (TZ rara, Europa no cubierta por grupo fino,
-     * etc.). El cron usa ese valor para filtrar broadcasts en `tv_start`;
-     * si es null cae al bucket continental por `region`.
+     * etc.). El cron usa ese valor para filtrar broadcasts en `tv_start`.
      *
      * Paridad con `_detectUserGroup` en `js/shared.js` y `detectedCountryGroup`
      * en `RegionService.swift`. Mantener sincronizado.
@@ -152,50 +156,18 @@ object RegionDetector {
         return null
     }
 
-    // ─── Etiquetas humanas para el sub-selector de país ─────────────
-
     /**
-     * String resource para mostrar el nombre humano del grupo fino
-     * `broadcasts.country` en la UI. Devuelve `null` para grupos desconocidos
-     * (en ese caso el caller debería mostrar el código tal cual).
+     * Grupos `broadcasts.country` visibles para la TZ. Espejo exacto de
+     * `filterBroadcastsByRegion` en `js/shared.js`:
+     * - siempre `ALL`;
+     * - el grupo fino detectado, si lo hay;
+     * - `EUROPA` solo si el usuario es europeo y no está en `UK_IE`.
      */
-    @StringRes
-    fun countryGroupLabelRes(group: String): Int? = when (group) {
-        "ES" -> R.string.country_group_es
-        "PT" -> R.string.country_group_pt
-        "FR" -> R.string.country_group_fr
-        "BE" -> R.string.country_group_be
-        "NL" -> R.string.country_group_nl
-        "IT" -> R.string.country_group_it
-        "DE_AT_CH" -> R.string.country_group_de_at_ch
-        "UK_IE" -> R.string.country_group_uk_ie
-        "SCANDI" -> R.string.country_group_scandi
-        "EE" -> R.string.country_group_ee
-        "NORTEAM" -> R.string.country_group_norteam
-        "LATAM" -> R.string.country_group_latam
-        "ASIAPAC" -> R.string.country_group_asiapac
-        "MENA" -> R.string.country_group_mena
-        "AFRICA" -> R.string.country_group_africa
-        else -> null
-    }
-
-    /** Emoji decorativo del grupo fino. Hardcoded, paridad con iOS. */
-    fun countryGroupEmoji(group: String): String = when (group) {
-        "ES" -> "🇪🇸"
-        "PT" -> "🇵🇹"
-        "FR" -> "🇫🇷"
-        "BE" -> "🇧🇪"
-        "NL" -> "🇳🇱"
-        "IT" -> "🇮🇹"
-        "DE_AT_CH" -> "🇩🇪"
-        "UK_IE" -> "🇬🇧"
-        "SCANDI" -> "🇸🇪"
-        "EE" -> "🇵🇱"
-        "NORTEAM" -> "🇺🇸"
-        "LATAM" -> "🌎"
-        "ASIAPAC" -> "🌏"
-        "MENA" -> "🌍"
-        "AFRICA" -> "🌍"
-        else -> "🏳️"
+    fun allowedBroadcastGroups(timeZoneId: String = TimeZone.getDefault().id): Set<String> {
+        val group = detectedCountryGroup(timeZoneId)
+        val allowed = mutableSetOf("ALL")
+        group?.let { allowed += it }
+        if (isEuropean(timeZoneId) && group != "UK_IE") allowed += "EUROPA"
+        return allowed
     }
 }

@@ -29,11 +29,16 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.StartOrderData
 import app.calendariociclismo.android.data.model.StartOrderEntry
 import app.calendariociclismo.android.data.model.StartOrderRaceDay
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
+import app.calendariociclismo.android.ui.startlist.TeamColorBands
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.ui.navigation.Routes
+import app.calendariociclismo.android.ui.results.ResultsStageContextCard
 import app.calendariociclismo.android.ui.stage.StageInfoHeaderCard
 import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.util.UciResultsLogic
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -127,6 +132,7 @@ fun StartOrderScreen(
                             filter = filter,
                             onFilterChange = { filter = it },
                             onBack = { navController.popBackStack() },
+                            onProfileTap = { navController.navigate(Routes.elevationProfile(it)) },
                         )
                     }
                 }
@@ -141,6 +147,7 @@ private fun StartOrderContent(
     filter: StartOrderFilter,
     onFilterChange: (StartOrderFilter) -> Unit,
     onBack: () -> Unit,
+    onProfileTap: (String) -> Unit,
 ) {
     val raceDay = data.raceDay
     // CRE (contrarreloj por equipos): salen equipos, no corredores. La vista
@@ -167,64 +174,90 @@ private fun StartOrderContent(
         probe != null && formatTime(probe, raceTz) != formatTime(probe, userTz)
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        // Header igual al de perfil (StageInfoHeaderCard) — paridad visual.
-        item {
-            if (data.fullRaceDay != null) {
-                StageInfoHeaderCard(
-                    raceDay = data.fullRaceDay,
-                    race = data.race,
-                    onBack = onBack,
-                )
-            }
-        }
+    val tableContent: @Composable ColumnScope.() -> Unit = {
         if (hasAnyFilter) {
-            item {
-                StartOrderFilterBar(
-                    filter = filter,
-                    onFilterChange = onFilterChange,
-                    hasTt = hasTt,
-                    hasGc = hasGc
-                )
-            }
+            StartOrderFilterBar(
+                filter = filter, onFilterChange = onFilterChange,
+                hasTt = hasTt, hasGc = hasGc,
+            )
         }
         if (shouldConvert) {
-            item {
-                StartOrderTimezoneNote(
-                    userTz = userTz,
-                    raceTz = raceTz!!,
+            StartOrderTimezoneNote(
+                userTz = userTz,
+                raceTz = raceTz!!,
+                rdDate = raceDay.effectiveDate,
+                locationLabel = headerLocationLabel(raceDay, raceTzId),
+            )
+        }
+        StartOrderTableHeader(isTtt = isTtt)
+        Column {
+            val rowLocationLabel = headerLocationLabel(raceDay, raceTzId)
+            filtered.forEach { entry ->
+                StartOrderRow(
+                    entry = entry,
                     rdDate = raceDay.effectiveDate,
-                    locationLabel = headerLocationLabel(raceDay, raceTzId),
+                    userTz = userTz,
+                    raceTz = raceTz.takeIf { shouldConvert },
+                    isTtt = isTtt,
+                    locationLabel = rowLocationLabel,
+                    teams = data.teams,
+                )
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 )
             }
         }
-        item { StartOrderTableHeader(isTtt = isTtt) }
-        // Filas como UN SOLO item del LazyColumn — meterlas como items
-        // independientes hacía que el `spacedBy(16.dp)` del LazyColumn se
-        // aplicara entre cada [fila + divider], generando 16dp de aire
-        // encima del nombre que rompía la simetría con el divider inferior.
-        item {
-            Column {
-                val rowLocationLabel = headerLocationLabel(raceDay, raceTzId)
-                filtered.forEach { entry ->
-                    StartOrderRow(
-                        entry = entry,
-                        rdDate = raceDay.effectiveDate,
-                        userTz = userTz,
-                        raceTz = raceTz.takeIf { shouldConvert },
-                        isTtt = isTtt,
-                        locationLabel = rowLocationLabel,
-                    )
-                    HorizontalDivider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                    )
+    }
+    val contextDay = data.fullRaceDay
+    val hasStageContext = contextDay?.let {
+        it.hasElevationProfile || it.distanceKm != null || it.elevationProfile?.elevationGain != null
+            || it.neutralStartTimeUtc != null || it.averageSpeedKmh != null
+            || it.hasValidTimeLimit
+    } == true && data.race != null
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
+
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    ) {
+        val wide = adaptiveInfo.supportsTwoPanes && maxWidth >= 700.dp && hasStageContext
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                if (contextDay != null) {
+                    StageInfoHeaderCard(raceDay = contextDay, race = data.race, onBack = onBack)
+                }
+            }
+            item {
+                if (wide) {
+                    val wideDay = requireNotNull(contextDay)
+                    val wideRace = requireNotNull(data.race)
+                    Row(horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            content = tableContent,
+                        )
+                        Box(Modifier.width(320.dp)) {
+                            ResultsStageContextCard(
+                                raceDay = wideDay,
+                                race = wideRace,
+                            ) { onProfileTap(wideDay.id) }
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        tableContent()
+                        if (contextDay != null && data.race != null && hasStageContext) {
+                            ResultsStageContextCard(
+                                raceDay = contextDay,
+                                race = data.race,
+                            ) { onProfileTap(contextDay.id) }
+                        }
+                    }
                 }
             }
         }
@@ -367,6 +400,7 @@ private fun StartOrderRow(
     raceTz: TimeZone?,
     isTtt: Boolean,
     locationLabel: String,
+    teams: List<app.calendariociclismo.android.data.model.Team>,
 ) {
     val timeData = if (raceTz != null) {
         convertedTime(rdDate, entry.startTime, raceTz, userTz)
@@ -437,20 +471,25 @@ private fun StartOrderRow(
             Box(modifier = Modifier.width(72.dp)) { timeRow() }
         }
         if (isTtt) {
-            // CRE: solo el nombre del equipo (sin dorsal, sin bandera, sin corredor).
-            Text(
-                if (hasTeam) entry.teamName!! else "—",
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (hasTeam) MaterialTheme.colorScheme.onSurface
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .padding(vertical = 8.dp),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                UciResultsLogic.findMatchingTeam(entry.teamName, teams)?.let { TeamColorBands(it) }
+                Text(
+                    if (hasTeam) entry.teamName!! else "—",
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (hasTeam) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         } else {
             Text(
                 entry.dorsal.toString(),
@@ -485,14 +524,17 @@ private fun StartOrderRow(
                     )
                 }
                 entry.teamName?.takeIf { it.isNotEmpty() }?.let {
-                    Text(
-                        it,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        UciResultsLogic.findMatchingTeam(it, teams)?.let { team -> TeamColorBands(team) }
+                        Text(
+                            it,
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

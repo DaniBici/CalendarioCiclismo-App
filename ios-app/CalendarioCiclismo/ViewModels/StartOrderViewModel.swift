@@ -9,6 +9,8 @@ final class StartOrderViewModel {
     /// `RaceDay` canónico usado por `StageInfoHeader` (paridad con perfil).
     var fullRaceDay: RaceDay?
     var race: Race?
+    /// Equipos con la paleta efectiva del año de la carrera, para las bandas.
+    var teams: [Team] = []
     var isLoading = false
     var error: String?
     var activeFilter: Filter = .all
@@ -59,6 +61,18 @@ final class StartOrderViewModel {
 
             if let rId = raceDays.first?.raceId {
                 self.race = try? await service.race(byId: rId)
+            }
+
+            if let year = self.race?.year {
+                let base: [Team] = (try? await service.client.from("teams").select().execute().value) ?? []
+                let seasons = (try? await service.teamSeasons(year: year)) ?? []
+                let seasonByTeam = Dictionary(uniqueKeysWithValues: seasons.map { ($0.teamId, $0) })
+                let baseById = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
+                self.teams = Set(baseById.keys).union(seasonByTeam.keys).compactMap { id in
+                    baseById[id]?.applyingSeason(seasonByTeam[id]) ?? seasonByTeam[id]?.asTeam()
+                }
+            } else {
+                self.teams = []
             }
 
             let entries: [StartOrderEntry] = try await service.client

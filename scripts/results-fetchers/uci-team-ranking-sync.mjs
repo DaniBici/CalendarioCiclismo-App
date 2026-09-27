@@ -216,7 +216,10 @@ function editDistance(a, b) {
 function matchScore(source, season) {
   const sourceExact = normalizedName(source.sourceName);
   const sourceCompact = compactName(source.sourceName);
+  const sourceCode = String(source.teamCode || '').trim().toUpperCase();
+  const seasonCode = String(season.uciCode || '').trim().toUpperCase();
   let score = 0;
+  if (sourceCode && seasonCode && sourceCode === seasonCode) score = 200;
   for (const canonical of [season.seasonName, season.baseName].filter(Boolean)) {
     const canonicalExact = normalizedName(canonical);
     const canonicalCompact = compactName(canonical);
@@ -260,7 +263,7 @@ function matchScore(source, season) {
   return score;
 }
 
-function resolveTeams(rows, seasons) {
+export function resolveTeams(rows, seasons) {
   const usedByGender = new Map();
   const resolved = rows.map((row) => {
     if (!usedByGender.has(row.gender)) usedByGender.set(row.gender, new Set());
@@ -314,6 +317,7 @@ async function loadTeamSeasons(client, year) {
        ts."nameAliases" as "seasonNameAliases",
        ts.category,
        ts.gender,
+       ts."uciCode",
        t.name as "baseName",
        t."nameAliases",
        t."foldedNames",
@@ -374,21 +378,32 @@ async function replaceSnapshot(client, rows) {
   }
 }
 
-export function snapshotIsCurrent(rows, storedDates) {
-  const fetchedDates = new Map();
-  for (const row of rows) fetchedDates.set(row.gender, row.rankingDate);
-  return fetchedDates.size > 0 && [...fetchedDates].every(
-    ([gender, date]) => storedDates.get(gender) === date,
-  );
+const SNAPSHOT_FIELDS = [
+  'gender', 'rank', 'previousRank', 'uciTeamId', 'teamId', 'teamCategory',
+  'sourceName', 'displayName', 'teamCode', 'countryCode', 'points', 'rankingDate',
+];
+
+function snapshotKey(row) {
+  return `${row.gender}:${row.uciTeamId}`;
 }
 
-async function loadStoredDates(client) {
+function snapshotSignature(row) {
+  return SNAPSHOT_FIELDS.map((field) => String(row[field] ?? '')).join('\u001f');
+}
+
+export function snapshotIsCurrent(rows, storedRows) {
+  if (!rows.length || rows.length !== storedRows.size) return false;
+  return rows.every((row) => snapshotSignature(row) === storedRows.get(snapshotKey(row)));
+}
+
+async function loadStoredSnapshot(client) {
   const { rows } = await client.query(
-    `select gender, max("rankingDate")::text as "rankingDate"
-     from public.uci_team_rankings
-     group by gender`,
+    `select gender, rank, "previousRank", "uciTeamId", "teamId", "teamCategory",
+            "sourceName", "displayName", "teamCode", "countryCode", points,
+            "rankingDate"::text as "rankingDate"
+     from public.uci_team_rankings`,
   );
-  return new Map(rows.map((row) => [row.gender, row.rankingDate]));
+  return new Map(rows.map((row) => [snapshotKey(row), snapshotSignature(row)]));
 }
 
 async function main() {
@@ -433,7 +448,7 @@ async function main() {
       );
     }
     const alreadyCurrent = shouldApply
-      ? snapshotIsCurrent(rows, await loadStoredDates(client))
+      ? snapshotIsCurrent(rows, await loadStoredSnapshot(client))
       : false;
     if (shouldApply && !alreadyCurrent) await replaceSnapshot(client, rows);
 

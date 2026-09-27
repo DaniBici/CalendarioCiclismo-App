@@ -10,8 +10,8 @@ import { supabase, uciRank, proLevel, countryFlag, jornadaUrl, raceUrl, raceName
 import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLang } from './i18n.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
-import { hasModalData, openRaceDataModal } from './race-data-modal.js';
-import { CAMP, campUrl, campTitle } from './campeonatos-config.js';
+import { hasModalData, openRaceDataModal } from './race-data-modal.js?v=20260924sitefix';
+import { CAMP, campUrl, campTitle } from './campeonatos-config.js?v=20260924sitefix';
 
 // Fila sintética "Campeonatos Nacionales" (CN) — aparece en TODAS las categorías
 // porque se inyecta tras el filtro. Enlaza a la página de Modo Campeonatos.
@@ -210,7 +210,24 @@ window._temporadaCat = activeCat;
 // ── Helpers de países ────────────────────────────────────────────
 const COUNTRY_LIST_T = [
   // Regionales españolas (normalizadas a 'es' en el selector)
+  { code: 'es-an', name: 'Andalucía' },
+  { code: 'es-ar', name: 'Aragón' },
+  { code: 'es-as', name: 'Asturias' },
+  { code: 'es-cn', name: 'Canarias' },
+  { code: 'es-cb', name: 'Cantabria' },
+  { code: 'es-cm', name: 'Castilla-La Mancha' },
+  { code: 'es-cl', name: 'Castilla y León' },
   { code: 'es-ct', name: 'Catalunya' },
+  { code: 'es-ce', name: 'Ceuta' },
+  { code: 'es-vc', name: 'Comunidad Valenciana' },
+  { code: 'es-ex', name: 'Extremadura' },
+  { code: 'es-ga', name: 'Galicia' },
+  { code: 'es-ib', name: 'Islas Baleares' },
+  { code: 'es-ri', name: 'La Rioja' },
+  { code: 'es-md', name: 'Madrid' },
+  { code: 'es-ml', name: 'Melilla' },
+  { code: 'es-mc', name: 'Murcia' },
+  { code: 'es-nc', name: 'Navarra' },
   { code: 'es-pv', name: 'País Vasco' },
   // A
   { code: 'am', name: 'Armenia' },
@@ -369,7 +386,7 @@ function tCountryName(code) {
 function tNormalizeCC(code) {
   if (!code) return '';
   const c = code.toLowerCase();
-  return (c === 'es-ct' || c === 'es-pv') ? 'es' : c;
+  return c.startsWith('es-') ? 'es' : c;
 }
 
 function updateTemporadaCountrySelector(races) {
@@ -483,9 +500,9 @@ function _applyCategoryFilter(races) {
   } else if (activeCat === 'wwt') {
     races = races.filter(r => r.uciCategory === '1.WWT' || r.uciCategory === '2.WWT');
   } else if (activeCat === 'male') {
-    races = races.filter(r => (r.gender !== 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
+    races = races.filter(r => (r.gender === 'male' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && r.uciCategory !== '1.2' && r.uciCategory !== '2.2' && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)));
   } else if (activeCat === 'female') {
-    races = races.filter(r => (r.gender === 'female' || r.uciCategory === 'WC' || r.uciCategory === 'CC') && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
+    races = races.filter(r => (r.gender === 'female' || ((r.uciCategory === 'WC' || r.uciCategory === 'CC') && /relevo mixto|mixed relay/i.test(r.name || ''))) && (r.uciCategory !== '1.2U' && r.uciCategory !== '2.2U' || isTourDelPorvenir(r.name)) && ((r.uciCategory !== '1.2' && r.uciCategory !== '2.2') || _EUROPE.has((r.countryCode || '').toUpperCase())));
   }
   if (activeCat !== 'all') {
     races = races.filter(r => {
@@ -498,11 +515,7 @@ function _applyCategoryFilter(races) {
 
 function _applyCountryFilter(races) {
   if (!activeCountry) return races;
-  const esGroup = new Set(['es', 'es-ct', 'es-pv']);
-  return races.filter(r => {
-    const cc = tNormalizeCC(r.countryCode || '');
-    return activeCountry === 'es' ? esGroup.has((r.countryCode || '').toLowerCase()) || cc === 'es' : cc === activeCountry;
-  });
+  return races.filter(r => tNormalizeCC(r.countryCode || '') === activeCountry);
 }
 
 function _applyCategoryFilterCG(challengeGroups) {
@@ -515,11 +528,7 @@ function _applyCategoryFilterCG(challengeGroups) {
 
 function _applyCountryFilterCG(challengeGroups) {
   if (!activeCountry) return challengeGroups;
-  const esGroup = new Set(['es', 'es-ct', 'es-pv']);
-  return challengeGroups.filter(cg => {
-    const cc = tNormalizeCC(cg.countryCode || '');
-    return activeCountry === 'es' ? esGroup.has((cg.countryCode || '').toLowerCase()) || cc === 'es' : cc === activeCountry;
-  });
+  return challengeGroups.filter(cg => tNormalizeCC(cg.countryCode || '') === activeCountry);
 }
 
 function _firstDateKey(race) {

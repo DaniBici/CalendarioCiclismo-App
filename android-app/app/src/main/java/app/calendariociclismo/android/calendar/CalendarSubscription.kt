@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import app.calendariociclismo.android.R
-import java.time.LocalDate
+import app.calendariociclismo.android.util.RaceLogic
 
 /**
  * Helper para suscribirse a los feeds iCal del calendario desde Android.
@@ -41,7 +41,7 @@ object CalendarSubscription {
     fun Feed.description(context: Context): String = context.getString(descriptionRes)
 
     /** Devuelve la URL https del .ics para un feed y año. */
-    fun httpsUrl(feed: Feed, year: Int = LocalDate.now().year): String {
+    fun httpsUrl(feed: Feed, year: Int = RaceLogic.calendarYear()): String {
         val file = if (feed.id == "todo") "$year.ics" else "$year-${feed.id}.ics"
         return "https://$FEED_HOST$FEED_PATH/$file"
     }
@@ -54,7 +54,7 @@ object CalendarSubscription {
      * que abre el diálogo "¿Añadir calendario?". Es el único método
      * estable en Android sin permisos extra (`WRITE_CALENDAR` se evita).
      */
-    fun subscribeIntent(feed: Feed, year: Int = LocalDate.now().year): Intent {
+    fun subscribeIntent(feed: Feed, year: Int = RaceLogic.calendarYear()): Intent {
         val ics = httpsUrl(feed, year)
         val encoded = Uri.encode(ics)
         val gCal = "https://www.google.com/calendar/r?cid=$encoded"
@@ -67,14 +67,14 @@ object CalendarSubscription {
      * Intent de respaldo: abre la URL .ics directamente (cualquier app de
      * calendario registrada para `text/calendar` la interceptará).
      */
-    fun fallbackIntent(feed: Feed, year: Int = LocalDate.now().year): Intent {
+    fun fallbackIntent(feed: Feed, year: Int = RaceLogic.calendarYear()): Intent {
         return Intent(Intent.ACTION_VIEW, Uri.parse(httpsUrl(feed, year))).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
 
     /** Lanza el flujo de suscripción con fallback automático. */
-    fun subscribe(context: Context, feed: Feed, year: Int = LocalDate.now().year) {
+    fun subscribe(context: Context, feed: Feed, year: Int = RaceLogic.calendarYear()) {
         val primary = subscribeIntent(feed, year)
         runCatching { context.startActivity(primary) }
             .onFailure {

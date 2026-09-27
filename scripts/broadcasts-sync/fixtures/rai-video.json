@@ -1,0 +1,31 @@
+{
+  "id": "ContentItem-76e719a4-780f-4784-815e-a114ac266831",
+  "type": "RaiPlay Video Item",
+  "name": "Ciclismo: Giro della Toscana 2026 - 4a tappa: Lucca - Montecatini Terme",
+  "date_published": "30-08-2026",
+  "track_info": {
+    "date": "2026-08-30"
+  },
+  "weblink": "/video/2026/08/Ciclismo-Giro-della-Toscana-2026---4a-tappa-Lucca---Montecatini-Terme-76e719a4-780f-4784-815e-a114ac266831.html",
+  "path_id": "/video/2026/08/Ciclismo-Giro-della-Toscana-2026---4a-tappa-Lucca---Montecatini-Terme-76e719a4-780f-4784-815e-a114ac266831.json",
+  "is_live": false,
+  "video": {
+    "content_url": "https://mediapolisvod.rai.it/relinker/relinkerServlet.htm?cont=PI5yrt4dwkgggOssSlash9BDBMNgeeqqEEqualeeqqEEqual",
+    "duration": "02:03:10",
+    "highlights": "",
+    "subtitles": "",
+    "subtitlesArray": [],
+    "subtitleList": []
+  },
+  "season": "2026",
+  "form": "Integrale",
+  "availabilities": {
+    "expiration_date": "07-09-2026 23:59:39",
+    "expiration_date_old": "2026-09-07 23:59:39",
+    "expiration_date_iso": "2026-09-07T21:59:39+0000"
+  },
+  "episode_title": "4a tappa: Lucca - Montecatini Terme",
+  "program_info": {
+    "name": "Ciclismo"
+  }
+}

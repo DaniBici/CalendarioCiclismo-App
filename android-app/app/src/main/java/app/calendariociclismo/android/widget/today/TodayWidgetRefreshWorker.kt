@@ -2,17 +2,19 @@ package app.calendariociclismo.android.widget.today
 
 import android.content.Context
 import android.util.Log
-import androidx.glance.appwidget.updateAll
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.calendariociclismo.android.CalendarioCiclismoApp
-import app.calendariociclismo.android.util.DateFormatting
+import java.time.Instant
 
 /**
- * Refresca los datos de hoy desde Supabase y redibuja el widget.
- *
- * Usado tanto en modo periódico (cada 90 min, NetworkType.CONNECTED) como
- * en one-shot al añadir el widget por primera vez (expedited).
+ * Redibuja todas las instancias del widget y programa el siguiente refresco.
+ * Cada instancia obtiene sus datos en `provideGlance` (RPC `widget_day` o
+ * copia local); aquí solo se leen esas copias para decidir cuándo volver.
  */
 class TodayWidgetRefreshWorker(
     context: Context,
@@ -20,19 +22,33 @@ class TodayWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val app = applicationContext as? CalendarioCiclismoApp ?: return Result.failure()
-        val today = DateFormatting.todayKey()
+        val context = applicationContext
+        val ids = runCatching { GlanceAppWidgetManager(context).getGlanceIds(TodayCyclingWidget::class.java) }
+            .getOrDefault(emptyList())
+        if (ids.isEmpty()) return Result.success()
 
-        // Refresco de red — si falla, el widget re-renderiza con datos de Room existentes
-        runCatching { app.repository.refreshDay(today) }
-            .onFailure { Log.w(TAG, "Error refrescando datos para el widget: ${it.message}") }
+        // Primero se consultan los datos (una vez por configuración) para que
+        // `provideGlance` encuentre la copia local recién descargada.
+        val repository = WidgetDayRepository(context)
+        val results = ids
+            .map { WidgetConfig.from(getAppWidgetState(context, PreferencesGlanceStateDefinition, it)) }
+            .distinct()
+            .map { repository.load(it) }
+        val version = System.currentTimeMillis()
+        val widget = TodayCyclingWidget()
+        for (id in ids) {
+            runCatching {
+                updateAppWidgetState(context, id) { it[WidgetConfig.KEY_VERSION] = version }
+                widget.update(context, id)
+            }.onFailure { Log.w(TAG, "Error redibujando widget: ${it.message}") }
+        }
+        (context as? CalendarioCiclismoApp)?.preferences?.setLastWidgetRefreshAt(System.currentTimeMillis())
 
-        // Redibujar siempre (refreshDay ya llama updateAll si tiene éxito, pero esto
-        // cubre el caso de fallo de red mostrando los datos cacheados actuales)
-        runCatching { TodayCyclingWidget().updateAll(applicationContext) }
-            .onFailure { Log.w(TAG, "Error redibujando widget: ${it.message}") }
-
-        app.preferences.setLastWidgetRefreshAt(System.currentTimeMillis())
+        val now = Instant.now()
+        val next = results.minOfOrNull { TodayWidgetScheduler.nextRefresh(now, it?.response, it?.fromCache ?: true) }
+            ?: return Result.success()
+        val slot = inputData.keyValueMap[TodayWidgetScheduler.KEY_SLOT] as? Int
+        TodayWidgetScheduler.scheduleNext(context, next, slot)
         return Result.success()
     }
 

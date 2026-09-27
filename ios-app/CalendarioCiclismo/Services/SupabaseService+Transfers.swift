@@ -51,6 +51,7 @@ extension SupabaseService {
         struct AffRow: Decodable { let riderId: String; let riderGender: String?; let dateTo: String? }
         let affs: [AffRow] = try await client.from("rider_team_affiliations")
             .select("riderId,riderGender,dateTo")
+            .eq("affiliationType", value: "regular")
             .eq("year", value: season)
             .eq("teamId", value: teamId)
             .execute()

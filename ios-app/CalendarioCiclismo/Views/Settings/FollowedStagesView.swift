@@ -55,8 +55,12 @@ struct FollowedStagesView: View {
                         stages.remove(atOffsets: indexSet)
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(AppTheme.background)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle("Jornadas seguidas")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadStages() }

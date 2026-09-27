@@ -24,8 +24,6 @@ data class Race(
     val colorHex: String? = null,
     val logoUrl: String? = null,
     val websiteUrl: String? = null,
-    val extId: Int? = null,
-    val extSlug: String? = null,
     val hideFlag: Boolean = false,
     val isGrandTour: Boolean = false,
     val isNoClickable: Boolean = false,
@@ -37,7 +35,6 @@ data class Race(
     val originalName: String? = null,
     val startlistImportedAt: String? = null,
     val startlistProvisional: Boolean = false,
-    val enrichedStartlist: Boolean? = null,
     @SerialName("createdAt") val createdAt: String? = null,
 ) {
     val isStageRace: Boolean get() = raceFormat == "stage_race"

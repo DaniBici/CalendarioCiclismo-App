@@ -13,8 +13,6 @@ struct Race: Codable, Identifiable, Hashable {
     let colorHex: String?
     let logoUrl: String?
     let websiteUrl: String?
-    let extId: Int?
-    let extSlug: String?
     let hideFlag: Bool
     let isGrandTour: Bool
     let isCancelled: Bool
@@ -25,7 +23,6 @@ struct Race: Codable, Identifiable, Hashable {
     let originalName: String?
     let startlistImportedAt: String?
     let startlistProvisional: Bool?
-    let enrichedStartlist: Bool?
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)

@@ -60,8 +60,6 @@
     <string name="today_subtitle_rest">Rest day</string>
     <string name="today_subtitle_cancelled">Cancelled</string>
     <string name="today_race_fallback">Race</string>
-    <string name="today_results_title">Results</string>
-    <string name="today_results_title_with_stage">Results · %1$s</string>
     <string name="today_results_cd">Results</string>
     <string name="today_revive_cd">Watch back</string>
     <string name="today_startlist_badge">Startlist</string>
@@ -139,12 +137,19 @@
     <string name="stage_guide_town">Town</string>
     <string name="stage_label_route_unknown">Stage not found</string>
     <string name="stage_doc_web_official">Official website</string>
+    <string name="stage_doc_classifications">Classifications</string>
     <string name="stage_doc_startlist_provisional">Provisional Startlist</string>
     <string name="stage_doc_startlist_female">Startlist</string>
     <string name="stage_doc_startlist_male">Startlist</string>
     <string name="stage_doc_profile">Profile</string>
-    <string name="stage_doc_profile_official">Profile</string>
-    <string name="stage_doc_profile_interactive">Profile + Data</string>
+    <string name="stage_doc_profile_official">Official profile</string>
+    <string name="stage_doc_profile_interactive">Interactive profile</string>
+    <string name="stage_profile_title">Profile</string>
+    <string name="stage_profile_mode_interactive">Interactive</string>
+    <string name="stage_profile_mode_official">Official</string>
+    <string name="stage_profile_official_cd">Official profile. Double tap to open it full size.</string>
+    <string name="stage_profile_load_error">The official profile could not be loaded.</string>
+    <string name="stage_profile_open">Open profile</string>
     <string name="stage_doc_map">Map</string>
     <string name="stage_doc_map_official">Map</string>
     <string name="stage_doc_map_interactive">3D Map</string>
@@ -184,6 +189,8 @@
     <string name="startlist_error_title">Loading error</string>
     <string name="startlist_error_unknown">Unknown error</string>
     <string name="startlist_empty">No riders registered</string>
+    <string name="startlist_download_pdf">Download PDF</string>
+    <string name="startlist_pdf_error">Couldn\'t generate the PDF. Check your connection and try again.</string>
     <string name="startlist_label_teams">Teams</string>
     <string name="startlist_label_riders_male">Riders</string>
     <string name="startlist_label_riders_female">Riders</string>
@@ -263,6 +270,8 @@
     <string name="notification_category_tv_start_description">T-5 min before each broadcast</string>
     <string name="notification_category_results">Results when the day closes</string>
     <string name="notification_category_results_description">Podium and standings after the finish</string>
+    <string name="notification_category_cyclocross">Cyclo-cross</string>
+    <string name="notification_category_cyclocross_description">Cyclo-cross alerts and updates for races you follow</string>
 
     <!-- Settings: Experience -->
     <string name="settings_haptics_title">Haptics</string>
@@ -273,41 +282,6 @@
     <string name="settings_privacy_analytics_body">Help us improve the app by sharing anonymous usage data.</string>
     <string name="settings_privacy_delete_button">Delete all my data</string>
     <string name="settings_privacy_delete_body">Usage data is fully anonymous. You can permanently delete your notification record and the local cache.</string>
-
-    <!-- Onboarding: region -->
-
-    <!-- Settings: Region -->
-    <string name="settings_section_region">Region</string>
-    <string name="settings_region_description">Decides which TV channels you see on each race day.</string>
-
-    <!-- Regions (shared between Settings and onboarding) -->
-    <string name="region_spain">Spain</string>
-    <string name="region_europe">Europe</string>
-    <string name="region_americas">Americas</string>
-    <string name="region_asia">Asia &amp; Pacific</string>
-    <string name="region_africa">Africa</string>
-    <string name="region_all">All regions</string>
-
-    <!-- Country preferred sub-selector -->
-    <string name="settings_region_country_label">Your country (adjusts the TV alert time)</string>
-    <string name="settings_region_country_auto">Automatic (my time zone)</string>
-
-    <!-- Fine broadcasts.country groups -->
-    <string name="country_group_es">Spain</string>
-    <string name="country_group_pt">Portugal</string>
-    <string name="country_group_fr">France</string>
-    <string name="country_group_be">Belgium</string>
-    <string name="country_group_nl">Netherlands</string>
-    <string name="country_group_it">Italy</string>
-    <string name="country_group_de_at_ch">Germany / Austria / Switzerland</string>
-    <string name="country_group_uk_ie">United Kingdom / Ireland</string>
-    <string name="country_group_scandi">Nordic countries</string>
-    <string name="country_group_ee">Eastern Europe</string>
-    <string name="country_group_norteam">USA &amp; Canada</string>
-    <string name="country_group_latam">Latin America</string>
-    <string name="country_group_asiapac">Asia &amp; Pacific</string>
-    <string name="country_group_mena">Middle East &amp; North Africa</string>
-    <string name="country_group_africa">Sub-Saharan Africa</string>
 
     <!-- Onboarding: notifications -->
     <string name="onboarding_notif_title">Stay in the loop</string>
@@ -454,8 +428,6 @@
     <string name="notification_channel_default_id">races_v1</string>
 
     <!-- Widget "Today in cycling" -->
-    <string name="widget_today_title">Today in cycling</string>
-    <string name="widget_today_description">Today\'s cycling races, estimated finish time and TV coverage.</string>
 
     <!-- Notification third level -->
     <string name="settings_race_follow_title">Races</string>
@@ -491,6 +463,11 @@
     <string name="followed_stages_empty_title">No followed stages</string>
     <string name="followed_stages_empty_body">Tap Notifications on any stage to add it.</string>
 
+    <!-- FollowedCxRaces screen -->
+    <string name="followed_cx_races_title">Followed cyclocross races</string>
+    <string name="followed_cx_races_empty_title">No followed cyclocross races</string>
+    <string name="followed_cx_races_empty_body">Tap Notifications on any cyclocross race to add it.</string>
+
     <!-- Start order (ITT/TTT) -->
     <string name="start_order_title">Start order</string>
     <string name="start_order_empty">No start order data available for this stage.</string>
@@ -523,7 +500,12 @@
     <string name="results_filter_all_teams">All teams</string>
     <string name="results_more_classifications">See more classifications</string>
     <string name="results_stage_final_short">F</string>
-    <string name="results_also_on">Also on</string>
+    <string name="results_stage_final_accessibility">Final classification</string>
+    <string name="results_stage_prologue_accessibility">Prologue</string>
+    <string name="results_stage_accessibility">Stage %1$s</string>
+    <string name="results_previous_classifications">Previous classifications</string>
+    <string name="asset_actions_more">More actions</string>
+    <string name="asset_actions_previous">Previous actions</string>
 
     <!-- "Latest results" feed (Results tab, apps 3.1) -->
     <string name="results_feed_heading">Results</string>
@@ -536,18 +518,6 @@
     <string name="uci_ranking_women">Women</string>
     <string name="uci_ranking_team">Team</string>
     <string name="uci_ranking_points">Points</string>
-    <string name="uci_ranking_info_label">UCI ranking source and rules</string>
-    <string name="uci_ranking_info_title">About the UCI Ranking</string>
-    <string name="uci_ranking_updated">%1$s. DataRide normally publishes a new ranking every Tuesday.</string>
-    <string name="uci_ranking_projection">The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season.</string>
-    <string name="uci_ranking_legend_worldteams">WorldTeams</string>
-    <string name="uci_ranking_legend_womens_worldteams">Women\'s WorldTeams</string>
-    <string name="uci_ranking_legend_worldtour">Mandatory WorldTour and ProSeries invitations</string>
-    <string name="uci_ranking_legend_womens_worldtour">Mandatory Women\'s WorldTour invitations</string>
-    <string name="uci_ranking_legend_proseries">Mandatory ProSeries invitations</string>
-    <string name="uci_ranking_legend_top30">ProTeams outside the top 30: red background</string>
-    <string name="uci_ranking_source">Open UCI DataRide source</string>
-    <string name="uci_ranking_regulations">Open UCI Regulations · art. 2.1.007bis</string>
     <string name="results_feed_load_more">Load more results</string>
     <string name="results_feed_empty">No results</string>
     <string name="results_feed_gc_final">Final GC</string>
@@ -603,4 +573,93 @@
     <string name="transfers_info_label">Transfer information</string>
     <string name="transfers_info_title">Transfer market</string>
     <string name="transfers_info_text">Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:</string>
+    <string name="tab_cyclocross">Cyclocross</string>
+    <string name="cx_me">Men Elite</string>
+    <string name="cx_we">Women Elite</string>
+    <string name="cx_mu">Men Under 23</string>
+    <string name="cx_wu">Women Under 23</string>
+    <string name="cx_mj">Men Junior</string>
+    <string name="cx_wj">Women Junior</string>
+    <string name="cx_cancelled">Cancelled</string>
+    <string name="cx_result">Result</string>
+    <string name="cx_provisional">Provisional</string>
+    <string name="cx_pending">Pending</string>
+    <string name="cx_refresh">Refresh</string>
+    <string name="cx_rounds_count">%1$d rounds</string>
+    <string name="cx_retry">Retry</string>
+    <string name="cx_offline">Saved offline data</string>
+    <string name="cx_previous_month">Previous month</string>
+    <string name="cx_next_month">Next month</string>
+    <string name="cx_empty_title">No races</string>
+    <string name="cx_empty_body">No races scheduled for this month</string>
+    <string name="cx_empty_filter_body">No races matching this filter for the selected month</string>
+    <string name="cx_filter_all">All</string>
+    <string name="cx_filter_big">Big</string>
+    <string name="cx_filter_pro">Pro</string>
+    <string name="cx_filter_spain">Spain</string>
+    <string name="cx_filter_dialog_set_message">The filter «%1$s» will be applied as default only in the Cyclocross agenda.</string>
+    <string name="cx_filter_dialog_remove_message">«%1$s» will no longer be the default for the Cyclocross agenda.</string>
+    <string name="cx_today">Today</string>
+    <string name="cx_programme">Programme</string>
+    <string name="cx_startlist">Startlist</string>
+    <string name="cx_results">Results</string>
+    <string name="cx_general">Standings</string>
+    <string name="cx_videos">Videos</string>
+    <string name="cx_back">Back</string>
+    <string name="cx_follow">Follow CX race</string>
+    <string name="cx_unfollow">Unfollow CX race</string>
+    <string name="cx_not_found">Race unavailable</string>
+    <string name="cx_no_general">No published standings</string>
+    <string name="cx_points">Points</string>
+    <string name="cx_time">Time</string>
+    <string name="cx_no_categories">No published categories</string>
+    <string name="cx_device_time">Device time</string>
+    <string name="cx_no_startlist">No published startlist</string>
+    <string name="cx_no_results">Results pending publication</string>
+    <string name="cx_tv">TV / streaming</string>
+    <string name="cx_tv_region">Show broadcasts for my region</string>
+    <string name="cx_tv_all">Show all broadcasts</string>
+    <string name="cx_no_tv">No broadcasts for this selection</string>
+    <string name="cx_revive">Replay</string>
+    <string name="cx_scheme_pending">Scheme pending</string>
+    <!-- Widget «Carreras de hoy» (5.0.9) -->
+    <string name="widget_today_title">Today\'s races</string>
+    <string name="widget_today_description">Today\'s road and cyclocross races: TV, live text and results shortcuts.</string>
+    <string name="widget_today_label">Today</string>
+    <string name="widget_next">Next</string>
+    <string name="widget_tomorrow">tomorrow</string>
+    <string name="widget_empty">No races today</string>
+    <string name="widget_empty_followed">None of your races today</string>
+    <string name="widget_unavailable">No data. Check your connection</string>
+    <string name="widget_rest_day">Rest day</string>
+    <string name="widget_cancelled_day">Cancelled</string>
+    <string name="widget_cancelled">Cancelled</string>
+    <string name="widget_finish">Finish</string>
+    <string name="widget_finished">Finished</string>
+    <string name="widget_live_text">Live text</string>
+    <string name="widget_full_race">Full Race</string>
+    <string name="widget_unconfirmed">Unconfirmed</string>
+    <string name="widget_no_tv_spain">No TV in Spain</string>
+    <string name="widget_no_tv">No TV</string>
+    <string name="widget_more">+%1$d more</string>
+    <string name="widget_session_finished">finished</string>
+    <string name="widget_session_live">live</string>
+    <string name="widget_results">Results</string>
+    <string name="widget_revive">Relive the race</string>
+    <string name="widget_config_title">Widget settings</string>
+    <string name="widget_config_scope">Races</string>
+    <string name="widget_scope_app_filter">App filter</string>
+    <string name="widget_scope_app_filter_desc">The filter pinned in Today and Cyclocross</string>
+    <string name="widget_scope_all">All</string>
+    <string name="widget_scope_followed">Followed</string>
+    <string name="widget_scope_followed_desc">Races, stages and cyclocross races you follow</string>
+    <string name="widget_config_discipline">Discipline</string>
+    <string name="widget_discipline_both">Road and cyclocross</string>
+    <string name="widget_discipline_road">Road</string>
+    <string name="widget_discipline_cx">Cyclocross</string>
+    <string name="widget_config_save">Save</string>
+    <string name="widget_preview_stage">Stage 15 · High mountain</string>
+    <string name="widget_preview_type">Medium mountain</string>
+    <string name="widget_preview_race_1">La Vuelta</string>
+    <string name="widget_preview_more">+4 more ›</string>
 </resources>

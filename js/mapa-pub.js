@@ -8,7 +8,7 @@
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
-         seoLongDate, articuloNombre, startFinishLabels } from './shared.js';
+         seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { indicatorBadgeSVG, buildElevationProfileSVG } from './elevation-profile.js';
 import { computeClimbStats, effectiveSummitAlt } from './climb-detection.js';
@@ -176,6 +176,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const canonical = mapSlug
     ? `${canonicalBase}${encodeURIComponent(mapSlug)}/`
     : canonicalFallback;
+  setRaceRobots(race);
   document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonical);
 
   if (!isEn && rd.slugEn) {
@@ -211,7 +212,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const actionButtonsHtml = race ? buildActionButtons({
     race, rd, view: 'mapa', assets,
     hasStartlist: !!race.startlistImportedAt,
-    style: 'max-width:860px;padding:0 1.5rem;margin:1.25rem auto 0.85rem',
+    style: 'margin:1.25rem auto 0.85rem', standalone: true,
   }) : '';
 
   // ── Route grid (recorrido, distancia, horarios) ───────────────

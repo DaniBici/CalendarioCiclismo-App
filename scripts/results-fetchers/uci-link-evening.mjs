@@ -35,7 +35,7 @@
  *   uciRaceId): varias fichas del mismo campeonato conviven (cada una su prueba).
  *
  *   NO vuelca resultados: de eso se encarga el paso siguiente del workflow
- *   (uci-results-cron.mjs --scope today --ignore-window --skip-existing), que recoge lo
+ *   (results-cron.mjs --scope today --ignore-window --skip-existing), que recoge lo
  *   recién enlazado del día y lo vuelca de una.
  *
  * AÑOS: el actual siempre; el siguiente si estamos en Q4 (la UCI ya publica la próxima

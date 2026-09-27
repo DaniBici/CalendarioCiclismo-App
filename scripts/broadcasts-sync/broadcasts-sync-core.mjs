@@ -4,18 +4,25 @@ export const HBO_SOURCE_URL = 'https://www.hbomax.com/es/es/sports/cycling';
 export const RTVE_SOURCE_URLS = [
   { channel: null, url: 'https://www.rtve.es/play/guia-tve/' },
 ];
+export const RTVE_VUELTA_SCHEDULE_URL = 'https://www.rtve.es/play/noticias/20260818/vuelta-ciclista-2026-hora-donde-ver-gratis-todas-etapas/17194425.shtml';
 export const RTVE_VUELTA_VIDEOS_URL = 'https://www.rtve.es/api/programas/144990/videos.json?page=1&size=50';
-export const PARSER_VERSION = '2026-08-26.1';
+export const RTVE_LIVES_URL = 'https://api.rtve.es/api/lives/peticiones.json?size=200';
+export const CARACOL_SOURCE_URL = 'https://www.noticiascaracol.com/golcaracol/ciclismo/vuelta-a-espana-2026-en-vivo-hora-y-donde-ver-por-tv-y-online-las-21-etapas-so35';
+export const CARACOL_VUELTA_INDEX_URL = 'https://www.noticiascaracol.com/golcaracol/vuelta-espana';
+export const CARACOL_BROADCAST_URL = 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo';
+export const PARSER_VERSION = '2026-09-26.3';
 
-const STAGE_RE = /\b(?:stage|etapa)\s*(\d{1,2})(?:[a-z])?\b/i;
+const STAGE_RE = /\b(?:stage|etapa|[eé]tape|tappa)\s*(\d{1,2})(?:[a-z])?\b/i;
 const CYCLING_RE = /\b(ciclismo|ciclista|cycling|vuelta|giro|tour de france|tour femenino|clasica|clásica|mundial.*ruta|campeonato.*ruta)\b/i;
 const GENERIC_WORDS = new Set([
   'la', 'el', 'los', 'las', 'de', 'del', 'a', 'en', 'the', 'of', 'stage', 'etapa',
   'men', 'women', 'masculino', 'femenino', 'ciclismo', 'cycling',
 ]);
+const MIN_WORD_MATCH_SCORE = 82;
 
 export function decodeHtml(value) {
   return String(value || '')
+    .replace(/\\u([0-9a-f]{4})/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&nbsp;/gi, ' ')
@@ -41,20 +48,132 @@ export function fold(value) {
     .replace(/\s+/g, ' ');
 }
 
-function significant(value) {
-  return fold(value).split(' ').filter((word) => word.length > 1 && !GENERIC_WORDS.has(word));
+function matchingForm(value) {
+  return fold(value)
+    .replace(/\bcto\b/g, 'campeonato')
+    .replace(/\brelevos\b/g, 'relevo')
+    .replace(/\bmixtos\b/g, 'mixto')
+    .replace(/\bcontrarreloj\b/g, 'cri')
+    .replace(/\bsub 23\b/g, 'sub23')
+    .replace(/\bfem\b/g, 'femenino')
+    .replace(/\bmasc\b/g, 'masculino')
+    .replace(/\b(?:g p|gp|grand prix|gran premio)\b/g, 'grand prix')
+    .replace(/\b(?:trofeo|trophy)\b/g, 'trofeo');
 }
 
-function aliasesForRace(race) {
+// ETB On y la parrilla de EITB rotulan las carreras en euskera.
+const BASQUE_RACE_FORMS = [
+  [/\bemakumezkoen frantziako tourra\b/g, 'tour de francia femenino'],
+  [/\bfrantziako tourra\b/g, 'tour de francia'],
+  [/\balemaniako (?:tourra|itzulia)\b/g, 'vuelta a alemania'],
+  [/\bburgosko itzulia\b/g, 'vuelta a burgos'],
+  [/\bespainiako (?:itzulia|vuelta)\b/g, 'la vuelta'],
+  [/\bitaliako giroa\b/g, 'giro de italia'],
+  [/\bdonostiako klasik(?:a|oa)\b/g, 'clasica de san sebastian'],
+  [/\bordiziako klasik(?:a|oa)\b/g, 'clasica de ordizia'],
+  [/\bjaengo klasik(?:a|oa)\b/g, 'clasica jaen'],
+  [/\bgetxoko zirkuitua\b/g, 'circuito de getxo'],
+  [/\b(?:euskal herriko|eh) itzulia\b/g, 'itzulia basque country'],
+  [/\bitzulia emakumeak\b/g, 'itzulia women'],
+  [/\bmunduko txapelketa\b/g, 'campeonato del mundo'],
+  [/\bemakume(?:ak|en|zkoen|zkoak)\b/g, 'femenino'],
+  [/\bgizonezko(?:en|ak)\b/g, 'masculino'],
+];
+
+function basqueRaceForm(value) {
+  return BASQUE_RACE_FORMS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+}
+
+// L'Équipe rotula los campeonatos en francés y abrevia el género tras la
+// categoría: «Course en ligne Elite F», «Championnats d'Europe».
+const FRENCH_RACE_FORMS = [
+  [/\bchampionnats? d europe\b/g, 'european championships'],
+  [/\bchampionnats? du monde\b/g, 'world championships'],
+  [/\bcourse en ligne\b/g, 'road race'],
+  [/\bcontre la montre par equipes? mixtes?\b/g, 'mixed relay ttt'],
+  [/\brelais mixtes?\b/g, 'mixed relay ttt'],
+  [/\bcontre la montre(?: individuel)?\b/g, 'itt'],
+  [/\b(elite|u23|espoirs|juniors?) f\b/g, '$1 women'],
+  [/\b(elite|u23|espoirs|juniors?) h\b/g, '$1 men'],
+  [/\bhommes\b/g, 'men'],
+];
+
+function frenchRaceForm(value) {
+  return FRENCH_RACE_FORMS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+}
+
+// Categoría de edad declarada. Una fuente que nombra sub23 o júnior no puede
+// casar con la prueba élite del mismo día, y viceversa.
+function raceLevel(value) {
+  if (/\b(?:sub23|u23|under 23|beloften|espoirs)\b/.test(value)) return 'sub23';
+  if (/\b(?:junior|juniors|juniores|junioren)\b/.test(value)) return 'junior';
+  return null;
+}
+
+const GENDER_WORDS_RE = /\b(?:women|female|femenin[ao]|feminine|femmes?|dames|femminile|donne|vrouwen)\b/g;
+
+function canonicalGenderWords(value) {
+  return value.replace(GENDER_WORDS_RE, 'women');
+}
+
+function significant(value) {
+  return matchingForm(value).split(' ').filter((word) => word.length > 1 && !GENERIC_WORDS.has(word));
+}
+
+function aliasesForRace(race, source) {
   const aliases = [race.name, race.nameEn];
   for (const language of Object.values(race.translations || {})) {
     if (language && typeof language === 'object') aliases.push(language.name);
   }
-  const folded = new Set(aliases.filter(Boolean).map(fold));
+  const folded = new Set(aliases.filter(Boolean).flatMap((alias) => [
+    matchingForm(alias),
+    matchingForm(String(alias).split(/\s*\/\s*/, 1)[0]),
+  ]));
   for (const alias of [...folded]) {
+    if (/\bcre\b/.test(alias) && /\brelevo mixto\b/.test(alias)) {
+      folded.add(alias.replace(/\bcre\b/g, ' ').replace(/\s+/g, ' ').trim());
+    }
     if (/\bla vuelta\b/.test(alias)) folded.add('vuelta a espana');
     if (/\bvuelta a espana\b/.test(alias)) folded.add('la vuelta');
     if (/\btour de france femmes\b/.test(alias)) folded.add('tour de france femmes avec zwift');
+    if (/\bfaun tour femmes\b/.test(alias)) folded.add('faun tour femmes');
+    if (/\b(?:il )?giro d abruzzo\b/.test(alias)) {
+      folded.add('giro d abruzzo');
+      folded.add('tour of abruzzo');
+    }
+    if (/\btour de luxembourg\b/.test(alias)) {
+      folded.add('tour of luxembourg');
+      folded.add('ronde van luxemburg');
+    }
+    if (/\bcro race\b/.test(alias)) folded.add('tour de croatie');
+    if (/\bflandrien\b/.test(alias)) folded.add('flandrien 0 0 classic');
+    // Mundial y Europeo se redactan distinto según fuente: HBO escribe «Road Race» y
+    // «Elite Mixed TTT»; Sporza usa «WK»/«EK», «tijdrit/wegrit», «beloften» y
+    // «Mixed team relay».
+    const championship = alias.match(/\b(world|european) championships?\b/);
+    if (championship) {
+      const variants = new Set([alias]);
+      if (/\brr\b/.test(alias)) variants.add(alias.replace(/\brr\b/g, 'road race'));
+      if (/\brelay ttt\b/.test(alias)) {
+        variants.add(alias.replace(/\brelay ttt\b/g, 'ttt'));
+        variants.add(alias.replace(/\brelay ttt\b/g, 'relay itt'));
+        variants.add(alias.replace(/\brelay ttt\b/g, 'team relay'));
+      }
+      const short = championship[1] === 'world' ? 'wk' : 'ek';
+      for (const variant of [...variants]) {
+        folded.add(variant);
+        folded.add(variant.replace(/\b(?:world|european) championships?\b/g, short));
+      }
+    }
+    if (/\bil lombardia\b/.test(alias)) folded.add('ronde van lombardije');
+    if (/\bfourmies feminine\b/.test(alias)) folded.add('grand prix de fourmies');
+  }
+  if (source === 'rai') {
+    for (const alias of [...folded]) {
+      if (/industria and artigianato/.test(alias)) folded.add('grand prix industria and artigianato');
+      if (/premondiale giro toscana/.test(alias)) folded.add('giro della toscana');
+      if (/memorial marco pantani/.test(alias)) folded.add('memorial pantani');
+    }
   }
   return [...folded];
 }
@@ -65,7 +184,8 @@ export function contentHash(value) {
 
 export function parseStageNumber(value) {
   const text = String(value || '');
-  const match = text.match(STAGE_RE) || text.match(/\b(\d{1,2})\s*[ªºa]?\s*(?:etapa|stage)\b/i);
+  const match = text.match(STAGE_RE)
+    || text.match(/\b(\d{1,2})\s*[ªºa]?\s*(?:etapa|stage|[eé]tape|tappa)\b/i);
   return match ? Number(match[1]) : null;
 }
 
@@ -168,6 +288,136 @@ export function parseSpanishDate(value) {
   return month ? `${match[3]}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}` : null;
 }
 
+function hour12To24(hour, minute, meridiem) {
+  let normalizedHour = Number(hour) % 12;
+  if (String(meridiem).toLowerCase() === 'p') normalizedHour += 12;
+  return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function jsonLdItems(html) {
+  const scripts = [...String(html || '').matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  )];
+  return scripts.flatMap((match) => {
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      const roots = Array.isArray(parsed) ? parsed : [parsed];
+      return roots.flatMap((item) => (
+        Array.isArray(item?.['@graph']) ? [item, ...item['@graph']] : [item]
+      ));
+    } catch { return []; }
+  });
+}
+
+export function caracolExternalEventId(dateKey, stageNumber) {
+  return contentHash(`la-vuelta|${dateKey}|${stageNumber}`).slice(0, 32);
+}
+
+function caracolEvent({ dateKey, stageNumber, sourceUrl, startTimeUtc, evidenceRank }) {
+  return {
+    source: 'caracol',
+    externalEventId: caracolExternalEventId(dateKey, stageNumber),
+    dateKey,
+    title: `La Vuelta a España Etapa ${stageNumber}`,
+    subtitle: 'Caracol Sports, Ditu y Caracol Televisión',
+    stageNumber,
+    sourceUrl,
+    broadcastUrl: CARACOL_BROADCAST_URL,
+    channel: 'Caracol / Ditu',
+    country: 'LATAM',
+    startTimeUtc,
+    insertSortOrder: 10,
+    evidenceRank,
+  };
+}
+
+function caracolDateKey(body, fallbackYear) {
+  const normalized = String(body || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const match = normalized.match(
+    /(?:dia|fecha)\s*:\s*(?:[a-z]+\s+)?(\d{1,2}) de ([a-z]+)(?: de (20\d{2}))?\b/,
+  );
+  const month = match && [...SPANISH_MONTHS]
+    .find(([name]) => match[2].startsWith(name))?.[1];
+  const year = Number(match?.[3] || fallbackYear);
+  return month && year
+    ? `${year}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}`
+    : null;
+}
+
+export function parseCaracolVueltaArticleUrls(html) {
+  const urls = new Set();
+  const anchorRe = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/gi;
+  for (const match of String(html || '').matchAll(anchorRe)) {
+    try {
+      const url = new URL(decodeHtml(match[1] || match[2]), CARACOL_VUELTA_INDEX_URL);
+      if (url.protocol !== 'https:' || !['noticiascaracol.com', 'www.noticiascaracol.com'].includes(url.hostname)) continue;
+      if (!/\/golcaracol\/ciclismo\/vuelta-a-espana-20\d{2}-en-vivo-[^?#]*hora-y-donde-ver[^?#]*etapa-\d{1,2}(?:-|$)/i.test(url.pathname)) continue;
+      url.hash = '';
+      url.search = '';
+      urls.add(url.href);
+    } catch {}
+  }
+  return [...urls].sort();
+}
+
+export function parseCaracolGuide(html) {
+  const articles = jsonLdItems(html)
+    .filter((item) => item?.['@type'] === 'NewsArticle' && /ETAPA\s+\d+/i.test(item.articleBody || ''));
+
+  const events = [];
+  for (const article of articles) {
+    const body = String(article.articleBody || '').replace(/\s+/g, ' ').trim();
+    const year = Number(String(article.datePublished || article.headline || '').match(/\b(20\d{2})\b/)?.[1]);
+    if (!year || !fold(`${article.headline || ''} ${body}`).includes('vuelta a espana')) continue;
+    const blocks = [...body.matchAll(/ETAPA\s+(\d{1,2})([\s\S]*?)(?=ETAPA\s+\d{1,2}|$)/gi)];
+    for (const block of blocks) {
+      const stageNumber = Number(block[1]);
+      const timeMatch = block[2].match(/Hora\s*:\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?/i);
+      const dateKey = caracolDateKey(block[2], year);
+      if (!dateKey || !timeMatch || !/Caracol Sports/i.test(block[2]) || !/Ditu/i.test(block[2])) continue;
+      const localStartTime = hour12To24(timeMatch[1], timeMatch[2], timeMatch[3]);
+      events.push(caracolEvent({
+        dateKey,
+        stageNumber,
+        sourceUrl: article.url || CARACOL_SOURCE_URL,
+        startTimeUtc: zonedTimeToUtc(dateKey, localStartTime, 'America/Bogota'),
+        evidenceRank: 1,
+      }));
+    }
+  }
+  return [...new Map(events.map((event) => [event.externalEventId, event])).values()]
+    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
+}
+
+export function parseCaracolDailyArticle(html, pageUrl = CARACOL_SOURCE_URL) {
+  const items = jsonLdItems(html);
+  const events = [];
+  for (const article of items) {
+    if (article?.['@type'] !== 'NewsArticle') continue;
+    const body = String(article.articleBody || '').replace(/\s+/g, ' ').trim();
+    const sourceText = `${article.headline || ''} ${body}`;
+    const stageNumber = parseStageNumber(sourceText);
+    const year = Number(String(article.datePublished || article.headline || '').match(/\b(20\d{2})\b/)?.[1]);
+    const timeMatch = body.match(
+      /Hora(?:\s+de\s+(?:inicio\s+de\s+)?(?:la\s+)?transmisi[oó]n)?\s*:\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?/i,
+    );
+    const dateKey = caracolDateKey(body, year);
+    if (!stageNumber || !dateKey || !timeMatch) continue;
+    if (!fold(sourceText).includes('vuelta a espana') || !/Caracol Sports/i.test(body) || !/Ditu/i.test(body)) continue;
+    const localStartTime = hour12To24(timeMatch[1], timeMatch[2], timeMatch[3]);
+    events.push(caracolEvent({
+      dateKey,
+      stageNumber,
+      sourceUrl: article.url || pageUrl,
+      startTimeUtc: zonedTimeToUtc(dateKey, localStartTime, 'America/Bogota'),
+      evidenceRank: 3,
+    }));
+  }
+
+  return [...new Map(events.map((event) => [event.externalEventId, event])).values()]
+    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
+}
+
 export function zonedTimeToUtc(dateKey, time, timeZone = 'Europe/Madrid') {
   const [year, month, day] = dateKey.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
@@ -222,6 +472,58 @@ function rtveLiveUrl(channel) {
   return 'https://www.rtve.es/play/videos/directo/la-1/';
 }
 
+export function parseRtveVueltaScheduleArticle(html) {
+  const text = stripHtml(html);
+  const foldedText = fold(text);
+  const year = Number(foldedText.match(/\bvuelta(?: a)? espana\s+(20\d{2})\b/)?.[1]);
+  if (!year) return [];
+
+  const events = [];
+  const blockRe = /\bEtapa\s+(\d{1,2})\s*:\s*([\s\S]*?)(?=\s+Etapa\s+\d{1,2}\s*:|$)/gi;
+  for (const match of text.matchAll(blockRe)) {
+    const stageNumber = Number(match[1]);
+    const block = match[2];
+    const foldedBlock = fold(block);
+    const dateMatch = foldedBlock.match(
+      /\b(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(\d{1,2})\s+de\s+([a-z]+)/,
+    );
+    const month = dateMatch && SPANISH_MONTHS.get(dateMatch[2]);
+    const startMatch = block.match(/\bDesde las\s+(\d{1,2}):(\d{2})\s+horas?\s+en\s+Teledeporte\b/i);
+    if (!month || !startMatch) continue;
+
+    const dateKey = `${year}-${String(month).padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
+    const localStartTime = `${startMatch[1].padStart(2, '0')}:${startMatch[2]}`;
+    const transition = block.match(
+      /\by\s+desde las\s+(\d{1,2}):(\d{2})\s+horas?\s+en\s+(La 1|La 2)\b/i,
+    );
+    const transitionTime = transition
+      ? `${transition[1].padStart(2, '0')}:${transition[2]}`
+      : null;
+    const note = transition ? `Pasa a ${transition[3]} a las ${transitionTime}.` : null;
+    events.push({
+      source: 'rtve',
+      externalEventId: rtveVueltaExternalEventId(dateKey, stageNumber),
+      dateKey,
+      title: `Ciclismo Vuelta a España ${year} Etapa ${stageNumber}`,
+      subtitle: stripHtml(block),
+      sourceChannel: 'Teledeporte',
+      channel: 'TDP / RTVE Play',
+      country: 'ES',
+      sourceUrl: RTVE_VUELTA_SCHEDULE_URL,
+      broadcastUrl: `https://www.rtve.es/play/videos/directo/ciclismo-vuelta-espana-${year}-masculina-etapa-${stageNumber}/`,
+      startTimeUtc: zonedTimeToUtc(dateKey, localStartTime),
+      localStartTime,
+      stageNumber,
+      note,
+    });
+  }
+  return events.sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
+}
+
+export function rtveVueltaExternalEventId(dateKey, stageNumber) {
+  return contentHash(`rtve-vuelta-schedule|${dateKey}|${stageNumber}`).slice(0, 32);
+}
+
 export function parseRtveStructuredGuide(html) {
   const decoded = String(html).replace(/\\"/g, '"');
   const groupRe = /"nombreCanal":"([^"]+)"[\s\S]{0,500}?"items":(\[[\s\S]*?\]),"canal":\{"id":"([^"]+)"/gi;
@@ -245,7 +547,9 @@ export function parseRtveStructuredGuide(html) {
       const dateKey = `${begin.slice(0, 4)}-${begin.slice(4, 6)}-${begin.slice(6, 8)}`;
       const localTime = `${begin.slice(8, 10)}:${begin.slice(10, 12)}`;
       const episodeNumber = numberField(item, 'episode_number');
-      const stageNumber = episodeNumber > 0 ? episodeNumber : parseStageNumber(`${title} ${subtitle}`);
+      const isLaVuelta = /\b(?:la vuelta|vuelta a espana)\b/.test(fold(`${title} ${subtitle}`));
+      const stageNumber = parseStageNumber(`${title} ${subtitle}`)
+        ?? (isLaVuelta && episodeNumber > 0 ? episodeNumber : null);
       const titleIdentity = fold(title)
         .replace(/\b\d{4}\b/g, '')
         .replace(/\b\d+\s*a?\s*(?:etapa|stage)\b.*$/, '')
@@ -282,6 +586,71 @@ export function parseRtveStructuredGuide(html) {
       note: transition ? `Pasa a ${transition.sourceChannel} a las ${transition.localStartTime}.` : null,
     };
   }).filter(Boolean);
+}
+
+const RTVE_LIVES_DATE_RE = /^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/;
+
+// Clasifica una emisión por disciplina, categoría y género para casar la
+// parrilla lineal de Teledeporte con el directo equivalente de RTVE Play.
+export function rtveDisciplineKey(value) {
+  const folded = fold(value);
+  let discipline = 'linea';
+  if (/\bcontrarreloj\b|\bcri\b/.test(folded)) discipline = 'cri';
+  else if (/\brelevos?\b|\bcre\b/.test(folded)) discipline = 'cre';
+  let level = 'elite';
+  if (/\bsub ?23\b|\bu23\b/.test(folded)) level = 'sub23';
+  else if (/\bjunior\b/.test(folded)) level = 'junior';
+  let gender = 'mixto';
+  if (/\bfemenin|\bwomen\b|\bfemale\b|\bfem\b/.test(folded)) gender = 'femenino';
+  else if (/\bmasculin|\bmen\b|\bmale\b|\bmasc\b/.test(folded)) gender = 'masculino';
+  return `${discipline}|${level}|${gender}`;
+}
+
+// Comprueba que dos rótulos comparten al menos una palabra significativa de
+// carrera, para no cruzar la hora de un directo con otra prueba del mismo día.
+export function rtveRaceHintMatch(left, right) {
+  const words = new Set(significant(left));
+  if (!words.size) return true;
+  return significant(right).some((word) => words.has(word));
+}
+
+// Eventos de un día publicados por RTVE Play. Su `inicio` es la hora real de
+// emisión, más fiable que el hueco de la parrilla lineal de Teledeporte.
+export function parseRtvePlayLives(payload) {
+  let parsed;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return [];
+  }
+  const items = Array.isArray(parsed?.page?.items) ? parsed.page.items : [];
+  const events = [];
+  for (const item of items) {
+    const text = `${item?.antetitulo || ''} ${item?.titulo || ''} ${item?.descripcion || ''}`;
+    if (!CYCLING_RE.test(text)) continue;
+    const start = String(item?.inicio || '').match(RTVE_LIVES_DATE_RE);
+    if (!start) continue;
+    const htmlUrl = typeof item?.htmlUrl === 'string' ? item.htmlUrl : '';
+    if (!htmlUrl.includes('rtve.es/play/videos/directo/')) continue;
+    const dateKey = `${start[3]}-${start[2]}-${start[1]}`;
+    const localStartTime = `${start[4]}:${start[5]}`;
+    events.push({
+      source: 'rtve',
+      externalEventId: contentHash(`rtve-play-lives|${dateKey}|${item.id || item.uri || htmlUrl}`).slice(0, 32),
+      dateKey,
+      localStartTime,
+      title: stripHtml(item.titulo || 'Campeonato del Mundo en carretera'),
+      subtitle: stripHtml(item.descripcion || ''),
+      stageNumber: null,
+      disciplineKey: rtveDisciplineKey(text),
+      sourceUrl: RTVE_LIVES_URL,
+      broadcastUrl: htmlUrl,
+      channel: 'TDP / RTVE Play',
+      country: 'ES',
+      startTimeUtc: zonedTimeToUtc(dateKey, localStartTime),
+    });
+  }
+  return events;
 }
 
 function rtvePublicationDateKey(value) {
@@ -368,16 +737,17 @@ export function parseRtveGuide(html, { channel: channelOption = null, referenceD
 }
 
 export function normalizedObservation(event) {
-  const start = new Date(event.startTimeUtc);
-  start.setUTCSeconds(0, 0);
+  const start = event.startTimeUtc == null ? null : new Date(event.startTimeUtc);
+  start?.setUTCSeconds(0, 0);
   const normalized = {
     source: event.source,
+    ...(event.source === 'rai' ? { mediaKind: event.mediaKind, durationSeconds: event.durationSeconds, explicitDelayed: event.explicitDelayed === true } : {}),
     externalEventId: event.externalEventId,
     dateKey: event.dateKey,
     title: event.title,
     subtitle: event.subtitle || null,
     stageNumber: event.stageNumber ?? null,
-    startTimeUtc: start.toISOString(),
+    startTimeUtc: start?.toISOString() || null,
     broadcastUrl: event.broadcastUrl,
     sourceUrl: event.sourceUrl,
     sourceChannel: event.sourceChannel || null,
@@ -394,25 +764,49 @@ export function normalizedObservation(event) {
 }
 
 export function matchObservation(observation, raceDays) {
-  const sourceText = fold(`${observation.title} ${observation.subtitle || ''}`);
+  let sourceText = matchingForm(`${observation.title} ${observation.subtitle || ''}`);
+  if (observation.source === 'rai') sourceText = sourceText.replace(/\b(?:g p|gran premio)\b/g, 'grand prix').replace(/\be\b/g, 'and');
+  if (observation.source === 'rtve') {
+    sourceText = sourceText.replace(/\bcarretera\s+prueba\b/g, 'linea');
+    // RTVE Play titula «Campeonato del Mundo en carretera» y detalla solo la
+    // categoría: sin contrarreloj ni relevo, es la prueba en línea.
+    if (/\bcarretera\b/.test(sourceText) && !/\b(?:cri|cre|relevo)\b/.test(sourceText)) {
+      sourceText = sourceText.replace(/\bcarretera\b/, 'carretera linea');
+    }
+  }
+  if (observation.source === 'eitb') sourceText = basqueRaceForm(sourceText);
+  if (observation.source === 'lequipe') sourceText = frenchRaceForm(sourceText);
+  const sourceLevel = raceLevel(sourceText);
+  const canonicalSource = canonicalGenderWords(sourceText);
+  const sourceWords = new Set(canonicalSource.split(' '));
   const candidates = raceDays.filter((day) => day.dateKey === observation.dateKey).map((day) => {
-    const aliases = aliasesForRace(day);
+    const aliases = aliasesForRace(day, observation.source);
+    if (observation.source === 'rai' && observation.stageNumber == null && day.stageNumber != null) {
+      return { day, score: 0, aliases: [] };
+    }
     const aliasScores = aliases.map((alias) => {
-      if (!alias) return 0;
-      if (sourceText.includes(alias)) return 100 + Math.min(alias.length, 30);
-      const words = significant(alias);
-      return words.length >= 2 && words.every((word) => sourceText.includes(word)) ? 80 + words.length : 0;
+      if (!alias) return { alias, score: 0 };
+      const canonicalAlias = canonicalGenderWords(alias);
+      if (canonicalSource.includes(canonicalAlias)) return { alias, score: 100 + Math.min(canonicalAlias.length, 30) };
+      const words = significant(canonicalAlias);
+      const score = words.length >= 2 && words.every((word) => sourceWords.has(word)) ? 80 + words.length : 0;
+      return { alias, score };
     });
-    let score = Math.max(0, ...aliasScores);
+    let score = Math.max(0, ...aliasScores.map((item) => item.score));
     if (observation.stageNumber != null) {
       if (Number(day.stageNumber) === observation.stageNumber) score += 40;
       else score = 0;
     }
-    const sourceFemale = /\b(women|female|femenin[ao]|femmes)\b/.test(sourceText);
+    const dayLevel = raceLevel(matchingForm(`${day.name || ''} ${day.nameEn || ''}`));
+    if (sourceLevel && sourceLevel !== dayLevel) score = 0;
+    if (!sourceLevel && dayLevel) score -= 20;
+    const sourceFemale = /\b(women|female|femenin[ao]|femmes|dames|femminile|donne)\b/.test(sourceText);
+    const sourceMale = /\b(men|male|masculin[oa]|maschile|uomini|mannen)\b/.test(sourceText);
     if (sourceFemale && day.gender !== 'female') score = 0;
+    if (sourceMale && day.gender === 'female') score = 0;
     if (!sourceFemale && day.gender === 'female' && !aliases.some((alias) => /women|fem|dames/.test(alias))) score -= 20;
-    return { day, score, aliases: aliases.filter((alias) => sourceText.includes(alias)) };
-  }).filter((candidate) => candidate.score >= 100).sort((a, b) => b.score - a.score);
+    return { day, score, aliases: aliasScores.filter((item) => item.score > 0).map((item) => item.alias) };
+  }).filter((candidate) => candidate.score >= MIN_WORD_MATCH_SCORE).sort((a, b) => b.score - a.score);
 
   if (candidates.length > 1 && candidates[0].score === candidates[1].score) {
     return { status: 'ambiguous', candidates: candidates.map(({ day, score }) => ({ raceDayId: day.raceDayId, score })) };

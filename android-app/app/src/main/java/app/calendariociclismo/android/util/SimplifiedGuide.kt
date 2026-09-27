@@ -18,6 +18,8 @@ data class GuideRow(
     val category: String?,
     val timeUtc: String?,
     val isEstimated: Boolean,
+    val secondaryType: String? = null,
+    val secondaryLabel: String? = null,
 )
 
 /**
@@ -64,6 +66,8 @@ object SimplifiedGuide {
         val category: String?,
         var timeUtc: String?,
         var isEstimated: Boolean,
+        var secondaryType: String? = null,
+        var secondaryLabel: String? = null,
     )
 
     fun build(
@@ -100,8 +104,10 @@ object SimplifiedGuide {
         }
 
         // — Llegada (km = distancia) —
-        if (estimatedFinishTimeUtc != null && distanceKm != null) {
-            rows.add(Tmp(distanceKm, null, "finish", null, null, estimatedFinishTimeUtc, false))
+        // Existe aunque falte la hora prevista para poder combinarla con una
+        // cima o waypoint del kilómetro final.
+        if (distanceKm != null) {
+            rows.add(Tmp(distanceKm, null, "finish", null, null, estimatedFinishTimeUtc, estimatedFinishTimeUtc == null))
         }
 
         // — Orden por km (estable: pie < cima por construcción) —
@@ -118,19 +124,62 @@ object SimplifiedGuide {
             deduped.add(r)
         }
 
+        // — Fusionar anotaciones en el mismo km EXACTO —
+        // La meta tiene prioridad como acompañante de una cima o waypoint. Si
+        // no coincide con ninguno, se conserva la fusión cima + waypoint.
+        // Se mantiene un único punto con dos iconos, sin tolerancia decimal.
+        val merged = mutableListOf<Tmp>()
+        val consumed = mutableSetOf<Int>()
+        fun isMergeableWaypoint(type: String): Boolean =
+            type !in setOf("start", "finish", "climb_foot", "summit")
+        for (index in deduped.indices) {
+            if (index in consumed) continue
+            val row = deduped[index]
+            if (row.type == "summit" || isMergeableWaypoint(row.type)) {
+                val finishIndex = deduped.indices.firstOrNull { candidateIndex ->
+                    candidateIndex != index && candidateIndex !in consumed &&
+                        deduped[candidateIndex].type == "finish" &&
+                        deduped[candidateIndex].km == row.km
+                }
+                val waypointIndex = if (row.type == "summit") {
+                    deduped.indices.firstOrNull { candidateIndex ->
+                        candidateIndex != index && candidateIndex !in consumed &&
+                            isMergeableWaypoint(deduped[candidateIndex].type) &&
+                            deduped[candidateIndex].km == row.km
+                    }
+                } else null
+                val companionIndex = finishIndex ?: waypointIndex
+                if (companionIndex != null) {
+                    val companion = deduped[companionIndex]
+                    row.secondaryType = companion.type
+                    row.secondaryLabel = companion.label
+                    if (row.timeUtc == null && companion.timeUtc != null) {
+                        row.timeUtc = companion.timeUtc
+                        // La hora estimada de meta no convierte el punto en
+                        // un ancla manual ni activa por sí sola la guía.
+                        if (companion.type != "finish") {
+                            row.isEstimated = companion.isEstimated
+                        }
+                    }
+                    consumed += companionIndex
+                }
+            }
+            merged += row
+        }
+
         // — kmToGo —
         if (distanceKm != null) {
-            for (r in deduped) r.kmToGo = round1(distanceKm - r.km)
+            for (r in merged) r.kmToGo = round1(distanceKm - r.km)
         }
 
         // — Interpolación de horas faltantes (no en CRI/CRE) —
         if (!isTimeTrial) {
-            val anchors = deduped.mapNotNull { r ->
+            val anchors = merged.mapNotNull { r ->
                 val secs = parseSeconds(r.timeUtc) ?: return@mapNotNull null
                 r.km to secs
             }
             if (anchors.size >= 2) {
-                for (r in deduped) {
+                for (r in merged) {
                     if (r.timeUtc != null) continue
                     var prev: Pair<Double, Double>? = null
                     var next: Pair<Double, Double>? = null
@@ -148,8 +197,18 @@ object SimplifiedGuide {
             }
         }
 
-        return deduped.map {
-            GuideRow(it.km, it.kmToGo, it.type, it.label, it.category, it.timeUtc, it.isEstimated)
+        return merged.map {
+            GuideRow(
+                km = it.km,
+                kmToGo = it.kmToGo,
+                type = it.type,
+                label = it.label,
+                category = it.category,
+                timeUtc = it.timeUtc,
+                isEstimated = it.isEstimated,
+                secondaryType = it.secondaryType,
+                secondaryLabel = it.secondaryLabel,
+            )
         }
     }
 

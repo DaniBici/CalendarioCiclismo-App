@@ -5,12 +5,12 @@ import SwiftUI
 struct NotificationOnboardingView: View {
     @State private var manager = NotificationManager.shared
     @State private var isAnimating = false
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 72
     let onDismiss: () -> Void
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            AppTheme.background
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -22,12 +22,11 @@ struct NotificationOnboardingView: View {
                     .foregroundStyle(Color.accentColor)
                     .symbolEffect(.bounce, value: isAnimating)
                     .accessibilityHidden(true)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 20)
 
                 // Título
                 Text("Mantente informado")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.title.bold())
                     .multilineTextAlignment(.center)
                     .padding(.bottom, 12)
 
@@ -97,13 +96,14 @@ struct NotificationOnboardingView: View {
                         Text("Ahora no")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .accessibilityIdentifier(AccessibilityID.onboardingSkipButton)
                     .accessibilityHint("Omitir y acceder a la aplicación sin activar notificaciones")
                     .accessibilityInputLabels(["Ahora no", "Omitir", "No"])
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 48)
+                .padding(.bottom, 32)
             }
         }
         .accessibilityElement(children: .contain)

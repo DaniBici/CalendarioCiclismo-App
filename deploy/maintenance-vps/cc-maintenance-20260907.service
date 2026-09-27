@@ -1,0 +1,10 @@
+[Unit]
+Description=Calendario Ciclismo - mantenimiento autorizado del 7 de septiembre
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cc-maintenance-20260907 apply
+TimeoutStartSec=infinity
+UMask=0077

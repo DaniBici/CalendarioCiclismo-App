@@ -8,11 +8,15 @@ const IRM_MAP = new Map([
   ['DNS', 'DNS'], ['NP', 'DNS'], ['NON PARTANT', 'DNS'], ['NON PARTITI', 'DNS'],
   ['OTL', 'OTL'], ['HD', 'OTL'], ['HORS DELAI', 'OTL'], ['FUORI TEMPO MASSIMO', 'OTL'],
   ['DSQ', 'DSQ'], ['EXP', 'DSQ'], ['SQ', 'DSQ'], ['SQUALIFICATO', 'DSQ'],
+  ['DF', 'DF'], ['NR', 'NR'],
 ]);
-const IRM_CODES = new Set(['DNF', 'DNS', 'OTL', 'DSQ']);
+const IRM_CODES = new Set(['DNF', 'DNS', 'OTL', 'DSQ', 'DF', 'NR']);
 const TIME_KINDS = new Set(['stage', 'gc', 'youth', 'teams']);
 const POINT_KINDS = new Set(['points', 'kom']);
 const CLASSIFICATIONS = new Set(['stage/stage', 'gc/stage', 'points/overall', 'kom/overall', 'youth/overall', 'teams/overall']);
+// Las generales finales usan scope 'stage' en todas las clasificaciones, igual que
+// UCI y los fetchers: con 'overall' la oficial no sustituye al placeholder manual.
+const FINAL_CLASSIFICATIONS = new Set(['gc/stage', 'points/stage', 'kom/stage', 'youth/stage', 'teams/stage']);
 
 function clean(value) {
   return value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
@@ -159,7 +163,7 @@ function normalizeTimeClassificationRows(rows, { emptyMeansDitto = false, isTeam
   let lastGap = '+00';
   return rows.map((source, index) => {
     const row = normalizeResultIdentity(source);
-    const irm = irmCode(row.irm, row.status, source.rankText, source.position, source.value, source.timeText, source.time, source.gapText, source.gap);
+    const irm = irmCode(row.irm, source.status, source.rankText, source.position, source.value, source.timeText, source.time, source.gapText, source.gap);
     if (irm) {
       return {
         ...row,
@@ -214,7 +218,7 @@ function normalizeTimeClassificationRows(rows, { emptyMeansDitto = false, isTeam
 function normalizePointsRows(rows) {
   return rows.map((source) => {
     const row = normalizeResultIdentity(source);
-    const irm = irmCode(row.irm, row.status, source.rankText, source.position, source.value);
+    const irm = irmCode(row.irm, source.status, source.rankText, source.position, source.value);
     if (irm) return {
       ...row,
       rank: null,
@@ -263,7 +267,7 @@ export function normalizeResultsDocument(document, { emptyMeansDitto = false } =
         return {
           ...classification,
           classKind: kind,
-          scope: clean(classification.scope),
+          scope: stage.isFinalClassification ? 'stage' : clean(classification.scope),
           rowCount: normalizedRows.length,
           winnerName: (classification.isTeamEvent ? winner?.teamName : winner?.riderDisplay) ?? classification.winnerName ?? null,
           rows: normalizedRows,
@@ -281,7 +285,7 @@ function isGapFormat(value) {
   return /^\+(?:\d{2}|\d+:\d{2}|\d+:\d{2}:\d{2})$/.test(clean(value));
 }
 
-function readStartlistBibs(document) {
+export function readStartlistBibs(document) {
   if (Array.isArray(document)) return new Set(document.map(clean).filter(Boolean));
   const bibs = [];
   for (const team of document?.teams ?? []) for (const rider of team?.riders ?? []) bibs.push(clean(rider.dorsal));
@@ -289,6 +293,7 @@ function readStartlistBibs(document) {
 }
 
 export function validateResultsDocument(document, {
+  inputContract = 'manual',
   startlistBibs = null,
   startlistRaceId = null,
   expectedRaceId = null,
@@ -335,14 +340,15 @@ export function validateResultsDocument(document, {
       classificationCount += 1;
       const classPath = `${stagePath}.classifications[${classIndex}]`;
       const pair = `${classification.classKind}/${classification.scope}`;
-      if (!CLASSIFICATIONS.has(pair)) issue(errors, 'INVALID_CLASSIFICATION', classPath, `Clasificación no admitida: ${pair}.`);
+      const allowed = stage.isFinalClassification ? FINAL_CLASSIFICATIONS : CLASSIFICATIONS;
+      if (!allowed.has(pair)) issue(errors, 'INVALID_CLASSIFICATION', classPath, `Clasificación no admitida: ${pair}.`);
       if (!clean(classification.eventName)) issue(errors, 'MISSING_EVENT_NAME', `${classPath}.eventName`, 'Falta eventName.');
       if (typeof classification.isTeamEvent !== 'boolean') issue(errors, 'INVALID_TEAM_EVENT_FLAG', `${classPath}.isTeamEvent`, 'isTeamEvent debe ser booleano.');
       if ((classification.classKind === 'teams') !== (classification.isTeamEvent === true)) {
         issue(errors, 'TEAM_EVENT_CLASS_MISMATCH', `${classPath}.isTeamEvent`, 'isTeamEvent=true corresponde exclusivamente a classKind=teams.');
       }
-      if (!Number.isInteger(classification.eventId) || classification.eventId >= 0 || Math.abs(classification.eventId) > 2147483647) {
-        issue(errors, 'INVALID_EVENT_ID', `${classPath}.eventId`, 'eventId debe ser un entero int4 negativo y determinista.');
+      if (!Number.isInteger(classification.eventId) || classification.eventId === 0 || (inputContract === 'manual' && classification.eventId > 0) || Math.abs(classification.eventId) > 2147483647) {
+        issue(errors, 'INVALID_EVENT_ID', `${classPath}.eventId`, inputContract === 'manual' ? 'eventId debe ser un entero int4 negativo y determinista.' : 'eventId debe ser un entero int4 distinto de cero.');
       } else if (eventIds.has(classification.eventId)) {
         issue(errors, 'DUPLICATE_EVENT_ID', `${classPath}.eventId`, 'eventId duplicado dentro del documento.');
       } else eventIds.add(classification.eventId);
@@ -356,7 +362,9 @@ export function validateResultsDocument(document, {
       if (classification.rowCount !== rows.length) {
         issue(errors, 'ROW_COUNT_MISMATCH', `${classPath}.rowCount`, `rowCount=${classification.rowCount}; rows.length=${rows.length}.`);
       }
-      if (!Number.isInteger(classification.expectedRowCount) || classification.expectedRowCount < 1) {
+      if (inputContract === 'fetcher' && classification.expectedRowCount == null) {
+        // El adaptador automático no declara un recuento externo. No inventarlo.
+      } else if (!Number.isInteger(classification.expectedRowCount) || classification.expectedRowCount < 1) {
         issue(errors, 'INVALID_EXPECTED_ROW_COUNT', `${classPath}.expectedRowCount`, 'expectedRowCount debe ser un entero positivo tomado de la fuente.');
       } else if (classification.expectedRowCount !== rows.length) {
         issue(errors, 'EXPECTED_ROW_COUNT_MISMATCH', `${classPath}.expectedRowCount`, `La fuente declara ${classification.expectedRowCount} filas y el documento contiene ${rows.length}.`);
@@ -491,6 +499,21 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
+// El mismo documento normalizado que supera el gate alimenta el upsert.
+// El contrato del fetcher permite sus IDs oficiales y la ausencia de un total
+// externo; jamás fabrica expectedRowCount a partir del array extraído.
+export function prepareResultsImport(source, { expectedRaceId, inputContract = 'manual', startlist = null,
+  emptyMeansDitto = false, allowNonMonotonicGaps = false, allowBibless = false } = {}) {
+  if (!['manual', 'fetcher'].includes(inputContract)) throw new Error('inputContract debe ser manual o fetcher.');
+  const declared = clean(source?.raceId);
+  const input = inputContract === 'fetcher' && !declared ? { ...source, raceId: expectedRaceId } : source;
+  const document = normalizeResultsDocument(input, { emptyMeansDitto });
+  const report = validateResultsDocument(document, { expectedRaceId, inputContract,
+    startlistBibs: startlist ? readStartlistBibs(startlist) : null, startlistRaceId: startlist?.raceId ?? null,
+    allowNonMonotonicGaps, allowBibless });
+  return { document, report };
+}
+
 function main() {
   const input = arg('in');
   const expectedRaceId = arg('race-id');
@@ -500,16 +523,12 @@ function main() {
     return;
   }
   const source = JSON.parse(readFileSync(resolve(input), 'utf8'));
-  const normalized = normalizeResultsDocument(source, { emptyMeansDitto: hasFlag('empty-means-ditto') });
   const startlistPath = arg('startlist');
   const startlist = startlistPath ? JSON.parse(readFileSync(resolve(startlistPath), 'utf8')) : null;
-  const startlistBibs = startlist ? readStartlistBibs(startlist) : null;
-  const report = validateResultsDocument(normalized, {
-    startlistBibs,
-    startlistRaceId: startlist?.raceId ?? null,
-    expectedRaceId,
-    allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'),
-    allowBibless: hasFlag('allow-bibless'),
+  const { document: normalized, report } = prepareResultsImport(source, {
+    expectedRaceId, inputContract: arg('input-contract') || 'manual', startlist,
+    emptyMeansDitto: hasFlag('empty-means-ditto'),
+    allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'), allowBibless: hasFlag('allow-bibless'),
   });
   const normalizedOut = arg('normalized-out');
   if (normalizedOut && report.ok) writeFileSync(resolve(normalizedOut), `${JSON.stringify(normalized, null, 2)}\n`);

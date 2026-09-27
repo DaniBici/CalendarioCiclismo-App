@@ -121,3 +121,31 @@ fun PlaceholderModal(item: PlaceholderItem, onDismiss: () -> Unit) {
 fun PlaceholderModalOverlay(item: PlaceholderItem?, onDismiss: () -> Unit) {
     item?.let { PlaceholderModal(item = it, onDismiss = onDismiss) }
 }
+
+/**
+ * Modal de placeholder para carreras CX: la ficha no tiene la carga mínima
+ * (Libro de Ruta o Mapa, y horarios) o la prueba está cancelada. Mismo mensaje
+ * que en Hoy en Carretera; el nombre va localizado.
+ */
+@Composable
+fun CxPlaceholderModal(race: app.calendariociclismo.android.data.model.CxRace, onDismiss: () -> Unit) {
+    val english = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language != "es"
+    val message = when {
+        race.isCancelled -> stringResource(R.string.placeholder_cancelled_race)
+        else -> {
+            val today = DateFormatting.todayKey()
+            if (today < race.dateKey) stringResource(R.string.placeholder_future_no_info)
+            else stringResource(R.string.placeholder_no_info)
+        }
+    }
+    val dateText = DateFormatting.formatDateRange(race.dateKey, race.endDateKey)
+    val title = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(if (dateText.isEmpty()) message else "$dateText\n\n$message") },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+    )
+}

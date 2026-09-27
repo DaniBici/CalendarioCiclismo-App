@@ -45,9 +45,7 @@ fun CCCard(
     //    depender del tinte de elevación de M3 (que reintroducía el rosado).
     //  - Listados (con accent): superficie blanca `surface` + velo de marca en
     //    el Box interior, conservando el aspecto previo de Hoy.
-    val containerColor =
-        if (accent != null) MaterialTheme.colorScheme.surface
-        else MaterialTheme.colorScheme.surfaceVariant
+    val containerColor = MaterialTheme.colorScheme.surface
     ElevatedCard(
         shape = shape,
         colors = CardDefaults.elevatedCardColors(containerColor = containerColor),

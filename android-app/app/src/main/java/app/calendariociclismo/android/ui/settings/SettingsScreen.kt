@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
@@ -50,7 +52,6 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,12 +85,10 @@ import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.NotificationCategoryPreference
 import app.calendariociclismo.android.data.prefs.RaceFollowMode
 import app.calendariociclismo.android.data.prefs.RaceGroupFilter
-import app.calendariociclismo.android.data.prefs.RegionPreference
 import app.calendariociclismo.android.data.prefs.ThemePreference
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
-import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.launch
 
@@ -106,14 +105,13 @@ fun SettingsScreen(navController: NavController) {
     val analyticsEnabled by app.preferences.analyticsEnabled.collectAsState(initial = false)
     val themePref by app.preferences.themePreference.collectAsState(initial = ThemePreference.SYSTEM)
     val locale by app.preferences.appLocale.collectAsState(initial = LocalePreference.SPANISH)
-    val region by app.preferences.regionPreference.collectAsState(initial = RegionPreference.SPAIN)
-    val preferredCountryGroup by app.preferences.preferredCountryGroup.collectAsState(initial = null)
     val notificationCategories by app.preferences.notificationCategories
         .collectAsState(initial = NotificationCategoryPreference.DEFAULT_ENABLED)
     val raceFollowMode by app.preferences.raceFollowMode.collectAsState(initial = RaceFollowMode.FOLLOW_ALL)
     val followedRaceIds by app.preferences.followedRaceIds.collectAsState(initial = emptySet())
     val activeRaceFilters by app.preferences.activeRaceFilters.collectAsState(initial = emptySet())
     val followedStageIds by app.preferences.followedStageIds.collectAsState(initial = emptySet())
+    val followedCxRaceIds by app.preferences.followedCxRaceIds.collectAsState(initial = emptySet())
     val isPremium by app.premium.isSubscribed.collectAsState()
     val legacyPremiumActive by app.premium.isLegacyPremiumActive.collectAsState()
     val isFounder by app.premium.isFounder.collectAsState()
@@ -131,7 +129,19 @@ fun SettingsScreen(navController: NavController) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_settings)) }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.tab_settings)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = LocaleHolder.t("Volver", "Back"),
+                        )
+                    }
+                },
+            )
+        }
     ) { pad ->
         LazyColumn(
             contentPadding = PaddingValues(12.dp),
@@ -142,7 +152,10 @@ fun SettingsScreen(navController: NavController) {
         ) {
             // ── Apoyo voluntario — primera opción del panel ──
             item {
-                Section(title = stringResource(R.string.settings_adfree_header)) {
+                Section(
+                    title = stringResource(R.string.settings_adfree_header),
+                    leadingIcon = { SupportSectionIcon() },
+                ) {
                     AdFreeSection(
                         isFriend = isPremium,
                         legacyPremiumActive = legacyPremiumActive,
@@ -380,6 +393,8 @@ fun SettingsScreen(navController: NavController) {
                             onNavigateFollowedRaces = { navController.navigate(Routes.followedRaces) },
                             followedStageIds = followedStageIds,
                             onNavigateFollowedStages = { navController.navigate(Routes.FOLLOWED_STAGES) },
+                            followedCxRaceIds = followedCxRaceIds,
+                            onNavigateFollowedCxRaces = { navController.navigate(Routes.followedCxRaces) },
                         )
                     }
                 }
@@ -448,34 +463,6 @@ fun SettingsScreen(navController: NavController) {
                                             )
                                     }
                                 }
-                            }
-                        },
-                    )
-                }
-            }
-
-            // ── Región (filtro de broadcasts; SPAIN gratis, resto Premium) ──
-            item {
-                Section(title = stringResource(R.string.settings_section_region)) {
-                    Text(
-                        text = stringResource(R.string.settings_region_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    RegionPreferenceSelector(
-                        selected = region,
-                        preferredCountryGroup = preferredCountryGroup,
-                        onSelect = { newValue ->
-                            if (newValue == region) return@RegionPreferenceSelector
-                            haptic(Haptics.Event.Selection)
-                            scope.launch { app.preferences.setRegionPreference(newValue) }
-                        },
-                        onSelectCountry = { newGroup ->
-                            haptic(Haptics.Event.Selection)
-                            scope.launch {
-                                app.preferences.setPreferredCountryGroup(newGroup)
-                                app.pushManager.syncCategories()
                             }
                         },
                     )
@@ -573,15 +560,25 @@ fun SettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(
+    title: String,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     CCCard(cornerRadius = 14) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.semantics { heading() },
-            )
+            ) {
+                leadingIcon?.invoke()
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Spacer(Modifier.height(6.dp))
             content()
         }
@@ -689,201 +686,6 @@ private fun LocaleOptionRow(
             )
         }
     }
-}
-
-@Composable
-private fun RegionPreferenceSelector(
-    selected: RegionPreference,
-    preferredCountryGroup: String?,
-    onSelect: (RegionPreference) -> Unit,
-    onSelectCountry: (String?) -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            for (option in RegionPreference.entries) {
-                RegionOptionRow(
-                    option = option,
-                    flag = regionFlagEmoji(option),
-                    selected = selected == option,
-                    locked = false,
-                    hint = null,
-                    onClick = { onSelect(option) },
-                )
-                if (selected == option && option.availableCountryGroups.size > 1) {
-                    CountryGroupSubSelector(
-                        bucket = option,
-                        selected = preferredCountryGroup,
-                        onSelect = onSelectCountry,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CountryGroupSubSelector(
-    bucket: RegionPreference,
-    selected: String?,
-    onSelect: (String?) -> Unit,
-) {
-    val groups = bucket.availableCountryGroups
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 36.dp, top = 2.dp, bottom = 4.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_region_country_label),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 2.dp),
-            )
-            CountryGroupRow(
-                emoji = "📍",
-                label = stringResource(R.string.settings_region_country_auto),
-                selected = selected == null,
-                onClick = { onSelect(null) },
-            )
-            for (group in groups) {
-                val labelRes = RegionDetector.countryGroupLabelRes(group)
-                CountryGroupRow(
-                    emoji = RegionDetector.countryGroupEmoji(group),
-                    label = if (labelRes != null) stringResource(labelRes) else group,
-                    selected = selected == group,
-                    onClick = { onSelect(group) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CountryGroupRow(
-    emoji: String,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = !selected) { onClick() }
-            .padding(vertical = 4.dp, horizontal = 6.dp),
-    ) {
-        Text(
-            text = emoji,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.size(22.dp).padding(top = 2.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold
-                             else androidx.compose.ui.text.font.FontWeight.Normal,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        if (selected) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun RegionOptionRow(
-    option: RegionPreference,
-    flag: String,
-    selected: Boolean,
-    locked: Boolean,
-    hint: String?,
-    onClick: () -> Unit,
-) {
-    val rowAlpha = if (locked) 0.7f else 1f
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 6.dp, horizontal = 4.dp),
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = if (selected) 0.18f else 0.12f),
-            modifier = Modifier.size(28.dp),
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(flag, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(option.labelRes),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold
-                                 else androidx.compose.ui.text.font.FontWeight.Normal,
-                ),
-                color = if (locked) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.alpha(rowAlpha),
-            )
-            if (hint != null) {
-                Text(
-                    text = hint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                )
-            }
-        }
-        if (selected) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(18.dp),
-            )
-        } else if (locked) {
-            Icon(
-                imageVector = Icons.Filled.Lock,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.height(16.dp),
-            )
-        }
-    }
-}
-
-private fun regionFlagEmoji(region: RegionPreference): String = when (region) {
-    RegionPreference.SPAIN -> "🇪🇸"
-    RegionPreference.EUROPE -> "🇪🇺"
-    RegionPreference.AMERICAS -> "🌎"
-    RegionPreference.ASIA -> "🌏"
-    RegionPreference.AFRICA -> "🌍"
-    RegionPreference.ALL -> "🌐"
 }
 
 @Composable
@@ -1017,23 +819,7 @@ private fun PremiumCTACard(onTap: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.CalendarMonth,
-                    contentDescription = null,
-                    tint = androidx.compose.ui.graphics.Color(0xFFF6A623),
-                    modifier = Modifier.size(18.dp),
-                )
-                Icon(
-                    imageVector = Icons.Filled.DirectionsBike,
-                    contentDescription = null,
-                    tint = androidx.compose.ui.graphics.Color(0xFFF6A623),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            OfficialSettingsIcon(R.drawable.ic_launcher_friend_foreground, Color.White, 36.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.settings_premium_cta_title),
@@ -1063,23 +849,7 @@ private fun PremiumActiveCard(onManage: () -> Unit, onRedeemCode: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CalendarMonth,
-                        contentDescription = null,
-                        tint = androidx.compose.ui.graphics.Color(0xFFF6A623),
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.DirectionsBike,
-                        contentDescription = null,
-                        tint = androidx.compose.ui.graphics.Color(0xFFF6A623),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
+                OfficialSettingsIcon(R.drawable.ic_launcher_friend_foreground, Color.White, 36.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.settings_premium_active_title),
@@ -1171,6 +941,8 @@ private fun RaceFollowSection(
     onNavigateFollowedRaces: () -> Unit,
     followedStageIds: Set<String> = emptySet(),
     onNavigateFollowedStages: () -> Unit = {},
+    followedCxRaceIds: Set<String> = emptySet(),
+    onNavigateFollowedCxRaces: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     androidx.compose.material3.Surface(
@@ -1301,23 +1073,72 @@ private fun RaceFollowSection(
             )
         }
     }
+
+    androidx.compose.material3.Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onNavigateFollowedCxRaces),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_cyclocross),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(width = 18.dp, height = 11.dp),
+            )
+            Text(
+                text = if (followedCxRaceIds.isEmpty()) stringResource(R.string.followed_cx_races_empty_title)
+                else stringResource(R.string.followed_cx_races_title) + " (${followedCxRaceIds.size})",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
     }
 }
 
 @Composable
 private fun AdFreeIcon() {
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    OfficialSettingsIcon(R.drawable.ic_launcher_friend_foreground, Color.White, 36.dp)
+}
+
+/** Usa los mismos recursos vectoriales que los iconos oficiales del lanzador. */
+@Composable
+private fun OfficialSettingsIcon(
+    drawable: Int,
+    backgroundColor: Color,
+    size: androidx.compose.ui.unit.Dp,
+) {
+    Surface(color = backgroundColor, shape = RoundedCornerShape(9.dp), modifier = Modifier.size(size)) {
+        Icon(painter = painterResource(drawable), contentDescription = null,
+            tint = Color.Unspecified, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+private fun SupportSectionIcon() {
+    Surface(
+        color = Color(0xFF1A73E8),
+        shape = RoundedCornerShape(6.dp),
+        modifier = Modifier.size(28.dp),
+    ) {
         Icon(
-            imageVector = Icons.Filled.CalendarMonth,
+            painter = painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = Color(0xFFF6A623),
-        )
-        Icon(
-            imageVector = Icons.Filled.DirectionsBike,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = Color(0xFFF6A623),
+            tint = Color.Unspecified,
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
@@ -1403,17 +1224,14 @@ private fun AdFreeSection(
             IconChoice(
                 LocaleHolder.t("Original", "Original"),
                 Color(0xFF1A73E8),
-                Color.White,
-                null,
+                R.drawable.ic_launcher_foreground,
                 supporterIcon == "default",
-                useAppIcon = true,
             ) { onIcon(PremiumService.SupporterIcon.DEFAULT) }
             if (isFounder) {
                 IconChoice(
                     LocaleHolder.t("Fundador", "Founder"),
                     Color(0xFF101828),
-                    Color(0xFFF6A623),
-                    Icons.Filled.AutoAwesome,
+                    R.drawable.ic_launcher_founder_foreground,
                     supporterIcon == "founder",
                 ) { onIcon(PremiumService.SupporterIcon.FOUNDER) }
             }
@@ -1421,8 +1239,7 @@ private fun AdFreeSection(
                 IconChoice(
                     LocaleHolder.t("Amigo", "Friend"),
                     Color.White,
-                    Color(0xFF1A73E8),
-                    Icons.Filled.Favorite,
+                    R.drawable.ic_launcher_friend_foreground,
                     supporterIcon == "friend",
                 ) { onIcon(PremiumService.SupporterIcon.FRIEND) }
             }
@@ -1481,10 +1298,8 @@ private fun SupportCTA(onSubscribe: () -> Unit) {
 private fun RowScope.IconChoice(
     label: String,
     backgroundColor: Color,
-    foregroundColor: Color,
-    badge: androidx.compose.ui.graphics.vector.ImageVector?,
+    drawable: Int,
     selected: Boolean,
-    useAppIcon: Boolean = false,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1498,34 +1313,7 @@ private fun RowScope.IconChoice(
             modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .background(backgroundColor, RoundedCornerShape(9.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (useAppIcon) {
-                    Icon(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
-                        contentDescription = null,
-                        tint = Color.Unspecified,
-                        modifier = Modifier.size(42.dp),
-                    )
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = foregroundColor, modifier = Modifier.size(15.dp))
-                        Icon(Icons.Filled.DirectionsBike, contentDescription = null, tint = foregroundColor, modifier = Modifier.size(15.dp))
-                    }
-                    badge?.let {
-                        Icon(
-                            imageVector = it,
-                            contentDescription = null,
-                            tint = foregroundColor,
-                            modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(10.dp),
-                        )
-                    }
-                }
-            }
+            OfficialSettingsIcon(drawable, backgroundColor, 42.dp)
             Text(label, style = MaterialTheme.typography.labelSmall)
             if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
         }

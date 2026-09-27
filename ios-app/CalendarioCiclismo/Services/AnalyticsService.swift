@@ -57,6 +57,7 @@ final class AnalyticsService {
         // El contador de engagement es local e independiente del consentimiento:
         // decide cuándo tiene sentido invitar a contribuir, no perfila ni envía datos.
         ContributionPromptService.shared.recordContentScreenView(screenName)
+        ReviewPromptService.shared.recordContentScreenView(screenName)
         guard isEnabled else { return }
         var eventParams: [String: Any] = [AnalyticsParameterScreenName: screenName]
         if let parameters = parameters {
@@ -89,6 +90,7 @@ final class ContributionPromptService {
         static let promptCount = "contribution_prompt_v4_2_4_prompt_count"
         static let lastPromptViews = "contribution_prompt_v4_2_4_last_prompt_views"
         static let lastPromptDate = "contribution_prompt_v4_2_4_last_prompt_date"
+        static let meaningfulAction = "contribution_prompt_v4_2_4_meaningful_action"
     }
 
     private let eligibleScreens: Set<String> = [
@@ -107,6 +109,9 @@ final class ContributionPromptService {
               !PremiumService.shared.isLegacyPremiumActive else { return }
 
         let defaults = UserDefaults.standard
+        if meaningfulScreens.contains(screenName) {
+            defaults.set(true, forKey: Key.meaningfulAction)
+        }
         if defaults.object(forKey: Key.firstContentView) == nil {
             defaults.set(Date(), forKey: Key.firstContentView)
         }
@@ -129,7 +134,8 @@ final class ContributionPromptService {
         let promptCount = defaults.integer(forKey: Key.promptCount)
         guard promptCount < 2,
               let firstView = defaults.object(forKey: Key.firstContentView) as? Date,
-              Date().timeIntervalSince(firstView) >= 7 * 24 * 60 * 60
+              Date().timeIntervalSince(firstView) >= 7 * 24 * 60 * 60,
+              defaults.bool(forKey: Key.meaningfulAction)
         else { return false }
 
         let views = defaults.integer(forKey: Key.contentViews)
@@ -140,6 +146,11 @@ final class ContributionPromptService {
         else { return false }
         return views - defaults.integer(forKey: Key.lastPromptViews) >= 60
     }
+
+    private let meaningfulScreens: Set<String> = [
+        "race_detail", "stage_detail", "results", "startlist", "start_order",
+        "elevation_profile", "route_map", "transfers_team"
+    ]
 
     private func registerDecision(_ action: String) {
         let defaults = UserDefaults.standard
@@ -152,5 +163,114 @@ final class ContributionPromptService {
             "action": action,
             "prompt_number": nextCount,
         ])
+    }
+}
+
+/// Criterio de la petición de reseña nativa (espejo de `ReviewPromptPolicy`
+/// en Android). Primera petición: 3 días desde la primera pantalla de
+/// contenido, 15 pantallas y una acción de interés. Siguientes: versión de la
+/// app distinta de la última petición, al menos `repeatInterval` desde ella y
+/// de nuevo 15 pantallas y una acción de interés. Siempre desde Hoy. El
+/// sistema decide además si la muestra (Apple: 3 veces al año como máximo).
+enum ReviewPromptPolicy {
+    static let firstDelay: TimeInterval = 3 * 24 * 60 * 60
+    static let repeatInterval: TimeInterval = 28 * 24 * 60 * 60
+    static let minimumContentViews = 15
+
+    static func shouldRequest(
+        now: Date,
+        isToday: Bool,
+        firstContentView: Date?,
+        contentViews: Int,
+        meaningfulAction: Bool,
+        lastRequestAt: Date?,
+        lastRequestVersion: String?,
+        currentVersion: String
+    ) -> Bool {
+        guard isToday, contentViews >= minimumContentViews, meaningfulAction else { return false }
+        if let lastRequestAt {
+            return now.timeIntervalSince(lastRequestAt) >= repeatInterval
+                && lastRequestVersion != currentVersion
+        }
+        guard let firstContentView else { return false }
+        return now.timeIntervalSince(firstContentView) >= firstDelay
+    }
+}
+
+/// Requests the native Store review prompt after demonstrated engagement.
+@MainActor @Observable
+final class ReviewPromptService {
+    static let shared = ReviewPromptService()
+
+    private enum Key {
+        static let firstContentView = "review_prompt_first_content_view"
+        static let contentViews = "review_prompt_content_views"
+        static let meaningfulAction = "review_prompt_meaningful_action"
+        /// Marca heredada (una única petición por instalación); se migra a
+        /// `lastRequestAt` / `lastRequestVersion`.
+        static let requested = "review_prompt_requested"
+        static let lastRequestAt = "review_prompt_last_request_at"
+        static let lastRequestVersion = "review_prompt_last_request_version"
+    }
+
+    private let eligibleScreens: Set<String> = [
+        "today", "results_feed", "results", "race_detail", "stage_detail",
+        "startlist", "start_order", "elevation_profile", "route_map",
+        "month", "season", "transfers", "transfers_team"
+    ]
+    private let meaningfulScreens: Set<String> = [
+        "race_detail", "stage_detail", "results", "startlist", "start_order",
+        "elevation_profile", "route_map", "transfers_team"
+    ]
+
+    private(set) var shouldRequest = false
+
+    private static var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
+    private init() {
+        // Quien ya recibió la petición única anterior empieza a contar el
+        // intervalo desde esta actualización.
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: Key.requested), defaults.object(forKey: Key.lastRequestAt) == nil {
+            defaults.set(Date(), forKey: Key.lastRequestAt)
+            defaults.set(Self.currentVersion, forKey: Key.lastRequestVersion)
+        }
+        defaults.removeObject(forKey: Key.requested)
+    }
+
+    func recordContentScreenView(_ screenName: String) {
+        guard eligibleScreens.contains(screenName), !shouldRequest else { return }
+
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Key.firstContentView) == nil {
+            defaults.set(Date(), forKey: Key.firstContentView)
+        }
+        if meaningfulScreens.contains(screenName) {
+            defaults.set(true, forKey: Key.meaningfulAction)
+        }
+        defaults.set(defaults.integer(forKey: Key.contentViews) + 1, forKey: Key.contentViews)
+
+        shouldRequest = ReviewPromptPolicy.shouldRequest(
+            now: Date(),
+            isToday: screenName == "today",
+            firstContentView: defaults.object(forKey: Key.firstContentView) as? Date,
+            contentViews: defaults.integer(forKey: Key.contentViews),
+            meaningfulAction: defaults.bool(forKey: Key.meaningfulAction),
+            lastRequestAt: defaults.object(forKey: Key.lastRequestAt) as? Date,
+            lastRequestVersion: defaults.string(forKey: Key.lastRequestVersion),
+            currentVersion: Self.currentVersion
+        )
+    }
+
+    /// Registra la petición y reinicia el uso acumulado para la siguiente.
+    func markRequested() {
+        let defaults = UserDefaults.standard
+        defaults.set(Date(), forKey: Key.lastRequestAt)
+        defaults.set(Self.currentVersion, forKey: Key.lastRequestVersion)
+        defaults.set(0, forKey: Key.contentViews)
+        defaults.set(false, forKey: Key.meaningfulAction)
+        shouldRequest = false
     }
 }

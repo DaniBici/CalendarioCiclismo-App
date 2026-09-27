@@ -33,6 +33,10 @@ data class RaceUciStage(
     // romper los selects existentes que no los piden.
     val stageDate: String? = null,    // YYYY-MM-DD; NULL en volcados PDF (mig. 090)
     val winnerName: String? = null,   // ganador crudo de la fuente (cabecera)
+    val publicationStatus: String = "provisional",
+    val lastSyncedAt: String? = null,
+    val updating: Boolean = false,
+    val updatingUntil: String? = null,
     // ── Campos SINTÉTICOS (etapa cancelada) — no existen en BD ─────────────
     // Los pone UciResultsLogic.applyCancelledStages; @Transient los excluye de
     // la (de)serialización para que no se pidan ni se manden a PostgREST.
@@ -44,6 +48,8 @@ data class RaceUciStage(
     @Transient val carriedFromStage: Int? = null,
     /** Sufijo de sector (A/B) de la etapa arrastrada, para el aviso ("tras la 3A"). */
     @Transient val carriedFromSuffix: String? = null,
+    /** Pestaña declarada en race_classifications sin filas publicadas aún. */
+    @Transient val isPendingClassification: Boolean = false,
 )
 
 /**
@@ -56,6 +62,20 @@ data class UciRank1Row(
     val stageRef: String,
     val globalRiderId: String? = null,
     val irm: String? = null,
+    val raceId: String = "",
+    val bib: String? = null,
+    val teamId: String? = null,
+    val riderDisplay: String? = null,
+)
+
+/** Identidad mínima de startlist para resolver por dorsal líderes sin ficha enlazada. */
+@Serializable
+data class FeedStartlistIdentityRow(
+    val raceId: String,
+    val dorsal: Int? = null,
+    val globalRiderId: String? = null,
+    val firstName: String? = null,
+    val lastName: String? = null,
 )
 
 /** Fila de clasificación — fila de `race_uci_results` (filtrada por `stageRef`). */
@@ -140,6 +160,18 @@ data class UciResultsData(
      *  La pantalla agrupa las clasificaciones con esto para separar 3A de 3B. */
     val sectorSuffixByRaceDayId: Map<String, String> = emptyMap(),
     val sectoredStageNumbers: Set<Int> = emptySet(),
+    val classificationConfig: List<RaceClassificationConfig> = emptyList(),
+    val assets: List<Asset> = emptyList(),
+)
+
+@Serializable
+data class RaceClassificationConfig(
+    val raceId: String,
+    val classKind: String,
+    val position: Int = 0,
+    val labelEs: String? = null,
+    val labelEn: String? = null,
+    val colorHex: String? = null,
 )
 
 /**

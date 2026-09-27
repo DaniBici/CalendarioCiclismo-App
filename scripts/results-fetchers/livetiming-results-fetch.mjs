@@ -7,12 +7,12 @@
  * meta — patrón calcado de tissot/matsport/raceresult/sts/domtel, AUTOMÁTICO en
  * el cron.
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
  * race_uci_links.source ('uci'|'tissot'|'pdf'|'matsport'|'sportstiming'|
  * 'manual_timing'|'raceresult'|'sts'|'domtel'|'livetiming', migración 119) vía
- * uci-results-cron.mjs.
+ * results-cron.mjs.
  *
  * MODELO DE V_ID (clave). En livetiming.at un `V_ID` identifica UN DÍA de
  * cronometraje, con formato AAMMDD (260708 = 2026-07-08). En una carrera por
@@ -137,6 +137,7 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { COMPUTER_EVENTS, computerPdfLinks, parseComputerPdf, readComputerPdf } from './computerauswertung-pdf.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -147,6 +148,7 @@ const VIDS = getArg('vids');                          // lista explícita, alter
 const COMPETITION_ID = getArg('competition-id');
 const TOTAL_STAGES = getArg('total-stages') != null ? parseInt(getArg('total-stages'), 10) : null;
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
+const STAGE_DATES = getArg('stage-dates') ? JSON.parse(getArg('stage-dates')) : {};
 const FORCE_OVER = hasFlag('event-over');
 // Por defecto, una GENERAL (gc/points/kom/youth) solo se emite si está CONFIRMADA:
 // livetiming marca cada fila con `markTime` (bggrn=verde/confirmada por el jurado ·
@@ -200,8 +202,8 @@ const CLASS_IDX = {
   'points/stage': 7, 'kom/stage': 8, 'youth/overall': 9, 'teams/stage': 10,
   'other/stage': 11, 'other/overall': 12,
 };
-const synthRaceId = (slot) => -(ID_BASE * 10000 + slot * 100);
-const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
+const synthRaceId = (slot, base = ID_BASE) => -(base * 10000 + slot * 100);
+const synthEventId = (slot, kind, scope, base = ID_BASE) => -(base * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
 // ── normalización ───────────────────────────────────────────────────────────
 // Exportadas para tests (js/__tests__/livetimingResultsFetch.test.js). El script sigue
@@ -232,7 +234,7 @@ export function cleanName(v, bib) {
 
 // tiempo absoluto "4:21:02" / "53:29" → tal cual (formato BD). "-" / vacío / "+…" → null.
 export function normAbsTime(v) {
-  const t = clean(v);
+  const t = clean(v).replace(/[,.]\d+$/, '');
   if (!t || t === '-' || t.startsWith('+')) return null;
   return /^\d+(:\d{2}){1,2}$/.test(t) ? t : null;
 }
@@ -244,7 +246,8 @@ export function normGap(v) {
   if (!t || t === '-') return null;
   t = t.replace(/[[\]]/g, '');                 // quita corchetes de FF
   if (!t.startsWith('+')) return null;
-  const body = t.slice(1).trim();
+  const body = t.slice(1).trim().replace(/[,.]\d+$/, '');
+  if (/^\d+$/.test(body)) return `+${Number(body)}`;
   if (/^\d+(:\d{2}){1,2}$/.test(body)) {
     // normaliza H:MM:SS → recorta ceros de cabeza superfluos manteniendo el patrón UCI.
     const parts = body.split(':').map((p) => parseInt(p, 10));
@@ -275,12 +278,25 @@ export function bibOf(r) {
 // (Caso A deriveGaps de la web, como STS). Abandonos (Place=DNF/…) → irm.
 export function mapStageRows(rows) {
   const out = [];
+  // En CRI se conserva la diferencia publicada, truncada a segundos. Restar
+  // absolutos ya truncados alteraría el gap (17:23,23 - 17:15,93 = +7,30).
+  const fractional = (rows || []).some((r) => /[,.]\d+$/.test(clean(r.Time)));
+  const winner = (rows || []).find((r) => parsePlace(r.Place).rank === 1);
   for (const r of rows || []) {
     const { rank, irm } = parsePlace(r.Place);
     const bib = bibOf(r);
     const name = cleanName(r.Name, bib);
     if (irm) { out.push({ rank: null, rankText: irm, bib, riderDisplay: name, teamName: null, resultValue: null, timeText: null, gapText: null, points: null, irm }); continue; }
     const abs = normAbsTime(r.Time);
+    if (fractional && rank != null && rank !== 1) {
+      const toSeconds = (value) => clean(value).replace(',', '.').split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
+      const difference = normGap(r.Gap) ?? (abs && winner && Number.isFinite(toSeconds(winner.Time))
+        ? `+${Math.floor(Math.max(0, toSeconds(r.Time) - toSeconds(winner.Time)) + 1e-7)}` : null);
+      const gap = normGap(difference);
+      out.push({ rank, rankText: String(rank), bib, riderDisplay: name, teamName: null,
+        resultValue: gap, timeText: null, gapText: gap, points: null, irm: null });
+      continue;
+    }
     out.push({ rank: rank ?? null, rankText: rank != null ? String(rank) : null, bib,
       riderDisplay: name, teamName: null, resultValue: abs, timeText: abs, gapText: null, points: null, irm: null });
   }
@@ -365,7 +381,7 @@ function buildClassification(slot, spec, rows) {
 // ── cliente HTTP ────────────────────────────────────────────────────────────
 async function getJson(url, opts = {}) {
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, ...(opts.headers || {}) }, ...opts });
+    const res = await fetch(url, { signal: AbortSignal.timeout(30000), ...opts, headers: { 'User-Agent': UA, ...(opts.headers || {}) } });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }
@@ -395,11 +411,80 @@ function vidPlusDays(baseVid, n) {
   return `${y2}${m2}${d2}`;
 }
 
+export async function fetchComputerStages({ baseVid, event, html, totalStages, onlyStage = null, stageDates = {},
+  loadPdf = readComputerPdf, loadLinks = (vid) => getJson(`${HOST}/live_links.php?V_ID=${vid}`), loadData = postData }) {
+  if (!Number.isInteger(totalStages) || totalStages < 1) throw new Error('Computerauswertung requiere el total de etapas');
+  if (onlyStage != null && (!Number.isInteger(onlyStage) || onlyStage < 1 || onlyStage > totalStages)) throw new Error('Computerauswertung: etapa fuera de rango');
+  const base = fnv1a(`livetiming:${baseVid}`) % 200000;
+  const pdfs = computerPdfLinks(html, event);
+  const requested = onlyStage != null ? [onlyStage] : Array.from({ length: totalStages }, (_, i) => i + 1);
+  const stages = [];
+  for (const stageNumber of requested) {
+    const vid = vidPlusDays(baseVid, stageNumber - 1);
+    const expectedDate = stageDates[stageNumber] || `20${vid.slice(0, 2)}-${vid.slice(2, 4)}-${vid.slice(4, 6)}`;
+    const sourcePdfUrl = pdfs.get(stageNumber) || null;
+    let classifications;
+    let raceType = event.raceTypes?.[stageNumber] ?? null;
+    if (sourcePdfUrl) {
+      const parsed = parseComputerPdf(await loadPdf(sourcePdfUrl), { event, stageNumber, expectedDate });
+      classifications = parsed.classifications;
+    } else {
+      const links = await loadLinks(vid);
+      if (!links) throw new Error(`Computerauswertung: metadatos no disponibles para ${vid}`);
+      const matches = (links.Rennen || []).filter((r) => clean(r.Veranstaltung).toLowerCase() === event.name.toLowerCase()
+        && Number(clean(r.Name).match(/(\d+)\.\s*Etappe|stage\s*(\d+)/i)?.slice(1).find(Boolean)) === stageNumber);
+      if (matches.length !== 1) continue;
+      const race = matches[0];
+      const date = clean(race.Renndatum).match(/^(\d+)\.\s*(\d+)\.\s*(\d{4})$/);
+      const actualDate = date && `${date[3]}-${date[2].padStart(2, '0')}-${date[1].padStart(2, '0')}`;
+      if (actualDate !== expectedDate) throw new Error(`Computerauswertung: fecha distinta para ${vid}`);
+      const data = await loadData(vid);
+      if (!data) throw new Error(`Computerauswertung: live no disponible para ${vid}`);
+      if (!(data.FF || []).some((r) => parsePlace(r.Place).rank === 1 && normAbsTime(r.Time))) continue;
+      raceType = Number(race.isMZF) === 1 ? 'TTT' : Number(race.Rennart) === 2 ? 'ITT' : null;
+      classifications = CLASS_SPEC.flatMap((spec) => {
+        const rows = spec.map(data[spec.key]);
+        if (!rows.length || (GENERAL_KINDS.has(spec.classKind) && !isGeneralConfirmed(rows))) return [];
+        return [{ ...spec, isTeamEvent: false, rows: rows.map(({ riderDisplay, teamName, markTime, ...row }) => row) }];
+      });
+    }
+    const mapped = classifications.map((c) => ({ eventId: synthEventId(stageNumber, c.classKind, c.scope, base),
+      classKind: c.classKind, scope: c.scope, eventName: c.eventName, isTeamEvent: c.isTeamEvent,
+      ...(c.expectedRowCount != null ? { expectedRowCount: c.expectedRowCount } : {}),
+      winnerName: c.isTeamEvent ? c.rows.find((r) => r.rank === 1)?.riderDisplay : null,
+      rowCount: c.rows.length, rows: c.rows }));
+    stages.push({ uciRaceId: synthRaceId(stageNumber, base), stageNumber, isFinalClassification: false,
+      dateKey: expectedDate, raceType, sourcePdfUrl, classificationCount: mapped.length, classifications: mapped });
+    if (stageNumber === totalStages) {
+      const finals = mapped.filter((c) => c.classKind !== 'stage').map((c) => ({ ...c, scope: 'stage',
+        eventId: synthEventId(FINAL_SLOT, c.classKind, 'stage', base) }));
+      if (finals.length) stages.push({ uciRaceId: synthRaceId(FINAL_SLOT, base), stageNumber: null,
+        isFinalClassification: true, dateKey: expectedDate, sourcePdfUrl, classificationCount: finals.length, classifications: finals });
+    }
+  }
+  return stages;
+}
+
 // ── pipeline ────────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
   mkdirSync(OUT, { recursive: true });
   log(`Fetcher livetiming.at — vid base=${BASE_VID} (puente sintético ${COMPETITION_ID}) · idBase=${ID_BASE}`);
+
+  const computerEvent = COMPUTER_EVENTS[BASE_VID];
+  if (computerEvent) {
+    const page = `https://www.computerauswertung.at/veranstaltung.php?V_ID=${computerEvent.id}&lang=de`;
+    const response = await fetch(page, { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': UA, 'Cache-Control': 'no-cache' } });
+    if (!response.ok) throw new Error(`Computerauswertung: HTTP ${response.status}`);
+    const stages = await fetchComputerStages({ baseVid: BASE_VID, event: computerEvent, html: await response.text(),
+      totalStages: TOTAL_STAGES, onlyStage: ONLY_STAGE, stageDates: STAGE_DATES });
+    const out = { competitionId: Number(COMPETITION_ID), disciplineId: 10, source: 'livetiming',
+      livetimingVid: BASE_VID, fetchedAt: new Date().toISOString(), stageCount: stages.length, stages };
+    writeFileSync(join(OUT, `${COMPETITION_ID}.json`), JSON.stringify(out, null, 2));
+    log(`Computerauswertung: ${stages.length} etapas, ${stages.reduce((n, s) => n + s.classificationCount, 0)} clasificaciones`);
+    if (PRETTY) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    return;
+  }
 
   // Lista de V_ID a probar: explícita (--vids) o derivada por fecha (--vid + --total-stages).
   let candidateVids;

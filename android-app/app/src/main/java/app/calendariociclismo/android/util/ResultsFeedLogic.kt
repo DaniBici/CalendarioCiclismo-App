@@ -19,12 +19,20 @@ import app.calendariociclismo.android.data.model.UciRank1Row
  *  · stageDate puede venir NULL (volcados PDF, migración 090) → la fecha se
  *    resuelve por raceDayId→race_days.dateKey o por las fechas de la carrera, y
  *    el filtro de ventana se aplica DESPUÉS de resolver.
- *  · Sin resultados in-house pero jornada concluida (meta+30) y externos → fila
- *    EXT con los enlaces externos; se convierte sola cuando el cron vuelque.
+ *  · El feed solo contiene clasificaciones propias.
  */
 object ResultsFeedLogic {
 
-    enum class Kind { INHOUSE, EXT }
+    enum class Kind { INHOUSE }
+
+    data class ComplementaryClassification(
+        val stageRef: String,
+        val classKind: String,
+        val labelEs: String,
+        val labelEn: String,
+        val colorHex: String? = null,
+        val winner: String = "",
+    )
 
     data class FeedEntry(
         val kind: Kind,
@@ -47,6 +55,8 @@ object ResultsFeedLogic {
         /** Orden dentro de la MISMA carrera: la general final (0) SIEMPRE por
          *  delante de la etapa (1). Solo lo consulta el comparador. */
         val subOrder: Int = 1,
+        val isFeatured: Boolean = false,
+        val complementary: List<ComplementaryClassification> = emptyList(),
     )
 
     /**
@@ -66,8 +76,8 @@ object ResultsFeedLogic {
      * canónico de carreras. Espejo 1:1 de `fetchEntries` (sin red ni ganadores).
      *
      * @param stages   filas de race_uci_stages (keepForWeb, rowCount>0, stage|gc).
-     * @param raceDays jornadas PUBLICADAS del rango (fallback externos + ruta/km/
-     *                 tipos/hora de las filas in-house, vía raceDayId).
+     * @param raceDays jornadas PUBLICADAS del rango (ruta/km/tipos/hora y
+     *                 contexto de las filas in-house, vía raceDayId).
      * @param races    carreras implicadas (por stages y raceDays).
      */
     fun buildEntries(
@@ -76,7 +86,6 @@ object ResultsFeedLogic {
         races: List<Race>,
         fromKey: String,
         toKey: String,
-        automaticSourceRaceIds: Set<String> = emptySet(),
     ): List<FeedEntry> {
         // El feed recibe jornadas sin el campo transitorio stageSuffix. Se anotan
         // sobre copias para distinguir 1A/1B sin mutar los modelos del llamador.
@@ -102,19 +111,6 @@ object ResultsFeedLogic {
 
         fun key(raceId: String, sn: Int?, suffix: String = "") =
             "$raceId#${sn?.toString() ?: "final"}$suffix"
-
-        // raceDayId es la identidad canónica. El fallback raceId+stageNumber se
-        // mantiene solo para volcados antiguos sin raceDayId y se desactiva si
-        // el mismo número ya tiene una clasificación enlazada: de otro modo una
-        // 1A enlazada ocultaría el fallback externo legítimo de la 1B.
-        val inhouseDayIds = stages.mapNotNull { it.raceDayId }.toSet()
-        val linkedStageKeys = stages.filter { it.raceDayId != null }
-            .map { key(it.raceId, it.stageNumber) }.toSet()
-        val legacyStageKeys = stages.filter { it.raceDayId == null }
-            .map { key(it.raceId, it.stageNumber) }.toMutableSet()
-            .also { it.removeAll(linkedStageKeys) }
-        fun hasInhouse(rd: RaceDay): Boolean =
-            rd.id in inhouseDayIds || key(rd.raceId.orEmpty(), rd.stageNumber) in legacyStageKeys
 
         // Jornada de una clasificación: por raceDayId → por (raceId,stageNumber)
         // si el volcado no lo trajo → la única/primera jornada (un día). Fuente
@@ -210,28 +206,6 @@ object ResultsFeedLogic {
             // Las gc por etapa (provisionales) de una vuelta NO son entradas.
         }
 
-        // ── Fallback externos: jornadas concluidas SIN volcado in-house ─────
-        for (rd in days) {
-            if (rd.isRestDay || rd.isCancelledDay) continue
-            val race = rd.raceId?.let { raceById[it] } ?: continue
-            if (race.extId == null && race.extSlug == null) continue
-            if (race.id in automaticSourceRaceIds) continue
-            val isOneDay = race.isOneDay
-            val covered = hasInhouse(rd) || (isOneDay && "${race.id}#oneday" in seen)
-            if (covered) continue
-            // Concluida = heurística meta+30 con extId/extSlug (RaceLogic ya la
-            // implementa; es la misma señal que el trofeo de las cards de Hoy).
-            if (!RaceLogic.shouldShowResults(rd, race)) continue
-            entries.add(
-                FeedEntry(
-                    kind = Kind.EXT, date = rd.dateKey, race = race,
-                    stageNumber = if (isOneDay) null else rd.stageNumber,
-                    stageSuffix = if (isOneDay) "" else rd.stageSuffix.orEmpty(),
-                    subOrder = 1, rd = rd,
-                )
-            )
-        }
-
         return sortEntries(entries)
     }
 
@@ -314,7 +288,7 @@ object ResultsFeedLogic {
     fun winnerRiderIdsByStageRef(rows: List<UciRank1Row>): Map<String, List<String>> {
         val byRef = LinkedHashMap<String, MutableList<String>>()
         for (row in rows) {
-            if (UciResultsLogic.isAbandonIrm(row.irm)) continue
+            if (UciResultsLogic.isNonWinnerIrm(row.irm)) continue
             val list = byRef.getOrPut(row.stageRef) { mutableListOf() }
             val id = row.globalRiderId ?: continue
             if (id !in list) list.add(id)

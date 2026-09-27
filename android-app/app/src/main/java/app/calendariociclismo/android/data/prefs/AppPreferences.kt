@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.calendariociclismo.android.BuildConfig
 import app.calendariociclismo.android.util.Constants
+import app.calendariociclismo.android.util.ReviewPromptPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -33,6 +35,7 @@ class AppPreferences(private val context: Context) {
         val PUSH_TOKEN = stringPreferencesKey("push_token")
         val CATEGORY = stringPreferencesKey("category_filter")
         val DEFAULT_FILTER = stringPreferencesKey("default_filter")
+        val CX_DEFAULT_FILTER = stringPreferencesKey("cx_default_filter")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val NOTIF_ONBOARDING_DONE = booleanPreferencesKey("notif_onboarding_done")
         val OFFLINE_ONBOARDING_DONE = booleanPreferencesKey("offline_onboarding_done")
@@ -44,10 +47,9 @@ class AppPreferences(private val context: Context) {
         val ANALYTICS_ENABLED = booleanPreferencesKey("analytics_enabled")
         val ANALYTICS_ONBOARDING_DONE = booleanPreferencesKey("analytics_onboarding_done")
         val THEME_PREFERENCE = stringPreferencesKey("theme_preference")
+        val THEME_SYSTEM_ON_FIRST_ACCESS_DONE = booleanPreferencesKey("theme_system_on_first_access_done")
         val LAST_WIDGET_REFRESH_AT = longPreferencesKey("last_widget_refresh_at")
         val APP_LOCALE = stringPreferencesKey("app_locale")
-        val REGION_PREFERENCE = stringPreferencesKey("region_preference")
-        val PREFERRED_COUNTRY_GROUP = stringPreferencesKey("preferred_country_group")
         val NOTIFICATION_CATEGORIES = stringPreferencesKey("notification_categories")
         val PREMIUM_SUBSCRIBED = booleanPreferencesKey("premium_subscribed")
         val FRIEND_SUBSCRIBED = booleanPreferencesKey("friend_subscribed")
@@ -64,8 +66,18 @@ class AppPreferences(private val context: Context) {
         val CONTRIBUTION_PROMPT_COUNT = intPreferencesKey("contribution_prompt_v4_2_4_prompt_count")
         val CONTRIBUTION_LAST_PROMPT_AT = longPreferencesKey("contribution_prompt_v4_2_4_last_prompt_at")
         val CONTRIBUTION_LAST_PROMPT_VIEWS = intPreferencesKey("contribution_prompt_v4_2_4_last_prompt_views")
+        val CONTRIBUTION_MEANINGFUL_ACTION = booleanPreferencesKey("contribution_prompt_v4_2_4_meaningful_action")
+        val REVIEW_FIRST_VIEW_AT = longPreferencesKey("review_prompt_first_view_at")
+        val REVIEW_VIEW_COUNT = intPreferencesKey("review_prompt_view_count")
+        val REVIEW_MEANINGFUL_ACTION = booleanPreferencesKey("review_prompt_meaningful_action")
+        // Marca heredada (una única petición por instalación); se migra a
+        // REVIEW_LAST_REQUEST_AT / REVIEW_LAST_REQUEST_VERSION.
+        val REVIEW_REQUESTED = booleanPreferencesKey("review_prompt_requested")
+        val REVIEW_LAST_REQUEST_AT = longPreferencesKey("review_prompt_last_request_at")
+        val REVIEW_LAST_REQUEST_VERSION = stringPreferencesKey("review_prompt_last_request_version")
         val RACE_FOLLOW_MODE = stringPreferencesKey("race_follow_mode")
         val FOLLOWED_RACE_IDS = stringPreferencesKey("followed_race_ids")
+        val FOLLOWED_CX_RACE_IDS = stringPreferencesKey("followed_cx_race_ids")
         val RACE_GROUP_FILTERS = stringPreferencesKey("race_group_filters")
         val FOLLOWED_STAGE_IDS = stringPreferencesKey("followed_stage_ids")
         val CALENDAR_SUBVIEW = stringPreferencesKey("calendar_subview")
@@ -112,6 +124,15 @@ class AppPreferences(private val context: Context) {
     suspend fun clearDefaultFilter() {
         context.dataStore.edit { it.remove(Keys.DEFAULT_FILTER) }
     }
+
+    // ─── Filtro por defecto de la agenda de ciclocross (solo esa vista) ───
+    val cxDefaultFilter: Flow<String?> = data.map { it[Keys.CX_DEFAULT_FILTER] }
+    suspend fun setCxDefaultFilter(value: String?) {
+        context.dataStore.edit {
+            if (value == null) it.remove(Keys.CX_DEFAULT_FILTER) else it[Keys.CX_DEFAULT_FILTER] = value
+        }
+    }
+    suspend fun snapshotCxDefaultFilter(): String? = cxDefaultFilter.first()
 
     // ─── Onboarding ───
     val onboardingDone: Flow<Boolean> = data.map { it[Keys.ONBOARDING_DONE] ?: false }
@@ -180,6 +201,22 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { it[Keys.THEME_PREFERENCE] = value.name }
     }
 
+    /**
+     * Migración 4.4.2: en el primer acceso de esta versión (instalación nueva
+     * o actualización) el tema se rige por el ajuste del sistema. Descarta la
+     * preferencia guardada una sola vez; después, la elección del usuario en
+     * Ajustes → Apariencia persiste con normalidad porque el flag no se vuelve
+     * a recorrer.
+     */
+    suspend fun applyThemeSystemOnFirstAccess() {
+        context.dataStore.edit { prefs ->
+            if (prefs[Keys.THEME_SYSTEM_ON_FIRST_ACCESS_DONE] != true) {
+                prefs.remove(Keys.THEME_PREFERENCE)
+                prefs[Keys.THEME_SYSTEM_ON_FIRST_ACCESS_DONE] = true
+            }
+        }
+    }
+
     // ─── Idioma (es / en) ───
     val appLocale: Flow<LocalePreference> = data.map { prefs ->
         LocalePreference.fromStorage(prefs[Keys.APP_LOCALE])
@@ -188,30 +225,6 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { it[Keys.APP_LOCALE] = value.tag }
     }
     suspend fun snapshotAppLocale(): LocalePreference = appLocale.first()
-
-    // ─── Región ───
-    val regionPreference: Flow<RegionPreference> = data.map { prefs ->
-        RegionPreference.fromStorage(prefs[Keys.REGION_PREFERENCE])
-    }
-    suspend fun setRegionPreference(value: RegionPreference) {
-        context.dataStore.edit {
-            it[Keys.REGION_PREFERENCE] = value.name
-            val current = it[Keys.PREFERRED_COUNTRY_GROUP]
-            if (current != null && current !in value.availableCountryGroups) {
-                it.remove(Keys.PREFERRED_COUNTRY_GROUP)
-            }
-        }
-    }
-    suspend fun snapshotRegionPreference(): RegionPreference = regionPreference.first()
-
-    val preferredCountryGroup: Flow<String?> = data.map { it[Keys.PREFERRED_COUNTRY_GROUP] }
-    suspend fun setPreferredCountryGroup(value: String?) {
-        context.dataStore.edit {
-            if (value == null) it.remove(Keys.PREFERRED_COUNTRY_GROUP)
-            else it[Keys.PREFERRED_COUNTRY_GROUP] = value
-        }
-    }
-    suspend fun snapshotPreferredCountryGroup(): String? = preferredCountryGroup.first()
 
     val notificationCategories: Flow<Set<NotificationCategoryPreference>> = data.map { prefs ->
         NotificationCategoryPreference.fromStorage(prefs[Keys.NOTIFICATION_CATEGORIES])
@@ -291,7 +304,11 @@ class AppPreferences(private val context: Context) {
         return isNewInstallation
     }
 
-    suspend fun recordContributionContentView(isToday: Boolean, isSubscribed: Boolean): Boolean {
+    suspend fun recordContributionContentView(
+        isToday: Boolean,
+        isSubscribed: Boolean,
+        isMeaningfulAction: Boolean,
+    ): Boolean {
         if (isSubscribed) return false
         var show = false
         val now = System.currentTimeMillis()
@@ -301,13 +318,56 @@ class AppPreferences(private val context: Context) {
             val prompts = prefs[Keys.CONTRIBUTION_PROMPT_COUNT] ?: 0
             prefs[Keys.CONTRIBUTION_FIRST_VIEW_AT] = first
             prefs[Keys.CONTRIBUTION_VIEW_COUNT] = views
+            if (isMeaningfulAction) prefs[Keys.CONTRIBUTION_MEANINGFUL_ACTION] = true
             show = isToday && prompts < 2 && now - first >= 7L * 24 * 60 * 60 * 1000 && when (prompts) {
-                0 -> views >= 30
+                0 -> views >= 30 && (prefs[Keys.CONTRIBUTION_MEANINGFUL_ACTION] ?: false)
                 else -> now - (prefs[Keys.CONTRIBUTION_LAST_PROMPT_AT] ?: now) >= 21L * 24 * 60 * 60 * 1000 &&
                     views - (prefs[Keys.CONTRIBUTION_LAST_PROMPT_VIEWS] ?: views) >= 60
             }
         }
         return show
+    }
+
+    suspend fun recordReviewContentView(isToday: Boolean, isMeaningfulAction: Boolean): Boolean {
+        var show = false
+        val now = System.currentTimeMillis()
+        context.dataStore.edit { prefs ->
+            // Quien ya recibió la petición única anterior empieza a contar el
+            // intervalo desde esta actualización.
+            if (prefs[Keys.REVIEW_REQUESTED] == true) {
+                if (prefs[Keys.REVIEW_LAST_REQUEST_AT] == null) {
+                    prefs[Keys.REVIEW_LAST_REQUEST_AT] = now
+                    prefs[Keys.REVIEW_LAST_REQUEST_VERSION] = BuildConfig.VERSION_NAME
+                }
+                prefs.remove(Keys.REVIEW_REQUESTED)
+            }
+            val first = prefs[Keys.REVIEW_FIRST_VIEW_AT] ?: now
+            val views = (prefs[Keys.REVIEW_VIEW_COUNT] ?: 0) + 1
+            prefs[Keys.REVIEW_FIRST_VIEW_AT] = first
+            prefs[Keys.REVIEW_VIEW_COUNT] = views
+            if (isMeaningfulAction) prefs[Keys.REVIEW_MEANINGFUL_ACTION] = true
+            show = ReviewPromptPolicy.shouldRequest(
+                now = now,
+                isToday = isToday,
+                firstContentViewAt = first,
+                contentViews = views,
+                meaningfulAction = prefs[Keys.REVIEW_MEANINGFUL_ACTION] ?: false,
+                lastRequestAt = prefs[Keys.REVIEW_LAST_REQUEST_AT],
+                lastRequestVersion = prefs[Keys.REVIEW_LAST_REQUEST_VERSION],
+                currentVersion = BuildConfig.VERSION_NAME,
+            )
+        }
+        return show
+    }
+
+    /** Registra la petición y reinicia el uso acumulado para la siguiente. */
+    suspend fun markReviewRequested() {
+        context.dataStore.edit {
+            it[Keys.REVIEW_LAST_REQUEST_AT] = System.currentTimeMillis()
+            it[Keys.REVIEW_LAST_REQUEST_VERSION] = BuildConfig.VERSION_NAME
+            it[Keys.REVIEW_VIEW_COUNT] = 0
+            it[Keys.REVIEW_MEANINGFUL_ACTION] = false
+        }
     }
 
     suspend fun recordContributionPromptDecision() {
@@ -342,6 +402,14 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { it[Keys.FOLLOWED_RACE_IDS] = value.joinToString(",") }
     }
     suspend fun snapshotFollowedRaceIds(): Set<String> = followedRaceIds.first()
+
+    val followedCxRaceIds: Flow<Set<String>> = data.map { prefs ->
+        prefs[Keys.FOLLOWED_CX_RACE_IDS].orEmpty().split(",").filter { it.isNotBlank() }.toSet()
+    }
+    suspend fun setFollowedCxRaceIds(value: Set<String>) {
+        context.dataStore.edit { it[Keys.FOLLOWED_CX_RACE_IDS] = value.sorted().joinToString(",") }
+    }
+    suspend fun snapshotFollowedCxRaceIds(): Set<String> = followedCxRaceIds.first()
 
     val activeRaceFilters: Flow<Set<RaceGroupFilter>> = data.map { prefs ->
         RaceGroupFilter.fromStorage(prefs[Keys.RACE_GROUP_FILTERS])

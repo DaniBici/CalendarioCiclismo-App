@@ -201,12 +201,7 @@ struct StageRowView: View {
             waypoints: rd.profileWaypoints ?? [],
             tint: miniProfileTint,
             height: miniProfileBandHeight,
-            primaryType: rd.primaryType,
-            startTime: rd.neutralStartTimeUtc.flatMap(DateFormatting.parseISO),
-            endTime: rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
-            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt",
-            usesLineFallbackWithoutTimeTrialSchedule: true,
-            forceCompleted: isFinishedMode
+            primaryType: rd.primaryType
         )
     }
 }

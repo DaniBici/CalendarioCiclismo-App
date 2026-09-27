@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
@@ -78,20 +82,25 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.weight(1f))
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+            Spacer(Modifier.height(24.dp))
 
             // Icono principal
             Icon(
                 imageVector = Icons.Filled.Notifications,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(72.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             // Título
             Text(
@@ -122,7 +131,7 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
                 OnboardingBullet(Icons.Filled.VerifiedUser, stringResource(R.string.onboarding_notif_bullet_no_spam))
             }
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(40.dp))
 
             // Botón principal
             Button(
@@ -163,6 +172,7 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
                         onDismiss()
                     }
                 },
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     stringResource(R.string.onboarding_notif_skip),
@@ -170,7 +180,8 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(32.dp))
+            }
         }
     }
 }

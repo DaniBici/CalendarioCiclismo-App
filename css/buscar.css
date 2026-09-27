@@ -1,6 +1,6 @@
 /* ── Buscar ──────────────────────────────────────────────────────── */
 .buscar-main {
-  max-width: 720px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 3rem 1.5rem 4rem;
   box-sizing: border-box;
@@ -81,3 +81,5 @@
   .buscar-main { padding: 1.5rem 1rem 3rem; }
   .buscar-input { font-size: 1rem; }
 }
+
+.buscar-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }

@@ -17,6 +17,16 @@ sealed class DeepLink {
     data class StartOrder(val id: String) : DeepLink()
     data class Profile(val id: String) : DeepLink()
     data class Team(val id: String) : DeepLink()
+    data class CxRace(val id: String, val anchor: String? = null) : DeepLink()
+    data class CxRaceSlug(val slug: String, val anchor: String? = null) : DeepLink()
+
+    /** Resultados nativos de una jornada (copa del widget): etapa null = final
+     *  o última clasificación; sufijo A/B de doble sector. */
+    data class Results(val raceId: String, val stage: Int?, val suffix: String? = null) : DeepLink()
+
+    // Página de serie web: `/ciclocross/torneos/<slug>/` y `/en/cyclocross/series/<slug>`.
+    // El handler resuelve el slug → torneo contra Supabase antes de navegar.
+    data class CxTournamentSlug(val slug: String) : DeepLink()
 
     // Variantes por SLUG: las produce SOLO el App Link HTTPS de la web
     // (`/competicion/<slug>/`, `/jornada/<slug>/`), donde el último segmento
@@ -30,16 +40,36 @@ sealed class DeepLink {
         /** Pestañas válidas (igual que iOS). "search" se conserva por
          *  compatibilidad con pushes antiguos (el handler lo manda a Hoy);
          *  "transfers" abre el mercado de fichajes (4.0). */
-        val TAB_NAMES = setOf("today", "month", "season", "transfers", "search", "subscribe", "notifications")
+        val TAB_NAMES = setOf("today", "results", "month", "season", "calendar", "transfers", "cyclocross", "search", "subscribe", "notifications")
 
         /**
          * Regex para IDs de carrera/etapa. Solo se aceptan caracteres alfanuméricos,
          * guiones y guiones bajos para prevenir inyección de rutas.
          */
         private val VALID_ID_REGEX = Regex("^[a-zA-Z0-9_-]+$")
+        private val VALID_CX_ANCHOR = Regex("^(ME|WE|MU|WU|MJ|WJ|general|(?:general|inscritos)-(?:ME|WE|MU|WU|MJ|WJ))$")
+
+        private val RESULTS_STAGE_REGEX = Regex("^(\\d{1,3})([A-Z]?)$")
+
+        private fun cxAnchorIsValid(anchor: String?): Boolean = anchor == null || VALID_CX_ANCHOR.matches(anchor)
 
         fun parse(value: String?): DeepLink? {
             if (value.isNullOrEmpty()) return null
+            if (value.startsWith("cxRace/")) {
+                val parts = value.removePrefix("cxRace/").split('#', limit = 2)
+                val id = parts[0]
+                val anchor = parts.getOrNull(1)
+                if (!VALID_ID_REGEX.matches(id) || !cxAnchorIsValid(anchor)) return null
+                return CxRace(id, anchor)
+            }
+            // "results/{raceId}/{etapa|final}{sufijo}" → resultados nativos.
+            if (value.startsWith("results/")) {
+                val parts = value.removePrefix("results/").split('/')
+                if (parts.size != 2 || !VALID_ID_REGEX.matches(parts[0])) return null
+                if (parts[1] == "final") return Results(parts[0], null)
+                val match = RESULTS_STAGE_REGEX.matchEntire(parts[1]) ?: return null
+                return Results(parts[0], match.groupValues[1].toInt(), match.groupValues[2].ifEmpty { null })
+            }
             if (value.startsWith("race/")) {
                 val id = value.removePrefix("race/")
                 if (id.isEmpty() || !VALID_ID_REGEX.matches(id)) return null
@@ -85,6 +115,7 @@ sealed class DeepLink {
          *   - `calendariociclismo://startOrder/{id}` → `StartOrder(id)`
          *   - `calendariociclismo://perfil/{id}`     → `Profile(id)`
          *   - `calendariociclismo://team/{id}`       → `Team(id)`
+         *   - `calendariociclismo://results/{raceId}/{etapa}` → `Results(...)`
          *   - `calendariociclismo://tab/{name}`      → `Tab(name)`
          *   - `calendariociclismo://{tabName}`       → `Tab(tabName)` (forma corta)
          *
@@ -93,10 +124,39 @@ sealed class DeepLink {
          */
         fun fromUri(uri: Uri?): DeepLink? {
             if (uri == null) return null
+            if (uri.scheme == "https") {
+                if (uri.host != "calendariociclismo.app" || uri.userInfo != null || uri.port !in listOf(-1, 443)) return null
+                val segments = uri.pathSegments
+                val english = segments.firstOrNull() == "en"
+                val path = if (english) segments.drop(1) else segments
+                val expected = if (english) "cyclocross" else "ciclocross"
+                if (path.firstOrNull() != expected || path.size !in 1..3) return null
+                if (path.size == 1) return Tab("cyclocross")
+                if (path.size == 3) {
+                    // Solo las páginas de serie: torneos/ en ES, series/ en EN.
+                    if (path[1] != if (english) "series" else "torneos") return null
+                    val tournamentSlug = path[2]
+                    if (!Regex("^[a-z0-9-]+$").matches(tournamentSlug)) return null
+                    return CxTournamentSlug(tournamentSlug)
+                }
+                val slug = path[1]
+                if (!Regex("^[a-z0-9-]+$").matches(slug) || !cxAnchorIsValid(uri.fragment)) return null
+                return CxRaceSlug(slug, uri.fragment)
+            }
             if (uri.scheme != "calendariociclismo") return null
             val host = uri.host ?: return null
             if (host.isEmpty()) return null
             val firstSegment = uri.pathSegments.firstOrNull().orEmpty()
+
+            if (host == "cxRace") {
+                if (uri.pathSegments.size != 1 || !cxAnchorIsValid(uri.fragment)) return null
+                return parse("cxRace/$firstSegment" + (uri.fragment?.let { "#$it" } ?: ""))
+            }
+
+            if (host == "results") {
+                if (uri.pathSegments.size != 2) return null
+                return parse("results/" + uri.pathSegments.joinToString("/"))
+            }
 
             return when (host) {
                 "race", "stage", "startlist", "startOrder", "perfil", "team" -> {

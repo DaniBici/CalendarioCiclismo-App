@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Panel de Administración — Calendario Ciclismo</title>
   <script src="../js/theme.js"></script>
-  <link rel="stylesheet" href="../css/panel.css">
+  <link rel="stylesheet" href="../css/panel.css?v=20260915official2">
+  <link rel="stylesheet" href="../css/panel-cx.css?v=20260914cxforms">
 </head>
 <body>
 
@@ -32,6 +33,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <span class="rail-item__label">Métricas</span>
         </button>
+        <button class="rail-item" id="tab-operations" data-tab="operations" title="Operaciones">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 4 7-8"/><path d="M4 21h16"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="16" r="1"/><circle cx="20" cy="8" r="1"/></svg>
+          <span class="rail-item__label">Operaciones</span>
+        </button>
         <button class="rail-item" id="tab-startlists" data-tab="startlists" title="Dorsales">
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
           <span class="rail-item__label">Dorsales</span>
@@ -47,6 +52,11 @@
         <button class="rail-item" id="tab-fichajes" data-tab="fichajes" title="Fichajes">
           <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
           <span class="rail-item__label">Fichajes</span>
+        </button>
+
+        <button class="rail-item" id="tab-riders" data-tab="riders" title="Corredores">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.05rem" height="1.05rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>
+          <span class="rail-item__label">Corredores</span>
         </button>
 
         <button class="rail-item" id="tab-teams" data-tab="teams" title="Equipos">
@@ -113,6 +123,11 @@
           <div class="races-header__row2" id="racesFiltersRow">
             <div class="races-filters">
               <select id="racesYearSelect" class="races-select">
+                <option value="2020">2020</option>
+                <option value="2021">2021</option>
+                <option value="2022">2022</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
                 <option value="2025">2025</option>
                 <option value="2026">2026</option>
                 <option value="2027">2027</option>
@@ -151,17 +166,17 @@
         </div>
       </div>
       <!-- Subvista Carreras -->
-      <div id="racesListView" style="padding:1rem 1.25rem;max-width:900px;margin:0 auto;width:100%;">
+      <div id="racesListView" style="padding:1rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;">
         <!-- generado por JS -->
       </div>
       <!-- Subvista Challenges (misma vista; se alterna con el toggle) -->
-      <div id="challengesListView" style="display:none;padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box"></div>
+      <div id="challengesListView" style="display:none;padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box"></div>
     </div>
 
     <!-- Vista analytics (oculta por defecto) -->
     <div id="analyticsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
       <div class="panel-section-divider">
-        <div style="display:flex;align-items:center;gap:1rem;max-width:1200px;margin:0 auto;width:100%;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:1rem;max-width:var(--content-max);margin:0 auto;width:100%;flex-wrap:wrap">
           <div class="panel-view-title">
             Métricas
           </div>
@@ -185,7 +200,7 @@
           </div>
         </div>
       </div>
-      <div style="padding:1.25rem;max-width:1200px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
         <!-- KPI cards -->
         <div class="ga-kpi-grid" id="gaKpiGrid">
           <div class="ga-kpi-card">
@@ -266,28 +281,55 @@
       </div>
     </div><!-- /analyticsView -->
 
+    <!-- Monitor privado de automatizaciones del VPS -->
+    <div id="operationsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="panel-section-divider">
+        <div class="panel-view-row panel-view-row--operations">
+          <h1 class="panel-view-title">Operaciones</h1>
+          <div class="operations-header-meta">
+            <div class="operations-updated" id="operationsUpdated">Cargando estado del VPS…</div>
+            <button class="btn btn--ghost operations-refresh" id="operationsRefreshBtn">Actualizar</button>
+          </div>
+        </div>
+      </div>
+      <div class="operations-layout">
+        <div class="operations-job-grid" id="operationsJobs"></div>
+
+        <section class="operations-section">
+          <h2 class="operations-section__title">Fuentes de automatización</h2>
+          <div class="operations-source-grid" id="operationsSources"></div>
+        </section>
+
+        <section class="operations-section">
+          <h2 class="operations-section__title">Historial reciente</h2>
+          <div class="operations-table-wrap" id="operationsHistory"></div>
+        </section>
+      </div>
+    </div><!-- /operationsView -->
+
     <!-- Vista inscritos/startlists (oculta por defecto) -->
     <div id="startlistsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+      <div class="sidebar" style="flex:1">
+        <header class="sidebar__header"></header>
+        <div id="existingStartlists" class="sidebar__list"></div>
+      </div>
+    </div><!-- /startlistsView -->
+
+    <!-- Vista corredores (oculta por defecto) -->
+    <div id="ridersView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
       <div class="panel-section-divider">
         <div class="panel-view-row">
           <div class="panel-view-title">
-            Dorsales
+            Corredores
           </div>
-          <button class="btn btn--primary" id="newStartlistBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap">+ Nueva lista de inscritos</button>
+          <button class="btn btn--primary" id="addRiderPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap">+ Nuevo corredor</button>
+          <input type="search" id="ridersSearch" placeholder="Buscar corredor…" autocomplete="off" style="flex:1;max-width:360px;padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
         </div>
       </div>
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
-
-        <!-- Existing startlists -->
-        <div class="listcard">
-          <div class="panel-view-label">
-            Últimas listas
-          </div>
-          <div id="existingStartlists" class="listcard__list">Cargando…</div>
-        </div>
-
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+        <div class="u-stack u-stack--xs" id="ridersSearchResults"></div>
       </div>
-    </div><!-- /startlistsView -->
+    </div><!-- /ridersView -->
 
     <!-- Vista equipos (oculta por defecto) -->
     <div id="teamsView" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
@@ -296,18 +338,21 @@
           <div class="panel-view-title">
             Equipos
           </div>
+          <label style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.72rem;color:var(--text-dim);white-space:nowrap">
+            Temporada
+            <select id="teamsYearSelect" aria-label="Temporada de los equipos" style="width:auto;min-width:82px;padding:0.4rem 0.55rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)"></select>
+          </label>
           <input type="search" id="teamsSearch" placeholder="Buscar equipo…" style="padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);width:200px">
           <div class="panel-view-actions panel-view-actions--teams">
             <button class="btn btn--ghost" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión" style="padding:0.4rem 0.8rem;font-size:0.78rem;white-space:nowrap;color:#f59e0b">🔍 Duplicados</button>
-            <button class="btn btn--primary" id="addRiderPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo corredor</button>
             <button class="btn btn--primary" id="addTeamPanelBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo equipo</button>
           </div>
         </div>
       </div>
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
         <div class="u-stack" id="teamsListSection">
           <div style="display:flex;align-items:center;gap:0.75rem">
-            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Equipos creados</div>
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Equipos de <span id="teamsListYearLabel"></span></div>
             <div class="u-grow u-hr-line"></div>
           </div>
           <div class="u-stack u-stack--xs" id="teamsList">
@@ -326,12 +371,12 @@
           </div>
           <button class="btn btn--primary" id="addHighlightBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Añadir destacado</button>
         </div>
-        <div style="max-width:900px;margin:0.5rem auto 0;color:var(--text-dim);font-size:0.78rem">
+        <div style="max-width:var(--content-max);margin:0.5rem auto 0;color:var(--text-dim);font-size:0.78rem">
           El cintillo se muestra en la web y en las apps iOS/Android encima del selector de días. Arrastra las filas para reordenar.
         </div>
       </div>
 
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
 
         <div class="u-stack" id="highlightsListSection">
           <div style="display:flex;align-items:center;gap:0.75rem">
@@ -362,7 +407,7 @@
           </div>
         </div>
       </div>
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1rem">
         <!-- Landing = espejo del front /fichajes/: selector de división (WT
              desplegada por defecto) → lista de equipos → tocar un equipo abre
              su editor de temporada 2027 en drawer. -->
@@ -384,15 +429,16 @@
         <div class="panel-view-row">
           <div class="panel-view-title">
             Notificaciones Push
+            <span id="pushAreaLabel" style="font-size:0.7rem;font-weight:600;color:var(--text-dim);border:1px solid var(--border);border-radius:20px;padding:0.1rem 0.5rem;margin-left:0.5rem;vertical-align:middle"></span>
           </div>
           <div class="u-fs-md u-c-dim" id="pushSubscriberCount"></div>
         </div>
       </div>
-      <div style="padding:1.25rem;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
+      <div style="padding:1.25rem var(--page-gutter);max-width:var(--content-max);margin:0 auto;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:1.5rem">
 
         <!-- Formulario de envío -->
         <div class="panel-card">
-          <div class="panel-view-label">
+          <div class="panel-view-label" id="pushFormLabel">
             Enviar notificación
           </div>
           <div class="field">
@@ -458,6 +504,7 @@
               <option value="">Sin destino específico</option>
               <option value="tab">Pestaña de la app</option>
               <option value="race">Competición</option>
+              <option value="cxRace">Carrera de ciclocross</option>
               <option value="stage">Jornada / Etapa</option>
               <option value="startlist">Dorsales</option>
               <option value="perfil">Perfil de etapa</option>
@@ -470,12 +517,18 @@
             <label>Pestaña</label>
             <select id="push-deepLinkTab">
               <option value="today">Hoy (agenda del día)</option>
+              <option value="cyclocross">Ciclocross</option>
               <option value="month">Mes (calendario mensual)</option>
               <option value="season">Temporada (listado completo)</option>
               <option value="search">Buscar</option>
               <option value="subscribe">Suscripción (calendarios iCal)</option>
               <option value="notifications">Avisos (notificaciones)</option>
             </select>
+          </div>
+          <div id="push-cxRaceSelector" class="field" style="display:none">
+            <label>Carrera de ciclocross</label>
+            <select id="push-deepLinkCxRace"></select>
+            <button class="btn btn--ghost" id="push-cx-retry" type="button" style="display:none">Reintentar</button>
           </div>
           <div id="push-raceSelector" class="field" style="display:none">
             <label>Competición</label>
@@ -539,6 +592,7 @@
             <input type="datetime-local" id="push-scheduledAt">
           </div>
 
+          <p id="pushAudience" class="u-fs-md u-c-muted" aria-live="polite" hidden></p>
           <div id="pushSendError" class="alert alert--error" style="display:none"></div>
           <div style="display:flex;gap:0.75rem;align-items:center">
             <button class="btn btn--primary" id="sendPushBtn">Enviar ahora</button>
@@ -568,26 +622,29 @@
 
   </div><!-- /panel-layout -->
 
-  <!-- ════ Drawer deslizante (paradigma único de edición) ════════════
-       Un host con 2 niveles apilables (p.ej. equipo → ficha de corredor).
-       El scrim y los paneles se controlan desde js/components/drawer.js.
-       Cada editor monta su contenido en .cc-drawer__body del nivel activo. -->
+  <!-- Vistas de edición de la columna derecha, con dos niveles de navegación
+       (p.ej. equipo → ficha de corredor). Control: js/components/drawer.js. -->
   <div class="cc-drawer-root" id="ccDrawerRoot" aria-hidden="true">
-    <div class="cc-drawer__scrim" id="ccDrawerScrim"></div>
-    <aside class="cc-drawer cc-drawer--l1" id="ccDrawer1" role="dialog" aria-modal="true" aria-labelledby="ccDrawer1Title">
+    <section class="cc-drawer cc-drawer--l1" id="ccDrawer1" aria-labelledby="ccDrawer1Title" aria-hidden="true" inert>
       <header class="cc-drawer__header">
-        <h2 class="cc-drawer__title" id="ccDrawer1Title"></h2>
-        <button class="cc-drawer__close" id="ccDrawer1Close" aria-label="Cerrar">✕</button>
+        <button type="button" class="cc-drawer__back" id="ccDrawer1Close">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+          <span>Volver</span>
+        </button>
+        <h2 class="cc-drawer__title" id="ccDrawer1Title" tabindex="-1"></h2>
       </header>
       <div class="cc-drawer__body" id="ccDrawer1Body"></div>
-    </aside>
-    <aside class="cc-drawer cc-drawer--l2" id="ccDrawer2" role="dialog" aria-modal="true" aria-labelledby="ccDrawer2Title">
+    </section>
+    <section class="cc-drawer cc-drawer--l2" id="ccDrawer2" aria-labelledby="ccDrawer2Title" aria-hidden="true" inert>
       <header class="cc-drawer__header">
-        <h2 class="cc-drawer__title" id="ccDrawer2Title"></h2>
-        <button class="cc-drawer__close" id="ccDrawer2Close" aria-label="Cerrar">✕</button>
+        <button type="button" class="cc-drawer__back" id="ccDrawer2Close">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+          <span>Volver</span>
+        </button>
+        <h2 class="cc-drawer__title" id="ccDrawer2Title" tabindex="-1"></h2>
       </header>
       <div class="cc-drawer__body" id="ccDrawer2Body"></div>
-    </aside>
+    </section>
   </div>
 
   <!-- El selector de carrera ("Seleccionar carrera") vive ahora en el drawer
@@ -595,7 +652,7 @@
        agenda). Lo monta openRaceModal() → raceModalBodyHtml(). -->
 
   <script src="../js/config.js"></script>
-  <script type="module" src="../js/panel.js"></script>
+  <script type="module" src="../js/panel.js?v=20260927cxbirthyear"></script>
 
 </body>
 </html>

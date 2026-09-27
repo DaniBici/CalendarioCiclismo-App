@@ -1,9 +1,17 @@
 import Foundation
 
+struct FeaturedRaceSelection: Codable, Hashable {
+    let dateKey: String
+    let raceId: String
+    let manual: Bool
+}
+
 /// Datos completos de un día: jornadas con su carrera, emisiones y assets anotados.
 struct DayData: Codable {
     let raceDays: [EnrichedRaceDay]
     let raceMap: [String: Race]
+    /// IDs seleccionados por `featured_races_for_dates` para esta fecha.
+    var featuredRaceIds: Set<String> = []
 }
 
 /// Una jornada enriquecida con su carrera asociada, emisiones y assets.
@@ -37,7 +45,9 @@ struct EnrichedRaceDay: Codable, Identifiable, Hashable {
             && l.startLocation == r.startLocation
             && l.finishLocation == r.finishLocation
             && l.neutralStartTimeUtc == r.neutralStartTimeUtc
+            && l.realStartTimeUtc == r.realStartTimeUtc
             && l.estimatedFinishTimeUtc == r.estimatedFinishTimeUtc
+            && l.raceStatus == r.raceStatus
             && l.tvStatus == r.tvStatus
             && l.primaryType == r.primaryType
             && l.secondaryType == r.secondaryType

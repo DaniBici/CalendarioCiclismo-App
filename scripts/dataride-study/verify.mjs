@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {dimensions} from './matching.mjs';
+const [input,out]=process.argv.slice(2).map(p=>resolve(p));
+const read=f=>JSON.parse(readFileSync(join(out,f)));
+const summary=read('resumen.json'), matches=read('coincidencias-2026-ediciones.json'), noMatch=read('sin-coincidencia-en-2026.json'), groups=read('series-no-presentes-en-2026.json'), juniors=read('exclusiones-junior.json'), manifest=read('manifest-procesado-historico.json');
+let checks=0; const check=(value)=>{assert.ok(value);checks++;};
+for(const [f,hash] of Object.entries(summary.inputHashes)) check(createHash('sha256').update(readFileSync(join(input,f))).digest('hex')===hash);
+check(matches.length+noMatch.length===summary.ourActiveSnapshot);
+check(Object.values(summary.raceYearStatuses).reduce((a,b)=>a+b,0)===summary.ourActiveSnapshot*6);
+const seen=new Set();
+for(const r of matches) for(const y of Object.values(r.editionsByYear)) {
+  check(y.status!=='strong');
+  if(y.status==='unique_supported') check(y.candidates.length===1 && y.candidates[0].verified);
+  for(const c of y.candidates) {seen.add(`${c.year}:${c.competitionId}`);check(dimensions(c).age!=='junior');}
+}
+const unmatched=groups.flatMap(g=>g.competitions);
+check(unmatched.every(c=>!seen.has(`${c.year}:${c.competitionId}`) && dimensions(c).age!=='junior'));
+check(juniors.every(c=>dimensions(c).age==='junior'));
+check(seen.size+unmatched.length+juniors.length===summary.dataRideCompetitions);
+check(manifest.applyAllowed===false && !manifest.readyForCreation.length && !manifest.executableActions.length);
+check(manifest.findings.every(x=>x.applyAllowed===false && x.status==='pendiente'));
+const all=[...matches,...noMatch];
+const find=name=>{const r=all.find(x=>x.our.name===name);check(Boolean(r));return Object.values(r.editionsByYear).flatMap(y=>y.candidates);};
+check(find('Tour Down Under').some(c=>c.name==='Santos Tour Down Under'));
+check(find('Tour Down Under femenino').some(c=>c.classCode==='2.WWT'));
+check(find('GP Miguel Indurain').some(c=>c.name==='Gran Premio Miguel Indurain'));
+check(find('Flecha de Brabante').some(c=>c.name.includes('Brabantse Pijl')));
+check(find('Volta a Catalunya').some(c=>c.name==='Volta Ciclista a Catalunya'));
+check(find('Circuito de Getxo').length===6);
+const toscana=find('Giro della Toscana');check(toscana.length>0 && toscana.every(c=>!c.name.includes('Romagna')));
+check(find('Chrono des Nations').every(c=>c.classCode!=='1.2U'));
+check(find('Chrono des Nations sub23').every(c=>c.classCode==='1.2U'));
+check(find('West Bohemia Tour').every(c=>c.classCode==='2.2U' && !c.name.includes('Grand Prix')));
+check(find('Giro de Italia femenino').every(c=>c.classCode!=='2.2U'));
+check(find('Volta a Portugal do Futuro').every(c=>!c.name.includes('Feminina')));
+const result={status:'passed',assertions:checks,unitTestCommand:'node --test scripts/dataride-study/matching.test.mjs',verifiedAt:new Date().toISOString(),scope:'Hashes originales, partición, estados, manifiesto y casos reales; sin verificación documental externa'};
+writeFileSync(join(out,'validacion-integridad.json'),JSON.stringify(result,null,2)+'\n');console.log(result);

@@ -6,6 +6,14 @@
  * API: descubrimos esos enlaces en cada pasada y usamos `pdftotext -layout`, no
  * OCR, porque estos PDF tienen capa de texto y su geometría es el contrato.
  * Una tabla parcial o mal leída se descarta antes de llegar al upsert.
+ * La página de Clásica Azuero 2026 publica las hojas de las dos etapas como
+ * enlaces PDF dentro del mismo campo Drupal que las carreras anteriores; el
+ * parser descubre esos enlaces en cada pasada y no fija nombres de archivo.
+ * `--expected-year` valida la fecha de la primera página del PDF antes de
+ * extraer filas.
+ * Para una carrera de un día se puede pasar `--one-day --pdf-url <url>`: la
+ * clasificación se publica como `stageNumber=null`, `gc/stage` y se conservan
+ * los DNS, OTL y DNF que el documento enumera.
  */
 import { execFileSync } from 'child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
@@ -20,7 +28,12 @@ const COMPETITION_ID = Number(arg('--competition-id'));
 const OUT = arg('--out', '.');
 const ONLY_STAGE = arg('--stage') == null ? null : Number(arg('--stage'));
 const TOTAL_STAGES = arg('--total-stages') == null ? null : Number(arg('--total-stages'));
+const EXPECTED_YEAR = arg('--expected-year') == null ? null : Number(arg('--expected-year'));
+const STAGE_DATES = JSON.parse(arg('--stage-dates', '{}'));
 const FIXTURE = arg('--fixture');
+const PDF_URL = arg('--pdf-url');
+const RACE_ID = arg('--race-id');
+const ONE_DAY = has('--one-day');
 const BASE = 'https://www.clasificacionesdelciclismocolombiano.com';
 const log = (message) => process.stderr.write(`${message}\n`);
 
@@ -41,19 +54,43 @@ export function parseCode(value) {
 }
 
 export function stageFromLabel(label) {
-  const text = clean(label).toLocaleUpperCase('es');
+  const text = clean(label).replace(/[-_]/g, ' ').toLocaleUpperCase('es');
   if (!/\b(CL[AÁ]S?IFICACI[OÓ]N|CLASIFICACION)\b/.test(text)) return null;
   const word = text.match(/\b(PROLOGO|PRÓLOGO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|S[ÉE]PTIMA|OCTAVA|NOVENA|D[ÉE]CIMA|UND[ÉE]CIMA|DUOD[ÉE]CIMA)\s+ETAPA\b/)?.[1];
-  return word ? words.get(word) ?? null : null;
+  if (word) return words.get(word) ?? null;
+  const suffix = text.match(/\bETAPA\s*(\d+)([A-Z])\b/);
+  if (suffix) return `${Number(suffix[1])}${suffix[2]}`;
+  const numeric = text.match(/\b(?:ETAPA\s*(\d+)|(\d+)\s*(?:ª|A)?\s*ETAPA)\b/);
+  return numeric ? Number(numeric[1] || numeric[2]) : null;
+}
+
+// La edición 2026 usa seis jornadas consecutivas en la app; el proveedor y el
+// libro de ruta numeran la tercera como 3A/3B y terminan en la quinta etapa.
+const SOURCE_STAGE_MAPS = {
+  'volta-santa-catarina-2026': { 1: 1, 2: 2, 3: 3, '3A': 3, '3B': 4, 4: 5, 5: 6 },
+};
+
+function scheduledStageNumber(code, sourceStage) {
+  if (sourceStage == null) return null;
+  const mapping = SOURCE_STAGE_MAPS[code];
+  if (mapping) {
+    if (Object.hasOwn(mapping, sourceStage)) return mapping[sourceStage];
+    throw new Error(`${code}: etapa de fuente no configurada: ${sourceStage}`);
+  }
+  if (typeof sourceStage === 'number') return sourceStage;
+  throw new Error(`El sector ${sourceStage} requiere una correspondencia de jornadas para ${code || 'la carrera'}`);
 }
 
 /** Solo enlaces PDF de clasificación de etapa; guía técnica y participantes quedan fuera. */
-export function pdfLinksFromRaceHtml(html) {
+export function pdfLinksFromRaceHtml(html, { oneDay = false, code = null } = {}) {
   const links = [];
   for (const match of String(html).matchAll(/<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const label = clean(match[2]);
-    const stageNumber = stageFromLabel(label) ?? stageFromLabel(match[1].replace(/[-_]/g, ' '));
-    if (stageNumber == null) continue;
+    const sourceStage = stageFromLabel(label) ?? stageFromLabel(match[1]);
+    const stageNumber = scheduledStageNumber(code, sourceStage);
+    const isOneDayClassification = oneDay && /\bCL[AÁ]S?IFICACI[OÓ]N\b/i.test(label)
+      && !/\b(GU[IÍ]A|LISTADO|PARTICIPANTES?)\b/i.test(label);
+    if (stageNumber == null && !isOneDayClassification) continue;
     const href = match[1].startsWith('http') ? match[1] : new URL(match[1], BASE).href;
     links.push({ href, label, stageNumber });
   }
@@ -71,26 +108,48 @@ const gapText = (value) => {
   if (parts) return `+${parts[3] ? `${Number(parts[1])}:${parts[2]}:${parts[3]}` : `${Number(parts[1])}:${parts[2]}`}`;
   return /^\d+$/.test(text) ? `+${Number(text)}` : null;
 };
+const dottedMonths = new Map([
+  ['ENE', '01'], ['JAN', '01'], ['FEB', '02'], ['FEV', '02'], ['MAR', '03'],
+  ['ABR', '04'], ['APR', '04'], ['MAY', '05'], ['MAI', '05'], ['JUN', '06'],
+  ['JUL', '07'], ['AGO', '08'], ['AUG', '08'], ['SEP', '09'], ['SEPT', '09'],
+  ['SET', '09'], ['OCT', '10'], ['OUT', '10'], ['NOV', '11'], ['DIC', '12'],
+  ['DEC', '12'], ['DEZ', '12'],
+]);
+const fullYear = (value) => value.length === 2 ? `20${value}` : value;
 const dateKey = (text) => {
-  const match = String(text).match(/Fecha\s*:\s*(\d{2})\/(\d{2})\/(\d{2,4})/i);
+  const source = String(text);
+  // Algunas hojas brasileñas abren con una portada cuya única fecha fiable usa
+  // `02.SEPT.2026`. Exigimos una línea aislada para no confundirla con el rango
+  // de fechas de la competición (`1 – 6.SEPT.2026`).
+  const dotted = source.match(/^\s*(\d{1,2})\.\s*([A-ZÁÉÍÓÚÇ]{3,5})\.?\s*(\d{2,4})\s*$/im);
+  if (dotted) {
+    const month = dottedMonths.get(dotted[2].toLocaleUpperCase('es'));
+    if (month) return `${fullYear(dotted[3])}-${month}-${String(Number(dotted[1])).padStart(2, '0')}`;
+  }
+  const match = source.match(/Fecha\s*:\s*(\d{2})\/(\d{2})\/(\d{2,4})/i);
   if (!match) return null;
-  const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+  const year = fullYear(match[3]);
   return `${year}-${match[2]}-${match[1]}`;
 };
 const declaredCount = (text) => Number(String(text).match(/Corredores clasificados\s*:\s*(\d+)/i)?.[1] || 0) || null;
-const countryCode = (nac) => ({ COL: 'co', CRC: 'cr', ECU: 'ec', ESP: 'es', GUA: 'gt', MEX: 'mx', BOL: 'bo', VEN: 've' }[nac] ?? null);
+const countryCode = (nac) => ({
+  ARG: 'ar', BOL: 'bo', BRA: 'br', CHI: 'cl', COL: 'co', CRC: 'cr', ECU: 'ec',
+  ESP: 'es', GUA: 'gt', HON: 'hn', HUN: 'hu', MEX: 'mx', PAN: 'pa', PAR: 'py',
+  SRB: 'rs', URU: 'uy', VEN: 've',
+}[nac] ?? null);
 
 function individualRow(line, general = false) {
   const source = clean(line);
   // Vuelta a Colombia 2026: el cronometraje incluye UCI-ID y nacionalidad entre
   // dorsal y equipo. `mt.` significa mismo tiempo que el ganador del grupo.
-  const uciLayout = source.match(/^(\d+)\.?-?\s*(\d+)\s+\d{11}\s+(.+?)\s+(SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)\s+([A-Z]{3})\s+(.+?)\s+(mt\.|\d{1,2}:\d{2}:\d{2})(?:\s+(.*))?$/i);
+  const uciLayout = source.match(/^(\d+)\.?-?\s*(?:(Fc)\s+)?(\d+)\s+\d{11}\s+(.+?)\s+(SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)\s+([A-Z]{3})\s+(.+?)\s+(mt\.|\d{1,2}:\d{2}:\d{2})(?:\s+(.*))?$/i);
   if (uciLayout) {
-    const [, rankText, bib, riderDisplay, , nac, teamName, value, tail = ''] = uciLayout;
+    const [, rankText, fcMarker, bib, riderDisplay, , nac, teamName, value, tail = ''] = uciLayout;
     const sameTime = /^mt\.$/i.test(value);
     return {
       rank: Number(rankText), rankText, bib, riderDisplay: clean(riderDisplay), teamName: clean(teamName), isoCode2: countryCode(nac.toUpperCase()),
       resultValue: sameTime ? '+0' : value, timeText: sameTime ? null : timeText(value), gapText: sameTime ? '+0' : gapText(tail), points: null, irm: null,
+      ...(fcMarker ? { outOfTime: true } : {}),
     };
   }
   const prefix = general
@@ -124,12 +183,20 @@ function pointsRow(line) {
   if (!match) return null;
   const [, rankText, bib, beforePoints, pointsText] = match;
   const category = beforePoints.match(/\s+(SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)\s+/i);
-  if (!category) return null;
-  const riderDisplay = clean(beforePoints.slice(0, category.index));
-  const teamName = clean(beforePoints.slice(category.index + category[0].length));
+  // Algunas generales publican solo dorsal, nombre, categoría y puntos.
+  // La identidad se resolverá por dorsal; no necesitan equipo en el documento.
+  if (!category) {
+    if (!/\s+(?:SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)$/i.test(beforePoints)) return null;
+    const points = Number(pointsText.replace(',', '.'));
+    return { rank: Number(rankText), rankText, bib, resultValue: String(points), timeText: String(points), gapText: null, points, irm: null };
+  }
+  const riderDisplay = clean(beforePoints.slice(0, category.index)).replace(/^\d{11}\s+/, '');
+  const teamAndCountry = clean(beforePoints.slice(category.index + category[0].length));
+  const country = teamAndCountry.match(/^([A-Z]{3})\s+(.+)$/);
+  const teamName = clean(country?.[2] ?? teamAndCountry);
   if (!riderDisplay || !teamName) return null;
   const points = Number(pointsText.replace(',', '.'));
-  return { rank: Number(rankText), rankText, bib, riderDisplay, teamName, isoCode2: null, resultValue: String(points), timeText: String(points), gapText: null, points, irm: null };
+  return { rank: Number(rankText), rankText, bib, riderDisplay, teamName, isoCode2: countryCode(country?.[1]), resultValue: String(points), timeText: String(points), gapText: null, points, irm: null };
 }
 
 // La clasificación colombiana abrevia patrocinadores y provincias por la anchura
@@ -166,7 +233,7 @@ export function normalizeColombiaTeamName(value) {
 }
 
 function teamRow(line) {
-  const match = clean(line).match(/^(\d+)\s+(.+?)\s+(\d{1,2}:\d{2}:\d{2})(?:\s+(.*))?$/);
+  const match = clean(line).match(/^(\d+)(?:\.-)?\s+(.+?)\s+(\d{1,2}:\d{2}:\d{2})(?:\s+(.*))?$/);
   if (!match) return null;
   const [, rankText, teamName, absolute, tail = ''] = match;
   const normalizedTeamName = normalizeColombiaTeamName(teamName);
@@ -222,51 +289,190 @@ function validateRows(rows, expected, label) {
   return rows;
 }
 
-function classification(code, stageNumber, kind, scope, eventName, rows, isTeamEvent = false) {
+function classification(code, stageNumber, kind, scope, eventName, rows, isTeamEvent = false, expectedRowCount = null) {
   if (!rows.length || rows[0].rank !== 1) return null;
   return { eventId: synthEventId(code, stageNumber, kind, scope), classKind: kind, scope, eventName, isTeamEvent,
-    winnerName: rows[0].riderDisplay, rowCount: rows.length, rows };
+    winnerName: rows[0].riderDisplay, rowCount: rows.length,
+    ...(expectedRowCount == null ? {} : { expectedRowCount }), rows };
 }
 
-export function parsePdfText(code, stageNumber, text, totalStages = null) {
+function irmRow(line, irm) {
+  const source = clean(line);
+  const match = source.match(/^(?:--\s+)?(\d+)\s+(?:(\d{11})\s+)?(.+?)\s+(SUB\s?23|ELITE|JUVENIL|PREJUVENIL|MASTER\s?[A-Z0-9]*)\s+(?:(\w{3})\s+)?(.+)$/i);
+  if (!match) return null;
+  const [, bib, , riderDisplay, , nac, teamName] = match;
+  return { rank: null, rankText: irm, bib, riderDisplay: clean(riderDisplay), teamName: clean(teamName),
+    isoCode2: nac ? countryCode(nac.toUpperCase()) : null, resultValue: null, timeText: null, gapText: null, points: null, irm };
+}
+
+function irmRowsFromSection(block, irm) {
+  return parseRows(block, (line) => irmRow(line, irm));
+}
+
+function bibsFromIrmSection(block) {
+  return String(block || '').split(/\r?\n/).map((line) => clean(line).match(/^(?:--\s*)?(\d+)\s+.+$/)?.[1]).filter(Boolean);
+}
+
+function asIrm(row, irm) {
+  const { outOfTime: _outOfTime, ...base } = row;
+  return { ...base, rank: null, rankText: irm, resultValue: null, timeText: null, gapText: null, points: null, irm };
+}
+
+function standaloneIrmRow(line) {
+  const match = clean(line).match(/^(DNS|DNF|OTL|DSQ)\s*:\s*(\d+)\s*[–—-]\s*(?:\d{11}\s*[–—-]\s*)?(.+?)\s+([A-Z]{3})\s*[–—-]\s*(.+)$/i);
+  if (!match) return null;
+  const [, irm, bib, riderDisplay, nac, teamName] = match;
+  return {
+    rank: null, rankText: irm.toUpperCase(), bib, riderDisplay: clean(riderDisplay),
+    teamName: clean(teamName), isoCode2: countryCode(nac.toUpperCase()), resultValue: null,
+    timeText: null, gapText: null, points: null, irm: irm.toUpperCase(),
+  };
+}
+
+function splitMainRows(mainRows, listedOtlBibs) {
+  const isOtl = (row) => row.outOfTime || listedOtlBibs.has(row.bib);
+  return {
+    classifiedRows: mainRows.filter((row) => !isOtl(row)).map((row) => {
+      const { outOfTime: _outOfTime, ...base } = row;
+      return base;
+    }),
+    otlRows: mainRows.filter(isOtl).map((row) => asIrm(row, 'OTL')),
+  };
+}
+
+function stageRowsWithIrms(text, mainRows) {
+  const shortIrmBibs = (irm) => bibsFromIrmSection(sectionAfter(text,
+    new RegExp(`^\\s*${irm}\\s*:\\s*$`, 'im'),
+    /\n\s*(?:(?:DNS|DNF|OTL|DSQ)\s*:|CLASIFICACI[OÓ]N|FDO\b)/i));
+  const dnsBlock = sectionAfter(text, /CORREDORES QUE NO TOMARON LA PARTIDA\/DNS[^\n]*/i,
+    /\n\s*(?:CORREDORES FUERA\b|CORREDORES RETIRADOS\b|CORREDORES EXPULSADOS\b|FDO\b)/i);
+  const otlBlock = sectionAfter(text, /CORREDORES FUERA DEL LIMITE DE TIEMPO\/OTL[^\n]*/i,
+    /\n\s*(?:CORREDORES RETIRADOS\b|CORREDORES EXPULSADOS\b|FDO\b)/i);
+  const dnfBlock = sectionAfter(text, /CORREDORES RETIRADOS\/DNF[^\n]*/i,
+    /\n\s*(?:CORREDORES EXPULSADOS\b|FDO\b)/i);
+  const dsqBlock = sectionAfter(text, /CORREDORES EXPULSADOS\/DSQ[^\n]*/i, /\n\s*FDO\b/i);
+  const otlBibs = new Set([...bibsFromIrmSection(otlBlock), ...shortIrmBibs('OTL')]);
+  const { classifiedRows, otlRows } = splitMainRows(mainRows, otlBibs);
+  const listedRows = [
+    ...irmRowsFromSection(dnsBlock, 'DNS'),
+    ...otlRows,
+    ...irmRowsFromSection(dnfBlock, 'DNF'),
+    ...irmRowsFromSection(dsqBlock, 'DSQ'),
+    ...parseRows(text, standaloneIrmRow),
+    ...['DNS', 'DNF', 'OTL', 'DSQ'].flatMap((irm) => shortIrmBibs(irm).map((bib) => asIrm({ bib }, irm))),
+  ];
+  const seenBibs = new Set();
+  const classifiedBibs = new Set(classifiedRows.map((row) => row.bib));
+  const irmRows = listedRows.filter((row) => {
+    if (classifiedBibs.has(row.bib)) {
+      log(`  ⚠ dorsal ${row.bib}: ${row.irm} en el anexo contradice un puesto de llegada; se conserva el puesto publicado`);
+      return false;
+    }
+    if (!row.bib || seenBibs.has(row.bib)) return false;
+    seenBibs.add(row.bib);
+    return true;
+  });
+  return normalizeTimeRows([...classifiedRows, ...irmRows]);
+}
+
+export function validateExpectedYear(text, expectedYear, label = 'PDF') {
+  if (expectedYear == null) return;
+  const publishedDate = dateKey(String(text).split(/\f/, 1)[0]);
+  if (!publishedDate) throw new Error(`${label}: no se pudo verificar la fecha del PDF`);
+  if (!publishedDate.startsWith(`${expectedYear}-`)) {
+    throw new Error(`${label}: fecha ${publishedDate} incompatible con el año esperado ${expectedYear}`);
+  }
+}
+
+/**
+ * Clasificación única de una prueba que no tiene etiqueta de etapa.
+ * La tabla principal incluye OTL con la marca `Fc`; el documento los repite
+ * en una sección específica, por lo que se trasladan al bloque IRM final.
+ */
+export function parseOneDayPdfText(code, text, sourcePdfUrl = null, expectedYear = null) {
+  validateExpectedYear(text, expectedYear, 'carrera de un día');
+  const mainBlock = sectionAfter(text, /CLASIFICACI[OÓ]N[^\n]*/i,
+    /\n\s*(?:CORREDORES QUE\b|CORREDORES FUERA\b|CORREDORES RETIRADOS\b|FDO\b)/i);
+  if (!mainBlock) throw new Error('carrera de un día: falta la clasificación principal');
+
+  const mainRows = parseRows(mainBlock, (line) => cronoIndividualRow(line) || individualRow(line));
+  const declared = declaredCount(mainBlock);
+  validateRows(mainRows, declared, 'carrera de un día');
+
+  const dnsBlock = sectionAfter(text, /CORREDORES QUE NO TOMARON LA PARTIDA\/DNS[^\n]*/i,
+    /\n\s*(?:CORREDORES FUERA\b|CORREDORES RETIRADOS\b|FDO\b)/i);
+  const otlBlock = sectionAfter(text, /CORREDORES FUERA DEL LIMITE DE TIEMPO\/OTL[^\n]*/i,
+    /\n\s*(?:CORREDORES RETIRADOS\b|FDO\b)/i);
+  const dnfBlock = sectionAfter(text, /CORREDORES RETIRADOS\/DNF[^\n]*/i, /\n\s*FDO\b/i);
+  const otlBibs = new Set(bibsFromIrmSection(otlBlock));
+  const { classifiedRows, otlRows } = splitMainRows(mainRows, otlBibs);
+  const irmRows = [
+    ...irmRowsFromSection(dnsBlock, 'DNS'),
+    ...otlRows,
+    ...irmRowsFromSection(dnfBlock, 'DNF'),
+    ...parseRows(text, standaloneIrmRow),
+  ];
+  const rows = normalizeTimeRows([...classifiedRows, ...irmRows]);
+  const cl = classification(code, FINAL_SLOT, 'gc', 'stage', 'General Classification', rows, false, rows.length);
+  if (!cl) throw new Error('carrera de un día: falta el ganador');
+  return {
+    stage: {
+      uciRaceId: synthRaceId(code, FINAL_SLOT), stageNumber: null, isFinalClassification: true,
+      dateKey: dateKey(text), eventName: 'Final Classification', sourcePdfUrl, classifications: [cl],
+    },
+    final: null,
+  };
+}
+
+export function parsePdfText(code, stageNumber, text, totalStages = null, expectedYear = null, expectedDate = null) {
+  validateExpectedYear(text, expectedYear, `etapa ${stageNumber}`);
+  const publishedDate = dateKey(text);
+  if (expectedDate && publishedDate !== expectedDate) {
+    throw new Error(`etapa ${stageNumber}: el PDF es de ${publishedDate || 'fecha desconocida'}, no de ${expectedDate}`);
+  }
   // El encabezado de etapa se repite en CADA página. Solo los bloques que ya no
   // son la llegada (equipos, puntos, general, montaña...) la pueden cerrar.
-  const stageBlock = sectionAfter(text, /CLASIFICACION\s+(?:[A-ZÁÉÍÓÚ]+\s+)?ETAPA[^\n]*/i,
-    /\n\s*(?:CLASIFICACION\s+(?:POR\s+EQUIPOS|POR\s+PUNTOS|GENERAL|.*MONTA[ÑN]A|.*(?:SUB\s?23|JOVENES))|PASOS? DE |CORREDORES QUE |PORTADORES |FDO\b)/i);
+  const stageBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:(?:[A-ZÁÉÍÓÚ]+|\d+(?:RA|DA|A|ª|º)?)\s+)?ETAPA[^\n]*/i,
+    /\n\s*(?:CLASIFICACI[OÓ]N\s+(?:POR\s+EQUIPOS|POR\s+PUNTOS|GENERAL|.*MONTA[ÑN]A|.*(?:SUB\s?23|JOVENES))|PASOS? DE |CORREDORES QUE |PORTADORES |FDO\b)/i);
   if (!stageBlock) throw new Error(`etapa ${stageNumber}: falta la clasificación principal`);
   // Detectarlo por cada fila, no por el encabezado: algunos PDFs separan
   // `T.Inter` con espacios y otros lo repiten sólo en páginas posteriores.
   const stageParser = (line) => cronoIndividualRow(line) || individualRow(line);
-  const stageRows = normalizeTimeRows(validateRows(parseRows(stageBlock, stageParser), declaredCount(stageBlock), `etapa ${stageNumber}`));
-  const classifications = [classification(code, stageNumber, 'stage', 'stage', 'Stage Classification', stageRows)];
+  const mainRows = validateRows(parseRows(stageBlock, stageParser), declaredCount(stageBlock), `etapa ${stageNumber}`);
+  const stageRows = stageRowsWithIrms(text, mainRows);
+  const classifications = [classification(code, stageNumber, 'stage', 'stage', 'Stage Classification', stageRows, false, stageRows.length)];
 
-  const gcBlock = sectionAfter(text, /CLASIFICACION\s+GENERAL(?:\s+DESPUES[^\n]*)?/i,
-    /\n\s*(?:CLASIFICACION\s+(?:POR\s+EQUIPOS|POR\s+PUNTOS|.*MONTA[ÑN]A|.*(?:SUB\s?23|JOVENES))|PASOS? DE |CORREDORES QUE |PORTADORES |FDO\b)/i);
+  const gcBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL(?:\s+DESPUES[^\n]*)?/i,
+    /\n\s*(?:CLASIFICACI[OÓ]N\s+(?:POR\s+EQUIPOS|POR\s+PUNTOS|.*MONTA[ÑN]A|.*(?:SUB\s?23|JOVENES))|PASOS? DE |CORREDORES QUE |PORTADORES |FDO\b)/i);
   if (gcBlock) {
     const rows = parseRows(gcBlock, (line) => individualRow(line, true));
     if (rows.length) classifications.push(classification(code, stageNumber, 'gc', 'stage', 'General Classification', normalizeTimeRows(validateRows(rows, null, `general etapa ${stageNumber}`))));
   }
-  const pointsBlock = sectionAfter(text, /CLASIFICACION\s+POR\s+PUNTOS[^\n]*/i);
+  const pointsBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:POR\s+PUNTOS|DE\s+LA\s+REGULARIDAD)[^\n]*/i)
+    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:POR\s+PUNTOS|DE\s+LA\s+REGULARIDAD)(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (pointsBlock) {
     const rows = parseRows(pointsBlock, pointsRow);
     if (rows.length) classifications.push(classification(code, stageNumber, 'points', 'overall', 'Overall Points Classification', validateRows(rows, null, `puntos etapa ${stageNumber}`)));
   }
-  const komBlock = sectionAfter(text, /CLASIFICACION\s+(?:GENERAL\s+)?(?:DE\s+)?MONTA[ÑN]A[^\n]*/i);
+  const komBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:PREMIOS\s+DE\s+|DE\s+)?MONTA[ÑN]A[^\n]*/i)
+    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:PREMIOS\s+DE\s+|DE\s+)?MONTA[ÑN]A(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (komBlock) {
     const rows = parseRows(komBlock, pointsRow);
     if (rows.length) classifications.push(classification(code, stageNumber, 'kom', 'overall', 'Overall Mountains Classification', validateRows(rows, null, `montaña etapa ${stageNumber}`)));
   }
-  const youthBlock = sectionAfter(text, /CLASIFICACION\s+(?:GENERAL\s+)?(?:SUB\s?23|JOVENES)[^\n]*/i);
+  const youthBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+(?:DE\s+)?(?:SUB\s?23|JOVENES)[^\n]*/i)
+    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+(?:SUB\s?23|JOVENES)(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (youthBlock) {
     const rows = parseRows(youthBlock, (line) => individualRow(line, true));
     if (rows.length) classifications.push(classification(code, stageNumber, 'youth', 'overall', 'Overall Youth Classification', normalizeTimeRows(validateRows(rows, null, `jóvenes etapa ${stageNumber}`))));
   }
-  const teamsBlock = sectionAfter(text, /CLASIFICACION\s+POR\s+EQUIPOS[^\n]*/i);
+  const teamsBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL\s+POR\s+EQUIPOS[^\n]*/i)
+    ?? sectionAfter(text, /CLASIFICACI[OÓ]N\s+POR\s+EQUIPOS(?![^\n]*DE LA ETAPA(?! Y GENERAL))[^\n]*/i);
   if (teamsBlock) {
     const rows = parseRows(teamsBlock, teamRow);
     if (rows.length) classifications.push(classification(code, stageNumber, 'teams', 'overall', 'Overall Teams Classification', normalizeTimeRows(validateRows(rows, null, `equipos etapa ${stageNumber}`)), true));
   }
-  const stage = { uciRaceId: synthRaceId(code, stageNumber), stageNumber, dateKey: dateKey(text), eventName: `Stage ${stageNumber}`, classifications: classifications.filter(Boolean) };
+  const stage = { uciRaceId: synthRaceId(code, stageNumber), stageNumber, dateKey: publishedDate, eventName: `Stage ${stageNumber}`, classifications: classifications.filter(Boolean) };
   const final = totalStages != null && stageNumber === totalStages
     ? { uciRaceId: synthRaceId(code, FINAL_SLOT), stageNumber: null, isFinalClassification: true, eventName: 'Final Classification', classifications: stage.classifications.filter((item) => item.classKind !== 'stage').map((item) => ({ ...item, scope: 'stage', eventId: synthEventId(code, FINAL_SLOT, item.classKind, 'stage') })) }
     : null;
@@ -284,22 +490,42 @@ async function pdfToLayoutText(url) {
   finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+export function assertSelectedPdfsParsed(selectedCount, parsedStageCount, parseFailures) {
+  if (selectedCount > 0 && parsedStageCount === 0 && parseFailures > 0) {
+    throw new Error(`No se pudo interpretar ninguno de los ${selectedCount} PDF seleccionados`);
+  }
+}
+
 async function main() {
   const code = parseCode(CODE);
   if (has('--suggest-id')) return void process.stdout.write(`${suggestCompetitionId(code)}\n`);
   if (!Number.isInteger(COMPETITION_ID)) throw new Error('Falta --competition-id (o usa --suggest-id)');
   const fixture = FIXTURE ? JSON.parse(readFileSync(resolve(FIXTURE), 'utf8')) : null;
-  const links = pdfLinksFromRaceHtml(fixture?.html ?? await fetchText(raceUrl(code)));
+  const links = PDF_URL
+    ? [{ href: PDF_URL, label: 'PDF directo', stageNumber: null }]
+    : pdfLinksFromRaceHtml(fixture?.html ?? await fetchText(raceUrl(code)), { oneDay: ONE_DAY, code });
   const selected = links.filter((link) => ONLY_STAGE == null || link.stageNumber === ONLY_STAGE);
   const stages = [];
+  let parseFailures = 0;
   for (const link of selected) {
     try {
       const text = fixture?.pdfTextByUrl?.[link.href] ?? await pdfToLayoutText(link.href);
-      const parsed = parsePdfText(code, link.stageNumber, text, TOTAL_STAGES);
-      stages.push(parsed.stage); if (parsed.final) stages.push(parsed.final);
-    } catch (error) { log(`  ⚠ ${link.label || `etapa ${link.stageNumber}`}: ${error.message}`); }
+      const parsed = ONE_DAY
+        ? parseOneDayPdfText(code, text, link.href, EXPECTED_YEAR)
+        : parsePdfText(code, link.stageNumber, text, TOTAL_STAGES, EXPECTED_YEAR, STAGE_DATES[link.stageNumber] ?? null);
+      if (!parsed.stage.sourcePdfUrl) parsed.stage.sourcePdfUrl = link.href;
+      stages.push(parsed.stage);
+      if (parsed.final) {
+        if (!parsed.final.sourcePdfUrl) parsed.final.sourcePdfUrl = link.href;
+        stages.push(parsed.final);
+      }
+    } catch (error) {
+      parseFailures++;
+      log(`  ⚠ ${link.label || `etapa ${link.stageNumber}`}: ${error.message}`);
+    }
   }
-  const output = { competitionId: COMPETITION_ID, disciplineId: 10, source: 'colombia', colombiaCode: code, fetchedAt: new Date().toISOString(), stages };
+  assertSelectedPdfsParsed(selected.length, stages.length, parseFailures);
+  const output = { ...(RACE_ID ? { raceId: RACE_ID } : {}), competitionId: COMPETITION_ID, disciplineId: 10, source: 'colombia', colombiaCode: code, fetchedAt: new Date().toISOString(), stages };
   mkdirSync(OUT, { recursive: true }); writeFileSync(join(OUT, `${COMPETITION_ID}.json`), JSON.stringify(output, null, 2));
   if (has('--pretty')) process.stdout.write(JSON.stringify(output, null, 2) + '\n');
 }

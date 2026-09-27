@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#ffffff":"#111318";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -23,7 +23,7 @@
   <meta name="twitter:description" content="Pol&iacute;tica de privacidad de Calendario Ciclismo. Informaci&oacute;n sobre el tratamiento de datos personales y derechos del usuario.">
   <meta name="robots" content="index, follow">
   <script src="js/theme.js"></script>
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=20260920tint">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -35,9 +35,9 @@
 <body>
 
     <header class="site-header" id="siteHeader"></header>
-<script type="module" src="/js/header.js"></script>
+<script type="module" src="/js/header.js?v=20260914cxmenu"></script>
 
-    <main style="max-width:680px;margin:0 auto;padding:3rem 1.5rem;box-sizing:border-box">
+    <main class="cc-public-document" style="">
     <h1 style="font-family:var(--font-display);font-weight:700;font-size:2rem;text-transform:uppercase;letter-spacing:-0.01em;margin-bottom:0.5rem;text-align:center">Política de Privacidad</h1>
     <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem"><strong>calendariociclismo.app</strong> &mdash; Última actualización: 24 de agosto de 2026</p>
 
@@ -49,7 +49,7 @@
       <li><strong>Notificaciones:</strong> token técnico de APNs o FCM, plataforma, idioma, región y grupo de país derivados de la zona horaria, categorías elegidas y carreras, etapas o filtros seguidos. No solicitamos GPS ni ubicación precisa.</li>
       <li><strong>Avisos y correcciones:</strong> si envías el formulario de una jornada, tratamos nombre, correo electrónico, tipo y texto del aviso, jornada afectada, dirección IP, agente de usuario y fecha de envío.</li>
       <li><strong>Analítica de las apps:</strong> Firebase Analytics utiliza un identificador seudónimo de instancia, datos del dispositivo y sistema operativo, zona geográfica aproximada e interacciones como pantallas, búsquedas, contenidos consultados y acciones de soporte o compra. No usamos IDFA, GAID ni seguimiento entre aplicaciones.</li>
-      <li><strong>Analítica web:</strong> Google Analytics 4 trata datos de navegación y cookies de medición únicamente después de aceptar.</li>
+      <li><strong>Analítica web:</strong> Google Analytics 4 trata datos de navegación y cookies de medición tras la aceptación del aviso de cookies, que se autoacepta a los 10 segundos si no lo rechazas antes.</li>
       <li><strong>Compras:</strong> Apple o Google gestionan el pago. La app recibe la confirmación técnica, producto y estado necesarios para reconocer Amigo, aportaciones o Premium histórico; no recibimos tarjetas ni direcciones de facturación. Si la analítica de la app está habilitada, puede registrarse el producto y la acción de compra, no los datos bancarios.</li>
       <li><strong>Datos locales y técnicos:</strong> preferencias, favoritos, cachés, estado de compra y elecciones de privacidad se guardan en el dispositivo o navegador. Los proveedores de alojamiento pueden generar registros técnicos, como IP, fecha, recurso solicitado y agente de usuario, para seguridad y funcionamiento.</li>
     </ul>
@@ -61,7 +61,7 @@
       <li><strong>Notificaciones push:</strong> enviar los avisos elegidos, con tu consentimiento (art. 6.1.a).</li>
       <li><strong>Avisos y correcciones:</strong> recibir, verificar y responder a la información que remites voluntariamente, por interés legítimo en mantener el calendario correcto y atender la solicitud (art. 6.1.f).</li>
       <li><strong>Analítica de las apps:</strong> conocer el uso y mejorar estabilidad y diseño, por interés legítimo (art. 6.1.f), con derecho de oposición inmediato desde <strong>Ajustes &rarr; Privacidad &rarr; Estadísticas de uso</strong>.</li>
-      <li><strong>Analítica web:</strong> medición de visitas con consentimiento (art. 6.1.a y normativa de cookies).</li>
+      <li><strong>Analítica web:</strong> medición de visitas conforme al aviso de cookies (art. 6.1.a y normativa de cookies).</li>
       <li><strong>Compras voluntarias:</strong> tramitar y reconocer la compra solicitada (art. 6.1.b).</li>
     </ul>
 
@@ -78,7 +78,7 @@
     </ul>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">6. Tus controles de privacidad</h2>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">La analítica de las apps está <strong>activada inicialmente</strong> y puede desactivarse en cualquier momento en <strong>Ajustes &rarr; Privacidad &rarr; Estadísticas de uso</strong>. La web no carga Google Analytics hasta que pulses <strong>Aceptar</strong>; rechazar o elegir más tarde no equivale a consentir. Puedes volver a abrir <strong>Gestión de cookies</strong> desde el pie de página. Los permisos de notificaciones también pueden retirarse en los ajustes del sistema.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">La analítica de las apps está <strong>activada inicialmente</strong> y puede desactivarse en cualquier momento en <strong>Ajustes &rarr; Privacidad &rarr; Estadísticas de uso</strong>. La web carga Google Analytics al aceptar el aviso de cookies, que se autoacepta a los 10 segundos de mostrarse si no pulsas <strong>Rechazar</strong> antes. Puedes volver a abrir <strong>Gestión de cookies</strong> desde el pie de página. Los permisos de notificaciones también pueden retirarse en los ajustes del sistema.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">7. Derechos</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:0.5rem">Puedes solicitar acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, además de retirar el consentimiento sin afectar al tratamiento anterior. Escribe a <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>. Para localizar un aviso concreto podremos pedirte datos razonables de verificación.</p>
@@ -94,7 +94,7 @@
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem"><strong>Fundador.</strong> Una compra Premium anterior puede reconocerse como Fundador. En iOS, Restaurar compras puede detectar transacciones históricas. En Android, una suscripción Premium ya expirada puede no ser recuperable tras borrar datos o reinstalar si Google Play no devuelve esa compra histórica y no existe una copia local; puedes escribirnos para revisar el caso.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">10. Cookies y almacenamiento del navegador</h2>
-    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Usamos almacenamiento esencial para tema, idioma, preferencias, favoritos, control del formulario y tu elección de cookies. No requiere consentimiento cuando es estrictamente necesario. Google Analytics puede crear cookies de medición solo tras tu aceptación. No utilizamos cookies publicitarias ni perfiles para publicidad. Puedes retirar el consentimiento desde <strong>Gestión de cookies</strong> y borrar el almacenamiento desde el navegador.</p>
+    <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Usamos almacenamiento esencial para tema, idioma, preferencias, favoritos, control del formulario y tu elección de cookies. No requiere consentimiento cuando es estrictamente necesario. Google Analytics puede crear cookies de medición tras la aceptación del aviso de cookies, automática a los 10 segundos si no lo rechazas antes. No utilizamos cookies publicitarias ni perfiles para publicidad. Puedes retirar el consentimiento desde <strong>Gestión de cookies</strong> y borrar el almacenamiento desde el navegador.</p>
 
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">11. Publicidad y comunicaciones comerciales</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">Las apps y la web no muestran anuncios, no integran redes publicitarias y no venden ni alquilan datos. El correo facilitado en un aviso se usa para gestionar ese aviso, no para marketing.</p>

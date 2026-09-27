@@ -65,23 +65,16 @@ Sobrescribe **solo la bandera visual**. Nunca afecta filtros de país. Migració
 - `race-data-modal.js` pinta la cabecera dos veces para evitar parpadeo — no simplificar.
 - **Dropdown de país en el panel: `position: fixed` anclado al `body`.** `.editor-section` tiene `overflow: hidden`, lo que clipa dropdowns en `absolute`.
 
-## Botones de resultados (fuentes externas)
+## Botones de resultados
 
-Solo web. Se integran en la sección TV. Título adaptativo: solo TV → "Televisión"; solo resultados → "Revive la carrera"; ambos → "Televisión · Revive la carrera".
+No hay enlaces a fuentes externas (fuentes externas): las columnas
+`races.extId` y `races.extSlug` se retiraron en la migración
+`20260918210000_drop_race_external_result_ids.sql`.
 
-**Visibilidad:** no en rest days ni cancelados; la carrera debe tener `extId` o `extSlug`; si hay `estimatedFinishTimeUtc`, se muestran a partir de T-30 min (hora del cliente vs UTC).
-
-**URLs — fuente externa:** clásica → `race.php?r={extId}&y={year}`; etapa → añade `&e={NN}` (2 dígitos con padding).
-
-**URLs — fuente externa:** clásica → `/race/{extSlug}/{year}/result/result/result`; etapa → `/race/{extSlug}/{year}/stage-{n}/result` (sin padding); prólogo (`stageNumber === 0`) → `/race/{extSlug}/{year}/prologue/result`.
-
-| Archivo | Cambio |
-|---|---|
-| `js/jornada.js` | `shouldShowResults`, `buildExtUrlA`, `buildExtUrlB`, integración en sección TV/enlaces |
-| `css/app.css` | `.result-section-btns` + regla compartida `.tv-link-btn, .result-btn` |
-| `js/panel.js` | Campos extId/extSlug en `openEditRaceModal`/`saveEditRace`; sección "Resultados" en `renderEditor()` |
-| `panel/app.html` | Campos `er-extId`, `er-extSlug` con botones "Buscar ↗" |
-| `ios-app/.../Views/Today/ResultsSheet.swift` | `ResultsLinkButton` con bg `Color.accentColor` + fg `.white` |
+Web, iOS y Android muestran el CTA "Ver clasificaciones" solo cuando la jornada
+tiene clasificaciones propias (`race_uci_stages.keepForWeb`); sin ellas no hay
+botón. El CTA abre la pantalla/página nativa de resultados. La jornada cancelada
+conserva su CTA propio (aviso + generales arrastradas).
 
 ## Inscritos (startlists)
 

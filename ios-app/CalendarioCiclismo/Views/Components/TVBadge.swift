@@ -22,7 +22,7 @@ struct TVBadge: View {
     private var regionBroadcasts: [Broadcast] {
         RaceLogic.filterBroadcastsByRegion(
             broadcasts,
-            allowedGroups: regionService.current.allowedBroadcastGroups
+            allowedGroups: regionService.allowedBroadcastGroups
         )
     }
 

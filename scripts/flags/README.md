@@ -1,12 +1,12 @@
 # Banderas — pipeline iOS (CoreSVG)
 
-Las tres plataformas usan el mismo set: **lipis/flag-icons v7.2.3, formato 4x3** (270 códigos).
+Las tres plataformas usan el mismo set: **lipis/flag-icons v7.2.3, formato 4x3** (270 códigos), más **16 banderas de comunidades autónomas de España** que flag-icons no incluye (`es-an`, `es-ar`, `es-as`, `es-cb`, `es-ce`, `es-cl`, `es-cm`, `es-cn`, `es-ex`, `es-ib`, `es-mc`, `es-md`, `es-ml`, `es-nc`, `es-ri`, `es-vc`; 286 en total). Esas 16 proceden de **iso3166-flags** y se sirven autoalojadas desde `/flags/` en la web, no desde el CDN.
 
 | Plataforma | Dónde viven | Motor de render |
 |---|---|---|
 | Web | CDN jsdelivr (`js/shared.js` → `countryFlag()`) | navegador (SVG completo) |
 | Android | `android-app/app/src/main/assets/flags/*.svg` (byte-idéntico al canónico) | Coil + AndroidSVG (completo) |
-| iOS | `Assets.xcassets/Flags/<code>.imageset/<code>.svg` (`preserves-vector-representation`) | **CoreSVG (parcial — ver bugs)** |
+| iOS | `ios-app/Shared/Flags.xcassets/Flags/<code>.imageset/<code>.svg` (`preserves-vector-representation`) | **CoreSVG (parcial — ver bugs)** |
 
 **Regla:** web y Android llevan SIEMPRE el SVG canónico sin tocar. Los SVG de
 iOS son los únicos que se normalizan, porque CoreSVG no es un renderer completo.
@@ -58,7 +58,7 @@ DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib \
   /tmp/flag-audit/venv/bin/python scripts/flags/verify-flags-render.py gate1
 
 # 3) puerta 2 — el motor REAL de iOS (CoreSVG en simulador)
-ls ios-app/CalendarioCiclismo/Assets.xcassets/Flags/ | sed 's/\.imageset$//' \
+ls ios-app/Shared/Flags.xcassets/Flags/ | sed 's/\.imageset$//' \
   | grep -v Contents.json | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))" \
   > /tmp/flag-audit/names.json
 mkdir -p /tmp/flag-audit/ios

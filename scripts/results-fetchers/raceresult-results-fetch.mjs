@@ -6,11 +6,11 @@
  * PÚBLICA sin auth (config + list), accesible por curl/Node, que publica en vivo
  * durante la etapa y valida minutos tras meta.
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
  * race_uci_links.source ('uci'|'tissot'|'pdf'|'matsport'|'sportstiming'|
- * 'manual_timing'|'raceresult', migración 108) vía uci-results-cron.mjs.
+ * 'manual_timing'|'raceresult', migración 108) vía results-cron.mjs.
  *
  * API RACE|RESULT (sin auth):
  *   GET /{eventId}/results/config?lang=en   → key + server + lista de "Lists"
@@ -39,6 +39,8 @@
  *       [7]maillot [8]puntos("84 pt").
  *   Team General Classification (7 col): [0]bibEquipo [2]rank [3]NOMBRE EQUIPO
  *       [4]sigla [5]maillot [6]tiempo|gap. (Filas de EQUIPO → bib NULL, teamRows.)
+ *   One-day Stage Results (11 col, Philadelphia 2026): [2]rank [3]DORSAL
+ *       [4]nombre [5]equipo [6]bandera [9]tiempo absoluto [10]gap.
  * El mapeo se hace localizando columnas por heurística robusta (ver pickCols) en vez
  * de índices mágicos, para tolerar variantes de plantilla entre carreras.
  *
@@ -61,8 +63,10 @@
  *   KOM Classification → kom/overall
  *   Young Rider Classification → youth/overall
  *   Team General Classification → teams/overall (teamRows)
- *   (Las listas LIVE se ignoran aquí: usamos las de la pestaña "results", definitivas.
- *    Mientras la etapa está en vivo, "Stage Results" del día ya refleja el live.)
+ *   Las listas LIVE son el respaldo de la etapa en curso cuando --stage N la pide y
+ *   Results todavía no ofrece filas. Además de la llegada, puntos y montaña LIVE
+ *   aportan sus acumulados provisionales si el cabecero coincide con --date.
+ *   Las listas de Results tienen prioridad en cuanto publican la jornada.
  *
  * ETAPAS: el selector SelectorResults da las etapas ("Stage 1".."Stage N"). Las
  * generales (GC/Points/KOM/Young/Team) son ACUMULADAS hasta la última etapa volcada;
@@ -89,15 +93,25 @@
  *   node scripts/results-fetchers/raceresult-results-fetch.mjs --event 402988 --competition-id -123456
  *   node scripts/results-fetchers/raceresult-results-fetch.mjs --event 402988 --competition-id -123456 --stage 1
  *   node scripts/results-fetchers/raceresult-results-fetch.mjs --event 402988 --suggest-id
+ *   node scripts/results-fetchers/raceresult-results-fetch.mjs --event 406938 --gender female --one-day --date 2026-08-30 --competition-id -123456
  *
  * Args:
  *   --event           eventId numérico de race|result (raceresultCode), p. ej. 402988.
  *   --competition-id  competitionId del puente race_uci_links (sintético NEGATIVO;
  *                     obligatorio: el JSON lo lleva para que el upsert NO recablee el
  *                     puente; también nombra el archivo de salida <id>.json).
- *                     Convención: -(fnv1a("raceresult:"+eventId)%200000) — lo imprime
- *                     este script con --suggest-id.
+ *                     Convención histórica: -(fnv1a("raceresult:"+eventId)%200000).
+ *                     En eventos multiconcurso se añade ":contest:<id>" al salt. Este
+ *                     script imprime el valor aplicable con --suggest-id.
  *   --stage           (opcional) limitar a un nº de etapa.
+ *   --gender          male|female; selecciona el concurso en eventos multigénero
+ *                     con perfil verificado, como Philadelphia 2026.
+ *   --contest         id de concurso de race|result. Prevalece sobre el perfil.
+ *   --one-day         modela la lista Stage Results como carrera de un día:
+ *                     stageNumber=NULL, gc/stage y sin clasificaciones anexas.
+ *   --required-laps   no emite la carrera de un día hasta que el live alcance ese
+ *                     número de vueltas o muestre FINISH. El perfil puede fijarlo.
+ *   --date            YYYY-MM-DD curado de la carrera de un día; se incluye en el JSON.
  *   --out             carpeta de salida (default _results_run/raceresult-<event> JUNTO A ESTE
  *                     script, no relativo al cwd). La ruta que imprime al terminar es la
  *                     real: leer esa, no reconstruirla a mano.
@@ -122,6 +136,89 @@ const hasFlag = (n) => args.includes(`--${n}`);
 const EVENT = getArg('event');                       // eventId race|result (402988)
 const COMPETITION_ID = getArg('competition-id');     // sintético negativo (puente race_uci_links)
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
+const GENDER = getArg('gender');
+const DATE_ARG = getArg('date');
+
+// Excepciones editoriales verificadas por edición. Philadelphia comparte un eventId
+// entre dos pruebas de un día y publica Stage Results vuelta a vuelta. Cada concurso
+// necesita un ID sintético distinto y un gate de distancia antes de emitir resultados.
+// Stuttgart (WCGP 2026) no tiene lista "Stage Results": su clasificación vive en la
+// lista oficial del contest 4 con una plantilla de columnas propia (bib[0], rank[2],
+// nombre[5], equipo[7], tiempo|gap[9]) → perfil con listPattern + cols.
+export const RACERESULT_EVENT_PROFILES = {
+  '406938': {
+    oneDay: true,
+    contests: {
+      male: { contest: '1', requiredLaps: 10 },
+      female: { contest: '2', requiredLaps: 5 },
+    },
+  },
+  '415222': {
+    oneDay: true,
+    contests: {
+      female: { contest: '4' },
+    },
+    listPattern: /Ergebnisliste OA/i,
+    cols: { rank: 2, bib: 0, name: 5, team: 7, value: 9, gap: 9 },
+  },
+  '417778': {
+    oneDay: true,
+    // Ambas carreras masculinas comparten evento: el género no distingue concurso.
+    dates: {
+      '2026-09-11': { contest: '1', dateKey: '2026-09-11' },
+      '2026-09-13': { contest: '2', dateKey: '2026-09-13' },
+    },
+    cols: { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 },
+  },
+  // Gatineau 2026 (racetiming.ca → race|result). Concurso único ("Women") y sin
+  // pestaña live: la lista de resultados publica la marca en meta ("M:Ss.kk") y su
+  // propia columna de diferencia. La crono añade una lista de progreso con los
+  // parciales completados de cada corredor; no se publica hasta que no queda nadie
+  // en curso (habitualmente cuando Reusser, última en salir, ha terminado).
+  '422048': {
+    oneDay: true,
+    contests: { female: { contest: '0' } },
+    listPattern: /Results With 1 Splits/i,
+    cols: { rank: 2, bib: 3, name: 4, team: 5, value: 6, gap: 7 },
+    progress: { listPattern: /Live Results/i, fieldPattern: /Split_Count/i, lastStarter: /REUSSER/i },
+  },
+  // Tour de Gatineau 2026: prueba en línea del mismo cronometrador. El organizador
+  // separa las columnas Tiempo/Gap y solo publica cuando existe llegada (meta); sin
+  // señal de progreso propia. Plantilla verificada el 17-09-2026 (13 col):
+  // [0]BIB [1]ID [2]rank [3]PrintedBib [4]NATION.UCINAME [5]DisplayName [6]Team
+  // [7]QC [8]vueltas [9]Bunch(tiempo absoluto) [10]GapTime(diferencia; "-" el líder)
+  // [11]AgeGroup [12]club. La nación ocupa la columna 4: dorsal, nombre y equipo van
+  // un puesto más a la derecha que en la crono.
+  '422781': {
+    oneDay: true,
+    contests: { female: { contest: '0' } },
+    listPattern: /Overall Results with Category/i,
+    cols: { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 },
+  },
+};
+
+export function eventProfile(event, gender, contestId = null, date = null) {
+  const base = RACERESULT_EVENT_PROFILES[String(event)] || null;
+  if (!base) return null;
+  if (base.dates && date && !base.dates[date]) {
+    throw new Error(`Fecha ${date} no configurada para el evento ${event}`);
+  }
+  const contests = [...Object.values(base.contests || {}), ...Object.values(base.dates || {})];
+  const contest = contestId != null
+    ? contests.find((item) => String(item.contest) === String(contestId)) || null
+    : base.dates?.[date] || base.contests?.[String(gender || '').toLowerCase()] || null;
+  if (contest?.dateKey && date && contest.dateKey !== date) {
+    throw new Error(`El concurso ${contestId} no corresponde a la fecha ${date}`);
+  }
+  return contest ? { ...base, ...contest } : { ...base, contest: null, requiredLaps: null };
+}
+
+const PROFILE_BASE = RACERESULT_EVENT_PROFILES[String(EVENT)] || null;
+const EXPLICIT_CONTEST = getArg('contest');
+const PROFILE = eventProfile(EVENT, GENDER, EXPLICIT_CONTEST, DATE_ARG);
+const CONTEST = String(EXPLICIT_CONTEST || PROFILE?.contest || '1');
+const ONE_DAY = hasFlag('one-day') || !!PROFILE?.oneDay;
+const REQUIRED_LAPS = Number.parseInt(getArg('required-laps', PROFILE?.requiredLaps ?? '0'), 10) || 0;
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el JSON en una ruta distinta de la que imprime, y una lectura posterior
 // se quedaba con un fichero viejo (cazado en el TdF E12, relegación de Van Mechelen).
@@ -165,14 +262,29 @@ export function fnv1a(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h;
 }
-// ≤199999 → eventId > -2^31 garantizado. Sin --event queda NaN: solo lo usa main(),
-// que valida los args antes (ver checkArgs).
-const ID_BASE = (EVENT && /^\d+$/.test(EVENT)) ? fnv1a(`raceresult:${EVENT}`) % 200000 : NaN;
+// Los eventos multiconcurso incorporan el contest al salt para que las fichas
+// masculina y femenina no compartan competitionId/eventId. Los eventos históricos
+// sin perfil conservan exactamente el salt anterior.
+export function idBaseFor(event, contest = '1', contestScoped = false) {
+  if (!event || !/^\d+$/.test(String(event))) return NaN;
+  const salt = contestScoped
+    ? `raceresult:${event}:contest:${contest}`
+    : `raceresult:${event}`;
+  return fnv1a(salt) % 200000;
+}
+const ID_BASE = idBaseFor(EVENT, CONTEST, !!(PROFILE_BASE || EXPLICIT_CONTEST));
 
 // Validación de args: DENTRO de main(), no a nivel de módulo — un process.exit() al
 // importar mataría el runner de tests.
 function checkArgs() {
   if (!EVENT || !/^\d+$/.test(EVENT)) { log('FATAL: falta --event <eventId numérico de race|result, p.ej. 402988>'); process.exit(1); }
+  if (PROFILE_BASE && !PROFILE?.contest) {
+    log(`FATAL: el evento ${EVENT} requiere ${PROFILE_BASE.dates ? '--date YYYY-MM-DD' : '--gender male|female'} o un --contest curado`);
+    process.exit(1);
+  }
+  if (DATE_ARG && !/^20\d{2}-\d{2}-\d{2}$/.test(DATE_ARG)) {
+    log('FATAL: --date debe usar YYYY-MM-DD'); process.exit(1);
+  }
   if (hasFlag('suggest-id')) {
     process.stdout.write(String(-ID_BASE) + '\n');
     process.exit(0);
@@ -220,9 +332,13 @@ export function parseRankCell(v) {
 }
 
 // tiempo absoluto race|result "2h53'29''" / "15h32'22''" / "53'29''" → "H:MM:SS" / "MM:SS".
+// También admite el formato con centésimas "M:Ss.kk"/"H:MM:Ss.kk" (racetiming.ca): las
+// centésimas se truncan sin redondear (regla de presentación de tiempos).
 export function normAbsTime(v) {
   const t = clean(v);
   if (!t || t.startsWith('+')) return null;
+  const noFrac = t.replace(/\.\d+$/, '');
+  if (noFrac !== t && /^\d+(:\d{2}){1,2}$/.test(noFrac)) return noFrac;
   const m = /^(?:(\d+)h)?(\d{1,2})'(\d{2})''?$/.exec(t);
   if (m) {
     const h = m[1] ? parseInt(m[1], 10) : 0;
@@ -234,10 +350,26 @@ export function normAbsTime(v) {
 }
 
 // gap "+28''" → "+28" · "+1'15''" → "+1:15" · "+1h02'03''" → "+1:02:03".
+// racetiming.ca publica la diferencia sin signo y con centésimas ("14.69", "1:01.49"):
+// se normaliza a "+14"/"+1:01" truncando las centésimas. "−…" (pérdida) y "--" no son gap.
 export function normGap(v) {
   const t = clean(v);
-  if (!t || !t.startsWith('+')) return null;
-  const body = t.slice(1);
+  if (!t || t === '--' || t.startsWith('-')) return null;
+  const signed = t.startsWith('+');
+  const body = signed ? t.slice(1) : t;
+  const noFrac = body.replace(/\.\d+$/, '');
+  const fractional = noFrac !== body;
+  // Formato "M:Ss.kk" / "H:MM:Ss.kk" sin signo, SIEMPRE con centésimas en este
+  // cronometrador. Se exige la fracción decimal para no confundir un tiempo absoluto
+  // ("5:00:20") con una diferencia.
+  if (fractional && /^\d+(:\d{2}){0,2}$/.test(noFrac)) {
+    const parts = noFrac.split(':').map((n) => parseInt(n, 10));
+    const pad = (n) => String(n).padStart(2, '0');
+    if (parts.length === 1) return `+${parts[0]}`;
+    if (parts.length === 2) return `+${parts[0]}:${pad(parts[1])}`;
+    return `+${parts[0]}:${pad(parts[1])}:${pad(parts[2])}`;
+  }
+  if (!signed) return null;
   const m = /^(?:(\d+)h)?(?:(\d{1,2})')?(\d{1,2})''?$/.exec(body);
   if (m) {
     const h = m[1] ? parseInt(m[1], 10) : null;
@@ -262,6 +394,8 @@ export function normPoints(v) {
 export function reorderName(v) {
   const t = cellText(v).replace(/\*+$/, '').trim();
   if (!t) return null;
+  const comma = /^([^,]+),\s*(.+)$/.exec(t);
+  if (comma) return clean(`${comma[1]} ${comma[2]}`);
   const toks = t.split(' ');
   const isUpper = (w) => /\p{Lu}/u.test(w) && !/\p{Ll}/u.test(w);
   // apellidos = bloque final de tokens en mayúsculas (absorbe partículas intercaladas)
@@ -290,6 +424,7 @@ export function reorderName(v) {
 export function colsByWidth(width, teamRows) {
   if (teamRows) return { bib: 0, rank: 2, name: 3, team: 3, value: 6, teamRow: true };
   switch (width) {
+    case 11: return { rank: 2, bib: 3, name: 4, team: 5, value: 9, gap: 10 };          // One-day Stage Results
     case 12: return { rank: 2, name: 3, bib: 5, team: 6, value: 9, gap: 10 };          // Stage Results
     case 13: return { rank: 2, name: 5, bib: 7, team: 8, value: 10 };                  // General Classification
     case 9:  return { rank: 2, name: 3, bib: 5, team: 6, value: 8 };                   // Points / KOM / Young
@@ -308,7 +443,7 @@ export function mapRows(rows, spec, kind, isTimed) {
   const out = [];
   if (!Array.isArray(rows) || !rows.length) return out;
   const width = rows[0].length;
-  const C = colsByWidth(width, spec.teamRows);
+  const C = spec.cols || colsByWidth(width, spec.teamRows);
   if (!C) { log(`    ⚠ ancho de fila inesperado (${width} col) en ${kind} — fila omitida`); return out; }
 
   // Tiempo absoluto del líder (rank 1) de esta clasificación. race|result deja la celda
@@ -341,9 +476,12 @@ export function mapRows(rows, spec, kind, isTimed) {
     if (irm) { out.push({ rank: null, rankText: irm, bib, riderDisplay: name, teamName: team, resultValue: null, timeText: null, gapText: null, points: null, irm }); continue; }
 
     if (isTimed) {
-      const cell = r[C.value];
-      const abs = normAbsTime(cell);   // tiempo absoluto si la celda lo es ("3h14'10''")
-      const gap = normGap(cell);       // gap si la celda es "+M:SS"
+      const abs = normAbsTime(r[C.value]);   // tiempo absoluto si la celda lo es ("3h14'10''")
+      // Algunas plantillas dejan el gap en la misma celda que el tiempo; solo se
+      // acepta como diferencia si va firmada ("+…"), para no leer un tiempo absoluto
+      // ("5:00:20", "26:41.47") como si fuera un gap. Las one-day separan tiempo y gap.
+      const valueGap = clean(r[C.value]).startsWith('+') ? normGap(r[C.value]) : null;
+      const gap = (C.gap != null ? normGap(r[C.gap]) : null) || valueGap;
       if (rank === 1) {
         // Líder: tiempo absoluto. Lo guardamos para propagarlo a los m.t. de abajo.
         leaderAbs = abs || leaderAbs;
@@ -397,6 +535,110 @@ export function flattenData(data) {
   return out;
 }
 
+// ── filas de la lista LIVE (agrupada por punto de paso) ─────────────────────
+// `data` de la pestaña live agrupa por punto de cronometraje: "#1_Finish",
+// "#2_3 km to go", "#4_Start"… Para la clasificación de etapa solo valen los
+// FINISHERS del grupo de meta más los abandonos explícitos (DNF/DNS/DSQ/OTL) de los
+// demás grupos. Las filas de un parcial (sin puesto ni IRM) son corredores aún en
+// ruta: volcarlas dejaría la clasificación provisional con filas sin puesto (Eslovaquia
+// E2, 2026-09-17: 4 filas del paso de "3 km to go" se colaban junto a las 120 de meta).
+export function liveStageResultRows(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return flattenData(data);
+  // El live anida los puntos de paso en uno o más niveles (p. ej.
+  // data["#1_Tour of Slovakia"]["#1_Finish"]). Se recogen todas las hojas-array con
+  // filas, en cualquier profundidad.
+  const leaves = [];
+  const walk = (node) => {
+    for (const [key, value] of Object.entries(node)) {
+      if (Array.isArray(value)) {
+        const rows = value.filter((row) => Array.isArray(row));
+        if (rows.length) leaves.push({ key, rows });
+      } else if (value && typeof value === 'object') {
+        walk(value);
+      }
+    }
+  };
+  walk(data);
+  if (!leaves.length) return flattenData(data);
+  // Grupo de meta: el llamado "#N_Finish"; si el proveedor lo nombra de otra forma, el
+  // grupo más poblado (heurística de respaldo, nunca uno de paso con 4-5 filas).
+  const finishLeaf = leaves.find(({ key }) => /(^|[_\s])finish$/i.test(key.trim()))
+    || leaves.reduce((best, leaf) => (leaf.rows.length > best.rows.length ? leaf : best), leaves[0]);
+  const out = [];
+  for (const leaf of leaves) {
+    if (leaf === finishLeaf) { out.push(...leaf.rows); continue; }
+    const C = colsByWidth(leaf.rows[0].length, false);
+    if (!C) continue;
+    for (const row of leaf.rows) if (parseRankCell(row[C.rank]).irm) out.push(row);
+  }
+  return out;
+}
+
+export function completedLapFromTimingPoint(value) {
+  const text = cellText(value);
+  if (!text) return null;
+  const after = /\b(?:lap|vuelta)\s*#?\s*0*(\d+)\b/i.exec(text);
+  if (after) return Number(after[1]);
+  const before = /\b0*(\d+)(?:st|nd|rd|th)?\s+(?:lap|vuelta)\b/i.exec(text);
+  return before ? Number(before[1]) : null;
+}
+
+// Philadelphia publica Stage Results durante la carrera. El último punto de
+// cronometraje de la lista live permite distinguir una vuelta parcial de la meta.
+export function liveCompletionState(payload, requiredLaps = 0) {
+  const rows = flattenData(payload?.data);
+  const dataFields = Array.isArray(payload?.DataFields) ? payload.DataFields : [];
+  const timingPointIndex = dataFields.findIndex((field) => /tpName\s*\(\s*TTLastID/i.test(String(field)));
+  const timingPoints = timingPointIndex >= 0
+    ? rows.map((row) => cellText(row[timingPointIndex])).filter(Boolean)
+    : [];
+  const hasFinish = timingPoints.some((value) => /\b(?:race\s+)?finish(?:ed)?\b/i.test(value));
+  const laps = timingPoints.map(completedLapFromTimingPoint).filter((lap) => Number.isInteger(lap));
+  const maxLap = laps.length ? Math.max(...laps) : 0;
+  return {
+    ready: hasFinish || (requiredLaps > 0 && maxLap >= requiredLaps),
+    hasFinish,
+    maxLap,
+    rowCount: rows.length,
+    timingPointIndex,
+  };
+}
+
+// Listas sin pestaña live estándar (racetiming.ca): la propia lista de progreso
+// publica los parciales completados de cada corredor ("2 / 2"). El volcado se
+// habilita cuando ningún corredor sigue en curso y hay al menos un finalizado. Así
+// una crono no se publica con la clasificación provisional de los primeros
+// corredores ni con las filas a medias de quien aún no ha cruzado la meta (el
+// último en salir suele ser el último en terminar, pero la condición real es que
+// el trazado quede vacío: un DNS o un DNF sin marcar no bloquea).
+export function progressCompletionState(payload, progress) {
+  const rows = flattenData(payload?.data);
+  const fields = Array.isArray(payload?.DataFields) ? payload.DataFields : [];
+  const fieldIndex = fields.findIndex((field) => progress.fieldPattern.test(String(field)));
+  if (fieldIndex < 0) return { ready: false, reason: 'missing-progress-field', fieldIndex, finished: 0, inProgress: 0, notStarted: 0, lastStarterFinished: null };
+  let finished = 0, inProgress = 0, notStarted = 0, lastStarterFinished = null;
+  for (const row of rows) {
+    const match = /(\d+)\s*\/\s*(\d+)/.exec(cellText(row[fieldIndex]));
+    const done = match ? Number(match[1]) : null;
+    const total = match ? Number(match[2]) : 0;
+    const isFinished = total > 0 && done >= total;
+    if (isFinished) finished++;
+    else if (done > 0) inProgress++;
+    else if (done === 0) notStarted++;
+    if (progress.lastStarter && row.some((cell) => progress.lastStarter.test(cellText(cell)))) {
+      lastStarterFinished = isFinished;
+    }
+  }
+  return {
+    ready: finished > 0 && inProgress === 0,
+    fieldIndex,
+    finished,
+    inProgress,
+    notStarted,
+    lastStarterFinished,
+  };
+}
+
 // ── cliente HTTP ────────────────────────────────────────────────────────────
 async function getJson(url) {
   const res = await fetch(url, { headers: { 'User-Agent': UA } });
@@ -410,11 +652,9 @@ const LIST_MAP = [
   { match: /General Classification/i,        classKind: 'gc',     scope: 'stage',   eventName: 'Stage General Classification', timed: true, cumulative: true },
   { match: /Points Classification/i,         classKind: 'points', scope: 'overall', eventName: 'Overall Points Classification', timed: false, cumulative: true },
   { match: /KOM Classification/i,            classKind: 'kom',    scope: 'overall', eventName: 'Overall Mountain Classification', timed: false, cumulative: true },
-  // Jóvenes = sub-clasificación de la GENERAL → su columna de valor es TIEMPO acumulado
-  // (líder tiempo absoluto, resto gap), NO puntos. timed:true aunque comparta ancho (9
-  // col) con Points/KOM: el flag decide cómo interpretar la col [8] (normAbsTime/normGap
-  // vs normPoints). scope='stage' como la GC (es la general de jóvenes del día).
-  { match: /Young Rider Classification/i,    classKind: 'youth',  scope: 'stage',   eventName: 'Stage Youth Classification',  timed: true, cumulative: true },
+  // Jóvenes = sub-clasificación de la GENERAL → tiempo acumulado, no puntos.
+  // scope='overall' la hace visible mediante keepForWeb (migración 092).
+  { match: /Young Rider Classification/i,    classKind: 'youth',  scope: 'overall', eventName: 'Overall Youth Classification', timed: true, cumulative: true },
   { match: /Team General Classification/i,   classKind: 'teams',  scope: 'overall', eventName: 'Overall Teams Classification',  timed: true,  teamRows: true, cumulative: true },
 ];
 
@@ -437,7 +677,7 @@ async function fetchList(server, listName, selector, page = 'results') {
   // las 4 etapas daban la misma clasificación). El valor sale de list.SelectorResults[].
   // `page` = 'results' (listas definitivas) o 'live' (fallback en vivo, sin selector).
   const url = `https://${server}/${EVENT}/${page}/list?key=${KEY}` +
-    `&listname=${encodeURIComponent(listName)}&page=${page}&contest=1` +
+    `&listname=${encodeURIComponent(listName)}&page=${page}&contest=${encodeURIComponent(CONTEST)}` +
     `&r=all&l=0&fav=&openedGroups=%7B%7D&term=` +
     (selector != null ? `&selectorResult=${selector}` : '');
   return getJson(url);
@@ -445,11 +685,107 @@ async function fetchList(server, listName, selector, page = 'results') {
 
 let KEY = null;   // resuelto del config
 
+function listDefsForContest(config, contest) {
+  const defs = (config?.Tab?.Config?.Lists || []).filter((item) => item?.Name);
+  const exact = defs.filter((item) => String(item.Contest ?? '1') === String(contest));
+  return exact.length ? exact : defs;
+}
+
+// Fechas publicadas en el cabecero de una lista (results o live), en formato
+// "YYYY-MM-DD". La lista LIVE no tiene selector de etapa: la única forma de saber a
+// qué jornada corresponde es su cabecero `#stage_date`.
+export function listHeaderDates(payload) {
+  const header = payload?.list?.ListHeaderText || '';
+  return [...header.matchAll(/id=["']stage_date["'][^>]*>\s*<span>\s*(\d{2})\/(\d{2})\/(\d{4})\s*<\/span>/g)]
+    .map((match) => `${match[3]}-${match[2]}-${match[1]}`);
+}
+
+// ResultID del selector de una lista para una etapa concreta ("Stage 4" → 4). Las
+// listas de generales exponen su propio selector por etapa; pedirlas SIN selector
+// devuelve el acumulado de la ÚLTIMA etapa publicada, que no tiene por qué ser la que
+// se está volcando. Devuelve null si la lista no ofrece esa etapa.
+export function selectorForStage(selectorResults, stageNumber) {
+  for (const entry of selectorResults || []) {
+    const match = /(\d+)/.exec(entry?.ShowAs || '');
+    if (match && parseInt(match[1], 10) === stageNumber) return entry.ResultID;
+  }
+  return null;
+}
+
+// Las listas LIVE de puntos y montaña son acumulados provisionales. Exigir fecha,
+// columnas y filas completas evita atribuir a hoy una clasificación anterior.
+export function liveOverallRows(payload, spec, expectedDate) {
+  if (!expectedDate || !['points', 'kom'].includes(spec?.classKind)) return [];
+  const dates = listHeaderDates(payload);
+  if (!dates.length || dates.some((date) => date !== expectedDate)) return [];
+  const fields = payload?.DataFields;
+  if (!Array.isArray(fields) || !/DisplayBib/i.test(String(fields[3]))
+      || !/DisplayName/i.test(String(fields[5]))
+      || !/DisplayPoints/i.test(String(fields[8]))) return [];
+  const raw = flattenData(payload?.data);
+  if (!raw.length || raw.some((row) => row.length !== 9)) return [];
+  // LIVE coloca dorsal/nombre/equipo en 3/5/7; Results usa 5/3/6.
+  const liveSpec = { ...spec, cols: { rank: 2, bib: 3, name: 5, team: 7, value: 8 } };
+  const rows = mapRows(raw, liveSpec, spec.classKind, false);
+  if (!rows.some((row) => row.rank === 1)
+      || rows.some((row) => row.rank == null || row.bib == null || row.resultValue == null)
+      || new Set(rows.map((row) => row.bib)).size !== rows.length) return [];
+  return rows;
+}
+
+export function validateDatedResult(payload, profile) {
+  if (!profile?.dateKey) return;
+  const dates = listHeaderDates(payload);
+  if (!dates.length || dates.some((date) => date !== profile.dateKey)) {
+    throw new Error(`La fecha de la clasificación no coincide con ${profile.dateKey}`);
+  }
+  const fields = payload?.DataFields || [];
+  if (fields[profile.cols.bib] !== 'DisplayBib' || fields[profile.cols.name] !== 'DisplayNameAsterisk') {
+    throw new Error('Columnas de dorsal/nombre incompatibles con el perfil de la carrera');
+  }
+}
+
+// Valida que las columnas del perfil siguen existiendo con el mismo significado. Un
+// cambio de plantilla de race|result desplaza las posiciones y un mapeo ciego daría
+// un dorsal por un nombre. Se comprueba la posición de puesto, dorsal y nombre.
+export function validateProfileColumns(payload, profile) {
+  if (!profile?.cols) return;
+  const fields = Array.isArray(payload?.DataFields) ? payload.DataFields : [];
+  const at = (i) => String(fields[i] ?? '');
+  if (!/WithStatus|Rank|StageRank|FinishRank/i.test(at(profile.cols.rank))) {
+    throw new Error(`La columna de puesto (${profile.cols.rank}) no es un rank: "${at(profile.cols.rank)}"`);
+  }
+  if (!/PrintedBib|DisplayBib|^BIB$/i.test(at(profile.cols.bib))) {
+    throw new Error(`La columna de dorsal (${profile.cols.bib}) no es un dorsal: "${at(profile.cols.bib)}"`);
+  }
+  if (!/DisplayName/i.test(at(profile.cols.name))) {
+    throw new Error(`La columna de nombre (${profile.cols.name}) no es un nombre: "${at(profile.cols.name)}"`);
+  }
+}
+
+function writeOutput(stages) {
+  const out = {
+    competitionId: Number(COMPETITION_ID),
+    disciplineId: 10,
+    source: 'raceresult',
+    raceresultEvent: EVENT,
+    raceresultContest: CONTEST,
+    fetchedAt: new Date().toISOString(),
+    stageCount: stages.length,
+    stages,
+  };
+
+  const file = join(OUT, `${COMPETITION_ID}.json`);
+  writeFileSync(file, JSON.stringify(out, null, 2));
+  log(`\n✅ ${stages.length} jornadas, ${stages.reduce((a, s) => a + s.classificationCount, 0)} clasificaciones → ${file}`);
+  if (PRETTY) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+}
+
 // ── pipeline ────────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
   mkdirSync(OUT, { recursive: true });
-  log(`Fetcher race|result — event=${EVENT} (puente sintético ${COMPETITION_ID}) · idBase=${ID_BASE}`);
+  log(`Fetcher race|result — event=${EVENT} · contest=${CONTEST} (puente sintético ${COMPETITION_ID}) · idBase=${ID_BASE}`);
 
   // 1) config → key, server, listas, EventOver.
   const cfg = await getJson(`${CONFIG_HOST}/${EVENT}/results/config?lang=en`);
@@ -457,14 +793,113 @@ async function main() {
   KEY = cfg.key;
   const server = cfg.server || 'my.raceresult.com';
   const eventOver = !!cfg.EventOver;
-  const lists = ((cfg.Tab && cfg.Tab.Config && cfg.Tab.Config.Lists) || []).map((l) => l.Name);
-  log(`  ${cfg.eventname || EVENT} · server=${server} · EventOver=${eventOver}`);
+  const contestName = cfg.contests?.[CONTEST] || `contest ${CONTEST}`;
+  const lists = listDefsForContest(cfg, CONTEST).map((item) => item.Name);
+  log(`  ${cfg.eventname || EVENT} · ${contestName} · server=${server} · EventOver=${eventOver}`);
   log(`  listas: ${lists.length}`);
 
   // localizar el nombre real de cada lista que nos interesa
   const findList = (re) => lists.find((n) => re.test(n)) || null;
-  const stageListName = findList(/Stage Results/i);
+  // El perfil puede fijar la lista del cuadro de carrera (eventos sin "Stage Results").
+  const stageListName = (PROFILE?.listPattern ? findList(PROFILE.listPattern) : null)
+    || findList(/Stage Results/i);
   if (!stageListName) { log('FATAL: no hay lista "Stage Results" en este evento'); process.exit(1); }
+
+  // En una one-day la lista Stage Results se actualiza vuelta a vuelta. La lista
+  // live actúa como gate de distancia/meta y la de results aporta tiempos y gaps.
+  // No se consultan ni emiten sprints, KOM/QOM ni parciales de puntos de paso.
+  if (ONE_DAY) {
+    // Gate propio por parciales (cronos de racetiming.ca): no se publica hasta que
+    // el último en salir ha terminado. Se lee de la lista de progreso del mismo
+    // evento; si el organizador la retira, se aborta en vez de publicar un parcial.
+    let progressHandled = false;
+    if (PROFILE?.progress) {
+      const progressListName = findList(PROFILE.progress.listPattern);
+      if (!progressListName) {
+        log(`FATAL: no se encuentra la lista de progreso ${PROFILE.progress.listPattern} en el evento ${EVENT}`);
+        process.exit(1);
+      }
+      await sleep(DELAY);
+      const state = progressCompletionState(await fetchList(server, progressListName, null), PROFILE.progress);
+      if (!state.ready) {
+        log(`  pendiente: ${state.finished} finalizados, ${state.inProgress} en curso, ${state.notStarted} sin salir; no se publica ninguna clasificación`);
+        writeOutput([]);
+        return;
+      }
+      log(`  progreso completo: ${state.finished} finalizados (último en salir: ${state.lastStarterFinished === true ? 'sí' : state.lastStarterFinished === false ? 'no' : 'n/d'})`);
+      progressHandled = true;
+    }
+
+    let completion = {
+      ready: progressHandled || REQUIRED_LAPS === 0 || eventOver,
+      hasFinish: progressHandled || eventOver,
+      maxLap: 0,
+      rowCount: 0,
+      timingPointIndex: -1,
+    };
+
+    if (!completion.ready && REQUIRED_LAPS > 0) {
+      await sleep(DELAY);
+      const liveCfg = await getJson(`${CONFIG_HOST}/${EVENT}/live/config?lang=en`);
+      if (liveCfg?.key) KEY = liveCfg.key;
+      const liveListName = listDefsForContest(liveCfg, CONTEST)
+        .map((item) => item.Name)
+        .find((name) => /Most Recent Timing Point/i.test(name));
+      if (liveListName) {
+        await sleep(DELAY);
+        completion = liveCompletionState(
+          await fetchList(server, liveListName, null, 'live'),
+          REQUIRED_LAPS,
+        );
+      }
+    }
+
+    const gateLabel = progressHandled
+      ? 'progreso completo'
+      : completion.hasFinish
+        ? 'FINISH'
+        : `${completion.maxLap}/${REQUIRED_LAPS} vueltas`;
+    if (!completion.ready) {
+      log(`  pendiente: ${gateLabel}; no se publica ninguna clasificación`);
+      writeOutput([]);
+      return;
+    }
+    log(`  gate de carrera completa: ${gateLabel}`);
+
+    await sleep(DELAY);
+    const result = await fetchList(server, stageListName, null);
+    validateDatedResult(result, PROFILE);
+    validateProfileColumns(result, PROFILE);
+    const oneDaySpec = PROFILE?.cols ? { ...LIST_MAP[0], cols: PROFILE.cols } : LIST_MAP[0];
+    const rows = mapRows(flattenData(result?.data), oneDaySpec, 'race', true);
+    if (!rows.some((row) => row.rank === 1)) {
+      log('  Stage Results sin ganador válido; no se publica ninguna clasificación');
+      writeOutput([]);
+      return;
+    }
+
+    const spec = {
+      ...LIST_MAP[0],
+      classKind: 'gc',
+      scope: 'stage',
+      eventName: 'Race Classification',
+    };
+    const classification = buildClassification(FINAL_SLOT, spec, rows);
+    const stages = [{
+      uciRaceId: synthRaceId(FINAL_SLOT),
+      stageNumber: null,
+      stageName: 'Race Classification',
+      isFinalClassification: false,
+      dateKey: DATE_ARG || PROFILE?.dateKey || null,
+      raceType: null,
+      startLocation: null,
+      classificationCount: 1,
+      classifications: [classification],
+    }];
+    log(`    one-day stage/gc ${String(rows.length).padStart(3)} filas (event ${classification.eventId})`);
+    writeOutput(stages);
+    return;
+  }
 
   // 2) etapas disponibles (SelectorResults de Stage Results).
   await sleep(DELAY);
@@ -488,7 +923,7 @@ async function main() {
   let liveStageListName = null;
   await sleep(DELAY);
   const liveCfg = await getJson(`${CONFIG_HOST}/${EVENT}/live/config?lang=en`);
-  const liveLists = ((liveCfg && liveCfg.Tab && liveCfg.Tab.Config && liveCfg.Tab.Config.Lists) || []).map((l) => l.Name);
+  const liveLists = listDefsForContest(liveCfg, CONTEST).map((item) => item.Name);
   liveStageListName = liveLists.find((n) => /LIVE Stage Results/i.test(n))
     || liveLists.find((n) => /Stage Results/i.test(n))
     || '03-Online LIVE|LIVE Stage Results';
@@ -496,15 +931,27 @@ async function main() {
   const stages = [];
   let lastOveralls = null;          // generales acumuladas de la última etapa con datos
 
-  for (const sel of stageSel) {
-    const stageNumber = sel.n;
-    if (ONLY_STAGE != null && stageNumber !== ONLY_STAGE) continue;
+  // Modo --stage N: se procesa SOLO esa etapa. Si N todavía no está en el selector de
+  // "results" (race|result lo añade al publicar la oficial, minutos después de meta),
+  // se entra igualmente por la lista LIVE. La lista LIVE no tiene selector y devuelve
+  // SIEMPRE la etapa en curso → solo se usa aquí si su cabecera confirma la fecha de la
+  // jornada pedida (--date). Sin --stage se leen solo las listas "results" oficiales.
+  const selections = ONLY_STAGE != null
+    ? [{ id: stageSel.find((sel) => sel.n === ONLY_STAGE)?.id ?? null, n: ONLY_STAGE }]
+    : stageSel;
 
-    // Stage Results de esta etapa (lista "results", la oficial/definitiva).
-    await sleep(DELAY);
-    const stageData = await fetchList(server, stageListName, sel.id);
-    let stageRows = mapRows(flattenData(stageData && stageData.data), LIST_MAP[0], 'stage', true);
+  for (const sel of selections) {
+    const stageNumber = sel.n;
+    const resultsSelector = sel.id;   // null = la etapa aún no está en el selector de results
+    let stageRows = [];
     let provisional = false;
+
+    if (resultsSelector != null) {
+      // Stage Results de esta etapa (lista "results", la oficial/definitiva).
+      await sleep(DELAY);
+      const stageData = await fetchList(server, stageListName, resultsSelector);
+      stageRows = mapRows(flattenData(stageData && stageData.data), LIST_MAP[0], 'stage', true);
+    }
     // FALLBACK EN VIVO — SOLO en modo --stage N explícito. La lista "live/LIVE Stage
     // Results" NO tiene selector de etapa (devuelve SIEMPRE la etapa en curso, sea cual
     // sea el número que pidas) → si se usara en el modo "todas las etapas" replicaría la
@@ -512,15 +959,20 @@ async function main() {
     // 5 etapas con el mismo ganador). Por eso el fallback solo se activa cuando el caller
     // declara explícitamente QUÉ etapa quiere con --stage: ahí la responsabilidad de
     // pedir la etapa correcta (la que está en vivo) es de quien invoca, y el LIVE se
-    // asigna a ESA etapa. El upsert es idempotente: cuando "results" publique la oficial,
-    // el siguiente volcado la reemplaza. Mismo espíritu que Tissot/Matsport (parcial →
-    // se corrige). En el modo sin --stage solo se leen las listas "results" oficiales
-    // (con selector por etapa, nunca se replican).
+    // asigna a ESA etapa. Se exige además que la fecha del cabecero LIVE == --date para
+    // no asignar la etapa en curso a una jornada equivocada. El upsert es idempotente:
+    // cuando "results" publique la oficial, el siguiente volcado la reemplaza. Mismo
+    // espíritu que Tissot/Matsport (parcial → se corrige).
     if (!stageRows.length && ONLY_STAGE != null && liveStageListName) {
       await sleep(DELAY);
       const liveData = await fetchList(server, liveStageListName, null, 'live');
-      const liveRows = mapRows(flattenData(liveData && liveData.data), LIST_MAP[0], 'stage', true);
-      if (liveRows.length) { stageRows = liveRows; provisional = true; }
+      const liveDates = listHeaderDates(liveData);
+      if (DATE_ARG && liveDates.length && liveDates.some((date) => date !== DATE_ARG)) {
+        log(`    E${stageNumber} ⚠ lista LIVE de ${liveDates.join('/')} ≠ ${DATE_ARG} — no se usa (etapa equivocada)`);
+      } else {
+        const liveRows = mapRows(liveStageResultRows(liveData && liveData.data), LIST_MAP[0], 'stage', true);
+        if (liveRows.length) { stageRows = liveRows; provisional = true; }
+      }
     }
     if (!stageRows.length) { log(`  E${stageNumber} sin filas (no disputada / no publicada) — omitida`); continue; }
 
@@ -540,14 +992,40 @@ async function main() {
     // etapa más reciente. Para no duplicar, solo las adjuntamos a la ÚLTIMA etapa con
     // datos. En etapas intermedias podríamos colgarlas, pero el upsert las trataría como
     // "del día" — mejor cargar solo la de etapa en intermedias y las generales en la última.
-    if (isLastWithData) {
+    // Solo puntos y montaña tienen lista LIVE acumulada; GC, jóvenes y equipos
+    // esperan a que Results publique filas para esta etapa.
+    if (isLastWithData && (resultsSelector != null || provisional)) {
       const overalls = [];
       for (const spec of LIST_MAP.slice(1)) {
         const ln = findList(spec.match);
-        if (!ln) continue;
-        await sleep(DELAY);
-        const d = await fetchList(server, ln, null);
-        const rows = mapRows(flattenData(d && d.data), spec, spec.classKind, spec.timed);
+        let rows = [];
+        if (ln && resultsSelector != null) {
+          await sleep(DELAY);
+          let d = await fetchList(server, ln, null);
+          // Cada lista de Results usa su propio selector de etapa. Sin selector se
+          // conserva el comportamiento de las listas que solo tienen una jornada.
+          const selectors = d?.list?.SelectorResults || [];
+          if (selectors.length) {
+            const selectorId = selectorForStage(selectors, stageNumber);
+            if (selectorId != null) {
+              await sleep(DELAY);
+              d = await fetchList(server, ln, selectorId);
+              rows = mapRows(flattenData(d?.data), spec, spec.classKind, spec.timed);
+            }
+          } else {
+            rows = mapRows(flattenData(d?.data), spec, spec.classKind, spec.timed);
+          }
+        }
+        if (!rows.length && ONLY_STAGE != null && !eventOver
+            && (spec.classKind === 'points' || spec.classKind === 'kom')) {
+          const pattern = spec.classKind === 'points' ? /LIVE Points Classification/i : /LIVE KOM Classification/i;
+          const liveName = liveLists.find((name) => pattern.test(name));
+          if (liveName) {
+            await sleep(DELAY);
+            rows = liveOverallRows(await fetchList(server, liveName, null, 'live'), spec, DATE_ARG);
+            if (rows.length) log(`    E${stageNumber} ${spec.classKind}/overall LIVE provisional: ${rows.length} filas`);
+          }
+        }
         if (!rows.length) continue;
         overalls.push({ spec, rows });
       }
@@ -604,20 +1082,7 @@ async function main() {
     log(`    FINAL (carrera terminada): ${classifications.length} clasificaciones desde la E${lastOveralls.stageNumber}`);
   }
 
-  const out = {
-    competitionId: Number(COMPETITION_ID),
-    disciplineId: 10,
-    source: 'raceresult',
-    raceresultEvent: EVENT,
-    fetchedAt: new Date().toISOString(),
-    stageCount: stages.length,
-    stages,
-  };
-
-  const file = join(OUT, `${COMPETITION_ID}.json`);
-  writeFileSync(file, JSON.stringify(out, null, 2));
-  log(`\n✅ ${stages.length} etapas, ${stages.reduce((a, s) => a + s.classificationCount, 0)} clasificaciones → ${file}`);
-  if (PRETTY) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+  writeOutput(stages);
 }
 
 // Solo se ejecuta si se invoca como script; importarlo (tests) no dispara nada.

@@ -5,28 +5,6 @@ import Supabase
 /// homónimas de Android (`SupabaseService.kt` + `CalendarRepository.kt`).
 extension SupabaseService {
 
-    private struct ResultsSourceLink: Codable {
-        let raceId: String
-        let source: String
-    }
-
-    /// Carreras con una fuente automática enlazada. Las fuentes PDF son cargas
-    /// manuales y conservan el fallback externos.
-    func automaticResultsSourceRaceIds(raceIds: [String]) async -> Set<String> {
-        let ids = Array(Set(raceIds.filter { !$0.isEmpty }))
-        guard !ids.isEmpty else { return [] }
-        do {
-            let rows: [ResultsSourceLink] = try await client.from("race_uci_links")
-                .select("raceId,source")
-                .in("raceId", values: ids)
-                .execute()
-                .value
-            return Set(rows.filter { $0.source != "pdf" }.map(\.raceId))
-        } catch {
-            return []
-        }
-    }
-
     // MARK: - Queries
 
     /// Clasificaciones keepForWeb de una carrera (clasif. de etapa + GC del día +
@@ -39,6 +17,41 @@ extension SupabaseService {
             .order("stageNumber", ascending: true, nullsFirst: true)
             .execute()
             .value
+    }
+
+    func raceClassifications(raceId: String) async throws -> [RaceClassificationConfig] {
+        try await client.from("race_classifications")
+            .select("raceId,classKind,position,labelEs,labelEn,colorHex")
+            .eq("raceId", value: raceId)
+            .order("position", ascending: true)
+            .execute()
+            .value
+    }
+
+    func raceClassifications(raceIds: [String]) async throws -> [RaceClassificationConfig] {
+        guard !raceIds.isEmpty else { return [] }
+        return try await client.from("race_classifications")
+            .select("raceId,classKind,position,labelEs,labelEn,colorHex")
+            .in("raceId", values: raceIds)
+            .order("position", ascending: true)
+            .execute()
+            .value
+    }
+
+    func raceUciStages(raceIds: [String]) async throws -> [RaceUciStage] {
+        guard !raceIds.isEmpty else { return [] }
+        var result: [RaceUciStage] = []
+        for start in stride(from: 0, to: raceIds.count, by: 15) {
+            let chunk = Array(raceIds[start..<min(start + 15, raceIds.count)])
+            let rows: [RaceUciStage] = try await client.from("race_uci_stages")
+                .select()
+                .in("raceId", values: chunk)
+                .eq("keepForWeb", value: true)
+                .execute()
+                .value
+            result.append(contentsOf: rows)
+        }
+        return result
     }
 
     /// Filas de una clasificación concreta (siempre por stageRef → índice).
@@ -95,7 +108,7 @@ extension SupabaseService {
     /// OJO: `startlist_riders.teamId` apunta al **PK** de `startlist_teams`, NO a
     /// su columna `teamId` (la ref canónica a `teams`). La chapa del equipo sale
     /// de ese teamId canónico.
-    private func buildByDorsal(raceId: String) async throws -> ([Int: ResolvedRider], [Team]) {
+    private func buildByDorsal(raceId: String, year: Int?) async throws -> ([Int: ResolvedRider], [Team]) {
         let slRiders = try await startlistRidersResolvedFull(raceId: raceId)
         let slTeams: [SlimStartlistTeam] = try await client.from("startlist_teams")
             .select("id,teamId,teamName")
@@ -108,6 +121,19 @@ extension SupabaseService {
         if !canonIds.isEmpty {
             let allTeams: [Team] = try await client.from("teams").select().execute().value
             teamById = Dictionary(uniqueKeysWithValues: allTeams.filter { canonIds.contains($0.id) }.map { ($0.id, $0) })
+            if let year {
+                let seasons: [TeamSeason] = (try? await client.from("team_seasons")
+                    .select()
+                    .eq("year", value: year)
+                    .in("teamId", values: Array(canonIds))
+                    .execute()
+                    .value) ?? []
+                let seasonByTeam = Dictionary(uniqueKeysWithValues: seasons.map { ($0.teamId, $0) })
+                teamById = teamById.mapValues { $0.applyingSeason(seasonByTeam[$0.id]) }
+                for id in canonIds where teamById[id] == nil {
+                    teamById[id] = seasonByTeam[id]?.asTeam()
+                }
+            }
         }
 
         var out: [Int: ResolvedRider] = [:]
@@ -116,9 +142,9 @@ extension SupabaseService {
             guard let dorsal = r.dorsal else { continue }
             let slTeam = r.teamId.flatMap { slTeamByPk[$0] }
             let canon = slTeam?.teamId.flatMap { teamById[$0] }
-            // Ficticio "Individual" → ocultación cosmética: sin nombre de equipo,
+            // Estado sin equipo → ocultación cosmética: sin nombre de equipo,
             // y en cascada sin chapa ni opción en el filtro por equipo.
-            let isPlaceholder = slTeam.map { isIndividualPlaceholderTeam(teamId: $0.teamId, teamName: $0.teamName) } ?? false
+            let isPlaceholder = slTeam.map { isNoTeamPlaceholderTeam(teamId: $0.teamId, teamName: $0.teamName) } ?? false
             let slName = isPlaceholder ? "" : (slTeam?.teamName ?? "")
             out[dorsal] = ResolvedRider(
                 name: "\(r.firstName ?? "") \(r.lastName ?? "")".trimmingCharacters(in: .whitespaces),
@@ -142,45 +168,41 @@ extension SupabaseService {
     }
 
     /// Resuelve un conjunto de `globalRiderId` a `ResolvedRider` directamente
-    /// desde riders_men/women + su equipo ACTUAL (currentTeamId) — el fallback
-    /// para las filas de resultados que NO casan por dorsal con la startlist
-    /// (campeonatos nacionales y demás volcados in-house sin inscritos curados).
-    /// Espejo de `enrichRiders` en `js/resultados.js`: bandera (nationality) y
-    /// equipo actual (nombre + chapa). Fail-silent: si una query falla, esos ids
+    /// desde riders_men/women. La ficha aporta nombre y nacionalidad; el equipo
+    /// actual solo se incluye cuando el llamador confirma que consulta el año vigente.
+    /// Fail-silent: si una query falla, esos ids
     /// no entran en el mapa (la fila se renderiza sin bandera/chapa, como antes).
-    func enrichRidersByGlobalId(_ ids: [String]) async -> [String: ResolvedRider] {
+    func enrichRidersByGlobalId(_ ids: [String], includeCurrentTeam: Bool = true) async -> [String: ResolvedRider] {
         let need = Array(Set(ids.filter { !$0.isEmpty }))
         guard !need.isEmpty else { return [:] }
+        let columns = includeCurrentTeam ? "id,firstName,lastName,nationality,currentTeamId" : "id,firstName,lastName,nationality"
         async let menReq: [SlimRiderRow] = (try? await client.from("riders_men")
-            .select("id,firstName,lastName,nationality,currentTeamId")
+            .select(columns)
             .in("id", values: need)
             .execute()
             .value) ?? []
         async let womenReq: [SlimRiderRow] = (try? await client.from("riders_women")
-            .select("id,firstName,lastName,nationality,currentTeamId")
+            .select(columns)
             .in("id", values: need)
             .execute()
             .value) ?? []
         let riders = await menReq + womenReq
         guard !riders.isEmpty else { return [:] }
 
-        // Equipos ACTUALES (currentTeamId → teams): nombre + chapa para el badge,
-        // categoría para el gate de la ficha.
-        let curIds = Array(Set(riders.compactMap(\.currentTeamId)))
+        let currentIds = includeCurrentTeam ? Array(Set(riders.compactMap(\.currentTeamId))) : []
         var teamById: [String: Team] = [:]
-        if !curIds.isEmpty {
+        if !currentIds.isEmpty {
             let teams: [Team] = (try? await client.from("teams")
                 .select()
-                .in("id", values: curIds)
+                .in("id", values: currentIds)
                 .execute()
                 .value) ?? []
             teamById = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
         }
-
         var out: [String: ResolvedRider] = [:]
         out.reserveCapacity(riders.count)
         for r in riders {
-            let team = r.currentTeamId.flatMap { teamById[$0] }
+            let team = includeCurrentTeam ? r.currentTeamId.flatMap { teamById[$0] } : nil
             out[r.id] = ResolvedRider(
                 name: [r.firstName, r.lastName].compactMap { $0 }.joined(separator: " ")
                     .trimmingCharacters(in: .whitespaces),
@@ -197,7 +219,7 @@ extension SupabaseService {
     /// las filas de resultados a su equipo canónico (nombre + chapa). Espejo de
     /// `enrichOverrideTeams` en `js/resultados.js`. Silencioso: ids sin equipo
     /// no entran en el mapa (la fila cae a la resolución por dorsal).
-    func enrichTeamsByIds(_ ids: [String]) async -> [String: Team] {
+    func enrichTeamsByIds(_ ids: [String], year: Int?) async -> [String: Team] {
         let need = Array(Set(ids.filter { !$0.isEmpty }))
         guard !need.isEmpty else { return [:] }
         let teams: [Team] = (try? await client.from("teams")
@@ -205,7 +227,21 @@ extension SupabaseService {
             .in("id", values: need)
             .execute()
             .value) ?? []
-        return Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
+        var byId = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
+        if let year {
+            let seasons: [TeamSeason] = (try? await client.from("team_seasons")
+                .select()
+                .eq("year", value: year)
+                .in("teamId", values: need)
+                .execute()
+                .value) ?? []
+            let seasonById = Dictionary(uniqueKeysWithValues: seasons.map { ($0.teamId, $0) })
+            byId = byId.mapValues { $0.applyingSeason(seasonById[$0.id]) }
+            for id in need where byId[id] == nil {
+                byId[id] = seasonById[id]?.asTeam()
+            }
+        }
+        return byId
     }
 
     /// Carga inicial de la pantalla de resultados. nil si la carrera no tiene
@@ -233,7 +269,9 @@ extension SupabaseService {
         // Sin clasificaciones NI etapa cancelada que sintetizar → estado Empty.
         guard !stages.isEmpty else { return nil }
         let race = try await race(byId: raceId)
-        let (byDorsal, raceTeams) = try await buildByDorsal(raceId: raceId)
+        let (byDorsal, raceTeams) = try await buildByDorsal(raceId: raceId, year: race.year)
+        let classificationConfig = (try? await raceClassifications(raceId: raceId)) ?? []
+        let resultAssets = (try? await assets(byRaceDayIds: allDays.map(\.id))) ?? []
 
         // Índices de jornadas (de `allDays`, que YA traen countryCode/ruta/…) para
         // resolver el header sin más red: por raceDayId y —si el volcado no lo
@@ -260,7 +298,10 @@ extension SupabaseService {
         return UciResultsData(
             race: race, stages: stages, byDorsal: byDorsal, raceTeams: raceTeams, raceDay: raceDay,
             raceDays: allDays,
-            sectorSuffixByRaceDayId: sectorSuffixByRaceDayId, sectoredStageNumbers: sectoredStageNumbers
+            sectorSuffixByRaceDayId: sectorSuffixByRaceDayId,
+            sectoredStageNumbers: sectoredStageNumbers,
+            classificationConfig: classificationConfig,
+            assets: resultAssets
         )
     }
 
@@ -331,8 +372,7 @@ extension SupabaseService {
     /// nil) con clasificaciones in-house (keepForWeb + rowCount>0) para un LOTE de
     /// carreras, en UNA query. Espejo de `loadInhouseStageSet(raceIds)` en
     /// `js/race-data-modal.js`. Lo usa la rejilla de Campeonatos para llevar el
-    /// trofeo a la pantalla nativa de resultados (cuando los hay), en vez de quedarse
-    /// solo en los enlaces externos. Fail-silent: sin red → conjunto vacío (gate cerrado).
+    /// trofeo a la pantalla nativa de resultados cuando los hay. Fail-silent: sin red → conjunto vacío (gate cerrado).
     func inhouseStageKeys(raceIds: [String]) async -> Set<String> {
         let ids = Array(Set(raceIds.filter { !$0.isEmpty }))
         guard !ids.isEmpty else { return [] }
@@ -376,7 +416,7 @@ extension SupabaseService {
             .value
     }
 
-    /// Jornadas publicadas del rango del feed (fallback externos + km/desnivel/
+    /// Jornadas publicadas del rango del feed (km/desnivel/
     /// tipos/hora de las filas in-house, vía raceDayId). Las columnas slim de
     /// `raceDays(from:to:)` ya incluyen todo lo que el feed necesita
     /// (distanceKm, elevationProfile, primaryType,
@@ -406,7 +446,11 @@ extension SupabaseService {
     /// Fila mínima del rank 1 de una clasificación (resolución del ganador).
     private struct FeedRank1Row: Codable {
         let stageRef: String
+        let raceId: String
+        let bib: String?
         let globalRiderId: String?
+        let teamId: String?
+        let riderDisplay: String?
         let irm: String?
     }
 
@@ -414,7 +458,7 @@ extension SupabaseService {
     private func raceUciRank1(stageRefs: [String]) async throws -> [FeedRank1Row] {
         guard !stageRefs.isEmpty else { return [] }
         return try await client.from("race_uci_results")
-            .select("stageRef,globalRiderId,irm")
+            .select("stageRef,raceId,bib,globalRiderId,teamId,riderDisplay,irm")
             .in("stageRef", values: stageRefs)
             .eq("rank", value: 1)
             .execute()
@@ -426,6 +470,25 @@ extension SupabaseService {
         let id: String
         let firstName: String?
         let lastName: String?
+    }
+
+    /// Identidad de fallback del inscrito cuando el resultado todavía no está
+    /// enlazado a una ficha global, equivalente al cruce por dorsal de la web.
+    private struct FeedStartlistIdentityRow: Codable {
+        let raceId: String
+        let dorsal: Int?
+        let globalRiderId: String?
+        let firstName: String?
+        let lastName: String?
+    }
+
+    private func feedStartlistIdentities(raceIds: [String]) async throws -> [FeedStartlistIdentityRow] {
+        guard !raceIds.isEmpty else { return [] }
+        return try await client.from("startlist_riders_resolved")
+            .select("raceId,dorsal,globalRiderId,firstName,lastName")
+            .in("raceId", values: raceIds)
+            .execute()
+            .value
     }
 
     /// Nombres canónicos "First Last" desde riders_men + riders_women.
@@ -494,6 +557,21 @@ extension SupabaseService {
         return rows.first?.name
     }
 
+    private struct FeedTeamIdentityRow: Codable {
+        let id: String
+        let name: String
+    }
+
+    private func teamNamesByIds(_ ids: [String]) async throws -> [String: String] {
+        guard !ids.isEmpty else { return [:] }
+        let rows: [FeedTeamIdentityRow] = try await client.from("teams")
+            .select("id,name")
+            .in("id", values: ids)
+            .execute()
+            .value
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.name) })
+    }
+
     /// Carga el feed de resultados de un rango: entradas YA ordenadas con el
     /// ganador refinado a nombre canónico (corredor por rank 1 → ficha;
     /// CRE → equipo vía startlist). Espejo de `fetchEntries` (web).
@@ -502,21 +580,116 @@ extension SupabaseService {
         async let daysReq = raceDaysFeedWindow(from: fromKey, to: toKey)
         let (stages, days) = try await (stagesReq, daysReq)
 
-        let raceIds = Array(Set(stages.map(\.raceId) + days.compactMap(\.raceId)))
+        let raceIds = Array(Set(stages.map(\.raceId)))
         let feedRaces = try await races(byIds: raceIds)
-        let automaticSourceRaceIds = await automaticResultsSourceRaceIds(raceIds: raceIds)
-
         var entries = ResultsFeedLogic.buildEntries(
             stages: stages,
             raceDays: days,
             races: feedRaces,
             fromKey: fromKey,
-            toKey: toKey,
-            automaticSourceRaceIds: automaticSourceRaceIds,
-            isConcluded: { rd, race in RaceLogic.shouldShowResults(rd: rd, race: race) }
+            toKey: toKey
         )
-        await resolveFeedWinners(&entries)
+        let entryDates = Array(Set(entries.map(\.date)))
+        async let featuredReq = featuredRaces(for: entryDates)
+        async let allStagesReq = raceUciStages(raceIds: raceIds)
+        async let configsReq = raceClassifications(raceIds: raceIds)
+        async let programReq = raceDays(byRaceIds: raceIds)
+        let featured = (try? await featuredReq) ?? []
+        let allStages = (try? await allStagesReq) ?? []
+        let configs = (try? await configsReq) ?? []
+        let program = (try? await programReq) ?? days
+        applyFeedPresentation(
+            &entries,
+            featured: featured,
+            allStages: allStages,
+            configs: configs,
+            raceDays: program
+        )
+        try await resolveFeedWinners(&entries)
+        // La tarea de SwiftUI se cancela al cambiar de pestaña o abrir una
+        // clasificación. No publicar entonces el modelo intermedio que todavía
+        // contiene winnerName crudo.
+        try Task.checkCancellation()
         return entries
+    }
+
+    private func applyFeedPresentation(
+        _ entries: inout [FeedEntry],
+        featured: [FeaturedRaceSelection],
+        allStages: [RaceUciStage],
+        configs: [RaceClassificationConfig],
+        raceDays: [RaceDay]
+    ) {
+        let selected = Set(featured.map { "\($0.dateKey)#\($0.raceId)" })
+        let finals = Set(entries.filter(\.isGcFinal).map { "\($0.date)#\($0.race.id)" })
+        let configByRace = Dictionary(grouping: configs, by: \.raceId)
+        let lastCompetitiveDayByRace = Dictionary(
+            raceDays
+                .filter { !$0.isRestDay && !$0.isCancelledDay }
+                .sorted {
+                    if $0.dateKey != $1.dateKey { return $0.dateKey < $1.dateKey }
+                    if ($0.neutralStartTimeUtc ?? "") != ($1.neutralStartTimeUtc ?? "") {
+                        return ($0.neutralStartTimeUtc ?? "") < ($1.neutralStartTimeUtc ?? "")
+                    }
+                    return ($0.stageNumber ?? 0) < ($1.stageNumber ?? 0)
+                }
+                .compactMap { day in day.raceId.map { ($0, day.id) } },
+            uniquingKeysWith: { _, latest in latest }
+        )
+
+        for index in entries.indices {
+            let entry = entries[index]
+            let key = "\(entry.date)#\(entry.race.id)"
+            let isFeatured = selected.contains(key) && (!finals.contains(key) || entry.isGcFinal)
+            entries[index].isFeatured = isFeatured
+            guard isFeatured, entry.kind == .inhouse else { continue }
+
+            // Como en la web: las pruebas de un día no necesitan líderes
+            // complementarios y, en la última jornada de una vuelta, estos se
+            // muestran en la entrada independiente de la general final.
+            if entry.race.isOneDay || (!entry.isGcFinal && entry.rd?.id == lastCompetitiveDayByRace[entry.race.id]) {
+                continue
+            }
+
+            let candidates = allStages.filter { stage in
+                guard stage.raceId == entry.race.id, stage.rowCount > 0,
+                      stage.classKind != "stage" else { return false }
+                if entry.isGcFinal {
+                    return stage.classKind != "gc"
+                        && (stage.isFinalClassification || stage.stageNumber == nil)
+                        && (stage.stageDate == nil || stage.stageDate == entry.date)
+                }
+                if let raceDayId = entry.rd?.id, let stageRaceDayId = stage.raceDayId {
+                    return raceDayId == stageRaceDayId && !stage.isFinalClassification
+                }
+                return stage.stageNumber == entry.stageNumber && !stage.isFinalClassification
+            }
+            let inventory = UciResultsLogic.classificationInventory(
+                config: configByRace[entry.race.id] ?? [],
+                stages: candidates
+            )
+            entries[index].complementary = candidates.compactMap { stage in
+                let config = inventory.first { $0.classKind == stage.classKind }
+                let fallback = RaceClassificationConfig(
+                    raceId: stage.raceId, classKind: stage.classKind,
+                    position: UciResultsLogic.classOrder.firstIndex(of: stage.classKind) ?? 10,
+                    labelEs: nil, labelEn: nil, colorHex: nil
+                )
+                let row = config ?? fallback
+                return FeedComplementaryClassification(
+                    stageRef: stage.id,
+                    classKind: stage.classKind,
+                    labelEs: UciResultsLogic.classificationLabel(row, isEn: false),
+                    labelEn: UciResultsLogic.classificationLabel(row, isEn: true),
+                    colorHex: UciResultsLogic.classificationColor(row),
+                    winner: ResultsFeedLogic.cleanWinner(stage.winnerName)
+                )
+            }
+            .sorted { lhs, rhs in
+                let positions = Dictionary(uniqueKeysWithValues: inventory.map { ($0.classKind, $0.position) })
+                return (positions[lhs.classKind] ?? 99) < (positions[rhs.classKind] ?? 99)
+            }
+        }
     }
 
     /// Ganadores con nombre canónico de la ficha. rank 1 de cada clasificación
@@ -524,29 +697,109 @@ extension SupabaseService {
     /// equipo comparte puesto) o no resuelve, se mantiene el winnerName crudo.
     /// CRE: el ganador es el EQUIPO (jornada 'ttt' o varios rank 1) → corredor
     /// rank 1 → fila de startlist → equipo, con nombre canónico si está enlazado.
-    private func resolveFeedWinners(_ entries: inout [FeedEntry]) async {
+    private func resolveFeedWinners(_ entries: inout [FeedEntry]) async throws {
         do {
-            let refIds = entries.compactMap { $0.kind == .inhouse ? $0.stageRefId : nil }
+            var referencedStages: [String] = []
+            for entry in entries where entry.kind == .inhouse {
+                if let stageRefId = entry.stageRefId { referencedStages.append(stageRefId) }
+                referencedStages.append(contentsOf: entry.complementary.map(\.stageRef))
+            }
+            let refIds = Array(Set(referencedStages))
             guard !refIds.isEmpty else { return }
-            let rows = try await raceUciRank1(stageRefs: refIds)
+            let rank1Rows = try await raceUciRank1(stageRefs: refIds)
+            let nonWinnerRefs = Set(rank1Rows.filter { UciResultsLogic.isNonWinnerIrm($0.irm) }.map(\.stageRef))
+            let rows = rank1Rows.filter { !UciResultsLogic.isNonWinnerIrm($0.irm) }
+
+            // Nombres canónicos primero: el cruce por dorsal de la startlist
+            // también debe cubrir filas cuya ficha existe pero no resuelve
+            // nombre (oculta por el aislamiento del catálogo histórico o sin
+            // nombre público), no solo las que llegan sin globalRiderId.
+            var nameById = try await riderNamesByIds(Array(Set(rows.compactMap(\.globalRiderId))))
+            let unresolvedRaceIds = Array(Set(rows.compactMap { row -> String? in
+                guard Int(row.bib ?? "") != nil else { return nil }
+                if let gid = row.globalRiderId, let name = nameById[gid], !name.isEmpty { return nil }
+                return row.raceId
+            }))
+            let startlistRows: [FeedStartlistIdentityRow] =
+                (try? await feedStartlistIdentities(raceIds: unresolvedRaceIds)) ?? []
+            var startlistByBib: [String: FeedStartlistIdentityRow] = [:]
+            for row in startlistRows {
+                guard let dorsal = row.dorsal else { continue }
+                startlistByBib["\(row.raceId)#\(dorsal)"] = row
+            }
+
             var byRef: [String: Set<String>] = [:]
             for row in rows {
-                if UciResultsLogic.isAbandonIrm(row.irm) { continue }   // rank 1 espurio (DNS con rank)
                 if byRef[row.stageRef] == nil { byRef[row.stageRef] = [] }
-                if let gid = row.globalRiderId { byRef[row.stageRef]?.insert(gid) }
+                let dorsal = Int(row.bib ?? "")
+                let fallback = dorsal.flatMap { startlistByBib["\(row.raceId)#\($0)"] }
+                if let gid = row.globalRiderId ?? fallback?.globalRiderId {
+                    byRef[row.stageRef]?.insert(gid)
+                }
             }
-            let riderIds = Array(Set(byRef.values.filter { $0.count == 1 }.compactMap(\.first)))
-            let nameById = try await riderNamesByIds(riderIds)
+
+            let riderIds = Array(Set(rows.compactMap { row -> String? in
+                if let gid = row.globalRiderId { return gid }
+                guard let dorsal = Int(row.bib ?? "") else { return nil }
+                return startlistByBib["\(row.raceId)#\(dorsal)"]?.globalRiderId
+            }))
+            let extraIds = riderIds.filter { nameById[$0] == nil }
+            if !extraIds.isEmpty {
+                for (id, name) in try await riderNamesByIds(extraIds) {
+                    nameById[id] = name
+                }
+            }
+
+            func resolvedRiderName(_ row: FeedRank1Row) -> String? {
+                let fallback = Int(row.bib ?? "").flatMap { startlistByBib["\(row.raceId)#\($0)"] }
+                if let gid = row.globalRiderId ?? fallback?.globalRiderId,
+                   let name = nameById[gid], !name.isEmpty { return name }
+                let fallbackName = "\(fallback?.firstName ?? "") \(fallback?.lastName ?? "")"
+                    .trimmingCharacters(in: .whitespaces)
+                if !fallbackName.isEmpty { return fallbackName }
+                return ResultsFeedLogic.cleanWinner(row.riderDisplay)
+            }
+
+            let teamIds = Array(Set(rows.compactMap { $0.teamId }))
+            let canonicalTeamNames: [String: String] = (try? await teamNamesByIds(teamIds)) ?? [:]
+            let rowsByRef = Dictionary(grouping: rows) { $0.stageRef }
+
             for i in entries.indices {
-                guard entries[i].kind == .inhouse, let ref = entries[i].stageRefId,
-                      let set = byRef[ref], set.count == 1, let gid = set.first,
-                      let name = nameById[gid], !name.isEmpty else { continue }
-                entries[i].winner = name
+                guard entries[i].kind == .inhouse else { continue }
+                if let ref = entries[i].stageRefId {
+                    let names = Array(Set((rowsByRef[ref] ?? []).compactMap(resolvedRiderName)))
+                    if nonWinnerRefs.contains(ref), names.isEmpty { entries[i].winner = "" }
+                    if names.count == 1, entries[i].rd?.primaryType != "ttt" {
+                        entries[i].winner = names[0]
+                    }
+                }
+
+                entries[i].complementary = entries[i].complementary.map { item in
+                    let leaderRows = rowsByRef[item.stageRef] ?? []
+                    let names: [String]
+                    if item.classKind == "teams" {
+                        names = Array(Set(leaderRows.compactMap { row in
+                            row.teamId.flatMap { canonicalTeamNames[$0] }
+                                ?? ResultsFeedLogic.cleanWinner(row.riderDisplay)
+                        }))
+                    } else {
+                        names = Array(Set(leaderRows.compactMap(resolvedRiderName)))
+                    }
+                    return FeedComplementaryClassification(
+                        stageRef: item.stageRef,
+                        classKind: item.classKind,
+                        labelEs: item.labelEs,
+                        labelEn: item.labelEn,
+                        colorHex: item.colorHex,
+                        winner: names.isEmpty ? item.winner : names.sorted().joined(separator: " / ")
+                    )
+                }
             }
 
             // CRE: señales = jornada 'ttt' (variante B de la UCI, solo el líder
             // lleva rank 1) o varios corredores comparten el rank 1 (variante A).
             for i in entries.indices {
+                try Task.checkCancellation()
                 let e = entries[i]
                 guard e.kind == .inhouse, let ref = e.stageRefId, !e.isGcFinal else { continue }
                 let rank1Ids = byRef[ref] ?? []
@@ -564,9 +817,16 @@ extension SupabaseService {
                         teamWinner = canonName
                     }
                     if !teamWinner.isEmpty { entries[i].winner = teamWinner }
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch { /* se queda el ganador que hubiera */ }
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch { /* ganador crudo si falla la resolución */ }
+        // Algunas librerías de red pueden envolver la cancelación en otro error.
+        // El estado cancelado de la Task sigue siendo la fuente definitiva.
+        try Task.checkCancellation()
     }
 
     /// Mapa globalRiderId → fuera-de-carrera, con la etapa MÁS RECIENTE de cada

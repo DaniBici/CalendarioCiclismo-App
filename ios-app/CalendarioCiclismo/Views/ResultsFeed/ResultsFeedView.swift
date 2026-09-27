@@ -23,9 +23,8 @@ private struct UciRankingExplanationItem: Identifiable {
 ///
 /// Filas con el lenguaje visual de las cards de Hoy (`RaceCardView`): CCCard
 /// con tinte del color de la carrera, logo + bandera, "Etapa N · km · desnivel"
-/// + badge de tipo solo para contrarrelojes, y el ganador con trofeo. Tap in-house → pantalla
-/// nativa de resultados (push POR VALOR con `ResultsRoute`); filas EXT → la
-/// sheet externos existente.
+/// + badge de tipo solo para contrarrelojes, y el ganador con trofeo. Cada fila
+/// abre su clasificación propia mediante `ResultsRoute`.
 struct ResultsFeedView: View {
     @State private var entries: [FeedEntry] = []
     @State private var isLoading = true
@@ -35,16 +34,15 @@ struct ResultsFeedView: View {
     @State private var isLoadingMore = false
     /// Push por valor a la pantalla de resultados in-house.
     @State private var resultsRoute: ResultsRoute?
-    /// Sheet externos para las filas EXT (sin volcado in-house).
-    @State private var resultsSheetItem: ResultsSheetItem?
     @State private var activeSection = ResultsFeedSection.latest
     @State private var rankingGender = UciRankingGender.male
     @State private var rankingRows: [UciTeamRankingRow] = []
     @State private var isRankingLoading = false
     @State private var rankingError: String?
-    @State private var isShowingRankingInfo = false
     @State private var rankingExplanation: UciRankingExplanationItem?
     @State private var localeService = LocaleService.shared
+    @State private var contentWidth: CGFloat = 0
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,21 +72,26 @@ struct ResultsFeedView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t("Resultados", "Results"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if #available(iOS 26, *) {
+                ToolbarItem(placement: .topBarLeading) {
+                    CCHeaderMarkView()
+                }
+                .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    CCHeaderMarkView()
+                }
+            }
+        }
         // Push por valor a la pantalla de resultados in-house (data-driven,
         // como en Hoy — NUNCA por destino, corrompe el NavigationStack).
         .navigationDestination(item: $resultsRoute) { route in
             ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix)
-        }
-        .resultsSheet(item: $resultsSheetItem)
-        .sheet(isPresented: $isShowingRankingInfo) {
-            UciRankingInfoSheet(
-                rows: decoratedRanking,
-                gender: rankingGender,
-                localeService: localeService
-            )
-            .presentationDetents([.medium, .large])
         }
         .alert(item: $rankingExplanation) { item in
             Alert(
@@ -178,6 +181,10 @@ struct ResultsFeedView: View {
     private var feedList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
+                let columns = AdaptiveLayoutPolicy.feedColumns(
+                    width: max(0, contentWidth - 32),
+                    isRegular: horizontalSizeClass == .regular
+                )
                 if entries.isEmpty {
                     EmptyStateView(
                         icon: "trophy",
@@ -195,17 +202,23 @@ struct ResultsFeedView: View {
                             .foregroundStyle(.secondary)
                             .padding(.top, 8)
                             .accessibilityAddTraits(.isHeader)
-                        ForEach(group.entries) { entry in
-                            FeedRowView(entry: entry) {
-                                Haptics.play(.navigation)
-                                if entry.kind == .inhouse {
-                                    resultsRoute = ResultsRoute(
-                                        raceId: entry.race.id,
-                                        stageNumber: entry.stageNumber,
-                                        stageSuffix: entry.stageSuffix.isEmpty ? nil : entry.stageSuffix
-                                    )
-                                } else if let rd = entry.rd {
-                                    resultsSheetItem = ResultsSheetItem(race: entry.race, raceDay: rd)
+                        let rows = AdaptiveLayoutPolicy.rows(
+                            group.entries,
+                            columns: columns,
+                            spansAllColumns: { _ in group.entries.count == 1 }
+                        )
+                        ForEach(rows) { row in
+                            if columns == 1 || row.spansAllColumns {
+                                feedRow(row.items[0])
+                            } else {
+                                HStack(alignment: .top, spacing: 8) {
+                                    ForEach(row.items) { entry in
+                                        feedRow(entry)
+                                            .frame(maxWidth: .infinity, alignment: .top)
+                                    }
+                                    if row.items.count < columns {
+                                        Color.clear.frame(maxWidth: .infinity)
+                                    }
                                 }
                             }
                         }
@@ -219,7 +232,23 @@ struct ResultsFeedView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.width
+        } action: { width in
+            contentWidth = width
+        }
         .refreshable { await load() }
+    }
+
+    private func feedRow(_ entry: FeedEntry) -> some View {
+        FeedRowView(entry: entry) {
+            Haptics.play(.navigation)
+            resultsRoute = ResultsRoute(
+                raceId: entry.race.id,
+                stageNumber: entry.stageNumber,
+                stageSuffix: entry.stageSuffix.isEmpty ? nil : entry.stageSuffix
+            )
+        }
     }
 
     // MARK: - Ránking UCI
@@ -245,31 +274,14 @@ struct ResultsFeedView: View {
             .padding(.top, 10)
 
             if let rankingDate = decoratedRanking.first?.row.rankingDate {
-                HStack(spacing: 4) {
-                    Text(DateFormatting.formatUciRankingUpdated(rankingDate))
+                Text(DateFormatting.formatUciRankingUpdated(rankingDate))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-
-                    Button {
-                        Haptics.play(.selection)
-                        isShowingRankingInfo = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .font(.caption)
-                            .frame(width: 28, height: 28)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(localeService.t(
-                        "Fuente y reglas del ránking UCI",
-                        "UCI ranking source and rules"
-                    ))
-
-                    Spacer(minLength: 0)
-                }
                 .padding(.horizontal, 16)
-                .padding(.top, 2)
+                .padding(.top, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if decoratedRanking.isEmpty {
@@ -338,11 +350,18 @@ struct ResultsFeedView: View {
         if entries.isEmpty { isLoading = true }
         error = nil
         do {
-            entries = try await SupabaseService.shared.loadResultsFeed(
+            let loadedEntries = try await SupabaseService.shared.loadResultsFeed(
                 from: fromKey,
                 to: DateFormatting.todayKey()
             )
+            try Task.checkCancellation()
+            // Commit único: nunca se expone una lista previa a la resolución de
+            // ganadores y líderes.
+            entries = loadedEntries
             isLoading = false
+        } catch is CancellationError {
+            // Navegar fuera cancela .task; se conserva el último modelo completo.
+            return
         } catch {
             self.error = error.localizedDescription
             isLoading = false
@@ -393,7 +412,7 @@ private struct UciRankingTableHeader: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(.background)
+        .background(AppTheme.background)
         .accessibilityHidden(true)
     }
 }
@@ -464,112 +483,6 @@ private struct UciRankingRowView: View {
     }
 }
 
-private struct UciRankingInfoSheet: View {
-    let rows: [UciTeamRankingPresentation]
-    let gender: UciRankingGender
-    let localeService: LocaleService
-    @Environment(\.dismiss) private var dismiss
-
-    private var dateText: String {
-        guard let date = rows.first?.row.rankingDate else {
-            return LocaleService.shouldShowEnglishContent ? "Updated: —" : "Actualizado: —"
-        }
-        return DateFormatting.formatUciRankingUpdated(date)
-    }
-
-    private var sourceUrl: URL? {
-        rows.first.flatMap { URL(string: $0.row.sourceUrl) }
-    }
-
-    private let regulationsUrl = URL(string: "https://assets.ctfassets.net/761l7gh5x5an/6FEzFHeA2oKMBGb5sdIvQ7/96aad776f210fc38853ec9bf9ec9acba/2-ROA-20260701-E.pdf")!
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(localeService.t(
-                        "\(dateText). DataRide publica normalmente un nuevo ránking cada martes.",
-                        "\(dateText). DataRide normally publishes a new ranking every Tuesday."
-                    ))
-                    .font(.subheadline)
-
-                    Text(localeService.t(
-                        "Las invitaciones coloreadas son una proyección de la posición actual. El reglamento emplea el ránking final de la temporada anterior.",
-                        "The coloured invitations are a projection from the current position. The regulations use the final ranking of the previous season."
-                    ))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                    VStack(alignment: .leading, spacing: 9) {
-                        legendRow(
-                            color: AppTheme.categoryBadgeColor(for: "1.UWT").background,
-                            text: gender == .male ? "WorldTeams" : "Women's WorldTeams"
-                        )
-                        legendRow(
-                            color: AppTheme.orange.opacity(0.15),
-                            text: localeService.t(
-                                gender == .male
-                                    ? "Invitaciones obligatorias a todo el WorldTour y ProSeries"
-                                    : "Invitaciones obligatorias al Women's WorldTour",
-                                gender == .male
-                                    ? "Mandatory WorldTour and ProSeries invitations"
-                                    : "Mandatory Women's WorldTour invitations"
-                            )
-                        )
-                        if gender == .male {
-                            legendRow(
-                                color: AppTheme.green.opacity(0.15),
-                                text: localeService.t(
-                                    "Invitaciones obligatorias a ProSeries",
-                                    "Mandatory ProSeries invitations"
-                                )
-                            )
-                            legendRow(
-                                color: AppTheme.red.opacity(0.13),
-                                text: localeService.t(
-                                    "ProTeams fuera del top-30: fondo rojo",
-                                    "ProTeams outside the top 30: red background"
-                                )
-                            )
-                        }
-                    }
-
-                    if let sourceUrl {
-                        Link(localeService.t("Abrir fuente UCI DataRide", "Open UCI DataRide source"), destination: sourceUrl)
-                    }
-                    Link(
-                        localeService.t(
-                            "Abrir Reglamento UCI · art. 2.1.007bis",
-                            "Open UCI Regulations · art. 2.1.007bis"
-                        ),
-                        destination: regulationsUrl
-                    )
-                }
-                .padding()
-            }
-            .navigationTitle(localeService.t("Sobre el Ránking UCI", "About the UCI Ranking"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(localeService.t("Cerrar", "Close")) { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func legendRow(color: Color, text: String) -> some View {
-        HStack(spacing: 9) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(color)
-                .frame(width: 34, height: 16)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 4).stroke(AppTheme.border, lineWidth: 0.5)
-                }
-            Text(text).font(.footnote)
-        }
-    }
-}
-
 // MARK: - Fila del feed
 
 /// Una fila del feed, con el lenguaje visual de las cards de Hoy.
@@ -622,92 +535,107 @@ private struct FeedRowView: View {
         Button {
             onTap()
         } label: {
-            // General final: tinte algo más fuerte que el de las filas normales.
             CCCard(
                 accent: accent,
-                accentAlpha: entry.isGcFinal ? 0.10 : 0.04,
+                accentAlpha: 0.04,
                 cornerRadius: 14,
                 showShadow: false
             ) {
-                HStack(spacing: 10) {
-                    // Columna izquierda: logo de carrera con la bandera debajo.
-                    VStack(spacing: 3) {
-                        RaceLogo(race.logoUrl, size: 36)
-                        // Bandera de la ETAPA: el país propio de la jornada
-                        // (rd.countryCode) prevalece sobre el de la carrera, y
-                        // vence también al hideFlag cuando está fijado (espejo
-                        // de Android y de la web — effectiveCountryCode).
-                        if !race.hideFlag || rd?.countryCode != nil {
-                            CountryFlag(countryCode: rd?.countryCode ?? race.countryCode, width: 18)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Text(race.localizedName)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .lineLimit(1)
-                            if RaceLogic.shouldShowFemaleIndicator(race) {
-                                Text("♀")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.green)
+                ZStack(alignment: .trailing) {
+                    HStack(alignment: entry.isFeatured ? .top : .center, spacing: 10) {
+                        // Columna izquierda: logo de carrera con la bandera debajo.
+                        VStack(spacing: 3) {
+                            RaceLogo(race.logoUrl, size: 36)
+                            // Bandera de la ETAPA: el país propio de la jornada
+                            // (rd.countryCode) prevalece sobre el de la carrera, y
+                            // vence también al hideFlag cuando está fijado (espejo
+                            // de Android y de la web — effectiveCountryCode).
+                            if !race.hideFlag || rd?.countryCode != nil {
+                                CountryFlag(countryCode: rd?.countryCode ?? race.countryCode, width: 18)
                             }
                         }
 
-                        if entry.isGcFinal {
-                            Text(LocaleService.t("General final", "Final GC"))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            // HStack (no FlowLayout): el flow mide el texto a su
-                            // ancho IDEAL y el lineLimit nunca truncaba — la línea
-                            // "Etapa N · km · desnivel" rebosaba la card. Así
-                            // el texto se comprime con puntos suspensivos y el
-                            // badge conserva su tamaño.
-                            HStack(spacing: 6) {
-                                if let subtitle = subtitleText {
-                                    subtitle
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                }
-                                // Badge de tipo solo para contrarrelojes.
-                                if let rd, rd.primaryType == "itt" || rd.primaryType == "ttt" {
-                                    StageTypeBadge(
-                                        primaryType: rd.primaryType,
-                                        secondaryType: rd.primaryType == "itt" && ["chrono_climb", "summit_finish"].contains(rd.secondaryType ?? "") ? rd.secondaryType : nil,
-                                        countryCode: rd.countryCode ?? race.countryCode,
-                                        compact: true
-                                    )
-                                    .fixedSize()
-                                    .layoutPriority(1)
-                                }
-                            }
-                        }
-
-                        if entry.kind == .inhouse, !entry.winner.isEmpty {
+                        VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 4) {
-                                Image(systemName: "trophy")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityHidden(true)
-                                Text(entry.winner)
+                                Text(race.localizedName)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                                if RaceLogic.shouldShowFemaleIndicator(race) {
+                                    Text("♀")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.green)
+                                }
+                            }
+
+                            if entry.isGcFinal {
+                                Text(LocaleService.t("General final", "Final GC"))
                                     .font(.caption)
                                     .fontWeight(.semibold)
-                                    .lineLimit(1)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                // HStack (no FlowLayout): el flow mide el texto a su
+                                // ancho IDEAL y el lineLimit nunca truncaba — la línea
+                                // "Etapa N · km · desnivel" rebosaba la card. Así
+                                // el texto se comprime con puntos suspensivos y el
+                                // badge conserva su tamaño.
+                                HStack(spacing: 6) {
+                                    if let subtitle = subtitleText {
+                                        subtitle
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+                                    // Badge de tipo solo para contrarrelojes.
+                                    if let rd, rd.primaryType == "itt" || rd.primaryType == "ttt" {
+                                        StageTypeBadge(
+                                            primaryType: rd.primaryType,
+                                            secondaryType: rd.primaryType == "itt" && ["chrono_climb", "summit_finish"].contains(rd.secondaryType ?? "") ? rd.secondaryType : nil,
+                                            countryCode: rd.countryCode ?? race.countryCode,
+                                            compact: true
+                                        )
+                                        .fixedSize()
+                                        .layoutPriority(1)
+                                    }
+                                }
+                            }
+
+                            if entry.kind == .inhouse, !entry.winner.isEmpty {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trophy")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityHidden(true)
+                                    Text(entry.winner)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            if entry.isFeatured, !entry.complementary.isEmpty {
+                                Divider().padding(.vertical, 2)
+                                ForEach(entry.complementary) { item in
+                                    HStack(spacing: 6) {
+                                        if let hex = item.colorHex {
+                                            Circle().fill(Color(hex: hex)).frame(width: 7, height: 7)
+                                        }
+                                        Text(item.localizedLabel)
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        if !item.winner.isEmpty {
+                                            Text(item.winner).font(.caption2).lineLimit(1)
+                                        }
+                                    }
+                                }
                             }
                         }
+
+                        Spacer(minLength: 16)
                     }
 
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
+                    RaceCardChevron()
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -716,9 +644,10 @@ private struct FeedRowView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
-        .accessibilityHint(entry.kind == .inhouse
-            ? LocaleService.t("Pulsa dos veces para ver las clasificaciones", "Double tap to view classifications")
-            : LocaleService.t("Pulsa dos veces para ver los resultados externos", "Double tap to view external results"))
+        .accessibilityHint(LocaleService.t(
+            "Pulsa dos veces para ver las clasificaciones",
+            "Double tap to view classifications"
+        ))
         .accessibilityIdentifier(AccessibilityID.feedCard(entry.id))
     }
 
@@ -729,7 +658,7 @@ private struct FeedRowView: View {
         } else if !stageLabelText.isEmpty {
             parts.append(stageLabelText)
         }
-        if entry.kind == .inhouse, !entry.winner.isEmpty {
+        if !entry.winner.isEmpty {
             parts.append("\(LocaleService.t("Ganador", "Winner")): \(entry.winner)")
         }
         return parts.joined(separator: ", ")

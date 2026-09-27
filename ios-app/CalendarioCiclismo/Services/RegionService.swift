@@ -1,23 +1,20 @@
 import Foundation
 
-/// Servicio centralizado de preferencia regional (España / Europa / América /
-/// Asia y Pacífico / África / Todas).
+/// Servicio de región del usuario.
 ///
-/// Sigue el mismo patrón que `ThemeService` y `LocaleService`:
-/// - Preferencia persistida en `UserDefaults` con clave `region_preference`.
-/// - Valor por defecto: `.spain` (baseline gratuito heredado de 1.4.4 —
-///   `ALL + ES + EUROPA`). Cualquier instalación pre-2.0 que actualice
-///   mantiene este valor por defecto y sigue viendo lo mismo de siempre.
-/// - `@Observable` para que cambios en runtime recalculen filtros sin
-///   reiniciar la app.
+/// La región se detecta automáticamente a partir de la zona horaria del
+/// dispositivo, igual que la web (`js/shared.js` → `_detectUserGroup`): no hay
+/// selección manual en Ajustes. El bucket (`RegionPreference`) se conserva como
+/// valor de `push_subscriptions.region`; la visibilidad de canales de TV usa el
+/// grupo fino `broadcasts.country` detectado por TZ.
 ///
-/// Todas las preferencias regionales están disponibles sin compra desde 4.3.
+/// Paridad con `RegionDetector` en Android: al cambiar uno, cambiar el otro.
 @MainActor @Observable
 final class RegionService {
     static let shared = RegionService()
 
-    /// Regiones expuestas al usuario en Ajustes / onboarding. El mapping a
-    /// los grupos `broadcasts.country` permitidos vive en [allowedBroadcastGroups].
+    /// Buckets continentales que usa `push_subscriptions.region` (CHECK en la
+    /// base de datos). Nunca se elige a mano: se derivan de la TZ.
     enum RegionPreference: String, CaseIterable, Identifiable {
         case spain = "SPAIN"
         case europe = "EUROPE"
@@ -27,194 +24,18 @@ final class RegionService {
         case all = "ALL"
 
         var id: String { rawValue }
-
-        /// Conjunto de valores `broadcasts.country` que son visibles cuando
-        /// esta preferencia está activa. Los broadcasts sin `country` se
-        /// consideran globales (compatibilidad con datos antiguos).
-        var allowedBroadcastGroups: Set<String> {
-            switch self {
-            case .spain:
-                return ["ALL", "EUROPA", "ES"]
-            case .europe:
-                return [
-                    "ALL", "EUROPA",
-                    "ES", "PT", "FR", "BE", "NL", "IT",
-                    "DE_AT_CH", "UK_IE", "SCANDI", "EE",
-                ]
-            case .americas:
-                return ["ALL", "NORTEAM", "LATAM"]
-            case .asia:
-                return ["ALL", "ASIAPAC", "MENA"]
-            case .africa:
-                return ["ALL", "AFRICA", "MENA"]
-            case .all:
-                return [
-                    "ALL", "EUROPA",
-                    "ES", "PT", "FR", "BE", "NL", "IT",
-                    "DE_AT_CH", "UK_IE", "SCANDI", "EE",
-                    "NORTEAM", "LATAM",
-                    "ASIAPAC", "MENA",
-                    "AFRICA",
-                ]
-            }
-        }
-
-        /// Etiqueta visible en la UI. Devuelve la cadena fuente en español;
-        /// `LocalizedStringKey(label)` resuelve la traducción contra el
-        /// catálogo `Localizable.xcstrings` (sourceLanguage = "es").
-        var labelKey: String {
-            switch self {
-            case .spain: return "España"
-            case .europe: return "Europa"
-            case .americas: return "América"
-            case .asia: return "Asia y Pacífico"
-            case .africa: return "África"
-            case .all: return "Todas las regiones"
-            }
-        }
-
-        /// Emoji decorativo para chips/filas. Hardcoded — no traducción.
-        var flagEmoji: String {
-            switch self {
-            case .spain: return "🇪🇸"
-            case .europe: return "🇪🇺"
-            case .americas: return "🌎"
-            case .asia: return "🌏"
-            case .africa: return "🌍"
-            case .all: return "🌐"
-            }
-        }
-
-        /// Grupos finos `broadcasts.country` que el usuario puede elegir como
-        /// "país preferido" dentro de este bucket. Se usan para sobrescribir
-        /// la detección automática por TZ a la hora de afinar `tv_start`.
-        ///
-        /// SPAIN solo expone ES (un único grupo fino, sin elección). ALL no
-        /// expone sub-selector — usa la TZ siempre (usuario itinerante).
-        /// El resto exponen los grupos finos relevantes.
-        var availableCountryGroups: [String] {
-            switch self {
-            case .spain:
-                return ["ES"]
-            case .europe:
-                return ["ES", "PT", "FR", "BE", "NL", "IT",
-                        "DE_AT_CH", "UK_IE", "SCANDI", "EE"]
-            case .americas:
-                return ["NORTEAM", "LATAM"]
-            case .asia:
-                return ["ASIAPAC", "MENA"]
-            case .africa:
-                return ["AFRICA", "MENA"]
-            case .all:
-                return []
-            }
-        }
     }
 
-    // MARK: - País preferido (sub-selector dentro del bucket)
+    /// Bucket efectivo según la TZ. Solo se usa para el `region` que se envía
+    /// al servidor de notificaciones.
+    var current: RegionPreference { Self.suggestedRegion() }
 
-    /// Nombre humano del grupo fino `broadcasts.country`. Sirve para etiquetar
-    /// filas del sub-selector. Devuelve la cadena fuente en español; las
-    /// traducciones EN se resuelven vía `LocalizedStringKey`.
-    static func countryGroupLabel(_ group: String) -> String {
-        switch group {
-        case "ES": return "España"
-        case "PT": return "Portugal"
-        case "FR": return "Francia"
-        case "BE": return "Bélgica"
-        case "NL": return "Países Bajos"
-        case "IT": return "Italia"
-        case "DE_AT_CH": return "Alemania / Austria / Suiza"
-        case "UK_IE": return "Reino Unido / Irlanda"
-        case "SCANDI": return "Países nórdicos"
-        case "EE": return "Europa del Este"
-        case "NORTEAM": return "EE. UU. y Canadá"
-        case "LATAM": return "América Latina"
-        case "ASIAPAC": return "Asia y Pacífico"
-        case "MENA": return "Oriente Medio y Norte de África"
-        case "AFRICA": return "África subsahariana"
-        default: return group
-        }
-    }
+    /// Grupos `broadcasts.country` visibles según la TZ del dispositivo.
+    /// Espejo de `filterBroadcastsByRegion` en `js/shared.js`.
+    var allowedBroadcastGroups: Set<String> { Self.allowedBroadcastGroups() }
 
-    /// Bandera/emoji decorativo del grupo fino. Hardcoded.
-    static func countryGroupEmoji(_ group: String) -> String {
-        switch group {
-        case "ES": return "🇪🇸"
-        case "PT": return "🇵🇹"
-        case "FR": return "🇫🇷"
-        case "BE": return "🇧🇪"
-        case "NL": return "🇳🇱"
-        case "IT": return "🇮🇹"
-        case "DE_AT_CH": return "🇩🇪"
-        case "UK_IE": return "🇬🇧"
-        case "SCANDI": return "🇸🇪"
-        case "EE": return "🇵🇱"
-        case "NORTEAM": return "🇺🇸"
-        case "LATAM": return "🌎"
-        case "ASIAPAC": return "🌏"
-        case "MENA": return "🌍"
-        case "AFRICA": return "🌍"
-        default: return "🏳️"
-        }
-    }
-
-    private static let defaultsKey = "region_preference"
-    private static let preferredGroupKey = "preferred_country_group"
-
-    /// Preferencia actual. Observada por las vistas que filtran broadcasts.
-    private(set) var current: RegionPreference
-
-    /// País preferido dentro del bucket (override manual del grupo fino para
-    /// afinar `tv_start`). `nil` = detección automática por TZ.
-    private(set) var preferredCountryGroup: String?
-
-    private init() {
-        let raw = UserDefaults.standard.string(forKey: Self.defaultsKey)
-            ?? RegionPreference.spain.rawValue
-        self.current = RegionPreference(rawValue: raw) ?? .spain
-        self.preferredCountryGroup = UserDefaults.standard.string(forKey: Self.preferredGroupKey)
-        // Sanea: si el grupo guardado no pertenece al bucket actual lo limpia.
-        if let pref = preferredCountryGroup,
-           !self.current.availableCountryGroups.contains(pref) {
-            UserDefaults.standard.removeObject(forKey: Self.preferredGroupKey)
-            self.preferredCountryGroup = nil
-        }
-    }
-
-    /// Persiste y publica la nueva preferencia. Si el grupo fino guardado
-    /// ya no pertenece al nuevo bucket, se limpia automáticamente (vuelve
-    /// a "Automático").
-    func setRegion(_ value: RegionPreference) {
-        UserDefaults.standard.set(value.rawValue, forKey: Self.defaultsKey)
-        current = value
-        if let pref = preferredCountryGroup,
-           !value.availableCountryGroups.contains(pref) {
-            UserDefaults.standard.removeObject(forKey: Self.preferredGroupKey)
-            preferredCountryGroup = nil
-        }
-    }
-
-    /// Setea el país preferido dentro del bucket. `nil` = automático por TZ.
-    func setPreferredCountryGroup(_ value: String?) {
-        if let v = value {
-            UserDefaults.standard.set(v, forKey: Self.preferredGroupKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: Self.preferredGroupKey)
-        }
-        preferredCountryGroup = value
-    }
-
-    /// Grupo fino efectivo para enviar a Supabase como `countryGroup`.
-    /// Si hay override manual y sigue siendo válido para el bucket actual,
-    /// se usa; si no, cae al detectado por TZ.
-    func effectiveCountryGroup() -> String? {
-        if let pref = preferredCountryGroup,
-           current.availableCountryGroups.contains(pref) {
-            return pref
-        }
-        return Self.detectedCountryGroup()
-    }
+    /// Grupo fino `broadcasts.country` detectado por TZ (para `tv_start`).
+    func effectiveCountryGroup() -> String? { Self.detectedCountryGroup() }
 
     // MARK: - Detección por TZ
 
@@ -224,39 +45,17 @@ final class RegionService {
     ]
 
     /// Zonas horarias europeas que no empiezan por `Europe/` ni `Africa/Ceuta`
-    /// (Atlántico Norte y oeste). Se tratan como `.europe`.
+    /// (Atlántico Norte y oeste). Se tratan como europeas.
     private static let europeExtraTimeZones: Set<String> = [
         "Atlantic/Azores", "Atlantic/Madeira", "Atlantic/Faroe",
         "Atlantic/Reykjavik", "Arctic/Longyearbyen",
     ]
 
-    /// Devuelve la región sugerida según la TZ del dispositivo. Nunca devuelve
-    /// `.all` (esa solo se elige manualmente). Si no hay match, vuelve a `.spain`
-    /// para preservar el baseline gratuito.
-    static func suggestedRegion(timeZoneId: String = TimeZone.current.identifier) -> RegionPreference {
-        if spainTimeZones.contains(timeZoneId) { return .spain }
-        if timeZoneId.hasPrefix("Europe/") || europeExtraTimeZones.contains(timeZoneId) {
-            return .europe
-        }
-        if timeZoneId.hasPrefix("America/") || timeZoneId == "Pacific/Honolulu" {
-            return .americas
-        }
-        if timeZoneId.hasPrefix("Asia/")
-            || timeZoneId.hasPrefix("Pacific/")
-            || timeZoneId.hasPrefix("Australia/")
-            || timeZoneId == "Indian/Christmas"
-            || timeZoneId == "Indian/Cocos" {
-            return .asia
-        }
-        if timeZoneId.hasPrefix("Africa/") { return .africa }
-        return .spain
-    }
-
-    // MARK: - Grupo fino para auto_dispatch `tv_start`
-
-    /// Mapa TZ → grupo `broadcasts.country` fino (paridad con `_COUNTRY_TZ_MAP`
-    /// de `js/shared.js`). Solo cubre Europa fina; el resto se calcula por
-    /// prefijo en [detectedCountryGroup].
+    /// Mapa TZ → grupo `broadcasts.country` fino. Solo cubre Europa fina; el
+    /// resto se calcula por prefijo en [detectedCountryGroup].
+    ///
+    /// Paridad con `_COUNTRY_TZ_MAP` de `js/shared.js` y `FINE_TZ_MAP` de
+    /// `RegionDetector.kt`.
     private static let fineTimeZoneMap: [String: String] = [
         // ES
         "Europe/Madrid": "ES", "Atlantic/Canary": "ES", "Africa/Ceuta": "ES",
@@ -320,9 +119,35 @@ final class RegionService {
         "America/Regina",
     ]
 
-    /// Grupo fino `broadcasts.country` para la TZ del device (o NIL si no
-    /// hay match: TZ rara, indeterminada, o Europa no cubierta por un grupo
-    /// fino — en cuyo caso el cron usa el bucket por `region`).
+    /// Bucket sugerido según la TZ. Nunca devuelve `.all`. Si la TZ no encaja,
+    /// vuelve a `.spain` para preservar el baseline.
+    static func suggestedRegion(timeZoneId: String = TimeZone.current.identifier) -> RegionPreference {
+        if spainTimeZones.contains(timeZoneId) { return .spain }
+        if timeZoneId.hasPrefix("Europe/") || europeExtraTimeZones.contains(timeZoneId) {
+            return .europe
+        }
+        if timeZoneId.hasPrefix("America/") || timeZoneId == "Pacific/Honolulu" {
+            return .americas
+        }
+        if timeZoneId.hasPrefix("Asia/")
+            || timeZoneId.hasPrefix("Pacific/")
+            || timeZoneId.hasPrefix("Australia/")
+            || timeZoneId == "Indian/Christmas"
+            || timeZoneId == "Indian/Cocos" {
+            return .asia
+        }
+        if timeZoneId.hasPrefix("Africa/") { return .africa }
+        return .spain
+    }
+
+    /// True si la TZ pertenece a Europa (cubierta o no por un grupo fino).
+    static func isEuropean(timeZoneId: String = TimeZone.current.identifier) -> Bool {
+        if fineTimeZoneMap[timeZoneId] != nil { return true }
+        return timeZoneId.hasPrefix("Europe/") || europeExtraTimeZones.contains(timeZoneId)
+    }
+
+    /// Grupo fino `broadcasts.country` para la TZ del device, o `nil` si no hay
+    /// match (TZ rara, Europa no cubierta por un grupo fino, etc.).
     ///
     /// Paridad con `_detectUserGroup` de `js/shared.js` — al cambiar uno,
     /// cambiar el otro.
@@ -340,5 +165,20 @@ final class RegionService {
             return "ASIAPAC"
         }
         return nil
+    }
+
+    /// Grupos `broadcasts.country` visibles para la TZ. Espejo exacto de
+    /// `filterBroadcastsByRegion` en `js/shared.js`:
+    /// - siempre `ALL`;
+    /// - el grupo fino detectado, si lo hay;
+    /// - `EUROPA` solo si el usuario es europeo y no está en `UK_IE`.
+    static func allowedBroadcastGroups(timeZoneId: String = TimeZone.current.identifier) -> Set<String> {
+        let group = detectedCountryGroup(timeZoneId: timeZoneId)
+        var allowed: Set<String> = ["ALL"]
+        if let group { allowed.insert(group) }
+        if isEuropean(timeZoneId: timeZoneId) && group != "UK_IE" {
+            allowed.insert("EUROPA")
+        }
+        return allowed
     }
 }

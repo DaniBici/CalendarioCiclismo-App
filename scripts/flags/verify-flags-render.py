@@ -37,7 +37,7 @@ from PIL import Image
 import cairosvg
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-IOS_FLAGS = os.path.join(REPO, "ios-app", "CalendarioCiclismo", "Assets.xcassets", "Flags")
+IOS_FLAGS = os.path.join(REPO, "ios-app", "Shared", "Flags.xcassets", "Flags")
 CANON = "/tmp/flag-audit/flag-icons-7.2.3/flags/4x3"
 SIM_DUMP = "/tmp/flag-audit/ios"
 W, H = 480, 360

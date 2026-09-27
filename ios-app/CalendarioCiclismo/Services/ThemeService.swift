@@ -54,13 +54,24 @@ final class ThemeService {
     }
 
     private static let defaultsKey = "theme_preference"
+    private static let firstAccessResetKey = "theme_system_on_first_access_done"
 
     /// Preferencia actual. Observada por `CalendarioCiclismoApp` para aplicar
     /// `.preferredColorScheme` en caliente.
     private(set) var preference: ThemePreference
 
     private init() {
-        let raw = UserDefaults.standard.string(forKey: Self.defaultsKey)
+        let defaults = UserDefaults.standard
+        // Migración 4.4.2: en el primer acceso de esta versión (instalación
+        // nueva o actualización desde 4.4.1) el tema se rige por el ajuste del
+        // sistema. Se descarta la preferencia guardada una sola vez; después,
+        // la elección del usuario en Ajustes → Apariencia persiste con
+        // normalidad porque el flag ya no se vuelve a recorrer.
+        if !defaults.bool(forKey: Self.firstAccessResetKey) {
+            defaults.removeObject(forKey: Self.defaultsKey)
+            defaults.set(true, forKey: Self.firstAccessResetKey)
+        }
+        let raw = defaults.string(forKey: Self.defaultsKey)
             ?? ThemePreference.system.rawValue
         self.preference = ThemePreference(rawValue: raw) ?? .system
     }

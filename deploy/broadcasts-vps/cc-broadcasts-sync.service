@@ -11,7 +11,8 @@ Group=cc-broadcasts
 WorkingDirectory=/opt/calendario-ciclismo
 EnvironmentFile=/etc/calendario-ciclismo/broadcasts.env
 # Escrituras protegidas por estabilidad, procedencia, vínculo y concurrencia optimista.
-ExecStart=/usr/bin/node scripts/broadcasts-sync/broadcasts-sync.mjs --apply-sources=hbo_max,rtve,sporza
+# EITB solo escribe directos oficiales /m/ confirmados por isLive=true.
+ExecStart=/usr/bin/node scripts/broadcasts-sync/broadcasts-vps-runner.mjs --apply-sources=hbo_max,rtve,eitb,sporza,rtbf,rai,lequipe
 TimeoutStartSec=10min
 RuntimeDirectory=cc-broadcasts
 RuntimeDirectoryMode=0750

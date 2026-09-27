@@ -1,6 +1,7 @@
 import SwiftUI
 import QuickLook
 import UIKit
+import WebKit
 
 /// Clasificación del motivo por el que un enlace no puede abrirse sin red,
 /// o por el que un pull-to-refresh no puede completarse.
@@ -67,33 +68,33 @@ enum OfflineAccessAlert: Identifiable {
     }
 }
 
-/// Bloque de datos generales de la etapa (carrera, jornada, fecha, recorrido,
-/// badges de tipo/distancia/desnivel). Es el bloque que en la jornada aparece
-/// encima de la documentación; se comparte con el perfil de elevación
-/// (`ElevationProfileView`) para mantener el contexto de la etapa por encima
-/// del perfil.
-struct StageInfoHeader: View {
-    let raceDay: RaceDay
-    let race: Race?
-
+/// Identidad y fecha compartidas por las jornadas de carretera y ciclocross.
+struct RaceDayHeading: View {
+    let name: String?
+    let logoUrl: String?
+    let countryCode: String?
+    var showFlag = true
+    var category: String? = nil
+    var stageLabel = ""
+    let dateLabel: String
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Carrera
-            if let race {
+            if let name {
                 HStack(spacing: 8) {
-                    RaceLogo(race.logoUrl, size: 32)
+                    RaceLogo(logoUrl, size: 32)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
                             // Override puramente cosmético: si la jornada
                             // tiene un país propio (etapas en el extranjero),
                             // se usa para la bandera y vence a hideFlag.
-                            if race.hideFlag != true || raceDay.countryCode != nil {
-                                CountryFlag(countryCode: raceDay.countryCode ?? race.countryCode)
+                            if showFlag {
+                                CountryFlag(countryCode: countryCode)
                             }
-                            Text(race.localizedName)
+                            Text(name)
                                 .font(.headline)
                         }
-                        CategoryBadge(category: race.uciCategory)
+                        if let category { CategoryBadge(category: category) }
                     }
                     Spacer()
                 }
@@ -105,8 +106,8 @@ struct StageInfoHeader: View {
             // Etapa
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if !raceDay.stageLabel.isEmpty {
-                        Text(raceDay.stageLabel)
+                    if !stageLabel.isEmpty {
+                        Text(stageLabel)
                             .font(.title2)
                             .fontWeight(.bold)
                             .accessibilityAddTraits(.isHeader)
@@ -115,30 +116,46 @@ struct StageInfoHeader: View {
                     // La fecha de la cabecera va en el idioma del CONTENIDO (igual
                     // que el nombre de carrera, la ruta y el km), no en el del
                     // chrome de la UI. Paridad con Android (StageInfoBlock).
-                    Text(DateFormatting.formatDateLongContent(raceDay.dateKey))
+                    Text(dateLabel)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
 
+        }
+    }
+}
+
+struct RaceDayLocation: View {
+    let location: String
+    var detail: String? = nil
+    var category: String? = nil
+    var body: some View {
+        HStack(spacing: 8) {
+            if let category { CategoryBadge(category: category) }
+            if !location.isEmpty { Image(systemName: "mappin.and.ellipse").foregroundStyle(.secondary).accessibilityHidden(true) }
+            VStack(alignment: .leading, spacing: 2) {
+                if !location.isEmpty { Text(location).font(.body) }
+                if let detail { Text(detail).font(.caption).foregroundStyle(.tertiary) }
+            }
+        }.accessibilityElement(children: .combine)
+    }
+}
+
+struct StageInfoHeader: View {
+    let raceDay: RaceDay
+    let race: Race?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RaceDayHeading(name: race?.localizedName, logoUrl: race?.logoUrl, countryCode: raceDay.countryCode ?? race?.countryCode,
+                           showFlag: race?.hideFlag != true || raceDay.countryCode != nil, category: race?.uciCategory,
+                           stageLabel: raceDay.stageLabel, dateLabel: DateFormatting.formatDateLongContent(raceDay.dateKey))
+
             // Recorrido
             if let route = raceDay.routeDescription {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(route)
-                            .font(.body)
-                        if raceDay.isSingleCity {
-                            Text(LocaleService.t("Salida y meta", "Start and finish"))
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-                .accessibilityElement(children: .combine)
+                RaceDayLocation(location: route, detail: raceDay.isSingleCity ? LocaleService.t("Salida y meta", "Start and finish") : nil)
                 .accessibilityLabel(LocaleService.t("Recorrido: \(route)\(raceDay.isSingleCity ? ", salida y meta en la misma ciudad" : "")", "Route: \(route)\(raceDay.isSingleCity ? ", start and finish in the same city" : "")"))
             }
 
@@ -206,14 +223,13 @@ struct StageDetailView: View {
     /// para que funcione sin conexión. Si no, fallback a Safari con la URL remota.
     @State private var quickLookURL: URL?
     @State private var offlineAlert: OfflineAccessAlert?
-    @State private var guideExpanded = false
+    @State private var showAllCriticalPoints = false
     @State private var showAllBroadcasts = false
-    @State private var actionStripAtStart = true
-    @State private var actionStripAtEnd = false
     private let network  = NetworkMonitor.shared
     private let offline  = OfflineManager.shared
     private let manager  = NotificationManager.shared
     private let raceFollow = RaceFollowService.shared
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         Group {
@@ -224,57 +240,65 @@ struct StageDetailView: View {
                     Task { await viewModel.load(raceDayId: raceDayId) }
                 }
             } else if let rd = viewModel.raceDay {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        stageHeader(rd)
-                        timeSection(rd)
-                        previousResultsSection(rd)
-                        resultsSection(rd)
-                        broadcastSection(rd)
-                        descriptionSection(rd)
-                        bonusesNotesSection(rd)
+                GeometryReader { proxy in
+                    ScrollView {
+                        stageContent(rd, proxy: proxy)
+                            // La revisión cambia solo después de una respuesta
+                            // remota completa.
+                            .id(viewModel.refreshToken)
+                            .padding()
                     }
-                    // La revisión cambia solo después de una respuesta remota
-                    // completa: fuerza a reconstruir la descripción y el resto
-                    // de secciones cuando haya altas, bajas o vaciados.
-                    .id(viewModel.refreshToken)
-                    .padding()
-                }
-                .refreshable {
-                    // Sin red no tiene sentido pegar a Supabase — el spinner
-                    // colgaría hasta el timeout. Reutilizamos el mismo patrón de
-                    // modales que usamos al tocar un asset sin conexión: si el
-                    // modo sin conexión está OFF, ofrecemos activarlo; si está
-                    // ON pero la jornada cae fuera de la ventana sincronizada,
-                    // avisamos específicamente de que los datos pueden no estar
-                    // al día.
-                    guard network.isOnline else {
-                        if offline.isEnabled,
-                           !offline.isInOfflineRange(dateKey: rd.dateKey) {
-                            offlineAlert = .refreshOutOfRange
-                        } else {
-                            offlineAlert = .refreshOffline(offlineEnabled: offline.isEnabled)
-                        }
-                        Haptics.play(.warning)
-                        return
-                    }
-                    // Pull-to-refresh: re-fetch desde Supabase. `refresh` no toca
-                    // `isLoading`, así que el contenido actual permanece visible
-                    // mientras el spinner del sistema hace su trabajo.
-                    await viewModel.refresh(raceDayId: raceDayId)
-                    Haptics.play(.success)
+                    .background(AppTheme.background)
                 }
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
+        // Pull-to-refresh aplicado al contenedor completo, no al ScrollView
+        // interno: el gesto queda registrado en la raíz de la jornada con
+        // independencia del punto de entrada (Hoy, Mes, Temporada, Competición,
+        // Campeonatos, Resultados…) y del estado (carga/error/contenido). Antes
+        // colgaba del ScrollView de la rama `else if`, de modo que solo se
+        // activaba cuando un ancestro del NavigationStack ya exponía su propio
+        // gesto (Hoy y agenda CX) y se perdía al llegar desde el resto.
+        .refreshable {
+            // Sin red no tiene sentido pegar a Supabase — el spinner
+            // colgaría hasta el timeout. Reutilizamos el mismo patrón de
+            // modales que usamos al tocar un asset sin conexión: si el
+            // modo sin conexión está OFF, ofrecemos activarlo; si está
+            // ON pero la jornada cae fuera de la ventana sincronizada,
+            // avisamos específicamente de que los datos pueden no estar
+            // al día.
+            guard let rd = viewModel.raceDay else { return }
+            guard network.isOnline else {
+                if offline.isEnabled,
+                   !offline.isInOfflineRange(dateKey: rd.dateKey) {
+                    offlineAlert = .refreshOutOfRange
+                } else {
+                    offlineAlert = .refreshOffline(offlineEnabled: offline.isEnabled)
+                }
+                Haptics.play(.warning)
+                return
+            }
+            // Pull-to-refresh: re-fetch desde Supabase. `refresh` no toca
+            // `isLoading`, así que el contenido actual permanece visible
+            // mientras el spinner del sistema hace su trabajo.
+            await viewModel.refresh(raceDayId: raceDayId)
+            Haptics.play(.success)
         }
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let race = viewModel.race, race.isStageRace {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(destination: RaceDetailView(raceId: race.id)) {
-                        RaceLogo(race.logoUrl, size: 24)
+                if #available(iOS 26, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        raceToolbarLink(race)
                     }
-                    .accessibilityLabel(LocaleService.t("Ver todas las etapas de \(race.localizedName)", "View all stages of \(race.localizedName)"))
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        raceToolbarLink(race)
+                    }
                 }
             }
         }
@@ -316,7 +340,58 @@ struct StageDetailView: View {
         }
     }
 
+    private func raceToolbarLink(_ race: Race) -> some View {
+        NavigationLink(destination: RaceDetailView(raceId: race.id)) {
+            RaceLogo(race.logoUrl, size: 24)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(LocaleService.t("Ver todas las etapas de \(race.localizedName)", "View all stages of \(race.localizedName)"))
+    }
+
     // MARK: - Secciones
+
+    @ViewBuilder
+    private func stageContent(_ rd: RaceDay, proxy: GeometryProxy) -> some View {
+        let wide = AdaptiveLayoutPolicy.usesWideDetail(
+            width: proxy.size.width,
+            isRegular: horizontalSizeClass == .regular
+        )
+        VStack(spacing: 16) {
+            stageHeader(rd)
+            if wide {
+                let gap = detailColumnSpacing(in: proxy)
+                let sideWidth = min(360, max(300, (proxy.size.width - gap - 32) * 0.38))
+                HStack(alignment: .top, spacing: gap) {
+                    VStack(spacing: 16) {
+                        profileSection(rd)
+                        editorialSections(rd)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
+
+                    VStack(spacing: 16) {
+                        timeSection(rd)
+                        criticalPointsSection(rd)
+                        metricsSection(rd)
+                    }
+                    .frame(width: sideWidth, alignment: .top)
+                }
+                broadcastSection(rd, columns: 2)
+            } else {
+                timeSection(rd)
+                profileSection(rd)
+                criticalPointsSection(rd)
+                metricsSection(rd)
+                broadcastSection(rd)
+                editorialSections(rd)
+            }
+        }
+    }
+
+    private func detailColumnSpacing(in proxy: GeometryProxy) -> CGFloat {
+        AdaptiveLayoutPolicy.divisionSpacing(in: proxy)
+    }
 
     @ViewBuilder
     private func stageHeader(_ rd: RaceDay) -> some View {
@@ -405,7 +480,6 @@ struct StageDetailView: View {
                     }
                 }
 
-                simplifiedGuide(rd)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
@@ -414,81 +488,76 @@ struct StageDetailView: View {
         }
     }
 
-    // MARK: - Guía simplificada de horarios de paso (despliegue inline)
+    // MARK: - Puntos clave del recorrido
 
     @ViewBuilder
-    private func simplifiedGuide(_ rd: RaceDay) -> some View {
-        let rows = SimplifiedGuide.build(
+    private func criticalPointsSection(_ rd: RaceDay) -> some View {
+        let points = SimplifiedGuide.build(
             distanceKm: rd.distanceKm ?? rd.elevationProfile?.distance,
             neutralStartTimeUtc: rd.neutralStartTimeUtc,
             estimatedFinishTimeUtc: rd.estimatedFinishTimeUtc,
             summits: rd.profileSummits ?? [],
             waypoints: rd.profileWaypoints ?? [],
             primaryType: rd.primaryType
-        )
-        if SimplifiedGuide.hasGuide(rows) {
-            Divider().padding(.top, 4)
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { guideExpanded.toggle() }
-            } label: {
-                HStack {
-                    Text(localeService.t("Ver horarios de paso", "Show timetable"))
-                    Spacer()
-                    Image(systemName: guideExpanded ? "chevron.up" : "chevron.down")
+        ).filter { $0.type != "start" && $0.type != "finish" }
+        if !points.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(localeService.t("Puntos clave", "Key points"))
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(showAllCriticalPoints ? points : Array(points.prefix(5))) { row in
+                    guideRowView(row)
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(AccessibilityID.timetableToggle)
-
-            if guideExpanded {
-                VStack(spacing: 0) {
-                    ForEach(rows) { row in guideRowView(row) }
-                }
-                .padding(.top, 4)
-                if rows.contains(where: { $0.isEstimated && $0.timeUtc != nil }) {
-                    Text(localeService.t(
-                        "Las horas con * son estimaciones; el resto provienen del rutómetro.",
-                        "Times with * are estimates; the rest come from the road book."))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 6)
+                if points.count > 5 {
+                    Button(showAllCriticalPoints
+                           ? localeService.t("Ver menos", "Show less")
+                           : localeService.t("Ver todos", "See all")) {
+                        showAllCriticalPoints.toggle()
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .ccCardSurface()
         }
     }
 
     @ViewBuilder
     private func guideRowView(_ row: GuideRow) -> some View {
-        let timeStr = row.timeUtc.flatMap { DateFormatting.formatTimeLocal($0) }
+        // Las horas estimadas por interpolación no se publican aquí: solo se
+        // muestra la hora explícita del rutómetro.
+        let timeStr = row.isEstimated ? nil : row.timeUtc.flatMap { DateFormatting.formatTimeLocal($0) }
         HStack(spacing: 10) {
-            HStack(spacing: 1) {
-                Text(timeStr ?? "—")
-                    .font(.callout.weight(.semibold))
-                    .monospacedDigit()
-                if row.isEstimated && row.timeUtc != nil {
-                    Text("*").font(.callout.weight(.semibold)).foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 58, alignment: .leading)
-
-            GuideMarkerView(type: row.type, category: row.category)
-                .frame(width: 20, height: 20)
-
-            Text(guideRowLabel(row))
-                .font(.subheadline)
-                .lineLimit(1)
-            Spacer(minLength: 4)
             if let kmToGo = row.kmToGo {
-                // A ≤0.5 km de meta (o en la propia meta) → "Meta", igual que el
-                // perfil interactivo. Cubre varios puntos cercanos y negativos por redondeo.
                 let posText = kmToGo <= 0.5
                     ? localeService.t("Meta", "Finish")
                     : localeService.t("a \(fmtKm(kmToGo)) km", "\(fmtKm(kmToGo)) km to go")
                 Text(posText)
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .frame(width: 78, alignment: .leading)
+            }
+
+            HStack(spacing: -3) {
+                GuideMarkerView(type: row.type, category: row.category)
+                    .frame(width: 20, height: 20)
+                if let secondaryType = row.secondaryType {
+                    GuideMarkerView(type: secondaryType, category: nil)
+                        .frame(width: 20, height: 20)
+                }
+            }
+            .accessibilityHidden(true)
+
+            Text(guideRowLabel(row))
+                .font(.subheadline)
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            if let timeStr {
+                Text(timeStr)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 6)
@@ -498,20 +567,27 @@ struct StageDetailView: View {
     }
 
     private func guideRowLabel(_ row: GuideRow) -> String {
-        switch row.type {
+        let primary = guideTypeLabel(type: row.type, label: row.label)
+        guard let secondaryType = row.secondaryType else { return primary }
+        let secondary = guideTypeLabel(type: secondaryType, label: row.secondaryLabel)
+        return secondary == primary ? primary : "\(primary) · \(secondary)"
+    }
+
+    private func guideTypeLabel(type: String, label: String?) -> String {
+        switch type {
         case "start":  return localeService.t("Salida", "Start")
         case "finish": return localeService.t("Llegada", "Finish")
         case "climb_foot":
-            return row.label.map { localeService.t("Pie de \($0)", "Foot of \($0)") }
+            return label.map { localeService.t("Pie de \($0)", "Foot of \($0)") }
                 ?? localeService.t("Pie de puerto", "Foot of climb")
-        case "summit": return row.label ?? localeService.t("Cima", "Summit")
-        case "intermediate_sprint": return row.label ?? localeService.t("Sprint intermedio", "Intermediate sprint")
-        case "bonus_sprint":        return row.label ?? localeService.t("Sprint bonificación", "Bonus sprint")
-        case "intermediate_split":  return row.label ?? localeService.t("Punto intermedio", "Intermediate point")
-        case "cobblestone":         return row.label ?? localeService.t("Pavé", "Cobbles")
-        case "sterrato":            return row.label ?? localeService.t("Sterrato", "Gravel")
-        case "town":                return row.label ?? localeService.t("Localidad", "Town")
-        default:                    return row.label ?? row.type
+        case "summit": return label ?? localeService.t("Cima", "Summit")
+        case "intermediate_sprint": return label ?? localeService.t("Sprint intermedio", "Intermediate sprint")
+        case "bonus_sprint":        return label ?? localeService.t("Sprint bonificación", "Bonus sprint")
+        case "intermediate_split":  return label ?? localeService.t("Punto intermedio", "Intermediate point")
+        case "cobblestone":         return label ?? localeService.t("Pavé", "Cobbles")
+        case "sterrato":            return label ?? localeService.t("Sterrato", "Gravel")
+        case "town":                return label ?? localeService.t("Localidad", "Town")
+        default:                    return label ?? type
         }
     }
 
@@ -524,69 +600,76 @@ struct StageDetailView: View {
         return LocaleService.shouldShowEnglishContent ? raw : raw.replacingOccurrences(of: ".", with: ",")
     }
 
-    /// "Así está la carrera": resultados de la etapa anterior. Si esa etapa tiene
-    /// clasificaciones in-house → CTA primario a la pantalla nativa (externos de
-    /// respaldo); si no, comportamiento clásico externos con el gate temporal.
-    /// Espejo de jornada.js (web) y StageScreen (Android).
     @ViewBuilder
-    private func previousResultsSection(_ rd: RaceDay) -> some View {
-        let race = viewModel.race
-        if let prevRd = viewModel.previousStage, let race {
-            // ¿Los resultados de la etapa ACTUAL ya están disponibles (in-house o
-            // por hora)? Si lo están, la GC del día los recoge → no se muestra
-            // "Así está la carrera" (espejo de `_currentResultsAvailable`).
-            let currentResultsAvailable = viewModel.hasInhouseResults
-            let showPrevInhouse = viewModel.prevHasInhouse && !currentResultsAvailable
-            if viewModel.areInhouseGatesResolved && showPrevInhouse {
-                ResultsButtonsCard(
-                    title: localeService.t("Así está la carrera", "Race standings"),
-                    extUrlA: RaceLogic.buildExtUrlA(race: race, stageNumber: prevRd.stageNumber),
-                    extUrlB: RaceLogic.buildExtUrlB(race: race, stageNumber: prevRd.stageNumber, stageSuffix: prevRd.stageSuffix),
-                    inhouseRoute: showPrevInhouse
-                        // "Así está la carrera" → abre en la General (GC) de la
-                        // etapa anterior, no en su clasificación de etapa.
-                        ? ResultsRoute(raceId: race.id, stageNumber: viewModel.prevResultsStageNumber, stageSuffix: prevRd.stageSuffix, classKind: "gc")
-                        : nil,
-                    onLinkTap: { tapExternal(url: $0) }
-                )
+    private func metricsSection(_ rd: RaceDay) -> some View {
+        let timeLimit = rd.hasValidTimeLimit ? RaceDay.formatDuration(seconds: rd.timeLimitSeconds) : nil
+        if rd.competitiveDistanceKm != nil || timeLimit != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(localeService.t("Datos de carrera", "Race data"))
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
+                    if let distance = rd.competitiveDistanceKm {
+                        metricRow(localeService.t("Distancia competitiva", "Competitive distance"), String(format: "%.1f km", distance))
+                    }
+                    if let timeLimit { metricRow(localeService.t("Fuera de control", "Time limit"), timeLimit) }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .ccCardSurface()
         }
     }
 
-    /// Bloque "Resultados" de la etapa actual: una sola tarjeta con el CTA
-    /// in-house arriba (si lo hay) y externos como "También en" debajo — mismo
-    /// patrón que "Así está la carrera" y que jornada.js (web). Sin in-house →
-    /// externos clásicos.
-    @ViewBuilder
-    private func resultsSection(_ rd: RaceDay) -> some View {
-        let race = viewModel.race
-        if let race {
-            if viewModel.areInhouseGatesResolved && viewModel.hasInhouseResults {
-                ResultsButtonsCard(
-                    title: localeService.t("Resultados", "Results"),
-                    // Una cancelación conserva el CTA nativo con su aviso, pero
-                    // no genera enlaces externos de resultados inexistentes.
-                    extUrlA: rd.isCancelledDay ? nil : RaceLogic.buildExtUrlA(race: race, stageNumber: rd.stageNumber),
-                    extUrlB: rd.isCancelledDay ? nil : RaceLogic.buildExtUrlB(race: race, stageNumber: rd.stageNumber, stageSuffix: rd.stageSuffix),
-                    inhouseRoute: viewModel.hasInhouseResults
-                        ? ResultsRoute(raceId: race.id, stageNumber: viewModel.resultsStageNumber, stageSuffix: rd.stageSuffix)
-                        : nil,
-                    onLinkTap: { tapExternal(url: $0) }
-                )
-            }
+    private func metricRow(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.subheadline.weight(.semibold)).monospacedDigit()
         }
     }
 
     @ViewBuilder
-    private func broadcastSection(_ rd: RaceDay) -> some View {
-        // Cancelada → nada de emisión EN DIRECTO (no se corrió), pero SÍ el
-        // "Revive" si existe: una etapa cancelada en carrera puede tener vídeo de
-        // lo que sí se disputó (Qinghai E6 y su broadcast showInRevive curado).
+    private func profileSection(_ rd: RaceDay) -> some View {
+        let officialProfile = viewModel.sortedAssets.first {
+            $0.type == "profile" && !($0.url ?? "").isEmpty && !rd.profileNotViewable
+        }
+        if rd.hasElevationProfile || officialProfile != nil {
+            StageProfileSection(
+                raceDay: rd,
+                race: viewModel.race,
+                officialProfile: officialProfile,
+                onOpenOfficial: { asset in
+                    guard let raw = asset.url, let url = URL(string: raw) else { return }
+                    tapAsset(asset, remote: url)
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func editorialSections(_ rd: RaceDay) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                descriptionSection(rd).frame(maxWidth: .infinity, alignment: .topLeading)
+                bonusesNotesSection(rd).frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            VStack(spacing: 16) {
+                descriptionSection(rd)
+                bonusesNotesSection(rd)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func broadcastSection(_ rd: RaceDay, columns: Int = 1) -> some View {
+        // Una jornada cancelada solo ofrece Revive si tiene clasificaciones
+        // propias y una emisión seleccionada para su reproducción.
         let cancelledReviveBroadcasts = rd.isCancelledDay
             ? RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: true)
             : []
-        let cancelledRevive = !cancelledReviveBroadcasts.isEmpty
-        let isRevive = cancelledRevive || RaceLogic.hasReviveBroadcasts(viewModel.broadcasts, rd: rd)
+        let isRevive = RaceLogic.hasReviveBroadcasts(
+            viewModel.broadcasts, hasCurrentResults: viewModel.hasActualResults,
+            isCancelled: rd.isCancelledDay)
         let regionalBroadcasts = rd.isCancelledDay ? [] : viewModel.broadcasts
         let completeBroadcasts = rd.isCancelledDay ? [] : viewModel.allBroadcasts
         let regionalIds = Set(regionalBroadcasts.map(\.id))
@@ -597,6 +680,13 @@ struct StageDetailView: View {
                 ? cancelledReviveBroadcasts
                 : RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: false))
             : selectedBroadcasts
+        // En web, Live texto pertenece a la cabecera de Retransmisión, situado
+        // tras el selector regional. No forma parte del carril documental de la
+        // cabecera y desaparece en descansos, cancelaciones y jornadas cerradas.
+        let liveTextAsset = (!rd.isCancelledDay && !rd.isRestDay &&
+            !viewModel.hasActualResults && rd.raceStatus != "finished")
+            ? viewModel.sortedAssets.first { $0.type == "live_text" && !($0.url ?? "").isEmpty }
+            : nil
         let race = viewModel.race
         let sectionTitle: String = {
             if isRevive {
@@ -607,8 +697,8 @@ struct StageDetailView: View {
             return LocaleService.t("Retransmisión", "Broadcast")
         }()
 
-        if !visibleBroadcasts.isEmpty || hasHiddenBroadcasts || (!isRevive && rd.tvStatus == "pending") {
-            VStack(alignment: .leading, spacing: 8) {
+        if liveTextAsset != nil || !visibleBroadcasts.isEmpty || hasHiddenBroadcasts || (!isRevive && rd.tvStatus == "pending") {
+            JornadaInfoCard {
                 HStack(spacing: 6) {
                     Text(sectionTitle)
                         .font(.headline)
@@ -640,6 +730,24 @@ struct StageDetailView: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(showAllBroadcasts ? Color.accentColor : Color.secondary)
                     }
+
+                    if let asset = liveTextAsset,
+                       let urlString = asset.url,
+                       let url = URL(string: urlString) {
+                        Button {
+                            tapExternal(url: url)
+                        } label: {
+                            Text(localeService.t("Live texto", "Live text"))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHint(localeService.t("Se abrirá en el navegador", "Will open in browser"))
+                    }
                 }
 
                 if visibleBroadcasts.isEmpty && hasHiddenBroadcasts && !showAllBroadcasts {
@@ -648,20 +756,27 @@ struct StageDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(visibleBroadcasts) { broadcast in
-                    BroadcastRowView(
-                        broadcast: broadcast,
-                        isRevive: isRevive,
-                        hasResults: viewModel.hasActualResults,
-                        showsRegion: showAllBroadcasts && !isRevive
-                    ) { url in
-                        tapBroadcast(url: url)
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top),
+                        count: columns
+                    ),
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(visibleBroadcasts) { broadcast in
+                        BroadcastRowView(
+                            broadcast: broadcast,
+                            isRevive: isRevive,
+                            hasResults: viewModel.hasActualResults,
+                            showsRegion: showAllBroadcasts && !isRevive
+                        ) { url in
+                            tapBroadcast(url: url)
+                        }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
+
             .accessibilityIdentifier(AccessibilityID.broadcastSection)
         }
     }
@@ -672,7 +787,9 @@ struct StageDetailView: View {
     /// jornada. No llevan titular propio; un divider los separa del bloque
     /// previo de datos de la etapa.
     private var icalSubscribeURL: URL? {
-        guard let slug = viewModel.raceDay?.slug,
+        guard RaceLogic.hasCalendarForYear(viewModel.race?.year),
+              let slug = viewModel.raceDay?.slug,
+              !slug.isEmpty,
               viewModel.raceDay?.isRestDay != true,
               viewModel.raceDay?.isCancelledDay != true else { return nil }
         return URL(string: "webcal://calendariociclismo.app/feed/event/\(slug).ics")
@@ -692,13 +809,9 @@ struct StageDetailView: View {
         // Dividimos los assets en dos grupos respecto al índice de "profile"
         // en assetOrder para que el chip web SVG aparezca siempre después
         // del rutómetro y antes (o junto) al asset estático de perfil.
-        // Jornada cancelada: no hay carrera que seguir en directo → fuera el
-        // Live Texto. La documentación del recorrido (rutómetro/perfil/mapa) SÍ
-        // se conserva: describe la etapa que estaba trazada, no su seguimiento.
-        // Espejo del filtro de `buildActionButtons` (web) y de Android.
-        let allAssets = viewModel.raceDay?.isCancelledDay == true
-            ? viewModel.sortedAssets.filter { $0.type != "live_text" }
-            : viewModel.sortedAssets
+        let allAssets = viewModel.sortedAssets.filter {
+            $0.type != "live_text" && !(viewModel.raceDay?.profileNotViewable == true && $0.type == "profile")
+        }
         let profileIdx = Constants.assetOrder.firstIndex(of: "profile") ?? Constants.assetOrder.count
         // El Libro de Ruta pertenece a toda la competición y, igual que en la
         // web, ocupa la posición fija entre la web oficial y los dorsales.
@@ -732,20 +845,50 @@ struct StageDetailView: View {
         let officialMapAsset: Asset? = bothMaps
             ? viewModel.sortedAssets.first(where: { $0.type == "map" && !($0.url ?? "").isEmpty })
             : nil
-        let actionCount = allAssets.count
-            + (viewModel.race?.websiteUrl == nil ? 0 : 1)
-            + (viewModel.hasStartlist ? 1 : 0)
-            + (hasGPXProfile ? 1 : 0)
-            + (hasRouteMap ? 1 : 0)
-            + (icalSubscribeURL == nil ? 0 : 1)
-        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile || hasRouteMap {
+        // Clasificaciones propias (in-house): de esta jornada si ya están
+        // volcadas; en su defecto, la GENERAL de la etapa anterior (vueltas por
+        // etapas). Se ofrece como PRIMER chip de la tira; sin clasificaciones
+        // propias no hay chip. Espejo de jornada.js (web) y StageScreen (Android).
+        let showCurrentResults = viewModel.areInhouseGatesResolved && viewModel.hasInhouseResults
+        let showPrevResults = viewModel.areInhouseGatesResolved
+            && viewModel.prevHasInhouse && !viewModel.hasInhouseResults
+        let hasResultsChip = (showCurrentResults || showPrevResults) && viewModel.race != nil
+        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile || hasRouteMap || hasResultsChip {
             Divider()
-            ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                // HStack conserva el desplazamiento nativo de ScrollView y no
-                // convierte los marcadores de extremo en una celda completa.
-                HStack(spacing: 0) {
-                Color.clear.frame(width: 1, height: 60).id("stage-actions-start")
+            ResultsScrollRail(height: 60, spacing: 0, framed: true) {
+                // Clasificaciones propias (in-house) — primer chip de la tira,
+                // en azul de marca. Sin clasificaciones no hay chip.
+                if let race = viewModel.race {
+                    if showCurrentResults {
+                        NavigationLink(destination: ResultsView(
+                            raceId: race.id,
+                            initialStageNumber: viewModel.resultsStageNumber,
+                            initialStageSuffix: viewModel.raceDay?.stageSuffix,
+                            initialClassKind: nil
+                        )) {
+                            ActionStripTile(
+                                icon: "trophy",
+                                label: LocaleService.t("Clasificaciones", "Classifications"),
+                                highlighted: true
+                            )
+                        }
+                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
+                    } else if showPrevResults, let prevRd = viewModel.previousStage {
+                        NavigationLink(destination: ResultsView(
+                            raceId: race.id,
+                            initialStageNumber: viewModel.prevResultsStageNumber,
+                            initialStageSuffix: prevRd.stageSuffix,
+                            initialClassKind: "gc"
+                        )) {
+                            ActionStripTile(
+                                icon: "trophy",
+                                label: LocaleService.t("Clasificaciones", "Classifications")
+                            )
+                        }
+                        .accessibilityLabel(LocaleService.t("Clasificaciones", "Classifications"))
+                    }
+                }
+
                 // Web oficial — siempre primero si existe
                 if let websiteStr = viewModel.race?.websiteUrl,
                    let websiteURL = URL(string: websiteStr) {
@@ -821,7 +964,7 @@ struct StageDetailView: View {
                     Button {
                         tapAsset(asset, remote: url)
                     } label: {
-                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: LocaleService.t("Perfil", "Profile"))
+                        ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: LocaleService.t("Perfil oficial", "Official profile"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver perfil oficial", "View official profile"))
                     .accessibilityHint(asset.isDownloadableR2
@@ -836,7 +979,7 @@ struct StageDetailView: View {
                 if hasGPXProfile, let rd = viewModel.raceDay {
                     NavigationLink(destination: ElevationProfileView(raceDay: rd, race: viewModel.race)) {
                         ActionStripTile(icon: "chart.line.uptrend.xyaxis", label: bothProfiles
-                                        ? LocaleService.t("Perfil + Datos", "Profile + Data")
+                                        ? LocaleService.t("Perfil interactivo", "Interactive profile")
                                         : LocaleService.t("Perfil", "Profile"))
                     }
                     .accessibilityLabel(LocaleService.t("Ver perfil de altimetría", "View elevation profile"))
@@ -914,160 +1057,12 @@ struct StageDetailView: View {
                     .accessibilityLabel(LocaleService.t("Añadir al calendario", "Add to calendar"))
                     .accessibilityHint(LocaleService.t("Añade esta jornada a tu aplicación de calendario", "Adds this day to your calendar app"))
                 }
-                Color.clear.frame(width: 1, height: 60).id("stage-actions-end")
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .padding(.horizontal, 2)
-                .background(HorizontalScrollBounceDisabler())
             }
-            .id("stage-actions-start")
-            .frame(maxWidth: .infinity, alignment: .leading)
             // Unos pocos píxeles extra por encima del FlowLayout para que los
             // chips respiren respecto al divider y no queden pegados al
             // bloque de datos de la etapa.
             .padding(.top, 4)
             .accessibilityIdentifier(AccessibilityID.assetSection)
-            .onScrollGeometryChange(for: ActionStripEdges.self) { geometry in
-                let maxOffset = max(0, geometry.contentSize.width - geometry.containerSize.width)
-                return ActionStripEdges(
-                    atStart: geometry.contentOffset.x <= 1,
-                    atEnd: geometry.contentOffset.x >= maxOffset - 1
-                )
-            } action: { _, edges in
-                actionStripAtStart = edges.atStart
-                actionStripAtEnd = edges.atEnd
-            }
-            .overlay(alignment: .leading) {
-                if actionCount > 4 && !actionStripAtStart {
-                    ZStack(alignment: .leading) {
-                        LinearGradient(
-                            gradient: Gradient(stops: [
-                                .init(color: AppTheme.cardBackground, location: 0),
-                                .init(color: AppTheme.cardBackground, location: 0.3),
-                                .init(color: .clear, location: 1),
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: 24, height: 60)
-
-                        Button {
-                            withAnimation(.smooth) {
-                                proxy.scrollTo("stage-actions-start", anchor: .leading)
-                            }
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(width: 28, height: 28)
-                                .background(AppTheme.cardBackground.opacity(0.96), in: Circle())
-                                .overlay { Circle().stroke(Color.accentColor.opacity(0.14), lineWidth: 1) }
-                        }
-                        .frame(width: 40, height: 60, alignment: .leading)
-                        .foregroundStyle(Color.accentColor)
-                        .buttonStyle(.plain)
-                    }
-                    .frame(width: 40, height: 60, alignment: .leading)
-                }
-            }
-            .overlay(alignment: .trailing) {
-                if actionCount > 4 && !actionStripAtEnd {
-                    ZStack(alignment: .trailing) {
-                        LinearGradient(
-                            gradient: Gradient(stops: [
-                                .init(color: .clear, location: 0),
-                                .init(color: AppTheme.cardBackground, location: 0.7),
-                                .init(color: AppTheme.cardBackground, location: 1),
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: 24, height: 60)
-
-                        Button {
-                            withAnimation(.smooth) {
-                                proxy.scrollTo("stage-actions-end", anchor: .trailing)
-                            }
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(width: 28, height: 28)
-                                .background(AppTheme.cardBackground.opacity(0.96), in: Circle())
-                                .overlay { Circle().stroke(Color.accentColor.opacity(0.14), lineWidth: 1) }
-                        }
-                        .frame(width: 40, height: 60, alignment: .trailing)
-                        .foregroundStyle(Color.accentColor)
-                        .buttonStyle(.plain)
-                    }
-                    .frame(width: 40, height: 60, alignment: .trailing)
-                }
-            }
-            }
-        }
-    }
-
-    private struct ActionStripEdges: Equatable {
-        let atStart: Bool
-        let atEnd: Bool
-    }
-
-    /// SwiftUI no expone un comportamiento «sin rebote» para una tira que sí
-    /// desborda horizontalmente. Este marcador localiza solo su UIScrollView
-    /// contenedor y evita que el gesto sobrepase los extremos.
-    private struct HorizontalScrollBounceDisabler: UIViewRepresentable {
-        func makeUIView(context: Context) -> BounceDisablerView { BounceDisablerView() }
-
-        func updateUIView(_ uiView: BounceDisablerView, context: Context) {
-            uiView.disableAncestorBounceIfNeeded()
-        }
-
-        final class BounceDisablerView: UIView {
-            private weak var scrollView: UIScrollView?
-            private var originalBounces: Bool?
-            private var originalAlwaysBounceHorizontal: Bool?
-
-            override func didMoveToSuperview() {
-                super.didMoveToSuperview()
-                disableAncestorBounceIfNeeded()
-            }
-
-            override func willMove(toSuperview newSuperview: UIView?) {
-                if newSuperview == nil {
-                    restoreBounce()
-                }
-                super.willMove(toSuperview: newSuperview)
-            }
-
-            func disableAncestorBounceIfNeeded() {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    var view = self.superview
-                    while let current = view {
-                        if let scrollView = current as? UIScrollView,
-                           scrollView.contentSize.width > scrollView.bounds.width + 1 {
-                            guard self.scrollView !== scrollView else { return }
-                            self.restoreBounce()
-                            self.scrollView = scrollView
-                            self.originalBounces = scrollView.bounces
-                            self.originalAlwaysBounceHorizontal = scrollView.alwaysBounceHorizontal
-                            scrollView.bounces = false
-                            scrollView.alwaysBounceHorizontal = false
-                            return
-                        }
-                        view = current.superview
-                    }
-                }
-            }
-
-            private func restoreBounce() {
-                guard let scrollView else { return }
-                if let originalBounces { scrollView.bounces = originalBounces }
-                if let originalAlwaysBounceHorizontal {
-                    scrollView.alwaysBounceHorizontal = originalAlwaysBounceHorizontal
-                }
-                self.scrollView = nil
-                originalBounces = nil
-                originalAlwaysBounceHorizontal = nil
-            }
         }
     }
 
@@ -1080,7 +1075,7 @@ struct StageDetailView: View {
                         .replacingOccurrences(of: "\u{00A0}", with: "")
                         .isEmpty
                 }
-            VStack(alignment: .leading, spacing: 8) {
+            JornadaInfoCard {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(localeService.t("Descripción", "Description"))
                         .font(.headline)
@@ -1100,9 +1095,7 @@ struct StageDetailView: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
+
         }
     }
 
@@ -1243,81 +1236,181 @@ struct StageDetailView: View {
     }
 }
 
-/// Tarjeta de botones de resultados, compartida por "Resultados" (etapa actual)
-/// y "Así está la carrera" (etapa anterior). UNA sola tarjeta: si hay
-/// clasificaciones in-house (`inhouseRoute != nil`), el CTA primario "Ver
-/// clasificaciones" va arriba y externos quedan como respaldo discreto bajo
-/// "También en"; sin in-house, externos son los botones principales. Espejo de
-/// `resultsButtonsHtml` en jornada.js (web) y `ResultsButtonsCard` (Android).
-struct ResultsButtonsCard: View {
-    let title: String
-    let extUrlA: URL?
-    let extUrlB: URL?
-    var inhouseRoute: ResultsRoute? = nil
-    let onLinkTap: (URL) -> Void
+private enum StageProfileMode: String {
+    case interactive
+    case official
+}
+
+/// Visor de perfil integrado en Jornada, con la misma conmutación entre el
+/// perfil interactivo y el documento oficial que ofrece la web.
+private struct StageProfileSection: View {
+    let raceDay: RaceDay
+    let race: Race?
+    let officialProfile: Asset?
+    let onOpenOfficial: (Asset) -> Void
+
+    @AppStorage("cc_profile_mode") private var preferredMode = StageProfileMode.interactive.rawValue
+
+    private var hasInteractive: Bool { raceDay.hasElevationProfile }
+    private var visibleOfficial: Asset? {
+        raceDay.profileNotViewable ? nil : officialProfile
+    }
+    private var activeMode: StageProfileMode {
+        if !hasInteractive { return .official }
+        if visibleOfficial == nil { return .interactive }
+        return StageProfileMode(rawValue: preferredMode) ?? .interactive
+    }
 
     var body: some View {
-        // Sin in-house y sin externos no hay nada que mostrar. Con in-house, el CTA
-        // primario se muestra aunque externos falten.
-        if inhouseRoute != nil || extUrlA != nil || extUrlB != nil {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-
-                if let route = inhouseRoute {
-                    // CTA primario → pantalla nativa de clasificaciones.
-                    NavigationLink(destination: ResultsView(raceId: route.raceId, initialStageNumber: route.stageNumber, initialStageSuffix: route.stageSuffix, initialClassKind: route.classKind)) {
-                        Text(LocaleService.t("Ver clasificaciones", "View classifications"))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
-                    }
-                    .accessibilityLabel(LocaleService.t("Ver clasificaciones", "View classifications"))
-                    // externos de respaldo discreto bajo "También en".
-                    if extUrlA != nil || extUrlB != nil {
-                        Text(LocaleService.t("También en", "Also on"))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+        VStack(spacing: 0) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    profileTitle
+                    Spacer(minLength: 8)
+                    profileModePicker
                 }
+                VStack(alignment: .leading, spacing: 8) {
+                    profileTitle
+                    profileModePicker
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
 
-                if extUrlA != nil || extUrlB != nil {
-                    HStack(spacing: 8) {
-                        if let url = extUrlA {
-                            externalButton("fuente externa", url: url)
-                        }
-                        if let url = extUrlB {
-                            externalButton("fuente externa", url: url)
-                        }
+            Divider()
+
+            switch activeMode {
+            case .interactive:
+                if let profile = raceDay.elevationProfile {
+                    ElevationChartCard(
+                        profile: profile,
+                        summits: raceDay.profileSummits ?? [],
+                        waypoints: raceDay.profileWaypoints ?? [],
+                        profileColor: race?.colorHex.map { Color(hex: $0) } ?? .accentColor
+                    )
+                    .padding(12)
+                }
+            case .official:
+                if let asset = visibleOfficial {
+                    OfficialStageProfilePreview(asset: asset) {
+                        onOpenOfficial(asset)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
         }
+        .ccCardSurface(cornerRadius: 12, showShadow: false)
     }
 
-    private func externalButton(_ label: String, url: URL) -> some View {
-        Button { onLinkTap(url) } label: {
-            Text(label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.accentColor.opacity(0.1))
-                .foregroundStyle(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+    private var profileTitle: some View {
+        Text(LocaleService.t("Perfil", "Profile"))
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private var profileModePicker: some View {
+        if hasInteractive, visibleOfficial != nil {
+            Picker(
+                LocaleService.t("Tipo de perfil", "Profile format"),
+                selection: Binding(
+                    get: { activeMode.rawValue },
+                    set: { preferredMode = $0 }
+                )
+            ) {
+                Text(LocaleService.t("Interactivo", "Interactive"))
+                    .tag(StageProfileMode.interactive.rawValue)
+                Text(LocaleService.t("Oficial", "Official"))
+                    .tag(StageProfileMode.official.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 220)
         }
-        .accessibilityLabel(label)
-        .accessibilityHint(LocaleService.t("Abre resultados en el navegador", "Opens results in the browser"))
+    }
+}
+
+private struct OfficialStageProfilePreview: View {
+    let asset: Asset
+    let onOpen: () -> Void
+
+    @State private var sourceURL: URL?
+
+    var body: some View {
+        ZStack {
+            Color.white
+            if let sourceURL {
+                OfficialStageProfileWebView(
+                    url: sourceURL,
+                    isPDF: asset.fileExtension == "pdf"
+                )
+            } else {
+                ProgressView()
+                    .tint(.accentColor)
+            }
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onOpen)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 320)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(LocaleService.t("Perfil oficial", "Official profile"))
+        .accessibilityHint(LocaleService.t("Pulsa dos veces para abrirlo a tamaño completo", "Double tap to open it full size"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onOpen() }
+        .task(id: asset.id) {
+            if let localURL = await CacheManager.shared.localAssetURL(for: asset) {
+                sourceURL = localURL
+            } else if let raw = asset.url {
+                sourceURL = URL(string: raw)
+            }
+        }
+    }
+}
+
+private struct OfficialStageProfileWebView: UIViewRepresentable {
+    let url: URL
+    let isPDF: Bool
+
+    func makeUIView(context: Context) -> WKWebView {
+        let view = WKWebView(frame: .zero)
+        view.isOpaque = false
+        view.backgroundColor = .white
+        view.scrollView.backgroundColor = .white
+        view.scrollView.isScrollEnabled = false
+        view.scrollView.bounces = false
+        view.allowsLinkPreview = false
+        return view
+    }
+
+    func updateUIView(_ view: WKWebView, context: Context) {
+        guard context.coordinator.loadedURL != url else { return }
+        context.coordinator.loadedURL = url
+        if isPDF {
+            if url.isFileURL {
+                view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            } else {
+                view.load(URLRequest(url: url))
+            }
+            return
+        }
+
+        let source = (url.isFileURL ? url.lastPathComponent : url.absoluteString)
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        let html = """
+        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+        <style>html,body{margin:0;width:100%;height:100%;background:#fff}body{display:flex;align-items:center;justify-content:center}img{display:block;max-width:100%;max-height:100%;width:100%;height:auto;object-fit:contain}</style>
+        </head><body><img src="\(source)" alt=""></body></html>
+        """
+        view.loadHTMLString(html, baseURL: url.isFileURL ? url.deletingLastPathComponent() : nil)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var loadedURL: URL?
     }
 }
 
@@ -1551,26 +1644,43 @@ struct ActionStripTile: View {
     let label: String
     var tint: Color = .accentColor
     var showsTrailingSeparator = true
+    /// Invierte la celda al azul de marca con contenido blanco; lo usa el
+    /// primer chip ("Clasificaciones") de la tira de jornada.
+    var highlighted = false
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.subheadline)
+            Group {
+                if icon == "cc.cursor" {
+                    Image("ActionCursor")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 17, height: 17)
+                } else {
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                }
+            }
             Text(label)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .foregroundStyle(tint)
-        .frame(width: 100, height: 60)
-        .background(tint.opacity(0.09))
+        .foregroundStyle(highlighted ? Color.white : tint)
+        // La celda destacada ("Clasificaciones") se ensancha con su etiqueta;
+        // el resto conserva el ancho fijo de la tira.
+        .frame(minWidth: 100, maxWidth: highlighted ? nil : 100, minHeight: 60, maxHeight: 60)
+        .background(highlighted ? AppTheme.brandAccent : AppTheme.cardBackgroundHover)
         .overlay(alignment: .trailing) {
             if showsTrailingSeparator {
                 Rectangle()
-                    .fill(tint.opacity(0.18))
+                    .fill(AppTheme.border)
                     .frame(width: 1)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
     }
 }
 
@@ -1634,7 +1744,9 @@ struct GuideMarkerView: View {
     /// Texto centrado para categorías de puerto y letras de sprint/bonif.
     private var letter: String? {
         switch type {
-        case "summit":              return (category != nil && category != "M") ? category : nil
+        case "summit":
+            let value = category?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.flatMap { $0.isEmpty ? nil : $0 } ?? "M"
         case "intermediate_sprint": return "S"
         case "bonus_sprint":        return "B"
         default:                    return nil
@@ -1679,16 +1791,8 @@ struct GuideMarkerView: View {
                         var crown = Path(); crown.move(to: p(-2, -7)); crown.addLine(to: p(2, -7))
                         ctx.stroke(v, with: white, style: st); ctx.stroke(h, with: white, style: st)
                         ctx.stroke(crown, with: white, style: StrokeStyle(lineWidth: 1.5 * u, lineCap: .round))
-                    case "cobblestone":
-                        let pts = [p(-1.6, 4.4), p(-4.4, 0.55), p(-1.6, -2.75), p(2.25, -4.4), p(4.4, -2.75), p(5.5, 0.55), p(3.85, 4.4)]
-                        var path = Path(); path.move(to: pts[0]); for i in 1..<pts.count { path.addLine(to: pts[i]) }; path.closeSubpath()
-                        ctx.stroke(path, with: white, style: StrokeStyle(lineWidth: 1.2 * u, lineCap: .round, lineJoin: .round))
-                    case "sterrato":
-                        let st = StrokeStyle(lineWidth: 1.2 * u)
-                        func ellipse(_ ecx: CGFloat, _ ecy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) {
-                            ctx.stroke(Path(ellipseIn: CGRect(x: cx + (ecx - rx) * u, y: cy + (ecy - ry) * u, width: rx * 2 * u, height: ry * 2 * u)), with: white, style: st)
-                        }
-                        ellipse(-3, 2.5, 2.5, 1.65); ellipse(2.5, 2.5, 2.2, 1.55); ellipse(0, -1.7, 2.5, 1.65)
+                    case "cobblestone", "sterrato":
+                        drawSurfaceGlyph(type: type, context: ctx, center: CGPoint(x: cx, y: cy), diameter: w)
                     default:
                         // Localidad / town: punto sólido.
                         ctx.fill(Path(ellipseIn: CGRect(x: cx - 2.6 * u, y: cy - 2.6 * u, width: 5.2 * u, height: 5.2 * u)), with: white)
@@ -1696,5 +1800,26 @@ struct GuideMarkerView: View {
                 }
             }
         }
+    }
+}
+
+/// Glifo compartido por la guía, el perfil y sus etiquetas.
+func drawSurfaceGlyph(type: String, context ctx: GraphicsContext, center: CGPoint, diameter: CGFloat) {
+    let cx = center.x, cy = center.y
+    let u = diameter / 20
+    func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: cx + x * u, y: cy + y * u) }
+    let white = GraphicsContext.Shading.color(.white)
+    switch type {
+    case "cobblestone":
+        let pts = [p(-1.6, 4.4), p(-4.4, 0.55), p(-1.6, -2.75), p(2.25, -4.4), p(4.4, -2.75), p(5.5, 0.55), p(3.85, 4.4)]
+        var path = Path(); path.move(to: pts[0]); for i in 1..<pts.count { path.addLine(to: pts[i]) }; path.closeSubpath()
+        ctx.stroke(path, with: white, style: StrokeStyle(lineWidth: 1.2 * u, lineCap: .round, lineJoin: .round))
+    case "sterrato":
+        let st = StrokeStyle(lineWidth: 1.2 * u)
+        func ellipse(_ ecx: CGFloat, _ ecy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) {
+            ctx.stroke(Path(ellipseIn: CGRect(x: cx + (ecx - rx) * u, y: cy + (ecy - ry) * u, width: rx * 2 * u, height: ry * 2 * u)), with: white, style: st)
+        }
+        ellipse(-3, 2.5, 2.5, 1.65); ellipse(2.5, 2.5, 2.2, 1.55); ellipse(0, -1.7, 2.5, 1.65)
+    default: break
     }
 }

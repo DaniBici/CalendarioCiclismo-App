@@ -40,6 +40,9 @@ const baseId = (f,l) => `${fold(l).replace(/\s+/g,'-')}-${fold(f).replace(/\s+/g
 const yearOf = (dob) => (dob && /^(\d{4})-/.test(dob)) ? dob.slice(0,4) : null;
 const monthOf = (dob) => (dob && /^\d{4}-(\d{2})/.test(dob)) ? dob.slice(5,7) : null;
 const sqlStr = (v) => (v === null || v === undefined) ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`;
+// Compatibilidad con planes históricos: desde el contrato UCI v2 el campo se llama
+// uciProfileId; uciRiderId solo se acepta al leer un plan antiguo.
+const profileOf = (p) => p.uciProfileId ?? p.uciRiderId ?? null;
 
 const doc = JSON.parse(readFileSync(FULL, 'utf8'));
 const dbMen = JSON.parse(readFileSync(DB_MEN, 'utf8'));
@@ -150,7 +153,7 @@ for (const b of blocks) {
   for (const p of b.plan) {
     const riderId = (p.action === 'create') ? p._riderId : p.matchedRiderId;
     if (p.action === 'create') {
-      if (!p.birthDate) { out.push(`-- ⚠️ OMITIDO (sin fecha nac): ${p.rosterName} [uci ${p.uciRiderId}]`, ''); continue; }
+      if (!p.birthDate) { out.push(`-- ⚠️ OMITIDO (sin fecha nac): ${p.rosterName} [perfil UCI ${profileOf(p)}]`, ''); continue; }
       const tags = [];
       if (p.orphanOldId) tags.push(`huérfano→ficha (repunta ${p.orphanOldId})`);
       if (p._wasConflict) tags.push(`homónimo de ${p._wasConflict} (persona distinta, fecha ${p.birthDate})`);
@@ -158,18 +161,18 @@ for (const b of blocks) {
       out.push(`-- + nuevo${tags.length ? ' ('+tags.join('; ')+')' : ''}: ${p.rosterName} → ${riderId}`);
       // La VERDAD del equipo es rider_team_affiliations (mig. 116): la ficha NO escribe
       // currentTeamId (lo deriva el trigger inverso); la pertenencia va en la afiliación de abajo.
-      out.push(`INSERT INTO ${TABLE} (id, "firstName", "lastName", "otherNames", nationality, "birthDate", source, verified)`);
-      out.push(`VALUES (${sqlStr(riderId)}, ${sqlStr(p.firstName)}, ${sqlStr(p.lastName)}, ${sqlStr(p.otherNames)}, ${sqlStr(p.nationality)}, ${sqlStr(p.birthDate)}, 'catalog_gold', true)`);
-      out.push(`ON CONFLICT (id) DO UPDATE SET "birthDate"=COALESCE(${TABLE}."birthDate", EXCLUDED."birthDate"), nationality=COALESCE(${TABLE}.nationality, EXCLUDED.nationality), source='catalog_gold', verified=true, "updatedAt"=now();`);
+      out.push(`INSERT INTO ${TABLE} (id, "uciProfileId", "firstName", "lastName", "otherNames", nationality, "birthDate", source, verified)`);
+      out.push(`VALUES (${sqlStr(riderId)}, ${sqlStr(profileOf(p))}, ${sqlStr(p.firstName)}, ${sqlStr(p.lastName)}, ${sqlStr(p.otherNames)}, ${sqlStr(p.nationality)}, ${sqlStr(p.birthDate)}, 'catalog_gold', true)`);
+      out.push(`ON CONFLICT (id) DO UPDATE SET "uciProfileId"=COALESCE(${TABLE}."uciProfileId", EXCLUDED."uciProfileId"), "birthDate"=COALESCE(${TABLE}."birthDate", EXCLUDED."birthDate"), nationality=COALESCE(${TABLE}.nationality, EXCLUDED.nationality), source='catalog_gold', verified=true, "updatedAt"=now();`);
       if (p.orphanOldId && p.orphanOldId !== riderId) {
         out.push(`UPDATE startlist_riders SET "globalRiderId"=${sqlStr(riderId)} WHERE "globalRiderId"=${sqlStr(p.orphanOldId)};`);
       }
     } else if (p.action === 'move') {
       out.push(`-- ⇄ traspaso (${p.matchScore}${p.matchedByDate ? ' · fecha' : ''}): ${p.rosterName} ${p.matchedFromTeam} → ${team.dbId}`);
-      out.push(`UPDATE ${TABLE} SET "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
+      out.push(`UPDATE ${TABLE} SET "uciProfileId"=COALESCE("uciProfileId", ${sqlStr(profileOf(p))}), "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
     } else {
       out.push(`-- ~ existe (${p.matchScore}${p.matchedByDate ? ' · fecha' : ''}): ${p.rosterName} → ${riderId}`);
-      out.push(`UPDATE ${TABLE} SET "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
+      out.push(`UPDATE ${TABLE} SET "uciProfileId"=COALESCE("uciProfileId", ${sqlStr(profileOf(p))}), "birthDate"=COALESCE("birthDate", ${sqlStr(p.birthDate)}), nationality=COALESCE(nationality, ${sqlStr(p.nationality)}), verified=true, "updatedAt"=now() WHERE id=${sqlStr(riderId)};`);
     }
     // otherNames enrichment (igual que el ingestor) — sólo si venía marcado
     if (p.enrichOtherNames && (p.action === 'update' || p.action === 'move')) {

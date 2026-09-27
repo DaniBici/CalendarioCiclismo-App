@@ -18,11 +18,18 @@ import SwiftUI
 /// El centrado inicial se consigue con un cambio `nil → valor` diferido al
 /// siguiente ciclo del run loop (DispatchQueue.main.async), ya que
 /// `scrollPosition(id:)` ignora el valor inicial de `State` en el primer render.
+/// Cada gesto queda limitado al día contiguo para que la inercia no avance una
+/// página completa de siete días.
+///
+/// `lastDate` (último día de temporada, `TodaySeason`) recorta el rango: no se
+/// genera ningún día posterior ni queda hueco a la derecha. El scroll centra
+/// como máximo el cuarto día antes del cierre; en los tres últimos días la
+/// barra se fija con `lastDate` en el extremo derecho y la capsule se desplaza
+/// hasta el día seleccionado (`endStrip`).
 struct DateBarView: View {
     let selectedDate: String
-    let isToday: Bool
+    let lastDate: String?
     let onSelect: (String) -> Void
-    let onToday: () -> Void
 
     private let visibleDayCount: CGFloat = 7
     private let itemHeight: CGFloat = 48
@@ -37,20 +44,41 @@ struct DateBarView: View {
     /// Empieza como `nil`: el cambio `nil → valor` en onAppear es lo que
     /// dispara el primer scroll al día correcto.
     @State private var scrollPosition: String?
+    @State private var scrollLayoutGeneration = 0
+    @State private var isRepositioning = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         selectedDate: String,
-        isToday: Bool,
-        onSelect: @escaping (String) -> Void,
-        onToday: @escaping () -> Void
+        lastDate: String? = nil,
+        onSelect: @escaping (String) -> Void
     ) {
         self.selectedDate = selectedDate
-        self.isToday = isToday
+        self.lastDate = lastDate
         self.onSelect = onSelect
-        self.onToday = onToday
         self._dateRange = State(
-            initialValue: DateFormatting.dateRange(around: selectedDate, offset: 45)
+            initialValue: Self.range(around: selectedDate, lastDate: lastDate, offset: 45)
         )
+    }
+
+    private static func range(around dateKey: String, lastDate: String?, offset: Int) -> [String] {
+        let keys = DateFormatting.dateRange(around: dateKey, offset: offset)
+        guard let lastDate else { return keys }
+        return keys.filter { $0 <= lastDate }
+    }
+
+    /// Último día que el scroll puede centrar: tres días antes del cierre.
+    private var lastCenterableDate: String? {
+        lastDate.flatMap { DateFormatting.dayOffset(from: $0, by: -Int(visibleDayCount - 1) / 2) }
+    }
+
+    /// Siete días que terminan en `lastDate` cuando el día seleccionado ya no
+    /// puede centrarse; nil en el resto de casos.
+    private var endStrip: [String]? {
+        guard let lastDate, let limit = lastCenterableDate, selectedDate > limit else { return nil }
+        let count = Int(visibleDayCount)
+        let keys = (0..<count).reversed().compactMap { DateFormatting.dayOffset(from: lastDate, by: -$0) }
+        return keys.count == count ? keys : nil
     }
 
     var body: some View {
@@ -61,87 +89,26 @@ struct DateBarView: View {
             let displayedCenter = scrollPosition ?? selectedDate
 
             ZStack {
-                // ── Capa 1: días scrollables ──────────────────────────────
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(dateRange, id: \.self) { key in
-                            DateBarItem(
-                                dateKey: key,
-                                isSelected: false,
-                                isToday: key == DateFormatting.todayKey()
-                            )
-                            .frame(width: dayWidth, height: itemHeight)
-                            .id(key)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard key != scrollPosition else { return }
-                                Haptics.play(.navigation)
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    scrollPosition = key
-                                }
-                            }
-                            .accessibilityLabel(DateBarItem.accessibilityDescription(
-                                dateKey: key,
-                                isSelected: key == selectedDate,
-                                isToday: key == DateFormatting.todayKey()
-                            ))
-                            .accessibilityAddTraits(
-                                key == selectedDate ? [.isButton, .isSelected] : [.isButton]
-                            )
-                            .accessibilityInputLabels(DateBarItem.inputLabels(dateKey: key))
-                        }
-                    }
-                    .scrollTargetLayout()
+                if let strip = endStrip {
+                    endStripView(strip, dayWidth: dayWidth, capsuleWidth: capsuleWidth)
+                } else {
+                    scrollingDays(dayWidth: dayWidth, capsuleWidth: capsuleWidth, displayedCenter: displayedCenter)
                 }
-                .scrollTargetBehavior(.viewAligned)
-                .scrollPosition(id: $scrollPosition, anchor: .center)
-                .onScrollPhaseChange { _, newPhase in
-                    // Propagar al padre solo al entrar en reposo para no
-                    // disparar loadDay() por cada día cruzado durante el drag.
-                    // Como dateRange nunca se desplaza durante un scroll de usuario,
-                    // scrollPosition(id:) no puede confundirse con el ítem erróneo
-                    // y el cascade loop es estructuralmente imposible.
-                    guard newPhase == .idle,
-                          let position = scrollPosition,
-                          position != selectedDate else { return }
-                    onSelect(position)
-                }
-                .sensoryFeedback(.selection, trigger: scrollPosition)
-                .onAppear {
-                    // scrollPosition(id:) no aplica el valor inicial del State
-                    // en el primer render. Diferir la asignación al siguiente
-                    // ciclo produce el cambio nil → valor que sí detecta.
-                    let target = selectedDate
-                    DispatchQueue.main.async {
-                        scrollPosition = target
-                    }
-                }
-
-                // ── Capa 2: capsule fija en el centro ─────────────────────
-                // Azul de marca suave (15%) en lugar de azul sólido — mismo
-                // gesto que los chips de filtro y el cintillo "Hoy". El texto
-                // del día centrado (Capa 3) va en azul, no en blanco.
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.15))
-                    .frame(width: capsuleWidth, height: itemHeight)
-                    .allowsHitTesting(false)
-
-                // ── Capa 3: texto blanco del día centrado ─────────────────
-                DateBarItem(
-                    dateKey: displayedCenter,
-                    isSelected: true,
-                    isToday: displayedCenter == DateFormatting.todayKey()
-                )
-                .frame(width: capsuleWidth, height: itemHeight)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
             }
             .frame(width: availableWidth, height: itemHeight)
+            .onChange(of: availableWidth) { oldWidth, newWidth in
+                guard oldWidth > 1, abs(newWidth - oldWidth) > 1 else { return }
+                // En un cambio de postura SwiftUI conserva el offset físico
+                // del ScrollView aunque cambie el ancho de cada día. Recrear
+                // la fila evita que otro día quede visualmente bajo la cápsula
+                // mientras la capa seleccionada sigue mostrando selectedDate.
+                recenter(on: selectedDate, rebuildingScrollView: true)
+            }
             .onChange(of: selectedDate) { _, newValue in
                 if !dateRange.contains(newValue) {
                     // Navegación extrema (> ±45 días): regenerar el rango y
                     // reposicionar con el truco nil → valor.
-                    dateRange = DateFormatting.dateRange(around: newValue, offset: windowOffset)
+                    dateRange = Self.range(around: newValue, lastDate: lastDate, offset: windowOffset)
                     scrollPosition = nil
                     DispatchQueue.main.async {
                         scrollPosition = newValue
@@ -149,7 +116,7 @@ struct DateBarView: View {
                 } else {
                     // Cambio externo normal (botones prev/next, "ir a hoy").
                     guard scrollPosition != newValue else { return }
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
                         scrollPosition = newValue
                     }
                 }
@@ -159,10 +126,152 @@ struct DateBarView: View {
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
+        .background(AppTheme.headerBackground)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(LocaleService.t("Selector de fecha", "Date picker"))
         .accessibilityIdentifier(AccessibilityID.dateBar)
+    }
+
+    @ViewBuilder
+    private func scrollingDays(dayWidth: CGFloat, capsuleWidth: CGFloat, displayedCenter: String) -> some View {
+        // ── Capa 1: días scrollables ──────────────────────────────
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(dateRange, id: \.self) { key in
+                    DateBarItem(
+                        dateKey: key,
+                        isSelected: false,
+                        isToday: key == DateFormatting.todayKey()
+                    )
+                    .frame(width: dayWidth, height: itemHeight)
+                    .id(key)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard key != scrollPosition else { return }
+                        Haptics.play(.navigation)
+                        // Los tres últimos días no pueden centrarse: se
+                        // seleccionan directamente y la barra pasa a endStrip.
+                        if let limit = lastCenterableDate, key > limit {
+                            onSelect(key)
+                            return
+                        }
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                            scrollPosition = key
+                        }
+                    }
+                    .accessibilityLabel(DateBarItem.accessibilityDescription(
+                        dateKey: key,
+                        isSelected: key == selectedDate,
+                        isToday: key == DateFormatting.todayKey()
+                    ))
+                    .accessibilityAddTraits(
+                        key == selectedDate ? [.isButton, .isSelected] : [.isButton]
+                    )
+                    .accessibilityInputLabels(DateBarItem.inputLabels(dateKey: key))
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .scrollPosition(id: $scrollPosition, anchor: .center)
+        .id(scrollLayoutGeneration)
+        .onScrollPhaseChange { _, newPhase in
+            // Propagar al padre solo al entrar en reposo para no
+            // disparar loadDay() por cada día cruzado durante el drag.
+            // Como dateRange nunca se desplaza durante un scroll de usuario,
+            // scrollPosition(id:) no puede confundirse con el ítem erróneo
+            // y el cascade loop es estructuralmente imposible.
+            guard !isRepositioning,
+                  newPhase == .idle,
+                  let position = scrollPosition,
+                  position != selectedDate else { return }
+            onSelect(position)
+        }
+        .sensoryFeedback(.selection, trigger: scrollPosition)
+        .onAppear {
+            // scrollPosition(id:) no aplica el valor inicial del State
+            // en el primer render. Diferir la asignación al siguiente
+            // ciclo produce el cambio nil → valor que sí detecta.
+            recenter(on: selectedDate, rebuildingScrollView: false)
+        }
+
+        // ── Capa 2: capsule fija en el centro ─────────────────────
+        // Azul de marca suave (15%) en lugar de azul sólido — mismo
+        // gesto que los chips de filtro y el cintillo "Hoy". El texto
+        // del día centrado (Capa 3) va en azul, no en blanco.
+        Capsule()
+            .fill(Color.accentColor.opacity(0.15))
+            .frame(width: capsuleWidth, height: itemHeight)
+            .allowsHitTesting(false)
+
+        // ── Capa 3: texto blanco del día centrado ─────────────────
+        DateBarItem(
+            dateKey: displayedCenter,
+            isSelected: true,
+            isToday: displayedCenter == DateFormatting.todayKey()
+        )
+        .frame(width: capsuleWidth, height: itemHeight)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// Tramo final de la temporada: siete días fijos que terminan en
+    /// `lastDate`, con la capsule sobre el día seleccionado. Tocar un día lo
+    /// selecciona; arrastrar hacia la derecha vuelve al día anterior.
+    private func endStripView(_ keys: [String], dayWidth: CGFloat, capsuleWidth: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            ForEach(keys, id: \.self) { key in
+                let selected = key == selectedDate
+                DateBarItem(
+                    dateKey: key,
+                    isSelected: selected,
+                    isToday: key == DateFormatting.todayKey()
+                )
+                .frame(width: capsuleWidth, height: itemHeight)
+                .background {
+                    if selected {
+                        Capsule().fill(Color.accentColor.opacity(0.15))
+                    }
+                }
+                .frame(width: dayWidth, height: itemHeight)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !selected else { return }
+                    Haptics.play(.navigation)
+                    onSelect(key)
+                }
+                .accessibilityLabel(DateBarItem.accessibilityDescription(
+                    dateKey: key,
+                    isSelected: selected,
+                    isToday: key == DateFormatting.todayKey()
+                ))
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
+                .accessibilityInputLabels(DateBarItem.inputLabels(dateKey: key))
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 20).onEnded { value in
+                guard value.translation.width > 40,
+                      abs(value.translation.width) > abs(value.translation.height),
+                      let previous = DateFormatting.dayOffset(from: selectedDate, by: -1) else { return }
+                Haptics.play(.navigation)
+                onSelect(previous)
+            }
+        )
+    }
+
+    private func recenter(on target: String, rebuildingScrollView: Bool) {
+        isRepositioning = true
+        if rebuildingScrollView {
+            scrollLayoutGeneration &+= 1
+        }
+        scrollPosition = nil
+        DispatchQueue.main.async {
+            scrollPosition = target
+            DispatchQueue.main.async {
+                isRepositioning = false
+            }
+        }
     }
 }
 

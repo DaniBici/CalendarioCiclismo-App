@@ -64,6 +64,36 @@ struct PlaceholderModalItem: Identifiable {
     }
 }
 
+/// Alerta de placeholder para carreras CX: la ficha no tiene la carga mínima
+/// (Libro de Ruta o Mapa, y horarios) o la prueba está cancelada. Mismo
+/// mensaje que en Hoy en Carretera y en el modal de Android.
+private struct CxPlaceholderModalOverlay: ViewModifier {
+    @Binding var race: CxRace?
+    func body(content: Content) -> some View {
+        content.alert(dialogTitle, isPresented: Binding(
+            get: { race != nil },
+            set: { if !$0 { race = nil } }
+        )) {
+            Button(LocaleService.t("Cerrar", "Close"), role: .cancel) {}
+        } message: {
+            if let race { Text(dialogMessage(for: race)) }
+        }
+    }
+    private var dialogTitle: String { race.map { LocaleService.t($0.name, $0.nameEn ?? $0.name) } ?? "" }
+    private func dialogMessage(for race: CxRace) -> String {
+        if race.isCancelled { return LocaleService.t("Carrera cancelada", "Race cancelled") }
+        return DateFormatting.todayKey() < race.dateKey
+            ? LocaleService.t("Por ahora sin información extra", "No additional information yet")
+            : LocaleService.t("Sin información extra", "No additional information")
+    }
+}
+
+extension View {
+    func cxPlaceholderModal(_ race: Binding<CxRace?>) -> some View {
+        modifier(CxPlaceholderModalOverlay(race: race))
+    }
+}
+
 extension View {
     func placeholderModal(item: Binding<PlaceholderModalItem?>) -> some View {
         modifier(PlaceholderModalOverlay(item: item))

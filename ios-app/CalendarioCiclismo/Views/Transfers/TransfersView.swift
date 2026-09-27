@@ -12,7 +12,7 @@ private enum TransfersFeed { case signings, renewals }
 /// Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
 /// /fichajes/ web (`js/fichajes.js`) y de `TransfersScreen` (Android): feed
 /// cronológico inverso de CONFIRMACIONES + botones de división (WT·PT·WWT·PRW)
-/// + parrilla de equipos 2027 (team_seasons; chapa solo si badgeVisible). Tocar
+/// + parrilla de equipos 2027 con su cabecera cromática editorial. Tocar
 /// un equipo abre `TransfersTeamView` (continúan / llegan / se marchan).
 ///
 /// Solo-online (sin caché), como resultados/inscritos. La lógica pura vive en
@@ -27,6 +27,7 @@ struct TransfersView: View {
     @State private var teamRoute: TransfersTeamRoute?
     @State private var isShowingInfo = false
     @State private var localeService = LocaleService.shared
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         Group {
@@ -43,12 +44,24 @@ struct TransfersView: View {
                 marketList(data)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(localeService.t(
             "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
             "\(String(TransfersLogic.marketSeason)) Transfer Market"
         ))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if #available(iOS 26, *) {
+                ToolbarItem(placement: .topBarLeading) {
+                    CCHeaderMarkView()
+                }
+                .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    CCHeaderMarkView()
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Haptics.play(.selection)
@@ -102,14 +115,13 @@ struct TransfersView: View {
         let categoryByTeamId = Dictionary(uniqueKeysWithValues: data.seasons.compactMap { season in
             season.category.map { (season.teamId, $0) }
         })
-        let baseFeed = activeFeed == .signings
-            ? TransfersLogic.confirmedFeed(
-                data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
-            )
-            : TransfersLogic.renewalFeed(
-                data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
-            )
-        let feed = TransfersLogic.limitedFeed(baseFeed)
+        let signingsFeed = TransfersLogic.limitedFeed(TransfersLogic.confirmedFeed(
+            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+        ))
+        let renewalsFeed = TransfersLogic.limitedFeed(TransfersLogic.renewalFeed(
+            data.transfers, categoryByTeamId: categoryByTeamId, teamNameById: data.teamNameById
+        ))
+        let feed = activeFeed == .signings ? signingsFeed : renewalsFeed
         let feedByDay = TransfersLogic.groupByDay(feed)
         let teams = TransfersLogic.divisionTeams(data.seasons, division: activeDivision)
 
@@ -121,6 +133,21 @@ struct TransfersView: View {
                     // Primer título: pegado a la barra de navegación → menos top
                     // que el de "Equipos" (que sí separa del feed de arriba).
                     sectionTitle(localeService.t("Últimas confirmaciones", "Latest confirmations"), topPadding: 4)
+                    if horizontalSizeClass == .regular {
+                        HStack(alignment: .top, spacing: 16) {
+                            feedColumn(
+                                title: localeService.t("Fichajes", "Signings"),
+                                feed: signingsFeed,
+                                data: data
+                            )
+                            feedColumn(
+                                title: localeService.t("Renovaciones", "Renewals"),
+                                feed: renewalsFeed,
+                                data: data
+                            )
+                        }
+                        .padding(.top, 6)
+                    } else {
                     HStack(spacing: 8) {
                         feedChip(
                             localeService.t("Fichajes", "Signings"),
@@ -153,6 +180,7 @@ struct TransfersView: View {
                             }
                     }
                     .padding(.bottom, 8)
+                    }
                 }
                 Divider().padding(.top, 8)
 
@@ -173,7 +201,7 @@ struct TransfersView: View {
                         emptyText(localeService.t("Sin equipos en esta división.", "No teams in this division."))
                     } else {
                         LazyVGrid(
-                            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
+                            columns: [GridItem(.adaptive(minimum: 150, maximum: 260), spacing: 10)],
                             spacing: 8
                         ) {
                             ForEach(teams, id: \.teamId) { season in
@@ -187,7 +215,39 @@ struct TransfersView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
         }
+        .background(AppTheme.background)
         .refreshable { await load() }
+    }
+
+    private func feedColumn(
+        title: String,
+        feed: [RiderTransfer],
+        data: TransfersLogic.MarketData
+    ) -> some View {
+        let groups = TransfersLogic.groupByDay(feed)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .kerning(0.8)
+                .foregroundStyle(.secondary)
+            if feed.isEmpty {
+                emptyText(localeService.t("Todavía no hay movimientos confirmados.", "No confirmed moves yet."))
+            } else {
+                ForEach(groups, id: \.day) { group in
+                    Text(DateFormatting.formatDateWeekdayNoYear(group.day))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                    ForEach(group.moves) { move in
+                        TransferFeedRowView(transfer: move, data: data) { teamId in
+                            Haptics.play(.navigation)
+                            teamRoute = TransfersTeamRoute(teamId: teamId)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private func sectionTitle(_ text: String, topPadding: CGFloat = 16) -> some View {
@@ -250,40 +310,32 @@ struct TransfersView: View {
             Haptics.play(.navigation)
             teamRoute = TransfersTeamRoute(teamId: season.teamId)
         } label: {
-            CCCard {
-                VStack(spacing: 5) {
-                    // Sin chapa no se monta la vista para no dejar un hueco.
-                    if let badge = TransfersLogic.badgeSeason(for: season, prev: prev) {
-                        TransfersSeasonBadge(season: badge, size: 32)
-                    }
+            let appearance = TransfersLogic.badgeSeason(for: season, prev: prev)
+            let background = appearance?.headerBg.map(Color.init(hex:)) ?? AppTheme.cardBackground
+            let foreground = appearance?.headerText.map(Color.init(hex:)) ?? .primary
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(season.name ?? "")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(foreground)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
                     if season.continuityDoubt == true {
-                        VStack(spacing: 0) {
-                            teamTileName(season.name ?? "", reservesSpace: false)
                             DoubtBadge(text: localeService.t("En duda", "TBC"))
-                        }
-                    } else {
-                        teamTileName(season.name ?? "")
                     }
                 }
-                .frame(
-                    minWidth: nil, idealWidth: nil, maxWidth: .infinity,
-                    minHeight: 92, idealHeight: 92, maxHeight: 92,
-                    alignment: .center
-                )
-                .padding(6)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(foreground.opacity(0.75))
+                    .accessibilityHidden(true)
             }
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .ccCardSurface(cornerRadius: 8, fill: background, showShadow: false)
         }
         .buttonStyle(.plain)
-    }
-
-    private func teamTileName(_ name: String, reservesSpace: Bool = true) -> some View {
-        Text(name)
-            .font(.caption2)
-            .foregroundStyle(.primary)
-            .lineLimit(2, reservesSpace: reservesSpace)
-            .truncationMode(.tail)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
     }
 }
 
@@ -324,6 +376,7 @@ private struct TransfersInfoSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
+            .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle(localeService.t("Fuentes de Fichajes", "Transfer sources"))
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -419,45 +472,5 @@ struct TransferFeedRowView: View {
                 names: data.teamNameById, unknownLabel: unknownTeam))
         }
         return out
-    }
-}
-
-// MARK: - Chapa de temporada
-
-/// Chapa de un equipo del mercado. Se le pasa la fila (del mercado o la
-/// anterior) cuyos colores hay que pintar; la decisión de CUÁL —o si no hay
-/// chapa— vive en `TransfersLogic.badgeSeason(for:prev:)`: colores del mercado
-/// publicados → 2027; sin publicar pero equipo preexistente → colores antiguos
-/// (2026); equipo nuevo → nada. Espejo de `badgeOrPlaceholder` (web) y
-/// `SeasonBadge` (Android).
-///
-/// ⚠️ Los call sites viven en `HStack(spacing:)`, donde un `EmptyView` gastaría
-/// el spacing igual y dejaría un hueco. Por eso se gatean con
-/// `if let ... = TransfersLogic.badgeSeason(...)` y solo montan la vista cuando
-/// hay chapa.
-struct TransfersSeasonBadge: View {
-    let season: TeamSeason
-    let size: Int
-
-    var body: some View {
-        TeamBadgeView(team: season.asBadgeTeam, size: size)
-    }
-}
-
-extension TeamSeason {
-    /// Team mínimo para pintar la chapa con los colores de la temporada.
-    var asBadgeTeam: Team {
-        Team(
-            id: teamId,
-            name: name ?? "",
-            badgeTorsoCenter: badgeTorsoCenter ?? "#ffffff",
-            badgeTorsoSides: badgeTorsoSides ?? "#111111",
-            badgeShorts: badgeShorts ?? "#111111",
-            badgeInnerCircle: badgeInnerCircle,
-            headerBg: headerBg ?? "#1f2937",
-            headerText: headerText ?? "#ffffff",
-            nameAliases: nil,
-            category: category
-        )
     }
 }

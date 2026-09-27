@@ -1,3 +1,4 @@
+import { teamHeaderColors } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 //  INSCRITOS — lista de equipos y corredores inscritos
 //  URL: inscritos.html?race=RACE_ID  o  /inscritos/RACE_SLUG/
@@ -6,11 +7,11 @@
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
          buildTeamBadgeSvg, raceName as getRaceName, enBase,
          seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
-         isIndividualPlaceholderTeam } from './shared.js';
+         isNoTeamPlaceholderTeam, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
+import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist-data.js';
 import { setupRiderTooltips } from './rider-tooltip.js';
-import { isAbandonIrm } from './uci-irm.js';
 
 // ── SEO helpers ──────────────────────────────────────────────────────
 function articuloNombre(name) {
@@ -41,26 +42,6 @@ function buildFechaParentesis(race) {
   return `(${fmtDayMonth(sd, multiMonth)} – ${fmtFull(ed)})`;
 }
 
-function formatDateRange(startDk, endDk) {
-  if (!startDk) return '';
-  const [sy, sm, sd] = startDk.split('-').map(Number);
-  const [ey, em, ed] = (endDk || startDk).split('-').map(Number);
-  const startD = new Date(sy, sm - 1, sd);
-  const endD   = new Date(ey, em - 1, ed);
-  const fmtDay = d => d.getDate();
-  const fmtMon = d => d.toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'es-ES', { month: 'short' });
-  if (startDk === (endDk || startDk)) {
-    return `${fmtDay(startD)} ${fmtMon(startD)}`;
-  }
-  if (sm === em && sy === ey) {
-    return `${fmtDay(startD)}–${fmtDay(endD)} ${fmtMon(endD)}`;
-  }
-  if (sy === ey) {
-    return `${fmtDay(startD)} ${fmtMon(startD)} – ${fmtDay(endD)} ${fmtMon(endD)}`;
-  }
-  return `${fmtDay(startD)} ${fmtMon(startD)} ${sy} – ${fmtDay(endD)} ${fmtMon(endD)} ${ey}`;
-}
-
 async function init() {
   await initI18n();
   window.__spaDrivenAnalytics = true; // Cancelar fallback de analytics.js — disparamos manualmente
@@ -77,23 +58,8 @@ async function init() {
   }
 
   // Resolve slug → raceId (en EN busca primero por slugEn)
-  let race = null;
-  if (slug && !raceId) {
-    if (_isEn) {
-      const { data: d1 } = await supabase.from('races').select('*').eq('slugEn', slug).single();
-      if (d1) { race = d1; raceId = d1.id; }
-      else {
-        const { data: d2 } = await supabase.from('races').select('*').eq('slug', slug).single();
-        if (d2) { race = d2; raceId = d2.id; }
-      }
-    } else {
-      const { data } = await supabase.from('races').select('*').eq('slug', slug).single();
-      if (data) { race = data; raceId = data.id; }
-    }
-  } else if (raceId) {
-    const { data } = await supabase.from('races').select('*').eq('id', raceId).single();
-    if (data) race = data;
-  }
+  const race = await resolveStartlistRace({ raceId, slug, isEn: _isEn });
+  if (race) raceId = race.id;
 
   if (!race) {
     content.innerHTML = `<div class="startlist-empty">${t('startlist.notFound')}</div>`;
@@ -114,56 +80,14 @@ async function init() {
     history.replaceState(null, '', `/inscritos/${encodeURIComponent(race.slug)}/`);
   }
 
-  // ── Carga en paralelo (fase A): todo lo que depende SOLO de raceId ──
-  // race_days (hero), startlist_teams y las etapas con resultados in-house
-  // (race_uci_stages, para detectar abandonos) son independientes entre sí →
-  // un único round-trip en vez de tres encadenados.
-  const [raceDaysRes, teamsRes, uciStagesRes] = await Promise.all([
-    supabase.from('race_days')
-      .select('dateKey, isRestDay')
-      .eq('raceId', raceId)
-      .eq('editorialStatus', 'published')
-      .order('dateKey', { ascending: true }),
-    supabase.from('startlist_teams')
-      .select('*')
-      .eq('raceId', raceId)
-      .order('sortOrder', { ascending: true }),
-    supabase.from('race_uci_stages')
-      .select('id, stageNumber, rowCount')
-      .eq('raceId', raceId)
-      .eq('classKind', 'stage'),
-  ]);
-  const raceDays  = raceDaysRes.data;
-  const teams     = teamsRes.data;
-  const teamsErr  = teamsRes.error;
-
-  if (teamsErr || !teams || teams.length === 0) {
+  // Equipos, corredores, colores de temporada y abandonos (startlist-data.js,
+  // compartido con la página que generan las apps).
+  const data = await loadStartlistData(race);
+  if (!data) {
     content.innerHTML = `<div class="startlist-empty">${t('startlist.empty')}</div>`;
     return;
   }
-
-  const teamIds = teams.map(t => t.id);
-
-  // ── Carga en paralelo (fase B): corredores resueltos (dependen de teamIds)
-  // y las filas de resultados UCI para tachar abandonos (dependen de las etapas
-  // in-house ya cargadas en la fase A). Independientes entre sí.
-  const stageRows = (uciStagesRes.data || []).filter(s => (s.rowCount || 0) > 0);
-  // Vista resuelta: nombre/country canónicos de riders_men/women cuando hay link,
-  // fallback al snapshot del propio startlist_riders cuando no.
-  const [ridersRes, outRowsRes] = await Promise.all([
-    supabase.from('startlist_riders_resolved')
-      .select('*')
-      .in('teamId', teamIds)
-      .order('dorsal', { ascending: true }),
-    stageRows.length > 0
-      ? supabase.from('race_uci_results')
-          .select('globalRiderId, irm, stageRef')
-          .in('stageRef', stageRows.map(s => s.id))
-          .not('globalRiderId', 'is', null)
-          .not('irm', 'is', null)
-      : Promise.resolve({ data: [] }),
-  ]);
-  const riders = ridersRes.data;
+  const { raceDays, teams, ridersByTeam, globalTeamById, riderOutMap, totalTeams, totalRiders } = data;
 
   // ── Jornada única + assets (solo pruebas de UN DÍA) ──
   // En one_day el panel de botones muestra el recorrido (rutómetro/perfil/…),
@@ -183,115 +107,6 @@ async function init() {
     }
   }
 
-  // Enriquecida: si el flag está activo, cargamos los equipos globales referenciados
-  // y los mapeamos por id. Silencioso si falla — el render cae al estilo estándar.
-  //
-  // Render temporal: si la carrera tiene año, además cargamos `team_seasons` de ese
-  // año y sobrescribimos los campos VISUALES del equipo con la versión de la temporada
-  // (nombre/colores/categoría correctos del año). Si no hay fila de season para un
-  // equipo, se mantiene `teams` (estado actual) como FALLBACK — nunca se queda sin
-  // chapa. `teams` es la referencia viva que leen también las apps; aquí solo se
-  // ENRIQUECE la lectura, nunca se retira. En 2026 season == teams (idéntico).
-  let globalTeamById = {};
-  if (race.enrichedStartlist) {
-    const refIds = [...new Set(teams.map(t => t.teamId).filter(Boolean))];
-    if (refIds.length > 0) {
-      // teams (visual base) y team_seasons (override del año) dependen ambos solo
-      // de refIds → en paralelo.
-      const [gTeamsRes, seasonsRes] = await Promise.all([
-        supabase.from('teams').select('*').in('id', refIds),
-        race.year
-          ? supabase.from('team_seasons').select('*').in('teamId', refIds).eq('year', race.year)
-          : Promise.resolve({ data: [] }),
-      ]);
-      (gTeamsRes.data || []).forEach(t => { globalTeamById[t.id] = t; });
-
-      if (race.year) {
-        const VISUAL = ['name','nameAliases','category','gender','headerBg','headerText',
-                        'badgeTorsoCenter','badgeTorsoSides','badgeInnerCircle','badgeShorts'];
-        (seasonsRes.data || []).forEach(s => {
-          const base = globalTeamById[s.teamId];
-          if (!base) return;
-          VISUAL.forEach(k => { if (s[k] != null) base[k] = s[k]; });
-        });
-      }
-    }
-  }
-
-  // Nombre a mostrar: si hay match, prevalece el nombre del equipo global (tabla teams)
-  // sobre el `teamName` importado. Aplica tanto en web como en PDF.
-  teams.forEach(t => {
-    const g = t.teamId ? globalTeamById[t.teamId] : null;
-    t.displayName = (g && g.name) ? g.name : t.teamName;
-  });
-
-  // Group riders by teamId
-  const ridersByTeam = {};
-  (riders || []).forEach(r => {
-    if (!ridersByTeam[r.teamId]) ridersByTeam[r.teamId] = [];
-    ridersByTeam[r.teamId].push(r);
-  });
-
-  // Corredores sin dorsal (dorsal=0) al final de su equipo
-  Object.values(ridersByTeam).forEach(teamRiders => {
-    teamRiders.sort((a, b) => {
-      const da = a.dorsal || 0;
-      const db = b.dorsal || 0;
-      if (da === 0 && db === 0) return 0;
-      if (da === 0) return 1;
-      if (db === 0) return -1;
-      return da - db;
-    });
-  });
-
-  // Orden de equipos por el dorsal del PRIMER corredor (mínimo dorsal > 0):
-  // las startlists entran al panel en cualquier orden (sortOrder = inserción),
-  // así que el orden canónico lo imponen los dorsales en el render — este
-  // array lo comparten web y PDF. Equipos sin ningún dorsal → al final,
-  // conservando sortOrder entre ellos (startlist sin dorsales = orden del panel).
-  {
-    const firstDorsal = {};
-    teams.forEach(tm => {
-      const first = (ridersByTeam[tm.id] || [])[0];
-      firstDorsal[tm.id] = (first && first.dorsal > 0) ? first.dorsal : Infinity;
-    });
-    teams.sort((a, b) => {
-      const da = firstDorsal[a.id], db = firstDorsal[b.id];
-      if (da !== db) return da < db ? -1 : 1;
-      return (a.sortOrder || 0) - (b.sortOrder || 0);
-    });
-  }
-
-  // ── Abandonos in-house (resultados UCI) ──────────────────────────
-  // Solo en carreras donde recogemos resultados propios (tablas race_uci_*):
-  // tachamos a quien ya NO sigue en carrera. Señal = campo `irm` de ABANDONO REAL
-  // (DNF/DNS/OTL/DSQ/ABD vía isAbandonIrm) de race_uci_results — NO un código de
-  // ruido como 'LAP' (doblada), que la UCI cuelga a veces de corredores en carrera
-  // (incl. la propia ganadora; ver resultados.js). Se mira la fila de la etapa MÁS RECIENTE del
-  // corredor (un abandono en la etapa 3 aparece con rank normal en las 1-2; lo
-  // que manda es su última etapa con fila). Solo se consideran los eventos de
-  // resultado de ETAPA (classKind='stage'); la "Stage General Classification"
-  // es el GC acumulado, no sirve para detectar abandonos. Cruce por
-  // globalRiderId (lo expone startlist_riders_resolved). En vivo desde cliente:
-  // refleja el último volcado del cron sin paso de build.
-  // stageRows y outRowsRes ya se cargaron en la fase B (arriba). Aquí solo se
-  // procesan en memoria — sin round-trips adicionales.
-  const riderOutMap = new Map();   // globalRiderId → { irm, stageNumber }
-  if (stageRows.length > 0) {
-    const stageNumById = new Map(stageRows.map(s => [s.id, s.stageNumber]));
-    const outRows = outRowsRes.data;
-    // Por corredor, quedarse con la fila de mayor stageNumber (null = -1, va
-    // primero y lo pisa cualquier etapa numerada). Esa es su "última palabra".
-    // Solo cuentan los abandonos reales: un 'LAP' (u otro código de ruido) NO tacha.
-    (outRows || []).filter(row => isAbandonIrm(row.irm)).forEach(row => {
-      const sn = stageNumById.has(row.stageRef) ? stageNumById.get(row.stageRef) : null;
-      const prev = riderOutMap.get(row.globalRiderId);
-      const snv = sn == null ? -1 : sn;
-      const prevv = prev == null ? -2 : (prev.stageNumber == null ? -1 : prev.stageNumber);
-      if (!prev || snv >= prevv) riderOutMap.set(row.globalRiderId, { irm: row.irm, stageNumber: sn });
-    });
-  }
-
   // Update page title & SEO
   const raceName = getRaceName(race) || t('race.unknown');
   const origName = race.originalName || '';
@@ -309,10 +124,6 @@ async function init() {
   const siteName = t('seo.siteName');
   const title = `${inscritosLabel} — ${raceName} ${fechaParentesis} — ${siteName}`;
   const provisionalNote = race.startlistProvisional ? t('startlist.provisionalNote') : '';
-  // El ficticio "Individual" (corredores sin equipo en la fuente UCI) no cuenta
-  // como equipo: sus corredores sí suman en totalRiders.
-  const totalTeams = teams.filter(tm => !isIndividualPlaceholderTeam(tm)).length;
-  const totalRiders = (riders || []).length;
   const isFemale = race.gender === 'female';
   let description;
   if (_isEn) {
@@ -376,6 +187,7 @@ async function init() {
     ? `${origin}${_canonBase}${encodeURIComponent(_canonSlug)}/`
     : location.href.split('?')[0];
   setMetaProperty('og:url', canonicalUrl);
+  setRaceRobots(race);
   let canonEl = document.querySelector('link[rel="canonical"]');
   if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
   canonEl.href = canonicalUrl;
@@ -400,7 +212,7 @@ async function init() {
   // JSON-LD BreadcrumbList
   const crumbItems = [
     { '@type': 'ListItem', 'position': 1, 'name': 'Inicio', 'item': `${origin}/` },
-    { '@type': 'ListItem', 'position': 2, 'name': `Temporada ${year}`, 'item': `${origin}/calendario.html?year=${year}` },
+    { '@type': 'ListItem', 'position': 2, 'name': `Temporada ${year}`, 'item': `${origin}/calendario/?year=${year}` },
   ];
   if (race.slug) {
     crumbItems.push({ '@type': 'ListItem', 'position': 3, 'name': `${raceName} ${year}`,
@@ -439,26 +251,9 @@ async function init() {
 
   // Render
   const color = race.colorHex || '#888';   // usado en border-left de cabeceras de equipo
-  const flag  = countryFlag(race.countryCode);   // usado por el generador de PDF
 
   // Hero secondary info (same as competicion + "Inscritos" highlighted)
-  const isStageRace = race.raceFormat !== 'one_day';
-  const activeDays = (raceDays || []).filter(d => !d.isRestDay && d.dateKey);
-  const firstDateKey = activeDays.length ? activeDays[0].dateKey : (race.startDate || null);
-  const lastDateKey  = activeDays.length ? activeDays[activeDays.length - 1].dateKey : (race.endDate || race.startDate || null);
-  const dateRange    = firstDateKey ? formatDateRange(firstDateKey, lastDateKey) : '';
-  const nDays        = activeDays.length;
-
-  const infoParts = [
-    dateRange ? `${dateRange} ${race.year}` : race.year,
-    race.uciCategory,
-    isStageRace && nDays ? t(nDays !== 1 ? 'stage.stagesCount_other' : 'stage.stagesCount_one', { n: nDays }) : '',
-  ].filter(Boolean).join(' · ');
-
-  const heroLabel = race.startlistProvisional
-    ? t('startlist.provisional')
-    : (race.gender === 'female' ? t('startlist.labelFemale') : t('startlist.label'));
-  const heroSubline = `<span style="color:var(--text)">${heroLabel}</span>${infoParts ? ' · ' + infoParts : ''}`;
+  const { heroLabel, infoParts, heroSubline } = startlistHeroInfo(race, raceDays);
 
   // Panel de botones (web oficial · "Ir a la carrera" · recorrido en un día),
   // fuente única en shared.buildActionButtons. En vueltas por etapas solo salen
@@ -469,7 +264,7 @@ async function init() {
     view: 'inscritos',
     assets: withRaceTechnicalGuide(oneDayAssets, await loadRaceTechnicalGuide(race.id)),
     hasStartlist: false,
-    style: 'max-width:860px;padding:0 1.5rem;margin:0.85rem auto',
+    style: 'margin:0.85rem auto', standalone: true,
   });
 
   const pdfAction = `<button class="btn-ical" id="btnDescargarPdf">
@@ -480,8 +275,7 @@ async function init() {
           </svg>
           ${t('startlist.downloadPdf')}
         </button>`;
-  // Sin equipos reales (startlist 100% ficticio "Individual") no se muestra
-  // "0 equipos": solo el total de corredores.
+  // Sin equipos reales no se muestra "0 equipos": solo el total de corredores.
   const ridersWord = getLang() === 'en' ? 'riders' : (race.gender === 'female' ? 'corredoras' : 'corredores');
   const statsLine = totalTeams > 0
     ? `${totalTeams} ${getLang() === 'en' ? 'teams' : 'equipos'} · ${totalRiders} ${ridersWord}`
@@ -512,16 +306,14 @@ async function init() {
 
   teams.forEach(team => {
     const teamRiders = ridersByTeam[team.id] || [];
-    // Ficticio "Individual" → ocultación cosmética: los corredores se listan,
-    // pero la tarjeta va SIN cabecera de equipo (ni nombre, ni chapa).
-    const hideHeader = isIndividualPlaceholderTeam(team);
+    // Estado sin equipo → ocultación cosmética: los corredores se listan, pero
+    // la tarjeta va SIN cabecera de equipo (ni nombre, ni chapa).
+    const hideHeader = isNoTeamPlaceholderTeam(team);
     const gTeam = team.teamId ? globalTeamById[team.teamId] : null;
     const enrichedClass = gTeam ? ' startlist-team__header--enriched' : '';
     const isWhiteBg = gTeam && /^#?(fff|ffffff)$/i.test((gTeam.headerBg || '').trim());
-    const headerStyle = gTeam
-      ? `background:${esc(gTeam.headerBg)};color:${esc(gTeam.headerText)};border-left-color:${esc(gTeam.headerBg)}`
-      : `border-left-color: ${color}`;
-    const badgeHtml = gTeam ? `<span class="startlist-team__badge">${buildTeamBadgeSvg(gTeam, { size: 24 })}</span>` : '';
+    const colors = teamHeaderColors(gTeam);
+    const headerStyle = `background:${colors.background};color:${colors.text};border-left-color:${gTeam ? colors.background : color}`;
     // Nombre del equipo como texto plano (las fichas públicas de equipo se retiraron).
     const nameHtml = `<span class="startlist-team__name">${esc(team.displayName)}</span>`;
     const confirmHtml = race.startlistProvisional
@@ -532,7 +324,6 @@ async function init() {
       : '';
     const headerHtml = hideHeader ? '' : `
         <div class="startlist-team__header${enrichedClass}" style="${headerStyle}">
-          ${badgeHtml}
           ${nameHtml}
           ${confirmHtml}
         </div>`;
@@ -598,15 +389,7 @@ async function init() {
       pdfBtn.disabled = true;
       pdfBtn.textContent = t('startlist.generatingPdf');
       try {
-        await generateStartlistPDF({
-          race,
-          teams,
-          ridersByTeam,
-          heroSubline,
-          totalTeams,
-          totalRiders,
-          flag,
-        });
+        await generateStartlistPDF(startlistPdfOptions(race, data, { heroLabel, heroSubline }));
       } catch (err) {
         console.error('Error generando PDF:', err);
       } finally {

@@ -1,0 +1,381 @@
+{
+ "slug": "kirolak-on",
+ "title": "Kirolak On",
+ "children": [
+  {
+   "title": null,
+   "children": [
+    {
+     "id": 319668,
+     "slug": "gorbeia-suzien-2026-1-18246958",
+     "type": "live",
+     "title": "Gorbeia Suzien Mendi Lasterketa",
+     "start_date": "2026-09-26T06:45:00+00:00"
+    },
+    {
+     "id": 2221,
+     "slug": "san-mateo-txapelketa",
+     "title": "San Mateo txapelketa",
+     "first_episode": {
+      "slug": "pilota-san-mateo-torneoa-2026-2-18250280",
+      "type": "vod",
+      "start_date": "2026-09-20T15:20:06+00:00"
+     }
+    },
+    {
+     "id": 319935,
+     "slug": "pilota-emakumeak-5-17775156",
+     "type": "live",
+     "title": "Udako Txapelketako Finalak",
+     "start_date": "2026-09-27T09:45:00+00:00"
+    },
+    {
+     "id": 1995,
+     "slug": "herri-kirolak",
+     "type": "vod",
+     "title": "Herri Kirolak",
+     "first_episode": {
+      "slug": "artzain-txakurrak-2026-1-18248227",
+      "type": "vod",
+      "start_date": "2026-09-20T14:10:00+00:00"
+     }
+    },
+    {
+     "id": 2315,
+     "slug": "saskibaloia-emakumeak",
+     "title": "Saskibaloia: emakumeak",
+     "first_episode": {
+      "slug": "saskibaloia-emakumeen-endesa-liga-17806514",
+      "type": "vod",
+      "start_date": "2026-02-22T10:57:18+00:00"
+     }
+    },
+    {
+     "id": 2337,
+     "slug": "erremontea",
+     "title": "Erremontea",
+     "first_episode": {
+      "slug": "erremontea-5-17775098",
+      "type": "vod",
+      "start_date": "2026-08-29T13:11:26+00:00"
+     }
+    },
+    {
+     "id": 320089,
+     "slug": "futbol-lezama-athletic-gernika-20260926",
+     "type": "live",
+     "title": "Athletic Club - Gernika Club",
+     "start_date": "2026-09-26T07:20:00+00:00"
+    }
+   ]
+  },
+  {
+   "title": null,
+   "children": [
+    {
+     "id": 319662,
+     "slug": "pilota-san-mateo-torneoa-2026-3-18250281",
+     "type": "live",
+     "title": "San Mateo Torneoa: Finalaurrekoak",
+     "start_date": "2026-09-25T18:55:00+00:00"
+    },
+    {
+     "id": 319668,
+     "slug": "gorbeia-suzien-2026-1-18246958",
+     "type": "live",
+     "title": "Gorbeia Suzien Mendi Lasterketa",
+     "start_date": "2026-09-26T06:45:00+00:00"
+    },
+    {
+     "id": 320089,
+     "slug": "futbol-lezama-athletic-gernika-20260926",
+     "type": "live",
+     "title": "Athletic Club - Gernika Club",
+     "start_date": "2026-09-26T07:20:00+00:00"
+    },
+    {
+     "id": 320091,
+     "slug": "futbol-lezama-athletic-oiartzun-20260926",
+     "type": "live",
+     "title": "Athletic Club - Oiartzun KE",
+     "start_date": "2026-09-26T09:50:00+00:00"
+    },
+    {
+     "id": 319776,
+     "slug": "txirrindularitza-cro-race-5-17942714",
+     "type": "live",
+     "title": "5.etapa: Karlovac-Sveta Nedelja (164.5 km)",
+     "start_date": "2026-09-26T11:00:00+00:00"
+    },
+    {
+     "id": 319786,
+     "slug": "erremontea-7-17775100",
+     "type": "live",
+     "title": "Banakako Txapelketa: Finalerdiak",
+     "start_date": "2026-09-26T13:05:00+00:00"
+    },
+    {
+     "id": 320092,
+     "slug": "futbola-lezama-athletic-alaves-20260926",
+     "type": "live",
+     "title": "Athletic Club - Deportivo Alavés",
+     "start_date": "2026-09-26T13:50:00+00:00"
+    },
+    {
+     "id": 319768,
+     "slug": "pilota-san-mateo-torneoa-2026-4-18250282",
+     "type": "live",
+     "title": "San Mateo Torneoa: Urzante Erronka",
+     "start_date": "2026-09-26T15:10:00+00:00"
+    }
+   ]
+  },
+  {
+   "title": null,
+   "children": [
+    {
+     "id": 3413,
+     "slug": "cro-race",
+     "title": "Cro Race",
+     "first_episode": {
+      "slug": "txirrindularitza-cro-race-4-17942713",
+      "type": "live",
+      "start_date": "2026-09-25T12:00:01+00:00"
+     }
+    },
+    {
+     "id": 2221,
+     "slug": "san-mateo-txapelketa",
+     "title": "San Mateo txapelketa",
+     "first_episode": {
+      "slug": "pilota-san-mateo-torneoa-2026-2-18250280",
+      "type": "vod",
+      "start_date": "2026-09-20T15:20:06+00:00"
+     }
+    },
+    {
+     "id": 2473,
+     "slug": "zesta-punta",
+     "title": "Zesta punta",
+     "first_episode": {
+      "slug": "zesta-punta-2-18129068",
+      "type": "vod",
+      "start_date": "2026-09-21T19:45:00+00:00"
+     }
+    },
+    {
+     "id": 2183,
+     "slug": "euskotren-liga",
+     "title": "Euskotren Liga",
+     "first_episode": {
+      "slug": "estropadak-euskotren-liga-2026-19-18272813",
+      "type": "vod",
+      "start_date": "2026-09-20T09:06:16+00:00"
+     }
+    },
+    {
+     "id": 2182,
+     "slug": "eusko-label-liga",
+     "title": "Eusko Label Liga",
+     "first_episode": {
+      "slug": "estropadak-eusko-label-liga-2026-21-17923476",
+      "type": "vod",
+      "start_date": "2026-09-20T09:58:01+00:00"
+     }
+    },
+    {
+     "id": 2337,
+     "slug": "erremontea",
+     "title": "Erremontea",
+     "first_episode": {
+      "slug": "erremontea-5-17775098",
+      "type": "vod",
+      "start_date": "2026-08-29T13:11:26+00:00"
+     }
+    },
+    {
+     "id": 2181,
+     "slug": "kontxako-bandera",
+     "title": "Kontxako Bandera",
+     "first_episode": {
+      "slug": "kontxa-hondotik-1-18279770",
+      "type": "vod",
+      "start_date": "2026-09-13T08:37:43+00:00"
+     }
+    },
+    {
+     "id": 313261,
+     "slug": "futbola-emakumezkoen-txapeldunen-liga-1-18246457",
+     "type": "vod",
+     "title": "Emakumezkoen Txapeldunen Liga: Reala-Chelsea",
+     "start_date": "2026-09-02T16:55:00+00:00"
+    }
+   ]
+  },
+  {
+   "title": null,
+   "children": [
+    {
+     "id": 2221,
+     "slug": "san-mateo-txapelketa",
+     "title": "San Mateo txapelketa",
+     "first_episode": {
+      "slug": "pilota-san-mateo-torneoa-2026-2-18250280",
+      "type": "vod",
+      "start_date": "2026-09-20T15:20:06+00:00"
+     }
+    },
+    {
+     "id": 3256,
+     "slug": "caixabank-mastersa",
+     "title": "CaixaBank Mastersa",
+     "first_episode": {
+      "slug": "pilota-etb-kantxa-16-18237065",
+      "type": "vod",
+      "start_date": "2026-09-13T15:06:00+00:00"
+     }
+    },
+    {
+     "id": 3352,
+     "slug": "aste-nagusia-torneoa",
+     "title": "Aste Nagusia Torneoa",
+     "first_episode": {
+      "slug": "pilota-etb-kantxa-2-18259204",
+      "type": "vod",
+      "start_date": "2026-08-28T16:25:00+00:00"
+     }
+    },
+    {
+     "id": 2321,
+     "slug": "pilota",
+     "title": "Pilota",
+     "first_episode": {
+      "slug": "pilota-8-17775075",
+      "type": "vod",
+      "start_date": "2026-08-29T09:00:00+00:00"
+     }
+    },
+    {
+     "id": 3307,
+     "slug": "donostia-hiria-torneoa",
+     "title": "Donostia Hiria Torneoa",
+     "first_episode": {
+      "slug": "pilota-donostia-hiria-torneoa-2026-2-18156232",
+      "type": "vod",
+      "start_date": "2026-08-14T18:48:00+00:00"
+     }
+    },
+    {
+     "id": 3297,
+     "slug": "andre-maria-zuria-torneoa",
+     "title": "Andre Maria Zuria Torneoa",
+     "first_episode": {
+      "slug": "pilota-etb-kantxa-3-18156228",
+      "type": "vod",
+      "start_date": "2026-08-08T19:05:11+00:00"
+     }
+    },
+    {
+     "id": 2001,
+     "slug": "plazandreak",
+     "type": "vod",
+     "title": "Plazandreak",
+     "first_episode": {
+      "slug": "plazandreak-2026-emakumezkoen-pilota-txapelketa-5-17920670",
+      "type": "vod",
+      "start_date": "2026-08-10T17:26:50+00:00"
+     }
+    },
+    {
+     "id": 2952,
+     "slug": "san-fermin-txapelketa",
+     "title": "San Fermin Txapelketa",
+     "first_episode": {
+      "slug": "pilota-etb-kantxa-5-18130388",
+      "type": "vod",
+      "start_date": "2026-07-14T15:10:01+00:00"
+     }
+    }
+   ]
+  },
+  {
+   "title": null,
+   "children": [
+    {
+     "id": 3413,
+     "slug": "cro-race",
+     "title": "Cro Race",
+     "first_episode": {
+      "slug": "txirrindularitza-cro-race-4-17942713",
+      "type": "live",
+      "start_date": "2026-09-25T12:00:01+00:00"
+     }
+    },
+    {
+     "id": 3296,
+     "slug": "burgosko-itzulia",
+     "title": "Burgosko itzulia",
+     "first_episode": {
+      "slug": "txirrindularitza-5-17944016",
+      "type": "vod",
+      "start_date": "2026-08-08T13:01:10+00:00"
+     }
+    },
+    {
+     "id": 2197,
+     "slug": "donostiako-klasika",
+     "title": "Donostiako Klasika",
+     "first_episode": {
+      "slug": "txirrindularitza-donostiako-klasika-1-17933203",
+      "type": "vod",
+      "start_date": "2026-08-01T12:28:13+00:00"
+     }
+    },
+    {
+     "id": 2198,
+     "slug": "ordiziako-klasikoa",
+     "title": "Ordiziako Klasikoa",
+     "first_episode": {
+      "slug": "txirrindularitza-1-17933330",
+      "type": "vod",
+      "start_date": "2026-07-25T10:01:00+00:00"
+     }
+    },
+    {
+     "id": 287852,
+     "slug": "txirrindularitza-1-18086542",
+     "type": "vod",
+     "title": "Andorra Morabanc Klasikoa 2026",
+     "start_date": "2026-06-27T02:29:19+00:00"
+    },
+    {
+     "id": 2978,
+     "slug": "auvergne-rhone-alpes",
+     "title": "Tour Auvergne-Rhône-Alpes",
+     "first_episode": {
+      "slug": "txirrindularitza-2-17965419",
+      "type": "vod",
+      "start_date": "2026-06-08T13:53:03+00:00"
+     }
+    },
+    {
+     "id": 2861,
+     "slug": "itzulia-women",
+     "title": "Itzulia Women",
+     "first_episode": {
+      "slug": "txirrindularitza-itzulia-emakumeak-2026-4-18026164",
+      "type": "vod",
+      "start_date": "2026-05-14T16:00:00+00:00"
+     }
+    },
+    {
+     "id": 285273,
+     "slug": "xiv-agustin-sagasti-gogoan-mungia-saria-2026-1-18118239",
+     "type": "vod",
+     "title": "Txirrindularitza: XIV Agustin Sagasti gogoan. Mungia Saria 2026",
+     "start_date": "2026-06-14T09:30:00+00:00"
+    }
+   ]
+  }
+ ]
+}

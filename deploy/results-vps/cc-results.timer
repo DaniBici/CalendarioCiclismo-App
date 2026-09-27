@@ -1,0 +1,13 @@
+[Unit]
+Description=Calendario Ciclismo - comprobar resultados cada minuto
+Documentation=file:///opt/calendario-ciclismo/docs/runbooks/results-vps.md
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=cc-results.service
+
+[Install]
+WantedBy=timers.target

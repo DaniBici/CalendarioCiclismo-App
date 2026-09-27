@@ -133,7 +133,7 @@ export function champWeekHoyDefault(dateKey = campTodayKey()) {
 }
 
 // URL de la página según idioma de la vista que enlaza.
-export const campUrl = (lang) => lang === 'en' ? `/en/${CAMP.SLUG_EN}/` : `/${CAMP.SLUG_ES}/`;
+export const campUrl = (lang) => lang === 'en' ? `/en/${CAMP.SLUG_EN}/` : `/${CAMP.SLUG_ES}.html`;
 
 // Etiquetas de slot según idioma.
 export const slotLabels = (lang) => lang === 'en' ? CAMP.SLOT_LABELS_EN : CAMP.SLOT_LABELS_ES;

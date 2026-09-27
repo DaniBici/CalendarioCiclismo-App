@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   parseTissotTime, parseAbsoluteColonTime, parsePlainSecondsGap,
   absText, gapText, irmCode, classifyTissot, mapTimeRows, mapPointsRows,
-  expandTeamTimeTrial, fnv1a,
+  expandTeamTimeTrial, fnv1a, parseEventAbsolute, mapEventRows,
+  tissotIdSeed, tissotIdBase, buildMultiEventStages, selectFinishedLiveRows,
 } from '../../scripts/results-fetchers/tissot-results-fetch.mjs';
 
 // Formatos verificados contra la API en vivo del Tour Auvergne-Rhône-Alpes 2026
@@ -284,5 +285,123 @@ describe('fnv1a — IDs sintéticos deterministas y NEGATIVOS', () => {
     expect(fnv1a('ara2026')).toBe(fnv1a('ara2026'));
     expect(fnv1a('ara2026')).not.toBe(fnv1a('ara2027'));
     expect(fnv1a('ara2026')).not.toBe(fnv1a('tdf2026'));
+  });
+});
+
+// ── MultiEvents (Mundial): una prueba de un día por invocación ──────────────
+// La lista /events/{n}/phases/{p}/results usa un dialecto propio: tiempo absoluto
+// con ':' (sin comillas) y gaps con signo "+M:SS", además de IRM con sufijo
+// ("DNF6"). Verificado contra el Mundial MTB 2026 (mtbwch2026) en vivo.
+describe('parseEventAbsolute — dialecto de las listas MultiEvents', () => {
+  it('acepta absolutos con dos puntos y gaps con signo', () => {
+    expect(parseEventAbsolute('1:25:26')).toEqual({ sec: 5126, centis: null });
+    expect(parseEventAbsolute('25:43')).toEqual({ sec: 1543, centis: null });
+    expect(parseEventAbsolute('+0:17')).toEqual({ sec: 17, centis: null });
+    expect(parseEventAbsolute('+1:02:03')).toEqual({ sec: 3723, centis: null });
+  });
+
+  it('devuelve null para códigos de estado', () => {
+    expect(parseEventAbsolute('DNF6')).toBeNull();
+    expect(parseEventAbsolute('')).toBeNull();
+  });
+});
+
+describe('irmCode — tolera el sufijo numérico de las listas MultiEvents', () => {
+  it('reconoce el prefijo de abandono ("DNF6" = abandono en la vuelta 6)', () => {
+    expect(irmCode('DNF6')).toBe('DNF');
+    expect(irmCode('DNS')).toBe('DNS');
+  });
+  it('no confunde estados de roster vigente con un abandono', () => {
+    expect(irmCode('OK')).toBeNull();
+    expect(irmCode('None')).toBeNull();
+    expect(irmCode('LAP')).toBeNull();
+  });
+});
+
+describe('mapEventRows — contrato de las pruebas de un día', () => {
+  const raw = [
+    { resultType: 'Time', rank: 1, value: '1:25:26', time: '1:25:26', gap: '+0:00', rider: { bib: 78, name: 'PIDCOCK Thomas' } },
+    { resultType: 'Time', rank: 2, value: '+0:17', time: '1:25:43', gap: '+0:17', rider: { bib: 5, name: 'ALDRIDGE Charlie' } },
+    { resultType: 'IRM', rank: 0, value: 'DNF6', time: 'DNF6', gap: '', rider: { bib: 33, name: 'JUUL Sebastian Fini' } },
+  ];
+  it('emite tiempo ABSOLUTO en todas las filas y ningún gapText (caso A)', () => {
+    const rows = mapEventRows(raw);
+    expect(rows[0]).toMatchObject({ rank: 1, bib: '78', timeText: '1:25:26', gapText: null });
+    expect(rows[1]).toMatchObject({ rank: 2, bib: '5', timeText: '1:25:43', gapText: null });
+  });
+  it('manda los abandonos a la cola como IRM, sin puesto', () => {
+    const rows = mapEventRows(raw);
+    expect(rows[2]).toMatchObject({ rank: null, rankText: 'DNF', irm: 'DNF', timeText: null });
+  });
+});
+
+describe('selectFinishedLiveRows — llegada del MultiEvents en directo', () => {
+  const rider = (bib) => ({ bib, name: `CORREDORA ${bib}` });
+  const split = (name, rank) => ({ name, rank, resultType: 'Time' });
+  it('acepta solo pasos Finish con puesto y tiempo absoluto', () => {
+    const live = { results: [
+      { rank: 1, rider: rider(35), value: '3:49:10', time: '3:49:10', splits: [split('Lap 9', 1), split('Finish', 1)] },
+      { rank: 2, rider: rider(16), value: '+0', time: '3:49:10', splits: [split('Finish', 2)] },
+      { rank: 3, rider: rider(23), value: '+33', time: '3:49:43', splits: [split('Lap 9', 3)] },
+      { rank: 4, rider: rider(79), value: '+33', time: '3:49:43', splits: [split('Finish', 0)] },
+      { rank: 5, rider: rider(25), value: '+33', time: null, splits: [split('Finish', 5)] },
+      { rank: 0, rider: rider(94), value: 'DNF', time: 'DNF', splits: [split('Finish', 0)] },
+    ] };
+    const finished = selectFinishedLiveRows(live);
+    expect(finished.map((r) => r.rider.bib)).toEqual([35, 16]);
+    const stages = buildMultiEventStages({}, { start: '2026-09-24T13:00:00', type: 'MS' }, finished);
+    expect(stages[0].classifications[0].rows.map((r) => [r.rank, r.bib, r.timeText]))
+      .toEqual([[1, '35', '3:49:10'], [2, '16', '3:49:10']]);
+  });
+  it('no publica un ganador virtual procedente de un intermedio', () => {
+    expect(selectFinishedLiveRows({ results: [
+      { rank: 1, rider: rider(35), time: '3:27:45', splits: [split('Lap 9', 1)] },
+    ] })).toEqual([]);
+  });
+});
+
+describe('tissotIdBase — IDs sintéticos por evento del MultiEvents', () => {
+  it('sin evento, la semilla es el comp_id (comportamiento de etapas intacto)', () => {
+    expect(-tissotIdBase('ara2026')).toBe(-161831);
+    expect(tissotIdSeed('ara2026')).toBe('ara2026');
+  });
+  it('con evento, cada prueba del Mundial obtiene una base distinta', () => {
+    const bases = [1, 2, 3, 4, 5, 8, 10, 12, 13].map((e) => tissotIdBase('crdwch2026', e));
+    expect(new Set(bases).size).toBe(bases.length);            // sin colisiones
+    expect(-tissotIdBase('crdwch2026', 13)).toBe(-21865);      // línea masculina
+    expect(tissotIdSeed('crdwch2026', 5)).toBe('crdwch2026#5');// CRE relevo mixto
+  });
+});
+
+
+describe('Relevo MultiEvents — clasificación final visible y tiempos absolutos', () => {
+  const team = (name, bib) => ({ name, members: [
+    { bib, name: 'CORREDOR Uno' }, { bib: bib + 1, name: 'CORREDORA Dos' },
+  ] });
+  const raw = [
+    { rank: 1, team: team('ITALY', 31), value: '51:32.28', time: '51:32.28', gap: '+0.00' },
+    { rank: 3, team: team('SWITZERLAND', 21), value: '+19.90', time: '51:52.18', gap: '+19.90' },
+    { rank: 6, team: team('SPAIN', 51), value: '+1:10.77', time: '52:43.05', gap: '+1:10.77' },
+  ];
+  const build = (rows) => buildMultiEventStages({}, { start: '2026-09-22T12:30:00' }, rows)[0];
+  it('la final pasa el filtro de ambas apps y permite resolver los dorsales', () => {
+    const stage = build(raw);
+    expect(stage).toMatchObject({ stageNumber: null, isFinalClassification: true, raceType: 'TTT' });
+    expect(stage.classifications[0]).toMatchObject({ classKind: 'gc', isTeamEvent: false, rowCount: 6 });
+    expect(stage.classifications.filter((c) => stage.stageNumber != null || c.classKind !== 'stage')).toHaveLength(1);
+    expect(stage.classifications[0].rows.map((r) => r.bib)).toEqual(['31', '32', '21', '22', '51', '52']);
+  });
+  it('usa el absoluto oficial antes de truncar y mantiene los compañeros sin rango', () => {
+    const rows = build(raw).classifications[0].rows;
+    expect(rows.filter((r) => r.rank != null).map((r) => r.timeText)).toEqual(['51:32', '51:52', '52:43']);
+    expect(rows.filter((r) => r.rank == null).every((r) => r.timeText == null)).toBe(true);
+    expect(rows.every((r) => r.gapText == null)).toBe(true);
+  });
+  it('si falta el absoluto suma con centésimas antes de truncar', () => {
+    const rows = build(raw.map(({ time, ...r }) => r)).classifications[0].rows;
+    expect(rows.filter((r) => r.rank != null).map((r) => r.timeText)).toEqual(['51:32', '51:52', '52:43']);
+  });
+  it('rechaza equipos sin miembros para no publicar filas individuales sin dorsal', () => {
+    expect(() => build([{ rank: 1, team: { name: 'ITALY' }, value: '51:32.28' }])).toThrow('sin miembros');
   });
 });

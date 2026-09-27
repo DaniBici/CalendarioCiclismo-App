@@ -5,12 +5,12 @@
  * Copenhagen Sprint (UCI WorldTour / Women's WorldTour). Publica la clasificación
  * de meta poco después de cruzar la línea, antes que UCI DataRide.
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
  * race_uci_links.source ('uci'|'tissot'|'pdf'|'matsport'|'sportstiming') vía
- * uci-results-cron.mjs — PERO esta carrera se vuelca EN LOCAL (sin GitHub
- * Actions): este fetcher + uci-results-upsert.mjs --apply, a mano o en bucle.
+ * results-cron.mjs — PERO esta carrera se vuelca EN LOCAL (sin GitHub
+ * Actions): este fetcher + results-upsert.mjs --apply, a mano o en bucle.
  *
  * FUENTE (sin API JSON; lectura del HTML estable):
  *   GET /event/{eventId}/results[?cat={catLabel}]
@@ -25,7 +25,7 @@
  *   Plac. | Tid (tiempo) | Efter#1 (gap +M:SS) | "Nombre (DORSAL)\nEQUIPO"
  *         | Land (país IOC-3) | Klub/Firma (equipo) | [crossings, ignorados]
  *   - El número entre paréntesis tras el nombre ES EL DORSAL (Wiebes (1),
- *     Meeus (31); cuadra con fuente externa) → resolución POR DORSAL (082) contra la
+ *     Meeus (31); cuadra con la startlist) → resolución POR DORSAL (082) contra la
  *     startlist curada. El display es solo fallback.
  *   - Ganador con tiempo ABSOLUTO ("3:32:30"); resto con gap "+0:00"/"+8:10".
  *   - Abandonos: placement "DNF" (también DNS/DSQ/OTL posibles) + tiempo "-".

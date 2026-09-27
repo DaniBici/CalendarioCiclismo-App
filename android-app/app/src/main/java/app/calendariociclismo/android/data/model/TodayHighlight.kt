@@ -10,9 +10,12 @@ import kotlinx.serialization.Serializable
 data class TodayHighlight(
     val id: String,
     val position: Int = 0,
-    val targetType: String,                 // "raceDay" | "startlist" | "startOrder"
+    val targetType: String,                 // "raceDay" | "startlist" | "startOrder" | "cxRace" | "cxTournament"
+    val scope: String? = null,              // "road" | "cx". Ausente en documentos antiguos.
     val raceId: String? = null,
     val raceDayId: String? = null,
+    val cxRaceId: String? = null,
+    val cxTournamentId: String? = null,
     val customTitle: String? = null,
     val customTitleEn: String? = null,
     val customDetail: String? = null,

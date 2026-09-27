@@ -62,12 +62,12 @@ function urlEntry(loc, lastmod, changefreq, priority) {
   // Páginas estáticas
   const statics = [
     ['/', 'daily', '1.0'],
-    ['/calendario.html', 'daily', '0.9'],
+    ['/calendario/', 'daily', '0.9'],
     ['/fichajes/', 'daily', '0.8'],
     // /buscar.html: ARCHIVADO 2026-07-17, fuera del sitemap (la página sigue
     // viva por URL directa, pero no se ofrece ni se indexa).
-    ['/about.html', 'monthly', '0.4'],
-    ['/abierto.html', 'monthly', '0.5'],
+    ['/about/', 'monthly', '0.4'],
+    ['/abierto/', 'monthly', '0.5'],
     ['/en/open/', 'monthly', '0.5'],
   ];
   for (const [path, freq, prio] of statics) {

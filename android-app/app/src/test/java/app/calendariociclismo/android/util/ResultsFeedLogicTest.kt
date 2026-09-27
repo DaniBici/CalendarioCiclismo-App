@@ -24,12 +24,11 @@ class ResultsFeedLogicTest {
         gender: String? = "male",
         name: String = id,
         gt: Boolean = false,
-        extId: Int? = null,
         start: String? = null,
         end: String? = null,
     ) = Race(
         id = id, name = name, uciCategory = uci, gender = gender,
-        raceFormat = format, isGrandTour = gt, extId = extId,
+        raceFormat = format, isGrandTour = gt,
         startDate = start, endDate = end,
     )
 
@@ -121,8 +120,8 @@ class ResultsFeedLogicTest {
     }
 
     @Test
-    fun `una clasificacion enlazada no oculta el fallback del sector hermano`() {
-        val r = race("baltic", format = "stage_race", extId = 99)
+    fun `una clasificacion enlazada no crea fallback del sector hermano`() {
+        val r = race("baltic", format = "stage_race")
         val days = listOf(
             rd("baltic-1a", "baltic", "2026-08-21", sn = 1, start = "2026-08-21T08:00:00Z")
                 .copy(estimatedFinishTimeUtc = "2026-08-21T10:00:00Z"),
@@ -137,9 +136,9 @@ class ResultsFeedLogicTest {
             stages, days, listOf(r), "2026-08-21", "2026-08-21",
         )
 
-        assertEquals(2, entries.size)
-        assertEquals(listOf(Kind.INHOUSE, Kind.EXT), entries.map { it.kind })
-        assertEquals(listOf("A", "B"), entries.map { it.stageSuffix })
+        assertEquals(1, entries.size)
+        assertEquals(listOf(Kind.INHOUSE), entries.map { it.kind })
+        assertEquals(listOf("A"), entries.map { it.stageSuffix })
     }
 
     // ── Pruebas de un día ────────────────────────────────────────────
@@ -272,12 +271,16 @@ class ResultsFeedLogicTest {
                 UciRank1Row("s1", "rider-a"),
                 UciRank1Row("s1", "rider-a"),          // duplicado
                 UciRank1Row("s2", "rider-dns", irm = "DNS"),  // rank 1 espurio
+                UciRank1Row("s-df", "rider-df", irm = "DF"),
+                UciRank1Row("s-nr", "rider-nr", irm = "NR"),
                 UciRank1Row("s3", "rider-b"),
                 UciRank1Row("s3", "rider-c"),          // CRE variante A
             )
         )
         assertEquals(listOf("rider-a"), map["s1"])
         assertNull(map["s2"])
+        assertNull(map["s-df"])
+        assertNull(map["s-nr"])
         assertEquals(listOf("rider-b", "rider-c"), map["s3"])
     }
 
@@ -297,38 +300,29 @@ class ResultsFeedLogicTest {
         assertFalse(ResultsFeedLogic.isCreEntry(gcFinal, listOf("a", "b")))
     }
 
-    // ── Fallback externos ──────────────────────────────────────────────
+    // ── Solo clasificaciones propias ─────────────────────────────────
 
     @Test
-    fun `jornada concluida sin volcado genera entrada EXT y la cubierta no`() {
-        // Jornada de 2020 → concluida seguro para la heurística meta+30.
-        val conFc = race("beauce", extId = 99)
+    fun `jornada sin clasificacion propia no genera entrada`() {
+        val carrera = race("beauce")
         val rdSin = rd("rdB", "beauce", "2026-06-10", sn = 1)
             .copy(estimatedFinishTimeUtc = "2020-01-01T15:00:00Z")
         val entries = ResultsFeedLogic.buildEntries(
-            emptyList(), listOf(rdSin), listOf(conFc), "2026-06-01", "2026-06-30",
+            emptyList(), listOf(rdSin), listOf(carrera), "2026-06-01", "2026-06-30",
         )
-        assertEquals(1, entries.size)
-        assertEquals(Kind.EXT, entries[0].kind)
+        assertTrue(entries.isEmpty())
 
-        val enlazada = ResultsFeedLogic.buildEntries(
-            emptyList(), listOf(rdSin), listOf(conFc), "2026-06-01", "2026-06-30",
-            automaticSourceRaceIds = setOf(conFc.id),
-        )
-        assertTrue(enlazada.isEmpty())
-
-        // Con volcado in-house de esa clave → NO hay entrada EXT duplicada.
         val cubierta = ResultsFeedLogic.buildEntries(
             listOf(stage("e1", "beauce", sn = 1, date = "2026-06-10", winner = "X")),
-            listOf(rdSin), listOf(conFc), "2026-06-01", "2026-06-30",
+            listOf(rdSin), listOf(carrera), "2026-06-01", "2026-06-30",
         )
         assertEquals(1, cubierta.size)
         assertEquals(Kind.INHOUSE, cubierta[0].kind)
     }
 
     @Test
-    fun `un dia cubierto por la clave final no genera EXT aunque la jornada tenga stageNumber`() {
-        val fb = race("fb", format = "one_day", extId = 7, start = "2026-06-10")
+    fun `un dia cubierto por la clave final no genera entrada extra`() {
+        val fb = race("fb", format = "one_day", start = "2026-06-10")
         val rdFb = rd("rdFb", "fb", "2026-06-10", sn = 1)
             .copy(estimatedFinishTimeUtc = "2020-01-01T15:00:00Z")
         val entries = ResultsFeedLogic.buildEntries(
@@ -340,7 +334,7 @@ class ResultsFeedLogicTest {
     }
 
     @Test
-    fun `sin extId ni extSlug no hay entrada EXT`() {
+    fun `sin clasificacion propia no hay entrada`() {
         val sinFuentes = race("gyeongnam")
         val rdG = rd("rdG", "gyeongnam", "2026-06-11", sn = 3)
             .copy(estimatedFinishTimeUtc = "2020-01-01T15:00:00Z")

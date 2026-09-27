@@ -2,16 +2,16 @@
 /**
  * tissot-results-fetch.mjs — FETCHER de resultados desde TISSOT TIMING.
  *
- * Fuente alternativa a uci-results-fetch.mjs para las carreras que cronometra
+ * Fuente alternativa a dataride-results-fetch.mjs para las carreras que cronometra
  * Tissot (ASO: Tour, Vuelta, ARA/ex-Dauphiné, París-Niza, clásicas; Suiza;
  * Romandía; Mundial…). Ventaja: publica los resultados validados 5–15 min
  * después de meta — antes que UCI DataRide. API REST SIN autenticación
  * (contrato: TISSOT-TIMING-API.md, ingeniería inversa verificada 2026-06-10).
  *
- * EMITE EXACTAMENTE EL MISMO JSON que uci-results-fetch.mjs → el upsert
- * (uci-results-upsert.mjs), los locks del panel (087), el resolve por dorsal
+ * EMITE EXACTAMENTE EL MISMO JSON que dataride-results-fetch.mjs → el upsert
+ * (results-upsert.mjs), los locks del panel (087), el resolve por dorsal
  * (082) y la web/apps funcionan sin cambios. Quién usa qué fetcher lo decide
- * race_uci_links.source ('uci'|'tissot', migración 089) vía uci-results-cron.mjs.
+ * race_uci_links.source ('uci'|'tissot', migración 089) vía results-cron.mjs.
  *
  * MAPEO Tissot → contrato UCI
  *   /stages/{n}/rankings/stage   → scope='stage':  Time→stage · Young→youth ·
@@ -53,20 +53,38 @@
  * Solo se emiten etapas TERMINADAS (con Stage Ranking publicado): la ventana de
  * meta del cron (087) ya garantiza que se consulta cuando toca.
  *
+ * MUNDIALES Y OTRAS PRUEBAS «MultiEvents» (--tissot-event N): un mismo comp_id
+ *   (p.ej. el Mundial de carretera "crdwch2026") agrupa varias pruebas de un día
+ *   —una por evento numerado— que NO viven en /stages/{n}/rankings. Para estos
+ *   casos el fetcher recorre /competitions/{comp}/events/{event}/phases (fase
+ *   única) y lee la clasificación final en .../phases/{phase}/results. Mientras
+ *   no exista, /live aporta únicamente filas con split Finish, puesto y tiempo
+ *   absoluto confirmados; no se importan posiciones de pasos intermedios. Emite UNA
+ *   clasificación final (stageNumber NULL, isFinalClassification) por invocación,
+ *   porque cada prueba es una carrera de un día con su propio raceId y su propio
+ *   enlace race_uci_links. El nº de evento entra en la semilla de los IDs
+ *   sintéticos (comp#evento) para que las 9+ pruebas del mismo campeonato NO
+ *   colisionen entre sí. Sin --tissot-event, el comportamiento de etapas no cambia.
+ *
  * Uso (desde la raíz del repo; fetch nativo, sin deps):
  *   node scripts/results-fetchers/tissot-results-fetch.mjs --competition ara2026 --competition-id 76394
  *   node scripts/results-fetchers/tissot-results-fetch.mjs --competition ara2026 --competition-id 76394 --stage 2
+ *   node scripts/results-fetchers/tissot-results-fetch.mjs --competition crdwch2026 --competition-id -21865 --tissot-event 13
  *
  * Args:
  *   --competition     comp_id de Tissot: {código}{año} ("ara2026", "tdf2026").
  *   --competition-id  competitionId del puente race_uci_links. Para carreras CON
  *                     comp de UCI DataRide (p.ej. ARA): el competitionId de DataRide
  *                     (entero POSITIVO). Para carreras Tissot SIN DataRide (p.ej.
- *                     Vuelta a Suiza tds/tsf): un entero NEGATIVO sintético —
- *                     convención -(fnv1a(comp_id)%200000), lo imprime --suggest-id.
- *                     Obligatorio: el JSON lo lleva para que el upsert NO recablee
- *                     el puente; también nombra el archivo de salida <id>.json.
- *   --stage           (opcional) limitar a un nº de etapa.
+ *                     Vuelta a Suiza tds/tsf, Mundial crdwch): un entero NEGATIVO
+ *                     sintético — convención -(fnv1a(comp_id[#evento])%200000), lo
+ *                     imprime --suggest-id. Obligatorio: el JSON lo lleva para que
+ *                     el upsert NO recablee el puente; también nombra el archivo de
+ *                     salida <id>.json.
+ *   --tissot-event    (opcional) nº de evento dentro de un comp_id «MultiEvents»
+ *                     (Mundial: /events/{n}/phases). Activa el modo evento: una
+ *                     prueba de un día por invocación, sin --stage.
+ *   --stage           (opcional) limitar a un nº de etapa (solo carreras por etapas).
  *   --out             carpeta de salida (default _results_run/tissot-<comp> JUNTO A ESTE
  *                     script, no relativo al cwd). La ruta que imprime al terminar es la
  *                     real: leer esa, no reconstruirla a mano.
@@ -86,6 +104,9 @@ const hasFlag = (n) => args.includes(`--${n}`);
 
 const COMP = getArg('competition');                 // "ara2026"
 const COMPETITION_ID = getArg('competition-id');    // 76394 (DataRide, para el puente)
+// Modo MultiEvents (Mundial): nº de evento dentro de un comp_id que agrupa varias
+// pruebas de un día. null = comportamiento de etapas (Tour/Vuelta/…).
+const TISSOT_EVENT = getArg('tissot-event') != null ? parseInt(getArg('tissot-event'), 10) : null;
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
 // Anclado al directorio del script, NO al cwd: invocado a mano desde otra carpeta
 // escribía el JSON en una ruta distinta de la que imprime, y una lectura posterior
@@ -105,23 +126,36 @@ export function fnv1a(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h;
 }
+// Semilla de los IDs sintéticos. En una carrera por etapas es el comp_id
+// ("ara2026"); en un MultiEvents (Mundial) se añade el nº de evento para que las
+// pruebas del mismo campeonato no compartan eventId/raceId. Exportadas para tests.
+export function tissotIdSeed(comp, event = null) {
+  return event == null ? String(comp) : `${comp}#${event}`;
+}
 // ≤199999 → eventId > -2^31 garantizado. Sin --competition queda NaN: solo lo usa
 // main(), que valida los args antes (importar el módulo desde un test no ejecuta nada).
-const ID_BASE = COMP ? fnv1a(COMP) % 200000 : NaN;
+export function tissotIdBase(comp, event = null) {
+  return fnv1a(tissotIdSeed(comp, event)) % 200000;
+}
+const ID_BASE = COMP ? tissotIdBase(COMP, TISSOT_EVENT) : NaN;
 
 // Validación de args: DENTRO de main(), no a nivel de módulo — un process.exit() al
 // importar mataría el runner de tests.
 function checkArgs() {
   if (!COMP) { log('FATAL: falta --competition <comp_id tissot, p.ej. ara2026>'); process.exit(1); }
+  if (TISSOT_EVENT != null && !(Number.isInteger(TISSOT_EVENT) && TISSOT_EVENT > 0)) {
+    log('FATAL: --tissot-event debe ser un entero positivo (nº de evento del MultiEvents)');
+    process.exit(1);
+  }
   // competitionId del puente: positivo (DataRide, p.ej. ARA 76394) o negativo
-  // sintético para carreras Tissot SIN DataRide (Vuelta a Suiza tds/tsf). El
-  // negativo sugerido = -(fnv1a(comp_id)%200000), misma base que los eventId.
+  // sintético para carreras Tissot SIN DataRide (Vuelta a Suiza tds/tsf, Mundial
+  // crdwch). El negativo sugerido = -(fnv1a(seed)%200000), misma base que los eventId.
   if (hasFlag('suggest-id')) {
     process.stdout.write(String(-ID_BASE) + '\n');
     process.exit(0);
   }
   if (!COMPETITION_ID || !/^-?\d+$/.test(COMPETITION_ID)) {
-    log(`FATAL: falta --competition-id <entero del puente race_uci_links> (DataRide positivo, o negativo sintético; sugerido para ${COMP}: ${-ID_BASE})`);
+    log(`FATAL: falta --competition-id <entero del puente race_uci_links> (DataRide positivo, o negativo sintético; sugerido para ${tissotIdSeed(COMP, TISSOT_EVENT)}: ${-ID_BASE})`);
     process.exit(1);
   }
 }
@@ -209,7 +243,12 @@ export function gapText({ sec, centis }) {            // → "+41" | "+1:29" | "
 const IRM_CODES = new Set(['DNF', 'DNS', 'OTL', 'DSQ', 'ABD']);
 export function irmCode(v) {
   const s = clean(v).toUpperCase();
-  return IRM_CODES.has(s) ? s : null;
+  if (IRM_CODES.has(s)) return s;
+  // En las listas «MultiEvents» (Mundial, mtbwch) el estado llega con un sufijo
+  // numérico ("DNF6" = abandono en la vuelta 6) → se reconoce por el prefijo.
+  // "OK"/"None"/"LAP" no están en la whitelist y siguen devolviendo null.
+  const m = /^([A-Z]{2,4})\d*$/.exec(s);
+  return m && IRM_CODES.has(m[1]) ? m[1] : null;
 }
 
 // ── mapeo de filas ────────────────────────────────────────────────────────
@@ -335,7 +374,7 @@ export function expandTeamTimeTrial(results, roster) {
 }
 
 // ── CRE: tiempos individuales desde UCI DataRide (Tissot no los publica) ───
-// Cliente mínimo de dataride.uci.ch/iframe (espejo de uci-results-fetch.mjs:
+// Cliente mínimo de dataride.uci.ch/iframe (espejo de dataride-results-fetch.mjs:
 // POST form-urlencoded, respuesta Kendo {data}, /Events/ exige cookie de sesión).
 // Solo se usa para etapas TTT; carga perezosa y silenciosa: cualquier fallo →
 // null → fallback a la expansión por roster.
@@ -358,7 +397,7 @@ async function uciPost(path, formObj, needCookie = false) {
   if (!res.ok) return null;
   try { return JSON.parse(await res.text()); } catch { return null; }
 }
-// Fila DataRide → contrato (espejo del normalizeRow de uci-results-fetch.mjs;
+// Fila DataRide → contrato (espejo del normalizeRow de dataride-results-fetch.mjs;
 // en una CRE los ResultValue son tiempos absolutos por corredor, sin gaps).
 function uciRow(r) {
   const rankNum = /^\d+$/.test(clean(r.Rank)) ? parseInt(r.Rank, 10) : null;
@@ -445,15 +484,192 @@ function buildClassification(slot, spec, rows) {
   };
 }
 
+// ── MultiEvents (Mundial): una prueba de un día por invocación ─────────────
+// Valor de la lista «results» de /events/{n}/phases/{p} → segundos enteros.
+// Acepta los tres dialectos y gaps con signo ("+0:17"); descarta centésimas
+// porque este contrato de resultados no las procesa. NO confundir con
+// mapTimeRows (dialecto de /stages/{n}/rankings, sin signo en los gaps).
+export function parseEventAbsolute(v) {
+  const parsed = parseEventTime(v);
+  return parsed ? { sec: parsed.sec, centis: null } : null;
+}
+// Conserva centésimas durante la suma de ganador + gap; se eliminan al emitir.
+function parseEventTime(v) {
+  const raw = clean(v).replace(/^\+/, '');
+  const decimal = /^(\d+(?::\d{1,2}){0,2})[.,](\d+)$/.exec(raw);
+  if (decimal) return {
+    sec: decimal[1].split(':').reduce((total, part) => total * 60 + Number(part), 0),
+    centis: decimal[2].padEnd(2, '0').slice(0, 2),
+  };
+  return parseTissotTime(raw) || parseAbsoluteColonTime(raw) || parsePlainSecondsGap(raw);
+}
+function eventValueWithoutCentiseconds(v) {
+  const raw = clean(v);
+  const m = /^([+-]?)(\d+(?::\d+){0,2})[.,]\d+$/.exec(raw);
+  return m ? `${m[1]}${m[2]}` : raw;
+}
+// Dialecto clásico que entiende parseTissotTime ("1h25'26\"" | "0'17\"") — solo
+// para alimentar expandTeamTimeTrial en la CRE, que espera el formato de /rankings.
+function classicTissot({ sec, centis }) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const body = h > 0 ? `${h}h${pad(m)}'${pad(s)}` : m > 0 ? `${m}'${pad(s)}` : `${s}`;
+  return `${body}"${centis || ''}`;
+}
+// Filas individuales → contrato. Emite el tiempo ABSOLUTO de todas las filas
+// (timeText) y ningún gapText: el render deriva los gaps (caso A, como STS o
+// livetiming). El ganador siempre trae `time`; el resto también en Tissot.
+export function mapEventRows(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    const bib = r.rider?.bib != null ? String(r.rider.bib) : null;
+    const display = displayOf(r);
+    const teamName = clean(r.rider?.teamName) || null;
+    const irm = irmCode(r.value) || irmCode(r.time) || irmCode(r.gap);
+    if (irm) {
+      out.push({ rank: null, rankText: irm, bib, riderDisplay: display, teamName,
+        resultValue: null, timeText: null, gapText: null, points: null, irm });
+      continue;
+    }
+    const rank = r.rank > 0 ? r.rank : null;
+    if (rank == null) continue;   // roster vigente sin posición confirmada (no es abandono)
+    const rawValue = clean(r.value);
+    const abs = parseEventAbsolute(r.time) || (!rawValue.startsWith('+') ? parseEventAbsolute(rawValue) : null);
+    if (abs) {
+      const tt = absText(abs);
+      out.push({ rank, rankText: String(rank), bib, riderDisplay: display, teamName,
+        resultValue: tt, timeText: tt, gapText: null, points: null, irm: null });
+    } else {
+      out.push({ rank, rankText: String(rank), bib, riderDisplay: display, teamName,
+        resultValue: eventValueWithoutCentiseconds(rawValue) || null, timeText: null, gapText: null, points: null, irm: null });
+    }
+  }
+  return out;
+}
+function eventRaceType(t) {
+  const v = clean(t).toUpperCase();
+  return v === 'TTT' ? 'TTT' : v === 'ITT' ? 'ITT' : 'IRR';
+}
+const hasEventWinner = (rows) => rows.some((r) => r.rank === 1 && !r.irm);
+
+// /live incluye posiciones y tiempos de pasos intermedios, así como DNS/DNF.
+// El split Finish con puesto positivo acredita una llegada individual o de equipo.
+// Exigir además el tiempo absoluto impide interpretar un gap provisional como meta.
+export function selectFinishedLiveRows(payload) {
+  if (!payload || !Array.isArray(payload.results)) return [];
+  return payload.results.filter((r) => {
+    if (!(r.rank > 0) || (!r.rider && !r.team)) return false;
+    const finish = (r.splits || []).find((s) => clean(s.name || s.key).toLowerCase() === 'finish');
+    return finish?.rank > 0 && !clean(r.time).startsWith('+') && parseEventAbsolute(r.time) != null;
+  });
+}
+
+async function runMultiEvent(comp) {
+  const phaseList = (await get(`/competitions/${COMP}/events/${TISSOT_EVENT}/phases`)) || [];
+  if (!phaseList.length) { log(`  evento ${TISSOT_EVENT} sin fases publicadas — omitido`); return []; }
+  if (phaseList.length > 1) log(`  ⚠ evento ${TISSOT_EVENT} con ${phaseList.length} fases; se procesa la última`);
+  const phase = phaseList[phaseList.length - 1];
+  await sleep(DELAY);
+  const payload = await get(`/competitions/${COMP}/events/${TISSOT_EVENT}/phases/${phase.number}/results`);
+  let raw = Array.isArray(payload) ? payload
+    : (payload && Array.isArray(payload.results) ? payload.results : []);
+  if (!raw.length) {
+    await sleep(DELAY);
+    const live = await get(`/competitions/${COMP}/events/${TISSOT_EVENT}/phases/${phase.number}/live`);
+    raw = selectFinishedLiveRows(live);
+    if (!raw.length) {
+      log(`  evento ${TISSOT_EVENT} (${clean(phase.name) || 'prueba'}) sin Results ni llegadas Finish confirmadas — omitido`);
+      return [];
+    }
+    log(`  evento ${TISSOT_EVENT}: ${raw.length} llegadas Finish de Live, pendientes de Results`);
+  }
+
+  const roster = raw.some((r) => r.team && !r.rider)
+    ? (await get(`/competitions/${COMP}/events/${TISSOT_EVENT}/phases/${phase.number}/teams`)) || []
+    : [];
+  return buildMultiEventStages(comp, phase, raw, roster);
+}
+
+export function buildMultiEventStages(comp, phase, raw, roster = []) {
+  const teamShaped = raw.some((r) => r.team && !r.rider);
+  let rows;
+  if (teamShaped) {
+    // El resultado aporta también los miembros si /teams aún no está disponible.
+    const effectiveRoster = raw.map((r) => r.team).concat(roster);
+    const adapted = raw.map((r) => {
+      const rank = r.rank > 0 ? r.rank : null;
+      const src = rank === 1
+        ? (parseEventTime(r.time) || parseEventTime(r.value))
+        : (parseEventTime(r.gap) || parseEventTime(r.value));
+      return { ...r, value: src ? classicTissot(src) : clean(r.value) };
+    });
+    const absoluteByTeam = new Map(raw.map((r) => [clean(r.team?.name).toUpperCase(), parseEventAbsolute(r.time)]));
+    rows = expandTeamTimeTrial(adapted, effectiveRoster).map((r) => {
+      if (!r.bib) throw new Error('Relevo sin miembros con dorsal: no se publica como clasificación individual');
+      if (r.rank == null || r.irm) return r;
+      const absolute = absoluteByTeam.get(clean(r.teamName).toUpperCase()) || parseEventAbsolute(r.timeText);
+      const timeText = absolute ? absText(absolute) : null;
+      return { ...r, timeText, resultValue: timeText };
+    });
+  } else {
+    rows = mapEventRows(raw);
+  }
+  if (!hasEventWinner(rows)) { log(`  evento ${TISSOT_EVENT} sin ganador válido — omitido`); return []; }
+
+  const spec = {
+    classKind: 'gc', scope: 'stage',
+    eventName: 'General Classification',
+    time: true, teamRows: false,
+  };
+  const cl = buildClassification(FINAL_SLOT, spec, rows);
+  // Conserva el ID ya publicado del relevo al corregir stage → gc. No crea una
+  // segunda cabecera ni invalida referencias existentes a la clasificación.
+  if (teamShaped) cl.eventId = synthEventId(FINAL_SLOT, 'stage', 'stage');
+  cl.publication = { provider: 'tissot', format: 'progressive' };
+  const dateKey = clean(phase.start).slice(0, 10) || clean(comp.end) || clean(comp.start) || null;
+  log(`  evento ${String(TISSOT_EVENT).padEnd(2)} ${(spec.scope + '/' + spec.classKind).padEnd(14)} ${String(rows.length).padStart(3)} filas  (event ${cl.eventId})`);
+  return [{
+    uciRaceId: synthRaceId(FINAL_SLOT),
+    stageNumber: null,
+    stageName: 'Final Classification',
+    isFinalClassification: true,
+    dateKey,
+    raceType: teamShaped ? 'TTT' : eventRaceType(phase.type),
+    startLocation: null,
+    classificationCount: 1,
+    classifications: [cl],
+  }];
+}
+
 // ── pipeline ──────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
   mkdirSync(OUT, { recursive: true });
-  log(`Fetcher Tissot — comp=${COMP} (puente DataRide ${COMPETITION_ID}) · idBase=${ID_BASE}`);
+  log(`Fetcher Tissot — comp=${COMP}${TISSOT_EVENT != null ? ` evento=${TISSOT_EVENT}` : ''} (puente ${COMPETITION_ID}) · idBase=${ID_BASE}`);
 
   const comp = await get(`/competitions/${COMP}`);
   if (!comp) { log(`FATAL: Tissot no responde para ${COMP} (¿comp_id correcto?)`); process.exit(1); }
   log(`  ${comp.name} · status=${comp.status} · ${comp.start} → ${comp.end}`);
+
+  // MultiEvents (Mundial): una prueba de un día por invocación. Los campeonatos
+  // por etapas (Tour, Vuelta, …) siguen por la rama de /stages sin cambios.
+  if (TISSOT_EVENT != null) {
+    const stages = await runMultiEvent(comp);
+    const out = {
+      competitionId: Number(COMPETITION_ID),
+      disciplineId: 10,
+      source: 'tissot',
+      tissotCompetition: COMP,
+      tissotEvent: TISSOT_EVENT,
+      fetchedAt: new Date().toISOString(),
+      stageCount: stages.length,
+      stages,
+    };
+    const file = join(OUT, `${COMPETITION_ID}.json`);
+    writeFileSync(file, JSON.stringify(out, null, 2));
+    log(`\n✅ evento ${TISSOT_EVENT}: ${stages.length} clasificación(es) → ${file}`);
+    if (PRETTY) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    return;
+  }
 
   const stageList = (await get(`/competitions/${COMP}/stages`)) || [];
   if (!stageList.length) { log('⚠️  0 etapas en Tissot'); }
@@ -493,11 +709,13 @@ async function main() {
         const spec = classifyTissot(rk.rankingType, view);
         const teamShaped = rk.results.some((r) => r.team && !r.rider);
         let rows;
+        let effectiveProvider = 'tissot';
         if (view === 'stage' && spec.classKind === 'stage' && teamShaped) {
           // CRE: tiempos individuales de la UCI si ya están publicados; si no,
           // expansión por roster con el tiempo del equipo (se auto-corrige en el
           // siguiente volcado de la ventana cuando la UCI publique).
           const uciRows = await fetchUciTttRows(stageNumber);
+          if (uciRows) effectiveProvider = 'uci';
           rows = uciRows || expandTeamTimeTrial(rk.results, roster);
           log(uciRows
             ? `    E${stageNumber} CRE: tiempos individuales desde UCI DataRide (${uciRows.length} filas)`
@@ -517,6 +735,15 @@ async function main() {
           }
         }
         const cl = buildClassification(stageNumber, spec, rows);
+        cl.publication = { provider:effectiveProvider, format:effectiveProvider==='uci'?'uci':'progressive' };
+        if (view === 'stage' && spec.classKind === 'stage' && teamShaped) {
+          const winner = rk.results.filter(row => row.rank === 1 && !irmCode(row.value));
+          const teamTime = winner.length === 1 ? parseTissotTime(winner[0].value) : null;
+          if (teamTime) Object.assign(cl.publication, {
+            raceTimeKind:'team', raceTimeSeconds:teamTime.sec + Number(teamTime.centis || 0)/100,
+            raceTimeSource:'tissot_team_classification',
+          });
+        }
         classifications.push(cl);
         log(`    E${String(stageNumber).padEnd(2)} ${(cl.scope + '/' + cl.classKind).padEnd(14)} ${String(rows.length).padStart(3)} filas  (event ${cl.eventId})`);
       }

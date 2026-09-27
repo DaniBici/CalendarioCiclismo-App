@@ -13,6 +13,13 @@ object Routes {
     // Calendario = fusión de las antiguas pestañas Mes y Temporada (la subvista
     // activa se recuerda en AppPreferences.calendarSubview).
     const val CALENDAR = "calendar"
+    const val CYCLOCROSS = "cyclocross"
+    const val CX_TOURNAMENT = "cx_tournament/{tournamentId}?season={season}&name={name}&logo={logo}"
+    fun cxTournament(tournamentId: String, season: String, name: String, logo: String? = null): String =
+        "cx_tournament/${android.net.Uri.encode(tournamentId)}?season=${android.net.Uri.encode(season)}&name=${android.net.Uri.encode(name)}${logo?.let { "&logo=${android.net.Uri.encode(it)}" } ?: ""}"
+    const val CX_RACE = "cx_race/{raceId}?category={category}"
+    fun cxRace(raceId: String, category: String? = null): String =
+        if (category == null) "cx_race/$raceId" else "cx_race/$raceId?category=$category"
     // Mercado de fichajes 2027 (apps 4.0) — 3ª pestaña; sustituye a Buscar
     // (archivado en archive/buscador-apps-2026/).
     const val TRANSFERS = "transfers"
@@ -36,6 +43,7 @@ object Routes {
     const val RESULTS = "results/{raceId}?stage={stage}&sfx={sfx}&class={class}"
     const val FOLLOWED_RACES = "followed_races"
     const val FOLLOWED_STAGES = "followed_stages"
+    const val FOLLOWED_CX_RACES = "followed_cx_races"
     const val CHAMPIONSHIPS = "championships"
     // Detalle de equipo del mercado (continúan / llegan / se marchan).
     const val TRANSFERS_TEAM = "transfers_team/{teamId}"
@@ -58,8 +66,9 @@ object Routes {
     }
     val followedRaces = FOLLOWED_RACES
     val followedStages = FOLLOWED_STAGES
+    val followedCxRaces = FOLLOWED_CX_RACES
     fun transfersTeam(teamId: String) = "transfers_team/$teamId"
 
-    /** Pestañas principales mostradas en la bottom bar. */
-    val MAIN_TABS = listOf(TODAY, RESULTS_FEED, TRANSFERS, CALENDAR, SETTINGS)
+    /** Destinos principales mostrados por la suite adaptativa de navegación. */
+    val MAIN_TABS = listOf(TODAY, RESULTS_FEED, TRANSFERS, CYCLOCROSS, CALENDAR)
 }

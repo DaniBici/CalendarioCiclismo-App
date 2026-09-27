@@ -1,3 +1,10 @@
+import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from './result-time.js?v=20260914cxresults';
+import { updateResultsHtml, limitScrollToStickyStart } from './results-dom.js?v=20260927stickyscroll';
+import { mountStageProfile } from './stage-profile.js';
+import { stageContextHtml, stageMetricsHtml } from './stage-context.js';
+import { teamStripes, teamsForSeason } from './team-appearance.js';
+import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
+import { arrowHtml, installScrollRail } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  RESULTADOS — clasificaciones oficiales (UCI) de una etapa
 //  URL: /resultados/<race-slug>/etapa-N/   ·   /resultados/<race-slug>/prologo/
@@ -16,14 +23,46 @@
 
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, findMatchingTeam, normalizeTeamName, teamLinkUrl,
-         buildRaceHeader, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl,
-         isIndividualPlaceholderTeam, effectiveCountryCode } from './shared.js';
+         buildRaceHeader, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl, loadRaceTechnicalGuide, withRaceTechnicalGuide,
+         isNoTeamPlaceholderTeam, effectiveCountryCode, setRaceRobots } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
-import { IRM_LABELS, isAbandonIrm, irmDescription } from './uci-irm.js';
+import { IRM_LABELS, isAbandonIrm, isNonWinnerIrm, irmDescription } from './uci-irm.js';
 import { sectorSuffixMap, resultStageEntryKey, parseResultStageKey } from './services/races.js';
 
 // Orden y etiquetas de las clasificaciones (las pestañas se muestran en este orden).
 const CLASS_ORDER = ['stage', 'gc', 'points', 'kom', 'youth', 'teams'];
+const stickyHeightObservers = new Map();
+
+// Publica en una variable CSS la altura de un bloque fijo para que los que se
+// fijan debajo (pestañas, fila de columnas) no se solapen con él.
+function syncStickyHeight(variable, element) {
+  stickyHeightObservers.get(variable)?.disconnect();
+  stickyHeightObservers.delete(variable);
+
+  if (!element) {
+    document.documentElement.style.removeProperty(variable);
+    return;
+  }
+
+  const update = () => {
+    document.documentElement.style.setProperty(
+      variable,
+      `${Math.ceil(element.getBoundingClientRect().height)}px`
+    );
+  };
+
+  update();
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    stickyHeightObservers.set(variable, observer);
+  }
+}
+
+function syncResultsRaceHeaderHeight(header) {
+  syncStickyHeight('--results-race-header-h', header);
+}
+
 const CLASS_LABELS = {
   stage:  { es: 'Etapa',    en: 'Stage' },
   gc:     { es: 'General',  en: 'GC' },
@@ -61,67 +100,6 @@ function stagePathLabel(stageNumber, isEn, suffix = '') {
   return isEn ? 'Final classification' : 'Clasificación final';
 }
 
-// "H:MM:SS" | "MM:SS" | "SS" → segundos (o null si no parsea).
-function timeToSeconds(txt) {
-  if (!txt) return null;
-  const parts = String(txt).trim().split(':').map(Number);
-  if (parts.some(Number.isNaN)) return null;
-  return parts.reduce((acc, n) => acc * 60 + n, 0);
-}
-// segundos → gap con la convención de la prensa ciclista (fuente externa):
-//   <1min  → +SS"        (p. ej. +7")
-//   <1h    → +M'SS"      (p. ej. +1'38")
-//   ≥1h    → +H:MM:SS    (p. ej. +1:02:41)
-function secondsToGap(sec) {
-  if (sec == null || sec < 0) return null;
-  // Segundos ENTEROS siempre (regla de carretera: el tiempo oficial se trunca al
-  // segundo). El floor también mata el error flotante de derivar con decimales.
-  sec = Math.floor(sec);
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  const ss = String(s).padStart(2, '0');
-  if (h > 0) return `+${h}:${String(m).padStart(2, '0')}:${ss}`;
-  if (m > 0) return `+${m}'${ss}"`;
-  return `+${s}"`;
-}
-// segundos → tiempo absoluto "H:MM:SS" (inverso de timeToSeconds; sin '+').
-function secondsToTimeText(sec) {
-  if (sec == null || sec < 0) return '';
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-// Normaliza un gap al formato de prensa. La UCI publica los gaps con ':' como
-// separador único y SIN unidades ("+41" = 41s, "+1:56" = 1m56s, "+3:13" = 3m13s,
-// "+35:09" = 35m09s, "+1:02:41" = 1h02m41s) → re-emitir como +SS"/+M'SS"/+H:MM:SS.
-// Si el gap ya trae las marcas de prensa (' o ") se devuelve tal cual.
-function formatGap(gap) {
-  if (!gap) return gap;
-  const t = String(gap).trim();
-  if (t.includes("'") || t.includes('"')) return t;   // ya formateado
-  const sec = timeToSeconds(t.replace(/^\+/, ''));      // "+3:13" → 193
-  return sec != null ? secondsToGap(sec) : t;
-}
-// Limpia un tiempo absoluto para PRESENTACIÓN: recorta el bloque de horas a
-// cero ("0:06:36"/"00:30:36" → "6:36"/"30:36"), el cero a la izquierda del
-// primer bloque y los DECIMALES enteros fuera ("1:04.869" → "1:04"): en
-// carretera el tiempo oficial se cuenta en segundos enteros (truncado). La UCI
-// publica los tiempos con formatos muy dispares (visto en las CRI del backfill).
-function cleanTimeText(txt) {
-  if (!txt) return '';
-  let t = String(txt).trim();
-  t = t.replace(/^0+:(?=\d)/, '');         // fuera el bloque de horas "0:"/"00:"
-  t = t.replace(/^0(?=\d:)/, '');          // "06:36" → "6:36"
-  t = t.replace(/\.\d+$/, '');             // decimales fuera (segundos enteros)
-  return t;
-}
-// segundos → tiempo absoluto ("6:36" · "45:53" · "1:05:05"): sin horas a cero
-// y en segundos ENTEROS (truncado, regla de carretera).
-function secondsToAbsText(sec) {
-  if (sec == null || sec < 0) return '';
-  sec = Math.floor(sec);
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
-}
 // segundos (enteros) → tiempo absoluto en NOTACIÓN DE PRENSA: 20'52" (sub-hora;
 // ≥1h sigue el mismo escalón H:MM:SS que secondsToGap). Para el tiempo del
 // ganador de una CRI: "20:52.99" → 20'52" (truncado, segundos enteros).
@@ -140,6 +118,8 @@ function stageSlugSegment(stageNumber, isEn, suffix = '') {
   return '';
 }
 
+const statusIcon = kind => `<svg class="res-status-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${kind==='pending'?'<path d="M14 2H6a2 2 0 0 0-2 2v16h8M14 2v6h6M14 2l6 6v3"/><circle cx="17" cy="17" r="5"/><path d="M17 14v3l2 1"/>':kind==='offline'?'<path d="m2 2 20 20M8.5 16.5a5 5 0 0 1 7 0M12 20h.01M3 9a15 15 0 0 1 3-2m4-1a15 15 0 0 1 11 3M6 12a10 10 0 0 1 3-2m5 0a10 10 0 0 1 4 2"/>':'<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18a8 8 0 0 1-13-2"/>'}</svg>`;
+
 async function init() {
   window.__spaDrivenAnalytics = true;
   const params  = new URLSearchParams(window.location.search);
@@ -147,7 +127,7 @@ async function init() {
   const _isEn   = getLang() === 'en';
   const lang    = _isEn ? 'en' : 'es';
   const empty = (msgEs, msgEn) =>
-    content.innerHTML = `<div class="startlist-empty">${_isEn ? msgEn : msgEs}</div>`;
+    content.innerHTML = `<div class="startlist-empty">${statusIcon('pending')}${_isEn ? msgEn : msgEs}</div>`;
 
   // Etiqueta corta de un código IRM (ABN/NS/FC/EXP) con su descripción larga
   // como tooltip (title) — p. ej. "Abandono" / "Did not finish". El corredor que
@@ -189,7 +169,7 @@ async function init() {
   // El módulo del feed se carga en diferido para no engordar las páginas de
   // carrera, que son la ruta caliente.
   if (!raceId && !raceSlug) {
-    const { renderResultsFeed } = await import('./resultados-feed.js');
+    const { renderResultsFeed } = await import('./resultados-feed.js?v=20260924sitefix');
     renderResultsFeed(content);
     return;
   }
@@ -219,27 +199,36 @@ async function init() {
   if (!race) { empty('No se encontró la carrera.', 'Race not found.'); return; }
   raceId = race.id;
 
-  // Botón atrás — volver a la página de procedencia si es del mismo origen
-  // (p. ej. la jornada desde la que se navegó), si no a la carrera.
+  // Botón atrás — prioridad a la página de procedencia de OTRO apartado
+  // (p. ej. la jornada o el calendario desde los que se navegó). Si no hay
+  // referente válido, o venimos del propio apartado de resultados, vuelve al
+  // índice de resultados.
+  const feedHref  = _isEn ? `${enBase()}/results/` : '/resultados/';
+  const feedLabel = _isEn ? 'All results' : 'Todos los resultados';
   const backBtn = document.getElementById('backBtn');
   if (backBtn) {
-    const referrer = document.referrer;
-    const sameOrigin = referrer && new URL(referrer, location.href).origin === location.origin
-      && new URL(referrer, location.href).pathname !== location.pathname;
-    if (sameOrigin) {
+    let referrer = '';
+    try {
+      const refUrl = new URL(document.referrer, location.href);
+      if (document.referrer && refUrl.origin === location.origin
+          && refUrl.pathname !== location.pathname) referrer = document.referrer;
+    } catch (_) { /* referente no parseable → índice de resultados */ }
+    if (referrer) {
       backBtn.href = referrer;
       backBtn.addEventListener('click', (e) => { e.preventDefault(); history.back(); });
     } else {
-      backBtn.href = raceUrl(race);
+      backBtn.href = feedHref;
+      backBtn.setAttribute('aria-label', feedLabel);
     }
   }
 
   // ── Clasificaciones disponibles (keepForWeb) de esta carrera ───────
-  const { data: stagesAll } = await supabase
+  const { data: stagesAll, error: stagesError } = await supabase
     .from('race_uci_stages')
     .select('*')
     .eq('raceId', raceId)
     .eq('keepForWeb', true)
+    .gt('rowCount', 0)
     .order('stageNumber', { ascending: true });
 
   // ── Jornadas de la carrera ─────────────────────────────────────────
@@ -249,12 +238,14 @@ async function init() {
   // canónico es cronológico (dateKey, luego hora de salida) — el mismo que usan
   // Hoy/Mes y las apps para los dobles sectores: la "etapa anterior" de un
   // sector B es su sector A, y la del día siguiente a un doble sector es el B.
-  const { data: allRaceDays } = await supabase
+  if (stagesError) throw stagesError;
+  const { data: allRaceDays, error: daysError } = await supabase
     .from('race_days')
     .select('id, "stageNumber", "dateKey", "isCancelledDay", "isRestDay", "neutralStartTimeUtc"')
     .eq('raceId', raceId)
     .order('dateKey', { ascending: true })
     .order('neutralStartTimeUtc', { ascending: true, nullsFirst: true });
+  if (daysError) throw daysError;
   const racedDays = (allRaceDays || []).filter(d => !d.isRestDay);
   // Dobles sectores (etapa partida 3A/3B): dos jornadas del mismo día con el
   // MISMO entero stageNumber. Se separan por raceDayId (cada clasificación lleva
@@ -328,9 +319,9 @@ async function init() {
   // (p. ej. su 'gc' del día), manda la final (es la oficial del último día).
   {
     const finalStages = stagesByNum.get('final');
-    const numericKeys = stageKeys.filter(k => k !== 'final');
-    if (finalStages && finalStages.length && numericKeys.length) {
-      const lastNum = numericKeys[numericKeys.length - 1];
+    const lastDay = racedWithStage.filter(d=>!d.isCancelledDay).at(-1);
+    const lastNum = lastDay ? keyForDay(lastDay) : null;
+    if (finalStages?.length && lastNum && stagesByNum.has(lastNum)) {
       const finalKinds = new Set(finalStages.map(s => s.classKind));
       const kept = stagesByNum.get(lastNum).filter(s => !finalKinds.has(s.classKind));
       stagesByNum.set(lastNum, kept.concat(finalStages));
@@ -368,6 +359,14 @@ async function init() {
     if (firstSector) activeKey = firstSector;
   }
   if (!stagesByNum.has(activeKey)) {
+    const pollPending = async () => {
+      if(document.hidden) return;
+      const {data,error}=await supabase.from('race_uci_stages').select('raceDayId,stageNumber,isFinalClassification,rowCount').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0);
+      if(!error && data?.some(row=>requestedKey===undefined || keyForStage(row)===activeKey)) location.reload();
+    };
+    const pendingTimer=setInterval(pollPending,60000);
+    document.addEventListener('visibilitychange',pollPending);
+    window.addEventListener('pagehide',()=> {clearInterval(pendingTimer);document.removeEventListener('visibilitychange',pollPending);},{once:true});
     if (requestedStage !== undefined) {
       // Se pidió una etapa CONCRETA (segmento de path o ?stage=) que esta
       // carrera todavía no tiene volcada — sea porque solo falta esa etapa o
@@ -389,11 +388,15 @@ async function init() {
           'No results available yet for this race.');
     return;
   }
-  const activeStages = stagesByNum.get(activeKey);
+  const activeStages = [...stagesByNum.get(activeKey)];
   const { stageNumber: activeStageNumber, suffix: activeSuffix } = parseResultStageKey(activeKey);
 
   // Clasificaciones de la etapa activa, ordenadas por CLASS_ORDER.
-  activeStages.sort((a, b) => CLASS_ORDER.indexOf(a.classKind) - CLASS_ORDER.indexOf(b.classKind));
+  const { data: classificationConfig, error: configError } = await supabase.from('race_classifications').select('*').eq('raceId',raceId);
+  if (configError) throw configError;
+  const inventory = classificationInventory(classificationConfig || [], stagesAll);
+  const configByKind = new Map(inventory.map(row => [row.classKind,row]));
+  activeStages.splice(0,activeStages.length,...visibleStageClassifications(activeStages,inventory));
   // Clasificación seleccionada (hash #stage|#gc|… o la primera).
   const hashClass = (location.hash || '').replace('#', '');
   let activeClass = activeStages.find(s => s.classKind === hashClass) || activeStages[0];
@@ -403,7 +406,7 @@ async function init() {
   const canonBase = _isEn ? `${enBase()}/results/` : '/resultados/';
   const seg = stageSlugSegment(activeStageNumber, _isEn, activeSuffix);
   if (canonSlug) {
-    history.replaceState(null, '', `${canonBase}${encodeURIComponent(canonSlug)}/${seg ? seg + '/' : ''}`);
+    history.replaceState(null, '', `${canonBase}${encodeURIComponent(canonSlug)}/${seg ? seg + '/' : ''}${hashClass ? '#'+encodeURIComponent(hashClass) : ''}`);
   }
 
   // ── Reconstruir corredores por dorsal contra la startlist ──────────
@@ -437,15 +440,15 @@ async function init() {
         .from('teams')
         .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
         .in('id', canonIds);
-      raceTeams = data || [];
+      raceTeams = await teamsForSeason(supabase,data || [],race.year,canonIds);
       raceTeams.forEach(t => teamBySlugId.set(t.id, t));
     }
     (slRiders || []).forEach(r => {
       const slTeam = r.teamId ? slTeamByPk.get(r.teamId) : null;       // fila por PK
       const canon  = slTeam?.teamId ? teamBySlugId.get(slTeam.teamId) : null;
-      // Ficticio "Individual" (corredor sin equipo en la fuente) → ocultación
-      // cosmética: sin nombre de equipo, y en cascada sin chapa ni opción de filtro.
-      const slName = isIndividualPlaceholderTeam(slTeam) ? '' : (slTeam?.teamName || '');
+      // Estado sin equipo → ocultación cosmética: sin nombre de equipo, y en
+      // cascada sin chapa ni opción de filtro.
+      const slName = isNoTeamPlaceholderTeam(slTeam) ? '' : (slTeam?.teamName || '');
       const snapshot = {
         name: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
         countryCode: r.countryCode || '',
@@ -496,38 +499,38 @@ async function init() {
     return teamLinkUrl(findMatchingTeam(teamName, raceTeams));
   };
 
-  // ── Fallback por globalRiderId (carreras SIN startlist: campeonatos
-  // nacionales y demás volcados in-house sin inscritos curados) ──────────
-  // Cuando una fila trae globalRiderId pero no casa por dorsal con la startlist
-  // (porque no hay), la ficha del corredor existe igualmente: resolvemos su
-  // bandera (nationality) y su equipo ACTUAL (currentTeamId → categoría/nombre/
-  // chapa) directamente de riders_men/women, para que la fila muestre bandera +
-  // chapa + equipo y enlace a /corredor/<id>/ igual que una fila con startlist.
+  // ── Fallback por globalRiderId (carreras SIN startlist) ────────────────
+  // La ficha global aporta nombre y nacionalidad. El año vigente conserva el
+  // fallback actual para no degradar resultados ya publicados. En temporadas
+  // anteriores, el equipo solo puede proceder de la startlist o del teamId de la
+  // fila; currentTeamId describe el presente y no es temporalmente válido.
   // Cache perezosa, poblada por renderClassification según aparecen ids nuevos.
   const byRider = new Map();   // globalRiderId → { name, countryCode, teamName, teamHref, teamObj, riderHref }
   async function enrichRiders(ids) {
     const need = [...new Set(ids)].filter(id => id && !byRider.has(id));
     if (!need.length) return;
+    const currentMadridYear = Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Madrid', year: 'numeric' }).format(new Date()));
+    const includeCurrentTeam = race.year === currentMadridYear;
+    const riderColumns = includeCurrentTeam ? 'id, firstName, lastName, nationality, currentTeamId' : 'id, firstName, lastName, nationality';
     const [{ data: men }, { data: women }] = await Promise.all([
-      supabase.from('riders_men').select('id, firstName, lastName, nationality, currentTeamId').in('id', need),
-      supabase.from('riders_women').select('id, firstName, lastName, nationality, currentTeamId').in('id', need),
+      supabase.from('riders_men').select(riderColumns).in('id', need),
+      supabase.from('riders_women').select(riderColumns).in('id', need),
     ]);
     const riders = [...(men || []), ...(women || [])];
-    // Equipos actuales: reusar los canónicos ya cargados (teamBySlugId) y
-    // completar los que falten (nombre/slug/categoría/chapa para el badge).
-    const curIds = [...new Set(riders.map(r => r.currentTeamId).filter(Boolean))];
     const teamById = new Map();
-    curIds.forEach(id => { const t = teamBySlugId.get(id); if (t) teamById.set(id, t); });
-    const missing = curIds.filter(id => !teamById.has(id));
-    if (missing.length) {
-      const { data } = await supabase
-        .from('teams')
-        .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
-        .in('id', missing);
-      (data || []).forEach(t => teamById.set(t.id, t));
+    if (includeCurrentTeam) {
+      const curIds = [...new Set(riders.map(r => r.currentTeamId).filter(Boolean))];
+      curIds.forEach(id => { const team = teamBySlugId.get(id); if (team) teamById.set(id, team); });
+      const missing = curIds.filter(id => !teamById.has(id));
+      if (missing.length) {
+        const { data } = await supabase.from('teams')
+          .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
+          .in('id', missing);
+        (await teamsForSeason(supabase, data || [], race.year)).forEach(team => teamById.set(team.id, team));
+      }
     }
     for (const r of riders) {
-      const team = r.currentTeamId ? teamById.get(r.currentTeamId) : null;
+      const team = includeCurrentTeam && r.currentTeamId ? teamById.get(r.currentTeamId) : null;
       byRider.set(r.id, {
         // Nombre canónico de la ficha (orden natural "Nombre Apellido"). El
         // render lo prefiere al riderDisplay crudo (que en CN sin startlist
@@ -538,7 +541,6 @@ async function init() {
         teamName: team?.name || '',
         teamHref: teamLinkUrl(team),
         teamObj: team || null,
-        // Mismo gate estricto que la ficha: solo divisiones top.
         riderHref: riderLinkUrl(r.id, team),
       });
     }
@@ -558,7 +560,7 @@ async function init() {
       .from('teams')
       .select('id,name,category,nameAliases,badgeTorsoCenter,badgeTorsoSides,badgeShorts,badgeInnerCircle')
       .in('id', need);
-    (data || []).forEach(t => teamBySlugId.set(t.id, t));
+    (await teamsForSeason(supabase,data || [],race.year,need)).forEach(t => teamBySlugId.set(t.id, t));
   }
   // Resuelve un teamId de override a su equipo canónico (nombre + chapa + enlace).
   // Requiere que enrichOverrideTeams haya corrido antes para el id en cuestión.
@@ -571,7 +573,7 @@ async function init() {
   // ── Jornada de la etapa activa (para detalle de cabecera + botón) ──
   // Cada clasificación keepForWeb arrastra su raceDayId; de él salen la ruta
   // (salida › meta), la distancia y el tipo (CRI/CRE), como en orden-salida.
-  const RD_COLS = 'id, slug, slugEn, startLocation, finishLocation, startLocationEn, finishLocationEn, distanceKm, primaryType, countryCode';
+  const RD_COLS = '*';
   // raceDayId de la etapa activa: el que arrastra la clasificación, o —si el
   // volcado no lo trajo (race_uci_stages.raceDayId NULL)— el de la jornada que
   // corresponde a esta entrada (`dayByKey`, casada por stageNumber). Sin este
@@ -594,6 +596,12 @@ async function init() {
     if (rdRows && rdRows.length === 1) { raceDay = rdRows[0]; raceDayId = raceDay.id; }
   }
 
+  const [{ data: stageAssets, error: assetsError }, technicalGuide] = await Promise.all([
+    raceDayId ? supabase.from('assets').select('*').eq('raceDayId',raceDayId) : Promise.resolve({ data:[] }),
+    loadRaceTechnicalGuide(race.id),
+  ]);
+  if (assetsError) throw assetsError;
+  const contextAssets = withRaceTechnicalGuide(stageAssets || [],technicalGuide);
   // ── SEO / cabecera ─────────────────────────────────────────────────
   const raceNameStr = getRaceName(race) || '';
   const year = race.year || '';
@@ -619,6 +627,7 @@ async function init() {
         : `${esOrigin}/resultados/${encodeURIComponent(race.slug)}/${seg ? seg + '/' : ''}`)
     : location.href.split('?')[0];
   setMetaProperty('og:url', canonicalUrl);
+  setRaceRobots(race);
   let canonEl = document.querySelector('link[rel="canonical"]');
   if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
   canonEl.href = canonicalUrl;
@@ -662,13 +671,7 @@ async function init() {
   const detailLine = [isOneDay ? '' : stageLabel, ttLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
 
   const resultsLabel = _isEn ? 'Results' : 'Resultados';
-  // "Volver a todos los resultados" vive en el botón ← del header (apunta al
-  // feed /resultados/ · /en/results/), no en el cuerpo de la página.
-  const feedHref = _isEn ? `${enBase()}/results/` : '/resultados/';
-  const feedLabel = _isEn ? 'All results' : 'Todos los resultados';
-  if (typeof window.ccHeaderBack === 'function') {
-    window.ccHeaderBack({ href: feedHref, label: feedLabel });
-  }
+  // El botón ← del header ya quedó resuelto arriba (procedencia o feed).
   let html = '';
   // País efectivo: la jornada puede transcurrir en un país distinto al de la
   // carrera (p. ej. una etapa del Tour que sale de Italia) → prevalece el de la
@@ -688,43 +691,37 @@ async function init() {
     race,
     rd: raceDay || { id: raceDayId, slug: raceDay?.slug, slugEn: raceDay?.slugEn },
     view: 'resultados',
-    navOnly: true,
-    style: 'max-width:860px;padding:0 1.5rem;margin:0.85rem auto',
+    assets:contextAssets, hasStartlist:!!race.startlistImportedAt,
+    style: 'margin:0.85rem auto', standalone: true,
   });
 
-  // ── Selector de ETAPA (si hay más de una con datos) ────────────────
-  if (stageKeys.length > 1) {
-    html += `<div class="res-stages" id="resStages"><div class="res-stages__inner" id="resStagesInner">`;
-    for (const k of stageKeys) {
-      const { stageNumber: num, suffix: sfx } = parseResultStageKey(k);
-      const seg2 = stageSlugSegment(num, _isEn, sfx);
-      const href = `${canonBase}${encodeURIComponent(canonSlug)}/${seg2 ? seg2 + '/' : ''}`;
-      const isActive = k === activeKey;
-      const aria = num != null
-        ? (_isEn ? `Stage ${num}${sfx}` : `Etapa ${num}${sfx}`)
-        : (_isEn ? 'Final classification' : 'Clasificación final');
-      // Cápsula: P (prólogo), F (final) o el número con su sufijo de sector (3A).
-      const cap = num === 0 ? 'P' : (num != null ? `${num}${sfx}` : 'F');
-      html += `<a class="res-stage-btn${isActive ? ' res-stage-btn--active' : ''}" href="${href}" title="${esc(aria)}"${isActive ? ' aria-current="page" data-active="true"' : ''}>${esc(cap)}</a>`;
-    }
-    html += `</div></div>`;
-  }
+  const stageNavigation = keys => keys.map(k=> {
+    const {stageNumber:num,suffix:sfx}=parseResultStageKey(k);
+    const segment=stageSlugSegment(num,_isEn,sfx);
+    const href=`${canonBase}${encodeURIComponent(canonSlug)}/${segment ? segment+'/' : ''}`;
+    const active=k===activeKey;
+    const label=num!=null ? (_isEn?`Stage ${num}${sfx}`:`Etapa ${num}${sfx}`) : (_isEn?'Final classification':'Clasificación final');
+    return `<a class="res-stage-btn${active?' res-stage-btn--active':''}" href="${href}" title="${esc(label)}"${active?' aria-current="page" data-active="true"':''}>${num===0?'P':num!=null?esc(`${num}${sfx}`):'F'}</a>`;
+  }).join('');
+  html+=`<div class="res-stages cc-rail-shell" id="resStages" ${stageKeys.length<2?'hidden':''}>${arrowHtml('prev',_isEn?'Previous stages':'Etapas anteriores','hidden')}<div class="res-stages__inner" id="resStagesInner" data-scroll-rail>${stageNavigation(stageKeys)}</div>${arrowHtml('next',_isEn?'Next stages':'Etapas siguientes','hidden')}</div>`;
 
   // ── Barra de CLASIFICACIÓN: pestañas (izq) + filtro por equipo (der) ──
   // Las pestañas solo si hay >1 clasificación (un día → 1 sola, sin pestañas).
   // El filtro por equipo (slot a la derecha) lo rellena renderClassification;
   // la barra se emite si hay pestañas O si la clasif activa es individual.
+  html += `<div class="res-layout${raceDay ? ' res-layout--context' : ''}"><div class="res-main">`;
   const hasTabs = activeStages.length > 1;
   const activeIsIndividual = !(activeClass.classKind === 'teams' || activeClass.isTeamEvent);
   if (hasTabs || activeIsIndividual) {
     // Carril exterior a sangre: lleva el sticky y el fondo opaco (las filas
     // scrollean por debajo). .res-tabs queda dentro, centrado a 860px.
-    html += `<div class="res-tabs-bar"><div class="res-tabs" id="resTabs"><div class="res-tabs__scroll"><div class="res-tabs__inner" id="resTabsInner">`;
+    html += `<div class="res-tabs-bar"><div class="res-tabs" id="resTabs"><div class="res-tabs__scroll">${arrowHtml('prev',_isEn ? 'Previous classifications' : 'Clasificaciones anteriores','hidden')}<div class="res-tabs__inner" id="resTabsInner" data-scroll-rail>`;
     if (hasTabs) {
       for (const st of activeStages) {
-        const lbl = (CLASS_LABELS[st.classKind] || { es: st.classKind, en: st.classKind })[lang];
+        const lbl = classificationLabel(configByKind.get(st.classKind),_isEn?'en':'es');
+        const color = classificationColor(configByKind.get(st.classKind));
         const isActive = st.id === activeClass.id;
-        html += `<button class="res-tab${isActive ? ' res-tab--active' : ''}" data-class="${esc(st.classKind)}" data-stageref="${esc(st.id)}">${esc(lbl)}</button>`;
+        html += `<button class="res-tab${isActive ? ' res-tab--active' : ''}" style="${color ? `--class-color:${color}` : ''}" aria-pressed="${isActive}" data-class="${esc(st.classKind)}" data-stageref="${esc(st.id)}">${esc(lbl)}</button>`;
       }
     }
     html += `</div>`;   // .res-tabs__inner
@@ -733,7 +730,7 @@ async function init() {
       // borde derecho (paridad con las apps; sin degradado: mismo color → señal
       // invisible, descartado en las apps). Se oculta al llegar al final.
       const moreLbl = _isEn ? 'More classifications' : 'Más clasificaciones';
-      html += `<button class="res-tabs__more" id="resTabsMore" type="button" aria-label="${esc(moreLbl)}" title="${esc(moreLbl)}" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>`;
+      html += arrowHtml('next',moreLbl,'hidden');
     }
     html += `</div>`;   // .res-tabs__scroll
     // Separador vertical entre las pestañas y el selector de equipos (solo con
@@ -743,9 +740,17 @@ async function init() {
   }
 
   // Contenedor de la tabla (se rellena por renderClassification).
-  html += `<div class="res-table-wrap" id="resTableWrap"></div>`;
+  html += `<div class="res-publication" id="resPublication" aria-live="polite"></div><div class="res-table-wrap" id="resTableWrap"></div></div>`;
+  if (raceDay) {
+    html += stageContextHtml(raceDay, 'resProfile');
+  }
+  html += '</div>';
 
   content.innerHTML = html;
+  syncResultsRaceHeaderHeight(content.querySelector(':scope > .race-header'));
+  syncStickyHeight('--res-tabs-h', content.querySelector('.res-tabs-bar'));
+  if (raceDay) mountStageProfile(document.getElementById('resProfile'), { day:raceDay,race,assets:contextAssets,hidePointNames:true });
+  content.querySelectorAll('.res-tabs__scroll, #resStages').forEach(shell => installScrollRail(shell));
 
   // El selector de etapas ocupa siempre una sola línea. En vueltas largas la
   // etapa activa puede quedar lejos del inicio: centrarla al montar y al cambiar
@@ -771,10 +776,12 @@ async function init() {
   // (data-gap), los siguientes con el mismo gap muestran m.t. (filtrar puede dejar
   // a un corredor como primero de su grupo visible → debe verse su tiempo, no m.t.).
   function applyTeamFilter() {
+    let visibleCount = 0;
     let prevGap = null;   // gap del último corredor por tiempo VISIBLE
     tableWrap.querySelectorAll('tr.so-row[data-team]').forEach((tr) => {
       const visible = (!_teamFilter || tr.dataset.team === _teamFilter);
       tr.style.display = visible ? '' : 'none';
+      if (visible) visibleCount++;
       // Recomputar la celda de tiempo de las filas por tiempo (las que tienen data-gap).
       const cell = tr.querySelector('.res-gap-dyn');
       if (cell && tr.dataset.gap != null && tr.dataset.gap !== '') {
@@ -789,6 +796,12 @@ async function init() {
         }
       }
     });
+    tableWrap.querySelector('.res-filter-empty')?.remove();
+    if (_teamFilter && !visibleCount) {
+      const empty=document.createElement('div'); empty.className='res-filter-empty';
+      empty.innerHTML=`<p>${_isEn ? 'No riders from this team in this classification.' : 'No hay corredores de este equipo en esta clasificación.'}</p><button type="button" class="btn btn--ghost">${_isEn ? 'Show all teams' : 'Mostrar todos los equipos'}</button>`;
+      empty.querySelector('button').onclick=()=> { _teamFilter=''; const select=document.getElementById('resTeamFilter'); if(select) select.value=''; applyTeamFilter(); }; tableWrap.append(empty);
+    }
   }
   // ── Render de una CRE (crono por equipos) colapsada a una fila por equipo ──
   // Entrada: filas crudas de la "Stage Classification" donde cada corredor comparte
@@ -875,7 +888,7 @@ async function init() {
       </tr></thead><tbody>`;
 
     teamRows.forEach((tr, i) => {
-      const teamBadge = tr.teamObj ? buildTeamBadgeSvg(tr.teamObj, { size: 16, className: 'res-team-badge' }) : '';
+      const teamBadge = tr.teamObj ? teamStripes(tr.teamObj) : '';
       const nameInner = tr.teamHref
         ? `<a class="so-link" href="${esc(tr.teamHref)}">${esc(tr.teamName)}</a>`
         : esc(tr.teamName || '—');
@@ -923,7 +936,7 @@ async function init() {
       });
     });
     t += `</tbody></table>`;
-    tableWrap.innerHTML = carriedNoticeHtml(stageRow) + t;
+    if (!updateResultsHtml(tableWrap, carriedNoticeHtml(stageRow) + t)) return;
 
     // El slot de filtro por equipo no aplica a CRE (1 fila = 1 equipo).
     const slot = document.getElementById('resTeamFilterSlot');
@@ -963,26 +976,56 @@ async function init() {
     </div>`;
   }
 
-  async function renderClassification(stageRow) {
+  let renderRequest = 0;
+  let displayedStage = null;
+  const publication = document.getElementById('resPublication');
+  const showPublication = (stageRow, error = false, busy = false) => {
+    if (!stageRow || stageRow._cancelledStage) { updateResultsHtml(publication, ''); return; }
+    const provisional = stageRow.publicationStatus === 'provisional';
+    const stamp = provisional ? stageRow.lastSyncedAt : null;
+    const date = stamp ? new Date(stamp) : null;
+    const time = date && Number.isFinite(date.getTime()) ? date.toLocaleString(_isEn ? 'en-GB' : 'es-ES', { day:'numeric',month:'short',hour:'2-digit',minute:'2-digit' }) : '';
+    const classHeading = isOneDay ? ''
+      : `<strong class="res-class-heading">${esc(classificationLabel(configByKind.get(stageRow.classKind),_isEn?'en':'es'))}</strong>`;
+    const updating = classificationIsUpdating(stageRow);
+    const updatingText = _isEn ? 'Classification updating' : 'Clasificación actualizándose';
+    const inlineUpdating = busy && updating
+      ? `<span class="res-refreshing res-refreshing--busy" role="status">${statusIcon('refresh')}<span>${_isEn ? 'Updating' : 'Actualizando'}</span></span>`
+      : '';
+    const updateNote = error
+      ? `<div class="res-update-note">${statusIcon('offline')}${_isEn ? 'Offline · Saved results' : 'Sin conexión · Datos conservados'}${time ? ' · '+esc(time) : ''}<button type="button" data-results-retry>${_isEn ? 'Retry':'Reintentar'}</button></div>`
+      : updating && !busy
+        ? `<div class="res-update-note res-refreshing" role="status">${statusIcon('refresh')}<span>${updatingText}</span></div>`
+        : '';
+    const changed = updateResultsHtml(publication, `<div class="res-publication-line">${classHeading}<span>${stageRow.publicationStatus === 'official' ? (_isEn ? 'Official' : 'Oficial') : (_isEn ? 'Provisional' : 'Provisional')}</span>${inlineUpdating}${time ? `<time datetime="${esc(stamp)}">${_isEn ? 'Last updated' : 'Última actualización'}: ${esc(time)}</time>` : ''}</div>${updateNote}`);
+    if (changed) publication.querySelector('[data-results-retry]')?.addEventListener('click', () => renderClassification(activeClass,{ refresh:true }));
+  };
+  async function renderClassification(stageRow, { refresh = false } = {}) {
+    const request = ++renderRequest;
+    activeClass = stageRow;
+    try {
+    showPublication(stageRow,false,refresh);
     // Etapa CANCELADA: su pestaña "Etapa" no tiene clasificación que mostrar —
     // la carrera no llegó a meta. En vez de una tabla vacía ("no hay datos",
     // que se lee como un volcado que falta), el aviso explica QUÉ pasó.
     if (stageRow._cancelledStage) {
-      tableWrap.innerHTML = `<div class="res-cancelled-note">
+      updateResultsHtml(tableWrap, `<div class="res-cancelled-note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         <span>${_isEn ? 'Stage cancelled' : 'Etapa cancelada'}</span>
-      </div>`;
+      </div>`);
       return;
     }
-    tableWrap.innerHTML = `<div class="loading">${_isEn ? 'Loading' : 'Cargando'}</div>`;
-    const { data: rows } = await supabase
+    if (!refresh) updateResultsHtml(tableWrap, `<div class="loading">${_isEn ? 'Loading' : 'Cargando'}</div>`);
+    const { data: rows, error: rowsError } = await supabase
       .from('race_uci_results')
       .select('rank, rankText, bib, riderDisplay, globalRiderId, teamId, resultValue, timeText, gapText, points, uciPoints, irm, sortOrder')
       .eq('stageRef', stageRow.id)
       .order('sortOrder', { ascending: true });
 
+    if (request !== renderRequest) return;
+    if (rowsError) { showPublication(displayedStage?.classKind===stageRow.classKind ? displayedStage : stageRow,true); return; }
     if (!rows || rows.length === 0) {
-      tableWrap.innerHTML = `<div class="startlist-empty">${_isEn ? 'No data for this classification.' : 'No hay datos para esta clasificación.'}</div>`;
+      updateResultsHtml(tableWrap, `<div class="startlist-empty">${_isEn ? 'No data for this classification.' : 'No hay datos para esta clasificación.'}</div>`);
       return;
     }
 
@@ -997,6 +1040,9 @@ async function init() {
     // el scope exterior (lo comparten renderClassification y renderTttStage).
     await enrichOverrideTeams(rows.map(r => r.teamId).filter(Boolean));
 
+    if (request !== renderRequest) return;
+    displayedStage=stageRow;
+    showPublication(stageRow);
     // isTeams = clasificación de EQUIPOS ya colapsada (1 fila por equipo): solo cuando
     // el nombre lo dice (classKind='teams'). NO se usa isTeamEvent: la UCI lo marca true
     // en TODAS las clasificaciones de una etapa CRE (incl. la de etapa, la general, los
@@ -1017,29 +1063,10 @@ async function init() {
     // Señal: classKind='stage' (o 'gc' final de un día) + jornada CRE en NUESTRO catálogo
     // (raceDay.primaryType='ttt'), corroborado por la estructura (ranks compartidos [A] o
     // muchos rank=null entre clasificados [B]). No nos fiamos de los flags de la UCI.
-    const isTttStage = (() => {
-      const isEligibleKind = stageRow.classKind === 'stage'
-        || (stageRow.classKind === 'gc' && stageRow.stageNumber == null && isOneDay);
-      if (isTeams || !isEligibleKind) return false;
-      // Una jornada CRI (primaryType='itt') NUNCA es una crono por equipos: aunque
-      // tenga ex aequo reales (varios corredores con el mismo tiempo al cronómetro →
-      // mismo puesto), no se colapsa por equipos. Sin este guard, ≥3 empates en una
-      // CRI disparan la rama estructural `sharedRanks >= 3` y la pintan como CRE.
-      if (raceDay?.primaryType === 'itt' || stageRow.raceType === 'ITT') return false;
-      const classified = rows.filter(r => !r.irm);
-      const sharedRanks = (() => {
-        const c = new Map();
-        for (const r of classified) if (r.rank != null) c.set(r.rank, (c.get(r.rank) || 0) + 1);
-        let n = 0; for (const v of c.values()) if (v >= 2) n++; return n;
-      })();                                                  // [A] puestos con ≥2 corredores
-      const nullRanks = classified.filter(r => r.rank == null).length;  // [B] compañeros sin rank
-      const structural = sharedRanks >= 2 || nullRanks >= 2;
-      const dayIsTtt = raceDay?.primaryType === 'ttt';
-      // El tipo de jornada es nuestro dato curado y fiable → basta con la estructura.
-      // Sin él (jornada no mapeada), exigimos una estructura MUY marcada para no colapsar
-      // por error una crono individual con un par de empates.
-      return structural && (dayIsTtt || sharedRanks >= 3 || nullRanks >= 6);
-    })();
+    const isTttStage = isTttStageClassification({
+      rows, classKind: stageRow.classKind, isTeams, raceDay,
+      stageNumber: stageRow.stageNumber, isOneDay, stageRaceType: stageRow.raceType,
+    });
     if (isTttStage) { renderTttStage(rows, stageRow); return; }
 
     // Puntos/Montaña son clasificaciones por PUNTOS, no por tiempo: la última
@@ -1074,12 +1101,12 @@ async function init() {
     //   · RUIDO (p. ej. irm='LAP' = doblada): la corredora SÍ ganó; la UCI cuelga el
     //     código por error. Caso real: Dwars door de Westhoek 2026 — la ganadora
     //     llegó con LAP y SIN timeText. Debe encabezar como ganadora.
-    //   · ABANDONO real (DNF/DNS/OTL/DSQ/ABD): ese rank 1 es espurio (no compitió);
-    //     el ganador real es el primer clasificado SIN irm. Caso real: Vuelta a
+    //   · IRM SIN GANADOR (abandono, DF o NR): ese rank 1 no determina ganador;
+    //     el ganador real, si existe, es el primer clasificado SIN irm. Caso real: Vuelta a
     //     Colombia Femenina — rank 1 con DNS, el tiempo de cabeza es el del rank 2.
-    // → `winnerRow` solo cuenta como ganadora si su irm NO es de abandono.
+    // → `winnerRow` solo cuenta como ganadora si su irm admite ganador.
     const rank1Row = rows.find(r => r.rank === 1) || null;
-    const winnerRow = (rank1Row && !isAbandonIrm(rank1Row.irm)) ? rank1Row : null;
+    const winnerRow = (rank1Row && !isNonWinnerIrm(rank1Row.irm)) ? rank1Row : null;
     // Clasificado a efectos de TIEMPO: el ganador (ruido aparte) o cualquier fila con
     // puesto sin irm. Un rank 1 con abandono NO cuenta (no aporta su null ni recibe gap).
     const isRankedFinisher = (r) =>
@@ -1171,7 +1198,7 @@ async function init() {
       const fromSl = startlistRiderForResult(r);
       const teamSnapshot = isTeams ? startlistTeamForResult(r) : null;
       // Sin casar por dorsal (carrera sin startlist): caer al enriquecido por
-      // globalRiderId (bandera + equipo actual + ficha de riders_*). null si la
+      // globalRiderId (nombre + bandera + ficha de riders_*). null si la
       // fila no tiene ficha (corredor amateur fuera del catálogo).
       const fromRider = !fromSl && r.globalRiderId ? byRider.get(r.globalRiderId) : null;
       // Nombre: startlist (curado) → ficha por globalRiderId (orden natural) →
@@ -1257,9 +1284,10 @@ async function init() {
           ? secondsToPressTime(winIttSec)
           : (cleanTimeText(r.timeText) || (winnerSec ? secondsToAbsText(winnerSec) : ''));
         resultCell = wt ? `<span class="res-time">${esc(wt)}</span>` : '';
-      } else if (effGap && /^\+0"$/.test(effGap) && rowIndex <= headBlockEnd) {
-        // Gap de 0 s (mismo tiempo que el ganador, p. ej. UCI publica "00:00:00"
-        // para el 2º): la prensa lo cita como m.t., no como "+0"". Sin data-gap →
+      } else if (effGap && /^\+0"$/.test(effGap) && (isTeams || rowIndex <= headBlockEnd)) {
+        // Un equipo con gap 0 tiene el mismo tiempo total que el ganador. En las
+        // clasificaciones individuales se exige además el bloque de cabeza para
+        // no ocultar una reasignación de tiempo fuera de ese grupo. Sin data-gap →
         // applyTeamFilter no lo toca; queda fijo como m.t.
         resultCell = `<span class="res-gap res-gap--same">${esc(sameTimeLabel)}</span>`;
       } else if (effGap && rowIndex > headBlockEnd && /^\+0"$/.test(effGap)) {
@@ -1294,7 +1322,7 @@ async function init() {
         // Casado → nombre canónico del catálogo + chapa (como la columna Equipo
         // de las clasificaciones individuales); sin casar → el crudo de la fuente.
         const displayName = (rowTeamObj && rowTeamObj.name) || riderName;
-        const teamBadge = rowTeamObj ? buildTeamBadgeSvg(rowTeamObj, { size: 16, className: 'res-team-badge' }) : '';
+        const teamBadge = rowTeamObj ? teamStripes(rowTeamObj) : '';
         const nameInner = teamHref
           ? `<a class="so-link" href="${esc(teamHref)}">${esc(displayName)}</a>`
           : esc(displayName);
@@ -1316,18 +1344,17 @@ async function init() {
             ? `<span class="res-rider-name">${esc(riderName)}</span>`
             : '<span class="res-rider-name" style="opacity:0.45">—</span>');
         // Subtítulo de equipo (solo visible en móvil, donde la columna Equipo se oculta).
-        const teamSub = teamName
-          ? `<span class="res-rider-team">${esc(teamName)}</span>`
-          : '';
+        let teamSub = '';
         // Objeto equipo (override manual → por dorsal → equipo actual del
         // enriquecido por globalRiderId; null si nada casó → sin chapa).
         const teamObj = (ovrTeam && ovrTeam.teamObj) || (fromSl && fromSl.teamObj) || (fromRider && fromRider.teamObj) || null;
         // Chapa del equipo JUNTO a la bandera del corredor, dentro de la celda
         // Corredor (idea traída de las apps: bandera país + chapa equipo + nombre).
         // Se mantiene además la columna Equipo en desktop (chapa + nombre).
-        const riderTeamBadge = teamObj ? buildTeamBadgeSvg(teamObj, { size: 15, className: 'res-rider-badge' }) : '';
+        const riderTeamBadge = '';
+        teamSub = teamName ? `<span class="res-rider-team">${teamStripes(teamObj)}${esc(teamName)}</span>` : '';
         const riderCell = `${flagHtml}${riderTeamBadge}<span class="res-rider-main">${nameLink}${teamSub}</span>`;
-        const teamBadge = teamObj ? buildTeamBadgeSvg(teamObj, { size: 16, className: 'res-team-badge' }) : '';
+        const teamBadge = teamObj ? teamStripes(teamObj) : '';
         const teamInner = teamName
           ? (teamHref ? `<a class="so-link res-team-link" href="${esc(teamHref)}">${esc(teamName)}</a>` : esc(teamName))
           : '';
@@ -1346,20 +1373,18 @@ async function init() {
 
     t += `</tbody></table>`;
 
-    tableWrap.innerHTML = carriedNoticeHtml(stageRow) + t;
+    if (!updateResultsHtml(tableWrap, carriedNoticeHtml(stageRow) + t)) return;
 
     // Filtro por equipo (solo individuales con ≥2 equipos), en el slot de la
     // barra de pestañas (misma línea que el filtro de clasificación). La
     // selección persiste entre clasificaciones.
     const slot = document.getElementById('resTeamFilterSlot');
     if (slot) {
-      if (!isTeams && teamsInClass.size >= 2) {
+      if (!isTeams && (teamsInClass.size >= 2 || _teamFilter)) {
         const sorted = [...teamsInClass].sort((a, b) => a.localeCompare(b, _isEn ? 'en' : 'es'));
-        if (_teamFilter && !teamsInClass.has(_teamFilter)) _teamFilter = '';   // el equipo no está aquí
+        if (_teamFilter && !teamsInClass.has(_teamFilter)) sorted.push(_teamFilter);
         const allTeamsLbl = _isEn ? 'All teams' : 'Todos los equipos';
-        const allLbl = window.matchMedia('(max-width: 640px)').matches
-          ? (_isEn ? 'All' : 'Todos')
-          : allTeamsLbl;
+        const allLbl = allTeamsLbl;
         const opts = [`<option value="">${esc(allLbl)}</option>`]
           .concat(sorted.map((tn) => `<option value="${esc(tn)}"${tn === _teamFilter ? ' selected' : ''}>${esc(tn)}</option>`))
           .join('');
@@ -1374,48 +1399,93 @@ async function init() {
     const sep = document.getElementById('resTabsSep');
     if (sep) sep.hidden = !(slot && slot.innerHTML);
     applyTeamFilter();
+    } catch { if(request===renderRequest) showPublication(displayedStage?.classKind===stageRow.classKind?displayedStage:stageRow,true); }
+    finally { if(request===renderRequest) publication.querySelector('.res-refreshing--busy')?.remove(); }
   }
 
-  // Pestañas → cambiar clasificación (sin recargar).
-  content.querySelectorAll('#resTabs .res-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const st = activeStages.find(s => s.id === btn.dataset.stageref);
-      if (!st) return;
-      content.querySelectorAll('#resTabs .res-tab').forEach(b => b.classList.remove('res-tab--active'));
-      btn.classList.add('res-tab--active');
-      history.replaceState(null, '', location.pathname + '#' + st.classKind);
-      renderClassification(st);
+  // Selección lógica: el captador puede sustituir el identificador de fuente.
+  let tabSwitchRequest=0;
+  content.querySelector('#resTabs').addEventListener('click',event=> {
+    const button=event.target.closest('[data-class]');
+    const stage=activeStages.find(s=>s.classKind===button?.dataset.class);
+    if(!stage) return;
+    content.querySelectorAll('#resTabs .res-tab').forEach(b=> {b.classList.toggle('res-tab--active',b===button);b.setAttribute('aria-pressed',String(b===button));});
+    button.scrollIntoView({block:'nearest',inline:'nearest'});
+    history.replaceState(null,'',location.pathname+'#'+stage.classKind);
+    // La página sube como máximo hasta donde se fijan las pestañas. La altura
+    // de la tabla anterior se conserva mientras carga la nueva para que el
+    // aviso de carga no acorte la página y la devuelva al principio.
+    const tabsBar=content.querySelector('.res-tabs-bar'),tabSwitch=++tabSwitchRequest;
+    tableWrap.style.minHeight=`${tableWrap.offsetHeight}px`;
+    limitScrollToStickyStart(tabsBar);
+    renderClassification(stage).finally(()=> {
+      if(tabSwitch!==tabSwitchRequest) return;
+      tableWrap.style.minHeight='';
+      limitScrollToStickyStart(tabsBar);
     });
   });
-
-  // Render inicial.
   renderClassification(activeClass);
+  let refreshing=false;
+  const refreshCurrent=async()=> {
+    if(document.hidden || refreshing || !content.isConnected) return;
+    refreshing=true;
+    showPublication(displayedStage||activeClass,false,true);
+    try {
+      const [stageResult,configResult,dayResult]=await Promise.all([
+        supabase.from('race_uci_stages').select('*').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
+        supabase.from('race_classifications').select('*').eq('raceId',raceId),
+        raceDayId ? supabase.from('race_days').select('*').eq('id',raceDayId).maybeSingle() : Promise.resolve({data:null}),
+      ]);
+      if(stageResult.error || configResult.error || dayResult.error) throw stageResult.error || configResult.error || dayResult.error;
+      const latest=stageResult.data || [];
+      const nextInventory=classificationInventory(configResult.data || [],latest);
+      configByKind.clear(); nextInventory.forEach(row=>configByKind.set(row.classKind,row));
+      let currentRows=latest.filter(row=>keyForStage(row)===activeKey);
+      const lastDay=racedWithStage.filter(d=>!d.isCancelledDay).at(-1);
+      if(lastDay && keyForDay(lastDay)===activeKey) {
+        const final=latest.filter(row=>keyForStage(row)==='final');
+        currentRows=currentRows.filter(row=>!final.some(f=>f.classKind===row.classKind)).concat(final);
+      }
+      const cancelled=activeStages.find(row=>row._cancelledStage);
+      if(cancelled) currentRows=activeStages.filter(row=>row._cancelledStage || row._carriedFromStage!=null);
+      activeStages.splice(0,activeStages.length,...visibleStageClassifications(currentRows,nextInventory));
+      if(!activeStages.some(row=>row.classKind===activeClass.classKind) && activeStages.length) activeClass=activeStages[0];
+      const rail=content.querySelector('#resTabsInner');
+      const focusedKind=rail.contains(document.activeElement)?document.activeElement.dataset.class:null;
+      const tabsChanged=updateResultsHtml(rail,activeStages.length > 1 ? activeStages.map(row=> {
+        const cfg=configByKind.get(row.classKind),color=classificationColor(cfg),active=row.classKind===activeClass.classKind;
+        return `<button class="res-tab${active?' res-tab--active':''}" style="${color?`--class-color:${color}`:''}" aria-pressed="${active}" data-class="${esc(row.classKind)}">${esc(classificationLabel(cfg,lang))}</button>`;
+      }).join('') : '');
+      if(tabsChanged && focusedKind) [...rail.children].find(button=>button.dataset.class===focusedKind)?.focus({preventScroll:true});
+      const nextKeys=[...new Set([...latest.map(keyForStage),...racedWithStage.filter(d=>d.isCancelledDay).map(keyForDay)])].sort((a,b)=> {const [na,sa]=keyRank(a),[nb,sb]=keyRank(b);return na-nb||sa.localeCompare(sb);});
+      if(JSON.stringify(nextKeys)!==JSON.stringify(stageKeys)) {
+        stageKeys.splice(0,stageKeys.length,...nextKeys);
+        stagesInner.innerHTML=stageNavigation(stageKeys);
+        document.getElementById('resStages').hidden=stageKeys.length<2;
+      }
+      const fresh=activeStages.find(row=>row.classKind===activeClass.classKind)||activeStages[0];
+      if(fresh) await renderClassification(fresh,{refresh:true});
+      if(dayResult.data) {
+        const nextDay=dayResult.data;
+        if(JSON.stringify([nextDay.elevationProfile,nextDay.profileSummits,nextDay.profileWaypoints,nextDay.distanceKm])!==JSON.stringify([raceDay?.elevationProfile,raceDay?.profileSummits,raceDay?.profileWaypoints,raceDay?.distanceKm])) mountStageProfile(document.getElementById('resProfile'),{day:nextDay,race,assets:contextAssets,hidePointNames:true});
+        raceDay=nextDay;
+        const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(raceDay));
+      }
+    } catch { showPublication(displayedStage||activeClass,true); }
+    finally { refreshing=false; publication.querySelector('.res-refreshing--busy')?.remove(); }
+  };
+  const refreshTimer=setInterval(refreshCurrent,60000);
+  document.addEventListener('visibilitychange',refreshCurrent);
+  window.addEventListener('pagehide',()=> {clearInterval(refreshTimer);document.removeEventListener('visibilitychange',refreshCurrent);window.removeEventListener('resize',centerActiveStage);document.getElementById('resProfile')?._profileCleanup?.();},{once:true});
 
-  // Chevron de "más clasificaciones": visible solo cuando las pestañas
-  // desbordan a la derecha; al pulsarlo desplaza hasta el final (paridad apps).
-  const tabsInner = document.getElementById('resTabsInner');
-  const tabsMore = document.getElementById('resTabsMore');
-  if (tabsInner && tabsMore) {
-    const syncMore = () => {
-      const overflow = tabsInner.scrollWidth - tabsInner.clientWidth;
-      tabsMore.hidden = overflow <= 1 || tabsInner.scrollLeft >= overflow - 1;
-    };
-    tabsInner.addEventListener('scroll', syncMore, { passive: true });
-    window.addEventListener('resize', syncMore);
-    tabsMore.addEventListener('click', () => {
-      tabsInner.scrollTo({ left: tabsInner.scrollWidth, behavior: 'smooth' });
-    });
-    syncMore();
-  }
-
-  // ── Botón de edición admin (solo con sesión) → editor de la jornada ─
+  // ── Botón de edición admin (solo con sesión) → pestaña Resultados del editor de la jornada ─
   if (raceDayId) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user || document.getElementById('editResultsBtn')) return;
       const btn = document.createElement('a');
       btn.id        = 'editResultsBtn';
       btn.className = 'edit-jornada-btn';
-      btn.href      = '/panel/app.html?edit=' + encodeURIComponent(raceDayId);
+      btn.href      = '/panel/app.html?edit=' + encodeURIComponent(raceDayId) + '&tab=resultados';
       btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ' + (_isEn ? 'Edit' : 'Editar');
       const hero = content.querySelector('.race-header');
       (hero || document.body).appendChild(btn);
@@ -1425,4 +1495,8 @@ async function init() {
 
 // Esperar a cargar las traducciones (en.json) antes de renderizar: el panel de
 // botones usa t('assets.*'), que sin esto cae al diccionario ES embebido.
-initI18n().then(init);
+initI18n().then(init).catch(() => {
+  const en=getLang()==='en',content=document.getElementById('resultsContent');
+  content.innerHTML=`<div class="startlist-empty" role="status">${en?'Unable to load results.':'No se han podido cargar los resultados.'} <button type="button" data-initial-retry>${en?'Retry':'Reintentar'}</button></div>`;
+  content.querySelector('[data-initial-retry]').addEventListener('click',()=>location.reload());
+});

@@ -101,7 +101,7 @@ struct ChampionshipsView: View {
                         } else {
                             LazyVStack(spacing: 10) {
                                 ForEach(viewModel.displayCountries) { country in
-                                    ChampionshipCountryCard(country: country, filter: viewModel.activeFilter, inhouseKeys: viewModel.inhouseKeys, automaticSourceRaceIds: viewModel.automaticSourceRaceIds, resultsSourceGateResolved: viewModel.resultsSourceGateResolved)
+                                    ChampionshipCountryCard(country: country, filter: viewModel.activeFilter, inhouseKeys: viewModel.inhouseKeys)
                                 }
                             }
                             .padding(.horizontal)
@@ -111,6 +111,8 @@ struct ChampionshipsView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
         .task {
             guard !viewModel.hasLoaded else { return }
             await viewModel.load()
@@ -167,8 +169,6 @@ private struct ChampionshipCountryCard: View {
     let country: ChampionshipCountry
     let filter: ChampionshipsConfig.Filter
     var inhouseKeys: Set<String> = []
-    var automaticSourceRaceIds: Set<String> = []
-    var resultsSourceGateResolved = false
 
     private let columns = 4
 
@@ -198,7 +198,7 @@ private struct ChampionshipCountryCard: View {
                         HStack(spacing: 6) {
                             ForEach(rows[r], id: \.self) { slot in
                                 if let enriched = country.slots[slot] {
-                                    ChampionshipEventCell(slot: slot, item: enriched, inhouseKeys: inhouseKeys, automaticSourceRaceIds: automaticSourceRaceIds, resultsSourceGateResolved: resultsSourceGateResolved)
+                                    ChampionshipEventCell(slot: slot, item: enriched, inhouseKeys: inhouseKeys)
                                 }
                             }
                             // Relleno para mantener anchos uniformes en la última fila.
@@ -220,17 +220,14 @@ private struct ChampionshipCountryCard: View {
 
 /// Celda compacta de una prueba: etiqueta corta (género · disciplina) + día +
 /// indicador de estado. Por prioridad (espejo de `eventCell` en js/campeonatos.js):
-/// concluida con externos → botones de resultados; concluida sin ellos → sello;
-/// con TV → badge de TV (Live / hora / "TV"); si no → hora de meta con bandera.
-/// El cuerpo navega al detalle; los botones externos abren el navegador.
+/// con clasificaciones propias → trofeo a la pantalla nativa; si no, concluida →
+/// sello; con TV → badge de TV (Live / hora / "TV"); si no → hora de meta con
+/// bandera. El cuerpo navega al detalle.
 private struct ChampionshipEventCell: View {
     let slot: ChampionshipsConfig.Slot
     let item: EnrichedRaceDay
     var inhouseKeys: Set<String> = []
-    var automaticSourceRaceIds: Set<String> = []
-    var resultsSourceGateResolved = false
 
-    @Environment(\.openURL) private var openURL
     @State private var regionService = RegionService.shared
 
     private var rd: RaceDay { item.raceDay }
@@ -248,31 +245,20 @@ private struct ChampionshipEventCell: View {
     private var regionBroadcasts: [Broadcast] {
         RaceLogic.filterBroadcastsByRegion(
             item.broadcasts,
-            allowedGroups: regionService.current.allowedBroadcastGroups
+            allowedGroups: regionService.allowedBroadcastGroups
         )
     }
     private var hasTvInfo: Bool {
         !regionBroadcasts.isEmpty || (rd.tvStatus.map { !$0.isEmpty } ?? false)
     }
-    private var extUrlA: URL? {
-        item.race.flatMap { RaceLogic.buildExtUrlA(race: $0, stageNumber: rd.stageNumber) }
-    }
-    private var extUrlB: URL? {
-        item.race.flatMap { RaceLogic.buildExtUrlB(race: $0, stageNumber: rd.stageNumber, stageSuffix: rd.stageSuffix) }
-    }
-    /// Con resultados in-house (trofeo → nativo) o, al concluir, con ids externos →
-    /// la celda muestra resultados en vez de hora/TV.
-    private var showResults: Bool {
-        let automaticSource = item.race.map { automaticSourceRaceIds.contains($0.id) } ?? false
-        return hasInhouse || (resultsSourceGateResolved && !automaticSource
-            && concluded && (extUrlA != nil || extUrlB != nil))
-    }
+    /// Con resultados propios (trofeo → pantalla nativa) la celda muestra el
+    /// trofeo en vez de hora/TV.
+    private var showResults: Bool { hasInhouse }
 
     var body: some View {
         // Al mostrar resultados la navegación va solo en la cabecera (etiqueta +
-        // día) y los botones externos abren el navegador; el resto de estados
-        // navega desde toda la celda. Mismo reparto que la celda Android, y
-        // equivalente al event.stopPropagation() de la web.
+        // día); el resto de estados navega desde toda la celda. Mismo reparto que
+        // la celda Android, y equivalente al event.stopPropagation() de la web.
         Group {
             if showResults {
                 VStack(spacing: 4) {
@@ -323,9 +309,8 @@ private struct ChampionshipEventCell: View {
             .frame(width: 26, height: 0.5)
     }
 
-    /// Botones de resultados: sustituyen a hora/TV al concluir (como la web). Con
-    /// resultados in-house, el trofeo (pantalla NATIVA) SUSTITUYE a externos (no se
-    /// une a ellos); sin in-house, externos en el navegador.
+    /// Trofeo de resultados propios: sustituye a hora/TV. Lleva a la pantalla
+    /// nativa de clasificaciones.
     @ViewBuilder private var resultsRow: some View {
         if hasInhouse, let raceId = item.race?.id {
             NavigationLink(value: ChampionshipResultsRoute(raceId: raceId, stageNumber: rd.stageNumber)) {
@@ -339,11 +324,6 @@ private struct ChampionshipEventCell: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(LocaleService.t("Resultados", "Results"))
-        } else {
-            HStack(spacing: 4) {
-                if let url = extUrlA { resultsBadge("FC", url: url, label: "fuente externa") }
-                if let url = extUrlB { resultsBadge("fuente externa", url: url, label: "fuente externa") }
-            }
         }
     }
 
@@ -383,21 +363,6 @@ private struct ChampionshipEventCell: View {
             }
         }
         .foregroundStyle(tint)
-    }
-
-    private func resultsBadge(_ text: String, url: URL, label: String) -> some View {
-        Button { openURL(url) } label: {
-            Text(text)
-                .font(.system(size: 9, weight: .semibold))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(tint)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityHint(LocaleService.t("Abre los resultados en el navegador", "Opens results in the browser"))
     }
 
     /// Día corto "EEE d" (sin mes — la semana es conocida).

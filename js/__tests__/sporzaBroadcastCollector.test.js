@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   collectSporza,
+  normalizeSporzaDutch,
   parseSporzaEditorialPage,
+  parseSporzaLivestreamSchedule,
   parseSporzaSchedule,
   sporzaScheduleUrl,
 } from '../../scripts/broadcasts-sync/sporza-collector.mjs';
@@ -92,5 +94,56 @@ describe('colector aislado de emisiones Sporza', () => {
       scheduleUrl,
       'https://sporza.be/nl/sport/wielrennen/~3305262/',
     ]);
+  });
+
+  it('explica cuándo el calendario tiene carrera pero falta evidencia de emisión', async () => {
+    const diagnostics = [];
+    const fetcher = async (url) => url === sporzaScheduleUrl('2026-08-25')
+      ? { ok: true, text: async () => fixture('sporza-schedule.json') }
+      : { ok: true, url, text: async () => '<html><title>Sin datos de emisión</title></html>' };
+    await expect(collectSporza({ dateKey: '2026-08-25', fetcher, diagnostics }))
+      .resolves.toEqual([]);
+    expect(diagnostics).toEqual([expect.objectContaining({
+      action: 'insufficient_broadcast_evidence',
+      title: 'Vuelta a España',
+      dateKey: '2026-08-25',
+      sourceUrl: 'https://sporza.be/nl/sport/wielrennen/~3305262/',
+    })]);
+  });
+
+  it('extrae del esquema de livestreams solo ciclismo con hora y enlace editorial', () => {
+    const events = parseSporzaLivestreamSchedule(fixture('sporza-livestream.html'), {
+      todayKey: '2026-09-16',
+    });
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      source: 'sporza', dateKey: '2026-09-18',
+      title: 'Kampioenschap van Vlaanderen', subtitle: 'Koolskamp Koers (1.1)',
+      startTimeUtc: '2026-09-18T13:30:00.000Z',
+      sourceChannels: ['Sporza'], country: 'BE',
+      broadcastUrl: 'https://sporza.be/nl/2026/09/14/livestream-kijk-vrijdag-naar-koolskamp-koers-bij-sporza~1789375904342/',
+    });
+    expect(events[1]).toMatchObject({
+      dateKey: '2026-09-20', title: 'ITT elite women', subtitle: 'WK Montreal',
+      startTimeUtc: '2026-09-20T12:45:00.000Z',
+    });
+    expect(events.some((event) => event.title.includes('Anderlecht'))).toBe(false);
+    expect(events.some((event) => /samenvatting/i.test(event.title))).toBe(false);
+  });
+
+  it('traduce el vocabulario neerlandés del esquema y exige fecha de referencia', () => {
+    expect(normalizeSporzaDutch('tijdrit beloften mannen')).toBe('ITT U23 men');
+    expect(normalizeSporzaDutch('wegrit junioren vrouwen')).toBe('road race junior women');
+    expect(() => parseSporzaLivestreamSchedule(fixture('sporza-livestream.html'))).toThrow(/fecha de referencia/);
+  });
+
+  it('resuelve los días relativos del esquema contra la fecha de referencia', () => {
+    const html = fixture('sporza-livestream.html')
+      .replace('Morgen, 17 september 2026', 'Vandaag');
+    expect(parseSporzaLivestreamSchedule(html, { todayKey: '2026-09-16' }))
+      .toHaveLength(2);
+    expect(parseSporzaLivestreamSchedule(fixture('sporza-livestream.html'), {
+      todayKey: '2026-09-16',
+    })).toHaveLength(2);
   });
 });

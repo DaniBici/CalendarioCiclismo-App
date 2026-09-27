@@ -5,14 +5,15 @@ import android.content.Intent
 import android.provider.CalendarContract
 import android.webkit.MimeTypeMap
 import androidx.browser.customtabs.CustomTabsIntent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -22,16 +23,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -40,8 +45,6 @@ import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -75,9 +78,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +99,7 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.components.AssetChip
 import app.calendariociclismo.android.ui.components.AssetActionStrip
+import app.calendariociclismo.android.ui.components.CCActionButton
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -101,6 +107,8 @@ import app.calendariociclismo.android.ui.components.MarkdownText
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.RouteLoadingView
 import app.calendariociclismo.android.ui.components.StageTypeBadge
+import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.components.TVBadge
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
@@ -111,6 +119,7 @@ import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.GuideRow
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.RegionDetector
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.SimplifiedGuide
 import app.calendariociclismo.android.util.rememberHaptics
@@ -135,6 +144,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
     val app = rememberApp()
     val context = LocalContext.current
     val haptic = rememberHaptics()
+    val adaptiveInfo = rememberAdaptiveLayoutInfo()
     var state by remember { mutableStateOf<StageState>(StageState.Loading) }
     var isRefreshing by remember { mutableStateOf(false) }
     var offlineAlert by remember { mutableStateOf<OfflineAccessAlert?>(null) }
@@ -214,11 +224,49 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                     .fillMaxSize()
                     .padding(padding),
             ) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                val wideDetail = AdaptiveLayoutPolicy.usesWideDetail(maxWidth.value, adaptiveInfo)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    val race = s.data.race
+                    val raceDay = s.data.raceDay
+                    val navSiblings = s.data.siblings
+                        .filter { !it.isRestDay && !it.isCancelledDay }
+                        .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
+                    val currentIdx = navSiblings.indexOfFirst { it.id == raceDay.id }
+                    val prevRd = if (currentIdx > 0) navSiblings[currentIdx - 1] else null
+
+                    // Clasificaciones propias (in-house): de esta jornada si ya
+                    // están volcadas; en su defecto, la GENERAL de la etapa
+                    // anterior (vueltas por etapas). Se ofrece como PRIMER chip
+                    // de la tira de assets; sin clasificaciones no hay chip.
+                    // Espejo de jornada.js (web).
+                    val raceId = race?.id
+                    val currentResultsNav: () -> Unit = {
+                        navController.navigate(
+                            Routes.results(raceId ?: "", s.data.resultsStageNumber, suffix = raceDay.stageSuffix),
+                        )
+                    }
+                    val prevResultsNav: () -> Unit = {
+                        navController.navigate(
+                            Routes.results(
+                                raceId ?: "",
+                                s.data.prevResultsStageNumber,
+                                classKind = "gc",
+                                suffix = prevRd?.stageSuffix,
+                            ),
+                        )
+                    }
+                    val resultsNav: (() -> Unit)? = when {
+                        raceId == null -> null
+                        s.data.hasInhouseResults -> currentResultsNav
+                        s.data.prevHasInhouse && prevRd != null -> prevResultsNav
+                        else -> null
+                    }
+
                     item {
                         StageHeaderCard(
                             data = s.data,
@@ -254,87 +302,111 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                     ) { offlineAlert = it }
                                 }
                             },
+                            onResultsTap = resultsNav,
                         )
                     }
 
-                    // Jornada cancelada → sin horario: la etapa no se corre, la
-                    // salida/meta ya no describen nada (el aviso de cancelación
-                    // del header es quien lo cuenta). Paridad con la web.
-                    if (!s.data.raceDay.isCancelledDay &&
+                    val officialProfile = s.data.assets.firstOrNull {
+                        it.type == "profile" && !it.url.isNullOrEmpty() && !s.data.raceDay.profileNotViewable
+                    }
+                    val hasProfile = s.data.raceDay.hasElevationProfile || officialProfile != null
+                    val hasTime = !s.data.raceDay.isCancelledDay &&
                         (s.data.raceDay.neutralStartTimeUtc != null ||
                             s.data.raceDay.estimatedFinishTimeUtc != null)
-                    ) {
-                        item { TimeSection(s.data.raceDay, s.data.race) }
-                    }
+                    val criticalPoints = criticalPointsFor(s.data.raceDay)
+                    val hasMetrics = s.data.raceDay.competitiveDistanceKm != null ||
+                        s.data.raceDay.hasValidTimeLimit
+                    val rd = s.data.raceDay
+                    val description = rd.localizedDescription?.takeIf { it.isNotEmpty() }
+                    val localizedBonuses = rd.localizedBonuses
+                    val localizedNotes = rd.localizedNotes
+                    val hasBonuses = !localizedBonuses.isNullOrEmpty()
+                    val hasNotes = !localizedNotes.isNullOrEmpty()
+                    val hasEditorial = description != null || hasBonuses || hasNotes
 
-                    val race = s.data.race
-                    val raceDay = s.data.raceDay
-                    val navSiblings = s.data.siblings
-                        .filter { !it.isRestDay && !it.isCancelledDay }
-                        .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
-                    val currentIdx = navSiblings.indexOfFirst { it.id == raceDay.id }
-                    val prevRd = if (currentIdx > 0) navSiblings[currentIdx - 1] else null
-
-                    // ¿Los resultados de la etapa ACTUAL ya están disponibles (in-house
-                    // o por hora)? Si lo están, la GC del día los recoge → no se
-                    // muestra "Así está la carrera" (espejo de `_currentResultsAvailable`).
-                    val hasInhouse = s.data.hasInhouseResults
-                    val currentResultsAvailable = hasInhouse
-
-                    // "Así está la carrera": resultados de la etapa anterior. Si esa
-                    // etapa tiene clasificaciones in-house → CTA primario a la pantalla
-                    // nativa (externos de respaldo); si no, comportamiento clásico externos
-                    // con el gate temporal. Espejo de jornada.js (web).
-                    val showPrevInhouse = s.data.prevHasInhouse && !currentResultsAvailable
-                    if (prevRd != null && race != null && showPrevInhouse) {
+                    if (wideDetail && (hasProfile || hasTime || criticalPoints.isNotEmpty() || hasMetrics || hasEditorial)) {
                         item {
-                            PreviousResultsSection(
-                                race = race,
-                                prevRaceDay = prevRd,
-                                onInhouseTap = if (showPrevInhouse) {
-                                    // "Así está la carrera" → abre en la General (GC) de la
-                                    // etapa anterior, no en su clasificación de etapa.
-                                    { navController.navigate(Routes.results(race.id, s.data.prevResultsStageNumber, classKind = "gc", suffix = prevRd.stageSuffix)) }
-                                } else null,
-                                onLinkTap = { url ->
-                                    openExternal(context, url) { offlineAlert = it }
-                                },
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(adaptiveInfo.paneSpacing),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(0.62f),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    if (hasProfile) {
+                                        StageProfileSection(
+                                            raceDay = rd,
+                                            race = race,
+                                            officialProfile = officialProfile,
+                                            onOfficialProfileTap = { asset ->
+                                                scope.launch {
+                                                    onAssetTap(app, context, asset, offlineEnabled) { offlineAlert = it }
+                                                }
+                                            },
+                                        )
+                                    }
+                                    description?.let {
+                                        DescriptionCard(
+                                            title = stringResource(R.string.stage_section_description),
+                                            body = it,
+                                            showAutoTranslationNotice = rd.isDescriptionAutoTranslated,
+                                        )
+                                    }
+                                    if (hasBonuses || hasNotes) {
+                                        BonusesNotesCard(localizedBonuses, localizedNotes)
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier.weight(0.38f),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    if (hasTime) TimeSection(rd, race)
+                                    if (criticalPoints.isNotEmpty()) CriticalPointsSection(rd, criticalPoints)
+                                    if (hasMetrics) RaceMetricsSection(rd)
+                                }
+                            }
                         }
+                    } else {
+                        if (hasTime) item { TimeSection(rd, race) }
+                        if (hasProfile) {
+                            item {
+                                StageProfileSection(
+                                    raceDay = rd,
+                                    race = race,
+                                    officialProfile = officialProfile,
+                                    onOfficialProfileTap = { asset ->
+                                        scope.launch {
+                                            onAssetTap(app, context, asset, offlineEnabled) { offlineAlert = it }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                        if (criticalPoints.isNotEmpty()) item { CriticalPointsSection(rd, criticalPoints) }
+                        if (hasMetrics) item { RaceMetricsSection(rd) }
                     }
 
-                    // Bloque "Resultados" de la etapa actual: una sola tarjeta con
-                    // el CTA in-house arriba (si lo hay) y externos como "También en"
-                    // debajo — mismo patrón que "Así está la carrera" y que
-                    // jornada.js (web). Sin in-house → externos clásicos.
-                    if (race != null && hasInhouse) {
-                        item {
-                            ResultsButtonsCard(
-                                titleRes = R.string.stage_section_results,
-                                // Una cancelación conserva el CTA nativo con su aviso,
-                                // pero no genera enlaces externos inexistentes.
-                                extUrlA = if (raceDay.isCancelledDay) null else RaceLogic.buildExtUrlA(race, raceDay.stageNumber),
-                                extUrlB = if (raceDay.isCancelledDay) null else RaceLogic.buildExtUrlB(race, raceDay.stageNumber, raceDay.stageSuffix),
-                                onInhouseTap = if (hasInhouse) {
-                                    { navController.navigate(Routes.results(race.id, s.data.resultsStageNumber, suffix = raceDay.stageSuffix)) }
-                                } else null,
-                                onLinkTap = { url ->
-                                    openExternal(context, url) { offlineAlert = it }
-                                },
-                            )
-                        }
-                    }
-
-                    // Cancelada → nada de emisión EN DIRECTO (no se corrió), pero
-                    // SÍ el "Revive" si existe: una etapa cancelada en carrera puede
-                    // tener vídeo de lo que sí se disputó (Qinghai E6 y su broadcast
-                    // showInRevive curado). BroadcastSection ya se queda solo con los
-                    // de Revive cuando la jornada ha concluido. Paridad con la web.
+                    // En una cancelada solo se muestra Revive con clasificaciones
+                    // propias y una emisión seleccionada para reproducción.
                     val cancelledWithoutRevive = s.data.raceDay.isCancelledDay &&
-                        s.data.broadcasts.none { it.showInRevive }
+                        !RaceLogic.hasReviveBroadcasts(
+                            s.data.broadcasts, s.data.hasActualResults, isCancelled = true)
+                    val liveTextUrl = if (
+                        !s.data.raceDay.isCancelledDay &&
+                        !s.data.raceDay.isRestDay &&
+                        !s.data.hasActualResults &&
+                        s.data.raceDay.raceStatus != "finished"
+                    ) {
+                        s.data.assets.firstOrNull {
+                            it.type == "live_text" && !it.url.isNullOrEmpty()
+                        }?.url
+                    } else null
                     val hasBroadcastSection = s.data.broadcasts.isNotEmpty() ||
                         s.data.allBroadcasts.isNotEmpty() ||
-                        s.data.raceDay.tvStatus == "pending"
+                        s.data.raceDay.tvStatus == "pending" ||
+                        liveTextUrl != null
                     if (hasBroadcastSection && !cancelledWithoutRevive) {
                         item {
                             BroadcastSection(
@@ -343,6 +415,7 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                                 hasResults = s.data.hasActualResults,
                                 broadcasts = s.data.broadcasts,
                                 allBroadcasts = s.data.allBroadcasts,
+                                liveTextUrl = liveTextUrl,
                                 onExternalLinkTap = { url ->
                                     openExternal(context, url) { offlineAlert = it }
                                 },
@@ -350,24 +423,40 @@ fun StageScreen(stageId: String, raceId: String? = null, navController: NavContr
                         }
                     }
 
-                    s.data.raceDay.localizedDescription?.takeIf { it.isNotEmpty() }?.let { desc ->
+                    if (!wideDetail && hasEditorial) {
                         item {
-                            DescriptionCard(
-                                title = stringResource(R.string.stage_section_description),
-                                body = desc,
-                                showAutoTranslationNotice = s.data.raceDay.isDescriptionAutoTranslated,
-                            )
+                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                if (maxWidth >= 700.dp) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        Box(Modifier.weight(1f)) {
+                                            description?.let {
+                                                DescriptionCard(
+                                                    title = stringResource(R.string.stage_section_description),
+                                                    body = it,
+                                                    showAutoTranslationNotice = rd.isDescriptionAutoTranslated,
+                                                )
+                                            }
+                                        }
+                                        Box(Modifier.weight(1f)) {
+                                            if (hasBonuses || hasNotes) BonusesNotesCard(localizedBonuses, localizedNotes)
+                                        }
+                                    }
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        description?.let {
+                                            DescriptionCard(
+                                                title = stringResource(R.string.stage_section_description),
+                                                body = it,
+                                                showAutoTranslationNotice = rd.isDescriptionAutoTranslated,
+                                            )
+                                        }
+                                        if (hasBonuses || hasNotes) BonusesNotesCard(localizedBonuses, localizedNotes)
+                                    }
+                                }
+                            }
                         }
                     }
-
-                    val rd = s.data.raceDay
-                    val localizedBonuses = rd.localizedBonuses
-                    val localizedNotes = rd.localizedNotes
-                    val hasBonuses = !localizedBonuses.isNullOrEmpty()
-                    val hasNotes = !localizedNotes.isNullOrEmpty()
-                    if (hasBonuses || hasNotes) {
-                        item { BonusesNotesCard(bonuses = localizedBonuses, notes = localizedNotes) }
-                    }
+                }
                 }
             }
         }
@@ -422,7 +511,7 @@ private suspend fun loadStageData(
         .sortedBy { it.sortOrder }
     val broadcasts = RaceLogic.filterBroadcastsByRegion(
         allBroadcasts,
-        app.preferences.snapshotRegionPreference().allowedBroadcastGroups,
+        RegionDetector.allowedBroadcastGroups(),
     )
     val stageAssets = app.database.assetsDao()
         .getByRaceDay(stageId).map { it.toModel() }
@@ -434,8 +523,8 @@ private suspend fun loadStageData(
         RaceLogic.annotateDoubleSectors(allDays)
         allDays.toList()
     } ?: emptyList()
-    // El gate llega antes de publicar StageData: así la tarjeta no aparece con
-    // externos y se transforma después en "Ver clasificaciones".
+    // El gate llega antes de publicar StageData: así la tarjeta no aparece sin
+    // clasificaciones y se transforma después en "Ver clasificaciones".
     val navigable = siblings
         .filter { !it.isRestDay && !it.isCancelledDay }
         .sortedWith(compareBy({ it.stageNumber ?: Int.MAX_VALUE }, { it.dateKey }))
@@ -444,7 +533,7 @@ private suspend fun loadStageData(
         ?.let { navigable[it - 1] }
     val inhouseByDay = latest.raceId?.let { rid ->
         val days = listOfNotNull(
-            latest.takeUnless { it.isCancelledDay }?.let { it.id to it.stageNumber },
+            latest.id to latest.stageNumber,
             previous?.let { it.id to it.stageNumber },
         )
         app.repository.inhouseStagesForDays(rid, days)
@@ -657,6 +746,7 @@ private fun openExternal(
 // ACTION_INSERT para que el evento entre al calendario primario sin permisos
 // y sin la latencia/visibilidad oculta del flujo `?cid=` (que suscribe el .ics).
 private fun addStageToCalendar(context: Context, race: Race?, rd: RaceDay) {
+    if (!RaceLogic.hasCalendarForYear(race?.year) || rd.isRestDay || rd.isCancelledDay) return
     val title = buildCalendarTitle(race, rd)
     val description = buildCalendarDescription(context, rd)
     val location = listOfNotNull(
@@ -754,7 +844,7 @@ private fun openLocalFile(app: CalendarioCiclismoApp, file: File, extension: Str
 // ─── Cards ────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionCard(content: @Composable () -> Unit) {
+internal fun SectionCard(content: @Composable () -> Unit) {
     // Tarjeta canónica neutra (sin tinte de marca): en el detalle de jornada
     // las secciones son bloques de info de UNA carrera, no carreras distintas,
     // así que la superficie es gris pulida (CCCard) en vez del Box tintado al
@@ -771,7 +861,7 @@ private fun SectionCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleSmall,
@@ -783,6 +873,21 @@ private fun SectionTitle(text: String) {
         modifier = Modifier.semantics { heading() },
     )
 }
+
+/**
+ * Acción canónica de Jornada. Unifica los CTA propios, los enlaces alternativos,
+ * los controles de retransmisión y los selectores sin sacrificar el objetivo
+ * táctil mínimo de 48 dp.
+ */
+@Composable
+internal fun StageActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    primaryAction: Boolean = false,
+    selected: Boolean? = null,
+) = CCActionButton(label, onClick, modifier, icon, primaryAction, selected)
 
 // ─── Cabecera ─────────────────────────────────────────────────────
 
@@ -797,17 +902,12 @@ private fun SectionTitle(text: String) {
  * ([StageInfoHeaderCard]) para mantener el contexto de la etapa por encima del
  * perfil. La flecha llama a [onBack] (en el perfil, vuelve a la jornada).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun StageInfoBlock(
-    raceDay: RaceDay,
-    race: Race?,
-    onBack: () -> Unit,
-    onRaceTap: (() -> Unit)? = null,
+internal fun RaceDayHeading(
+    name: String?, logoUrl: String?, countryCode: String?, dateLabel: String, onBack: () -> Unit,
+    showFlag: Boolean = true, category: String? = null, stageLabel: String = "", onRaceTap: (() -> Unit)? = null,
 ) {
-    val rd = raceDay
-    val hasStageLabel = rd.stageLabel.isNotEmpty()
-
+    val hasStageLabel = stageLabel.isNotEmpty()
     // Fila superior: flecha integrada + logo + nombre de carrera
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -823,7 +923,7 @@ internal fun StageInfoBlock(
                 modifier = Modifier.size(18.dp),
             )
         }
-        if (race != null) {
+        if (name != null) {
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -842,11 +942,11 @@ internal fun StageInfoBlock(
                         // Override puramente cosmético de la jornada
                         // (etapas en el extranjero p.ej.). El override
                         // vence al hideFlag de la carrera.
-                        if (!race.hideFlag || rd.countryCode != null) {
-                            CountryFlag(countryCode = rd.countryCode ?: race.countryCode)
+                        if (showFlag) {
+                            CountryFlag(countryCode = countryCode)
                         }
                         Text(
-                            text = race.localizedName,
+                            text = name,
                             style = MaterialTheme.typography.titleLarge,
                             // Peso igualado al titular del cintillo (Medium) en
                             // lugar de Bold; se mantiene el tamaño titleLarge de
@@ -858,9 +958,9 @@ internal fun StageInfoBlock(
                         )
                     }
                     Spacer(Modifier.height(2.dp))
-                    CategoryBadge(category = race.uciCategory)
+                    category?.let { CategoryBadge(category = it) }
                 }
-                RaceLogo(url = race.logoUrl, size = 36.dp)
+                RaceLogo(url = logoUrl, size = 36.dp)
             }
         }
     }
@@ -877,7 +977,7 @@ internal fun StageInfoBlock(
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (hasStageLabel) {
             Text(
-                text = rd.stageLabel,
+                text = stageLabel,
                 style = MaterialTheme.typography.titleMedium,
                 // Peso igualado al titular del cintillo (Medium, no Bold).
                 fontWeight = FontWeight.Medium,
@@ -887,28 +987,41 @@ internal fun StageInfoBlock(
         Text(
             // La cabecera de etapa va en el idioma del CONTENIDO (igual que el
             // nombre de carrera, la ruta y el km), no en el del chrome de la UI.
-            text = DateFormatting.formatDateLongContent(rd.dateKey),
+            text = dateLabel,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 
-    rd.routeDescription?.let { route ->
+}
+
+@Composable
+internal fun RaceDayLocation(location: String, detail: String? = null, category: String? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        category?.let { CategoryBadge(it) }
         Column {
-            Text(
-                text = route,
-                style = MaterialTheme.typography.bodyMedium,
-                // Peso igualado al titular del cintillo (Medium, no SemiBold).
-                fontWeight = FontWeight.Medium,
-            )
-            if (rd.isSingleCity) {
-                Text(
-                    text = stringResource(R.string.stage_label_start_finish),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            if (location.isNotEmpty()) Text(location, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            detail?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun StageInfoBlock(
+    raceDay: RaceDay,
+    race: Race?,
+    onBack: () -> Unit,
+    onRaceTap: (() -> Unit)? = null,
+) {
+    val rd = raceDay
+
+    RaceDayHeading(name = race?.localizedName, logoUrl = race?.logoUrl, countryCode = rd.countryCode ?: race?.countryCode,
+        dateLabel = DateFormatting.formatDateLongContent(rd.dateKey), onBack = onBack, showFlag = race?.hideFlag != true || rd.countryCode != null,
+        category = race?.uciCategory, stageLabel = rd.stageLabel, onRaceTap = onRaceTap)
+
+    rd.routeDescription?.let { route ->
+        RaceDayLocation(route, detail = if (rd.isSingleCity) stringResource(R.string.stage_label_start_finish) else null)
     }
 
     // Badge + km/desnivel: FlowRow para que km/desnivel salten a una segunda
@@ -1030,16 +1143,15 @@ private fun StageHeaderCard(
     onAssetTap: (Asset) -> Unit = {},
     onExternalLinkTap: (String) -> Unit = {},
     onWebProfileTap: (String) -> Unit = onExternalLinkTap,
+    onResultsTap: (() -> Unit)? = null,
 ) {
     val rd = data.raceDay
     val race = data.race
     val context = LocalContext.current
     val app = rememberApp()
-    // Jornada cancelada: no hay carrera que seguir en directo → fuera el Live
-    // Texto. La documentación del recorrido (rutómetro/perfil/mapa) SÍ se
-    // conserva: describe la etapa que estaba trazada, no su seguimiento.
-    // Espejo del filtro de `buildActionButtons` en la web.
-    val assets = if (rd.isCancelledDay) data.assets.filter { it.type != "live_text" } else data.assets
+    val assets = data.assets.filter {
+        it.type != "live_text" && !(rd.profileNotViewable && it.type == "profile")
+    }
     val hasGpxProfile = rd.hasElevationProfile
     val hasProfile = assets.any { it.type == "profile" }
     // Cuando existen AMBOS (perfil interactivo GPX + asset estático) se ofrecen
@@ -1051,12 +1163,12 @@ private fun StageHeaderCard(
     val bothMaps = hasRouteMap && hasStaticMap
     val isSterrato = rd.primaryType == "sterrato"
     val isFrance = race?.countryCode?.uppercase() == "FR"
-    val hasICalSubscribe = !rd.slug.isNullOrEmpty() && !rd.isRestDay && !rd.isCancelledDay
+    val hasICalSubscribe = RaceLogic.hasCalendarForYear(race?.year) && !rd.slug.isNullOrEmpty() && !rd.isRestDay && !rd.isCancelledDay
     val followedStageIds by app.preferences.followedStageIds.collectAsState(initial = emptySet())
     // El control debe seguir visible aunque el usuario todavía no haya activado
     // los permisos: es el punto de entrada para personalizar esta jornada.
     val showNotifChip = !rd.isRestDay && !rd.isCancelledDay
-    val hasDocs = hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip
+    val hasDocs = hasGpxProfile || hasRouteMap || assets.isNotEmpty() || data.hasStartlist || !race?.websiteUrl.isNullOrEmpty() || hasICalSubscribe || showNotifChip || onResultsTap != null
     // Dividimos los assets respecto al índice de "profile" en ASSET_ORDER para
     // que el chip SVG web aparezca siempre después del rutómetro.
     val profileOrderIdx = Constants.ASSET_ORDER.indexOf("profile").let { if (it < 0) Constants.ASSET_ORDER.size else it }
@@ -1105,6 +1217,17 @@ private fun StageHeaderCard(
             if (hasDocs) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AssetActionStrip {
+                    // Clasificaciones propias (in-house) — primer chip de la tira,
+                    // en azul de marca. Sin clasificaciones no hay chip.
+                    onResultsTap?.let { tap ->
+                        AssetChip(
+                            icon = Icons.Filled.EmojiEvents,
+                            label = stringResource(R.string.stage_doc_classifications),
+                            onClick = tap,
+                            highlighted = true,
+                        )
+                    }
+
                     val websiteUrl = race?.websiteUrl
                     if (!websiteUrl.isNullOrEmpty()) {
                         AssetChip(
@@ -1204,8 +1327,8 @@ private fun StageHeaderCard(
                         )
                     }
 
-                    // Assets desde "profile" en adelante (ports, map, live_text;
-                    // el profile estático se renderiza arriba como "Perfil oficial")
+                    // Assets desde "profile" en adelante (ports, map; el
+                    // profile estático se renderiza arriba como "Perfil oficial").
                     assetsFromProfile.forEach { asset ->
                         if (asset.url.isNullOrEmpty()) return@forEach
                         val isSterratiPorts = asset.type == "ports" && !hasProfile && isSterrato
@@ -1339,112 +1462,121 @@ private fun TimeSection(rd: RaceDay, race: Race?) {
                     }
                 }
             }
-
-            SimplifiedGuideSection(rd)
         }
     }
 }
 
-// ─── Guía simplificada de horarios de paso (despliegue inline) ─────
+// ─── Puntos clave del recorrido ────────────────────────────────
 @Composable
-private fun SimplifiedGuideSection(rd: RaceDay) {
-    val rows = remember(rd.id) {
-        SimplifiedGuide.build(
-            distanceKm = rd.distanceKm ?: rd.elevationProfile?.distance,
-            neutralStartTimeUtc = rd.neutralStartTimeUtc,
-            estimatedFinishTimeUtc = rd.estimatedFinishTimeUtc,
-            summits = rd.profileSummits ?: emptyList(),
-            waypoints = rd.profileWaypoints ?: emptyList(),
-            primaryType = rd.primaryType,
-        )
-    }
-    if (!SimplifiedGuide.hasGuide(rows)) return
-
-    var expanded by remember(rd.id) { mutableStateOf(false) }
-    HorizontalDivider()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded }
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.stage_guide_open),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-    }
-    AnimatedVisibility(visible = expanded) {
-        Column {
-            rows.forEach { GuideRowItem(it) }
-            if (rows.any { it.isEstimated && it.timeUtc != null }) {
-                Text(
-                    text = stringResource(R.string.stage_guide_estimated_note),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp),
+private fun CriticalPointsSection(rd: RaceDay, points: List<GuideRow>) {
+    var showAll by remember(rd.id) { mutableStateOf(false) }
+    SectionCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionTitle(LocaleHolder.t("Puntos clave", "Key points"))
+            Column {
+                (if (showAll) points else points.take(5)).forEach { GuideRowItem(it) }
+            }
+            if (points.size > 5) {
+                StageActionButton(
+                    label = if (showAll) LocaleHolder.t("Ver menos", "Show less")
+                        else LocaleHolder.t("Ver todos", "See all"),
+                    onClick = { showAll = !showAll },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
     }
 }
 
+private fun criticalPointsFor(rd: RaceDay): List<GuideRow> = SimplifiedGuide.build(
+    distanceKm = rd.distanceKm ?: rd.elevationProfile?.distance,
+    neutralStartTimeUtc = rd.neutralStartTimeUtc,
+    estimatedFinishTimeUtc = rd.estimatedFinishTimeUtc,
+    summits = rd.profileSummits ?: emptyList(),
+    waypoints = rd.profileWaypoints ?: emptyList(),
+    primaryType = rd.primaryType,
+).filter { it.type != "start" && it.type != "finish" }
+
 @Composable
 private fun GuideRowItem(row: GuideRow) {
-    val timeStr = row.timeUtc?.let { DateFormatting.formatTimeLocal(it) } ?: "—"
+    // Las horas interpoladas no se presentan como datos del rutómetro.
+    val timeStr = row.timeUtc?.takeUnless { row.isEstimated }?.let { DateFormatting.formatTimeLocal(it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(modifier = Modifier.width(54.dp)) {
+        row.kmToGo?.let { km ->
+            val posText = if (km <= 0.5) stringResource(R.string.stage_guide_at_finish)
+                else stringResource(R.string.stage_guide_km_to_go, fmtKm(km))
             Text(
-                text = timeStr,
-                style = MaterialTheme.typography.bodyMedium,
+                text = posText,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.width(78.dp),
             )
-            if (row.isEstimated && row.timeUtc != null) {
-                Text(
-                    text = "*",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+        Box(
+            modifier = Modifier
+                .padding(end = 10.dp)
+                .width(if (row.secondaryType == null) 20.dp else 37.dp)
+                .height(20.dp)
+                .clearAndSetSemantics { },
+        ) {
+            GuideMarker(
+                type = row.type,
+                category = row.category,
+                modifier = Modifier.size(20.dp),
+            )
+            row.secondaryType?.let { secondaryType ->
+                GuideMarker(
+                    type = secondaryType,
+                    category = null,
+                    modifier = Modifier
+                        .offset(x = 17.dp)
+                        .size(20.dp),
                 )
             }
         }
-        GuideMarker(
-            row = row,
-            modifier = Modifier
-                .padding(start = 6.dp, end = 10.dp)
-                .size(20.dp),
-        )
         Text(
             text = guideRowLabel(row),
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        row.kmToGo?.let { km ->
-            // A ≤0.5 km de meta (o en la propia meta) → "Meta", igual que el
-            // perfil interactivo. Cubre varios puntos cercanos y negativos por redondeo.
-            val posText = if (km <= 0.5) stringResource(R.string.stage_guide_at_finish)
-                          else stringResource(R.string.stage_guide_km_to_go, fmtKm(km))
+        if (timeStr != null) {
             Text(
-                text = posText,
+                text = timeStr,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun RaceMetricsSection(rd: RaceDay) {
+    val timeLimit = if (rd.hasValidTimeLimit) RaceDay.formatDuration(rd.timeLimitSeconds) else null
+    if (rd.competitiveDistanceKm == null && timeLimit == null) return
+
+    SectionCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionTitle(LocaleHolder.t("Datos de carrera", "Race data"))
+            rd.competitiveDistanceKm?.let {
+                MetricRow(LocaleHolder.t("Distancia competitiva", "Competitive distance"), "%.1f km".format(java.util.Locale.US, it))
+            }
+            timeLimit?.let { MetricRow(LocaleHolder.t("Fuera de control", "Time limit"), it) }
+        }
+    }
+}
+
+@Composable
+private fun MetricRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1463,20 +1595,20 @@ private fun guideMarkerColor(type: String): Color = when (type) {
 /**
  * Marcador circular de una fila de la guía. Los glifos se dibujan con Canvas
  * (formas vectoriales blancas centradas y bien dimensionadas dentro del círculo),
- * salvo las categorías de puerto (HC/1..4/B/S), que van como texto centrado.
+ * salvo las categorías de puerto (HC/1..4/M/B/S), que van como texto centrado.
  * Espejo del `guideMarkerSVG` de la web (js/elevation-profile.js).
  */
 @Composable
-private fun GuideMarker(row: GuideRow, modifier: Modifier = Modifier) {
-    val circleColor = guideMarkerColor(row.type)
+internal fun GuideMarker(type: String, category: String?, modifier: Modifier = Modifier) {
+    val circleColor = guideMarkerColor(type)
     // Categoría de puerto o letra de sprint/bonif → texto centrado.
-    val letter: String? = when (row.type) {
-        "summit" -> row.category?.takeIf { it != "M" }
+    val letter: String? = when (type) {
+        "summit" -> category?.trim()?.takeIf { it.isNotEmpty() } ?: "M"
         "intermediate_sprint" -> "S"
         "bonus_sprint" -> "B"
         else -> null
     }
-    val letterColor = if (row.type == "bonus_sprint") Color.Black else Color.White
+    val letterColor = if (type == "bonus_sprint") Color.Black else Color.White
     Box(
         modifier = modifier.background(circleColor, CircleShape),
         contentAlignment = Alignment.Center,
@@ -1497,7 +1629,7 @@ private fun GuideMarker(row: GuideRow, modifier: Modifier = Modifier) {
                 val u = w / 20f // 1 unidad de diseño = 1/20 del diámetro (círculo Ø20)
                 val white = Color.White
                 fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(cx + x * u, cy + y * u)
-                when (row.type) {
+                when (type) {
                     "start" -> {
                         // Triángulo "play" apuntando a la derecha.
                         val path = androidx.compose.ui.graphics.Path().apply {
@@ -1533,18 +1665,6 @@ private fun GuideMarker(row: GuideRow, modifier: Modifier = Modifier) {
                         drawLine(white, p(4f, -0.5f), p(4f, -4f), strokeWidth = sw,
                             cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     }
-                    "summit" -> {
-                        // Montaña (categoría M / sin categoría): silueta de dos picos.
-                        val path = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(cx - 7f * u, cy + 3f * u)
-                            lineTo(cx - 3f * u, cy - 4.5f * u)
-                            lineTo(cx, cy - 0.5f * u)
-                            lineTo(cx + 3f * u, cy - 5f * u)
-                            lineTo(cx + 7f * u, cy + 3f * u)
-                            close()
-                        }
-                        drawPath(path, white)
-                    }
                     "intermediate_split" -> {
                         // Cronómetro: manecilla vertical + horizontal + coronita.
                         val sw = 1.6f * u
@@ -1555,34 +1675,7 @@ private fun GuideMarker(row: GuideRow, modifier: Modifier = Modifier) {
                         drawLine(white, p(-2f, -7f), p(2f, -7f), strokeWidth = 1.5f * u,
                             cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     }
-                    "cobblestone" -> {
-                        // Pavé: heptágono (mismo trazo que el asset).
-                        val sw = 1.2f * u
-                        val pts = listOf(
-                            p(-1.6f, 4.4f), p(-4.4f, 0.55f), p(-1.6f, -2.75f),
-                            p(2.25f, -4.4f), p(4.4f, -2.75f), p(5.5f, 0.55f), p(3.85f, 4.4f))
-                        val path = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(pts[0].x, pts[0].y)
-                            for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
-                            close()
-                        }
-                        drawPath(path, white, style = androidx.compose.ui.graphics.drawscope.Stroke(
-                            width = sw, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                            join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                    }
-                    "sterrato" -> {
-                        // Sterrato: tres guijarros.
-                        val sw = 1.2f * u
-                        val st = androidx.compose.ui.graphics.drawscope.Stroke(width = sw)
-                        fun ellipse(cxr: Float, cyr: Float, rx: Float, ry: Float) {
-                            drawOval(white,
-                                topLeft = androidx.compose.ui.geometry.Offset(cx + (cxr - rx) * u, cy + (cyr - ry) * u),
-                                size = androidx.compose.ui.geometry.Size(rx * 2 * u, ry * 2 * u), style = st)
-                        }
-                        ellipse(-3f, 2.5f, 2.5f, 1.65f)
-                        ellipse(2.5f, 2.5f, 2.2f, 1.55f)
-                        ellipse(0f, -1.7f, 2.5f, 1.65f)
-                    }
+                    "cobblestone", "sterrato" -> drawSurfaceGlyph(type, androidx.compose.ui.geometry.Offset(cx, cy), w)
                     else -> {
                         // Localidad / town: punto sólido.
                         drawCircle(white, radius = 2.6f * u, center = androidx.compose.ui.geometry.Offset(cx, cy))
@@ -1594,19 +1687,26 @@ private fun GuideMarker(row: GuideRow, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun guideRowLabel(row: GuideRow): String = when (row.type) {
+private fun guideRowLabel(row: GuideRow): String {
+    val primary = guideTypeLabel(row.type, row.label)
+    val secondary = row.secondaryType?.let { guideTypeLabel(it, row.secondaryLabel) }
+    return secondary?.takeIf { it != primary }?.let { "$primary · $it" } ?: primary
+}
+
+@Composable
+private fun guideTypeLabel(type: String, label: String?): String = when (type) {
     "start" -> stringResource(R.string.stage_guide_start)
     "finish" -> stringResource(R.string.stage_guide_finish)
-    "climb_foot" -> row.label?.let { stringResource(R.string.stage_guide_climb_foot, it) }
+    "climb_foot" -> label?.let { stringResource(R.string.stage_guide_climb_foot, it) }
         ?: stringResource(R.string.stage_guide_climb_foot_generic)
-    "summit" -> row.label ?: stringResource(R.string.stage_guide_summit)
-    "intermediate_sprint" -> row.label ?: stringResource(R.string.stage_guide_intermediate_sprint)
-    "bonus_sprint" -> row.label ?: stringResource(R.string.stage_guide_bonus_sprint)
-    "intermediate_split" -> row.label ?: stringResource(R.string.stage_guide_intermediate_split)
-    "cobblestone" -> row.label ?: stringResource(R.string.stage_guide_cobblestone)
-    "sterrato" -> row.label ?: stringResource(R.string.stage_guide_sterrato)
-    "town" -> row.label ?: stringResource(R.string.stage_guide_town)
-    else -> row.label ?: row.type
+    "summit" -> label ?: stringResource(R.string.stage_guide_summit)
+    "intermediate_sprint" -> label ?: stringResource(R.string.stage_guide_intermediate_sprint)
+    "bonus_sprint" -> label ?: stringResource(R.string.stage_guide_bonus_sprint)
+    "intermediate_split" -> label ?: stringResource(R.string.stage_guide_intermediate_split)
+    "cobblestone" -> label ?: stringResource(R.string.stage_guide_cobblestone)
+    "sterrato" -> label ?: stringResource(R.string.stage_guide_sterrato)
+    "town" -> label ?: stringResource(R.string.stage_guide_town)
+    else -> label ?: type
 }
 
 // Formatea un km de la guía con el separador decimal del IDIOMA DE CONTENIDO
@@ -1616,122 +1716,6 @@ private fun fmtKm(d: Double): String {
     if (d == Math.floor(d)) return d.toInt().toString()
     val raw = String.format(java.util.Locale.US, "%.1f", d) // siempre con '.'
     return if (LocaleHolder.shouldShowEnglishContent) raw else raw.replace('.', ',')
-}
-
-// ─── Resultados / Así está la carrera (bloque unificado) ──────────
-
-/**
- * Tarjeta de botones de resultados, compartida por "Resultados" (etapa actual)
- * y "Así está la carrera" (etapa anterior). UNA sola tarjeta: si hay
- * clasificaciones in-house (`onInhouseTap != null`), el CTA primario "Ver
- * clasificaciones" va arriba y externos quedan como respaldo discreto bajo
- * "También en"; sin in-house, externos son los botones principales. Espejo de
- * `resultsButtonsHtml` en jornada.js (web), que también los agrupa.
- */
-@Composable
-private fun ResultsButtonsCard(
-    titleRes: Int,
-    extUrlA: String?,
-    extUrlB: String?,
-    onLinkTap: (String) -> Unit,
-    onInhouseTap: (() -> Unit)? = null,
-) {
-    // Sin in-house y sin externos no hay nada que mostrar. Con in-house, el CTA
-    // primario se muestra aunque externos falten.
-    if (onInhouseTap == null && extUrlA == null && extUrlB == null) return
-
-    val primary = MaterialTheme.colorScheme.primary
-    SectionCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(stringResource(titleRes))
-
-            if (onInhouseTap != null) {
-                // CTA primario → pantalla nativa de clasificaciones.
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(primary, RoundedCornerShape(3))
-                        .clickable(role = Role.Button) { onInhouseTap() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.results_cta),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-                // externos de respaldo discreto bajo "También en".
-                if (extUrlA != null || extUrlB != null) {
-                    Text(
-                        text = stringResource(R.string.results_also_on),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            if (extUrlA != null || extUrlB != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    extUrlA?.let { url ->
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(primary.copy(alpha = 0.1f), RoundedCornerShape(3))
-                                .clickable(role = Role.Button, onClickLabel = "fuente externa") { onLinkTap(url) }
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                text = "fuente externa",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = primary,
-                            )
-                        }
-                    }
-                    extUrlB?.let { url ->
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(primary.copy(alpha = 0.1f), RoundedCornerShape(3))
-                                .clickable(role = Role.Button, onClickLabel = "fuente externa") { onLinkTap(url) }
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                text = "fuente externa",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = primary,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ─── Así está la carrera (resultados etapa anterior) ─────────────
-
-/** "Así está la carrera": resultados de la etapa anterior. Delega en la tarjeta
- *  unificada [ResultsButtonsCard] (in-house → CTA nativo + externos de respaldo). */
-@Composable
-private fun PreviousResultsSection(
-    race: Race,
-    prevRaceDay: RaceDay,
-    onLinkTap: (String) -> Unit,
-    onInhouseTap: (() -> Unit)? = null,
-) {
-    ResultsButtonsCard(
-        titleRes = R.string.stage_section_previous_results,
-        extUrlA = RaceLogic.buildExtUrlA(race, prevRaceDay.stageNumber),
-        extUrlB = RaceLogic.buildExtUrlB(race, prevRaceDay.stageNumber, prevRaceDay.stageSuffix),
-        onLinkTap = onLinkTap,
-        onInhouseTap = onInhouseTap,
-    )
 }
 
 // ─── Retransmisión / Revive ───────────────────────────────────────
@@ -1764,6 +1748,7 @@ private fun BroadcastSection(
     hasResults: Boolean,
     broadcasts: List<Broadcast>,
     allBroadcasts: List<Broadcast>,
+    liveTextUrl: String?,
     onExternalLinkTap: (String) -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -1771,12 +1756,10 @@ private fun BroadcastSection(
     val regionalIds = remember(broadcasts) { broadcasts.mapTo(mutableSetOf()) { it.id } }
     val hasHiddenBroadcasts = allBroadcasts.any { it.id !in regionalIds }
 
-    // T+30: filtrar a emisiones persistentes y cambiar el título a "Revive".
-    // Sin hora de meta se usa el fallback común de dateKey 18:00 UTC + 30 min.
-    // Revive conserva el filtro regional y no ofrece el selector «Todas».
-    val hasReviveBroadcast = broadcasts.isNotEmpty() &&
-        (if (raceDay.isCancelledDay) broadcasts.any { it.showInRevive }
-        else RaceLogic.hasReviveBroadcasts(broadcasts, raceDay))
+    // Revive aparece con clasificaciones de esta jornada y una emisión recuperable.
+    // Conserva el filtro regional y no ofrece el selector «Todas».
+    val hasReviveBroadcast = RaceLogic.hasReviveBroadcasts(
+        broadcasts, hasResults, isCancelled = raceDay.isCancelledDay)
 
     val selectedBroadcasts = if (showAllBroadcasts) allBroadcasts else broadcasts
     val visibleBroadcasts = if (hasReviveBroadcast)
@@ -1792,7 +1775,7 @@ private fun BroadcastSection(
     }
 
     SectionCard {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1802,22 +1785,34 @@ private fun BroadcastSection(
                 if (!hasReviveBroadcast && raceDay.tvStatus == "pending") {
                     TVBadge(tvStatus = "pending", broadcasts = emptyList())
                 }
-                Spacer(Modifier.weight(1f))
-                if (hasHiddenBroadcasts && !hasReviveBroadcast) {
-                    TextButton(onClick = { showAllBroadcasts = !showAllBroadcasts }) {
-                        Text(
-                            if (showAllBroadcasts) {
+            }
+            if ((hasHiddenBroadcasts && !hasReviveBroadcast) || liveTextUrl != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (hasHiddenBroadcasts && !hasReviveBroadcast) {
+                        StageActionButton(
+                            icon = Icons.Outlined.Language,
+                            label = if (showAllBroadcasts) {
                                 stringResource(R.string.stage_broadcast_filter_region)
                             } else {
                                 stringResource(R.string.stage_broadcast_filter_all)
                             },
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            onClick = { showAllBroadcasts = !showAllBroadcasts },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (liveTextUrl != null) {
+                        StageActionButton(
+                            icon = Icons.Outlined.ChatBubbleOutline,
+                            label = stringResource(R.string.asset_live_text),
+                            onClick = { onExternalLinkTap(liveTextUrl) },
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
             if (visibleBroadcasts.isEmpty() && hasHiddenBroadcasts && !showAllBroadcasts) {
                 Text(
                     text = stringResource(R.string.stage_broadcast_no_region),
@@ -1827,87 +1822,95 @@ private fun BroadcastSection(
                 )
             }
             visibleBroadcasts.forEach { b ->
-                val url = b.url?.takeIf { it.isNotEmpty() }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (url != null) Modifier.clickable(role = Role.Button) {
-                                onExternalLinkTap(url)
-                            } else Modifier
-                        )
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Tv,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        val channelFallback = stringResource(R.string.stage_broadcast_channel_fallback)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text(
-                                text = b.channel ?: channelFallback,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            if (showAllBroadcasts && !hasReviveBroadcast) {
-                                broadcastRegionLabel(b.country)?.let { region ->
-                                    Text(
-                                        text = region,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = primary,
-                                        modifier = Modifier
-                                            .background(
-                                                primary.copy(alpha = 0.12f),
-                                                RoundedCornerShape(3.dp),
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                                    )
-                                }
-                            }
-                            if (!hasReviveBroadcast) {
-                                b.startTimeLocal?.let { time ->
-                                    Text(
-                                        text = "·",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        text = time,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                        if (RaceLogic.shouldShowBroadcastNote(hasResults, hasReviveBroadcast, b.showInRevive)) {
-                            b.note?.takeIf { it.isNotEmpty() }?.let { note ->
-                                Text(
-                                    text = note,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                BroadcastRow(b, isRevive = hasReviveBroadcast, hasResults = hasResults,
+                    showsRegion = showAllBroadcasts && !hasReviveBroadcast, onExternalLinkTap = onExternalLinkTap)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BroadcastRow(b: Broadcast, isRevive: Boolean = false, hasResults: Boolean = false,
+    showsRegion: Boolean = false, onExternalLinkTap: (String) -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    val url = b.url?.takeIf { it.isNotEmpty() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (url != null) Modifier.clickable(role = Role.Button) {
+                    onExternalLinkTap(url)
+                } else Modifier
+            )
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Tv,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            val channelFallback = stringResource(R.string.stage_broadcast_channel_fallback)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = b.channel ?: channelFallback,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                if (showsRegion) {
+                    broadcastRegionLabel(b.country)?.let { region ->
+                        Text(
+                            text = region,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = primary,
+                            modifier = Modifier
+                                .background(
+                                    primary.copy(alpha = 0.12f),
+                                    RoundedCornerShape(3.dp),
                                 )
-                            }
-                        }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
                     }
-                    if (url != null) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = stringResource(R.string.stage_action_open_link_cd),
-                            tint = primary,
-                            modifier = Modifier.size(20.dp),
+                }
+                if (!isRevive) {
+                    b.startTimeLocal?.let { time ->
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = time,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+            if (RaceLogic.shouldShowBroadcastNote(hasResults, isRevive, b.showInRevive)) {
+                b.note?.takeIf { it.isNotEmpty() }?.let { note ->
+                    Text(
+                        text = note,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        if (url != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.stage_action_open_link_cd),
+                tint = primary,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
@@ -2022,4 +2025,47 @@ private sealed class StageState {
     data object Loading : StageState()
     data class Error(val message: String) : StageState()
     data class Ready(val data: StageData) : StageState()
+}
+
+/** Glifo compartido por la guía, el perfil y sus etiquetas. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSurfaceGlyph(
+    type: String,
+    center: androidx.compose.ui.geometry.Offset,
+    diameter: Float,
+) {
+    val cx = center.x
+    val cy = center.y
+    val u = diameter / 20f
+    val white = Color.White
+    fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(cx + x * u, cy + y * u)
+    when (type) {
+        "cobblestone" -> {
+            // Pavé: heptágono (mismo trazo que el asset).
+            val sw = 1.2f * u
+            val pts = listOf(
+                p(-1.6f, 4.4f), p(-4.4f, 0.55f), p(-1.6f, -2.75f),
+                p(2.25f, -4.4f), p(4.4f, -2.75f), p(5.5f, 0.55f), p(3.85f, 4.4f))
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(pts[0].x, pts[0].y)
+                for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
+                close()
+            }
+            drawPath(path, white, style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = sw, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+        "sterrato" -> {
+            // Sterrato: tres guijarros.
+            val sw = 1.2f * u
+            val st = androidx.compose.ui.graphics.drawscope.Stroke(width = sw)
+            fun ellipse(cxr: Float, cyr: Float, rx: Float, ry: Float) {
+                drawOval(white,
+                    topLeft = androidx.compose.ui.geometry.Offset(cx + (cxr - rx) * u, cy + (cyr - ry) * u),
+                    size = androidx.compose.ui.geometry.Size(rx * 2 * u, ry * 2 * u), style = st)
+            }
+            ellipse(-3f, 2.5f, 2.5f, 1.65f)
+            ellipse(2.5f, 2.5f, 2.2f, 1.55f)
+            ellipse(0f, -1.7f, 2.5f, 1.65f)
+        }
+    }
 }
