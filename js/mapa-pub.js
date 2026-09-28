@@ -10,8 +10,8 @@ import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
          seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
-import { indicatorBadgeSVG, buildElevationProfileSVG } from './elevation-profile.js';
-import { computeClimbStats, effectiveSummitAlt } from './climb-detection.js';
+import { indicatorBadgeSVG, buildElevationProfileSVG } from './stage/elevation-profile.js';
+import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
 
 const params  = new URLSearchParams(location.search);
 const content = document.getElementById('mapaEtapaContent');

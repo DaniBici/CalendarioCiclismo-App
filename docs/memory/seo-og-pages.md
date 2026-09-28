@@ -115,7 +115,7 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
 
 - **Criterio:** `races.year` (temporada UCI), no `startDate`: hay carreras de temporada 2021-2025 que empiezan en octubre del año anterior.
-- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; `js/__tests__/archivedSeasonRobots.test.js` comprueba que coinciden.
+- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; `js/__tests__/archived-season-robots.test.js` comprueba que coinciden.
 - **Estático:** `og_page()`/`og_page_en()` aceptan `robots=` (por defecto el `index, follow, …` de siempre). Las 14 llamadas de carrera (competición, jornada, inscritos, orden de salida, perfil, mapa y resultados, ES y EN) pasan `robots=race_robots(race)`. Ciclocross y el resto de páginas usan el valor por defecto.
 - **SPA:** competición, jornada, inscritos, orden de salida, perfil, mapa y resultados llaman a `setRaceRobots(race)` junto al canonical, lo que cubre las URLs con query string y la navegación interna.
 - **Sitemap:** `gen_sitemap.py` descarta esas carreras antes de construir entradas (competición, inscritos, jornadas, perfiles, mapas, órdenes de salida y resultados).
@@ -123,7 +123,7 @@ Decisión de producto (Dani): todas las páginas de carrera de las temporadas 20
 
 ## Sitemap + Atom
 
-`sitemap.yml` genera `sitemap.xml` (URLs limpias `/jornada/{slug}/`, `/competicion/{slug}/`, `/inscritos/{slug}/` solo con startlist) y `atom.xml` (ventana `[hoy-7d, hoy+30d]`, máx. 50 entradas). `scripts/generate-sitemap.sh` es el equivalente local.
+`sitemap.yml` genera `sitemap.xml` (URLs limpias `/jornada/{slug}/`, `/competicion/{slug}/`, `/inscritos/{slug}/` solo con startlist) y `atom.xml` (ventana `[hoy-7d, hoy+30d]`, máx. 50 entradas). En local, `tools/site/gen_sitemap.py`.
 
 ## El sitio inglés vive en `/en/` — `cyclocal.app` es solo un puente de redirección
 
@@ -134,12 +134,9 @@ Cómo lo controla el código:
 - **Generador de páginas EN estáticas:** `tools/build-i18n-html.py` (canonical/hreflang/og:url con `base_en = ".../en"`, sin script de redirect, marca sin tocar).
 - **Generador de páginas EN de detalle:** `og-pages.yml` (`EN_BASE_URL` default `.../en`, URLs `/en/race/…`, marca "Calendario Ciclismo"). ⚠️ Si existe la **repo variable `EN_BASE_URL`** (Settings → Variables) apuntando a un dominio, anula el default — verificar que esté vacía o en `.../en`.
 
-### `cyclocal.app` — Worker de redirección (`workers/cyclocal/src/index.js`)
+### `cyclocal.app` — Worker de redirección
 
-`cyclocal.app` **ya no sirve contenido**. Worker = puente puro: redirect **301** de cada ruta a su equivalente bajo `/en/` (`/race/<slug>/` → `/en/race/<slug>/`, `/season/` → `/en/season/`, assets raíz `/js/` etc. a la misma ruta del origen). Preserva enlaces externos ya compartidos.
-
-- Deploy: `.github/workflows/deploy-cyclocal-worker.yml` (route `cyclocal.app/*` en el dashboard). El workflow `purge-cyclocal-cache.yml` se eliminó (ya no hay assets que purgar en cyclocal).
-- Se retiró la caché de assets resiliente del Worker: al ser solo redirect, ya no proxea respuestas que cachear.
+Estado, reglas del Worker y tareas de Cloudflare: `docs/memory/i18n-region.md` → «Dominios web».
 
 ## Modal Apps en la navegación web
 

@@ -92,7 +92,8 @@ scripts/**/*_run/**/*.sig
 
 # Estudios, informes y copias de trabajo locales. Las herramientas que los generan
 # sí se versionan; los resultados se reconstruyen a partir de sus snapshots.
-output/*
+output/
+outputs/
 work/
 
 # Capturas del panel de navegación de OpenChamber (artefactos locales).
@@ -115,8 +116,9 @@ __pycache__/
 # build-site.yml recompone estas páginas desde Supabase en cada pasada y las
 # publica como artifact: NO se versionan (eran 11.292 ficheros y ~25 commits
 # automáticos al día). Se siguen generando en local para poder previsualizar.
-# Esta lista es el ESPEJO de los --exclude del rsync de build-site.yml:
-# si se añade un tipo de página nuevo, hay que tocar los dos sitios.
+# build-site.yml publica solo las entradas de su lista SITE y excluye de en/ y
+# resultados/ estos mismos subdirectorios: si se añade un tipo de página
+# generada, hay que tocar los dos sitios.
 # Ver docs/runbooks/deploy-pages-por-artifact.md
 jornada/
 competicion/
@@ -142,3 +144,23 @@ en/results/*/
 en/route-map/
 en/start-order/
 en/feed/
+
+# Binarios de diseño: viven en Drive («Calendario Ciclismo — diseño»), con
+# manifiesto en docs/design/BINARIOS.md. Solo se versionan los ligeros y útiles
+# (< 200 KB) listados como excepción. Los SVG no se ignoran.
+docs/design/**/*.png
+docs/design/**/*.jpg
+docs/design/**/*.jpeg
+docs/design/**/*.webp
+docs/design/**/*.ttf
+docs/design/**/*.otf
+docs/design/**/*.pdf
+docs/design/**/*.zip
+!docs/design/android-ic-notification-antes-despues.png
+!docs/design/cc-cx-icono-menu/preview.png
+!docs/design/cc-cx-icono-moixent/preview.png
+!docs/design/cc-cx-icono-moixent/logo-fccv.jpeg
+.agents/skills/cc-graficos-sociales/references/finales/
+.agents/skills/cc-graficos-sociales/examples/fotos/*
+!.agents/skills/cc-graficos-sociales/examples/fotos/van-der-poel-alpecin-premier-tech.webp
+.agents/skills/cc-graficos-sociales/examples/maqueta/*.png

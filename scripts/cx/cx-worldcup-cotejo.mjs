@@ -1,10 +1,10 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 
-const fixtureUrl=new URL('../../docs/cx-cotejos/worldcup-2025-26-mj.json',import.meta.url);
-const derivedFixtureUrl=new URL('../../docs/cx-cotejos/worldcup-2025-26-wu.json',import.meta.url);
+const fixtureUrl=new URL('../../js/__tests__/fixtures/cx-cotejos/worldcup-2025-26-mj.json',import.meta.url);
+const derivedFixtureUrl=new URL('../../js/__tests__/fixtures/cx-cotejos/worldcup-2025-26-wu.json',import.meta.url);
 const referencesUrl=new URL('../../docs/cc-cx-points-schemes.json',import.meta.url);
 function identity(fixture,name,nation,yob) {
   for(const alias of fixture.offlineAliases)if(name===alias.from&&nation===alias.nation&&yob===alias.yearOfBirth)name=alias.to;

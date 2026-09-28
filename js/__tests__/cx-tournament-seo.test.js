@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {cxTournamentDescription} from '../cx-tournament-seo.js';
+import {cxTournamentDescription} from '../cx/tournament-seo.js';
 
 const tournament={id:'t',name:'Copa del Mundo UCI',seasonKey:'2026-27'};
 const first={id:'first',tournamentId:'t',dateKey:'2026-11-27'};

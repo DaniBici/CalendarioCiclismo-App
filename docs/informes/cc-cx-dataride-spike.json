@@ -1,0 +1,2907 @@
+{
+  "checkedAt": "2026-09-12",
+  "disciplineId": 3,
+  "catalogs": [
+    {
+      "seasonId": 472,
+      "total": 2,
+      "classCounts": {
+        "CN": 2
+      },
+      "competitions": [
+        {
+          "CompetitionId": 78518,
+          "StartDate": "/Date(1788127200000)/",
+          "EndDate": "/Date(1788127200000)/",
+          "CompetitionName": "New Zealand National Championships",
+          "CountryName": "NEW ZEALAND",
+          "IsInProgress": false,
+          "IsDone": false,
+          "CountryIsoCode3": "NZL",
+          "CountryIsoCode2": "NZ",
+          "ClassCode": "CN",
+          "FlagCode": "nz",
+          "Date": "31 Aug 2026"
+        },
+        {
+          "CompetitionId": 79380,
+          "StartDate": "/Date(1787349600000)/",
+          "EndDate": "/Date(1787349600000)/",
+          "CompetitionName": "Chilean National Championships",
+          "CountryName": "CHILE",
+          "IsInProgress": false,
+          "IsDone": false,
+          "CountryIsoCode3": "CHI",
+          "CountryIsoCode2": "CL",
+          "ClassCode": "CN",
+          "FlagCode": "cl",
+          "Date": "22 Aug 2026"
+        }
+      ]
+    },
+    {
+      "seasonId": 455,
+      "total": 189,
+      "classCounts": {
+        "C1": 29,
+        "C2": 110,
+        "CM": 1,
+        "CDM": 12,
+        "CN": 35,
+        "CC": 2
+      },
+      "competitions": []
+    }
+  ],
+  "samples": [
+    {
+      "seasonId": 472,
+      "competition": {
+        "CompetitionId": 78518,
+        "StartDate": "/Date(1788127200000)/",
+        "EndDate": "/Date(1788127200000)/",
+        "CompetitionName": "New Zealand National Championships",
+        "CountryName": "NEW ZEALAND",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "NZL",
+        "CountryIsoCode2": "NZ",
+        "ClassCode": "CN",
+        "FlagCode": "nz",
+        "Date": "31 Aug 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 261811,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1788127200000)/",
+            "EndDate": "/Date(1788127200000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Taupo",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799535600000)/",
+            "EventResultPage": [],
+            "Venue": "Taupo",
+            "Date": "31 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 378638,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 3
+        },
+        {
+          "race": {
+            "Id": 261812,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1788127200000)/",
+            "EndDate": "/Date(1788127200000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Taupo",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799535600000)/",
+            "EventResultPage": [],
+            "Venue": "Taupo",
+            "Date": "31 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 378639,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 6
+        },
+        {
+          "race": {
+            "Id": 261813,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1788127200000)/",
+            "EndDate": "/Date(1788127200000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Taupo",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799535600000)/",
+            "EventResultPage": [],
+            "Venue": "Taupo",
+            "Date": "31 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 378640,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 7
+        },
+        {
+          "race": {
+            "Id": 261814,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1788127200000)/",
+            "EndDate": "/Date(1788127200000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Taupo",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799535600000)/",
+            "EventResultPage": [],
+            "Venue": "Taupo",
+            "Date": "31 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 378641,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 1
+        },
+        {
+          "race": {
+            "Id": 261815,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1788127200000)/",
+            "EndDate": "/Date(1788127200000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Taupo",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799535600000)/",
+            "EventResultPage": [],
+            "Venue": "Taupo",
+            "Date": "31 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 378642,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 2
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10926569,
+        "RankNumber": null,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "",
+        "Bib": null,
+        "MandatoryDate": "/Date(1799535600000)/",
+        "BirthDate": "/Date(638402400000)/",
+        "Age": "37",
+        "IndividualDisplayName": "CHAMBERLAIN Calum John",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "CHAMBERLAIN Calum John",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "NZ",
+        "NationName": "NZL       ",
+        "IndividualCountryIsoCode2": "NZ",
+        "IndividualCountryName": "NZL       ",
+        "IndividualCountryNameText": "NEW ZEALAND",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": null,
+        "PointPcR": null,
+        "TeamPointPcR": null,
+        "PcRPrefix": "",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "nz",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 472,
+      "competition": {
+        "CompetitionId": 79380,
+        "StartDate": "/Date(1787349600000)/",
+        "EndDate": "/Date(1787349600000)/",
+        "CompetitionName": "Chilean National Championships",
+        "CountryName": "CHILE",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "CHI",
+        "CountryIsoCode2": "CL",
+        "ClassCode": "CN",
+        "FlagCode": "cl",
+        "Date": "22 Aug 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 267892,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1787349600000)/",
+            "EndDate": "/Date(1787349600000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Lo Barnechea, Santiago",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799449200000)/",
+            "EventResultPage": [],
+            "Venue": "Lo Barnechea, Santiago",
+            "Date": "22 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 385241,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 5
+        },
+        {
+          "race": {
+            "Id": 267893,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1787349600000)/",
+            "EndDate": "/Date(1787349600000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Lo Barnechea, Santiago",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1799449200000)/",
+            "EventResultPage": [],
+            "Venue": "Lo Barnechea, Santiago",
+            "Date": "22 Aug 2026"
+          },
+          "events": [
+            {
+              "EventId": 385242,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 3
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10907750,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "2",
+        "MandatoryDate": "/Date(1799449200000)/",
+        "BirthDate": "/Date(604105200000)/",
+        "Age": "38",
+        "IndividualDisplayName": "CAMPBELL VILCHES Patricio",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "CAMPBELL VILCHES Patricio",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "CL",
+        "NationName": "CHI       ",
+        "IndividualCountryIsoCode2": "CL",
+        "IndividualCountryName": "CHI       ",
+        "IndividualCountryNameText": "CHILE",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "00:56:06",
+        "PointPcR": null,
+        "TeamPointPcR": null,
+        "PcRPrefix": "",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "cl",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 78080,
+        "StartDate": "/Date(1771714800000)/",
+        "EndDate": "/Date(1771714800000)/",
+        "CompetitionName": "Internationale Sluitingsprijs - Oostmalle",
+        "CountryName": "BELGIUM",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "BEL",
+        "CountryIsoCode2": "BE",
+        "ClassCode": "C1",
+        "FlagCode": "be",
+        "Date": "22 Feb 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 258328,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1771714800000)/",
+            "EndDate": "/Date(1771714800000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oostmalle",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771714800000)/",
+            "EventResultPage": [],
+            "Venue": "Oostmalle",
+            "Date": "22 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 374731,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 46
+        },
+        {
+          "race": {
+            "Id": 258329,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1771714800000)/",
+            "EndDate": "/Date(1771714800000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oostmalle",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771714800000)/",
+            "EventResultPage": [],
+            "Venue": "Oostmalle",
+            "Date": "22 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 374732,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 24
+        },
+        {
+          "race": {
+            "Id": 258330,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1771714800000)/",
+            "EndDate": "/Date(1771714800000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oostmalle",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771714800000)/",
+            "EventResultPage": [],
+            "Venue": "Oostmalle",
+            "Date": "22 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 374733,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 33
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10346363,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1771714800000)/",
+        "BirthDate": "/Date(969314400000)/",
+        "Age": "26",
+        "IndividualDisplayName": "VANDEPUTTE Niels",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "VANDEPUTTE Niels",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "BE",
+        "NationName": "BEL       ",
+        "IndividualCountryIsoCode2": "BE",
+        "IndividualCountryName": "BEL       ",
+        "IndividualCountryNameText": "BELGIUM",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "0:58:20",
+        "PointPcR": 80,
+        "TeamPointPcR": null,
+        "PcRPrefix": "80",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "be",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75880,
+        "StartDate": "/Date(1771023600000)/",
+        "EndDate": "/Date(1771023600000)/",
+        "CompetitionName": "Waaslandcross",
+        "CountryName": "BELGIUM",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "BEL",
+        "CountryIsoCode2": "BE",
+        "ClassCode": "C2",
+        "FlagCode": "be",
+        "Date": "14 Feb 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244381,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1771023600000)/",
+            "EndDate": "/Date(1771023600000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Sint-Niklaas",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771023600000)/",
+            "EventResultPage": [],
+            "Venue": "Sint-Niklaas",
+            "Date": "14 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352614,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 33
+        },
+        {
+          "race": {
+            "Id": 244382,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1771023600000)/",
+            "EndDate": "/Date(1771023600000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Sint-Niklaas",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771023600000)/",
+            "EventResultPage": [],
+            "Venue": "Sint-Niklaas",
+            "Date": "14 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352615,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 22
+        },
+        {
+          "race": {
+            "Id": 244383,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1771023600000)/",
+            "EndDate": "/Date(1771023600000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Sint-Niklaas",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771023600000)/",
+            "EventResultPage": [],
+            "Venue": "Sint-Niklaas",
+            "Date": "14 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352616,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 40
+        },
+        {
+          "race": {
+            "Id": 248923,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1771023600000)/",
+            "EndDate": "/Date(1771023600000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Sint-Niklaas",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1771023600000)/",
+            "EventResultPage": [],
+            "Venue": "Sint-Niklaas",
+            "Date": "14 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 357881,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 8
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10331596,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1771023600000)/",
+        "BirthDate": "/Date(969314400000)/",
+        "Age": "26",
+        "IndividualDisplayName": "VANDEPUTTE Niels",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "VANDEPUTTE Niels",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "BE",
+        "NationName": "BEL       ",
+        "IndividualCountryIsoCode2": "BE",
+        "IndividualCountryName": "BEL       ",
+        "IndividualCountryNameText": "BELGIUM",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "0:57:15",
+        "PointPcR": 40,
+        "TeamPointPcR": null,
+        "PcRPrefix": "40",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "be",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75924,
+        "StartDate": "/Date(1769727600000)/",
+        "EndDate": "/Date(1769900400000)/",
+        "CompetitionName": "2026 Rabobank UCI Cyclo-cross World Championships",
+        "CountryName": "NETHERLANDS",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "NED",
+        "CountryIsoCode2": "NL",
+        "ClassCode": "CM",
+        "FlagCode": "nl",
+        "Date": "30 Jan-01 Feb 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244559,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1769900400000)/",
+            "EndDate": "/Date(1769900400000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "01 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352791,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 39
+        },
+        {
+          "race": {
+            "Id": 244561,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1769900400000)/",
+            "EndDate": "/Date(1769900400000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "01 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352793,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 61
+        },
+        {
+          "race": {
+            "Id": 244564,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1769900400000)/",
+            "EndDate": "/Date(1769900400000)/",
+            "RaceName": "Women Under 23",
+            "CategoryCode": "Women Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "01 Feb 2026"
+          },
+          "events": [
+            {
+              "EventId": 352796,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 32
+        },
+        {
+          "race": {
+            "Id": 244560,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1769814000000)/",
+            "EndDate": "/Date(1769814000000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "31 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352792,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 31
+        },
+        {
+          "race": {
+            "Id": 244562,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1769814000000)/",
+            "EndDate": "/Date(1769814000000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "31 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352794,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 47
+        },
+        {
+          "race": {
+            "Id": 244563,
+            "RaceCode": "F",
+            "Index": 6,
+            "StartDate": "/Date(1769814000000)/",
+            "EndDate": "/Date(1769814000000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "31 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352795,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 47
+        },
+        {
+          "race": {
+            "Id": 244565,
+            "RaceCode": "F",
+            "Index": 7,
+            "StartDate": "/Date(1769727600000)/",
+            "EndDate": "/Date(1769727600000)/",
+            "RaceName": "Mixed Elite",
+            "CategoryCode": "Mixed Elite",
+            "RaceTypeCode": "CRO-TR",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hulst",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769900400000)/",
+            "EventResultPage": [],
+            "Venue": "Hulst",
+            "Date": "30 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352797,
+              "EventName": "General Classification",
+              "IsTeamEvent": true,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 78
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10307892,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1769900400000)/",
+        "BirthDate": "/Date(790470000000)/",
+        "Age": "31",
+        "IndividualDisplayName": "VAN DER POEL Mathieu",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "VAN DER POEL Mathieu",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "NL",
+        "NationName": "NED       ",
+        "IndividualCountryIsoCode2": "NL",
+        "IndividualCountryName": "NED       ",
+        "IndividualCountryNameText": "NETHERLANDS",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "1:00:25",
+        "PointPcR": 400,
+        "TeamPointPcR": null,
+        "PcRPrefix": "400",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "nl",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75908,
+        "StartDate": "/Date(1769295600000)/",
+        "EndDate": "/Date(1769295600000)/",
+        "CompetitionName": "2025-2026 UCI Cyclo-cross World Cup #12, Hoogerheide",
+        "CountryName": "NETHERLANDS",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "NED",
+        "CountryIsoCode2": "NL",
+        "ClassCode": "CDM",
+        "FlagCode": "nl",
+        "Date": "25 Jan 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244486,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1769295600000)/",
+            "EndDate": "/Date(1769295600000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hoogerheide",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769295600000)/",
+            "EventResultPage": [],
+            "Venue": "Hoogerheide",
+            "Date": "25 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352719,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 52
+        },
+        {
+          "race": {
+            "Id": 244487,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1769295600000)/",
+            "EndDate": "/Date(1769295600000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hoogerheide",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769295600000)/",
+            "EventResultPage": [],
+            "Venue": "Hoogerheide",
+            "Date": "25 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352720,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 72
+        },
+        {
+          "race": {
+            "Id": 244488,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1769295600000)/",
+            "EndDate": "/Date(1769295600000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hoogerheide",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769295600000)/",
+            "EventResultPage": [],
+            "Venue": "Hoogerheide",
+            "Date": "25 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352721,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 44
+        },
+        {
+          "race": {
+            "Id": 244489,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1769295600000)/",
+            "EndDate": "/Date(1769295600000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hoogerheide",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769295600000)/",
+            "EventResultPage": [],
+            "Venue": "Hoogerheide",
+            "Date": "25 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352722,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 55
+        },
+        {
+          "race": {
+            "Id": 244490,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1769295600000)/",
+            "EndDate": "/Date(1769295600000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Hoogerheide",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1769295600000)/",
+            "EventResultPage": [],
+            "Venue": "Hoogerheide",
+            "Date": "25 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352723,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 52
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10295751,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1769295600000)/",
+        "BirthDate": "/Date(790470000000)/",
+        "Age": "31",
+        "IndividualDisplayName": "VAN DER POEL Mathieu",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "VAN DER POEL Mathieu",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "NL",
+        "NationName": "NED       ",
+        "IndividualCountryIsoCode2": "NL",
+        "IndividualCountryName": "NED       ",
+        "IndividualCountryNameText": "NETHERLANDS",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "0:58:41",
+        "PointPcR": 200,
+        "TeamPointPcR": null,
+        "PcRPrefix": "200",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "nl",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75906,
+        "StartDate": "/Date(1768690800000)/",
+        "EndDate": "/Date(1768690800000)/",
+        "CompetitionName": "2025-2026 UCI Cyclo-cross World Cup #10, Benidorm Costa Blanca",
+        "CountryName": "SPAIN",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "ESP",
+        "CountryIsoCode2": "ES",
+        "ClassCode": "CDM",
+        "FlagCode": "es",
+        "Date": "18 Jan 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244479,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1768690800000)/",
+            "EndDate": "/Date(1768690800000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Benidorm Costa Blanca",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768690800000)/",
+            "EventResultPage": [],
+            "Venue": "Benidorm Costa Blanca",
+            "Date": "18 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352712,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 56
+        },
+        {
+          "race": {
+            "Id": 244480,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1768690800000)/",
+            "EndDate": "/Date(1768690800000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Benidorm Costa Blanca",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768690800000)/",
+            "EventResultPage": [],
+            "Venue": "Benidorm Costa Blanca",
+            "Date": "18 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352713,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 65
+        },
+        {
+          "race": {
+            "Id": 244481,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1768690800000)/",
+            "EndDate": "/Date(1768690800000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Benidorm Costa Blanca",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768690800000)/",
+            "EventResultPage": [],
+            "Venue": "Benidorm Costa Blanca",
+            "Date": "18 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352714,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 39
+        },
+        {
+          "race": {
+            "Id": 244482,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1768690800000)/",
+            "EndDate": "/Date(1768690800000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Benidorm Costa Blanca",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768690800000)/",
+            "EventResultPage": [],
+            "Venue": "Benidorm Costa Blanca",
+            "Date": "18 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352715,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 39
+        },
+        {
+          "race": {
+            "Id": 244483,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1768690800000)/",
+            "EndDate": "/Date(1768690800000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Benidorm Costa Blanca",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768690800000)/",
+            "EventResultPage": [],
+            "Venue": "Benidorm Costa Blanca",
+            "Date": "18 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 352716,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 31
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10283776,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1768690800000)/",
+        "BirthDate": "/Date(790470000000)/",
+        "Age": "31",
+        "IndividualDisplayName": "VAN DER POEL Mathieu",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "VAN DER POEL Mathieu",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "NL",
+        "NationName": "NED       ",
+        "IndividualCountryIsoCode2": "NL",
+        "IndividualCountryName": "NED       ",
+        "IndividualCountryNameText": "NETHERLANDS",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "1:01:04",
+        "PointPcR": 200,
+        "TeamPointPcR": null,
+        "PcRPrefix": "200",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "nl",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75953,
+        "StartDate": "/Date(1768604400000)/",
+        "EndDate": "/Date(1768690800000)/",
+        "CompetitionName": "Greek National Championships",
+        "CountryName": "GREECE",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "GRE",
+        "CountryIsoCode2": "GR",
+        "ClassCode": "CN",
+        "FlagCode": "gr",
+        "Date": "17 Jan-18 Jan 2026"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244753,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1768604400000)/",
+            "EndDate": "/Date(1768604400000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Mezourlo Park, Larissa",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768086000000)/",
+            "EventResultPage": [],
+            "Venue": "Mezourlo Park, Larissa",
+            "Date": "17 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 353076,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 20
+        },
+        {
+          "race": {
+            "Id": 244754,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1768604400000)/",
+            "EndDate": "/Date(1768604400000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Mezourlo Park, Larissa",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768086000000)/",
+            "EventResultPage": [],
+            "Venue": "Mezourlo Park, Larissa",
+            "Date": "17 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 353077,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 13
+        },
+        {
+          "race": {
+            "Id": 244755,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1768604400000)/",
+            "EndDate": "/Date(1768604400000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Mezourlo Park, Larissa",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768086000000)/",
+            "EventResultPage": [],
+            "Venue": "Mezourlo Park, Larissa",
+            "Date": "17 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 353078,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 4
+        },
+        {
+          "race": {
+            "Id": 247993,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1768604400000)/",
+            "EndDate": "/Date(1768604400000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Mezourlo Park, Larissa",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1768086000000)/",
+            "EventResultPage": [],
+            "Venue": "Mezourlo Park, Larissa",
+            "Date": "17 Jan 2026"
+          },
+          "events": [
+            {
+              "EventId": 356892,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 8
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10296507,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "6",
+        "MandatoryDate": "/Date(1768086000000)/",
+        "BirthDate": "/Date(1192140000000)/",
+        "Age": "19",
+        "IndividualDisplayName": "KOUSIS Georgios",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "KOUSIS Georgios",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "GR",
+        "NationName": "GRE       ",
+        "IndividualCountryIsoCode2": "GR",
+        "IndividualCountryName": "GRE       ",
+        "IndividualCountryNameText": "GREECE",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "1.04.05",
+        "PointPcR": 100,
+        "TeamPointPcR": null,
+        "PcRPrefix": "100",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "gr",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75847,
+        "StartDate": "/Date(1763852400000)/",
+        "EndDate": "/Date(1763852400000)/",
+        "CompetitionName": "2025-2026 UCI Cyclo-cross World Cup #1, Tábor",
+        "CountryName": "CZECHIA",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "CZE",
+        "CountryIsoCode2": "CZ",
+        "ClassCode": "CDM",
+        "FlagCode": "cz",
+        "Date": "23 Nov 2025"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244265,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1763852400000)/",
+            "EndDate": "/Date(1763852400000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Tábor",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1763852400000)/",
+            "EventResultPage": [],
+            "Venue": "Tábor",
+            "Date": "23 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352498,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 49
+        },
+        {
+          "race": {
+            "Id": 244266,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1763852400000)/",
+            "EndDate": "/Date(1763852400000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Tábor",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1763852400000)/",
+            "EventResultPage": [],
+            "Venue": "Tábor",
+            "Date": "23 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352499,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 56
+        },
+        {
+          "race": {
+            "Id": 244267,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1763852400000)/",
+            "EndDate": "/Date(1763852400000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Tábor",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1763852400000)/",
+            "EventResultPage": [],
+            "Venue": "Tábor",
+            "Date": "23 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352500,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 44
+        },
+        {
+          "race": {
+            "Id": 244268,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1763852400000)/",
+            "EndDate": "/Date(1763852400000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Tábor",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1763852400000)/",
+            "EventResultPage": [],
+            "Venue": "Tábor",
+            "Date": "23 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352501,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 65
+        },
+        {
+          "race": {
+            "Id": 244269,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1763852400000)/",
+            "EndDate": "/Date(1763852400000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Tábor",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1763852400000)/",
+            "EventResultPage": [],
+            "Venue": "Tábor",
+            "Date": "23 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352502,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 45
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10250860,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "13",
+        "MandatoryDate": "/Date(1763852400000)/",
+        "BirthDate": "/Date(1037055600000)/",
+        "Age": "23",
+        "IndividualDisplayName": "NYS Thibau",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "NYS Thibau",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "BE",
+        "NationName": "BEL       ",
+        "IndividualCountryIsoCode2": "BE",
+        "IndividualCountryName": "BEL       ",
+        "IndividualCountryNameText": "BELGIUM",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "1:03:39",
+        "PointPcR": 200,
+        "TeamPointPcR": null,
+        "PcRPrefix": "200",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "be",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75817,
+        "StartDate": "/Date(1762556400000)/",
+        "EndDate": "/Date(1762556400000)/",
+        "CompetitionName": "Pan American Cyclo-Cross Championships",
+        "CountryName": "UNITED STATES",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "USA",
+        "CountryIsoCode2": "US",
+        "ClassCode": "CC",
+        "FlagCode": "us",
+        "Date": "08 Nov 2025"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244146,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352379,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 27
+        },
+        {
+          "race": {
+            "Id": 244147,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352380,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 48
+        },
+        {
+          "race": {
+            "Id": 244148,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352381,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 33
+        },
+        {
+          "race": {
+            "Id": 244149,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352382,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 23
+        },
+        {
+          "race": {
+            "Id": 244150,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352383,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 20
+        },
+        {
+          "race": {
+            "Id": 244151,
+            "RaceCode": "F",
+            "Index": 6,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Under 23",
+            "CategoryCode": "Women Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Washington, D.C.",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762556400000)/",
+            "EventResultPage": [],
+            "Venue": "Washington, D.C.",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352384,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 18
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10243778,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1762556400000)/",
+        "BirthDate": "/Date(1010703600000)/",
+        "Age": "23",
+        "IndividualDisplayName": "STROHMEYER Andrew",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "STROHMEYER Andrew",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "US",
+        "NationName": "USA       ",
+        "IndividualCountryIsoCode2": "US",
+        "IndividualCountryName": "USA       ",
+        "IndividualCountryNameText": "UNITED STATES",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "1:01:20",
+        "PointPcR": 100,
+        "TeamPointPcR": null,
+        "PcRPrefix": "100",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "us",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75830,
+        "StartDate": "/Date(1762556400000)/",
+        "EndDate": "/Date(1762642800000)/",
+        "CompetitionName": "UEC Cyclo-cross European Championships",
+        "CountryName": "BELGIUM",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "BEL",
+        "CountryIsoCode2": "BE",
+        "ClassCode": "CC",
+        "FlagCode": "be",
+        "Date": "08 Nov-09 Nov 2025"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244196,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352429,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 27
+        },
+        {
+          "race": {
+            "Id": 244197,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352430,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 23
+        },
+        {
+          "race": {
+            "Id": 244198,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352431,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 64
+        },
+        {
+          "race": {
+            "Id": 244199,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352432,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 41
+        },
+        {
+          "race": {
+            "Id": 244200,
+            "RaceCode": "F",
+            "Index": 5,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352433,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 42
+        },
+        {
+          "race": {
+            "Id": 244201,
+            "RaceCode": "F",
+            "Index": 6,
+            "StartDate": "/Date(1762556400000)/",
+            "EndDate": "/Date(1762556400000)/",
+            "RaceName": "Women Under 23",
+            "CategoryCode": "Women Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Middelkerke",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1762642800000)/",
+            "EventResultPage": [],
+            "Venue": "Middelkerke",
+            "Date": "08 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352434,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 22
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10244166,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "2",
+        "MandatoryDate": "/Date(1762642800000)/",
+        "BirthDate": "/Date(750981600000)/",
+        "Age": "32",
+        "IndividualDisplayName": "AERTS Toon",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "AERTS Toon",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "BE",
+        "NationName": "BEL       ",
+        "IndividualCountryIsoCode2": "BE",
+        "IndividualCountryName": "BEL       ",
+        "IndividualCountryNameText": "BELGIUM",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "0:58:40",
+        "PointPcR": 100,
+        "TeamPointPcR": null,
+        "PcRPrefix": "100",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "be",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75808,
+        "StartDate": "/Date(1761951600000)/",
+        "EndDate": "/Date(1761951600000)/",
+        "CompetitionName": "X²O Badkamers Trofee Koppenbergcross",
+        "CountryName": "BELGIUM",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "BEL",
+        "CountryIsoCode2": "BE",
+        "ClassCode": "C1",
+        "FlagCode": "be",
+        "Date": "01 Nov 2025"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244113,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1761951600000)/",
+            "EndDate": "/Date(1761951600000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oudenaarde",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1761951600000)/",
+            "EventResultPage": [],
+            "Venue": "Oudenaarde",
+            "Date": "01 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352346,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 36
+        },
+        {
+          "race": {
+            "Id": 244114,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1761951600000)/",
+            "EndDate": "/Date(1761951600000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oudenaarde",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1761951600000)/",
+            "EventResultPage": [],
+            "Venue": "Oudenaarde",
+            "Date": "01 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352347,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 61
+        },
+        {
+          "race": {
+            "Id": 244116,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1761951600000)/",
+            "EndDate": "/Date(1761951600000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oudenaarde",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1761951600000)/",
+            "EventResultPage": [],
+            "Venue": "Oudenaarde",
+            "Date": "01 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 352349,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 37
+        },
+        {
+          "race": {
+            "Id": 248040,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1761951600000)/",
+            "EndDate": "/Date(1761951600000)/",
+            "RaceName": "Men Under 23",
+            "CategoryCode": "Men Under 23",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Oudenaarde",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1761951600000)/",
+            "EventResultPage": [],
+            "Venue": "Oudenaarde",
+            "Date": "01 Nov 2025"
+          },
+          "events": [
+            {
+              "EventId": 356994,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 69
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10239699,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 3,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1761951600000)/",
+        "BirthDate": "/Date(1037055600000)/",
+        "Age": "23",
+        "IndividualDisplayName": "NYS Thibau",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "NYS Thibau",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "BE",
+        "NationName": "BEL       ",
+        "IndividualCountryIsoCode2": "BE",
+        "IndividualCountryName": "BEL       ",
+        "IndividualCountryNameText": "BELGIUM",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": "BALOISE GLOWI LIONS",
+        "ResultValue": "0:58:39",
+        "PointPcR": 80,
+        "TeamPointPcR": null,
+        "PcRPrefix": "80",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "be",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    },
+    {
+      "seasonId": 455,
+      "competition": {
+        "CompetitionId": 75942,
+        "StartDate": "/Date(1765062000000)/",
+        "EndDate": "/Date(1765062000000)/",
+        "CompetitionName": "Copa de España de Ciclo-Cross #8 - Trofeo Ciclo-Cross Rafa Valls - Fira Tots Sants",
+        "CountryName": "SPAIN",
+        "IsInProgress": false,
+        "IsDone": false,
+        "CountryIsoCode3": "ESP",
+        "CountryIsoCode2": "ES",
+        "ClassCode": "C2",
+        "FlagCode": "es",
+        "Date": "07 Dec 2025"
+      },
+      "races": [
+        {
+          "race": {
+            "Id": 244683,
+            "RaceCode": "F",
+            "Index": 1,
+            "StartDate": "/Date(1765062000000)/",
+            "EndDate": "/Date(1765062000000)/",
+            "RaceName": "Men Elite",
+            "CategoryCode": "Men Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Cocentaina",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1765062000000)/",
+            "EventResultPage": [],
+            "Venue": "Cocentaina",
+            "Date": "07 Dec 2025"
+          },
+          "events": [
+            {
+              "EventId": 353006,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 51
+        },
+        {
+          "race": {
+            "Id": 244684,
+            "RaceCode": "F",
+            "Index": 2,
+            "StartDate": "/Date(1765062000000)/",
+            "EndDate": "/Date(1765062000000)/",
+            "RaceName": "Men Junior",
+            "CategoryCode": "Men Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Cocentaina",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1765062000000)/",
+            "EventResultPage": [],
+            "Venue": "Cocentaina",
+            "Date": "07 Dec 2025"
+          },
+          "events": [
+            {
+              "EventId": 353007,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 61
+        },
+        {
+          "race": {
+            "Id": 244685,
+            "RaceCode": "F",
+            "Index": 3,
+            "StartDate": "/Date(1765062000000)/",
+            "EndDate": "/Date(1765062000000)/",
+            "RaceName": "Women Elite",
+            "CategoryCode": "Women Elite",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Cocentaina",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1765062000000)/",
+            "EventResultPage": [],
+            "Venue": "Cocentaina",
+            "Date": "07 Dec 2025"
+          },
+          "events": [
+            {
+              "EventId": 353008,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 33
+        },
+        {
+          "race": {
+            "Id": 244686,
+            "RaceCode": "F",
+            "Index": 4,
+            "StartDate": "/Date(1765062000000)/",
+            "EndDate": "/Date(1765062000000)/",
+            "RaceName": "Women Junior",
+            "CategoryCode": "Women Junior",
+            "RaceTypeCode": "CRO-IND",
+            "DisciplineCode": "CRO",
+            "StartLocation": "Cocentaina",
+            "EndLocation": null,
+            "MandatoryDate": "/Date(1765062000000)/",
+            "EventResultPage": [],
+            "Venue": "Cocentaina",
+            "Date": "07 Dec 2025"
+          },
+          "events": [
+            {
+              "EventId": 353009,
+              "EventName": "General Classification",
+              "IsTeamEvent": false,
+              "RaceId": 0,
+              "CompetitionId": 0,
+              "DisciplineId": 0
+            }
+          ],
+          "resultCount": 18
+        }
+      ],
+      "resultExample": {
+        "ResultId": 10257109,
+        "RankNumber": 1,
+        "SortOrder": 1,
+        "TeamType": 1,
+        "Rank": "1",
+        "Bib": "1",
+        "MandatoryDate": "/Date(1765062000000)/",
+        "BirthDate": "/Date(796687200000)/",
+        "Age": "30",
+        "IndividualDisplayName": "ORTS LLORET Felipe",
+        "IndividualFirstName": null,
+        "IndividualLastName": null,
+        "UnknownIndividualDisplayName": null,
+        "UnknownIndividualFirstName": null,
+        "UnknownIndividualLastName": null,
+        "DisplayName": "ORTS LLORET Felipe",
+        "DisplayFirstName": null,
+        "DisplayLastName": null,
+        "IsoCode2": "ES",
+        "NationName": "ESP       ",
+        "IndividualCountryIsoCode2": "ES",
+        "IndividualCountryName": "ESP       ",
+        "IndividualCountryNameText": "SPAIN",
+        "UnknownIndividualCountryIsoCode2": null,
+        "UnknownIndividualCountryName": null,
+        "UnknownIndividualCountryNameText": null,
+        "TeamName": null,
+        "ResultValue": "01:00:56",
+        "PointPcR": 40,
+        "TeamPointPcR": null,
+        "PcRPrefix": "40",
+        "PcRSuffix": "",
+        "Irm": null,
+        "FlagCode": "es",
+        "Gender": "",
+        "IndividualGender": null,
+        "UnknownIndividualGender": null,
+        "Phase": null,
+        "Heat": null
+      },
+      "eventsWithoutCookieMatched": true
+    }
+  ],
+  "resultsFields": [
+    "Age",
+    "Bib",
+    "BirthDate",
+    "DisplayFirstName",
+    "DisplayLastName",
+    "DisplayName",
+    "FlagCode",
+    "Gender",
+    "Heat",
+    "IndividualCountryIsoCode2",
+    "IndividualCountryName",
+    "IndividualCountryNameText",
+    "IndividualDisplayName",
+    "IndividualFirstName",
+    "IndividualGender",
+    "IndividualLastName",
+    "Irm",
+    "IsoCode2",
+    "MandatoryDate",
+    "NationName",
+    "PcRPrefix",
+    "PcRSuffix",
+    "Phase",
+    "PointPcR",
+    "Rank",
+    "RankNumber",
+    "ResultId",
+    "ResultValue",
+    "SortOrder",
+    "TeamName",
+    "TeamPointPcR",
+    "TeamType",
+    "UnknownIndividualCountryIsoCode2",
+    "UnknownIndividualCountryName",
+    "UnknownIndividualCountryNameText",
+    "UnknownIndividualDisplayName",
+    "UnknownIndividualFirstName",
+    "UnknownIndividualGender",
+    "UnknownIndividualLastName"
+  ],
+  "resultRows": 2131,
+  "irmCounts": {
+    "none": 1959,
+    "DNF": 75,
+    "DNS": 46,
+    "DSQ": 3,
+    "LAP": 48
+  },
+  "nonNullCounts": {
+    "ResultId": 2131,
+    "RankNumber": 1932,
+    "SortOrder": 2131,
+    "TeamType": 2131,
+    "Rank": 1932,
+    "Bib": 2112,
+    "MandatoryDate": 2131,
+    "BirthDate": 2131,
+    "Age": 2131,
+    "IndividualDisplayName": 2131,
+    "IndividualFirstName": 0,
+    "IndividualLastName": 0,
+    "UnknownIndividualDisplayName": 0,
+    "UnknownIndividualFirstName": 0,
+    "UnknownIndividualLastName": 0,
+    "DisplayName": 2131,
+    "DisplayFirstName": 0,
+    "DisplayLastName": 0,
+    "IsoCode2": 2131,
+    "NationName": 2131,
+    "IndividualCountryIsoCode2": 2131,
+    "IndividualCountryName": 2131,
+    "IndividualCountryNameText": 2131,
+    "UnknownIndividualCountryIsoCode2": 0,
+    "UnknownIndividualCountryName": 0,
+    "UnknownIndividualCountryNameText": 0,
+    "TeamName": 123,
+    "ResultValue": 1910,
+    "PointPcR": 1081,
+    "TeamPointPcR": 13,
+    "PcRPrefix": 1094,
+    "PcRSuffix": 0,
+    "Irm": 172,
+    "FlagCode": 2131,
+    "Gender": 0,
+    "IndividualGender": 0,
+    "UnknownIndividualGender": 0,
+    "Phase": 0,
+    "Heat": 0
+  },
+  "irmExamples": {
+    "LAP": {
+      "ResultId": 10296516,
+      "RankNumber": 10,
+      "SortOrder": 10,
+      "TeamType": 1,
+      "Rank": "10",
+      "Bib": "10",
+      "MandatoryDate": "/Date(1768086000000)/",
+      "BirthDate": "/Date(589759200000)/",
+      "Age": "38",
+      "IndividualDisplayName": "KOURMPETIS Anastasios",
+      "IndividualFirstName": null,
+      "IndividualLastName": null,
+      "UnknownIndividualDisplayName": null,
+      "UnknownIndividualFirstName": null,
+      "UnknownIndividualLastName": null,
+      "DisplayName": "KOURMPETIS Anastasios",
+      "DisplayFirstName": null,
+      "DisplayLastName": null,
+      "IsoCode2": "GR",
+      "NationName": "GRE       ",
+      "IndividualCountryIsoCode2": "GR",
+      "IndividualCountryName": "GRE       ",
+      "IndividualCountryNameText": "GREECE",
+      "UnknownIndividualCountryIsoCode2": null,
+      "UnknownIndividualCountryName": null,
+      "UnknownIndividualCountryNameText": null,
+      "TeamName": null,
+      "ResultValue": null,
+      "PointPcR": 3,
+      "TeamPointPcR": null,
+      "PcRPrefix": "3",
+      "PcRSuffix": "",
+      "Irm": "LAP",
+      "FlagCode": "gr",
+      "Gender": "",
+      "IndividualGender": null,
+      "UnknownIndividualGender": null,
+      "Phase": null,
+      "Heat": null
+    },
+    "DNF": {
+      "ResultId": 10346406,
+      "RankNumber": null,
+      "SortOrder": 44,
+      "TeamType": 1,
+      "Rank": "",
+      "Bib": "29",
+      "MandatoryDate": "/Date(1771714800000)/",
+      "BirthDate": "/Date(1197154800000)/",
+      "Age": "19",
+      "IndividualDisplayName": "DE NYS Lars",
+      "IndividualFirstName": null,
+      "IndividualLastName": null,
+      "UnknownIndividualDisplayName": null,
+      "UnknownIndividualFirstName": null,
+      "UnknownIndividualLastName": null,
+      "DisplayName": "DE NYS Lars",
+      "DisplayFirstName": null,
+      "DisplayLastName": null,
+      "IsoCode2": "BE",
+      "NationName": "BEL       ",
+      "IndividualCountryIsoCode2": "BE",
+      "IndividualCountryName": "BEL       ",
+      "IndividualCountryNameText": "BELGIUM",
+      "UnknownIndividualCountryIsoCode2": null,
+      "UnknownIndividualCountryName": null,
+      "UnknownIndividualCountryNameText": null,
+      "TeamName": null,
+      "ResultValue": null,
+      "PointPcR": null,
+      "TeamPointPcR": null,
+      "PcRPrefix": "",
+      "PcRSuffix": "",
+      "Irm": "DNF",
+      "FlagCode": "be",
+      "Gender": "",
+      "IndividualGender": null,
+      "UnknownIndividualGender": null,
+      "Phase": null,
+      "Heat": null
+    },
+    "DNS": {
+      "ResultId": 10346408,
+      "RankNumber": null,
+      "SortOrder": 46,
+      "TeamType": 1,
+      "Rank": "",
+      "Bib": "35",
+      "MandatoryDate": "/Date(1771714800000)/",
+      "BirthDate": "/Date(1092693600000)/",
+      "Age": "22",
+      "IndividualDisplayName": "DEKORT Jens",
+      "IndividualFirstName": null,
+      "IndividualLastName": null,
+      "UnknownIndividualDisplayName": null,
+      "UnknownIndividualFirstName": null,
+      "UnknownIndividualLastName": null,
+      "DisplayName": "DEKORT Jens",
+      "DisplayFirstName": null,
+      "DisplayLastName": null,
+      "IsoCode2": "BE",
+      "NationName": "BEL       ",
+      "IndividualCountryIsoCode2": "BE",
+      "IndividualCountryName": "BEL       ",
+      "IndividualCountryNameText": "BELGIUM",
+      "UnknownIndividualCountryIsoCode2": null,
+      "UnknownIndividualCountryName": null,
+      "UnknownIndividualCountryNameText": null,
+      "TeamName": null,
+      "ResultValue": null,
+      "PointPcR": null,
+      "TeamPointPcR": null,
+      "PcRPrefix": "",
+      "PcRSuffix": "",
+      "Irm": "DNS",
+      "FlagCode": "be",
+      "Gender": "",
+      "IndividualGender": null,
+      "UnknownIndividualGender": null,
+      "Phase": null,
+      "Heat": null
+    },
+    "DSQ": {
+      "ResultId": 10306158,
+      "RankNumber": null,
+      "SortOrder": 30,
+      "TeamType": 1,
+      "Rank": "",
+      "Bib": "12",
+      "MandatoryDate": "/Date(1769900400000)/",
+      "BirthDate": "/Date(915663600000)/",
+      "Age": "27",
+      "IndividualDisplayName": "NORBERT RIBEROLLE Marion",
+      "IndividualFirstName": null,
+      "IndividualLastName": null,
+      "UnknownIndividualDisplayName": null,
+      "UnknownIndividualFirstName": null,
+      "UnknownIndividualLastName": null,
+      "DisplayName": "NORBERT RIBEROLLE Marion",
+      "DisplayFirstName": null,
+      "DisplayLastName": null,
+      "IsoCode2": "BE",
+      "NationName": "BEL       ",
+      "IndividualCountryIsoCode2": "BE",
+      "IndividualCountryName": "BEL       ",
+      "IndividualCountryNameText": "BELGIUM",
+      "UnknownIndividualCountryIsoCode2": null,
+      "UnknownIndividualCountryName": null,
+      "UnknownIndividualCountryNameText": null,
+      "TeamName": null,
+      "ResultValue": "",
+      "PointPcR": null,
+      "TeamPointPcR": null,
+      "PcRPrefix": "",
+      "PcRSuffix": "",
+      "Irm": "DSQ",
+      "FlagCode": "be",
+      "Gender": "",
+      "IndividualGender": null,
+      "UnknownIndividualGender": null,
+      "Phase": null,
+      "Heat": null
+    }
+  }
+}

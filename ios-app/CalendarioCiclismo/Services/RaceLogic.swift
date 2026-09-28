@@ -252,8 +252,12 @@ enum RaceLogic {
 
     // MARK: - Rankings UCI
 
-    /// Ranking UCI con excepciones especiales para Grand Tours y países asiáticos.
-    static func uciRank(category: String?, name: String?, country: String?) -> Double {
+    /// Rango de categoría: menor va antes. Tabla única, espejo de
+    /// `categoryRank` en `js/services/race-order.js`. Las grandes vueltas
+    /// encabezan; el Tour del Porvenir sube al nivel de las .1; las Pro y .1 del
+    /// circuito asiático (salvo la Japan Cup) bajan tras las .1 europeas; los
+    /// continentales que no son el Europeo bajan tras las .2U.
+    static func categoryRank(category: String?, name: String?, country: String?) -> Double {
         let n = name ?? ""
         if n.localizedCaseInsensitiveContains("giro de italia") { return 0.1 }
         if n.localizedCaseInsensitiveContains("tour de francia") { return 0.2 }
@@ -271,25 +275,9 @@ enum RaceLogic {
         return Constants.uciOrder[cat] ?? 99
     }
 
-    /// Nivel pro simplificado.
-    static func proLevel(category: String?, name: String?, country: String?) -> Double {
-        let n = name ?? ""
-        if n.localizedCaseInsensitiveContains("giro de italia") { return 0.1 }
-        if n.localizedCaseInsensitiveContains("tour de francia") { return 0.2 }
-        if n.localizedCaseInsensitiveContains("la vuelta") { return 0.3 }
-
-        let cat = category ?? ""
-        let cc = (country ?? "").uppercased()
-
-        if ["1.Pro","2.Pro","1.1","2.1"].contains(cat)
-            && isAsiaCountry(cc)
-            && !n.localizedCaseInsensitiveContains("japan cup") { return 10.5 }
-
-        let map: [String: Double] = [
-            "WC":1,"CC":2,"1.UWT":3,"2.UWT":4,"1.WWT":5,"2.WWT":6,
-            "1.Pro":7,"2.Pro":8,"1.1":9,"2.1":10,"1.2":11,"2.2":12,"1.2U":13,"2.2U":14,
-        ]
-        return map[cat] ?? 99
+    /// `categoryRank` de la carrera (nil → 99).
+    static func raceCategoryRank(_ race: Race?) -> Double {
+        categoryRank(category: race?.uciCategory, name: race?.name, country: race?.countryCode)
     }
 
     private static func isAsiaCountry(_ cc: String) -> Bool {
@@ -316,10 +304,19 @@ enum RaceLogic {
 
     // MARK: - Ordenación
 
-    /// Comparador estándar por categoría UCI.
+    /// Carreras sin jornada publicada y canceladas: van al final en todos los
+    /// órdenes de la agenda de Hoy, aunque estén destacadas.
+    static func isAgendaTail(_ item: EnrichedRaceDay) -> Bool {
+        item.isPlaceholder || item.race?.isCancelled == true
+    }
+
+    /// Comparador estándar por categoría. Espejo de `compareAgendaByCategory`
+    /// (`js/services/today-agenda-order.js`): cola al final → Campeonatos
+    /// Nacionales → gran vuelta → `categoryRank` → sexo → hora de salida →
+    /// sector A/B → nombre. El miniperfil no interviene en el orden.
     static func sortByCategory(_ a: EnrichedRaceDay, _ b: EnrichedRaceDay) -> Bool {
-        let phA = (a.isPlaceholder || a.race?.isCancelled == true) ? 1 : 0
-        let phB = (b.isPlaceholder || b.race?.isCancelled == true) ? 1 : 0
+        let phA = isAgendaTail(a) ? 1 : 0
+        let phB = isAgendaTail(b) ? 1 : 0
         if phA != phB { return phA < phB }
 
         let rA = a.race, rB = b.race
@@ -330,21 +327,11 @@ enum RaceLogic {
         let gtA = grandTourRank(rA), gtB = grandTourRank(rB)
         if gtA != gtB { return gtA < gtB }
 
-        // Con miniperfil por delante de las que no lo tienen (dentro de su grupo, sigue el orden por categoría).
-        let profA = a.raceDay.hasElevationProfile ? 0 : 1
-        let profB = b.raceDay.hasElevationProfile ? 0 : 1
-        if profA != profB { return profA < profB }
-
-        let lvlA = proLevel(category: rA?.uciCategory, name: rA?.name, country: rA?.countryCode)
-        let lvlB = proLevel(category: rB?.uciCategory, name: rB?.name, country: rB?.countryCode)
-        if lvlA != lvlB { return lvlA < lvlB }
+        let catA = raceCategoryRank(rA), catB = raceCategoryRank(rB)
+        if catA != catB { return catA < catB }
 
         let genA = genderRank(rA?.gender), genB = genderRank(rB?.gender)
         if genA != genB { return genA < genB }
-
-        let catA = uciRank(category: rA?.uciCategory, name: rA?.name, country: rA?.countryCode)
-        let catB = uciRank(category: rB?.uciCategory, name: rB?.name, country: rB?.countryCode)
-        if catA != catB { return catA < catB }
 
         // Doble sector (misma carrera, mismo día): la etapa MÁS TEMPRANA primero.
         // Desempate por hora de salida; si falta, por el sufijo A/B (asignado en
@@ -356,6 +343,29 @@ enum RaceLogic {
         if sfxA != sfxB { return sfxA < sfxB }
 
         return (rA?.name ?? "") < (rB?.name ?? "")
+    }
+
+    /// Orden de la agenda de Hoy. Espejo de `sortAgenda`
+    /// (`js/services/today-agenda-order.js`): las destacadas encabezan solo en
+    /// el orden por categoría y nunca adelantan a las carreras de la cola.
+    static func sortTodayAgenda(
+        _ items: [EnrichedRaceDay],
+        sortMode: TodayViewModel.SortMode,
+        featuredRaceIds: Set<String>
+    ) -> [EnrichedRaceDay] {
+        func featured(_ item: EnrichedRaceDay) -> Bool {
+            guard sortMode == .category, !isAgendaTail(item), let id = item.race?.id else { return false }
+            return featuredRaceIds.contains(id)
+        }
+        return items.sorted { a, b in
+            let af = featured(a), bf = featured(b)
+            if af != bf { return af }
+            switch sortMode {
+            case .category: return sortByCategory(a, b)
+            case .tvTime: return sortByTvTime(a, b)
+            case .finishTime: return sortByFinishTime(a, b)
+            }
+        }
     }
 
     /// Hora más temprana de broadcast en un item.
@@ -378,8 +388,8 @@ enum RaceLogic {
 
     /// Comparador por hora de TV.
     static func sortByTvTime(_ a: EnrichedRaceDay, _ b: EnrichedRaceDay) -> Bool {
-        let phA = (a.isPlaceholder || a.race?.isCancelled == true) ? 1 : 0
-        let phB = (b.isPlaceholder || b.race?.isCancelled == true) ? 1 : 0
+        let phA = isAgendaTail(a) ? 1 : 0
+        let phB = isAgendaTail(b) ? 1 : 0
         if phA != phB { return phA < phB }
 
         let tierA = tvSortTier(a), tierB = tvSortTier(b)
@@ -395,8 +405,8 @@ enum RaceLogic {
 
     /// Comparador por hora de meta.
     static func sortByFinishTime(_ a: EnrichedRaceDay, _ b: EnrichedRaceDay) -> Bool {
-        let phA = (a.isPlaceholder || a.race?.isCancelled == true) ? 1 : 0
-        let phB = (b.isPlaceholder || b.race?.isCancelled == true) ? 1 : 0
+        let phA = isAgendaTail(a) ? 1 : 0
+        let phB = isAgendaTail(b) ? 1 : 0
         if phA != phB { return phA < phB }
 
         let fA = a.raceDay.estimatedFinishTimeUtc.flatMap { DateFormatting.timestampToSeconds($0) }
@@ -510,9 +520,12 @@ enum RaceLogic {
         return Self.femaleKeywords.contains { lower.contains($0) }
     }
 
-    /// Determina si mostrar indicador femenino (para carreras femeninas sin indicador en el nombre).
+    /// Determina si mostrar el indicador femenino: carreras femeninas cuyo
+    /// nombre y categoría no lo indican ya. 1.WWT y 2.WWT implican carrera
+    /// femenina (espejo de `categoryBadge` en `js/shared.js`).
     static func shouldShowFemaleIndicator(_ race: Race?) -> Bool {
         guard let race, race.isFemale else { return false }
+        if race.uciCategory?.hasSuffix("WWT") == true { return false }
         return !nameImpliesFemale(race.name)
     }
 

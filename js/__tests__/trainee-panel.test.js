@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-const source = readFileSync(new URL('../panel.js', import.meta.url), 'utf8');
+const source = ['team-roster.js', 'team-situation.js']
+  .map(file => readFileSync(new URL(`../panel/${file}`, import.meta.url), 'utf8'))
+  .join('\n')
+  .replace(/^export /gm, '');
 function contextFor(name, values) {
   const start = source.indexOf('function ' + name + '(');
   const next = source.slice(start + 1).search(/\n(?:async )?function /);
@@ -26,7 +29,7 @@ describe('plantillas con vínculos de prueba', () => {
   it('edita la fila habitual por su id real sin recrear ni alterar una prueba', async () => {
     const db = client();
     const ctx = contextFor('saveAffiliationDates', { ...db, _rosterRows: [{ ...row }],
-      _rosterTeamId: 'host', _editingTeamSeasonYear: 2024, showToast() {}, console });
+      panelState: { _rosterTeamId: 'host', _editingTeamSeasonYear: 2024 }, showToast() {}, console });
     await ctx.saveAffiliationDates('rider', 'male', '2024-01-01', null, null, 'real-aff-id');
     expect(db.calls).toContainEqual(['rpc', 'admin_edit_regular_team_affiliation', expect.objectContaining({
       p_action: 'update', p_year: 2024, p_affiliation_id: 'real-aff-id',
@@ -38,7 +41,7 @@ describe('plantillas con vínculos de prueba', () => {
   });
   it('retira por RPC solo la afiliación habitual seleccionada', async () => {
     const db = client();
-    const ctx = contextFor('removeRiderFromTeam', { ...db, _rosterTeamId: 'host', _editingTeamSeasonYear: 2024, CURRENT_TEAM_SEASON: 2026,
+    const ctx = contextFor('removeRiderFromTeam', { ...db, panelState: { _rosterTeamId: 'host', _editingTeamSeasonYear: 2024 }, CURRENT_TEAM_SEASON: 2026,
       _rosterRows: [{ ...row }], confirmDialog: async () => true,
       renderTeamRoster() {}, showToast() {}, console });
     await ctx.removeRiderFromTeam('rider', 'male', { affiliationId: 'real-aff-id' });
@@ -53,7 +56,7 @@ describe('plantillas con vínculos de prueba', () => {
       _rosterRows: [{ ...row, affiliationType: 'trainee', dateBasis: 'regulatory_window',
         rider: { ...row.rider, currentTeamId: 'home' },
         sourceUrl: 'https://www.uci.org/team-details/123', dateFrom: '2026-08-01', dateTo: '2026-12-31' }],
-      _rosterTeamId: 'host', _teamsCache: [{ id: 'home', name: 'Equipo habitual' }], _editingTeamSeasonYear: 2026, CURRENT_TEAM_SEASON: 2026,
+      panelState: { _rosterTeamId: 'host', _teamsCache: [{ id: 'home', name: 'Equipo habitual' }], _editingTeamSeasonYear: 2026 }, CURRENT_TEAM_SEASON: 2026,
       document: { getElementById: id => id === 'teamRosterList' ? list : null },
       esc: s => String(s ?? ''), _slRiderFlagPreview: () => '',
     });
@@ -86,8 +89,8 @@ describe('plantillas con vínculos de prueba', () => {
     const ctx = contextFor('renderTeamRoster', {
       _rosterRows: [{ ...row, readOnly: true,
         rider: { ...row.rider, currentTeamId: 'current' } }],
-      _rosterTeamId: 'historical', _teamsCache: [{ id: 'current', name: 'Equipo actual' }],
-      _editingTeamSeasonYear: year, CURRENT_TEAM_SEASON: 2026,
+      panelState: { _rosterTeamId: 'historical', _teamsCache: [{ id: 'current', name: 'Equipo actual' }],
+        _editingTeamSeasonYear: year }, CURRENT_TEAM_SEASON: 2026,
       document: { getElementById: id => id === 'teamRosterList' ? list : null },
       esc: s => String(s ?? ''), _slRiderFlagPreview: () => '',
     });
@@ -104,7 +107,7 @@ describe('plantillas con vínculos de prueba', () => {
     const list = { innerHTML: '', querySelectorAll: () => [] };
     const ctx = contextFor('renderTeamRoster', {
       _rosterRows: [{ ...row, dateFrom, dateTo, rider: { ...row.rider, currentTeamId } }],
-      _rosterTeamId: 'host', _teamsCache: [{ id: 'home', name: 'Otro equipo' }], _editingTeamSeasonYear: 2026, CURRENT_TEAM_SEASON: 2026,
+      panelState: { _rosterTeamId: 'host', _teamsCache: [{ id: 'home', name: 'Otro equipo' }], _editingTeamSeasonYear: 2026 }, CURRENT_TEAM_SEASON: 2026,
       document: { getElementById: id => id === 'teamRosterList' ? list : null },
       esc: s => String(s ?? ''), _slRiderFlagPreview: () => '',
     });

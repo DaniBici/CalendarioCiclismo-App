@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {cxPublicEditUrl,mountCxPublicEditButton} from '../cx-public-edit.js';
+import {cxPublicEditUrl,mountCxPublicEditButton} from '../cx/public-edit.js';
 
 const session={user:{id:'admin'}};
 function mount({activeSession=null,verification={data:true,error:null},sessionError=null,sessionPromise}={}) {

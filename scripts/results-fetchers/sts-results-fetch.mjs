@@ -55,7 +55,7 @@
  *       clasificación final y tampoco se infiere OTL/FC. El estado oficial de fuera
  *       de control solo llega explícito en `t` ("Hors délai"/HD/OTL).
  *   puntos "28" → "28".  IRM: Abandon→DNF · "Non partant"/NP→DNS · "Hors délai"/HD→OTL
- *       · "Disqualifié"/DSQ/EX→DSQ (códigos de js/uci-irm.js).
+ *       · "Disqualifié"/DSQ/EX→DSQ (códigos de js/results/uci-irm.js).
  *
  * IDs SINTÉTICOS: STS no existe en DataRide → eventId/uciRaceId NEGATIVOS y
  *   deterministas (mismo esquema que Tissot/PDF/Matsport, salt propio "sts:"):
@@ -186,7 +186,7 @@ const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CL
 // ── normalización ───────────────────────────────────────────────────────────
 export function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 
-// IRM (estado francés de Wiclax) → códigos UCI (los que entiende js/uci-irm.js).
+// IRM (estado francés de Wiclax) → códigos UCI (los que entiende js/results/uci-irm.js).
 const IRM_MAP = {
   AB: 'DNF', ABD: 'DNF', ABANDON: 'DNF', DNF: 'DNF',
   NP: 'DNS', 'NON PARTANT': 'DNS', DNS: 'DNS',

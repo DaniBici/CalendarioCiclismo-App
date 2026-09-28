@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 
 const categories={ME:'ELITE-SUB23',WE:'FEM ELITE-SUB23',MJ:'JUNIOR',WJ:'FEM JUNIOR'};
 const dates=['2025-10-05','2025-10-12','2025-11-01','2025-11-02','2025-11-16','2025-11-23','2025-12-06','2025-12-07'];
@@ -133,7 +133,7 @@ export function copaEspanaSeasonCotejo(fixture,reference,category) {
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
-  const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/copa-espana-2025.json',import.meta.url),'utf8'));
+  const fixture=JSON.parse(readFileSync(new URL('../../js/__tests__/fixtures/cx-cotejos/copa-espana-2025.json',import.meta.url),'utf8'));
   const reference=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url),'utf8'));
   const reports=Object.keys(categories).map(category=>copaEspanaSeasonCotejo(fixture,reference,category));
   process.stdout.write(JSON.stringify(reports,null,2)+'\n');

@@ -1,5 +1,5 @@
 import {CX_AGENDA_SELECT,cxHiddenClasses,cxIsHidden} from './services/cx-data.js';
-import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx-highlight.js?v=20260913cxscopes';
+import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx/highlight.js?v=20260913cxscopes';
 import { arrowHtml } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  CINTILLO «HOY» — carrusel editorial (tabla today_highlights)

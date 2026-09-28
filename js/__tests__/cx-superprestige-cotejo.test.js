@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {superprestigeCotejo,superprestigeCotejoInput} from '../../scripts/cx/cx-superprestige-cotejo.mjs';
 
-const load=category=>JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/superprestige-2025-26-'+category+'.json',import.meta.url)));
+const load=category=>JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/superprestige-2025-26-'+category+'.json',import.meta.url)));
 const me=load('me'),we=load('we');
 const references=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url)));
 

@@ -171,4 +171,5 @@ export function closeDrawer(level) {
   target?.focus({ preventScroll: true });
 }
 
+/** @public Lo consultan las pruebas del ciclo de vida del drawer. */
 export function isDrawerOpen() { return _anyOpen(); }

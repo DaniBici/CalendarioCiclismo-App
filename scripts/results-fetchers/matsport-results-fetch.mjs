@@ -137,11 +137,11 @@ const synthRaceId = (slot) => -(ID_BASE * 10000 + slot * 100);
 const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
 // ── normalización ───────────────────────────────────────────────────────────
-// Exportadas para tests (js/__tests__/matsportResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/matsport-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 export function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 
-// status francés de Matsport → códigos IRM UCI (los que entiende js/uci-irm.js).
+// status francés de Matsport → códigos IRM UCI (los que entiende js/results/uci-irm.js).
 const IRM_MAP = { AB: 'DNF', ABD: 'DNF', NP: 'DNS', DNS: 'DNS', HD: 'OTL', OTL: 'OTL', DSQ: 'DSQ', EX: 'DSQ', DNF: 'DNF' };
 export function irmOf(status) {
   const st = clean(status).toUpperCase();

@@ -87,7 +87,7 @@ que un admin añade entradas desde el panel.
 
 ## Panel admin
 
-Tab "Cintillo" en `panel/app.html` + `js/panel.js::setupHighlightsView`. CRUD completo:
+Tab "Cintillo" en `panel/app.html` + `js/panel/highlights.js::setupHighlightsView`. CRUD completo:
 - La lista y el editor se filtran por el área activa (`panelArea()`): carretera
   edita `scope='road'` y Ciclocross `scope='cx'`.
 - Búsqueda de carrera por nombre.
@@ -120,7 +120,7 @@ Tab "Cintillo" en `panel/app.html` + `js/panel.js::setupHighlightsView`. CRUD co
 
 ### Panel
 - `panel/app.html` — tab `tab-highlights` + view `highlightsView`.
-- `js/panel.js::setupHighlightsView` y compañía.
+- `js/panel/highlights.js::setupHighlightsView` y compañía.
 
 ## No es Premium
 

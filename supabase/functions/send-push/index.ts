@@ -168,7 +168,7 @@ function normalizeTargetLanguages(value: unknown): PushLanguage[] | undefined | 
 }
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { CX_PUSH_CATEGORIES, resolveCxPushTarget, cxPushRaceAvailable, cxPushSubscriberQuery } from '../../../js/cx-push.js';
+import { CX_PUSH_CATEGORIES, resolveCxPushTarget, cxPushRaceAvailable, cxPushSubscriberQuery } from '../../../js/cx/push.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',

@@ -17,9 +17,11 @@
     "uci:catalog:collect": "node scripts/uci-catalog/collect.mjs",
     "uci:catalog:test-db": "node scripts/uci-catalog/tests/integration.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "knip": "knip"
   },
   "devDependencies": {
+    "knip": "^5.88.1",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"
   },

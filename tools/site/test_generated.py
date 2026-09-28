@@ -757,7 +757,11 @@ class GeneratedTest(unittest.TestCase):
             self.assertEqual(source.count(f".pages-generated/{block}/output.tar"), 2)
             self.assertEqual(source.count(f".pages-generated/{block}/manifest.json"), 2)
         self.assertIn("- '!js/**/__tests__/**'", source)
-        self.assertIn("--exclude '.pages-generated'", source)
+        self.assertIn("rsync -a --relative", source)
+        self.assertIn("--exclude '__tests__'", source)
+        site = source.split("SITE=(", 1)[1].split(")", 1)[0].split()
+        for internal in (".pages-generated", "AGENTS.md", "CLAUDE.md", ".codex", "deploy", "docs"):
+            self.assertNotIn(internal, site)
         self.assertIn("actions: read", source)
         self.assertIn("format('pages-stage-{0}', github.run_id)", source)
         self.assertLess(source.index("build_generated.py wait"), source.index("build_generated.py prepare"))

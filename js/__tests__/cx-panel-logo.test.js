@@ -1,12 +1,12 @@
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {describe,it,expect,vi} from 'vitest';
-import {cxUrl} from '../cx-editor-logic.js';
+import {cxUrl} from '../cx/editor-logic.js';
 
-const panel=readFileSync(new URL('../panel-cx.js',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../panel/cx.js',import.meta.url),'utf8');
 const source=panel.slice(panel.indexOf('const logoField='),panel.indexOf('\nconst input='));
 const getSource=panel.slice(panel.indexOf('const dataOf='),panel.indexOf('\nconst categoryOptions='));
-const uploadSource=readFileSync(new URL('../panel.js',import.meta.url),'utf8');
+const uploadSource=readFileSync(new URL('../panel/uploads.js',import.meta.url),'utf8');
 const attachInlineUpload=uploadSource.slice(uploadSource.indexOf('function attachInlineUpload('),uploadSource.indexOf('\nasync function handleUpload('));
 
 function logoForm() {

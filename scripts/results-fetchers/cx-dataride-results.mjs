@@ -1,5 +1,5 @@
 import { normalizeRow } from './dataride-results-fetch.mjs';
-import { cxDataRideSeconds } from '../../js/cx-time.js';
+import { cxDataRideSeconds } from '../../js/cx/time.js';
 
 export { cxDataRideSeconds };
 
@@ -90,8 +90,12 @@ export function normalizeCxDataRideRows(sourceRows) {
     const lapDeficit = /^-\s*([1-9]\d*)$/.exec(lapValue) || /^[1-9]\d*$/.test(lapValue) ? Number(lapValue.replace(/^-/, '')) : null;
     const lapGap = state === 'LAP' && /LAP/i.test(value || '') ? value
       : state === 'LAP' && lapDeficit != null ? `-${lapDeficit} LAP` : null;
+    // Solo LAP conserva puesto. DataRide publica a veces DNF/DNS con la posición
+    // de listado en Rank (Blue Ridge 2026): el estado sustituye al puesto y
+    // sourceSortOrder conserva el orden de la fuente.
+    const ranked = !state || state === 'LAP';
     return {
-      rank, rankText: clean(raw.Rank) || state || null, bib: normalized.bib,
+      rank: ranked ? rank : null, rankText: ranked ? clean(raw.Rank) || state || null : state, bib: normalized.bib,
       riderDisplay: cxNaturalRiderDisplay(split.firstName, split.lastName, normalized.riderDisplay)
         || [split.firstName, split.lastName].filter(Boolean).join(' ') || null,
       firstName: split.firstName, lastName: split.lastName, isoCode2: normalized.isoCode2?.toUpperCase() || null,

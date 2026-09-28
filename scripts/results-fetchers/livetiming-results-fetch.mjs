@@ -206,11 +206,11 @@ const synthRaceId = (slot, base = ID_BASE) => -(base * 10000 + slot * 100);
 const synthEventId = (slot, kind, scope, base = ID_BASE) => -(base * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
 // ── normalización ───────────────────────────────────────────────────────────
-// Exportadas para tests (js/__tests__/livetimingResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/livetiming-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 export function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 
-// IRM de livetiming (col Place) → códigos IRM UCI (js/uci-irm.js).
+// IRM de livetiming (col Place) → códigos IRM UCI (js/results/uci-irm.js).
 const IRM_MAP = { DNF: 'DNF', AB: 'DNF', ABD: 'DNF', DNS: 'DNS', NP: 'DNS', DSQ: 'DSQ', DQ: 'DSQ', EX: 'DSQ', OTL: 'OTL', HD: 'OTL' };
 export function parsePlace(v) {
   // "1" → {rank:1}; "DNF"/"DNS"/… → {irm:'DNF'}; vacío → {}.

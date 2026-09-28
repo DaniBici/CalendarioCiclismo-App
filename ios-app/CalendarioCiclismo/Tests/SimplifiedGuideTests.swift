@@ -1,7 +1,7 @@
 import XCTest
 @testable import CalendarioCiclismo
 
-/// Vectores COMPARTIDOS con `js/__tests__/simplifiedGuide.test.js` y
+/// Vectores COMPARTIDOS con `js/__tests__/simplified-guide.test.js` y
 /// `SimplifiedGuideTest.kt`. Mantener la paridad al cambiar la heurística.
 final class SimplifiedGuideTests: XCTestCase {
 

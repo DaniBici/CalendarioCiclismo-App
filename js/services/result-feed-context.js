@@ -1,6 +1,6 @@
 import { classificationInventory, loadFeaturedRaces } from './race-presentation.js';
 import { fetchByIds } from './paged-query.js';
-import { isNonWinnerIrm } from '../uci-irm.js';
+import { isNonWinnerIrm } from '../results/uci-irm.js';
 
 export async function enrichResultFeed(client, entries) {
   const raceIds=[...new Set(entries.map(e=>e.race.id))];

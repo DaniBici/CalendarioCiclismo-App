@@ -3,9 +3,9 @@ import {readFileSync} from 'node:fs';
 import {cxResultsCotejo} from '../../scripts/cx/cx-results-cotejo.mjs';
 import {cxNaturalRiderDisplay, normalizeCxDataRideRows, splitCxDisplayName} from '../../scripts/results-fetchers/cx-dataride-results.mjs';
 
-const fixture = JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/waaslandcross-2025-26-me.json', import.meta.url)));
+const fixture = JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/waaslandcross-2025-26-me.json', import.meta.url)));
 const sourceRows = copy => copy.normalizedDataRide.categories[0].rows;
-const alcobendas = JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/alcobendas-2025-26-me.json', import.meta.url)));
+const alcobendas = JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/alcobendas-2025-26-me.json', import.meta.url)));
 
 describe('cotejo oficial offline C2, Waaslandcross ME 2025–26', () => {
   it('conserva la discrepancia de cronometraje y todos los puestos/estados sin modificar las fuentes', () => {

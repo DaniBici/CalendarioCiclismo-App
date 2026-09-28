@@ -37,6 +37,12 @@ y pasar el pipeline completo de abajo.
    horizontales → rects equivalentes. gb-sct (diagonales) renderiza PERFECTO
    en CoreSVG → no tocar (el fixer lo excluye a propósito).
 
+6. **Tamaño intrínseco** (no es un bug de render, sino de peso): sin
+   `width`/`height`, `actool` toma el `viewBox` de 640×480 como tamaño en pt y
+   genera PNG de respaldo de hasta 1920×1440 px por bandera (~34 MB por copia,
+   duplicada en app y widget). Fix: `width="32" height="24"` en el `<svg>`
+   raíz; la bandera mayor se muestra a 26 pt y el vector cubre el resto.
+
 **Residuo aceptado** (sub-visible a 20×15 pt, documentado y verificado):
 `pf` ~0.5% y `kh` ~0.2% (AA de trazos finos en emblemas). `gu` (texto `<text>`)
 y los gradientes con herencia `href` (bz/fk/gt/gs/mx/ni) renderizan bien.

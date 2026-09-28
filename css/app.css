@@ -3,7 +3,7 @@
    Estética: clean editorial, Google Material You
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+@import url('tokens.css?v=20260928tokens');
 
 /* ── Variables (modo oscuro por defecto) ──────────────────────── */
 :root {
@@ -14,43 +14,12 @@
      la luminancia mínima corregida. El gris claro anterior componía #838990 y
      se confundía con identificativos claros como el #999999 de Flandrien. */
   --profile-pending-color: #465568;
-  --content-max: 1440px;
-  --page-gutter: 16px;
   --page-width: min(var(--content-max), calc(100vw - 2 * var(--page-gutter)));
   --primary-nav-h: var(--primary-nav-measured-h, 42px);
-  --bg:            #141923;
-  --bg-card:       #1e2632;
-  --bg-card-hover: #293443;
-  --border:        #354252;
-  --border-light:  #465568;
-  --text:          #e2e2e9;
-  --text-muted:    #b7c1ce;
-  --text-dim:      #9296a3;
-  --accent:        #1a73e8;
-  --accent-dim:    rgba(26,115,232,0.12);
-  /* Texto en color de acento SOBRE fondo --accent-dim (día seleccionado,
-     botón Hoy): el azul base #1a73e8 queda por debajo de 4.5:1 sobre el
-     tinte; este azul más claro pasa AA en tema oscuro. */
-  --accent-text:   #4d94f0;
-  --btn-primary-text: #ffffff;
-  --red:           #ffb4ab;
-  --green:         #6dd58c;
-  --blue:          #7fcfff;
-  --orange:        #ffb77c;
-
-  --header-text:   #e2e2e9;
-  --font-display: 'Google Sans', 'Roboto', sans-serif;
-  --font-body:    'Google Sans', 'Roboto', sans-serif;
 
   --dorsal-bg-a: #1c2030;
-
-  --radius:      8px;
-  --radius-btn:  3px;          /* legado — los botones usan --radius-pill/-soft */
   --radius-pill: 999px;        /* pastilla completa (filtros, chips, CTAs)       */
   --radius-soft: 12px;         /* esquina suave para botones rectangulares       */
-  --radius-lg:   12px;
-  --transition:  0.15s ease;
-  --bg-header:   #202938;
   /* Los diálogos consumen la misma jerarquía cromática que la web. Estos
      alias evitan que una superficie modal conserve una paleta independiente
      cuando cambian los fondos, bordes o cabeceras globales. */
@@ -59,61 +28,6 @@
   --modal-header:     var(--bg-header);
   --modal-field:      var(--bg);
   --modal-border:     var(--border);
-  /* Elevación de tarjetas: en oscuro se eleva con LUZ (glow blanco tenue),
-     no con sombra oscura — sobre fondo casi negro una sombra no contrasta.
-     Paridad conceptual con la elevación de CCCard en las apps. */
-  --card-shadow: 0 0 6px rgba(255,255,255,0.07);
-
-  /* ── Badges de categoría UCI ──────────────────────────────────
-     WT / WWT (WorldTour)  → azul
-     Pro / .1 (ProSeries)  → verde
-     .2 / menores          → ámbar
-     WC / CC               → lila
-     Masculino             → lila suave
-     Femenino              → verde suave  (inverso al mockup)
-  ── */
-  --badge-wt-bg:     rgba(170,199,255,0.15);
-  --badge-wt-color:  #aac7ff;
-  --badge-pro-bg:    rgba(180,180,180,0.15);
-  --badge-pro-color: #aaaaaa;
-  --badge-1-bg:      rgba(180,180,180,0.15);
-  --badge-1-color:   #aaaaaa;
-  --badge-2-bg:      rgba(180,180,180,0.15);
-  --badge-2-color:   #aaaaaa;
-  --badge-wc-bg:     rgba(210,180,255,0.15);
-  --badge-wc-color:  #d2b4ff;
-  --badge-m-bg:      rgba(210,180,255,0.12);
-  --badge-m-color:   #c8aaff;
-  --badge-f-bg:      rgba(109,213,140,0.12);
-  --badge-f-color:   #6dd58c;
-
-  /* ── Badges de tipo de etapa ──────────────────────────────────
-     flat / cobbles        → azul cielo
-     rolling               → verde-lima
-     cotas                 → verde-amarillo (mix rolling+medium)
-     medium_mountain       → naranja
-     high_mountain / summit_finish / chrono_climb → rojo-coral
-     itt / ttt             → lila
-     sterrato              → marrón/ámbar
-  ── */
-  --type-flat-bg:    rgba(140,220,100,0.15);
-  --type-flat-color: #8cdc64;
-  --type-roll-bg:    rgba(100,170,80,0.15);
-  --type-roll-color: #7ab85a;
-  --type-cotas-bg:   rgba(177,176,80,0.15);
-  --type-cotas-color:#bcb755;
-  --type-med-bg:     rgba(255,183,80,0.15);
-  --type-med-color:  #ffb750;
-  --type-high-bg:    rgba(255,120,100,0.15);
-  --type-high-color: #ff7864;
-  --type-uphill-bg:  rgba(255,160,48,0.15);
-  --type-uphill-color:#ffa030;
-  --type-chrono-bg:  rgba(100,200,255,0.15);
-  --type-chrono-color:#64c8ff;
-  --type-cobble-bg:  rgba(160,160,160,0.15);
-  --type-cobble-color:#a8a8a8;
-  --type-sterra-bg:  rgba(210,185,140,0.15);
-  --type-sterra-color:#d4bc8c;
 }
 
 /* ── Tema claro ───────────────────────────────────────────────── */
@@ -121,124 +35,13 @@ html.light {
   --profile-dark-correction: 0;
   --profile-light-correction: 1;
   --profile-pending-color: #657185;
-  --bg:            #f3f5f8;
-  --bg-card:       #fafbfc;
-  --bg-card-hover: #e9edf3;
-  --border:        #d8dee8;
-  --border-light:  #c8cacf;
-  --text:          #1f1f1f;
-  --text-muted:    #5f6368;
-  --text-dim:      #63686d;
-  --accent:        #1a73e8;
-  --accent-text:   #1666cc;
-  --accent-dim:    rgba(26,115,232,0.10);
-  --btn-primary-text: #fff;
-  --red:           #c5221f;
-  --green:         #137333;
-  --blue:          #1565c0;
-  --orange:        #e37400;
 
   --dorsal-bg-a: #eeeff2;
-
-  --header-text:   #1f1f1f;
-  --bg-header:     #edf1f6;
-  /* En claro la elevación sí es una sombra oscura suave, idéntica a la de
-     CCCard en iOS/Android (negro 6-8% sobre fondo claro). */
-  --card-shadow: 0 2px 6px rgba(0,0,0,0.08);
-
-  --badge-wt-bg:     #d3e3fd;
-  --badge-wt-color:  #0842a0;
-  /* Gris de los badges .pro/.1/.2 sobre #eeeeee: #888 daba 3.06:1; #666 pasa
-     AA (4.95:1) para texto pequeño (~11px). */
-  --badge-pro-bg:    #eeeeee;
-  --badge-pro-color: #666666;
-  --badge-1-bg:      #eeeeee;
-  --badge-1-color:   #666666;
-  --badge-2-bg:      #eeeeee;
-  --badge-2-color:   #666666;
-  --badge-wc-bg:     #f3e8fd;
-  --badge-wc-color:  #7b1fa2;
-  --badge-m-bg:      #f3e8fd;
-  --badge-m-color:   #7b1fa2;
-  --badge-f-bg:      #e6f4ea;
-  --badge-f-color:   #137333;
-
-  --type-flat-bg:    #e8f5e9;
-  --type-flat-color: #2e7d32;
-  --type-roll-bg:    #dcedc8;
-  --type-roll-color: #3f6b1f;
-  --type-cotas-bg:   #edf0d4;
-  --type-cotas-color:#7a5410;
-  --type-med-bg:     #fff3e0;
-  --type-med-color:  #b34700;
-  --type-high-bg:    #fce4ec;
-  --type-high-color: #b71c1c;
-  --type-uphill-bg:  #fff0d8;
-  --type-uphill-color:#8f4a00;
-  --type-chrono-bg:  #e8f4fd;
-  --type-chrono-color:#1565c0;
-  --type-cobble-bg:  #f0f0f0;
-  --type-cobble-color:#616161;
-  --type-sterra-bg:  #f5ede0;
-  --type-sterra-color:#795548;
 }
 
 @media (prefers-color-scheme: light) {
   html:not(.dark) {
-    --bg:            #f3f5f8;
-    --bg-card:       #fafbfc;
-    --bg-card-hover: #e9edf3;
-    --border:        #d8dee8;
-    --border-light:  #c8cacf;
-    --text:          #1f1f1f;
-    --text-muted:    #5f6368;
-    --text-dim:      #63686d;
-    --accent:        #1a73e8;
-    --accent-text:   #1666cc;
-    --accent-dim:    rgba(26,115,232,0.10);
-    --btn-primary-text: #fff;
-    --red:           #c5221f;
-    --green:         #137333;
-    --blue:          #1565c0;
-    --orange:        #e37400;
 
-    --header-text:   #1f1f1f;
-    --bg-header:     #edf1f6;
-    --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
-
-    --badge-wt-bg:     #d3e3fd;
-    --badge-wt-color:  #0842a0;
-    --badge-pro-bg:    #eeeeee;
-    --badge-pro-color: #666666;
-    --badge-1-bg:      #eeeeee;
-    --badge-1-color:   #666666;
-    --badge-2-bg:      #eeeeee;
-    --badge-2-color:   #666666;
-    --badge-wc-bg:     #f3e8fd;
-    --badge-wc-color:  #7b1fa2;
-    --badge-m-bg:      #f3e8fd;
-    --badge-m-color:   #7b1fa2;
-    --badge-f-bg:      #e6f4ea;
-    --badge-f-color:   #137333;
-
-    --type-flat-bg:    #e8f5e9;
-    --type-flat-color: #2e7d32;
-    --type-roll-bg:    #dcedc8;
-    --type-roll-color: #3f6b1f;
-    --type-cotas-bg:   #edf0d4;
-    --type-cotas-color:#7a5410;
-    --type-med-bg:     #fff3e0;
-    --type-med-color:  #b34700;
-    --type-high-bg:    #fce4ec;
-    --type-high-color: #b71c1c;
-    --type-uphill-bg:  #fff0d8;
-    --type-uphill-color:#8f4a00;
-    --type-chrono-bg:  #e8f4fd;
-    --type-chrono-color:#1565c0;
-    --type-cobble-bg:  #f0f0f0;
-    --type-cobble-color:#616161;
-    --type-sterra-bg:  #f5ede0;
-    --type-sterra-color:#795548;
   }
 
 }
@@ -921,7 +724,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
 .race-card--stage:hover {
   background: var(--bg-card-hover);
 }
-/* race-card--minor eliminado */
 .race-card--placeholder {
   cursor: default;
   padding: 0.4rem 1rem;
@@ -943,37 +745,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
   border-color: color-mix(in srgb, var(--card-color, var(--border)) 30%, var(--border));
 }
-.race-card__ph-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.race-card__ph-flag {
-  flex-shrink: 0;
-}
-.race-card__ph-name {
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.race-card__ph-stage {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
 .race-card__flag {
   font-size: 1.5rem;
   line-height: 1;
@@ -1003,9 +774,6 @@ main :where(a, button, select, input, textarea, [tabindex]) { scroll-margin-top:
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
-}
-.race-card__ph-name .race-card__name-cat {
-  margin-left: 0.35rem;
 }
 
 .race-card__sub {
@@ -2188,10 +1956,9 @@ h2.jornada-section__title {
 button.back-btn { background: none; font: inherit; cursor: pointer; }
 
 /* ── Responsive ───────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .site-header { padding: env(safe-area-inset-top) 1rem 0; }
-  .date-bar { padding: 0.4rem 0.75rem 0.4rem 1rem; }
-  .race-list { padding: 0.5rem 1rem 1rem; }
+/* Tarjetas de carrera en móvil y tablet estrecha: mismo breakpoint que la
+   rejilla de dos columnas de Hoy (761 px) y que COMPACT_VIEWPORT_QUERY. */
+@media (max-width: 760px) {
   .race-card { grid-template-columns: auto 1fr; row-gap: 0.3rem; }
   .race-card__logo, .race-card__flag { grid-row: 1 / span 2; align-self: center; }
   /* El estado horario ocupa la derecha del bloque de texto. El perfil conserva
@@ -2204,15 +1971,16 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
      "Etapa 2 · 157,7 km · +2.090 m". En competición (y demás páginas de carrera)
      hay sitio de sobra → se mantiene la ruta. */
   #raceList .race-card__sub .race-card__route-wrap { display: none; }
+  #raceList .race-card__sep--after-route { display: none; }
   /* Modo terminado: 2 iconos (copa+TV) necesitan algo más de hueco que el
      horario apilado → reserva 4.9rem para que no rocen el texto fundido. */
   .race-card--finished .race-card__main { padding-right: 4.9rem; }
-  #raceList .race-card:not(.race-card--composed) .race-card__schedule {
+  #raceList .race-card__schedule {
     flex-direction: column;
     align-items: flex-end;
     gap: 2px;
   }
-  #raceList .race-card:not(.race-card--composed) .race-card__schedule--waiting {
+  #raceList .race-card__schedule--waiting {
     flex-direction: row;
     justify-content: flex-end;
     max-width: 7.5rem;
@@ -2233,6 +2001,11 @@ button.back-btn { background: none; font: inherit; cursor: pointer; }
     pointer-events: none;
   }
   .race-card__meta > * { pointer-events: auto; }
+}
+@media (max-width: 600px) {
+  .site-header { padding: env(safe-area-inset-top) 1rem 0; }
+  .date-bar { padding: 0.4rem 0.75rem 0.4rem 1rem; }
+  .race-list { padding: 0.5rem 1rem 1rem; }
   /* Sin mask de fundido al truncar: tanto el nombre (.race-card__name >
      span:first-child) como la ruta (.race-card__route-wrap) ya recortan con
      text-overflow: ellipsis. El mask era redundante y desvanecía el borde
@@ -4759,10 +4532,7 @@ html.light .uci-ranking-row--green .uci-ranking-row__category { color: var(--tex
 .race-card__schedule>span { color:var(--text-muted); font-size:.8rem; }
 .race-card__schedule>strong { font-size:1rem; }
 .race-card__metrics { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 4px; max-width:100%; }
-.race-card--composed.race-card--featured .race-card__sub { font-size:.8rem; }
-.race-card--composed.race-card--featured .race-card__metrics { font-size:inherit; }
 .race-card--composed .race-card__types--inline { flex-wrap:wrap; }
-.race-card--composed.race-card--featured .race-card__profile { height:82px; }
 .race-card--composed.race-card--finished .race-card__main { mask-image:none; padding-right:0; }
 /* Competición: si los controles hacen crecer la fila, el perfil conserva el
    mismo borde inferior y ninguno queda por debajo de su silueta. */
@@ -4774,45 +4544,50 @@ html.light .uci-ranking-row--green .uci-ranking-row__category { color: var(--tex
   gap:2px;
   white-space:nowrap;
 }
-/* Hoy: ficha única con el miniperfil como banda inferior. Nombre, ruta, km y
-   desnivel fluyen en varias líneas para no perder los datos de escritorio. */
-@media(min-width:601px) {
- #raceList .race-card:not(.race-card--composed) .race-card__name { flex-wrap:wrap; }
- #raceList .race-card:not(.race-card--composed) .race-card__name>span:first-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
- #raceList .race-card:not(.race-card--composed) .race-card__sub { white-space:normal; flex-wrap:wrap; row-gap:0.15rem; }
- #raceList .race-card:not(.race-card--composed) .race-card__route-wrap { white-space:normal; overflow:visible; text-overflow:clip; }
-}
-/* Rejilla de dos columnas: cada columna mantiene el ancho de una ficha móvil,
-   de modo que el perfil nunca se estira a lo ancho de toda la página. Las dos
-   fichas de una fila comparten altura (stretch) y la banda de perfil queda
-   alineada al pie de ambas. */
+/* Hoy: una sola tarjeta. El miniperfil es una banda inferior; en la rejilla
+   de dos columnas todas las tarjetas reservan esa banda y alinean su
+   contenido arriba, de modo que las dos fichas de una fila coinciden aunque
+   una no tenga perfil. La destacada ocupa toda la fila y lleva el perfil a una
+   columna central. */
+#raceList .race-card__profile { position:absolute; inset:auto 0 0 0; width:100%; height:58px; }
+#raceList .race-card--cancelled .race-card__name>span:first-child { text-decoration:line-through; }
+#raceList .race-card__metrics { display:contents; }
+/* Sin jornada, canceladas y descansos: mismo relleno y tamaño que el resto de
+   tarjetas de la lista (la variante reducida es solo de Buscar). */
+#raceList .race-card--placeholder { padding:1rem 1.25rem; }
+#raceList .race-card--placeholder .race-card__main { min-height:4.5rem; display:flex; flex-direction:column; justify-content:center; }
 @media(min-width:761px) {
  #raceList { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
- #raceList>* { grid-column:auto; }
- #raceList>:is(.loading,.empty-state) { grid-column:1/-1; }
- #raceList>.race-card--featured { grid-column:1/-1; }
- #raceList>.race-card:only-child { grid-column:1/-1; }
- #raceList .race-card__identity>:is(.race-card__logo,.race-card__flag) { align-self:center; }
+ #raceList>:is(.loading,.empty-state,.day-load-error) { grid-column:1/-1; }
+ #raceList>.race-card { align-items:start; padding:1rem 1.25rem 58px; }
+ #raceList>.race-card:is(.race-card--featured,:only-child) { grid-column:1/-1; }
+ #raceList .race-card--placeholder .race-card__main { justify-content:flex-start; }
+ #raceList .race-card__flag { line-height:1.25rem; }
+ #raceList .race-card__name { flex-wrap:wrap; }
+ #raceList .race-card__name>span:first-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+ #raceList .race-card__sub { white-space:normal; flex-wrap:wrap; row-gap:0.15rem; }
+ #raceList .race-card__route-wrap { white-space:normal; overflow:visible; text-overflow:clip; }
+ #raceList>.race-card--featured { grid-template-columns:auto minmax(0,260px) minmax(0,1fr) 190px; column-gap:16px; padding-bottom:1rem; }
+ #raceList>.race-card--featured:not(:has(.race-card__profile)) { grid-template-columns:auto minmax(0,1fr) auto; }
+ #raceList .race-card--featured .race-card__profile { position:relative; inset:auto; grid-column:3; grid-row:1; align-self:center; height:82px; }
+ #raceList .race-card--featured .race-card__meta { grid-column:-2; grid-row:1; align-self:center; }
+ /* Destacadas: km y desnivel en su propia línea, sin separador inicial. */
+ #raceList .race-card--featured .race-card__metrics { display:flex; flex-basis:100%; gap:0.35rem; }
+ #raceList .race-card--featured .race-card__sep--lead { display:none; }
 }
 @media(min-width:1281px) {
- .race-card--composed.race-card--featured { padding:18px 16px; column-gap:16px; }
- .race-card--composed.race-card--featured .race-card__profile { height:96px; }
+ #raceList .race-card--featured .race-card__profile { height:96px; }
 }
 @media (min-width:761px) and (max-width:1199px) {
  .race-card--composed { grid-template-columns:250px minmax(0,1fr) 180px; }
 }
 @media(max-width:760px) {
- /* Superficies con fichas compuestas (p. ej. competición): pila de una sola
-    columna. Las no destacadas de Hoy ya no componen: usan el perfil en banda. */
+ /* Superficies con fichas compuestas (competición, ciclocross): pila de una
+    sola columna. */
  .race-card--composed, .race-card--composed:not(:has(.race-card__profile)) { grid-template-columns:minmax(0,1fr); gap:10px; padding:12px; }
  .race-card--composed .race-card__meta { width:100%; grid-column:1; }
  .race-card--composed .race-card__logo, .race-card--composed .race-card__flag { align-self:flex-start; }
  .race-card--composed .race-card__profile { grid-column:1/-1; width:100%; }
- /* Destacadas: conservan la ficha compuesta, con el perfil exento entre los
-    datos (izquierda) y los botones (derecha), también en tablet estrecha. */
- .race-card--composed.race-card--featured { grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,max-content); gap:8px 12px; padding:12px; }
- .race-card--composed.race-card--featured .race-card__meta { width:auto; grid-column:auto; }
- .race-card--composed.race-card--featured .race-card__profile { grid-column:auto; width:100%; }
 }
 @media(max-width:900px) {
  /* Competición recupera la banda inferior de Hoy antes de que la columna
@@ -5072,7 +4847,6 @@ html.light .feed-day>.feed-row { --bg-card:#fff; --border:#e0e0e0; --text-muted:
 #raceList .race-card .race-card__schedule.race-card__schedule--finish { flex-direction:column; flex-wrap:nowrap; align-items:flex-end; gap:2px; white-space:nowrap; }
 /* El cartel (Salida/Meta/Inicio/Final) y la hora van en filas distintas. */
 #raceList .race-card .race-card__schedule:not(.race-card__schedule--waiting) { flex-direction:column; flex-wrap:nowrap; align-items:flex-end; gap:2px; }
-#raceList .race-card--compact .badge:is(.badge--results,.badge--revive) { width:32px; height:32px; min-width:32px; padding:5px; }
 .race-card--composed.race-card--compact .race-card__meta-top { flex-wrap:nowrap; }
 .race-card--composed.race-card--compact :is(.badge--results,.badge--revive) .badge__label { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 :is(#raceList,#competicionContent) .badge:is(.badge--results,.badge--revive,.badge--stage) { font:600 .68rem/1.3 var(--font-body); letter-spacing:.02em; text-transform:uppercase; }
@@ -5084,10 +4858,6 @@ html.light .feed-day>.feed-row { --bg-card:#fff; --border:#e0e0e0; --text-muted:
   }
   :is(#raceList,#competicionContent) .race-card--composed:not(.race-card--compact) :is(.race-card__actions,.race-card__meta-top)>.badge svg { width:17px; height:17px; }
 }
-/* En las .2, los enlaces de seguimiento mantienen la escala de la fila de categoría. */
-#raceList .race-card--compact .race-card__badges .badge:is(.badge--tv,.badge--livetext) { position:relative; min-height:0; padding:.18rem .5rem; font-size:.68rem; gap:.25rem; }
-#raceList .race-card--compact .race-card__badges .badge:is(.badge--tv,.badge--livetext) svg { width:1em; height:1em; }
-#raceList .race-card--compact .race-card__badges a.badge:is(.badge--tv,.badge--livetext)::after { content:''; position:absolute; inset:-2px 0; }
 @media(max-width:760px) {
   .race-card--composed.race-card--compact { grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; padding-left:54px; }
   .race-card--compact .race-card__identity, .race-card--composed.race-card--compact .race-card__main { display:contents; }

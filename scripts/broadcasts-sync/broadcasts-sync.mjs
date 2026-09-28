@@ -346,7 +346,7 @@ async function loadContext(client, observations) {
   if (!dates.length) return { raceDays: [], broadcasts: [], links: [] };
   const { rows: raceDays } = await client.query(
     `SELECT d.id AS "raceDayId", d."raceId", d."dateKey", d."stageNumber",
-            d."neutralStartTimeUtc", d."estimatedFinishTimeUtc",
+            d."neutralStartTimeUtc", d."estimatedFinishTimeUtc", d."startLocation", d."finishLocation",
             r.name, r."nameEn", r.translations, r.gender, r."raceFormat"
       FROM public.race_days d JOIN public.races r ON r.id = d."raceId"
       WHERE d."dateKey" = ANY($1::text[])

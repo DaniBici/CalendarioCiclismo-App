@@ -39,6 +39,12 @@ Flag histórico `PREMIUM_TEST_BUILD`, reutilizado para simular Amigo activo:
 
 **Variables Xcode Cloud usadas:** `CI_XCODEBUILD_EXIT_CODE`, `CI_COMMIT`, `CI_BRANCH`, `CI_BUILD_NUMBER`, `CI_PULL_REQUEST_NUMBER`, `CI_DERIVED_DATA_PATH`.
 
+## Peso del bundle
+
+- Un SVG de asset catalog sin `width`/`height` toma el `viewBox` como tamaño en pt, y `actool` genera PNG de respaldo @1x/@2x/@3x a ese tamaño aunque se preserve el vector. Las banderas (`viewBox` 640×480) llegaron a ocupar ~34 MB por copia (app y widget). Llevan `width="32" height="24"` (paso E de `scripts/flags/normalize-ios-flags.py`); por encima de ese tamaño se dibuja el vector.
+- `GoogleSans-Medium.ttf` (iOS y Android) solo pinta la cabecera de Hoy y está reducida a latín, puntuación y símbolos monetarios (97 KB frente a 1,9 MB). Para ampliar cobertura, volver a subconjuntar desde el TTF original con `pyftsubset --layout-features='*'`.
+- Medición: `xcodebuild -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` y `xcrun assetutil --info Assets.car`. El binario de esa build conserva símbolos (~16 MB) que el archivado elimina.
+
 ## Bump de versión iOS (solo si el usuario lo pide)
 
 Archivo: `ios-app/CalendarioCiclismo.xcodeproj/project.pbxproj`. Actualizar los 6 sitios a la vez (Debug + Release × 3 targets). `Info.plist` usa `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` — no convertir a literales.

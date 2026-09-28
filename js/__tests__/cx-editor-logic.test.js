@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings} from '../cx-editor-logic.js';
+import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings} from '../cx/editor-logic.js';
 
 describe('editor CX: unidades, datos desconocidos e importación',()=>{
   it('acepta solo vídeos identificables de YouTube y guarda su URL canónica',()=>{

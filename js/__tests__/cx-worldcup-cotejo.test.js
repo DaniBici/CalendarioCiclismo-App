@@ -1,10 +1,10 @@
 import {describe,expect,it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {worldCupCotejo,worldCupCotejoInput} from '../../scripts/cx/cx-worldcup-cotejo.mjs';
-import {recomputeCxStandings} from '../cx-standings.js';
+import {recomputeCxStandings} from '../cx/standings.js';
 
-const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/worldcup-2025-26-mj.json',import.meta.url)));
-const derivedFixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/worldcup-2025-26-wu.json',import.meta.url)));
+const fixture=JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/worldcup-2025-26-mj.json',import.meta.url)));
+const derivedFixture=JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/worldcup-2025-26-wu.json',import.meta.url)));
 const references=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url)));
 
 describe('cotejo oficial offline Copa del Mundo MJ 2025–26',()=>{

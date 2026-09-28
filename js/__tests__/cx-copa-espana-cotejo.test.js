@@ -2,9 +2,9 @@ import {describe,expect,it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {copaEspanaCotejo,copaEspanaCotejoInput,copaEspanaDataRideMapping} from '../../scripts/cx/cx-copa-espana-cotejo.mjs';
-import {recomputeCxStandings} from '../cx-standings.js';
+import {recomputeCxStandings} from '../cx/standings.js';
 
-const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/copa-espana-alcobendas-2025.json',import.meta.url)));
+const fixture=JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/copa-espana-alcobendas-2025.json',import.meta.url)));
 const reference=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url)));
 const rehash=cat=>{cat.projectionSha256=createHash('sha256').update(JSON.stringify({dataRide:cat.dataRide,rows:cat.rows})).digest('hex');};
 

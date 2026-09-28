@@ -3,7 +3,7 @@ export function arrowHtml(direction, label, extra = '') {
   return `<button type="button" class="cc-scroll-arrow" data-direction="${direction}" aria-label="${label}" ${extra}><span aria-hidden="true">${direction === 'prev' || direction === 'up' ? '‹' : '›'}</span></button>`;
 }
 
-export function scrollBehavior() {
+function scrollBehavior() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 }
 

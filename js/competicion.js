@@ -13,7 +13,7 @@ import { supabase, stageLabel, countryFlag, formatTime, formatTimeUser,
 import { t, getLang, getLocale, initI18n } from './i18n.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
-import { buildElevationSparkline } from './elevation-profile.js';
+import { buildElevationSparkline } from './stage/elevation-profile.js';
 import { isReviveBroadcast } from './broadcast-priority.js';
 import { agendaMetaState } from './services/today-agenda-layout.js?v=20260920featured-sort';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).

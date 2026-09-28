@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {CxCalendarImportState,validateCxCalendarPreview} from '../cx-calendar-import-state.js';
+import {CxCalendarImportState,validateCxCalendarPreview} from '../cx/calendar-import-state.js';
 
 const manifest=(name='Prueba oficial')=>({
   source:'uci_web_calendar',seasonKey:'2026-27',

@@ -279,7 +279,7 @@ const nInt = (v) => { const x = n(v); return x == null ? null : Math.round(x); }
 //
 // Esto NO es lo mismo que un `irm` de RUIDO sobre la verdadera ganadora (p. ej.
 // 'LAP'='doblada' en Dwars door de Westhoek, donde la rank 1 SÍ ganó): ese código
-// no es de abandono → no se toca aquí (lo gestiona el render, ver js/uci-irm.js).
+// no es de abandono → no se toca aquí (lo gestiona el render, ver js/results/uci-irm.js).
 //
 // Criterio CONSERVADOR (deben cumplirse las tres):
 //   1. clasificación de ETAPA por tiempo (classKind='stage').

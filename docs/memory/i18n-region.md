@@ -55,6 +55,53 @@ Ambas plataformas leen el locale activo en cada llamada. iOS usa `nonIsolatedUIL
 
 ---
 
+## Dominios web
+
+El sitio inglés se sirve en `calendariociclismo.app/en/`. No hay dominio EN
+dedicado: `CONFIG.enDomain` está vacío en el build (`build-site.yml`). Detalle
+del código implicado: `docs/memory/seo-og-pages.md` → «El sitio inglés vive en
+`/en/`».
+
+### `cyclocal.app` — puente de redirección (verificado el 2026-09-28)
+
+`cyclocal.app` no sirve contenido. Toda petición la atiende el Worker
+`cyclocal-proxy` (`workers/cyclocal/src/index.js`) mediante la ruta
+`cyclocal.app/*`, creada a mano en el dashboard (Workers Routes de la zona); no
+figura en `wrangler.toml` porque el token de CI no tiene permiso de zona.
+Ninguna Redirect Rule, Page Rule ni Bulk Redirect intercepta las rutas probadas
+(se ejecutarían antes del Worker): las respuestas reproducen la lógica
+específica del Worker, incluida la caída a `/en/` de rutas desconocidas
+(`/es/` → `/en/`) y la vuelta a raíz de `/js/…` (301 sin cuerpo,
+`server: cloudflare`).
+
+| Petición a `cyclocal.app` | 301 a `calendariociclismo.app` |
+| --- | --- |
+| `/`, `/index.html` | `/en/` |
+| `/season/`, `/month/`, `/about/`, `/privacy/`, `/subscription/`, `/beta/` | misma carpeta bajo `/en/` |
+| `/search/` | `/en/` (buscador web retirado el 2026-09-28) |
+| `/race/`, `/stage/`, `/startlist/`, `/profile/`, `/start-order/` + slug | mismo prefijo bajo `/en/` |
+| `/js/`, `/css/`, `/i18n/`, `/favicon*`, `/apple-touch-icon*`, `/sitemap*`, `/atom.xml`, `/robots.txt`, `/llms.txt` | misma ruta en la raíz |
+| `/en/…` | misma ruta |
+| cualquier otra | `/en/` |
+
+La query string se conserva. HTTP redirige igual que HTTPS. `www.cyclocal.app`
+no tiene registro DNS y no responde.
+
+- Deploy: `.github/workflows/deploy-cyclocal-worker.yml` en cada push a `main`
+  que toque `workers/cyclocal/`. También publica
+  `cyclocal-proxy.<subdominio>.workers.dev`.
+- Sustitución posible por reglas de Cloudflare: una Single Redirect con
+  comodín (`https://cyclocal.app/*` → `https://calendariociclismo.app/en/${1}`)
+  cubre `/`, las carpetas y los slugs, pero no la vuelta a raíz de los assets,
+  el paso directo de `/en/…`, `/search/` ni la caída a `/en/` de rutas
+  desconocidas; replicarlo exige varias reglas ordenadas. El Worker se mantiene
+  mientras el dominio siga registrado.
+- Retirada del dominio: borrar la ruta y el Worker `cyclocal-proxy` en
+  Cloudflare, y después `workers/cyclocal/`, su workflow y la entrada de
+  `knip.json`.
+
+---
+
 ## Región (detección automática)
 
 La región no se elige a mano: se detecta a partir de la zona horaria del

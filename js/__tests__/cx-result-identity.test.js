@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {resolveCxPanelResultRows} from '../cx-result-identity.js';
+import {resolveCxPanelResultRows} from '../cx/result-identity.js';
 
 describe('enlazado de resultados del panel CX con el resolver de ingesta',()=>{
   const rider={id:'cx-uno',firstName:'Uno',lastName:'Local',nationality:'BE',birthDate:'2000-01-02',verified:true};

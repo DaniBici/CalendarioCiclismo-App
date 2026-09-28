@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { recomputeCxStandings } from '../../../js/cx-standings.js';
+import { recomputeCxStandings } from '../../../js/cx/standings.js';
 
 const headers = {
   'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',

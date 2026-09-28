@@ -95,17 +95,13 @@ final class MonthViewModel {
                     return cn < 0
                 }
 
-                let lvlA = RaceLogic.proLevel(category: rA?.uciCategory, name: rA?.name, country: rA?.countryCode)
-                let lvlB = RaceLogic.proLevel(category: rB?.uciCategory, name: rB?.name, country: rB?.countryCode)
-                if lvlA != lvlB { return lvlA < lvlB }
+                let catA = RaceLogic.raceCategoryRank(rA)
+                let catB = RaceLogic.raceCategoryRank(rB)
+                if catA != catB { return catA < catB }
 
                 let genA = RaceLogic.genderRank(rA?.gender)
                 let genB = RaceLogic.genderRank(rB?.gender)
                 if genA != genB { return genA < genB }
-
-                let catA = RaceLogic.uciRank(category: rA?.uciCategory, name: rA?.name, country: rA?.countryCode)
-                let catB = RaceLogic.uciRank(category: rB?.uciCategory, name: rB?.name, country: rB?.countryCode)
-                if catA != catB { return catA < catB }
 
                 // Doble sector (misma carrera, mismo día): la etapa MÁS TEMPRANA
                 // primero. Desempate por hora de salida; si falta, por el sufijo

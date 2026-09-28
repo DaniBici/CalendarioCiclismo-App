@@ -62,7 +62,7 @@ Las apps móviles son **nativas puras**, sin WebView ni shell híbrida, y consum
 │   └── fetch-logos.mjs             # Descarga de logos (ver más abajo)
 ├── tools/site/                      # Generadores de páginas, sitemap y feeds
 ├── workers/                         # OpenGraph y redirección del dominio legado
-└── docs/                            # Arquitectura, memorias y ADRs
+└── docs/                            # Arquitectura y memorias técnicas
 ```
 
 Las páginas generadas por competición y jornada —incluidos sus resultados—, el sitemap y los feeds iCal no se versionan. En producción, un workflow privado los regenera desde Supabase, compone el sitio completo y publica un único artefacto de GitHub Pages. Los workflows operativos se excluyen del espejo público para evitar que sus procesos se ejecuten por duplicado.

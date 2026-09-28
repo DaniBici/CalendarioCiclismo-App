@@ -12,7 +12,7 @@
  *   2) RUIDO EN EL HISTORIAL — dos commits "[auto]" diarios en main.
  *
  * Ambos se arreglan sirviendo el report desde Storage. Lo lee `_loadUciReport`
- * (js/panel.js) con la sesión del panel; el bucket es privado a propósito (el
+ * (js/panel/uci-link.js) con la sesión del panel; el bucket es privado a propósito (el
  * report expone el calendario interno y los candidatos sin casar).
  *
  * QUIÉN LO LLAMA: uci-link-discover.yml (05:40) y uci-link-evening.yml (19:00),

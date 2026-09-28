@@ -3,7 +3,7 @@
 // permite alcanzar fechas posteriores: el selector termina en este día y
 // la vista se queda en él. Un año sin entrada no tiene límite.
 // Espejo de TodaySeason en iOS (TodayViewModel.swift) y Android (util/TodaySeason.kt).
-export const TODAY_SEASON_LAST_DAY = Object.freeze({
+const TODAY_SEASON_LAST_DAY = Object.freeze({
   2026: '2026-10-18',
 });
 

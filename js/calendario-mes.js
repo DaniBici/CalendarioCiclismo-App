@@ -8,7 +8,7 @@
 //  Lo importa dinámicamente js/calendario.js cuando la subvista se activa.
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, toDateKey, stageLabel, proLevel, countryFlag, effectiveCountryCode,
+import { supabase, toDateKey, stageLabel, categoryRank, countryFlag, effectiveCountryCode,
          jornadaUrl, raceUrl, raceName, categoryBadge, rdLocation,
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
@@ -157,20 +157,6 @@ function passesCategoryFilter(rd) {
   return true; // 'all'
 }
 
-const UCI_ORDER = {'WC':1,'CC':2,'1.UWT':3,'2.UWT':4,'CN':4.5,'1.WWT':5,'2.WWT':6,
-                   '1.Pro':7,'2.Pro':8,'1.1':9,'2.1':10,'1.2':11,'2.2':12,'1.2U':13,'2.2U':14};
-function uciRankMes(race) {
-  const cat     = race?.uciCategory || '';
-  const name    = race?.name || '';
-  const country = race?.countryCode || '';
-  if (/giro de italia/i.test(name)) return 0.1;
-  if (/tour de francia/i.test(name)) return 0.2;
-  if (/la vuelta/i.test(name)) return 0.3;
-  if (cat === 'CC' && !/europa|europe/i.test(name)) return 14.5;
-  if (['1.Pro','2.Pro','1.1','2.1'].includes(cat) && ASIA_1.test(country) && !/japan cup/i.test(name)) return 12.5;
-  return UCI_ORDER[cat] ?? 99;
-}
-
 function sortDayRaces(list) {
   return list.sort((a, b) => {
     const phA = a._placeholder ? 1 : 0, phB = b._placeholder ? 1 : 0;
@@ -178,14 +164,12 @@ function sortDayRaces(list) {
     // Dos Campeonatos Nacionales: orden interno por país → línea/CRI → categoría.
     const cn = compareChampionships(a._race, a, b._race, b);
     if (cn != null && cn !== 0) return cn;
-    const lvlDiff = proLevel(a._race?.uciCategory, a._race?.name, a._race?.countryCode)
-                  - proLevel(b._race?.uciCategory, b._race?.name, b._race?.countryCode);
-    if (lvlDiff !== 0) return lvlDiff;
+    const catDiff = categoryRank(a._race?.uciCategory, a._race?.name, a._race?.countryCode)
+                  - categoryRank(b._race?.uciCategory, b._race?.name, b._race?.countryCode);
+    if (catDiff !== 0) return catDiff;
     const genA = a._race?.gender === 'female' ? 2 : 1;
     const genB = b._race?.gender === 'female' ? 2 : 1;
     if (genA !== genB) return genA - genB;
-    const catDiff = uciRankMes(a._race) - uciRankMes(b._race);
-    if (catDiff !== 0) return catDiff;
     // Doble sector (misma carrera, mismo día): la etapa MÁS TEMPRANA primero.
     // Desempate por hora de salida; si falta, por el sufijo A/B (que ya se
     // asigna en orden cronológico en annotateDoubleSectors).

@@ -103,7 +103,6 @@
         '/abierto/':     '/en/open/',
         '/abierto.html': '/en/open/',
         '/apoyar/':      '/en/support/',
-        '/buscar.html':  '/en/search/',
         '/resultados/':  '/en/results/',
         '/fichajes/':    '/en/transfers/',
         '/privacidad.html': '/en/privacy/',
@@ -153,7 +152,6 @@
           '/about/':        '/about/',
           '/open/':         '/abierto/',
           '/support/':      '/apoyar/',
-          '/search/':       '/buscar.html',
           '/results/':      '/resultados/',
           '/transfers/':    '/fichajes/',
           '/privacy/':      '/privacidad.html',
@@ -179,7 +177,6 @@
       if (path.startsWith('/en/about/')) return '/about/' + qs;
       if (path.startsWith('/en/open/')) return '/abierto/' + qs;
       if (path.startsWith('/en/support/')) return '/apoyar/' + qs;
-      if (path.startsWith('/en/search/')) return '/buscar.html' + qs;
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;
       if (path.startsWith('/en/transfers/')) return '/fichajes/' + qs;
       if (path.startsWith('/en/privacy/')) return '/privacidad.html' + qs;

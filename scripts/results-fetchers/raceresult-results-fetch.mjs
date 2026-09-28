@@ -54,7 +54,7 @@
  *   tiempo absoluto "2h53'29''" / "15h32'22''" → "2:53:29" / "15:32:22" (formato BD).
  *   gap "+28''" → "+28" · "+1'15''" → "+1:15" · "+3'25''" → "+3:25" (estilo UCI).
  *   puntos "84 pt"/"84 pts"/"84" → "84".  rank "1." → 1.
- *   IRM (col rank): DNF/DNS/DSQ/OTL/HD/NP/AB → códigos UCI (js/uci-irm.js).
+ *   IRM (col rank): DNF/DNS/DSQ/OTL/HD/NP/AB → códigos UCI (js/results/uci-irm.js).
  *
  * MAPEO lista → {classKind, scope}:
  *   Stage Results → stage/stage (por etapa, selector s=)
@@ -75,6 +75,10 @@
  * Classification" (stageNumber NULL, isFinalClassification=true, scope='stage' — quirk
  * UCI migración 085), no colgando de la última etapa (evita el duplicado
  * "general del día E_última" ≈ "general final"). Mismo criterio que Matsport.
+ * Con --stage N (volcado del cron) la final nace con --final (el cron sabe que N es
+ * la última jornada) o con EventOver sobre la última etapa del selector: race|result
+ * puede tardar horas en marcar EventOver y la ventana cerraría sin general final
+ * (CRO Race 2026, E6). Los acumulados LIVE provisionales nunca forman la final.
  *
  * IDs SINTÉTICOS: race|result no existe en DataRide → eventId/uciRaceId NEGATIVOS y
  *   deterministas (mismo esquema que Tissot/Matsport/PDF, salt propio "raceresult:"):
@@ -104,6 +108,9 @@
  *                     En eventos multiconcurso se añade ":contest:<id>" al salt. Este
  *                     script imprime el valor aplicable con --suggest-id.
  *   --stage           (opcional) limitar a un nº de etapa.
+ *   --final           (opcional) la jornada pedida es la última de la vuelta: emite la
+ *                     pseudo-etapa "Final Classification" con los acumulados de Results
+ *                     aunque EventOver siga en false. Lo añade el cron en la última jornada.
  *   --gender          male|female; selecciona el concurso en eventos multigénero
  *                     con perfil verificado, como Philadelphia 2026.
  *   --contest         id de concurso de race|result. Prevalece sobre el perfil.
@@ -136,6 +143,10 @@ const hasFlag = (n) => args.includes(`--${n}`);
 const EVENT = getArg('event');                       // eventId race|result (402988)
 const COMPETITION_ID = getArg('competition-id');     // sintético negativo (puente race_uci_links)
 const ONLY_STAGE = getArg('stage') != null ? parseInt(getArg('stage'), 10) : null;
+// --final: el cron declara que la jornada pedida es la última de la vuelta. Con
+// --stage N la pseudo-etapa "Final Classification" solo nace con esta señal o con
+// EventOver sobre la última etapa del selector (ver shouldEmitFinalClassification).
+const FINAL_FLAG = hasFlag('final');
 const GENDER = getArg('gender');
 const DATE_ARG = getArg('date');
 
@@ -307,14 +318,14 @@ const synthRaceId = (slot) => -(ID_BASE * 10000 + slot * 100);
 const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
 // ── normalización ───────────────────────────────────────────────────────────
-// Exportadas para tests (js/__tests__/raceresultResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/raceresult-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 // race|result mete imágenes como "[img:...]" y a veces texto con marcadores → si una
 // celda es solo una imagen, se trata como vacía para los campos de texto.
 export function cellText(v) { const t = clean(v); return /^\[img:/i.test(t) ? '' : t; }
 
-// status / IRM de race|result (col rank) → códigos IRM UCI (los que entiende js/uci-irm.js).
+// status / IRM de race|result (col rank) → códigos IRM UCI (los que entiende js/results/uci-irm.js).
 const IRM_MAP = { DNF: 'DNF', AB: 'DNF', ABD: 'DNF', DNS: 'DNS', NP: 'DNS', DSQ: 'DSQ', DQ: 'DSQ', EX: 'DSQ', OTL: 'OTL', HD: 'OTL', OOT: 'OTL' };
 // Estados TRANSITORIOS de la lista LIVE que NO son IRM ni puesto: el corredor cruzó
 // pero su tiempo/posición aún se procesa. "PHOTO" = photo-finish pendiente. Se tratan
@@ -781,6 +792,21 @@ function writeOutput(stages) {
   if (PRETTY) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
 }
 
+// ¿Emitir la pseudo-etapa "Final Classification"?
+//   · lectura completa (sin --stage): EventOver o --final.
+//   · --stage N: --final (el cron sabe que N es la última jornada) o EventOver
+//     cuando N coincide con la última etapa del selector de Results. Un --stage
+//     intermedio sobre una carrera terminada no convierte su acumulado en final.
+// Exportada para tests (scripts/__tests__/raceresult-results-fetch.test.js).
+export function shouldEmitFinalClassification({
+  onlyStage = null, finalFlag = false, eventOver = false, stageNumber = null, lastStageNumber = null,
+} = {}) {
+  if (onlyStage == null) return !!(eventOver || finalFlag);
+  if (finalFlag) return true;
+  return !!eventOver && stageNumber != null && lastStageNumber != null
+    && Number(stageNumber) === Number(lastStageNumber);
+}
+
 // ── pipeline ────────────────────────────────────────────────────────────────
 async function main() {
   checkArgs();
@@ -1016,6 +1042,7 @@ async function main() {
             rows = mapRows(flattenData(d?.data), spec, spec.classKind, spec.timed);
           }
         }
+        let fromLive = false;
         if (!rows.length && ONLY_STAGE != null && !eventOver
             && (spec.classKind === 'points' || spec.classKind === 'kom')) {
           const pattern = spec.classKind === 'points' ? /LIVE Points Classification/i : /LIVE KOM Classification/i;
@@ -1023,11 +1050,14 @@ async function main() {
           if (liveName) {
             await sleep(DELAY);
             rows = liveOverallRows(await fetchList(server, liveName, null, 'live'), spec, DATE_ARG);
-            if (rows.length) log(`    E${stageNumber} ${spec.classKind}/overall LIVE provisional: ${rows.length} filas`);
+            if (rows.length) {
+              fromLive = true;
+              log(`    E${stageNumber} ${spec.classKind}/overall LIVE provisional: ${rows.length} filas`);
+            }
           }
         }
         if (!rows.length) continue;
-        overalls.push({ spec, rows });
+        overalls.push({ spec, rows, fromLive });
       }
       lastOveralls = { stageNumber, overalls };
       // Si la carrera NO ha terminado, las generales SÍ cuelgan de la última etapa
@@ -1056,12 +1086,25 @@ async function main() {
     });
   }
 
-  // Carrera terminada → pseudo-etapa "Final Classification" con las generales DEFINITIVAS
-  // (quirk UCI: scope='stage' + isFinalClassification, migración 085). Mismo criterio que Matsport.
-  if (eventOver && lastOveralls && lastOveralls.overalls.length && ONLY_STAGE == null) {
+  // Pseudo-etapa "Final Classification" con las generales DEFINITIVAS (quirk UCI:
+  // scope='stage' + isFinalClassification, migración 085). En lectura completa manda
+  // EventOver, como en Matsport. Con --stage N la señal es --final del cron (o
+  // EventOver sobre la última etapa del selector): race|result puede tardar horas en
+  // marcar EventOver y la ventana de la última jornada cerraba sin general final
+  // (CRO Race 2026, E6). Solo entran acumulados de Results: los LIVE provisionales
+  // de puntos/montaña no son definitivos.
+  const emitFinal = !!(lastOveralls && lastOveralls.overalls.length) && shouldEmitFinalClassification({
+    onlyStage: ONLY_STAGE, finalFlag: FINAL_FLAG, eventOver,
+    stageNumber: lastOveralls?.stageNumber, lastStageNumber,
+  });
+  const finalOveralls = emitFinal ? lastOveralls.overalls.filter((o) => !o.fromLive) : [];
+  if (emitFinal && !finalOveralls.length) {
+    log(`    FINAL omitida: los acumulados de la E${lastOveralls.stageNumber} son provisionales (LIVE)`);
+  }
+  if (finalOveralls.length) {
     const FINAL_NAMES = { gc: 'General Classification', points: 'Points Classification', kom: 'Mountain Classification', youth: 'Youth Classification', teams: 'Teams Classification' };
     const classifications = [];
-    for (const { spec, rows } of lastOveralls.overalls) {
+    for (const { spec, rows } of finalOveralls) {
       classifications.push(buildClassification(
         FINAL_SLOT,
         { ...spec, scope: 'stage', eventName: FINAL_NAMES[spec.classKind] || spec.eventName },
@@ -1079,7 +1122,7 @@ async function main() {
       classificationCount: classifications.length,
       classifications,
     });
-    log(`    FINAL (carrera terminada): ${classifications.length} clasificaciones desde la E${lastOveralls.stageNumber}`);
+    log(`    FINAL (${eventOver ? 'carrera terminada' : 'última jornada'}): ${classifications.length} clasificaciones desde la E${lastOveralls.stageNumber}`);
   }
 
   writeOutput(stages);

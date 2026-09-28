@@ -1,7 +1,7 @@
-import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from './result-time.js?v=20260914cxresults';
-import { updateResultsHtml, limitScrollToStickyStart } from './results-dom.js?v=20260927stickyscroll';
-import { mountStageProfile } from './stage-profile.js';
-import { stageContextHtml, stageMetricsHtml } from './stage-context.js';
+import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from './results/time.js?v=20260914cxresults';
+import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js?v=20260927stickyscroll';
+import { mountStageProfile } from './stage/profile.js';
+import { stageContextHtml, stageMetricsHtml } from './stage/context.js';
 import { teamStripes, teamsForSeason } from './team-appearance.js';
 import { visibleStageClassifications, classificationInventory, classificationLabel, classificationColor, classificationIsUpdating, isTttStageClassification } from './services/race-presentation.js';
 import { arrowHtml, installScrollRail } from './scroll-rail.js';
@@ -26,7 +26,7 @@ import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          buildRaceHeader, buildActionButtons, buildTeamBadgeSvg, riderLinkUrl, loadRaceTechnicalGuide, withRaceTechnicalGuide,
          isNoTeamPlaceholderTeam, effectiveCountryCode, setRaceRobots } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
-import { IRM_LABELS, isAbandonIrm, isNonWinnerIrm, irmDescription } from './uci-irm.js';
+import { IRM_LABELS, isAbandonIrm, isNonWinnerIrm, irmDescription } from './results/uci-irm.js';
 import { sectorSuffixMap, resultStageEntryKey, parseResultStageKey } from './services/races.js';
 
 // Orden y etiquetas de las clasificaciones (las pestañas se muestran en este orden).
@@ -91,7 +91,7 @@ function uciPointsCellHtml(show, row) {
   return `<td class="so-td res-td--uci">${esc(formatUciPoints(value))}</td>`;
 }
 // Marcadores especiales (no clasificados, DNF/DNS/OTL/DSQ): IRM_LABELS vive en
-// uci-irm.js (fuente única, compartida con el tachado de inscritos). Se muestran
+// results/uci-irm.js (fuente única, compartida con el tachado de inscritos). Se muestran
 // SOLO en la columna de puesto (#), con la etiqueta corta localizada.
 
 function stagePathLabel(stageNumber, isEn, suffix = '') {

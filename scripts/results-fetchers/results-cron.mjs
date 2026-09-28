@@ -421,8 +421,11 @@ export function manual_timingFetchArgs({ code, stage, date, competitionId, outDi
   ];
 }
 
+// race|result conserva --stage en la última jornada (su lista LIVE no filtra por
+// etapa) y recibe --final para que el fetcher emita la pseudo-etapa Final
+// Classification sin esperar a EventOver (CRO Race 2026, E6).
 export function raceresultFetchArgs({
-  event, competitionId, outDir, delay, gender, raceFormat, date, targetStage,
+  event, competitionId, outDir, delay, gender, raceFormat, date, targetStage, final = false,
 }) {
   if (!event) return null;
   return [
@@ -434,6 +437,7 @@ export function raceresultFetchArgs({
     ...(raceFormat === 'one_day' ? ['--one-day'] : []),
     ...(date ? ['--date', String(date)] : []),
     ...(targetStage != null ? ['--stage', String(targetStage)] : []),
+    ...(final ? ['--final'] : []),
   ];
 }
 
@@ -836,7 +840,12 @@ async function main() {
       srcLabel = ` ← raceresult:${t.raceresultCode}`;
       // La lista LIVE de race|result no filtra por etapa → solo activamos su fallback en
       // vivo apuntando a la etapa de HOY con --stage (si la hay). Sin etapa hoy, se queda
-      // con las listas "results" oficiales (con selector, seguras).
+      // con las listas "results" oficiales (con selector, seguras). En la última jornada
+      // se conserva --stage (el directo sigue necesitándolo) y se añade --final: el
+      // fetcher solo emitía la pseudo-etapa Final Classification sin --stage y con
+      // EventOver=true, así que la general final de una vuelta nunca llegaba en
+      // automático (CRO Race 2026, E6: race|result mantenía EventOver=false horas
+      // después de meta).
       fc = await run(RACERESULT_FETCH, raceresultFetchArgs({
         event: t.raceresultCode,
         competitionId: t.competitionId,
@@ -846,6 +855,7 @@ async function main() {
         raceFormat: t.raceFormat,
         date: t.scheduledDate,
         targetStage,
+        final: isFinalStage,
       }));
     } else if (kind === 'sts') {
       // 'sts' (109): STS/Wiclax; .clax XML público en /LIVE/<stsCode>.clax.

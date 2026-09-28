@@ -1,5 +1,5 @@
-import { cxDateInSeason } from '../../js/cx-season.js';
-import { cxCategoryTiming } from '../../js/cx-timing.js';
+import { cxDateInSeason } from '../../js/cx/season.js';
+import { cxCategoryTiming } from '../../js/cx/timing.js';
 
 const CATEGORIES=new Set(['ME','WE','MU','WU','MJ','WJ']);
 const MADRID_DATE=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'});

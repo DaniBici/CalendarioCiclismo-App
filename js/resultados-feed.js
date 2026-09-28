@@ -25,10 +25,10 @@ import { enrichResultFeed } from './services/result-feed-context.js';
 import { classificationLabel, classificationColor } from './services/race-presentation.js';
 import { supabase, esc, countryFlag, raceName as getRaceName, enBase,
          setMeta, setMetaProperty, resolveTypeBadges,
-         uciRank, proLevel, genderRank, grandTourRank, tsSeconds,
+         categoryRank, genderRank, grandTourRank, tsSeconds,
          nameImpliesFemale, effectiveCountryCode, femaleMark } from './shared.js';
 import { getLang } from './i18n.js';
-import { isNonWinnerIrm } from './uci-irm.js';
+import { isNonWinnerIrm } from './results/uci-irm.js';
 import { compareChampionships } from './campeonatos-config.js';
 import { resultFeedEntryKey, sectorSuffixMap } from './services/races.js';
 import {
@@ -36,7 +36,7 @@ import {
   formatUciRankingUpdated,
   UciRankingTier,
   uciRankingRuleText,
-} from './uci-team-ranking.js';
+} from './results/uci-team-ranking.js';
 import {
   RESULTS_SEASON_START,
   initialResultsFromKey,
@@ -115,12 +115,10 @@ function cmpEntries(a, b) {
   if (cn != null && cn !== 0) return cn;
   const gt = grandTourRank(rA) - grandTourRank(rB);
   if (gt) return gt;
-  const lvl = proLevel(rA.uciCategory, rA.name, rA.countryCode) - proLevel(rB.uciCategory, rB.name, rB.countryCode);
-  if (lvl) return lvl;
+  const cat = categoryRank(rA.uciCategory, rA.name, rA.countryCode) - categoryRank(rB.uciCategory, rB.name, rB.countryCode);
+  if (cat) return cat;
   const gen = genderRank(rA.gender) - genderRank(rB.gender);
   if (gen) return gen;
-  const cat = uciRank(rA.uciCategory, rA.name, rA.countryCode) - uciRank(rB.uciCategory, rB.name, rB.countryCode);
-  if (cat) return cat;
   if (a._sortTime !== b._sortTime) return a._sortTime - b._sortTime;
   return (rA.name || '').localeCompare(rB.name || '');
 }

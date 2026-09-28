@@ -32,7 +32,7 @@ Ver `docs/memory/riders-database.md` para la BD de corredores y su matching en e
 
 ## Panel — sección "Equipos"
 
-`#teamsView` en `panel/app.html`. CRUD con cuatro pares color-picker+hex sincronizados: tres cuadrados cromáticos y el fondo de pestaña/barra de título. La vista previa reproduce esas dos salidas; el texto de cabecera se calcula automáticamente. Funciones en `js/panel.js`: `setupTeamsView`, `openTeamEditor`, `saveTeam`, `deleteTeam`, `refreshTeamPreview`.
+`#teamsView` en `panel/app.html`. CRUD con cuatro pares color-picker+hex sincronizados: tres cuadrados cromáticos y el fondo de pestaña/barra de título. La vista previa reproduce esas dos salidas; el texto de cabecera se calcula automáticamente. Funciones en `js/panel/teams.js`: `setupTeamsView`, `openTeamEditor`, `saveTeam`, `deleteTeam`, `refreshTeamPreview`.
 
 ## Editor e importación (2026-09-04)
 

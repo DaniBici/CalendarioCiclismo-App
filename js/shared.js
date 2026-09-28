@@ -8,7 +8,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { t, getLang, getLocale } from './i18n.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { extractYouTubeId } from './broadcast-embed.js';
-import { hasRenderableElevationProfile } from './profile-availability.js';
+import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasCustomTeamBadgeColors } from './team-badge.js';
 export { extractYouTubeId };
 export { hasCustomTeamBadgeColors } from './team-badge.js';
@@ -56,15 +56,7 @@ export function withRaceTechnicalGuide(assets = [], technicalGuide = null) {
 }
 
 // ── Constantes ───────────────────────────────────────────────────
-export const UCI_ORDER = {
-  'WC': 1, 'CC': 2,
-  '1.UWT': 3, '2.UWT': 4,
-  'CN': 4.5,
-  '1.WWT': 5, '2.WWT': 6,
-  '1.Pro': 7, '2.Pro': 8,
-  '1.1': 9,  '2.1': 10,
-  '1.2': 11, '2.2': 12, '1.2U': 13, '2.2U': 14,
-};
+export { UCI_ORDER, categoryRank, raceCategoryRank, genderRank, grandTourRank, tsSeconds } from './services/race-order.js';
 
 // TYPE_LABELS: proxy que devuelve la etiqueta en el idioma activo
 export const TYPE_LABELS = new Proxy({}, {
@@ -159,15 +151,6 @@ export function articuloNombre(name) {
 // ── Helpers de hora ──────────────────────────────────────────────
 // Convierte segundos Unix o ISO string a un objeto {seconds, toDate}
 // para compatibilidad con el código que usa .seconds y .toDate()
-export function tsSeconds(ts) {
-  if (!ts) return null;
-  if (typeof ts === 'string') return new Date(ts).getTime() / 1000;
-  if (typeof ts === 'number') return ts;
-  if (ts.seconds !== undefined) return ts.seconds;
-  if (ts.toDate) return ts.toDate().getTime() / 1000;
-  return null;
-}
-
 export function formatTime(ts) {
   if (!ts) return null;
   const d = typeof ts === 'string' ? new Date(ts) : (ts.toDate ? ts.toDate() : new Date(ts));
@@ -241,29 +224,6 @@ export function stageLabel(n, suffix, isFinal = false) {
   if (n === 0 || n === '0') return t('stage.prologue') + (suffix ? ` ${suffix}` : '') + finalStr;
   return n ? `${t('stage.stage')} ${n}${suffix || ''}${finalStr}` : '';
 }
-
-export function uciRank(cat, name, country) {
-  if (/giro de italia/i.test(name || '')) return 0.1;
-  if (/tour de francia/i.test(name || '')) return 0.2;
-  if (/la vuelta/i.test(name || '')) return 0.3;
-  if ((cat === '1.2U' || cat === '2.2U') && isTourDelPorvenir(name)) return 8.5;
-  if (cat === 'CC' && !/europa|europe/i.test(name || '')) return 14.5;
-  if (['1.Pro','2.Pro','1.1','2.1'].includes(cat) && /^(CN|TH|JP|TW|KR|HK)$/i.test(country || '') && !/japan cup/i.test(name || '')) return 10.5;
-  return UCI_ORDER[cat] ?? 99;
-}
-
-export function proLevel(cat, name, country) {
-  if (/giro de italia/i.test(name || '')) return 0.1;
-  if (/tour de francia/i.test(name || '')) return 0.2;
-  if (/la vuelta/i.test(name || '')) return 0.3;
-  if (['1.Pro','2.Pro','1.1','2.1'].includes(cat) && /^(CN|TH|JP|TW|KR|HK|AZ)$/i.test(country || '') && !/japan cup/i.test(name || '')) return 10.5;
-  const MAP = {'WC':1,'CC':2,'1.UWT':3,'2.UWT':4,'1.WWT':5,'2.WWT':6,
-               '1.Pro':7,'2.Pro':8,'1.1':9,'2.1':10,'1.2':11,'2.2':12,'1.2U':13,'2.2U':14};
-  return MAP[cat] ?? 99;
-}
-
-export function genderRank(g) { return g === 'female' ? 2 : 1; }
-export function grandTourRank(race) { return race?.isGrandTour ? 0 : 1; }
 
 // ── Bandera desde código ISO ─────────────────────────────────────
 // Las banderas de las comunidades autónomas españolas no existen en
@@ -432,7 +392,8 @@ export function categoryBadge(uci, isFemale) {
             : uci                 ? '1'
             : null;
   const uciBadge  = cls ? `<span class="badge badge--${cls}">${uci}</span>` : '';
-  const genBadge  = isFemale ? `<span class="badge badge--female" title="Femenino"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><line x1="12" y1="13" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg></span>` : '';
+  // La categoría WWT ya indica que la prueba es femenina.
+  const genBadge  = isFemale && !/WWT$/.test(uci || '') ? `<span class="badge badge--female" title="Femenino"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><line x1="12" y1="13" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg></span>` : '';
   return uciBadge + genBadge;
 }
 
@@ -782,6 +743,11 @@ export function trapFocus(modal, opts = {}) {
 }
 
 // ── Modal móvil para data-ph-tooltip ────────────────────────────
+// Ancho a partir del cual las tarjetas usan la composición móvil y los avisos
+// de «sin información» se abren al pulsar en vez de al pasar el ratón. Mismo
+// valor que el breakpoint de tarjetas de css/app.css.
+export const COMPACT_VIEWPORT_QUERY = '(max-width: 760px)';
+
 export function openPhBanner(el) {
   const msg     = el.dataset.phMsg || el.dataset.phTooltip || '';
   // flagHtml: HTML del <img> de countryFlag() — se inyecta sin escaping
@@ -814,7 +780,7 @@ let _phTooltipWired = false; // guard: en /calendario/ pueden inicializar las do
 export function initPhTooltip({ skipMobileMes = false } = {}) {
   if (_phTooltipWired) return;
   _phTooltipWired = true;
-  const isMobile = () => window.innerWidth < 600;
+  const isMobile = () => window.matchMedia(COMPACT_VIEWPORT_QUERY).matches;
 
   // Desktop: tooltip al hover
   document.addEventListener('mouseover', e => {
@@ -862,6 +828,9 @@ export function initPhTooltip({ skipMobileMes = false } = {}) {
       return;
     }
     if (skipMobileMes && (el.closest('.month-grid') || el.closest('.temporada-filters'))) return;
+    // Los enlaces y botones de la tarjeta (TV, inscritos…) conservan su acción.
+    const control = e.target.closest('a, button');
+    if (control && control !== el && el.contains(control)) return;
     if (el.tagName !== 'A') e.preventDefault();
     openPhBanner(el);
   });

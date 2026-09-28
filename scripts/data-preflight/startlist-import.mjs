@@ -3,8 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { normalizeStartlistSource } from '../../js/startlist-source.mjs';
-export { normalizeStartlistSource } from '../../js/startlist-source.mjs';
+import { normalizeStartlistSource } from '../../js/startlist/source.mjs';
+export { normalizeStartlistSource } from '../../js/startlist/source.mjs';
 const sql = value => `'${String(value).replaceAll("'", "''")}'`;
 
 export function prepareStartlistSql(source, { provisional = false } = {}) {

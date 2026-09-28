@@ -12,7 +12,7 @@
 
 import { esc } from './shared.js';
 import { t, getLang } from './i18n.js';
-import { irmLabel } from './uci-irm.js';
+import { irmLabel } from './results/uci-irm.js';
 
 let _riderTip = null;
 let _riderTipAnchor = null;

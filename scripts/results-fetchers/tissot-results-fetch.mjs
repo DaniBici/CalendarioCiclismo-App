@@ -172,7 +172,7 @@ const synthRaceId = (slot) => -(ID_BASE * 10000 + slot * 100);
 const synthEventId = (slot, kind, scope) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 12));
 
 // ── normalización de tiempos Tissot → formato UCI ─────────────────────────
-// Exportadas para tests (js/__tests__/tissotResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/tissot-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 export function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 

@@ -1,5 +1,5 @@
 // Clientes inyectados: se comparte entre panel, web y pruebas sin cargar Auth.
-import {cxSeasonMonths,cxDateInSeason,cxSeasonBounds} from '../cx-season.js?v=20260912cxmonths7';
+import {cxSeasonMonths,cxDateInSeason,cxSeasonBounds} from '../cx/season.js?v=20260912cxmonths7';
 export const CX_AGENDA_SELECT='id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone,assets(type,url),cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl),cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl,startlistImportedAt)';
 
 // Clases ocultas en inglés: la categoría nacional española (y los futuros

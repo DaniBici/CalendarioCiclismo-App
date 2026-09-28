@@ -137,6 +137,7 @@ const LOCALES = {
       // Las usa competicion.js; existían solo en i18n/en.json → en ES el badge
       // imprimía la clave cruda ("stage.stageCancelledBadge").
       stageCancelledBadge: 'Cancelada', stageCancelledTooltip: 'Etapa cancelada',
+      noExtraInfoSoon: 'Por ahora sin información extra', noExtraInfo: 'Sin información extra',
       previous: 'Etapa anterior', next: 'Etapa siguiente',
       viewAll: 'Ver todas las etapas', summary: 'Resumen',
       pickStage: 'Elegir etapa',
@@ -366,10 +367,6 @@ function _detectLang() {
 let _lang = _detectLang();
 
 export function getLang() { return _lang; }
-export function setLang(lang) {
-  _lang = lang;
-  try { localStorage.setItem('cc_lang', lang); } catch { /* ignore */ }
-}
 
 // ── t(key) — función de traducción ──────────────────────────────
 // key: notación dot-path, ej. 'types.flat', 'months.short'
@@ -400,23 +397,8 @@ export function getLocale() {
   return t('locale.code') || (_lang === 'en' ? 'en-GB' : 'es-ES');
 }
 
-// ── URLs base ────────────────────────────────────────────────────
-export function getBaseUrl() {
-  const origin = window.location.origin;
-  if (_lang === 'en') {
-    const _enHostBase = (typeof CONFIG !== 'undefined' && CONFIG.enDomain) || window.EN_DOMAIN || null;
-    if (_enHostBase && window.location.hostname === _enHostBase) {
-      return origin;
-    }
-    return `${origin}/en`;
-  }
-  return origin;
-}
-
 // Carga asíncrona del diccionario EN (llamar desde el entry point de páginas EN)
 export async function initI18n() {
   if (_lang === 'en') await _loadEN();
 }
 
-// Exponer LOCALES para que el build script los exporte
-export { LOCALES };

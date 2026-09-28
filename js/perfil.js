@@ -1,7 +1,7 @@
 import { supabase, esc, stageLabel } from './shared.js';
 import { t } from './i18n.js';
-import { buildElevationProfileSVG }  from './elevation-profile.js';
-import { computeClimbStats, effectiveSummitAlt } from './climb-detection.js';
+import { buildElevationProfileSVG }  from './stage/elevation-profile.js';
+import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
 
 const params  = new URLSearchParams(location.search);
 const content = document.getElementById('perfilContent');

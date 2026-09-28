@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {worldCupDropCaseCotejo,worldCupDropCaseInput} from '../../scripts/cx/cx-worldcup-drop-case.mjs';
 
-const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/worldcup-drop-case-2019-20-mu.json',import.meta.url)));
+const fixture=JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/worldcup-drop-case-2019-20-mu.json',import.meta.url)));
 const references=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url)));
 function rehash(round){round.projectionSha256=createHash('sha256').update(JSON.stringify(
   {dateKey:round.dateKey,dataRide:round.dataRide,rows:round.rows})).digest('hex');}

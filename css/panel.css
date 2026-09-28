@@ -2,40 +2,12 @@
    CALENDARIO CICLISMO — Panel de Administración
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+@import url('tokens.css?v=20260928tokens');
 
 :root {
-  --content-max:   1440px;
-  --page-gutter:   16px;
-  --bg:            #141923;
   --bg-sidebar:    #202938;
-  --bg-card:       #1e2632;
-  --bg-card-hover: #293443;
   --bg-input:      #252e3b;
-  --border:        #354252;
-  --border-light:  #465568;
   --border-focus:  #4d94f0;
-  --text:          #e2e2e9;
-  --text-muted:    #b7c1ce;
-  --text-dim:      #9296a3;
-  --accent:        #1a73e8;
-  --accent-text:   #4d94f0;
-  --accent-dim:    rgba(26,115,232,0.12);
-  --btn-primary-text: #ffffff;
-  --red:           #ffb4ab;
-  --green:         #6dd58c;
-  --blue:          #7fcfff;
-  --orange:        #ffb77c;
-
-  --header-text:   #e2e2e9;
-  --font-display: 'Google Sans', 'Roboto', sans-serif;
-  --font-body:    'Google Sans', 'Roboto', sans-serif;
-  --radius:      8px;
-  --radius-btn:  3px;
-  --radius-lg:   12px;
-  --transition:  0.15s ease;
-  --bg-header:   #202938;
-  --card-shadow: 0 0 6px rgba(255,255,255,0.07);
 
   /* Shell — referenciados en lugar de literales hardcodeados, para que el
      paso a rail+drawer (Fase 2) sea un cambio de un único token.
@@ -44,124 +16,20 @@
   --topbar-height: 52px;
   --rail-width:    210px;
   --editor-content-width: 1120px;
-
-  --badge-wt-bg:     rgba(170,199,255,0.15);
-  --badge-wt-color:  #aac7ff;
-  --badge-pro-bg:    rgba(180,180,180,0.15);
-  --badge-pro-color: #aaaaaa;
-  --badge-1-bg:      rgba(180,180,180,0.15);
-  --badge-1-color:   #aaaaaa;
-  --badge-2-bg:      rgba(180,180,180,0.15);
-  --badge-2-color:   #aaaaaa;
-  --badge-wc-bg:     rgba(210,180,255,0.15);
-  --badge-wc-color:  #d2b4ff;
-  --badge-m-bg:      rgba(210,180,255,0.12);
-  --badge-m-color:   #c8aaff;
-  --badge-f-bg:      rgba(109,213,140,0.12);
-  --badge-f-color:   #6dd58c;
-
-  --type-flat-bg:    rgba(140,220,100,0.15);
-  --type-flat-color: #8cdc64;
-  --type-roll-bg:    rgba(100,170,80,0.15);
-  --type-roll-color: #7ab85a;
-  --type-cotas-bg:   rgba(177,176,80,0.15);
-  --type-cotas-color:#bcb755;
-  --type-med-bg:     rgba(255,183,80,0.15);
-  --type-med-color:  #ffb750;
-  --type-high-bg:    rgba(255,120,100,0.15);
-  --type-high-color: #ff7864;
-  --type-uphill-bg:  rgba(255,160,48,0.15);
-  --type-uphill-color:#ffa030;
-  --type-chrono-bg:  rgba(100,200,255,0.15);
-  --type-chrono-color:#64c8ff;
-  --type-cobble-bg:  rgba(160,160,160,0.15);
-  --type-cobble-color:#a8a8a8;
-  --type-sterra-bg:  rgba(210,185,140,0.15);
-  --type-sterra-color:#d4bc8c;
 }
 
 /* ── Tema claro ───────────────────────────────────────────────── */
 html.light {
-  --bg:            #f3f5f8;
   --bg-sidebar:    #edf1f6;
-  --bg-card:       #fafbfc;
-  --bg-card-hover: #e9edf3;
   --bg-input:      #ffffff;
-  --border:        #d8dee8;
-  --border-light:  #c8cacf;
   --border-focus:  #1666cc;
-  --text:          #1f1f1f;
-  --text-muted:    #5f6368;
-  --text-dim:      #63686d;
-  --accent:        #1a73e8;
-  --accent-text:   #1666cc;
-  --accent-dim:    rgba(26,115,232,0.10);
-  --btn-primary-text: #fff;
-  --red:           #c5221f;
-  --green:         #137333;
-  --blue:          #1565c0;
-  --orange:        #e37400;
-  --header-text:   #1f1f1f;
-  --bg-header:     #edf1f6;
-  --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
-  --badge-wt-bg:     #d3e3fd; --badge-wt-color:  #0842a0;
-  --badge-pro-bg:    #eeeeee; --badge-pro-color: #666666;
-  --badge-1-bg:      #eeeeee; --badge-1-color:   #666666;
-  --badge-2-bg:      #eeeeee; --badge-2-color:   #666666;
-  --badge-wc-bg:     #f3e8fd; --badge-wc-color:  #7b1fa2;
-  --badge-m-bg:      #f3e8fd; --badge-m-color:   #7b1fa2;
-  --badge-f-bg:      #e6f4ea; --badge-f-color:   #137333;
-  --type-flat-bg:    #e8f5e9; --type-flat-color: #2e7d32;
-  --type-roll-bg:    #dcedc8; --type-roll-color: #3f6b1f;
-  --type-cotas-bg:   #edf0d4; --type-cotas-color:#7a5410;
-  --type-med-bg:     #fff3e0; --type-med-color:  #b34700;
-  --type-high-bg:    #fce4ec; --type-high-color: #b71c1c;
-  --type-uphill-bg:  #fff0d8; --type-uphill-color:#8f4a00;
-  --type-chrono-bg:  #e8f4fd; --type-chrono-color:#1565c0;
-  --type-cobble-bg:  #f0f0f0; --type-cobble-color:#616161;
-  --type-sterra-bg:  #f5ede0; --type-sterra-color:#795548;
 }
 
 @media (prefers-color-scheme: light) {
   html:not(.dark) {
-    --bg:            #f3f5f8;
     --bg-sidebar:    #edf1f6;
-    --bg-card:       #fafbfc;
-    --bg-card-hover: #e9edf3;
     --bg-input:      #ffffff;
-    --border:        #d8dee8;
-    --border-light:  #c8cacf;
     --border-focus:  #1666cc;
-    --text:          #1f1f1f;
-    --text-muted:    #5f6368;
-    --text-dim:      #63686d;
-    --accent:        #1a73e8;
-    --accent-text:   #1666cc;
-    --accent-dim:    rgba(26,115,232,0.10);
-    --btn-primary-text: #fff;
-    --red:           #c5221f;
-    --green:         #137333;
-    --blue:          #1565c0;
-    --orange:        #e37400;
-    --header-text:   #1f1f1f;
-    --bg-header:     #edf1f6;
-    --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
-    --badge-wt-bg:     #d3e3fd; --badge-wt-color:  #0842a0;
-    --badge-pro-bg:    #eeeeee; --badge-pro-color: #666666;
-    --badge-1-bg:      #eeeeee; --badge-1-color:   #666666;
-    --badge-2-bg:      #eeeeee; --badge-2-color:   #666666;
-    --badge-wc-bg:     #f3e8fd; --badge-wc-color:  #7b1fa2;
-    --badge-m-bg:      #f3e8fd; --badge-m-color:   #7b1fa2;
-    --badge-f-bg:      #e6f4ea; --badge-f-color:   #137333;
-    --type-flat-bg:    #e8f5e9; --type-flat-color: #2e7d32;
-    --type-roll-bg:    #dcedc8; --type-roll-color: #3f6b1f;
-    --type-cotas-bg:   #edf0d4; --type-cotas-color:#7a5410;
-    --type-med-bg:     #fff3e0; --type-med-color:  #b34700;
-    --type-high-bg:    #fce4ec; --type-high-color: #b71c1c;
-    --type-uphill-bg:  #fff0d8; --type-uphill-color:#8f4a00;
-    --type-chrono-bg:  #e8f4fd; --type-chrono-color:#1565c0;
-    --type-cobble-bg:  #f0f0f0; --type-cobble-color:#616161;
-    --type-sterra-bg:  #f5ede0; --type-sterra-color:#795548;
   }
 }
 

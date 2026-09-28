@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { recomputeCxStandings } from '../cx-standings.js';
+import { recomputeCxStandings } from '../cx/standings.js';
 
 const references = JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json', import.meta.url)));
 const clone = value => structuredClone(value);

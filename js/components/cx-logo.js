@@ -1,4 +1,4 @@
-import {cxUrl} from '../cx-editor-logic.js';
+import {cxUrl} from '../cx/editor-logic.js';
 
 export function cxLogoSources(race,tournament=race?.cx_tournaments) {
   const sources=[];

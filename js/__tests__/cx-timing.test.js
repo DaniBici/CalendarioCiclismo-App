@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {CX_DURATION_RULE_VERSION,cxRegulationMinutes,cxCategoryTiming,cxRaceTiming} from '../cx-timing.js';
+import {CX_DURATION_RULE_VERSION,cxRegulationMinutes,cxCategoryTiming,cxRaceTiming} from '../cx/timing.js';
 
 const start='2027-01-30T14:00:00Z';
 const category=(code,extra={})=>({category:code,startTimeUtc:start,durationFormat:'individual',durationRuleVersion:CX_DURATION_RULE_VERSION,resultsStatus:'pending',...extra});

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "disciplineId": 3,
+  "purpose": "Comprobación F5 de estructura de resultados, sin importación de calendario ni escritura de resultados",
+  "competitions": [
+    {
+      "competitionId": 75880,
+      "seasonId": 455,
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T12:22:17.713Z",
+      "categories": [
+        {
+          "category": "ME",
+          "uciRaceId": 244381,
+          "eventId": 352614,
+          "dateKey": "2026-02-14",
+          "rows": 33,
+          "ranked": 32,
+          "withIrm": 5,
+          "withTimeSeconds": 28,
+          "unknownBonusSeconds": 33,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        },
+        {
+          "category": "MJ",
+          "uciRaceId": 244382,
+          "eventId": 352615,
+          "dateKey": "2026-02-14",
+          "rows": 22,
+          "ranked": 17,
+          "withIrm": 7,
+          "withTimeSeconds": 15,
+          "unknownBonusSeconds": 22,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        },
+        {
+          "category": "WE",
+          "uciRaceId": 244383,
+          "eventId": 352616,
+          "dateKey": "2026-02-14",
+          "rows": 40,
+          "ranked": 38,
+          "withIrm": 8,
+          "withTimeSeconds": 32,
+          "unknownBonusSeconds": 40,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        },
+        {
+          "category": "WJ",
+          "uciRaceId": 248923,
+          "eventId": 357881,
+          "dateKey": "2026-02-14",
+          "rows": 8,
+          "ranked": 8,
+          "withIrm": 0,
+          "withTimeSeconds": 8,
+          "unknownBonusSeconds": 8,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        }
+      ],
+      "exclusions": []
+    },
+    {
+      "competitionId": 78518,
+      "seasonId": 472,
+      "sourceUrl": "https://dataride.uci.ch/iframe/Results/",
+      "fetchedAt": "2026-09-12T12:22:17.714Z",
+      "categories": [
+        {
+          "category": "ME",
+          "uciRaceId": 261811,
+          "eventId": 378638,
+          "dateKey": "2026-08-31",
+          "rows": 3,
+          "ranked": 0,
+          "withIrm": 0,
+          "withTimeSeconds": 0,
+          "unknownBonusSeconds": 3,
+          "sourceConflicts": 0,
+          "publicationHint": "not_published"
+        },
+        {
+          "category": "MJ",
+          "uciRaceId": 261812,
+          "eventId": 378639,
+          "dateKey": "2026-08-31",
+          "rows": 6,
+          "ranked": 6,
+          "withIrm": 0,
+          "withTimeSeconds": 0,
+          "unknownBonusSeconds": 6,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        },
+        {
+          "category": "MU",
+          "uciRaceId": 261813,
+          "eventId": 378640,
+          "dateKey": "2026-08-31",
+          "rows": 7,
+          "ranked": 0,
+          "withIrm": 0,
+          "withTimeSeconds": 0,
+          "unknownBonusSeconds": 7,
+          "sourceConflicts": 0,
+          "publicationHint": "not_published"
+        },
+        {
+          "category": "WE",
+          "uciRaceId": 261814,
+          "eventId": 378641,
+          "dateKey": "2026-08-31",
+          "rows": 1,
+          "ranked": 1,
+          "withIrm": 0,
+          "withTimeSeconds": 0,
+          "unknownBonusSeconds": 1,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        },
+        {
+          "category": "WJ",
+          "uciRaceId": 261815,
+          "eventId": 378642,
+          "dateKey": "2026-08-31",
+          "rows": 2,
+          "ranked": 2,
+          "withIrm": 0,
+          "withTimeSeconds": 0,
+          "unknownBonusSeconds": 2,
+          "sourceConflicts": 0,
+          "publicationHint": "unverified_results"
+        }
+      ],
+      "exclusions": []
+    }
+  ]
+}

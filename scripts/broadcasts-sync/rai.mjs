@@ -82,6 +82,9 @@ export function parseRaiVideo(value, { now = new Date(), highlights = false } = 
       || !broadcastUrl || !p.id || !dateKey || EXCLUDED.test(text) || !Number.isFinite(duration) || duration <= 0) return null;
   if (expiry && (!Number.isFinite(Date.parse(expiry)) || Date.parse(expiry) <= now.getTime())) return null;
   if (p.season && String(p.season) !== dateKey.slice(0, 4)) return null;
+  // «Mondiali di Ciclismo 2025» puede publicarse con fecha de la edición siguiente.
+  const statedYear = text.match(/\b(20\d{2})\b/)?.[1];
+  if (statedYear && statedYear !== dateKey.slice(0, 4)) return null;
   if (!windowDates(now, 14, 0).includes(dateKey)) return null;
   const summary = SUMMARY.test(text) || (highlights && fold(p.form) === 'clip');
   const full = !summary && fold(p.form) === 'integrale';

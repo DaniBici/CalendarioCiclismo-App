@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-es-mc" viewBox="0 0 640 480">
+<svg width="32" height="24" xmlns="http://www.w3.org/2000/svg" id="flag-icons-es-mc" viewBox="0 0 640 480">
 <g transform="translate(-0 -0) scale(0.85333 0.96)">
 <rect width="750" height="500" fill="#9c1f2d" />
 <g id="castle" fill="#fcb714" stroke="#000" stroke-width="0.6904">

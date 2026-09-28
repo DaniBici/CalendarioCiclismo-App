@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 import {cxDataRideDate} from '../results-fetchers/cx-dataride-results.mjs';
 
 const categoryCodes = {ME:'31',WE:'32',MU:'33'};
@@ -216,7 +216,7 @@ export function x2oCotejo(fixture,references,options) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const category = process.argv[2] || 'ME';
   if (!Object.hasOwn(categoryCodes,category)) throw new Error('Categoría X2O incompatible');
-  const fixtureUrl = new URL('../../docs/cx-cotejos/x2o-2025-26-'+category.toLowerCase()+'.json',import.meta.url);
+  const fixtureUrl = new URL('../../js/__tests__/fixtures/cx-cotejos/x2o-2025-26-'+category.toLowerCase()+'.json',import.meta.url);
   const report = x2oCotejo(JSON.parse(readFileSync(fixtureUrl,'utf8')),JSON.parse(readFileSync(referencesUrl,'utf8')));
   process.stdout.write(JSON.stringify(report,null,2)+'\n');
   if (!report.generalMatches) process.exitCode = 2;

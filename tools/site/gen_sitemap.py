@@ -172,11 +172,13 @@ def static_entries():
     for path, en_path, freq, prio in [
         ("/","/","daily","1.0"),
         ("/calendario/","/calendar/","daily","0.9"),
-        # /buscar.html: ARCHIVADO 2026-07-17, fuera del sitemap (la página
-        # sigue viva por URL directa, pero no se ofrece ni se indexa).
+        # /buscar.html: fuera del sitemap desde 2026-07-17 y retirado el
+        # 2026-09-28 (archive/buscador-web-2026); 404.html lo lleva a la home.
         ("/about/","/about/","monthly","0.4"),
-        ("/betaandroid.html","/beta/","monthly","0.5"),
+        # /betaandroid.html: fuera del sitemap desde 2026-09-28. La beta de
+        # Android terminó; la página sigue viva por URL directa.
         ("/suscripcion/","/subscription/","monthly","0.6"),
+        ("/apoyar/","/support/","monthly","0.4"),
     ]:
         add_bilingual(entries, BASE_URL + path, BASE_URL_EN + en_path, today, freq, prio)
 

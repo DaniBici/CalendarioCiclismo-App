@@ -10,7 +10,7 @@ import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
          isNoTeamPlaceholderTeam, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
-import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist-data.js';
+import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist/data.js';
 import { setupRiderTooltips } from './rider-tooltip.js';
 
 // ── SEO helpers ──────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ async function init() {
     history.replaceState(null, '', `/inscritos/${encodeURIComponent(race.slug)}/`);
   }
 
-  // Equipos, corredores, colores de temporada y abandonos (startlist-data.js,
+  // Equipos, corredores, colores de temporada y abandonos (startlist/data.js,
   // compartido con la página que generan las apps).
   const data = await loadStartlistData(race);
   if (!data) {

@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 
 const referencesUrl=new URL('../../docs/cc-cx-points-schemes.json',import.meta.url);
 const norm=name=>name.toLowerCase().normalize('NFKD').replace(/\p{Mark}/gu,'').trim().split(/\s+/).sort().join(' ');
@@ -167,7 +167,7 @@ export function superprestigeCotejo(fixture,references) {
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   const category=process.argv[2]||'ME';
   if(!['ME','WE'].includes(category))throw new Error('Categoría de cotejo no disponible');
-  const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/superprestige-2025-26-'+category.toLowerCase()+'.json',import.meta.url),'utf8'));
+  const fixture=JSON.parse(readFileSync(new URL('../../js/__tests__/fixtures/cx-cotejos/superprestige-2025-26-'+category.toLowerCase()+'.json',import.meta.url),'utf8'));
   const report=superprestigeCotejo(fixture,JSON.parse(readFileSync(referencesUrl,'utf8')));
   process.stdout.write(JSON.stringify(report,null,2)+'\n');
   if(!report.generalMatches)process.exitCode=2;

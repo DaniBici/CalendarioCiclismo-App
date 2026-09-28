@@ -43,7 +43,7 @@ Orden en jornada: Inscritos → `startOrder` → `roadbook` → `profile` → `p
 
 `profile` + `ports` coexistiendo en web (`js/jornada.js`, `js/race-data-modal.js`) → dos botones separados "Perfil" y "Puertos" (o "Sterrato"/"Ribinou" si `primaryType === 'sterrato'`).
 
-Añadir tipo nuevo → tocar constantes en las 3 plataformas + `assetDocTypes` en `panel.js`.
+Añadir tipo nuevo → tocar constantes en las 3 plataformas + `assetDocTypes` en `js/panel/jornada-save.js`.
 
 ## Botón Web oficial en jornadas
 
@@ -80,7 +80,7 @@ conserva su CTA propio (aviso + generales arrastradas).
 
 ### `races.startlistImportedAt`
 
-Marca `TIMESTAMPTZ` (nullable). Los 2 puntos de escritura (`saveStartlistEdits`, `deleteStartlist` en `js/panel.js`) deben mantener la columna en sync. Al guardar → `new Date().toISOString()`. Al borrar → `null`.
+Marca `TIMESTAMPTZ` (nullable). Los 2 puntos de escritura (`saveStartlistEdits`, `deleteStartlist` en `js/panel/startlists.js`) deben mantener la columna en sync. Al guardar → `new Date().toISOString()`. Al borrar → `null`.
 
 **Importación con IA deshabilitada (2026-05-05):** solo edición manual. El Edge Function `parse-startlist` permanece en el repo pero no se invoca desde el panel.
 

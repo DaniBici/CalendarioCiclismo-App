@@ -6,6 +6,21 @@ Filtros: `all`, `pro`, `uwt`, `wwt`, `male`, `female`. Ordenación: Categoría /
 
 Las carreras seleccionadas como destacadas solo reciben prioridad y presentación especial en Categoría. En Hora TV y Hora meta se ordenan por su horario y usan tarjetas normales; la selección se conserva y el formato destacado reaparece al volver a Categoría. En layouts de varias columnas, solo las destacadas del modo Categoría ocupan todo el ancho.
 
+Orden (web `js/services/today-agenda-order.js`, espejo `RaceLogic` en iOS y
+Android): destacadas primero solo en Categoría; carreras sin jornada publicada
+y canceladas siempre al final, aunque estén destacadas; después campeonatos
+nacionales, gran vuelta, `categoryRank` (tabla única de
+`js/services/race-order.js`), sexo, hora de salida, sector A/B y nombre. El
+miniperfil no interviene en el orden. Ningún día tiene destacada obligatoria.
+
+Tarjetas web: una sola estructura (logo | datos | horario, miniperfil en banda
+inferior) para carreras, carreras sin jornada, canceladas y descansos. Desde
+761 px la lista es una rejilla de dos columnas en la que todas las tarjetas
+reservan la banda del perfil y alinean su contenido arriba; la destacada ocupa
+la fila y lleva el perfil a una columna central. El DOM no cambia con el ancho.
+El ♀ junto a la categoría se omite si el nombre, la categoría WWT o el filtro
+femenino ya lo indican.
+
 En web, «Hora Meta» también muestra la llegada prevista en las tarjetas, aunque
 la etapa aún no haya empezado. Al volver a Categoría o Hora TV se recupera la
 salida para las etapas pendientes; las que están en curso conservan la meta.

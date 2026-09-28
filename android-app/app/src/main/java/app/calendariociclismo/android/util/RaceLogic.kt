@@ -247,7 +247,14 @@ object RaceLogic {
 
     // ── Rankings UCI ────────────────────────────────────────────
 
-    fun uciRank(category: String?, name: String?, country: String?): Double {
+    /**
+     * Rango de categoría: menor va antes. Tabla única, espejo de `categoryRank`
+     * en `js/services/race-order.js`. Las grandes vueltas encabezan; el Tour del
+     * Porvenir sube al nivel de las .1; las Pro y .1 del circuito asiático (salvo
+     * la Japan Cup) bajan tras las .1 europeas; los continentales que no son el
+     * Europeo bajan tras las .2U.
+     */
+    fun categoryRank(category: String?, name: String?, country: String?): Double {
         val n = name.orEmpty()
         if (n.containsIgnoreCase("giro de italia")) return 0.1
         if (n.containsIgnoreCase("tour de francia")) return 0.2
@@ -266,28 +273,9 @@ object RaceLogic {
         return Constants.UCI_ORDER[cat] ?: 99.0
     }
 
-    fun proLevel(category: String?, name: String?, country: String?): Double {
-        val n = name.orEmpty()
-        if (n.containsIgnoreCase("giro de italia")) return 0.1
-        if (n.containsIgnoreCase("tour de francia")) return 0.2
-        if (n.containsIgnoreCase("la vuelta")) return 0.3
-
-        val cat = category.orEmpty()
-        val cc = country.orEmpty().uppercase()
-
-        if (cat in listOf("1.Pro", "2.Pro", "1.1", "2.1") &&
-            isAsiaCountry(cc) &&
-            !n.containsIgnoreCase("japan cup")
-        ) return 10.5
-
-        val map = mapOf(
-            "WC" to 1.0, "CC" to 2.0, "1.UWT" to 3.0, "2.UWT" to 4.0,
-            "1.WWT" to 5.0, "2.WWT" to 6.0,
-            "1.Pro" to 7.0, "2.Pro" to 8.0, "1.1" to 9.0, "2.1" to 10.0,
-            "1.2" to 11.0, "2.2" to 12.0, "1.2U" to 13.0, "2.2U" to 14.0,
-        )
-        return map[cat] ?: 99.0
-    }
+    /** [categoryRank] de la carrera (null → 99). */
+    fun raceCategoryRank(race: Race?): Double =
+        categoryRank(race?.uciCategory, race?.name, race?.countryCode)
 
     private fun isAsiaCountry(cc: String): Boolean =
         cc in setOf("CN", "TH", "JP", "TW", "KR", "HK", "AZ")
@@ -325,16 +313,11 @@ object RaceLogic {
         val gtA = grandTourRank(rA); val gtB = grandTourRank(rB)
         if (gtA != gtB) return@Comparator gtA.compareTo(gtB)
 
-        val lvlA = proLevel(rA?.uciCategory, rA?.name, rA?.countryCode)
-        val lvlB = proLevel(rB?.uciCategory, rB?.name, rB?.countryCode)
-        if (lvlA != lvlB) return@Comparator lvlA.compareTo(lvlB)
+        val catA = raceCategoryRank(rA); val catB = raceCategoryRank(rB)
+        if (catA != catB) return@Comparator catA.compareTo(catB)
 
         val genA = genderRank(rA?.gender); val genB = genderRank(rB?.gender)
         if (genA != genB) return@Comparator genA.compareTo(genB)
-
-        val catA = uciRank(rA?.uciCategory, rA?.name, rA?.countryCode)
-        val catB = uciRank(rB?.uciCategory, rB?.name, rB?.countryCode)
-        if (catA != catB) return@Comparator catA.compareTo(catB)
 
         // Doble sector (misma carrera, mismo día): la etapa MÁS TEMPRANA primero.
         // Desempate por hora de salida; si falta, por el sufijo A/B (asignado en
@@ -348,10 +331,22 @@ object RaceLogic {
         (rA?.name ?: "").compareTo(rB?.name ?: "")
     }
 
-    /** Comparator estándar por categoría UCI. Ordena en sitio una lista. */
+    /**
+     * Carreras sin jornada publicada y canceladas: van al final en todos los
+     * órdenes de la agenda de Hoy, aunque estén destacadas.
+     */
+    fun isAgendaTail(item: EnrichedRaceDay): Boolean =
+        item.isPlaceholder || item.race?.isCancelled == true
+
+    /**
+     * Comparator estándar por categoría. Espejo de `compareAgendaByCategory`
+     * (`js/services/today-agenda-order.js`): cola al final → Campeonatos
+     * Nacionales → gran vuelta → [categoryRank] → sexo → hora de salida →
+     * sector A/B → nombre. El miniperfil no interviene en el orden.
+     */
     val byCategory: Comparator<EnrichedRaceDay> = Comparator { a, b ->
-        val phA = if (a.isPlaceholder || a.race?.isCancelled == true) 1 else 0
-        val phB = if (b.isPlaceholder || b.race?.isCancelled == true) 1 else 0
+        val phA = if (isAgendaTail(a)) 1 else 0
+        val phB = if (isAgendaTail(b)) 1 else 0
         if (phA != phB) return@Comparator phA.compareTo(phB)
 
         val rA = a.race; val rB = b.race
@@ -361,21 +356,11 @@ object RaceLogic {
         val gtA = grandTourRank(rA); val gtB = grandTourRank(rB)
         if (gtA != gtB) return@Comparator gtA.compareTo(gtB)
 
-        // Con miniperfil por delante de las que no lo tienen (dentro de su grupo, sigue el orden por categoría).
-        val profA = if (a.raceDay.hasElevationProfile) 0 else 1
-        val profB = if (b.raceDay.hasElevationProfile) 0 else 1
-        if (profA != profB) return@Comparator profA.compareTo(profB)
-
-        val lvlA = proLevel(rA?.uciCategory, rA?.name, rA?.countryCode)
-        val lvlB = proLevel(rB?.uciCategory, rB?.name, rB?.countryCode)
-        if (lvlA != lvlB) return@Comparator lvlA.compareTo(lvlB)
+        val catA = raceCategoryRank(rA); val catB = raceCategoryRank(rB)
+        if (catA != catB) return@Comparator catA.compareTo(catB)
 
         val genA = genderRank(rA?.gender); val genB = genderRank(rB?.gender)
         if (genA != genB) return@Comparator genA.compareTo(genB)
-
-        val catA = uciRank(rA?.uciCategory, rA?.name, rA?.countryCode)
-        val catB = uciRank(rB?.uciCategory, rB?.name, rB?.countryCode)
-        if (catA != catB) return@Comparator catA.compareTo(catB)
 
         // Doble sector (misma carrera, mismo día): la etapa MÁS TEMPRANA primero.
         // Desempate por hora de salida; si falta, por el sufijo A/B (asignado en
@@ -406,8 +391,8 @@ object RaceLogic {
     }
 
     val byTvTime: Comparator<EnrichedRaceDay> = Comparator { a, b ->
-        val phA = if (a.isPlaceholder || a.race?.isCancelled == true) 1 else 0
-        val phB = if (b.isPlaceholder || b.race?.isCancelled == true) 1 else 0
+        val phA = if (isAgendaTail(a)) 1 else 0
+        val phB = if (isAgendaTail(b)) 1 else 0
         if (phA != phB) return@Comparator phA.compareTo(phB)
 
         val tierA = tvSortTier(a); val tierB = tvSortTier(b)
@@ -422,8 +407,8 @@ object RaceLogic {
     }
 
     val byFinishTime: Comparator<EnrichedRaceDay> = Comparator { a, b ->
-        val phA = if (a.isPlaceholder || a.race?.isCancelled == true) 1 else 0
-        val phB = if (b.isPlaceholder || b.race?.isCancelled == true) 1 else 0
+        val phA = if (isAgendaTail(a)) 1 else 0
+        val phB = if (isAgendaTail(b)) 1 else 0
         if (phA != phB) return@Comparator phA.compareTo(phB)
 
         val fA = a.raceDay.estimatedFinishTimeUtc?.let { DateFormatting.timestampToSeconds(it) }
@@ -516,8 +501,14 @@ object RaceLogic {
         return FEMALE_KEYWORDS.any { lower.contains(it) }
     }
 
+    /**
+     * Indicador femenino: carreras femeninas cuyo nombre y categoría no lo
+     * indican ya. 1.WWT y 2.WWT implican carrera femenina (espejo de
+     * `categoryBadge` en `js/shared.js`).
+     */
     fun shouldShowFemaleIndicator(race: Race?): Boolean {
         if (race == null || !race.isFemale) return false
+        if (race.uciCategory?.endsWith("WWT") == true) return false
         return !nameImpliesFemale(race.name)
     }
 

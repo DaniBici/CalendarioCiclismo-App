@@ -2,7 +2,7 @@
 //  TEMPORADA — temporada.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, uciRank, proLevel, countryFlag, jornadaUrl, raceUrl, raceName,
+import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
          categoryBadge, setMeta, setMetaProperty, initPhTooltip,
          bulkCacheRaces, enBase,
          getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
@@ -564,15 +564,14 @@ function _lastDateKeyGroup(cg) {
 
 function _buildSortedItems(standaloneRaces, challengeGroups) {
   const items = [
-    ...standaloneRaces.map(r => ({ type: 'race', data: r, sortKey: _firstDateKey(r), endKey: _lastDateKey(r), uciRankVal: uciRank(r.uciCategory, r.name, r.countryCode), lvlVal: proLevel(r.uciCategory, r.name, r.countryCode) })),
-    ...challengeGroups.map(cg => ({ type: 'challenge', data: cg, sortKey: _firstDateKeyGroup(cg), endKey: _lastDateKeyGroup(cg), uciRankVal: uciRank(cg.uciCategory || '1.1'), lvlVal: proLevel(cg.uciCategory || '1.1', cg.name, cg.countryCode) })),
+    ...standaloneRaces.map(r => ({ type: 'race', data: r, sortKey: _firstDateKey(r), endKey: _lastDateKey(r), rankVal: categoryRank(r.uciCategory, r.name, r.countryCode) })),
+    ...challengeGroups.map(cg => ({ type: 'challenge', data: cg, sortKey: _firstDateKeyGroup(cg), endKey: _lastDateKeyGroup(cg), rankVal: categoryRank(cg.uciCategory || '1.1', cg.name, cg.countryCode) })),
   ];
   items.sort((a, b) => {
     if (a.sortKey !== b.sortKey) return a.sortKey.localeCompare(b.sortKey);
-    if (a.lvlVal !== b.lvlVal) return a.lvlVal - b.lvlVal;
+    if (a.rankVal !== b.rankVal) return a.rankVal - b.rankVal;
     const genderVal = item => (item.data.gender === 'female') ? 1 : 0;
     if (genderVal(a) !== genderVal(b)) return genderVal(a) - genderVal(b);
-    if (a.uciRankVal !== b.uciRankVal) return a.uciRankVal - b.uciRankVal;
     return 0;
   });
   return items;

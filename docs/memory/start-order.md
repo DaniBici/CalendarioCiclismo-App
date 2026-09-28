@@ -12,8 +12,8 @@ vista nativa (antes abrían Safari/Chrome Tabs).
   Cruce por **nombre de equipo** contra `startlist_teams` (nombre canónico vía `teams`).
 
 En web, ambos modos comparten la segunda columna de Resultados: perfil
-interactivo/oficial y datos de la jornada (`js/stage-profile.js` y
-`js/stage-context.js`). La columna mide 320 px desde 1100 px de viewport; por
+interactivo/oficial y datos de la jornada (`js/stage/profile.js` y
+`js/stage/context.js`). La columna mide 320 px desde 1100 px de viewport; por
 debajo se coloca tras la tabla. Se respetan los vetos de perfil y se omiten los
 nombres de sus puntos, como en Resultados. Los filtros y la nota de zona horaria
 permanecen con la tabla en la columna principal.
@@ -65,7 +65,7 @@ la vista sin tocar DTOs.
 
 **Quién lee la vista** (público): web `js/orden-salida.js`, iOS
 `StartOrderViewModel`, Android `SupabaseService.startOrderEntries`.
-**Quién lee/escribe la tabla directa**: el panel (`js/panel.js`) al importar y
+**Quién lee/escribe la tabla directa**: el panel (`js/panel/start-order.js`) al importar y
 re-sincronizar. Las apps antiguas que aún leen la tabla siguen funcionando gracias
 a los snapshots sincronizados (save, botón Re-sincronizar,
 `sync_startlist_riders_to_canonical`).

@@ -1,6 +1,6 @@
 # Detección de puertos y perfil de elevación
 
-## Detector heurístico — `js/climb-detection.js` (dual-pass)
+## Detector heurístico — `js/stage/climb-detection.js` (dual-pass)
 
 ### `detectClimb(points, summitKm)`
 
@@ -19,13 +19,13 @@ Para render: deriva longitud y % a partir del `startKm` ya guardado. Si la cima 
 
 ### `effectiveSummitAlt(summit, points)`
 
-Fuente de verdad de la altitud para el render. Con GPX, devuelve siempre la altitud interpolada de la curva (ignora `summit.altitude` manual). Sin GPX cae al valor manual. Aplica en `elevation-profile.js` (anchor del summit + zona sombreada) y en las cajas "Puertos" de `perfil-pub.js` y `perfil.js`.
+Fuente de verdad de la altitud para el render. Con GPX, devuelve siempre la altitud interpolada de la curva (ignora `summit.altitude` manual). Sin GPX cae al valor manual. Aplica en `stage/elevation-profile.js` (anchor del summit + zona sombreada) y en las cajas "Puertos" de `perfil-pub.js` y `perfil.js`.
 
 ## Render
 
 ### Summits fuera de rango del GPX
 
-`elevation-profile.js` capea summits cuyo km supere `xMax` del GPX en hasta 2 km (`SUMMIT_OVERSHOOT_TOL`). **Misma tolerancia que el detector — paridad obligatoria.**
+`stage/elevation-profile.js` capea summits cuyo km supere `xMax` del GPX en hasta 2 km (`SUMMIT_OVERSHOOT_TOL`). **Misma tolerancia que el detector — paridad obligatoria.**
 
 ### Sombreado + tooltip (web)
 
@@ -39,7 +39,7 @@ Para cada summit con `startKm`, dibuja `<path class="ep-climb-zone">` con fill `
 
 `ProfileSummit.climbStats(points)` con misma firma. Canvas pinta `ColorSummit.copy(alpha = 0.22f)`. `detectTapGestures` detecta tap; muestra `Surface` tooltip alineado a `TopStart`. Fila de la sección de puertos muestra `X km · ±Y%`.
 
-## Editor del panel (`js/panel.js`)
+## Editor del panel (`js/panel/jornada-fields.js`, `js/panel/jornada-profile.js`)
 
 Cada fila de `summitRowHTML` incluye:
 - input `.ann-start` (km de inicio, opcional).
@@ -50,15 +50,15 @@ Al introducir el km de la cima, si `.ann-start` está vacío se intenta autodete
 
 ### Disparo automático tras subir GPX
 
-`_gpxHandleUpload` en `js/panel.js`, después de actualizar `_editorCache.rd.elevationProfile`, recorre las filas de `#summitsList`: si la fila tiene `km` y no tiene `startKm`, lanza `_autoDetectSummitClimb(row, /*silent*/true)`. Toast de aviso si detecta al menos un puerto.
+`_gpxHandleUpload` en `js/panel/jornada-profile.js`, después de actualizar `_editorCache.rd.elevationProfile`, recorre las filas de `#summitsList`: si la fila tiene `km` y no tiene `startKm`, lanza `_autoDetectSummitClimb(row, /*silent*/true)`. Toast de aviso si detecta al menos un puerto.
 
 ## Backfill masivo
 
-Backfill ejecutado el 2026-05-06: 183 puertos rellenos de 215. 32 sin match (preferible `null` antes que datos malos). Era un one-shot: el tooling (`tools/backfill-climbs/index.mjs` + workflow `.github/workflows/backfill-climbs.yml`, que nunca llegó a ejecutarse en Actions) se retiró el 2026-07-13 tras cumplir su función. Si vuelve a hacer falta un backfill masivo de `startKm`, reconstruirlo importando `js/climb-detection.js` (mismo módulo que el detector) y escribiendo por el pooler IPv4 con `SUPABASE_SERVICE_ROLE_KEY`; idempotente respetando `startKm` ya existente.
+Backfill ejecutado el 2026-05-06: 183 puertos rellenos de 215. 32 sin match (preferible `null` antes que datos malos). Era un one-shot: el tooling (`tools/backfill-climbs/index.mjs` + workflow `.github/workflows/backfill-climbs.yml`, que nunca llegó a ejecutarse en Actions) se retiró el 2026-07-13 tras cumplir su función. Si vuelve a hacer falta un backfill masivo de `startKm`, reconstruirlo importando `js/stage/climb-detection.js` (mismo módulo que el detector) y escribiendo por el pooler IPv4 con `SUPABASE_SERVICE_ROLE_KEY`; idempotente respetando `startKm` ya existente.
 
 ## Tests
 
-`js/__tests__/climbDetection.test.js`. Añadir caso al cambiar la heurística. Constantes del detector en `js/climb-detection.js` — el script de backfill importa el mismo módulo.
+`js/__tests__/climb-detection.test.js`. Añadir caso al cambiar la heurística. Constantes del detector en `js/stage/climb-detection.js` — el script de backfill importa el mismo módulo.
 
 ## Página de perfil — Sprints vs Puntos intermedios en CRI/CRE
 

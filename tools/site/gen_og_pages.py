@@ -2485,7 +2485,7 @@ def cx_round_badge(round_number, lang="es"):
 
 
 def cx_tournament_description(tournament, races):
-    """Paridad con js/cx-tournament-seo.js; SEO castellano también en EN."""
+    """Paridad con js/cx/tournament-seo.js; SEO castellano también en EN."""
     import re
     from cx_calendar import cx_date_in_season
     name = tournament["name"].strip()
@@ -2570,7 +2570,7 @@ def generate_cx_tournament_pages(races):
     return len(tournaments)
 
 def cx_race_seo(race, page="race"):
-    """Paridad con js/cx-race-seo.js; metadatos castellanos también en EN."""
+    """Paridad con js/cx/race-seo.js; metadatos castellanos también en EN."""
     dates = [race["dateKey"]]
     if race.get("endDateKey") and race["endDateKey"] != race["dateKey"]:
         dates.append(race["endDateKey"])

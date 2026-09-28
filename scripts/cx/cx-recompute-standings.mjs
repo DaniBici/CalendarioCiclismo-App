@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { recomputeCxStandings } from '../../js/cx-standings.js';
+import { recomputeCxStandings } from '../../js/cx/standings.js';
 
 export async function computeAndPublish(client, tournamentId, category, { dryRun = false } = {}) {
   const { rows: [{ snapshot }] } = await client.query('SELECT public.cx_standings_snapshot($1,$2) AS snapshot', [tournamentId, category]);

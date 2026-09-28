@@ -241,8 +241,8 @@ object ResultsFeedLogic {
 
     /**
      * Orden canónico de carreras dentro del día — espejo de `cmpEntries` en
-     * resultados-feed.js (que a su vez espeja `_sortByCategory` de app.js, sin
-     * los criterios que aquí no aplican: placeholders/mini-perfil). PRIMERO:
+     * resultados-feed.js: Campeonatos Nacionales → gran vuelta → categoryRank →
+     * sexo → hora → nombre. PRIMERO:
      * misma carrera → la general final SIEMPRE por delante de su etapa.
      */
     fun cmpEntries(a: FeedEntry, b: FeedEntry, sortTimeA: Double, sortTimeB: Double): Int {
@@ -265,14 +265,10 @@ object ResultsFeedLogic {
         }
         val gt = RaceLogic.grandTourRank(rA) - RaceLogic.grandTourRank(rB)
         if (gt != 0) return gt
-        val lvl = RaceLogic.proLevel(rA.uciCategory, rA.name, rA.countryCode)
-            .compareTo(RaceLogic.proLevel(rB.uciCategory, rB.name, rB.countryCode))
-        if (lvl != 0) return lvl
+        val cat = RaceLogic.raceCategoryRank(rA).compareTo(RaceLogic.raceCategoryRank(rB))
+        if (cat != 0) return cat
         val gen = RaceLogic.genderRank(rA.gender) - RaceLogic.genderRank(rB.gender)
         if (gen != 0) return gen
-        val cat = RaceLogic.uciRank(rA.uciCategory, rA.name, rA.countryCode)
-            .compareTo(RaceLogic.uciRank(rB.uciCategory, rB.name, rB.countryCode))
-        if (cat != 0) return cat
         if (sortTimeA != sortTimeB) return sortTimeA.compareTo(sortTimeB)
         return rA.name.compareTo(rB.name)
     }

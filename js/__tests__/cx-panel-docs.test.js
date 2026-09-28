@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {describe,it,expect,vi} from 'vitest';
 
-const panel=readFileSync(new URL('../panel-cx.js',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../panel/cx.js',import.meta.url),'utf8');
 const docsForm=panel.slice(panel.indexOf('async function docsForm('),panel.indexOf('\nasync function rowsForm('));
 const onSubmit=panel.slice(panel.indexOf('function onSubmit('),panel.indexOf('\nasync function loadRaces('));
 const actions=panel.match(/const actions=[^\n]+/)[0];

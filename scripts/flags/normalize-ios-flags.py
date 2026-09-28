@@ -26,6 +26,13 @@ scripts/flags/README.md):
      scale(.79012 .88889)): CoreSVG desplaza los bordes ~1px. Fix: convertir
      las líneas trazadas en rects equivalentes en espacio raíz.
 
+  E. Tamaño intrínseco. flag-icons declara solo viewBox="0 0 640 480", así
+     que actool toma 640×480 pt como tamaño del asset y genera PNG de respaldo
+     @1x/@2x/@3x de hasta 1920×1440 px por bandera, además del vector. Con
+     287 banderas en la app y en el widget suponían ~68 MB del bundle.
+     Fix: width="32" height="24" en el <svg> raíz (la bandera mayor se
+     muestra a 26 pt; por encima se dibuja desde el vector preservado).
+
 Idempotente: re-ejecutar sobre archivos ya normalizados no cambia nada.
 Tras CUALQUIER ejecución hay que pasar la verificación de píxeles
 (scripts/flags/README.md): cairosvg(fijado) vs cairosvg(canónico) ≈ 0 y
@@ -408,6 +415,25 @@ def fix_anisotropic_stroke_stripes(code: str, s: str):
     return s, True
 
 
+# ── E: tamaño intrínseco del lienzo ──────────────────────────────────────────
+
+INTRINSIC_W, INTRINSIC_H = "32", "24"
+
+
+def fix_intrinsic_size(code: str, s: str):
+    m = re.search(r"<svg\b[^>]*>", s)
+    if not m:
+        raise ValueError(f"{code}: sin <svg> raíz")
+    tag = m.group(0)
+    if f'width="{INTRINSIC_W}"' in tag and f'height="{INTRINSIC_H}"' in tag:
+        return s, False
+    if not re.search(r'viewBox="0 0 640 480"', tag):
+        raise ValueError(f"{code}: viewBox no previsto en {tag!r}")
+    new = re.sub(r'\s(width|height)="[^"]*"', "", tag)
+    new = new.replace("<svg", f'<svg width="{INTRINSIC_W}" height="{INTRINSIC_H}"', 1)
+    return s[: m.start()] + new + s[m.end():], True
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -429,6 +455,7 @@ def main():
                 ("marker", fix_markers),
                 ("dangling-paint", fix_dangling_paints),
                 ("aniso-stroke", fix_anisotropic_stroke_stripes),
+                ("intrinsic-size", fix_intrinsic_size),
             ):
                 s, ch = fn(code, s)
                 if ch:

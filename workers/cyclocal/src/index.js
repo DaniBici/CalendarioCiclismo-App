@@ -12,8 +12,9 @@
 //    cyclocal.app/race/<slug>/    → 301 → calendariociclismo.app/en/race/<slug>/
 //    cyclocal.app/js/*            → 301 → calendariociclismo.app/js/*  (assets raíz)
 //
-//  Deploy:
-//    cd workers/cyclocal && npm install && npx wrangler@3 deploy
+//  Deploy: .github/workflows/deploy-cyclocal-worker.yml en cada push a
+//  main que toque workers/cyclocal/. La ruta cyclocal.app/* se gestiona
+//  en el dashboard (ver wrangler.toml).
 // ─────────────────────────────────────────────────────────────────
 
 const ORIGIN = 'https://calendariociclismo.app';
@@ -39,7 +40,7 @@ const STATIC_MAP = {
   '/season/':       '/en/season/',
   '/month/':        '/en/month/',
   '/about/':        '/en/about/',
-  '/search/':       '/en/search/',
+  '/search/':       '/en/',  // buscador web retirado el 2026-09-28
   '/privacy/':      '/en/privacy/',
   '/subscription/': '/en/subscription/',
   '/beta/':         '/en/beta/',

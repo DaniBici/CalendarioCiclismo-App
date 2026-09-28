@@ -238,7 +238,11 @@ meta los finishers más los IRM explícitos, descartando los parciales sin puest
 generales oficiales (GC, puntos, montaña, jóvenes y equipos) se piden con el selector
 propio de cada lista. En el volcado de la jornada en curso, cuando Results aún no
 tiene puntos o montaña, se usan sus listas LIVE acumuladas si fecha, columnas,
-puestos y dorsales son válidos. GC, jóvenes y equipos esperan a Results. Las
+puestos y dorsales son válidos. GC, jóvenes y equipos esperan a Results. En la
+última jornada el cron añade `--final` junto a `--stage N`: el fetcher emite la
+pseudo-etapa «Final Classification» con los acumulados de Results aunque
+race|result todavía no marque `EventOver`; los acumulados LIVE provisionales no
+forman la final y un `--stage` intermedio sobre una carrera terminada no la abre. Las
 pruebas de racetiming.ca (Gatineau 2026)
 usan perfiles propios: el mismo cronometrador publica el tiempo en meta con
 centésimas y, en la crono, una lista de progreso por parciales que impide volcar

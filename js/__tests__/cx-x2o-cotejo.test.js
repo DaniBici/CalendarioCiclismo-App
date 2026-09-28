@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {describe,it,expect} from 'vitest';
 import {x2oCotejo,x2oCotejoInput} from '../../scripts/cx/cx-x2o-cotejo.mjs';
 
-const load = (category='ME') => JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/x2o-2025-26-'+category.toLowerCase()+'.json',import.meta.url),'utf8'));
+const load = (category='ME') => JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/x2o-2025-26-'+category.toLowerCase()+'.json',import.meta.url),'utf8'));
 const references = JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url),'utf8'));
 const isolatedWe = () => {
   const fixture = load('WE');

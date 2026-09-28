@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Vectores COMPARTIDOS con `js/__tests__/simplifiedGuide.test.js` y
+ * Vectores COMPARTIDOS con `js/__tests__/simplified-guide.test.js` y
  * `SimplifiedGuideTests.swift`. Mantener la paridad al cambiar la heurística.
  */
 class SimplifiedGuideTest {

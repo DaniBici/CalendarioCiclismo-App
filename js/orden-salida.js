@@ -7,8 +7,8 @@ import { supabase, countryFlag, esc, setMeta, setMetaProperty, jornadaUrl,
          raceUrl, raceName as getRaceName, enBase, startOrderUrl,
          findMatchingTeam, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, setPressed, setRaceRobots } from './shared.js';
 import { getLang, initI18n } from './i18n.js';
-import { mountStageProfile } from './stage-profile.js';
-import { stageContextHtml } from './stage-context.js';
+import { mountStageProfile } from './stage/profile.js';
+import { stageContextHtml } from './stage/context.js';
 import { teamStripes, teamsForSeason } from './team-appearance.js';
 
 const STAGE_TYPE_LABELS = {

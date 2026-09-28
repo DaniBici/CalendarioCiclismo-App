@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
-import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxCategoryMedia,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches} from '../cx-presentation.js';
+import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxCategoryMedia,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches} from '../cx/presentation.js';
 import {cxMonth,cxNextDate,cxAllRows,cxTournamentRounds,cxSeasonRounds} from '../services/cx-data.js';
-import {cxDateInSeason,cxSeasonBounds} from '../cx-season.js';
+import {cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
 
 describe('agenda y clasificación pública CX',()=>{
   const world={name:'Mundial',slug:'mundial',slugEn:'worlds',class:'CM',dateKey:'2027-01-29',endDateKey:'2027-01-31',cx_race_categories:[

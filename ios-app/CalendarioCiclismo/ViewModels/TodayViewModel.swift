@@ -135,16 +135,7 @@ final class TodayViewModel {
     /// Items filtrados y ordenados.
     var displayItems: [EnrichedRaceDay] {
         let filtered = RaceLogic.filterByCategory(items, category: activeFilter)
-        return filtered.sorted { a, b in
-            let af = Self.shouldRenderAsFeatured(a.race.map { featuredRaceIds.contains($0.id) } ?? false, sortMode: sortMode)
-            let bf = Self.shouldRenderAsFeatured(b.race.map { featuredRaceIds.contains($0.id) } ?? false, sortMode: sortMode)
-            if af != bf { return af }
-            switch sortMode {
-            case .category: return RaceLogic.sortByCategory(a, b)
-            case .tvTime: return RaceLogic.sortByTvTime(a, b)
-            case .finishTime: return RaceLogic.sortByFinishTime(a, b)
-            }
-        }
+        return RaceLogic.sortTodayAgenda(filtered, sortMode: sortMode, featuredRaceIds: featuredRaceIds)
     }
 
     var dateLabel: String {

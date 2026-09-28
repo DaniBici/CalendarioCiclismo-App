@@ -380,27 +380,69 @@ final class RaceLogicTests: XCTestCase {
         XCTAssertEqual(RaceLogic.reviveBroadcasts(from: broadcasts).count, 1)
     }
 
-    // MARK: - sortByCategory: prioridad de miniperfil
+    // MARK: - Orden de la agenda de Hoy (espejo de today-agenda-order.test.js)
 
-    func test_sortByCategory_profileBeatsHigherCategoryWithoutProfile() {
-        let conPerfil = makeEnriched(makeRace(name: "Con perfil", uciCategory: "2.2"), withProfile: true)
-        let sinPerfil = makeEnriched(makeRace(name: "Sin perfil", uciCategory: "2.1"), withProfile: false)
-        let ordenado = [sinPerfil, conPerfil].sorted(by: RaceLogic.sortByCategory)
-        XCTAssertEqual(ordenado.first?.race?.name, "Con perfil")
+    /// Domingo 11-10-2026: la París-Tours no debe quedar detrás de una 2.1 por
+    /// tener esta miniperfil.
+    private func parisToursAgenda() -> [EnrichedRaceDay] {
+        [
+            agendaItem("Tour de Kyushu", "2.1", country: "JP", start: "2026-10-11T01:00:00Z", withProfile: true),
+            agendaItem("Tour de la Isla de Chongming", "2.WWT", gender: "female", country: "CN"),
+            agendaItem("París-Tours", "1.Pro"),
+            agendaItem("Hong Kong Cyclothon", "1.1", country: "HK", start: "2026-10-11T01:45:00Z"),
+            agendaItem("Vuelta a Venezuela", "2.2", country: "VE"),
+            agendaItem("París-Tours sub23", "1.2U"),
+            agendaItem("Campeonato del Caribe", "1.2", country: nil, placeholder: true),
+        ]
     }
 
-    func test_sortByCategory_withinProfileGroupKeepsCategoryOrder() {
-        let pro = makeEnriched(makeRace(name: "Pro", uciCategory: "2.Pro"), withProfile: true)
-        let dosDos = makeEnriched(makeRace(name: "DosDos", uciCategory: "2.2"), withProfile: true)
-        let ordenado = [dosDos, pro].sorted(by: RaceLogic.sortByCategory)
-        XCTAssertEqual(ordenado.map { $0.race?.name }, ["Pro", "DosDos"])
+    func test_sortTodayAgenda_categoryIgnoresMiniProfile() {
+        let sorted = RaceLogic.sortTodayAgenda(parisToursAgenda(), sortMode: .category, featuredRaceIds: [])
+        XCTAssertEqual(sorted.map { $0.race?.name }, [
+            "Tour de la Isla de Chongming", "París-Tours", "Tour de Kyushu", "Hong Kong Cyclothon",
+            "Vuelta a Venezuela", "París-Tours sub23", "Campeonato del Caribe",
+        ])
     }
 
-    func test_sortByCategory_profileNotViewableCountsAsNoProfile() {
-        let oculto = makeEnriched(makeRace(name: "Oculto", uciCategory: "2.1"), withProfile: true, notViewable: true)
-        let visible = makeEnriched(makeRace(name: "Visible", uciCategory: "2.2"), withProfile: true)
-        let ordenado = [oculto, visible].sorted(by: RaceLogic.sortByCategory)
-        XCTAssertEqual(ordenado.first?.race?.name, "Visible")
+    func test_sortTodayAgenda_featuredFirstOnlyInCategoryMode() {
+        let items = parisToursAgenda()
+        let featured: Set<String> = ["París-Tours"]
+        XCTAssertEqual(RaceLogic.sortTodayAgenda(items, sortMode: .category, featuredRaceIds: featured).first?.race?.name, "París-Tours")
+        XCTAssertEqual(RaceLogic.sortTodayAgenda(items, sortMode: .finishTime, featuredRaceIds: featured).first?.race?.name, "Tour de la Isla de Chongming")
+    }
+
+    func test_sortTodayAgenda_featuredCancelledStaysLast() {
+        let items = [agendaItem("Cancelada", "1.UWT", cancelled: true), agendaItem("Normal", "1.2")]
+        let sorted = RaceLogic.sortTodayAgenda(items, sortMode: .category, featuredRaceIds: ["Cancelada"])
+        XCTAssertEqual(sorted.map { $0.race?.name }, ["Normal", "Cancelada"])
+    }
+
+    func test_sortTodayAgenda_tvTimeBreaksTiesByCategory() {
+        let items = [
+            agendaItem("Sin TV", "1.UWT"),
+            agendaItem("TV tarde", "1.2", broadcasts: [makeBroadcast(startTimeUtc: "2026-10-11T14:00:00Z")]),
+            agendaItem("TV pronto", "1.1", broadcasts: [makeBroadcast(startTimeUtc: "2026-10-11T12:00:00Z")]),
+        ]
+        let sorted = RaceLogic.sortTodayAgenda(items, sortMode: .tvTime, featuredRaceIds: [])
+        XCTAssertEqual(sorted.map { $0.race?.name }, ["TV pronto", "TV tarde", "Sin TV"])
+    }
+
+    func test_categoryRank_appliesSingleTableExceptions() {
+        XCTAssertEqual(RaceLogic.categoryRank(category: "2.UWT", name: "Tour de Francia", country: nil), 0.2)
+        XCTAssertEqual(RaceLogic.categoryRank(category: "2.2U", name: "Tour del Porvenir", country: nil), 8.5)
+        XCTAssertEqual(RaceLogic.categoryRank(category: "2.1", name: "Tour of Azerbaijan", country: "AZ"), 10.5)
+        XCTAssertEqual(RaceLogic.categoryRank(category: "1.1", name: "Japan Cup", country: "JP"), 9)
+        XCTAssertEqual(RaceLogic.categoryRank(category: "CC", name: "Campeonato Panamericano", country: nil), 14.5)
+        XCTAssertEqual(RaceLogic.categoryRank(category: "CC", name: "Campeonato de Europa", country: nil), 2)
+    }
+
+    // MARK: - Indicador femenino
+
+    func test_shouldShowFemaleIndicator_hiddenForWWTCategory() {
+        XCTAssertFalse(RaceLogic.shouldShowFemaleIndicator(makeRace(name: "Tour de la Isla de Chongming", uciCategory: "2.WWT", gender: "female")))
+        XCTAssertFalse(RaceLogic.shouldShowFemaleIndicator(makeRace(name: "Strade Bianche", uciCategory: "1.WWT", gender: "female")))
+        XCTAssertTrue(RaceLogic.shouldShowFemaleIndicator(makeRace(name: "Vuelta a Burgos", uciCategory: "2.Pro", gender: "female")))
+        XCTAssertFalse(RaceLogic.shouldShowFemaleIndicator(makeRace(name: "Vuelta a Burgos Féminas", uciCategory: "2.Pro", gender: "female")))
     }
 
     // MARK: - Helpers
@@ -412,7 +454,8 @@ final class RaceLogicTests: XCTestCase {
         uciCategory: String? = "1.UWT",
         countryCode: String? = nil,
         gender: String? = nil,
-        isGrandTour: Bool = false
+        isGrandTour: Bool = false,
+        isCancelled: Bool = false
     ) -> Race {
         Race(
             id: id,
@@ -428,7 +471,7 @@ final class RaceLogicTests: XCTestCase {
             websiteUrl: nil,
             hideFlag: false,
             isGrandTour: isGrandTour,
-            isCancelled: false,
+            isCancelled: isCancelled,
             startDate: nil,
             endDate: nil,
             year: year,
@@ -476,12 +519,21 @@ final class RaceLogicTests: XCTestCase {
         )
     }
 
-    /// EnrichedRaceDay con (o sin) miniperfil para los tests de orden.
-    private func makeEnriched(
-        _ race: Race,
-        withProfile: Bool,
-        notViewable: Bool = false
+    /// Jornada de la agenda de Hoy para los tests de orden. El id de la carrera
+    /// es su nombre, para poder marcarla como destacada.
+    private func agendaItem(
+        _ name: String,
+        _ uciCategory: String,
+        gender: String = "male",
+        country: String? = "FR",
+        start: String? = nil,
+        withProfile: Bool = false,
+        placeholder: Bool = false,
+        cancelled: Bool = false,
+        broadcasts: [Broadcast] = []
     ) -> EnrichedRaceDay {
+        let race = makeRace(id: name, name: name, uciCategory: uciCategory, countryCode: country,
+                            gender: gender, isCancelled: cancelled)
         let profile = withProfile
             ? ElevationProfile(
                 distance: 100, elevationGain: 500, elevationLoss: 0,
@@ -489,16 +541,16 @@ final class RaceLogicTests: XCTestCase {
                 points: [ElevationPoint(km: 0, alt: 0), ElevationPoint(km: 100, alt: 500)])
             : nil
         let rd = RaceDay(
-            id: UUID().uuidString, raceId: nil, dateKey: "2026-01-01", slug: nil,
+            id: UUID().uuidString, raceId: name, dateKey: "2026-10-11", slug: nil,
             isRestDay: false, isCancelledDay: false, stageNumber: 1,
             startLocation: nil, finishLocation: nil,
             distanceKm: nil, primaryType: nil, secondaryType: nil,
-            neutralStartTimeUtc: nil, estimatedFinishTimeUtc: nil,
+            neutralStartTimeUtc: start, estimatedFinishTimeUtc: nil,
             tvStatus: nil, description: nil, bonuses: nil, notes: nil,
-            editorialStatus: "published", hasAssets: false,
+            editorialStatus: placeholder ? "placeholder" : "published", hasAssets: false,
             updatedAt: nil, countryCode: nil,
-            elevationProfile: profile, profileNotViewable: notViewable)
-        return EnrichedRaceDay(raceDay: rd, race: race, broadcasts: [], assets: [])
+            elevationProfile: profile)
+        return EnrichedRaceDay(raceDay: rd, race: race, broadcasts: broadcasts, assets: [], isPlaceholder: placeholder)
     }
 
     private func makeBroadcast(

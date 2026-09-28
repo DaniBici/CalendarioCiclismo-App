@@ -23,7 +23,7 @@ export function madridTimeToTimestamp(dateKey, timeStr) {
   return zonedTimeToTimestamp(dateKey, timeStr, 'Europe/Madrid');
 }
 
-export function dateKeyInTimeZone(timestamp, timeZone) {
+function dateKeyInTimeZone(timestamp, timeZone) {
   if (!timestamp || !timeZone) return null;
   const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;

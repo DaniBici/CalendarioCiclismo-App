@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 
 const norm=name=>name.toLowerCase().normalize('NFKD').replace(/\p{Mark}/gu,'').replaceAll(',',' ').trim().split(/\s+/).sort().join(' ');
 const id=name=>'offline-'+createHash('sha256').update(norm(name)).digest('hex').slice(0,24);
@@ -111,7 +111,7 @@ export function copaEspanaCotejo(fixture,reference,category) {
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
-  const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/copa-espana-alcobendas-2025.json',import.meta.url),'utf8'));
+  const fixture=JSON.parse(readFileSync(new URL('../../js/__tests__/fixtures/cx-cotejos/copa-espana-alcobendas-2025.json',import.meta.url),'utf8'));
   const reference=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url),'utf8'));
   process.stdout.write(JSON.stringify(Object.keys(categories).map(category=>copaEspanaCotejo(fixture,reference,category)),null,2)+'\n');
   process.exitCode=2; // Este alcance parcial nunca acredita el cierre íntegro de F5.

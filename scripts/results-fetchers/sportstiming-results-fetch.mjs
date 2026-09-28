@@ -175,7 +175,7 @@ const synthRaceId = (slot = STAGE_SLOT) => -(ID_BASE * 10000 + slot * 100);
 const synthEventId = (kind, scope, slot = STAGE_SLOT) => -(ID_BASE * 10000 + slot * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 1));
 
 // ── normalización ────────────────────────────────────────────────────────────
-// Exportadas para tests (js/__tests__/sportstimingResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/sportstiming-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 export function clean(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim(); }
 export function decodeEntities(s) {
@@ -187,7 +187,7 @@ export function decodeEntities(s) {
 }
 export function stripTags(s) { return decodeEntities(String(s).replace(/<[^>]+>/g, ' ')); }
 
-// placement de sportstiming → códigos IRM UCI (los que entiende js/uci-irm.js).
+// placement de sportstiming → códigos IRM UCI (los que entiende js/results/uci-irm.js).
 const IRM_MAP = { DNF: 'DNF', DNS: 'DNS', DSQ: 'DSQ', DQ: 'DSQ', OTL: 'OTL', HD: 'OTL', AB: 'DNF', NP: 'DNS' };
 export function irmOf(placement) {
   const st = clean(placement).toUpperCase();

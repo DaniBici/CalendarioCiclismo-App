@@ -1,9 +1,9 @@
 import {describe,expect,it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {copaEspanaSeasonCotejo,copaEspanaSeasonCotejoInput} from '../../scripts/cx/cx-copa-espana-season-cotejo.mjs';
-import {recomputeCxStandings} from '../cx-standings.js';
+import {recomputeCxStandings} from '../cx/standings.js';
 
-const fixture=JSON.parse(readFileSync(new URL('../../docs/cx-cotejos/copa-espana-2025.json',import.meta.url)));
+const fixture=JSON.parse(readFileSync(new URL('./fixtures/cx-cotejos/copa-espana-2025.json',import.meta.url)));
 const reference=JSON.parse(readFileSync(new URL('../../docs/cc-cx-points-schemes.json',import.meta.url)));
 
 describe('Copa de España 2025, ocho rondas independientes y general RFEC',()=>{

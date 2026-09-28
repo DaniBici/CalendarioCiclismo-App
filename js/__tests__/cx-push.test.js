@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCxPushTarget, cxPushRaceAvailable, cxPushSubscriberQuery } from '../cx-push.js';
+import { resolveCxPushTarget, cxPushRaceAvailable, cxPushSubscriberQuery } from '../cx/push.js';
 import { fetchAllRows } from '../services/paged-query.js';
 
 describe('destinos push CX', () => {

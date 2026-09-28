@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { cxDateInSeason } from '../../js/cx-season.js';
+import { cxDateInSeason } from '../../js/cx/season.js';
 import { cxDataRideSeconds, cxNaturalRiderDisplay, splitCxDisplayName } from './cx-dataride-results.mjs';
 
-import {resolveCxResultIdentity} from '../../js/cx-result-identity.js';
-export {resolveCxResultIdentity} from '../../js/cx-result-identity.js';
+import {resolveCxResultIdentity} from '../../js/cx/result-identity.js';
+export {resolveCxResultIdentity} from '../../js/cx/result-identity.js';
 
 const CATEGORIES = ['ME', 'WE', 'MU', 'WU', 'MJ', 'WJ'];
 const STATES = new Set(['DNS', 'DNF', 'LAP', 'DSQ', 'OTL', 'ABD']);

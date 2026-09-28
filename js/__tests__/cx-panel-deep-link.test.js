@@ -2,16 +2,16 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {describe,it,expect,vi} from 'vitest';
 
-const panel=readFileSync(new URL('../panel.js',import.meta.url),'utf8');
-const cxPanel=readFileSync(new URL('../panel-cx.js',import.meta.url),'utf8');
-const routing=panel.slice(panel.indexOf('  // Si venimos desde una página pública con query params'),panel.indexOf('\n}\n\n// ── Carreras'));
+const panel=readFileSync(new URL('../panel/main.js',import.meta.url),'utf8');
+const cxPanel=readFileSync(new URL('../panel/cx.js',import.meta.url),'utf8');
+const routing=panel.slice(panel.indexOf('  // Si venimos desde una página pública con query params'),panel.lastIndexOf('\n}\n'));
 
 async function route(search) {
   const openCxRaceEditor=vi.fn(),openEditor=vi.fn(),switchTab=vi.fn();
   const from=vi.fn(()=>({select:()=>({eq:()=>({single:async()=>({data:{dateKey:'2026-10-11'}})})})}));
   await runInNewContext(`(async()=>{${routing}})()`,{
     URLSearchParams,location:{search,pathname:'/panel/app.html',hash:''},history:{replaceState:vi.fn()},
-    supabase:{from},currentDateKey:'2026-09-14',datePicker:{},
+    supabase:{from},panelState:{currentDateKey:'2026-09-14'},datePicker:{},
     setupModals:vi.fn(),setupRacesView:vi.fn(),loadSidebar:vi.fn(),
     ensureRaceYearLoaded:vi.fn(),raceYearFromDateKey:()=>2026,ensureRaceLoadedById:vi.fn(),
     openCxRaceEditor,openEditor,switchTab,_clickEditorTab:vi.fn(),tabFromHash:()=> 'agenda',

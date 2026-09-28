@@ -10,7 +10,7 @@ export const RTVE_LIVES_URL = 'https://api.rtve.es/api/lives/peticiones.json?siz
 export const CARACOL_SOURCE_URL = 'https://www.noticiascaracol.com/golcaracol/ciclismo/vuelta-a-espana-2026-en-vivo-hora-y-donde-ver-por-tv-y-online-las-21-etapas-so35';
 export const CARACOL_VUELTA_INDEX_URL = 'https://www.noticiascaracol.com/golcaracol/vuelta-espana';
 export const CARACOL_BROADCAST_URL = 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo';
-export const PARSER_VERSION = '2026-09-26.3';
+export const PARSER_VERSION = '2026-09-28.3';
 
 const STAGE_RE = /\b(?:stage|etapa|[eé]tape|tappa)\s*(\d{1,2})(?:[a-z])?\b/i;
 const CYCLING_RE = /\b(ciclismo|ciclista|cycling|vuelta|giro|tour de france|tour femenino|clasica|clásica|mundial.*ruta|campeonato.*ruta)\b/i;
@@ -102,6 +102,32 @@ function frenchRaceForm(value) {
   return FRENCH_RACE_FORMS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
 }
 
+// RAI rotula los campeonatos en italiano: «Mondiali/Europei», «Cronometro»,
+// «Corsa/Gara in linea», «Staffetta mista», «Uomini», «Under 23».
+const ITALIAN_RACE_FORMS = [
+  [/\b(?:campionati )?mondial[ei]\b/g, 'world championships'],
+  [/\b(?:campionati )?europe[io]\b/g, 'european championships'],
+  [/\b(?:cronometro )?staffetta mista\b/g, 'mixed relay ttt'],
+  [/\bcronometro(?: individuale)?\b/g, 'itt'],
+  [/\b(?:corsa|gara) in linea\b/g, 'road race'],
+  [/\bunder 23\b/g, 'u23'],
+  [/\b(?:uomini|maschile)\b/g, 'men'],
+];
+
+function italianRaceForm(value) {
+  return ITALIAN_RACE_FORMS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+}
+
+// RAI y RTBF omiten la categoría élite y, a menudo, la disciplina de la prueba
+// en línea: «Europei Lubiana: Elite Donne», «Course en ligne Femmes».
+function implicitChampionshipForm(value) {
+  if (!/\b(?:world|european) championships\b/.test(value)) return value;
+  let text = value;
+  if (!/\b(?:itt|ttt|relay|road race|rr)\b/.test(text)) text += ' road race';
+  if (!raceLevel(text) && !/\belite\b/.test(text)) text += ' elite';
+  return text;
+}
+
 // Categoría de edad declarada. Una fuente que nombra sub23 o júnior no puede
 // casar con la prueba élite del mismo día, y viceversa.
 function raceLevel(value) {
@@ -120,15 +146,24 @@ function significant(value) {
   return matchingForm(value).split(' ').filter((word) => word.length > 1 && !GENERIC_WORDS.has(word));
 }
 
+// «Coppa Agostoni - Giro delle Brianze»: las fuentes rotulan solo el nombre
+// principal. Campeonatos y Juegos no se recortan: su prefijo no identifica la
+// prueba del día.
+function hyphenHead(alias) {
+  const [head, ...rest] = String(alias).split(/\s+[-–—]\s+/);
+  if (!rest.length || /\b(?:championships?|games)\b/i.test(head)) return null;
+  return significant(head).length >= 2 ? matchingForm(head) : null;
+}
+
 function aliasesForRace(race, source) {
   const aliases = [race.name, race.nameEn];
   for (const language of Object.values(race.translations || {})) {
     if (language && typeof language === 'object') aliases.push(language.name);
   }
-  const folded = new Set(aliases.filter(Boolean).flatMap((alias) => [
-    matchingForm(alias),
-    matchingForm(String(alias).split(/\s*\/\s*/, 1)[0]),
-  ]));
+  const folded = new Set(aliases.filter(Boolean).flatMap((alias) => {
+    const primary = String(alias).split(/\s*\/\s*/, 1)[0];
+    return [matchingForm(alias), matchingForm(primary), hyphenHead(primary)].filter(Boolean);
+  }));
   for (const alias of [...folded]) {
     if (/\bcre\b/.test(alias) && /\brelevo mixto\b/.test(alias)) {
       folded.add(alias.replace(/\bcre\b/g, ' ').replace(/\s+/g, ' ').trim());
@@ -167,6 +202,7 @@ function aliasesForRace(race, source) {
     }
     if (/\bil lombardia\b/.test(alias)) folded.add('ronde van lombardije');
     if (/\bfourmies feminine\b/.test(alias)) folded.add('grand prix de fourmies');
+    if (/\bpour (?:dames|femmes)\b/.test(alias)) folded.add(alias.replace(/\bpour (dames|femmes)\b/g, '$1'));
   }
   if (source === 'rai') {
     for (const alias of [...folded]) {
@@ -763,6 +799,21 @@ export function normalizedObservation(event) {
   return { ...normalized, sourceHash: contentHash(normalized) };
 }
 
+function championshipKind(day) {
+  return matchingForm(`${day.nameEn || ''} ${day.name || ''}`).match(/\b(world|european) championships?\b/)?.[1] || null;
+}
+
+// HBO Max rotula a veces una prueba de un campeonato solo con la sede
+// («LJUBLJANA», subtítulo «Men»). La sede se acredita si es salida o llegada de
+// alguna prueba de ese campeonato el mismo día; el género decide la prueba.
+function venueChampionshipKinds(observation, raceDays) {
+  const title = matchingForm(observation.title);
+  if (!title) return new Set();
+  return new Set(raceDays.filter((day) => day.dateKey === observation.dateKey && championshipKind(day)
+    && [day.startLocation, day.finishLocation].some((place) => place && matchingForm(place) === title))
+    .map(championshipKind));
+}
+
 export function matchObservation(observation, raceDays) {
   let sourceText = matchingForm(`${observation.title} ${observation.subtitle || ''}`);
   if (observation.source === 'rai') sourceText = sourceText.replace(/\b(?:g p|gran premio)\b/g, 'grand prix').replace(/\be\b/g, 'and');
@@ -775,12 +826,17 @@ export function matchObservation(observation, raceDays) {
     }
   }
   if (observation.source === 'eitb') sourceText = basqueRaceForm(sourceText);
-  if (observation.source === 'lequipe') sourceText = frenchRaceForm(sourceText);
+  if (observation.source === 'lequipe' || observation.source === 'rtbf') sourceText = frenchRaceForm(sourceText);
+  if (observation.source === 'rai') sourceText = italianRaceForm(sourceText);
+  if (observation.source === 'rai' || observation.source === 'rtbf') sourceText = implicitChampionshipForm(sourceText);
+  if (observation.source === 'sporza') sourceText = sourceText.replace(/\bparijs\b/g, 'paris');
   const sourceLevel = raceLevel(sourceText);
   const canonicalSource = canonicalGenderWords(sourceText);
   const sourceWords = new Set(canonicalSource.split(' '));
+  const venueKinds = venueChampionshipKinds(observation, raceDays);
   const candidates = raceDays.filter((day) => day.dateKey === observation.dateKey).map((day) => {
     const aliases = aliasesForRace(day, observation.source);
+    if (venueKinds.has(championshipKind(day))) aliases.push(matchingForm(observation.title));
     if (observation.source === 'rai' && observation.stageNumber == null && day.stageNumber != null) {
       return { day, score: 0, aliases: [] };
     }

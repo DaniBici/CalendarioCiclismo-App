@@ -1,4 +1,4 @@
-import { mountStageProfile } from './stage-profile.js?v=20260908b';
+import { mountStageProfile } from './stage/profile.js?v=20260908b';
 // ─────────────────────────────────────────────────────────────────
 //  JORNADA — detalle de una jornada concreta
 //  URL: jornada.html?id=RACE_DAY_ID

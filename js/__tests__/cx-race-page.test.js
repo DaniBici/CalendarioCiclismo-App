@@ -1,10 +1,10 @@
 import {describe,it,expect,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import * as presentation from '../cx-presentation.js';
-import {cxDateInSeason} from '../cx-season.js';
-import {cxUrl,cxYouTubeVideoId} from '../cx-editor-logic.js';
-import {cxRaceSeo} from '../cx-race-seo.js';
+import * as presentation from '../cx/presentation.js';
+import {cxDateInSeason} from '../cx/season.js';
+import {cxUrl,cxYouTubeVideoId} from '../cx/editor-logic.js';
+import {cxRaceSeo} from '../cx/race-seo.js';
 import {cxIsHidden,CX_SPANISH_AUDIENCE} from '../services/cx-data.js';
 
 const script=readFileSync(new URL('../cx-race.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('}catch(error){root.innerHTML=', '}catch(error){throw error;root.innerHTML=');

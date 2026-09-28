@@ -4,10 +4,10 @@ import {dateNavigationButton} from './components/date-navigation.js?v=20260912cx
 import {cxLogoImage} from './components/cx-logo.js?v=20260912cxlogos1';
 import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js?v=20260913cxround';
-import {cxCategoryTiming} from './cx-timing.js?v=20260913cxdropschedule';
+import {cxCategoryTiming} from './cx/timing.js?v=20260913cxdropschedule';
 import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE} from './services/cx-data.js?v=20260927cxhidden';
-import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches} from './cx-presentation.js?v=20260920cxrank1';
-import {cxTournamentDescription} from './cx-tournament-seo.js?v=20260914cxtournamentlist';
+import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches} from './cx/presentation.js?v=20260920cxrank1';
+import {cxTournamentDescription} from './cx/tournament-seo.js?v=20260914cxtournamentlist';
 
 await initI18n();
 const root=document.getElementById('cxAgendaContent'),lang=getLang(),locale=getLocale();

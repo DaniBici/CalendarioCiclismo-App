@@ -1,4 +1,4 @@
-export const OPERATIONS_STALE_AFTER_MS = Object.freeze({
+const OPERATIONS_STALE_AFTER_MS = Object.freeze({
   results: 3 * 60 * 1000,
   cx_results: 3 * 60 * 1000,
   broadcasts: 45 * 60 * 1000,

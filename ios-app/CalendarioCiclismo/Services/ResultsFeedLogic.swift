@@ -272,9 +272,9 @@ enum ResultsFeedLogic {
 
     // MARK: - Orden canónico dentro del día
 
-    /// Orden canónico de carreras dentro del día (espejo de `cmpEntries` en la
-    /// web ≈ `_sortByCategory` de app.js sin los criterios que aquí no aplican:
-    /// placeholders/mini-perfil). Misma carrera → la general final SIEMPRE por
+    /// Orden canónico de carreras dentro del día (espejo de `cmpEntries` en
+    /// `js/resultados-feed.js`): Campeonatos Nacionales → gran vuelta →
+    /// `categoryRank` → sexo → hora → nombre. Misma carrera → la general final SIEMPRE por
     /// delante de su etapa. El desempate horario usa la hora POR CARRERA-DÍA
     /// (`sortTime`, precomputada), nunca el rd de la entrada.
     /// Devuelve <0 si `a` va antes, >0 si va después, 0 si empatan.
@@ -305,16 +305,12 @@ enum ResultsFeedLogic {
         let gt = RaceLogic.grandTourRank(rA) - RaceLogic.grandTourRank(rB)
         if gt != 0 { return gt }
 
-        let lvlA = RaceLogic.proLevel(category: rA.uciCategory, name: rA.name, country: rA.countryCode)
-        let lvlB = RaceLogic.proLevel(category: rB.uciCategory, name: rB.name, country: rB.countryCode)
-        if lvlA != lvlB { return lvlA < lvlB ? -1 : 1 }
+        let catA = RaceLogic.raceCategoryRank(rA)
+        let catB = RaceLogic.raceCategoryRank(rB)
+        if catA != catB { return catA < catB ? -1 : 1 }
 
         let gen = RaceLogic.genderRank(rA.gender) - RaceLogic.genderRank(rB.gender)
         if gen != 0 { return gen }
-
-        let catA = RaceLogic.uciRank(category: rA.uciCategory, name: rA.name, country: rA.countryCode)
-        let catB = RaceLogic.uciRank(category: rB.uciCategory, name: rB.name, country: rB.countryCode)
-        if catA != catB { return catA < catB ? -1 : 1 }
 
         if a.sortTime != b.sortTime { return a.sortTime < b.sortTime ? -1 : 1 }
 

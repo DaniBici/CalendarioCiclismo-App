@@ -10,6 +10,7 @@ import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.today.TodayViewModel
 import app.calendariociclismo.android.ui.today.shouldDisplayTodayRaceAsFeatured
+import app.calendariociclismo.android.ui.today.sortTodayAgenda
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -383,30 +384,78 @@ class RaceLogicTest {
         assertEquals(4, RaceLogic.broadcastLinkPriority(""))
     }
 
-    // ── byCategory: prioridad de miniperfil ───────────────────────
+    // ── Orden de la agenda de Hoy (espejo de today-agenda-order.test.js) ──
+
+    /** Domingo 11-10-2026: la París-Tours no debe quedar detrás de una 2.1 por tener esta miniperfil. */
+    private fun parisToursAgenda() = listOf(
+        agendaItem("Tour de Kyushu", "2.1", country = "JP", start = "2026-10-11T01:00:00Z", withProfile = true),
+        agendaItem("Tour de la Isla de Chongming", "2.WWT", gender = "female", country = "CN"),
+        agendaItem("París-Tours", "1.Pro"),
+        agendaItem("Hong Kong Cyclothon", "1.1", country = "HK", start = "2026-10-11T01:45:00Z"),
+        agendaItem("Vuelta a Venezuela", "2.2", country = "VE"),
+        agendaItem("París-Tours sub23", "1.2U"),
+        agendaItem("Campeonato del Caribe", "1.2", country = null, placeholder = true),
+    )
 
     @Test
-    fun `byCategory pone la jornada con miniperfil por delante de una de categoria superior sin perfil`() {
-        val conPerfil = enriched(race(uciCategory = "2.2", name = "Con perfil"), withProfile = true)
-        val sinPerfil = enriched(race(uciCategory = "2.1", name = "Sin perfil"), withProfile = false)
-        val ordenado = listOf(sinPerfil, conPerfil).sortedWith(RaceLogic.byCategory)
-        assertEquals("Con perfil", ordenado.first().race?.name)
+    fun `agenda de Hoy ordena por categoria sin dar prioridad al miniperfil`() {
+        val ordenado = sortTodayAgenda(parisToursAgenda(), TodayViewModel.SortMode.CATEGORY, emptySet())
+        assertEquals(
+            listOf(
+                "Tour de la Isla de Chongming", "París-Tours", "Tour de Kyushu", "Hong Kong Cyclothon",
+                "Vuelta a Venezuela", "París-Tours sub23", "Campeonato del Caribe",
+            ),
+            ordenado.map { it.race?.name },
+        )
     }
 
     @Test
-    fun `byCategory dentro del grupo con perfil mantiene el orden por categoria`() {
-        val pro = enriched(race(uciCategory = "2.Pro", name = "Pro"), withProfile = true)
-        val dosDos = enriched(race(uciCategory = "2.2", name = "DosDos"), withProfile = true)
-        val ordenado = listOf(dosDos, pro).sortedWith(RaceLogic.byCategory)
-        assertEquals(listOf("Pro", "DosDos"), ordenado.map { it.race?.name })
+    fun `agenda de Hoy antepone las destacadas solo en el orden por categoria`() {
+        val items = parisToursAgenda()
+        val destacadas = setOf("París-Tours")
+        assertEquals("París-Tours", sortTodayAgenda(items, TodayViewModel.SortMode.CATEGORY, destacadas).first().race?.name)
+        assertEquals(
+            "Tour de la Isla de Chongming",
+            sortTodayAgenda(items, TodayViewModel.SortMode.FINISH_TIME, destacadas).first().race?.name,
+        )
     }
 
     @Test
-    fun `byCategory trata profileNotViewable como sin perfil`() {
-        val oculto = enriched(race(uciCategory = "2.1", name = "Oculto"), withProfile = true, notViewable = true)
-        val visible = enriched(race(uciCategory = "2.2", name = "Visible"), withProfile = true)
-        val ordenado = listOf(oculto, visible).sortedWith(RaceLogic.byCategory)
-        assertEquals("Visible", ordenado.first().race?.name)
+    fun `agenda de Hoy mantiene al final una destacada cancelada`() {
+        val items = listOf(agendaItem("Cancelada", "1.UWT", cancelled = true), agendaItem("Normal", "1.2"))
+        val ordenado = sortTodayAgenda(items, TodayViewModel.SortMode.CATEGORY, setOf("Cancelada"))
+        assertEquals(listOf("Normal", "Cancelada"), ordenado.map { it.race?.name })
+    }
+
+    @Test
+    fun `agenda de Hoy ordena por hora de TV y desempata por categoria`() {
+        val items = listOf(
+            agendaItem("Sin TV", "1.UWT"),
+            agendaItem("TV tarde", "1.2", broadcasts = listOf(broadcast(startTimeUtc = "2026-10-11T14:00:00Z"))),
+            agendaItem("TV pronto", "1.1", broadcasts = listOf(broadcast(startTimeUtc = "2026-10-11T12:00:00Z"))),
+        )
+        val ordenado = sortTodayAgenda(items, TodayViewModel.SortMode.TV_TIME, emptySet())
+        assertEquals(listOf("TV pronto", "TV tarde", "Sin TV"), ordenado.map { it.race?.name })
+    }
+
+    @Test
+    fun `categoryRank aplica las excepciones de grandes vueltas, Porvenir, Asia y continentales`() {
+        assertEquals(0.2, RaceLogic.categoryRank("2.UWT", "Tour de Francia", null), 0.0)
+        assertEquals(8.5, RaceLogic.categoryRank("2.2U", "Tour del Porvenir", null), 0.0)
+        assertEquals(10.5, RaceLogic.categoryRank("2.1", "Tour of Azerbaijan", "AZ"), 0.0)
+        assertEquals(9.0, RaceLogic.categoryRank("1.1", "Japan Cup", "JP"), 0.0)
+        assertEquals(14.5, RaceLogic.categoryRank("CC", "Campeonato Panamericano", null), 0.0)
+        assertEquals(2.0, RaceLogic.categoryRank("CC", "Campeonato de Europa", null), 0.0)
+    }
+
+    // ── Indicador femenino ─────────────────────────────────────────
+
+    @Test
+    fun `shouldShowFemaleIndicator se oculta en categorias WWT`() {
+        assertFalse(RaceLogic.shouldShowFemaleIndicator(race(name = "Tour de la Isla de Chongming", uciCategory = "2.WWT", gender = "female")))
+        assertFalse(RaceLogic.shouldShowFemaleIndicator(race(name = "Strade Bianche", uciCategory = "1.WWT", gender = "female")))
+        assertTrue(RaceLogic.shouldShowFemaleIndicator(race(name = "Vuelta a Burgos", uciCategory = "2.Pro", gender = "female")))
+        assertFalse(RaceLogic.shouldShowFemaleIndicator(race(name = "Vuelta a Burgos Féminas", uciCategory = "2.Pro", gender = "female")))
     }
 
     // ── Helpers ────────────────────────────────────────────────────
@@ -480,6 +529,7 @@ class RaceLogicTest {
         countryCode: String? = null,
         raceFormat: String? = null,
         isGrandTour: Boolean = false,
+        isCancelled: Boolean = false,
     ) = Race(
         id = id,
         name = name,
@@ -489,6 +539,7 @@ class RaceLogicTest {
         countryCode = countryCode,
         year = year,
         isGrandTour = isGrandTour,
+        isCancelled = isCancelled,
     )
 
     private fun raceDay(
@@ -509,11 +560,17 @@ class RaceLogicTest {
         raceStatus = raceStatus,
     )
 
-    /** EnrichedRaceDay con (o sin) miniperfil para los tests de orden. */
-    private fun enriched(
-        race: Race,
-        withProfile: Boolean,
-        notViewable: Boolean = false,
+    /** Jornada de la agenda de Hoy para los tests de orden. El id de la carrera es su nombre. */
+    private fun agendaItem(
+        name: String,
+        uciCategory: String,
+        gender: String = "male",
+        country: String? = "FR",
+        start: String? = null,
+        withProfile: Boolean = false,
+        placeholder: Boolean = false,
+        cancelled: Boolean = false,
+        broadcasts: List<Broadcast> = emptyList(),
     ): EnrichedRaceDay {
         val profile = if (withProfile)
             ElevationProfile(
@@ -522,12 +579,17 @@ class RaceLogicTest {
             ) else null
         return EnrichedRaceDay(
             raceDay = RaceDay(
-                id = "rd-${race.name}",
-                dateKey = "2026-01-01",
+                id = "rd-$name",
+                raceId = name,
+                dateKey = "2026-10-11",
+                neutralStartTimeUtc = start,
                 elevationProfile = profile,
-                profileNotViewable = notViewable,
+                editorialStatus = if (placeholder) "placeholder" else "published",
             ),
-            race = race,
+            race = race(id = name, name = name, uciCategory = uciCategory, gender = gender,
+                countryCode = country, isCancelled = cancelled),
+            broadcasts = broadcasts,
+            isPlaceholder = placeholder,
         )
     }
 

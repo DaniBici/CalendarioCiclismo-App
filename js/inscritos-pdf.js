@@ -417,14 +417,40 @@ export async function generateStartlistPDF(opts) {
     const enriched = colors && isHex(colors.background) && isHex(colors.text);
     doc.setFillColor(enriched ? colors.background : headerNeutral);
     doc.rect(x, cellY, colW, teamHeaderH, 'F');
+    // Lista provisional: marca de confirmación a la derecha, como en la web
+    // (cuadrado de 18 px, radio 4, ✓ azul confirmado / ✕ gris pendiente).
+    const badgeW = race.startlistProvisional ? drawConfirmBadge(team.isConfirmed, x + colW - 1.4, cellY) + 1.2 : 0;
     doc.setFont(fontFamily, 'bold');
     doc.setFontSize(7.4);
     doc.setTextColor(enriched ? colors.text : text);
     const suffix = continued ? ' (cont.)' : '';
     const name = enc(team.displayName || team.teamName || '');
     const suffixW = suffix ? doc.getTextWidth(suffix) : 0;
-    doc.text(fit(name, colW - 4 - suffixW) + suffix, x + 2, cellY + teamHeaderH / 2 + 1.2);
+    doc.text(fit(name, colW - 4 - suffixW - badgeW) + suffix, x + 2, cellY + teamHeaderH / 2 + 1.2);
     return enriched && /^#?(fff|ffffff)$/i.test(colors.background.trim());
+  };
+
+  // Dibuja la marca con su borde derecho en `right`; devuelve su ancho.
+  const drawConfirmBadge = (confirmed, right, cellY) => {
+    const size = 3.4;
+    const u = size / 18;                       // unidades del SVG de la web
+    const bx = right - size;
+    const by = cellY + (teamHeaderH - size) / 2;
+    doc.setFillColor(confirmed ? accent : '#6b7280');
+    doc.roundedRect(bx, by, size, size, 4 * u, 4 * u, 'F');
+    doc.setDrawColor('#ffffff');
+    doc.setLineWidth(1.8 * u);
+    doc.setLineCap('round');
+    doc.setLineJoin('round');
+    if (confirmed) {
+      doc.lines([[2.5 * u, 2.5 * u], [5.5 * u, -5.5 * u]], bx + 5 * u, by + 9.5 * u, [1, 1], 'S', false);
+    } else {
+      doc.line(bx + 6 * u, by + 6 * u, bx + 12 * u, by + 12 * u);
+      doc.line(bx + 12 * u, by + 6 * u, bx + 6 * u, by + 12 * u);
+    }
+    doc.setLineCap('butt');
+    doc.setLineJoin('miter');
+    return size;
   };
 
   const drawRiderName = (r, x, baseY, maxW, out) => {

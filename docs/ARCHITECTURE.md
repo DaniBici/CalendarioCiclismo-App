@@ -66,7 +66,7 @@ graph TB
 
 ```
 Panel editorial (panel/app.html)
-    └── js/panel.js → Supabase REST (INSERT/UPDATE races, race_days)
+    └── js/panel/ → Supabase REST (INSERT/UPDATE races, race_days)
             └── PostgreSQL (tabla races + race_days)
                     ├── Web: js/app.js / jornada.js / etc. → Supabase REST → render DOM
                     ├── iOS: SupabaseService.swift → CacheManager → SwiftUI views
@@ -131,10 +131,14 @@ separados. El modo de aplicación exige dos observaciones estables, fuente ofici
 calendario-ciclismo/
 ├── index.html + mes.html + temporada.html + …   Web (SPA)
 ├── js/                                           Lógica web
-│   ├── app.js / mes.js / temporada.js / …        Vistas principales
+│   ├── app.js / mes.js / temporada.js / …        Vistas principales (entradas de página en la raíz)
 │   ├── shared.js                                 Utilidades compartidas
 │   ├── services/races.js                         Lógica pura de carreras
-│   └── panel.js                                  Panel editorial
+│   ├── cx/                                       Módulos de ciclocross (referencia: docs/memory/ciclocross.md)
+│   ├── results/                                  Módulos de resultados (DOM, tiempos, IRM, ranking UCI)
+│   ├── stage/                                    Módulos de jornada y perfil (elevación, puertos, digitalizador)
+│   ├── startlist/                                Módulos de inscritos (datos, importación, contrato de fuente)
+│   └── panel/                                    Panel editorial (entrada: main.js)
 ├── css/app.css                                   Estilos globales
 ├── supabase/
 │   ├── migrations/                               SQL migrations (numeradas)
@@ -176,13 +180,54 @@ calendario-ciclismo/
 | `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/results.env` (`0640`, fuera del repo) + copia de recuperación privada |
 | `BROADCASTS_DATABASE_URL` del rol `cc_broadcasts_login` | Sincronizador de emisiones del VPS | `/etc/calendario-ciclismo/broadcasts.env` (`0600`, fuera del repo) |
 
-## Decisiones clave
+## Decisiones de arquitectura
 
-Ver `docs/adr/` para el registro completo. Resumen:
+### Backend: Supabase gestionado
 
-- **Base de datos**: migrado de Firestore → Supabase/PostgreSQL (ADR-0001).
-- **Apps nativas**: reescrito desde WKWebView a SwiftUI + Jetpack Compose (ADR-0002).
-- **Assets**: proxy R2 vía VPS para control de cabeceras y autenticación (ADR-0004).
-- **Resultados automáticos y manuales**: watcher y cola privada en el VPS; GitHub Actions queda como fallback manual independiente.
-- **Ránking UCI de equipos**: observación horaria lunes/martes en el VPS y pasada de seguridad el miércoles.
-- **Emisiones oficiales**: servicio aislado con escrituras protegidas para HBO Max y RTVE; toda acción queda auditada.
+- El modelo de carreras, jornadas, emisiones, assets e inscritos es relacional
+  y se consulta con filtros, joins y ordenaciones en SQL.
+- Supabase reúne en un servicio PostgreSQL, PostgREST, Auth, Edge Functions y
+  Storage. Se descartan un backend HTTP propio y la combinación de servicios
+  separados por el coste de mantenimiento para un equipo de una persona.
+- Consecuencias: el esquema se versiona en `supabase/migrations/`; cada columna
+  nueva que consuman las apps exige migración SQL y, en Android, migración de
+  Room. Las apps no usan Realtime: refrescan con carga periódica y
+  pull-to-refresh.
+
+### Apps nativas: SwiftUI y Jetpack Compose
+
+- iOS (SwiftUI) y Android (Jetpack Compose) son nativas y leen Supabase REST
+  directamente. Se descartan WebView, Capacitor/Ionic, React Native y Flutter.
+- Motivos: push real (APNs/FCM mediante `send-push`), modo offline con caché
+  local (`CacheManager`/`OfflineManager` en iOS; Room, `OfflineManager` y
+  `OfflineSyncWorker` en Android), widgets, haptics, accesibilidad nativa y
+  rendimiento de scroll.
+- Consecuencias: cada cambio de presentación o de lógica se implementa en las
+  dos plataformas y llega a los usuarios mediante release. La paridad funcional
+  es un requisito de cada cambio. Detalles en `docs/memory/ios-conventions.md` y
+  `docs/memory/android-architecture.md`.
+
+### Assets: R2 detrás del proxy nginx del VPS
+
+- Los assets de jornada y los logos se almacenan en Cloudflare R2 y se sirven
+  desde `assets.calendariociclismo.app` a través de nginx en el VPS. La subida
+  la firma la Edge Function `r2-upload`.
+- Motivos: dominio propio, control de `Content-Type`, `Cache-Control` y CORS,
+  ausencia de `Content-Disposition` para que iOS abra los PDF en línea, y
+  posibilidad de añadir autenticación o transformaciones sin cambiar las URL.
+  Supabase Storage se descartó para assets por coste y límites de almacenamiento.
+- Consecuencias: el VPS es un punto de fallo para los assets aunque R2 esté
+  disponible, y la configuración de nginx se mantiene junto con el bucket. Si
+  el VPS se retira, la alternativa prevista es un Cloudflare Worker con la misma
+  URL pública.
+- Excepción: los GPX del mapa (`route-gpx`) se sirven desde Supabase Storage
+  porque el mapa los descarga con `fetch()` y necesita CORS directo.
+
+### Servicios del VPS
+
+- **Resultados automáticos y manuales**: watcher y cola privada en el VPS;
+  GitHub Actions queda como fallback manual independiente.
+- **Ránking UCI de equipos**: observación horaria lunes/martes en el VPS y pasada
+  de seguridad el miércoles.
+- **Emisiones oficiales**: servicio aislado con escrituras protegidas; toda
+  acción queda auditada.

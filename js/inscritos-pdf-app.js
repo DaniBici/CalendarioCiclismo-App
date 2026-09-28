@@ -13,7 +13,7 @@
 import { initI18n, getLang } from './i18n.js';
 import { enBase } from './shared.js';
 import { generateStartlistPDF } from './inscritos-pdf.js';
-import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist-data.js';
+import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist/data.js';
 
 function post(message) {
   const ios = window.webkit?.messageHandlers?.ccStartlistPdf;

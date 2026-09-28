@@ -97,7 +97,7 @@ const TOTAL_STAGES = getArg('--total-stages') != null ? Number(getArg('--total-s
 const PRETTY = hasFlag('--pretty');
 
 // fnv1a → base determinista para los ids sintéticos negativos.
-// Exportada para tests (js/__tests__/domtelResultsFetch.test.js).
+// Exportada para tests (scripts/__tests__/domtel-results-fetch.test.js).
 export function fnv1a(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -132,7 +132,7 @@ const synthRaceId  = (slot) => -(ID_BASE * 100 + slot);
 // rango de números de etapa reales (idéntico patrón a matsport/tissot/sts).
 const FINAL_SLOT = 9999;
 
-// Exportadas para tests (js/__tests__/domtelResultsFetch.test.js). El script sigue
+// Exportadas para tests (scripts/__tests__/domtel-results-fetch.test.js). El script sigue
 // siendo ejecutable: main() solo corre si se invoca directamente (ver pie del fichero).
 export const clean = (s) => (s == null ? '' : String(s).trim());
 

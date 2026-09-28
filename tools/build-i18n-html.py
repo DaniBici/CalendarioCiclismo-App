@@ -4,9 +4,6 @@ build-i18n-html.py — Genera las páginas EN desde los HTML maestros ES.
 
 Para cada HTML raíz marcado con data-i18n, genera su equivalente EN en en/:
   index.html        → en/index.html
-  mes.html          → en/month/index.html
-  temporada.html    → en/season/index.html
-  buscar.html       → en/search/index.html
   privacidad.html   → en/privacy/index.html
   404.html          → en/404.html
   suscripcion/      → en/subscription/index.html
@@ -42,14 +39,11 @@ def t(key: str):
     return val if isinstance(val, str) else None
 
 # ── Mapeo HTML fuente → directorio de salida ─────────────────────
-# Nota: about.html es desde 2026-09-16 un shell de redirección a /about/ y
-# en/about/ se edita A MANO (como en/open/) — no regenerar desde el shell.
+# Las redirecciones de URLs antiguas (about.html, mes.html, en/month/…) las
+# genera tools/site/redirects.py. en/about/ se edita A MANO, como en/open/.
 PAGES = [
     ("index.html",              "en"),
     ("ciclocross.html",         "en/cyclocross"),
-    ("mes.html",                "en/month"),
-    ("temporada.html",          "en/season"),
-    ("buscar.html",             "en/search"),
     ("privacidad.html",         "en/privacy"),
     ("404.html",                "en/404"),
     ("suscripcion/index.html",  "en/subscription"),
@@ -72,8 +66,6 @@ HREF_MAP = {
     "/about.html":            "/about/",
     "/abierto/":              "/open/",
     "/abierto.html":          "/open/",
-    "/buscar.html":           "/search/",
-    "buscar.html":            "/search/",
     "/privacidad.html":       "/privacy/",
     "privacidad.html":        "/privacy/",
     "/betaandroid.html":      "/beta/",

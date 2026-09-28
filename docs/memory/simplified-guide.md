@@ -45,7 +45,7 @@ isEstimated }` ordenada por km. Lógica:
    momento distinto): solo se muestran las horas manuales.
 
 Tests con **vectores compartidos** (mismos km/horas/resultados):
-`js/__tests__/simplifiedGuide.test.js`, `SimplifiedGuideTests.swift`,
+`js/__tests__/simplified-guide.test.js`, `SimplifiedGuideTests.swift`,
 `SimplifiedGuideTest.kt`. Cambiar la heurística obliga a actualizar las tres.
 
 ## Render + interacción
@@ -64,7 +64,7 @@ Cada fila: hora local (formatters existentes `formatTimeUser`/`formatTimeLocal`)
 marcador circular por tipo (mismo código de color que el perfil/mini-perfil),
 nombre, km restantes, y `*` si la hora es estimada (con nota al pie).
 
-## Panel (`js/panel.js`)
+## Panel (`js/panel/jornada-fields.js`, `js/panel/jornada-save.js`)
 
 `summitRowHTML`/`waypointRowHTML` tienen un input `type=time` (`.ann-time`),
 inicializado desde `timeUtc` con `formatTimeHHMM`. `_saveRaceDay` añade

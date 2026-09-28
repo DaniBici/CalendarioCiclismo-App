@@ -75,7 +75,7 @@ El seguimiento es independiente del modo y los filtros de carretera y **no** act
 
 ### Panel admin
 
-La vista de Notificaciones de `panel/app.html` es común a las dos áreas del panel. `js/panel.js` la acota al área activa con `panelArea()` (`applyPushArea()`), sin duplicar la vía de envío:
+La vista de Notificaciones de `panel/app.html` es común a las dos áreas del panel. `js/panel/notifications.js` la acota al área activa con `panelArea()` (`applyPushArea()`), sin duplicar la vía de envío:
 
 - Carretera: categoría `general`; destinos de competición, jornada, dorsales, perfil, orden de salida, mercado de fichajes y equipo. El recuento filtra `push_subscription_categories.category='general'`.
 - Ciclocross: categoría `cyclocross`; destinos `cxRace/<id>` y pestaña `cyclocross`. El recuento usa `cxPushSubscriberQuery`.
@@ -144,7 +144,7 @@ El panel permite programar una notificación para que se envíe automáticamente
 | `supabase/migrations/036_pg_cron_scheduled_push.sql` | Crea el job `pg_cron` que invoca `processScheduled` cada 5 min |
 | `.github/workflows/scheduled-push.yml` | Ejecución manual de diagnóstico de `processScheduled` con `CRON_SECRET` |
 | `panel/app.html` | Toggle "Programar para más tarde" + campo datetime-local + sección "Programadas" |
-| `js/panel.js` | `loadScheduledNotifications()`, `cancelScheduledNotification()`, lógica en `sendPushNotification()` |
+| `js/panel/notifications.js` | `loadScheduledNotifications()`, `cancelScheduledNotification()`, lógica en `sendPushNotification()` |
 
 **Secret de GitHub necesario:** `CRON_SECRET` (Settings → Secrets → Actions del repo).
 

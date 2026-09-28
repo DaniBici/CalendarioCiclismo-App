@@ -1,9 +1,9 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {recomputeCxStandings} from '../../js/cx-standings.js';
+import {recomputeCxStandings} from '../../js/cx/standings.js';
 
-const fixtureUrl=new URL('../../docs/cx-cotejos/worldcup-drop-case-2019-20-mu.json',import.meta.url);
+const fixtureUrl=new URL('../../js/__tests__/fixtures/cx-cotejos/worldcup-drop-case-2019-20-mu.json',import.meta.url);
 const oldScale=[60,50,45,40,35,30,28,26,24,22,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
 const sources=[['2019-10-20',57742,193952],['2019-11-16',57743,193946],['2019-11-24',57744,193960],
   ['2019-12-22',57745,193956],['2019-12-26',57746,193954],['2020-01-19',57748,193966],['2020-01-26',57747,193970]];

@@ -23,8 +23,8 @@ widget_day(p_date date, p_days int = 2, p_locale text = 'es',
 - **Días:** `p_date` y los siguientes (`p_days`, máx. 3). Las apps piden hoy y
   mañana: el cambio de jornada a medianoche no depende de la red.
 - **Selección y orden:** jornadas publicadas; carreras canceladas fuera. Orden
-  espejo de `RaceLogic.sortByCategory` (Grandes Vueltas, miniperfil,
-  `proLevel`, género, `uciRank`, salida). Ciclocross después, por clase
+  espejo del orden de Hoy (Grandes Vueltas, `categoryRank` de
+  `js/services/race-order.js`, género, salida; sin miniperfil). Ciclocross después, por clase
   (CM, CDM, CC, C1, C2, CN, NAC) y hora. Descanso y anuladas al final.
 - **Filtros:** `p_filter` replica `matchesCategory` (`public.widget_road_matches`).
   `p_cx_filter` replica el filtro de la agenda CX (`all|big|pro|spain`). En

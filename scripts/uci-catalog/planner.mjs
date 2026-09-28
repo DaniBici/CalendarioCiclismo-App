@@ -1,5 +1,6 @@
 import { CATEGORIES, sha256, madridDate } from './source.mjs';
 import { countryCode } from './countries.mjs';
+import { foldName } from '../../js/name-fold.js';
 
 const sourceName = value => String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ').toUpperCase();
 const compatibleGivenName = (left, right) => {
@@ -46,13 +47,8 @@ export function normalizeSnapshot(snapshot) {
     manifestHash: sha256(snapshot.manifest), errors: snapshot.errors };
 }
 
-// Mismo plegado que public.fold_name; no genera identificadores ni slugs.
-const from = 'áàâåäãąạćčçďđéèêěëęğíîïłńňñņóòôöőøộřśšşúùûüýžż';
-const to = 'aaaaaaaacccddeeeeeegiiilnnnnooooooorsssuuuuyzz';
-const fold = v => [...String(v || '').toLowerCase().replaceAll('ß', 'ss').replaceAll('æ', 'ae').replaceAll('œ', 'oe')
-  .replaceAll('ﬀ', 'ff').replaceAll('ﬁ', 'fi').replaceAll('ﬂ', 'fl')]
-  .map(c => from.includes(c) ? to[from.indexOf(c)] : c).join('').replace(/[^a-z0-9]+/g, ' ').trim();
-const name = r => fold(`${r.firstName} ${r.lastName}`);
+// Mismo plegado que public.fold_name (js/name-fold.js); no genera identificadores ni slugs.
+const name = r => foldName(`${r.firstName} ${r.lastName}`);
 export function buildPlan(snapshot, context, now = new Date()) {
   const day = madridDate(now), actions = [], cases = [], counts = { unchanged: 0 };
   if (snapshot.year !== Number(day.slice(0, 4)) || context.year !== snapshot.year) throw new Error('season_not_adopted');

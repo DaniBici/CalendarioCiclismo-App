@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {cxVenueCity,cxRaceSlugSuggestion,cxUniqueRaceSlug} from '../cx-editor-logic.js';
+import {cxVenueCity,cxRaceSlugSuggestion,cxUniqueRaceSlug} from '../cx/editor-logic.js';
 
 describe('slugs de pruebas CX',()=>{
   it('extrae la ciudad del recinto',()=>{

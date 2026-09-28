@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {cxDataRideDate, cxDataRideSeconds} from '../results-fetchers/cx-dataride-results.mjs';
 
-const fixtureUrl = new URL('../../docs/cx-cotejos/waaslandcross-2025-26-me.json', import.meta.url);
+const fixtureUrl = new URL('../../js/__tests__/fixtures/cx-cotejos/waaslandcross-2025-26-me.json', import.meta.url);
 const categories = new Set(['ME', 'WE', 'MU', 'WU', 'MJ', 'WJ']);
 const states = new Set(['DNF', 'DNS', 'DSQ', 'OTL', 'ABD']);
 const lapText = value => typeof value === 'string' && /^-?\d+\s+LAPS?$/i.test(value.trim())

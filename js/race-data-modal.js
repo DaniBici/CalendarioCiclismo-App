@@ -8,7 +8,7 @@ import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
 import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js?v=20260923revive-results';
-import { hasRenderableElevationProfile } from './profile-availability.js';
+import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 
 const STAGE_COLORS = {
   flat:            '#3dba6f',

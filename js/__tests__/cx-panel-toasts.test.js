@@ -1,10 +1,10 @@
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {describe,it,expect,vi} from 'vitest';
-import {cxSaveErrorMessage} from '../cx-editor-logic.js';
+import {cxSaveErrorMessage} from '../cx/editor-logic.js';
 
-const cxPanel=readFileSync(new URL('../panel-cx.js',import.meta.url),'utf8');
-const panel=readFileSync(new URL('../panel.js',import.meta.url),'utf8');
+const cxPanel=readFileSync(new URL('../panel/cx.js',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../panel/helpers.js',import.meta.url),'utf8');
 const showToastSource=panel.match(/function showToast\([\s\S]*?\n\}/)[0];
 
 function toastContext() {

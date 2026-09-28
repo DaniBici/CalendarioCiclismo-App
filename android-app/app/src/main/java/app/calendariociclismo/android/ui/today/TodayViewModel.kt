@@ -26,6 +26,31 @@ internal fun shouldDisplayTodayRaceAsFeatured(
     sortMode: TodayViewModel.SortMode,
 ): Boolean = sortMode == TodayViewModel.SortMode.CATEGORY && isFeatured
 
+/**
+ * Orden de la agenda de Hoy. Espejo de `sortAgenda`
+ * (`js/services/today-agenda-order.js`): las destacadas encabezan solo en el
+ * orden por categoría y nunca adelantan a las carreras de la cola.
+ */
+internal fun sortTodayAgenda(
+    items: List<EnrichedRaceDay>,
+    sortMode: TodayViewModel.SortMode,
+    featuredRaceIds: Set<String>,
+): List<EnrichedRaceDay> {
+    val comparator = when (sortMode) {
+        TodayViewModel.SortMode.CATEGORY -> RaceLogic.byCategory
+        TodayViewModel.SortMode.TV_TIME -> RaceLogic.byTvTime
+        TodayViewModel.SortMode.FINISH_TIME -> RaceLogic.byFinishTime
+    }
+    fun featured(item: EnrichedRaceDay): Boolean =
+        sortMode == TodayViewModel.SortMode.CATEGORY &&
+            !RaceLogic.isAgendaTail(item) &&
+            item.race?.id in featuredRaceIds
+    return items.sortedWith(Comparator { a, b ->
+        val af = featured(a); val bf = featured(b)
+        if (af != bf) if (af) -1 else 1 else comparator.compare(a, b)
+    })
+}
+
 internal fun cachedTodayDayHasElevation(data: DayData): Boolean =
     data.raceDays.all { day ->
         day.raceDay.isRestDay || day.raceDay.isCancelledDay ||
@@ -359,18 +384,11 @@ class TodayViewModel(
     fun visibleData(): DayData? {
         val d = _state.value.data ?: return null
         val cat = _state.value.category
-        val sortMode = _state.value.sortMode
-        val comparator = when (sortMode) {
-            SortMode.CATEGORY -> RaceLogic.byCategory
-            SortMode.TV_TIME -> RaceLogic.byTvTime
-            SortMode.FINISH_TIME -> RaceLogic.byFinishTime
-        }
-        val filtered = RaceLogic.filterByCategory(d.raceDays, cat)
-            .sortedWith(Comparator { a, b ->
-                val af = shouldDisplayTodayRaceAsFeatured(a.race?.id in d.featuredRaceIds, sortMode)
-                val bf = shouldDisplayTodayRaceAsFeatured(b.race?.id in d.featuredRaceIds, sortMode)
-                if (af != bf) if (af) -1 else 1 else comparator.compare(a, b)
-            })
+        val filtered = sortTodayAgenda(
+            RaceLogic.filterByCategory(d.raceDays, cat),
+            _state.value.sortMode,
+            d.featuredRaceIds,
+        )
         return d.copy(raceDays = filtered)
     }
 

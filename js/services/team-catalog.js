@@ -1,4 +1,4 @@
-export function isHistoricalCatalogTeam(team) {
+function isHistoricalCatalogTeam(team) {
   return team?.historicalCatalogOnly === true;
 }
 
