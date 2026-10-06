@@ -2,7 +2,7 @@
 // La mantiene separada el panel para poder testearla sin DOM ni Supabase.
 
 // Patrón de slug de ficha: minúsculas, dígitos y guiones (mismo que el RPC).
-export const RIDER_SLUG_PATTERN = /^[a-z0-9-]+$/;
+const RIDER_SLUG_PATTERN = /^[a-z0-9-]+$/;
 
 export function isValidRiderSlug(slug) {
   return typeof slug === 'string' && RIDER_SLUG_PATTERN.test(slug);

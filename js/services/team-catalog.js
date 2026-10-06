@@ -24,14 +24,6 @@ export function teamsForSeasonList(teams, seasons) {
   });
 }
 
-export function teamSeasonRange(years) {
-  const normalized = [...new Set((years || []).map(Number).filter(Number.isInteger))]
-    .sort((a, b) => a - b);
-  if (!normalized.length) return '';
-  if (normalized.length === 1) return String(normalized[0]);
-  return `${normalized[0]}–${normalized[normalized.length - 1]}`;
-}
-
 export function teamListYearOptions(years, { currentYear, marketYear, minYear = 2020 } = {}) {
   const latestYear = Math.max(Number(currentYear), Number(marketYear));
   const operationalYears = Number.isInteger(latestYear) && latestYear >= minYear

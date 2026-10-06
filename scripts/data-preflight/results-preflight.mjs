@@ -300,6 +300,8 @@ export function validateResultsDocument(document, {
   minimumBibMatchRate = 0.9,
   allowNonMonotonicGaps = false,
   allowBibless = false,
+  allowPointless = false,
+  allowGaplessTeams = false,
 } = {}) {
   const errors = [];
   const warnings = [];
@@ -372,6 +374,8 @@ export function validateResultsDocument(document, {
 
       const seenBibs = new Set();
       let irmStarted = false;
+      let pointlessWarned = false;
+      let gaplessWarned = false;
       let lastRank = 0;
       let lastGap = -1;
       let lastPoints = Number.POSITIVE_INFINITY;
@@ -436,6 +440,14 @@ export function validateResultsDocument(document, {
         }
 
         if (POINT_KINDS.has(classification.classKind)) {
+          // Fuente que publica el orden sin puntos: fila sin ningún valor, solo bajo opción explícita.
+          if (allowPointless && row.points == null && row.resultValue == null && row.timeText == null && row.gapText == null) {
+            if (!pointlessWarned) {
+              pointlessWarned = true;
+              issue(warnings, 'POINTLESS_ROWS', classPath, 'Clasificación de puntos cargada solo con el orden: la fuente no publica los puntos.');
+            }
+            return;
+          }
           if (!Number.isFinite(row.points) || String(row.points) !== clean(row.resultValue) || clean(row.timeText) !== clean(row.resultValue) || row.gapText != null) {
             issue(errors, 'INVALID_POINTS_ROW', rowPath, 'points, resultValue y timeText deben contener el mismo valor.');
           }
@@ -447,6 +459,13 @@ export function validateResultsDocument(document, {
         if (TIME_KINDS.has(classification.classKind)) {
           if (row.rank === 1) {
             if (!normalizeAbsoluteTime(row.timeText) || row.gapText != null || clean(row.resultValue) !== clean(row.timeText)) issue(errors, 'INVALID_WINNER_TIME', rowPath, 'El ganador debe llevar tiempo absoluto, el mismo resultValue y gap null.');
+          } else if (allowGaplessTeams && classification.classKind === 'teams'
+            && row.gapText == null && row.timeText == null && row.resultValue == null) {
+            // Fuente que publica el orden de equipos sin tiempos: fila sin valor, solo bajo opción explícita.
+            if (!gaplessWarned) {
+              gaplessWarned = true;
+              issue(warnings, 'GAPLESS_TEAM_ROWS', classPath, 'Clasificación por equipos cargada solo con el orden: la fuente no publica las diferencias.');
+            }
           } else {
             if (row.timeText != null) issue(errors, 'NON_WINNER_ABSOLUTE_TIME', `${rowPath}.timeText`, 'Solo el ganador puede llevar tiempo absoluto.');
             if (!isGapFormat(row.gapText)) issue(errors, 'INVALID_GAP', `${rowPath}.gapText`, 'gapText debe usar +SS, +M:SS o +H:MM:SS.');
@@ -503,14 +522,14 @@ function hasFlag(name) {
 // El contrato del fetcher permite sus IDs oficiales y la ausencia de un total
 // externo; jamás fabrica expectedRowCount a partir del array extraído.
 export function prepareResultsImport(source, { expectedRaceId, inputContract = 'manual', startlist = null,
-  emptyMeansDitto = false, allowNonMonotonicGaps = false, allowBibless = false } = {}) {
+  emptyMeansDitto = false, allowNonMonotonicGaps = false, allowBibless = false, allowPointless = false, allowGaplessTeams = false } = {}) {
   if (!['manual', 'fetcher'].includes(inputContract)) throw new Error('inputContract debe ser manual o fetcher.');
   const declared = clean(source?.raceId);
   const input = inputContract === 'fetcher' && !declared ? { ...source, raceId: expectedRaceId } : source;
   const document = normalizeResultsDocument(input, { emptyMeansDitto });
   const report = validateResultsDocument(document, { expectedRaceId, inputContract,
     startlistBibs: startlist ? readStartlistBibs(startlist) : null, startlistRaceId: startlist?.raceId ?? null,
-    allowNonMonotonicGaps, allowBibless });
+    allowNonMonotonicGaps, allowBibless, allowPointless, allowGaplessTeams });
   return { document, report };
 }
 
@@ -518,7 +537,7 @@ function main() {
   const input = arg('in');
   const expectedRaceId = arg('race-id');
   if (!input || !expectedRaceId) {
-    process.stderr.write('Uso: node results-preflight.mjs --in <json> --race-id <id> [--startlist <json>] [--empty-means-ditto] [--allow-nonmonotonic-gaps] [--allow-bibless] [--normalized-out <json>]\n');
+    process.stderr.write('Uso: node results-preflight.mjs --in <json> --race-id <id> [--startlist <json>] [--empty-means-ditto] [--allow-nonmonotonic-gaps] [--allow-bibless] [--allow-pointless] [--allow-gapless-teams] [--normalized-out <json>]\n');
     process.exitCode = 2;
     return;
   }
@@ -529,6 +548,7 @@ function main() {
     expectedRaceId, inputContract: arg('input-contract') || 'manual', startlist,
     emptyMeansDitto: hasFlag('empty-means-ditto'),
     allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'), allowBibless: hasFlag('allow-bibless'),
+    allowPointless: hasFlag('allow-pointless'), allowGaplessTeams: hasFlag('allow-gapless-teams'),
   });
   const normalizedOut = arg('normalized-out');
   if (normalizedOut && report.ok) writeFileSync(resolve(normalizedOut), `${JSON.stringify(normalized, null, 2)}\n`);

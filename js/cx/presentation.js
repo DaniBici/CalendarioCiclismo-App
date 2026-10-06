@@ -1,10 +1,11 @@
-import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from '../results/time.js?v=20260914cxresults';
-import {cxDataRideSeconds,isCxSubhourDataRideTime,isCxExactSubhourDataRideTime} from './time.js?v=20260920cxtime1';
+import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from '../results/time.js';
+import {cxDataRideSeconds,isCxSubhourDataRideTime,isCxExactSubhourDataRideTime} from './time.js';
 import {irmLabel,isAbandonIrm} from '../results/uci-irm.js';
-import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl} from './editor-logic.js?v=20260912cxf6';
-import {CX_ACTIVE_MONTHS,cxSeason,cxSeasonMonths,cxDateInSeason} from './season.js?v=20260912cxmonths7';
-import {cxCategoryTiming} from './timing.js?v=20260913cxdropschedule';
-import {t} from '../i18n.js?v=20260914cxsections2';
+import {CX_CATEGORIES,CX_CLASSES,cxEscape,cxChipText,cxDuration,cxPoints,cxUrl} from './editor-logic.js';
+import {CX_ACTIVE_MONTHS,cxSeason,cxSeasonMonths,cxDateInSeason} from './season.js';
+import {cxCategoryTiming,cxRegulationMinutes} from './timing.js';
+import {isReviveBroadcast} from '../broadcast-priority.js';
+import {t} from '../i18n.js';
 
 export {cxEscape as cxEsc};
 export {cxSeason,cxSeasonMonths};
@@ -12,22 +13,29 @@ export const cxRaceName = (race,lang='es') => lang==='en'&&race.nameEn?race.name
 export const cxRaceUrl = (race,lang='es',category='') =>
   `${lang==='en'?'/en/cyclocross/':'/ciclocross/'}${encodeURIComponent(lang==='en'?(race.slugEn||race.slug):race.slug)}/${category?`#${category}`:''}`;
 export const cxTournamentUrl = (tournament,lang='es') => `${lang==='en'?'/en/cyclocross/series/':'/ciclocross/torneos/'}${encodeURIComponent(tournament.slug)}/`;
-export const cxRacePageUrl=(race,lang='es',page='race',category='')=>`${cxRaceUrl(race,lang)}${page==='startlist'?(lang==='en'?'startlist/':'inscritos/'):page==='results'?(lang==='en'?'results/':'resultados/'):['programme','tv','videos'].includes(page)?`?view=${page}`:''}${category?`#${category}`:''}`;
+const CX_RACE_VIEWS=['programme','tv','videos','general'];
+export const cxRacePageUrl=(race,lang='es',page='race',category='')=>`${cxRaceUrl(race,lang)}${page==='startlist'?(lang==='en'?'startlist/':'inscritos/'):page==='results'?(lang==='en'?'results/':'resultados/'):CX_RACE_VIEWS.includes(page)?`?view=${page}`:''}${category?`#${category}`:''}`;
 export function cxRacePageLocation(pathname,search='') {
   const parts=pathname.split('/').filter(Boolean),last=parts.at(-1);
   const suffixPage=['inscritos','startlist'].includes(last)?'startlist':['resultados','results'].includes(last)?'results':null;
   const view=new URLSearchParams(search).get('view');
-  return {page:suffixPage||(['programme','tv','videos'].includes(view)?view:'race'),slug:decodeURIComponent(suffixPage?parts.at(-2)||'':last||'')};
+  return {page:suffixPage||(CX_RACE_VIEWS.includes(view)?view:'race'),slug:decodeURIComponent(suffixPage?parts.at(-2)||'':last||'')};
 }
+// Vistas de la página de torneo: calendario (raíz) y clasificación general.
+export const cxTournamentPageUrl=(tournament,lang='es',page='calendar',category='')=>`${cxTournamentUrl(tournament,lang)}${page==='general'?'?view=general':''}${category?`#${category}`:''}`;
+export const cxTournamentPage=search=>new URLSearchParams(search).get('view')==='general'?'general':'calendar';
 export const cxCategoryDate = (race,category) => category.dateKey||race.dateKey;
-export function cxClassificationSelection(fragment,categories,generalCategories=[]) {
-  if(fragment==='general'||fragment.startsWith('general-')) {
-    const requested=fragment.slice(8),category=generalCategories.includes(requested)?requested:generalCategories[0];
-    if(category)return {section:'general',category,fragment:`general-${category}`};
-  }
-  if(!categories.length&&generalCategories.length)return {section:'general',category:generalCategories[0],fragment:`general-${generalCategories[0]}`};
+// Categoría de una clasificación por fragmento: la pedida si existe; si no, la
+// principal (ME) o la primera disponible.
+export function cxClassificationSelection(fragment,categories) {
   const category=categories.includes(fragment)?fragment:cxPrimaryCategory(categories);
-  return {section:'results',category:category||null,fragment:category||''};
+  return {category:category||null,fragment:category||''};
+}
+// Enlaces antiguos a la general dentro de resultados (#general, #general-WU):
+// devuelve la categoría pedida ('' si no la indica) o null si no lo son.
+export function cxLegacyGeneralFragment(fragment) {
+  if(fragment!=='general'&&!fragment.startsWith('general-'))return null;
+  return fragment.slice(8);
 }
 // Orden UCI de categorías: élite masculina es la clasificación principal;
 // cuando no está publicada, se usa la primera disponible en ese mismo orden.
@@ -45,6 +53,49 @@ export function cxGeneralCategories(race,standings,results,states=[]) {
     const hasResults=published.includes(source),state=states.find(row=>row.category===code);
     return state?['ready','manual'].includes(state.status)&&(!hasResults||(state.roundIds||[]).includes(race.id)):!hasResults;
   });
+}
+// General de la página de torneo: sin la condición de ronda de la ficha de
+// carrera; solo filas publicadas con un estado utilizable.
+export function cxTournamentGeneralCategories(standings,states=[]) {
+  return CX_CATEGORIES.filter(code=>{
+    if(!standings.some(row=>row.category===code))return false;
+    const state=states.find(row=>row.category===code);
+    return !state||['ready','manual'].includes(state.status);
+  });
+}
+// Categoría de resultados que alimenta una general (WU derivada de WE).
+export const cxGeneralSourceCategory=(tournament,category)=>tournament?.pointsScheme?.categories?.[category]?.extras?.derived?.fromCategory||category;
+export function cxStandingMode(tournament,category,rows=[]) {
+  const configured=tournament?.pointsScheme?.categories?.[category]?.mode;
+  return ['points','time'].includes(configured)?configured:rows.some(row=>row.timeSeconds!=null)?'time':'points';
+}
+// Columna de total: puntos, o tiempo del líder y diferencia del resto.
+export function cxStandingValueCells(rows,mode,locale='es-ES',lang='es') {
+  const cells=new Map(),sorted=[...rows].sort(cxRankSort);
+  if(mode!=='time') {
+    for(const row of sorted)cells.set(row,{text:cxStandingTotal(row,mode,locale),cls:'res-pts'});
+    return cells;
+  }
+  const leader=sorted[0],seconds=value=>{try{return value==null?null:BigInt(value);}catch{return null;}};
+  const base=seconds(leader?.timeSeconds);
+  for(const row of sorted) {
+    const gap=row===leader||base==null?null:seconds(row.timeSeconds)==null?null:seconds(row.timeSeconds)-base;
+    cells.set(row,row===leader?{text:cxStandingTotal(row,mode,locale),cls:'res-time'}
+      :gap==null||gap<0n?{text:cxStandingTotal(row,mode,locale),cls:'res-gap'}
+      :gap===0n?{text:lang==='en'?'s.t.':'m.t.',cls:'res-gap res-gap--same'}
+      :{text:secondsToGap(Number(gap)),cls:'res-gap'});
+  }
+  return cells;
+}
+// Desglose por ronda de una general por puntos calculada automáticamente. Una
+// general manual no conserva un desglose coherente con sus totales.
+export function cxStandingsBreakdown(state,mode,locale='es-ES') {
+  if(mode!=='points'||state?.status!=='ready'||!state.breakdown?.length||!state.roundIds?.length)return null;
+  const riders=new Map(state.breakdown.map(entry=>[entry.globalRiderId,new Map((entry.rounds||[]).map(round=>[round.raceId,round]))]));
+  const cell=round=>round&&!round.missing&&Number(round.points)
+    ?{text:cxPoints(round.points,locale),dropped:round.retained===false}
+    :{text:'-',dropped:false};
+  return {roundIds:[...state.roundIds],cells:row=>state.roundIds.map(id=>cell(riders.get(row.globalRiderId)?.get(id)))};
 }
 export function cxCategoryCardState(race,category,at=new Date()) {
   const timing=cxCategoryTiming(race,category,at);
@@ -254,19 +305,53 @@ export function cxResultCells(rows,lang='es') {
   }
   return cells;
 }
-export function cxCategoryMedia(broadcasts,videos,category,{hasResults=false,cancelled=false,visibleBroadcasts=broadcasts}={}) {
-  const applies=row=>!row.category||row.category===category;
-  const unique=(rows,key)=>{
-    const seen=new Set();return [...rows].sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).flatMap(row=>{
-      let url;try{url=cxUrl(row.url,{optional:false});}catch{return [];}
+// Momento en que una categoría sin resultados deja de emitirse en directo:
+// llegada estimada + 30 min, como las jornadas de carretera. Sin duración
+// verificada cuenta la manga más larga (60 min); sin hora, las 06:00 UTC del
+// día siguiente.
+export function cxCategoryConcludedAt(race,category) {
+  const start=Date.parse(category.startTimeUtc);
+  if(Number.isFinite(start)) {
+    const minutes=cxRegulationMinutes(category.category,category.durationFormat,category.durationRuleVersion??null)??60;
+    return new Date(start+(minutes+30)*60000);
+  }
+  const [y,m,d]=cxCategoryDate(race,category).split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,d+1,6));
+}
+// Orden del programa: fecha de la categoría, hora de salida (sin hora al
+// final) y, a igualdad, el orden recibido (CX).
+export function cxProgrammeOrder(race,categories) {
+  const start=c=>{const ms=Date.parse(c.startTimeUtc);return Number.isFinite(ms)?ms:Infinity;};
+  return [...categories].sort((a,b)=>cxCategoryDate(race,a).localeCompare(cxCategoryDate(race,b))||(start(a)===start(b)?0:start(a)<start(b)?-1:1));
+}
+// TV, Revive y vídeos de la ficha. Una categoría emite en directo mientras no
+// esté cancelada, no tenga resultados y no haya concluido; Revive llega con
+// resultados o cancelación, con el criterio de carretera (isReviveBroadcast) o
+// Sporza, y sin repetir lo que sigue en directo por otra categoría. Sin
+// categorías solo cuentan las filas globales.
+export function cxRaceMedia(race,categories,broadcasts,videos,{results=[],visibleBroadcasts=broadcasts,at=new Date()}={}) {
+  const now=new Date(at).getTime();
+  const units=(categories.length?cxProgrammeOrder(race,categories):[{category:'',dateKey:race.endDateKey||race.dateKey}]).map(category=>{
+    const cancelled=!!(race.isCancelled||category.isCancelled);
+    const hasResults=!!category.category&&['official','provisional'].includes(category.resultsStatus)&&results.some(row=>row.category===category.category);
+    return {category,code:category.category||'',cancelled,finished:hasResults||cancelled,
+      live:!cancelled&&!hasResults&&now<cxCategoryConcludedAt(race,category).getTime()};
+  });
+  const applies=(row,code)=>!row.category||row.category===code;
+  const valid=rows=>[...rows].sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)||String(a.id??'').localeCompare(String(b.id??''))).flatMap(row=>{
+    try{return [{row,url:cxUrl(row.url,{optional:false})}];}catch{return [];}
+  });
+  const collect=(rows,accept,key)=>{
+    const seen=new Set();return rows.flatMap(({row,url})=>{
+      if(!accept(row))return [];
       const identity=key(row,url);if(seen.has(identity))return [];seen.add(identity);return [{...row,url}];
     });
   };
-  const tv=broadcasts.filter(applies);
+  const live=units.filter(unit=>unit.live),rows=valid(broadcasts),liveRows=new Set();
+  const tv=collect(rows,row=>live.some(unit=>applies(row,unit.code))&&liveRows.add(row),(row,url)=>`${row.category||''}|${url}|${row.country||'ALL'}|${row.channel||''}`);
   const visible=new Set(visibleBroadcasts);
-  const replays=hasResults||cancelled
-    ?tv.filter(row=>visible.has(row)&&(row.showInRevive||!cancelled&&row.isSporza))
-    :[];
-  return {tv:hasResults||cancelled?[]:unique(tv,(row,url)=>`${url}|${row.country||'ALL'}|${row.channel||''}`),
-    revive:unique(replays,(_,url)=>url),videos:unique(videos.filter(applies),(_,url)=>url)};
+  const replay=(row,unit)=>unit.cancelled?row.showInRevive===true:row.showInRevive===true||isReviveBroadcast(row)||row.isSporza===true;
+  const revive=collect(rows,row=>visible.has(row)&&!liveRows.has(row)&&units.some(unit=>unit.finished&&applies(row,unit.code)&&replay(row,unit)),(_,url)=>url);
+  const media=collect(valid(videos),row=>units.some(unit=>applies(row,unit.code)),(_,url)=>url);
+  return {tv,revive,videos:media,liveCategories:live.filter(unit=>unit.code).map(unit=>unit.category)};
 }

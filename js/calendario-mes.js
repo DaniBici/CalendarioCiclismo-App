@@ -11,14 +11,16 @@
 import { supabase, toDateKey, stageLabel, categoryRank, countryFlag, effectiveCountryCode,
          jornadaUrl, raceUrl, raceName, categoryBadge, rdLocation,
          setMeta, setMetaProperty, initPhTooltip, setCachedRace, openPhBanner,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
+         needsFemaleMark, cleanFeminineName }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { initI18n, t, getLang, getLocale } from './i18n.js';
+import { readCalendarMonth, writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
 import { mergeRaces, missingRaceIds, monthDateRange } from './services/month-data.js';
-import { hasModalData, openRaceDataModal } from './race-data-modal.js?v=20260924sitefix';
-import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js?v=20260924sitefix';
+import { hasModalData, openRaceDataModal } from './race-data-modal.js';
+import { CAMP, CAMP_DATES, campUrl, campTitle, compareChampionships } from './campeonatos-config.js';
 
 // ── Estado ────────────────────────────────────────────────────────
 const today = new Date();
@@ -183,13 +185,6 @@ function sortDayRaces(list) {
 }
 
 // ── Render ────────────────────────────────────────────────────────
-function cleanFemaleName(name) {
-  if (activeCat !== 'female' && activeCat !== 'wwt') return name;
-  if (/women cycling pro|sanremo women|tour de feminin/i.test(name)) return name;
-  return name.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ')
-    .trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '');
-}
-
 function raceRowHtml(rd, refId) {
   const race = rd._race || {};
   const color = race.colorHex || 'var(--accent)';
@@ -197,9 +192,8 @@ function raceRowHtml(rd, refId) {
   const cancelled = race.isCancelled === true || rd.isCancelledDay === true;
 
   const flag = race.hideFlag && !rd.countryCode ? '' : countryFlag(effectiveCountryCode(rd, race), { lazy: true });
-  const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(race.name || '');
-  const isFemale = race.gender === 'female' && !nameImpliesFemale && activeCat !== 'female' && activeCat !== 'wwt';
-  const name = cleanFemaleName(raceName(race) || '—');
+  const isFemale = needsFemaleMark(race, activeCat);
+  const name = cleanFeminineName(raceName(race) || '—', activeCat);
 
   let l1Extra = '';
   if (isRestDay)       l1Extra = `<span class="cal-race__note">· ${t('stage.restDay')}</span>`;
@@ -508,9 +502,7 @@ function buildBar() {
 // ── URL + SEO ─────────────────────────────────────────────────────
 function syncUrl() {
   const qs = new URLSearchParams(location.search);
-  qs.set('vista', 'mes');
-  qs.set('mes', `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`);
-  qs.delete('month');
+  writeCalendarParams(qs, getLang(), { view: 'mes', month: `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}` });
   history.replaceState(null, '', `${location.pathname}?${qs}`);
 }
 
@@ -520,16 +512,21 @@ function updateSeoMes(byDate) {
   const mesNombre = new Date(viewYear, viewMonth, 1).toLocaleDateString(getLocale(), { month: 'long' });
   const mesCapit  = mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1);
 
+  const isEn = getLang() === 'en';
   const topRaces = new Set();
   Object.values(byDate).forEach(list => list.forEach(rd => {
-    if (TOP_CATS.has(rd._race?.uciCategory || '')) topRaces.add(rd._race?.name || '');
+    if (TOP_CATS.has(rd._race?.uciCategory || '')) topRaces.add((isEn && rd._race?.nameEn) || rd._race?.name || '');
   }));
-  const racesStr = topRaces.size ? ` Este mes se disputan ${[...topRaces].join(', ')}.` : '';
+  const racesStr = topRaces.size
+    ? (isEn ? ` Races this month: ${[...topRaces].join(', ')}.` : ` Este mes se disputan ${[...topRaces].join(', ')}.`)
+    : '';
 
-  const title = getLang() === 'en'
+  const title = isEn
     ? `${mesCapit} ${viewYear} — ${t('seo.siteName')}`
     : `${mesCapit} de ${viewYear} — ${t('seo.siteName')}`;
-  const description = `Todas las carreras ciclistas profesionales de ${mesNombre} de ${viewYear}: recorridos, horarios y cómo ver por TV y online streaming.${racesStr}`.trim();
+  const description = (isEn
+    ? `All professional cycling races in ${mesCapit} ${viewYear}: routes, schedules and how to watch on TV and online streaming.${racesStr}`
+    : `Todas las carreras ciclistas profesionales de ${mesNombre} de ${viewYear}: recorridos, horarios y cómo ver por TV y online streaming.${racesStr}`).trim();
   document.title = title;
   setMeta('description', description);
   setMeta('keywords', [BASE_KW, `${mesNombre} ${viewYear}`, mesNombre, String(viewYear), ...topRaces].filter(Boolean).join(', '));
@@ -537,7 +534,8 @@ function updateSeoMes(byDate) {
   setMetaProperty('og:description', description);
 
   const origin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) || window.location.origin;
-  const canonicalUrl = `${origin}${location.pathname}?vista=mes&mes=${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+  const canonQs = writeCalendarParams(new URLSearchParams(), getLang(), { view: 'mes', month: `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}` });
+  const canonicalUrl = `${origin}${location.pathname}?${canonQs}`;
   let canonEl = document.querySelector('link[rel="canonical"]');
   if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
   canonEl.href = canonicalUrl;
@@ -552,8 +550,8 @@ export async function initMesView() {
   await initI18n();
 
   const params = new URLSearchParams(location.search);
-  const monthParam = params.get('mes') || params.get('month'); // 'month' = URLs legacy de mes.html
-  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+  const monthParam = readCalendarMonth(params); // ?mes= (ES), ?month= (EN y legacy de mes.html)
+  if (monthParam) {
     const [y, m] = monthParam.split('-').map(Number);
     viewYear = y;
     viewMonth = m - 1;

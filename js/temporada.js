@@ -5,13 +5,15 @@
 import { supabase, categoryRank, countryFlag, jornadaUrl, raceUrl, raceName,
          categoryBadge, setMeta, setMetaProperty, initPhTooltip,
          bulkCacheRaces, enBase,
-         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark }
+         getPinnedFilter, renderFilterPins, handleFilterEvent, setPressed, femaleMark,
+         needsFemaleMark, cleanFeminineName }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLang } from './i18n.js';
+import { readCalendarMonth } from './calendario-query.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
-import { hasModalData, openRaceDataModal } from './race-data-modal.js?v=20260924sitefix';
-import { CAMP, campUrl, campTitle } from './campeonatos-config.js?v=20260924sitefix';
+import { hasModalData, openRaceDataModal } from './race-data-modal.js';
+import { CAMP, campUrl, campTitle } from './campeonatos-config.js';
 
 // Fila sintética "Campeonatos Nacionales" (CN) — aparece en TODAS las categorías
 // porque se inyecta tras el filtro. Enlaza a la página de Modo Campeonatos.
@@ -74,6 +76,7 @@ let activeCountry     = '';
 let _loadedMonths  = new Set();  // meses con race_days cargados, e.g. "2026-04"
 let _daysByRace    = {};         // race_days acumulados: { raceId: [{id,dateKey,...}] }
 let _monthObserver = null;       // IntersectionObserver para carga lazy
+let _pendingMonth  = null;       // ?mes= / ?month=: mes al que se desplaza la primera pintura
 
 // ── Carga inicial ────────────────────────────────────────────────
 async function init() {
@@ -81,6 +84,13 @@ async function init() {
   const params = new URLSearchParams(location.search);
   if (params.get('year')) activeYear = parseInt(params.get('year'));
   if (params.get('cat'))  activeCat  = params.get('cat');
+  // Mes de la URL (compartido con la subvista Mes): fija el año si no viene
+  // ?year y desplaza la primera pintura a ese mes.
+  const mesParam = readCalendarMonth(params);
+  if (mesParam) {
+    _pendingMonth = mesParam;
+    if (!params.get('year')) activeYear = Number(mesParam.slice(0, 4));
+  }
 window._temporadaCat = activeCat;
 
   // Actualizar el label del nav con el año activo
@@ -737,6 +747,11 @@ function render() {
     sessionStorage.setItem('cc_nav', JSON.stringify(cleaned));
   }
 
+  // El mes de la URL solo se aplica una vez: los re-render por filtro
+  // conservan el comportamiento habitual.
+  const pendingMonth = _pendingMonth;
+  _pendingMonth = null;
+
   if (savedScrollY !== null) {
     // Precargar todos los meses con datos por encima del scroll guardado
     // para que el layout sea estable antes de restaurar la posición
@@ -755,6 +770,28 @@ function render() {
       Promise.all(pendingLoads).then(restoreScroll);
     } else {
       restoreScroll();
+    }
+  } else if (pendingMonth && document.getElementById(`mes-${pendingMonth}`)) {
+    // Precargar los meses anteriores para que el bloque no se desplace
+    // al rellenarse por encima.
+    const [py, pm] = pendingMonth.split('-').map(Number);
+    const pendingLoads = [];
+    for (let mi = 1; mi < pm; mi++) {
+      const mk = `${py}-${String(mi).padStart(2, '0')}`;
+      if (!_loadedMonths.has(mk)) pendingLoads.push(_loadMonth(mk));
+    }
+    const scrollToMonth = () => {
+      const el = document.getElementById(`mes-${pendingMonth}`);
+      if (!el) return;
+      const stickyH = document.querySelector('.temporada-filters')?.offsetHeight || 0;
+      const headerH = document.querySelector('.site-header')?.offsetHeight || 0;
+      const top = el.getBoundingClientRect().top + window.scrollY - headerH - stickyH - 8;
+      window.scrollTo({ top, behavior: 'instant' });
+    };
+    if (pendingLoads.length) {
+      Promise.all(pendingLoads).then(scrollToMonth);
+    } else {
+      scrollToMonth();
     }
   } else {
     // Scroll inteligente al año en curso (comportamiento original)
@@ -862,8 +899,7 @@ function renderRaceRow(race) {
 
   const flag    = race.hideFlag ? '' : countryFlag(race.countryCode);
   const cat     = race.uciCategory || '';
-  const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
-  const isFemale = race.gender === 'female' && !nameImpliesFemale(race.name || '') && activeCat !== 'female' && activeCat !== 'wwt';
+  const isFemale = needsFemaleMark(race, activeCat);
   const colorStyle = `--rc:${raceColor(race.colorHex)}`;
   const isPlaceholder = !hasDays;
 
@@ -873,7 +909,7 @@ function renderRaceRow(race) {
       ? `<img class="t-race__logo" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`
       : '<span class="t-race__logo-empty"></span>'
     }
-    <span class="t-race__name" style="${race.isCancelled ? 'text-decoration:line-through;opacity:0.45' : ''}">${(() => { const _rn = raceName(race); return (activeCat === 'female' || activeCat === 'wwt') ? (/women cycling pro|sanremo women|tour de feminin/i.test(_rn) ? _rn : _rn.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ').trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '')) : _rn; })()}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
+    <span class="t-race__name" style="${race.isCancelled ? 'text-decoration:line-through;opacity:0.45' : ''}">${cleanFeminineName(raceName(race), activeCat)}${isFemale ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' }) : ''}</span>
     <span class="t-race__dates">${dateStr}</span>
     ${cat ? `<span class="t-race__cat">${categoryBadge(cat)}</span>` : ''}
   `;
@@ -909,7 +945,6 @@ function renderChallengeGroup(cg) {
   }
   const cat        = cg.uciCategory || '1.1';
   const flag       = countryFlag(cg.countryCode);
-  const isFemale   = cg.gender === 'female';
   const color      = raceColor(cg.colorHex);
   const colorStyle = `--rc:${color}`;
 
@@ -922,11 +957,8 @@ function renderChallengeGroup(cg) {
         : `/competicion.html?challenge=${cg.slug}`)
     : null;
 
-  const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
-  const showFemale = isFemale && !nameImpliesFemale(cg.name || '') && activeCat !== 'female' && activeCat !== 'wwt';
-  const displayName = (activeCat === 'female' || activeCat === 'wwt')
-    ? (/women cycling pro|sanremo women|tour de feminin/i.test(cg.name) ? cg.name : cg.name.replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ').trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, ''))
-    : cg.name;
+  const showFemale = needsFemaleMark(cg, activeCat);
+  const displayName = cleanFeminineName(cg.name, activeCat);
   const femaleSuffix = showFemale
     ? femaleMark({ cls: 't-race__female', style: 'font-size:0.75em;opacity:0.7;font-weight:400' })
     : '';
@@ -965,8 +997,11 @@ init().then(() => {
 function updateSeoTemporada(year) {
   const BASE_KW = 'calendario ciclismo, ciclismo donde echan, ciclismo por TV, ciclismo streaming, Danibici, Dani Sánchez, calendario ciclismo app, calendario ciclista, horarios carrera ciclismo';
 
-  const title       = `${getLang() === 'en' ? 'Season' : 'Temporada'} ${year} — ${t('seo.siteName')}`;
-  const description = `Listado con todas las carreras de la temporada ${year}, con acceso a la información sobre sus recorridos, horarios, fechas y cómo ver por TV.`;
+  const isEn        = getLang() === 'en';
+  const title       = `${isEn ? 'Season' : 'Temporada'} ${year} — ${t('seo.siteName')}`;
+  const description = isEn
+    ? `All races of the ${year} season, with their routes, schedules, dates and how to watch on TV.`
+    : `Listado con todas las carreras de la temporada ${year}, con acceso a la información sobre sus recorridos, horarios, fechas y cómo ver por TV.`;
   const keywords    = [BASE_KW, `temporada ${year}`, `ciclismo ${year}`, `carreras ciclismo ${year}`, String(year)].join(', ');
 
   document.title = title;

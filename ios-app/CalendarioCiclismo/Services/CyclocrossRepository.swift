@@ -124,6 +124,23 @@ final class CyclocrossRepository {
         return (try? await remote.cxTournamentHasRaces(tournamentId: tournamentId, excluding: hidden)) ?? true
     }
 
+    /// Generales de la página de torneo; ante un fallo de red se conserva la
+    /// última respuesta de la sesión.
+    private var standingsCache: [String: CxTournamentStandings] = [:]
+
+    func tournamentStandings(tournamentId: String, season: String) async throws -> CxTournamentStandings {
+        let key = tournamentId + ":" + season
+        do {
+            let value = try await remote.cxTournamentStandings(tournamentId: tournamentId, season: season)
+            standingsCache[key] = value
+            return value
+        } catch {
+            if Task.isCancelled || error is CancellationError { throw error }
+            if let cached = standingsCache[key] { return cached }
+            throw error
+        }
+    }
+
     // Numeración n/total por temporada, con caducidad y respaldo ante fallos.
     private var roundsCache: [String: [String: CxRound]] = [:]
     private var roundsSavedAt: [String: Date] = [:]

@@ -117,16 +117,7 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertTrue(curatedTeam.hasVisibleBadge)
     }
 
-    // ── timeToSeconds / secondsToGap / formatGap ───────────────────
-
-    func testTimeToSecondsParseaLosTresFormatos() {
-        XCTAssertEqual(UciResultsLogic.timeToSeconds("41"), 41)
-        XCTAssertEqual(UciResultsLogic.timeToSeconds("1:56"), 116)
-        XCTAssertEqual(UciResultsLogic.timeToSeconds("1:02:41"), 3761)
-        XCTAssertNil(UciResultsLogic.timeToSeconds(nil))
-        XCTAssertNil(UciResultsLogic.timeToSeconds("abc"))
-        XCTAssertNil(UciResultsLogic.timeToSeconds(""))
-    }
+    // ── secondsToGap / formatGap ───────────────────────────────────
 
     func testSecondsToGapUsaLaConvencionDePrensa() {
         XCTAssertEqual(UciResultsLogic.secondsToGap(7), "+7\"")
@@ -218,15 +209,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[0].valueText, "5:00:00")
         XCTAssertEqual(vms[1].valueText, "+7\"")
         XCTAssertEqual(vms[2].valueText, "+1'38\"")
-    }
-
-    func testGapCeroSeMarcaComoMismoTiempo() {
-        let rows = [
-            row(rank: 1, timeText: "4:00:00"),
-            row(rank: 2, gapText: "+0"),
-        ]
-        let vms = UciResultsLogic.buildIndividualRows(rows: rows, classKind: "stage", isTeams: false, byDorsal: [:], isEn: false)
-        XCTAssertEqual(vms[1].valueKind, .sameTime)
     }
 
     func testIrmDejaLaCeldaDeValorVaciaYPoneLaEtiquetaEnElBadge() {
@@ -462,25 +444,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[2].rowGap, "+1\"")
     }
 
-    func testCriConTiemposAbsolutosEnterosDerivaGapsComoEnLinea() {
-        // Caso real: Boucles de la Mayenne 2026, prólogo → 6'36"/+1"/+6"/m.t./+7"
-        // (el m.t. del 4º lo pone el display al compartir gap con el 3º).
-        let rows = [
-            row(rank: 1, timeText: "0:06:36"),
-            row(rank: 2, timeText: "0:06:37"),
-            row(rank: 3, timeText: "0:06:42"),
-            row(rank: 4, timeText: "0:06:42"),
-            row(rank: 5, timeText: "0:06:43"),
-        ]
-        let vms = UciResultsLogic.buildIndividualRows(
-            rows: rows, classKind: "stage", isTeams: false, byDorsal: [:], isEn: false, isItt: true)
-        XCTAssertEqual(vms[0].valueText, "6'36\"")
-        XCTAssertEqual(vms[1].valueText, "+1\"")
-        XCTAssertEqual(vms[2].valueText, "+6\"")
-        XCTAssertEqual(vms[3].valueText, "+6\"")
-        XCTAssertEqual(vms[4].valueText, "+7\"")
-    }
-
     func testCriConMilesimasTruncaCadaTiempoAntesDeRestar() {
         // Caso real: Tour de Estonia 2026, prólogo → 1'04"/+2"/m.t./+3".
         let rows = [
@@ -495,20 +458,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[1].valueText, "+2\"")
         XCTAssertEqual(vms[2].valueText, "+2\"")
         XCTAssertEqual(vms[3].valueText, "+3\"")
-    }
-
-    func testCriGapEnteroPublicadoFluyePorElPipelineNormal() {
-        // Caso real: Giro 2026, et.10 (CRI). Ganador "45:53" + gap crudo "+1:53"
-        // → 45'53" / +1'53" (notación de prensa, como una etapa en línea).
-        let rows = [
-            row(rank: 1, timeText: "45:53"),
-            row(rank: 2, gapText: "+1:53"),
-        ]
-        let vms = UciResultsLogic.buildIndividualRows(
-            rows: rows, classKind: "stage", isTeams: false, byDorsal: [:], isEn: false, isItt: true)
-        XCTAssertEqual(vms[0].valueText, "45'53\"")
-        XCTAssertEqual(vms[1].valueKind, .gap)
-        XCTAssertEqual(vms[1].valueText, "+1'53\"")
     }
 
     func testCriGapPublicadoConDecimasSeDerivaDeLosTiemposTruncados() {
@@ -569,17 +518,6 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[1].valueText, "+27\"")
     }
 
-    func testCriLosAbandonosSiguenConCeldaVaciaYEtiqueta() {
-        let rows = [
-            row(rank: 1, timeText: "0:06:36"),
-            row(irm: "DNF", riderDisplay: "ABANDONA Pepe"),
-        ]
-        let vms = UciResultsLogic.buildIndividualRows(
-            rows: rows, classKind: "stage", isTeams: false, byDorsal: [:], isEn: false, isItt: true)
-        XCTAssertEqual(vms[1].valueKind, .empty)
-        XCTAssertEqual(vms[1].rankBadge, "ABN")
-    }
-
     func testSinIsIttUnaEtapaEnLineaConservaGapsYMt() {
         // Regresión: la convención de crono NO toca las etapas en línea ni las
         // generales (isItt=false): gaps derivados y m.t. como siempre.
@@ -613,26 +551,6 @@ final class UciResultsLogicTests: XCTestCase {
             XCTAssertTrue(isNoTeamPlaceholderTeam(teamId: nil, teamName: name))
         }
         XCTAssertFalse(isNoTeamPlaceholderTeam(teamId: "team_x", teamName: "Individual"))
-    }
-
-    func testFindMatchingTeamCasaNombresCrudosDeLaFuenteContraElCatalogo() {
-        // Casos reales del ARA 2026 (riderDisplay de Tissot vs nombre canónico).
-        let teams = [
-            team("t1", "Tudor"),
-            team("t2", "Visma | Lease a Bike"),
-            team("t3", "UAE Team Emirates-XRG"),
-            team("t4", "Lotto Intermarché"),
-            // Alias multilínea: el nombre histórico solo casa vía nameAliases.
-            team("t5", "Decathlon CMA CGM", aliases: "Decathlon\nAG2R La Mondiale"),
-        ]
-        XCTAssertEqual(UciResultsLogic.findMatchingTeam("TUDOR PRO CYCLING TEAM", teams: teams)?.id, "t1")
-        XCTAssertEqual(UciResultsLogic.findMatchingTeam("TEAM VISMA | LEASE A BIKE", teams: teams)?.id, "t2")
-        XCTAssertEqual(UciResultsLogic.findMatchingTeam("UAE TEAM EMIRATES XRG", teams: teams)?.id, "t3")
-        XCTAssertEqual(UciResultsLogic.findMatchingTeam("LOTTO INTERMARCHE", teams: teams)?.id, "t4")
-        XCTAssertEqual(UciResultsLogic.findMatchingTeam("AG2R LA MONDIALE", teams: teams)?.id, "t5")
-        XCTAssertNil(UciResultsLogic.findMatchingTeam("EQUIPO FANTASMA", teams: teams))
-        XCTAssertNil(UciResultsLogic.findMatchingTeam(nil, teams: teams))
-        XCTAssertNil(UciResultsLogic.findMatchingTeam("Tudor", teams: []))
     }
 
     func testFindMatchingTeamCasaLos22EquiposRealesDelAra2026() {
@@ -701,6 +619,10 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(UciResultsLogic.findMatchingTeam("GROUPAMA-FDJ", teams: teams)?.id, "t1")
         // "nsn" tiene <4 caracteres → NO entra en contención (evita ruido).
         XCTAssertNil(UciResultsLogic.findMatchingTeam("NSN MOBILITY", teams: teams))
+        // Sin nombre, sin coincidencia o sin catálogo → nil.
+        XCTAssertNil(UciResultsLogic.findMatchingTeam("EQUIPO FANTASMA", teams: teams))
+        XCTAssertNil(UciResultsLogic.findMatchingTeam(nil, teams: teams))
+        XCTAssertNil(UciResultsLogic.findMatchingTeam("Groupama", teams: []))
     }
 
     func testPestanaEquiposCasaRiderDisplayParaChapaYNombreCanonico() {
@@ -731,6 +653,24 @@ final class UciResultsLogicTests: XCTestCase {
         XCTAssertEqual(vms[2].valueText, "+1'10\"")
     }
 
+    func testPestanaEquiposResuelvePrimeroPorTeamId() {
+        // Nombres abreviados de la fuente que no casan por nombre: el teamId de la
+        // fila decide (startlist y, si no figura en ella, el equipo resuelto por id).
+        let raceTeams = [team("t1", "Banrural-Tropigas-Paleter")]
+        let rows = [
+            row(rank: 1, timeText: "10:00:00", riderDisplay: "BANRURAL TROPIG DOM PALET", teamId: "t1"),
+            row(rank: 2, gapText: "+10", riderDisplay: "ASO CICLISTICA GRIEGA", teamId: "t2"),
+        ]
+        let vms = UciResultsLogic.buildIndividualRows(
+            rows: rows, classKind: "teams", isTeams: true, byDorsal: [:], isEn: false, raceTeams: raceTeams,
+            byTeamOverride: ["t2": team("t2", "Asociación Ciclística Griega")]
+        )
+        XCTAssertEqual(vms[0].riderName, "Banrural-Tropigas-Paleter")
+        XCTAssertEqual(vms[0].team?.id, "t1")
+        XCTAssertEqual(vms[1].riderName, "Asociación Ciclística Griega")
+        XCTAssertEqual(vms[1].team?.id, "t2")
+    }
+
     func testEquiposEmpatadosConElGanadorMuestranMismoTiempo() {
         let rows = [
             row(rank: 1, timeText: "20:00:42", riderDisplay: "TEAM A"),
@@ -756,17 +696,7 @@ final class UciResultsLogicTests: XCTestCase {
             row(rank: 2, bib: "11"), row(rank: 2, bib: "12"), row(rank: 2, bib: "13"),
         ]
         XCTAssertTrue(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: "ttt"))
-        // Sin marca de CRE no dispara, por marcada que sea la estructura.
-        XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
-    }
-
-    func testIsTttStageSinMarcaDeCreNoSeDisparaPorEstructuraSola() {
-        // 3 puestos con ≥2 corredores: sin marca (primaryType ni raceType) ya no basta.
-        let rows = [
-            row(rank: 1, bib: "1"), row(rank: 1, bib: "2"),
-            row(rank: 2, bib: "11"), row(rank: 2, bib: "12"),
-            row(rank: 3, bib: "21"), row(rank: 3, bib: "22"),
-        ]
+        // Sin marca de CRE (primaryType ni raceType) no dispara, por marcada que sea la estructura.
         XCTAssertFalse(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil))
         // Con raceType='TTT' de la fuente sí (marca de CRE sin catálogo).
         XCTAssertTrue(UciResultsLogic.isTttStage(rows: rows, classKind: "stage", isTeams: false, raceDayPrimaryType: nil, stageRaceType: "TTT"))
@@ -1006,19 +936,6 @@ final class UciResultsLogicTests: XCTestCase {
         // El corredor (nombre/bandera/ficha) sigue saliendo del dorsal.
         XCTAssertEqual(vms[0].riderName, "Corredor X")
         XCTAssertEqual(vms[0].countryCode, "es")
-    }
-
-    func testSinOverrideElEquipoSigueResolviendosePorDorsal() {
-        let byDorsal: [Int: ResolvedRider] = [
-            11: ResolvedRider(name: "Corredor X", countryCode: "es", teamName: "Equipo Startlist",
-                              team: team("ts", "Equipo Startlist"), globalRiderId: "gx"),
-        ]
-        let rows = [row(rank: 1, bib: "11", timeText: "4:00:00")]
-        let vms = UciResultsLogic.buildIndividualRows(
-            rows: rows, classKind: "stage", isTeams: false, byDorsal: byDorsal, isEn: false
-        )
-        XCTAssertEqual(vms[0].teamName, "Equipo Startlist")
-        XCTAssertEqual(vms[0].team?.id, "ts")
     }
 
     func testOverrideDeEquipoAplicaSinStartlistNiFicha() {

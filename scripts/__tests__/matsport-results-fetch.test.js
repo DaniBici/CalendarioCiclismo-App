@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { irmOf, normGap, normAbsTime, normPoints, mapRows, fnv1a }
+import { execFileSync } from 'node:child_process';
+import { irmOf, normGap, normAbsTime, normPoints, mapRows }
   from '../results-fetchers/matsport-results-fetch.mjs';
 
 // Datos verificados contra la API en vivo el 2026-07-17:
@@ -8,30 +9,17 @@ import { irmOf, normGap, normAbsTime, normPoints, mapRows, fnv1a }
 // Contrato completo en scripts/results-fetchers/MATSPORT-TIMING-API.md.
 
 describe('irmOf — status francés → IRM UCI', () => {
-  it('mapea los códigos franceses', () => {
+  it('mapea los códigos franceses y normaliza mayúsculas y espacios', () => {
     expect(irmOf('AB')).toBe('DNF');     // abandon
-    expect(irmOf('ABD')).toBe('DNF');
-    expect(irmOf('NP')).toBe('DNS');     // non partant
     expect(irmOf('HD')).toBe('OTL');     // hors délai
-    expect(irmOf('DSQ')).toBe('DSQ');
     expect(irmOf('EX')).toBe('DSQ');     // exclu
-  });
-
-  it('acepta los códigos que ya vienen en formato UCI', () => {
-    expect(irmOf('DNF')).toBe('DNF');
-    expect(irmOf('DNS')).toBe('DNS');
-    expect(irmOf('OTL')).toBe('OTL');
+    expect(irmOf(' np ')).toBe('DNS');   // non partant
   });
 
   it('status vacío = clasificado (117 de las 120 filas del PYF E2)', () => {
     expect(irmOf('')).toBeNull();
     expect(irmOf(null)).toBeNull();
     expect(irmOf('  ')).toBeNull();
-  });
-
-  it('normaliza mayúsculas y espacios', () => {
-    expect(irmOf('ab')).toBe('DNF');
-    expect(irmOf(' NP ')).toBe('DNS');
   });
 
   it('un código DESCONOCIDO se conserva en crudo, no se inventa un mapeo', () => {
@@ -144,12 +132,6 @@ describe('mapRows — clasificación por tiempos (ITE)', () => {
     });
   });
 
-  it('reconstruye display y equipo por dorsal (las filas no traen nombre)', () => {
-    const [w] = mapRows(rankings, SPEC_TIME, riderByBib, teamByNumber);
-    expect(w.riderDisplay).toBe('PIETERS Amy');
-    expect(w.teamName).toBe('AG INSURANCE - SOUDAL');
-  });
-
   it('un dorsal que no está en la startlist no rompe: display/teamName a null', () => {
     const [row] = mapRows(
       [{ bib: 999, position: 1, capital: '2:42:15', gap: '+00', status: '' }],
@@ -209,15 +191,10 @@ describe('mapRows — filas de EQUIPO (ETE/ETG): el bib es un NÚMERO DE EQUIPO'
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas', () => {
+describe('--suggest-id — competitionId sintético', () => {
   it('reproduce el competitionId real del Tour de los Pirineos 2026 (-451)', () => {
-    // El valor que está en race_uci_links.competitionId en producción. Si esto
-    // cambia, se rompen los IDs de todo lo ya volcado desde esta fuente.
-    expect(-(fnv1a('matsport:2026_PYF') % 200000)).toBe(-451);
-  });
-
-  it('es estable y distinto por competición', () => {
-    expect(fnv1a('matsport:2026_PYF')).toBe(fnv1a('matsport:2026_PYF'));
-    expect(fnv1a('matsport:2026_PYF')).not.toBe(fnv1a('matsport:2027_PYF'));
+    // Valor en producción. Si cambia, se duplican los IDs ya volcados desde esta fuente.
+    const out = execFileSync(process.execPath, ['scripts/results-fetchers/matsport-results-fetch.mjs', '--competition', '2026_PYF', '--suggest-id'], { encoding: 'utf8' });
+    expect(out.trim()).toBe('-451');
   });
 });

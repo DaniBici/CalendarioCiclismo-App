@@ -83,6 +83,16 @@ describe('preparación del contrato CX', () => {
       isoCode2: 'ES', timeText: '1:00:00', timeSeconds: '3600', bonusSeconds: null, sourceResultId: '100001' };
     expect(prepare(input).imports[0].rows[0]).toMatchObject({ riderDisplay: 'Alex Prueba', firstName: 'Alex', lastName: 'Prueba' });
   });
+  it('conserva la grafía mixta de nombre y apellido y normaliza solo las mayúsculas sostenidas', () => {
+    const input = fixture();
+    input.document.categories[0].rows[0] = { rank: 1, bib: 'A01', riderDisplay: 'DE DIEGO MARTINEZ Claudia', firstName: 'Claudia', lastName: 'de Diego',
+      isoCode2: 'ES', timeText: '1:00:00', timeSeconds: '3600', bonusSeconds: null, sourceResultId: '100001' };
+    input.document.categories[0].rows.push({ rank: 2, bib: 'A02', riderDisplay: 'DE MIGUEL Nahia', firstName: 'NAHIA', lastName: 'DE MIGUEL',
+      isoCode2: 'ES', timeText: '1:00:10', timeSeconds: '3610', bonusSeconds: null, sourceResultId: '100002' });
+    const [first, second] = prepare(input).imports[0].rows;
+    expect(first).toMatchObject({ riderDisplay: 'Claudia de Diego', firstName: 'Claudia', lastName: 'de Diego' });
+    expect(second.riderDisplay).toBe('Nahia De Miguel');
+  });
   it('no oficializa un documento DataRide por su mera existencia', () => {
     const input = fixture(); expect(() => prepare(input, { status: 'official' })).toThrow(/revisión/);
     input.document.categories[0].evidence = { sourceUrl: 'https://official.test/result', officialReviewed: true, officialReviewSourceUrl: 'https://official.test/result' };

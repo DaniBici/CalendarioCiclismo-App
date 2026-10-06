@@ -3,7 +3,8 @@
 
 Cada página conserva una URL retirada y redirige a la vigente con la query y
 el hash intactos. Las que traducen parámetros (mes.html, temporada.html y sus
-equivalentes EN) reescriben la query al formato de /calendario/.
+equivalentes EN) reescriben la query al formato de /calendario/ de su idioma
+(ES ?vista=mes|temporada&mes=AAAA-MM, EN ?view=month|season&month=AAAA-MM).
 
 Uso:
   python3 tools/site/redirects.py --out _site
@@ -19,21 +20,24 @@ ORIGIN = "https://calendariociclismo.app"
 SIMPLE = [
     ("abierto.html", "/abierto/", "Datos abiertos", "es"),
     ("about.html", "/about/", "Acerca de mí", "es"),
+    ("betaandroid.html", "/apps/", "Apps de Calendario Ciclismo", "es"),
     ("calendario.html", "/calendario/", "Calendario", "es"),
     ("campeonatos-nacionales-2026/index.html", "/campeonatos-nacionales-2026.html",
      "Campeonatos Nacionales 2026", "es"),
+    ("en/beta/index.html", "/en/apps/", "Calendario Ciclismo apps", "en"),
 ]
 
 # (ruta de salida, destino, vista, parámetros conservados, título, idioma)
-# Los parámetros se dan como (nombre antiguo, nombre nuevo, patrón opcional).
+# La vista se da como (parámetro, valor) en el idioma de destino. Los
+# parámetros se dan como (nombre antiguo, nombre nuevo, patrón opcional).
 CALENDAR_VIEWS = [
-    ("mes.html", "/calendario/", "mes", [("month", "mes", r"^\d{4}-\d{2}$"), ("cat", "cat", None)],
+    ("mes.html", "/calendario/", ("vista", "mes"), [("month", "mes", r"^\d{4}-\d{2}$"), ("cat", "cat", None)],
      "Calendario mensual", "es"),
-    ("temporada.html", "/calendario/", "temporada", [("year", "year", None), ("cat", "cat", None)],
+    ("temporada.html", "/calendario/", ("vista", "temporada"), [("year", "year", None), ("cat", "cat", None)],
      "Calendario de la temporada", "es"),
-    ("en/month/index.html", "/en/calendar/", "mes", [("month", "mes", r"^\d{4}-\d{2}$"), ("cat", "cat", None)],
+    ("en/month/index.html", "/en/calendar/", ("view", "month"), [("month", "month", r"^\d{4}-\d{2}$"), ("cat", "cat", None)],
      "Monthly calendar", "en"),
-    ("en/season/index.html", "/en/calendar/", "temporada", [("year", "year", None), ("cat", "cat", None)],
+    ("en/season/index.html", "/en/calendar/", ("view", "season"), [("year", "year", None), ("cat", "cat", None)],
      "Season calendar", "en"),
 ]
 
@@ -63,7 +67,8 @@ def simple_page(target, title, lang):
 
 
 def calendar_page(target, view, params, title, lang):
-    lines = [f"q.set('vista', '{view}');"]
+    view_key, view_value = view
+    lines = [f"q.set('{view_key}', '{view_value}');"]
     for old, new, pattern in params:
         if pattern:
             lines.append(f"var {old} = p.get('{old}'); "
@@ -73,7 +78,7 @@ def calendar_page(target, view, params, title, lang):
     script = ("(function () { var p = new URLSearchParams(location.search); "
               "var q = new URLSearchParams(); " + " ".join(lines) +
               f" location.replace('{target}?' + q.toString()); }})();")
-    return _page(lang, title, target, script, f"{target}?vista={view}")
+    return _page(lang, title, target, script, f"{target}?{view_key}={view_value}")
 
 
 def pages():

@@ -27,6 +27,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { ISO2, parseCode } from './bornan-results-fetch.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => { const index = args.indexOf(`--${name}`); return index === -1 ? fallback : args[index + 1]; };
@@ -284,12 +285,12 @@ async function syncRace(client, target) {
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  if (!env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl(env)) throw new Error('Falta DATABASE_URL');
 
   const { Client } = await import('pg');
   const client = new Client({
-    connectionString: env.DATABASE_URL,
-    ssl: env.DATABASE_URL.includes('localhost') ? undefined : { rejectUnauthorized: false },
+    connectionString: databaseUrl(env),
+    ssl: databaseUrl(env).includes('localhost') ? undefined : { rejectUnauthorized: false },
   });
   await client.connect();
   const summary = { processed: 0, applied: 0, blocked: 0, pending: 0, unchanged: 0, errored: 0, changed: false };

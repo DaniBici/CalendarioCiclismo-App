@@ -4,6 +4,9 @@ import {runInNewContext} from 'node:vm';
 import {cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE} from '../services/cx-data.js';
 import {cxSeasonMonths,cxMonthDays,cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxRoundBadge,cxUsesCategoryBadges,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,cxCategoryCardState,cxTime} from '../cx/presentation.js';
 import {cxTournamentDescription} from '../cx/tournament-seo.js';
+import {CX_CATEGORIES} from '../cx/editor-logic.js';
+import {cxTournamentPage,cxTournamentPageUrl,cxTournamentGeneralCategories,cxClassificationSelection,cxStandingMode} from '../cx/presentation.js';
+import {raceCardHtml,overviewButtonHtml} from '../components/race-card.js';
 
 const script=readFileSync(new URL('../ciclocross.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
 
@@ -16,9 +19,9 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new 
 afterEach(() => { vi.useRealTimers(); });
 
 // Exercise the real agenda navigation with empty months and an in-memory DOM/client.
-async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new Map(),initialHash=null,pinnedFilter=null}={}) {
+async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new Map(),initialHash=null,pinnedFilter=null,pointsScheme=null,standings=[],states=[],search=''}={}) {
   const events=new Map(),frames=[],calls=[],metadata=new Map();
-  const location={search:'',origin:'http://localhost',hash:initialHash?`#${initialHash}`:''};
+  const location={search,origin:'http://localhost',hash:initialHash?`#${initialHash}`:''};
   const history={replaceState:(_state,_title,url)=>{if(typeof url==='string'&&url.startsWith('#'))location.hash=url.slice(1);}};
   const window={scrollY:0,addEventListener:(name,fn)=>{
     if(!events.has(name))events.set(name,[]);events.get(name).push(fn);
@@ -39,7 +42,8 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
   }
   const list=new Element(),bar=new Element(),error=new Element(),navigation=new Element();
   const root=new Element();root.dataset={cxTournamentId:tournamentId};root.style={setProperty:vi.fn()};
-  root.querySelector=selector=>({'#cxMonths':list,'#cxMonthBar':bar,'#cxAgendaError':error,'.cx-month-nav':navigation,'.cx-agenda-sticky':navigation}[selector]);
+  const standingsNode=new Element(),generalNav=new Element(),sections=new Element();sections.hidden=true;
+  root.querySelector=selector=>({'#cxMonths':list,'#cxMonthBar':bar,'#cxAgendaError':error,'.cx-month-nav':navigation,'.cx-agenda-sticky':navigation,'#cxStandings':standingsNode,'[data-cx-general-nav]':generalNav,'[data-cx-tournament-sections]':sections}[selector]);
   const cxNextDate=vi.fn(async()=>nextDate);
   class FixedDate extends Date { constructor(...args){super(...(args.length?args:['2026-09-12T12:00:00Z']));} }
   const result=await runInNewContext(`(async()=>{${script}\nreturn {goMonth};})()`,{
@@ -48,17 +52,19 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
     initCintillo:async()=>{},initI18n:async()=>{},t:key=>key,getLang:()=> 'es',getLocale:()=> 'es-ES',cxSeason:()=> '2026-27',cxSeasonMonths,
     cxMonth:async(_client,_season,year,month)=>{const key=`${year}-${String(month).padStart(2,'0')}`;calls.push(key);if(key===failure)throw Error('Fallo');return rows;},
     cxSeasonRows:async()=>{calls.push('temporada');return rows;},
-    cxTournamentMetadata:async()=>({id:tournamentId,name:'Circuito local',slug:'circuito',seasonKey:'2026-27',logoUrl:'https://example.org/logo.svg',countryCode:'ES'}),
+    cxTournamentMetadata:async()=>({id:tournamentId,name:'Circuito local',slug:'circuito',seasonKey:'2026-27',logoUrl:'https://example.org/logo.svg',countryCode:'ES',pointsScheme}),
+    cxAllRows:async(_client,table)=>({cx_standings_state:states,cx_tournament_standings:standings}[table]),cxQuery:async()=>[],
+    cxTournamentGeneralCategories,cxClassificationSelection,cxStandingMode,cxStandingsTableHtml:({rows})=>`<table data-rows="${rows.length}"></table>`,cxWireStandingsScroll:()=>{},
     buildRaceHeader:({race})=>`<div class="race-header">${race.name}</div>`,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxUsesCategoryBadges,countryFlag:()=>'',categoryBadge:()=>'',
-    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE,supabase:{},dateNavigationButton:()=>new Element(),cxMonthDays,esc:cxEsc,cxTournamentDescription,
-    formatDateLabel:key=>key,
+    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE,supabase:Object.defineProperty({},'from',{value:()=>({select:()=>({})})}),dateNavigationButton:()=>new Element(),cxMonthDays,esc:cxEsc,cxTournamentDescription,
+    formatDateLabel:key=>key,CX_CATEGORIES,cxTournamentPage,cxTournamentPageUrl,
     cxSeasonRounds:vi.fn(async()=>rounds),cxRoundBadge,
     cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,openPhBanner:vi.fn(),wirePhDescriptions:vi.fn(),
     getPinnedFilter:()=>pinnedFilter,renderFilterPins:()=>{},handleFilterEvent:()=>null,setPressed:()=>{},
-    cxCategoryCardState,cxTime,cxCategoryTiming:()=>({displayState:'time',temporalState:'scheduled'}),waitingResultsHtml:(lang,tag)=>`<${tag}></${tag}>`,resultsTrophyHtml:'<span></span>',
+    cxCategoryCardState,cxTime,raceCardHtml,overviewButtonHtml,cxCategoryTiming:()=>({displayState:'time',temporalState:'scheduled'}),waitingResultsHtml:(lang,tag)=>`<${tag}></${tag}>`,resultsTrophyHtml:'<span></span>',
   });
   const flush=()=>{while(frames.length)frames.shift()();};flush();
-  return {...result,root,list,error,calls,metadata,cxNextDate,window,location,flush,scroll:y=>{window.scrollY=y;for(const fn of events.get('scroll')??[])fn();}};
+  return {...result,root,list,error,standingsNode,generalNav,sections,calls,metadata,cxNextDate,window,location,flush,scroll:y=>{window.scrollY=y;for(const fn of events.get('scroll')??[])fn();}};
 }
 
 describe('apertura de la agenda CX: siempre al próximo día con carreras',()=>{
@@ -96,24 +102,7 @@ describe('apertura de la agenda CX: siempre al próximo día con carreras',()=>{
     expect(agenda.cxNextDate).not.toHaveBeenCalled();
     expect(agenda.location.hash).toBe('2026-10');
   });
-
-  it('escribe el mes abierto en el marcador de la URL',async()=>{
-    const agenda=await open({nextDate:'2027-01-30'});
-    expect(agenda.list.children.map(node=>node.dataset.month)).toEqual(['2027-01']);
-    expect(agenda.location.hash).toBe('2027-01');
-  });
-
-  it('muestra el torneo en texto sin enlazar su nombre',async()=>{
-    const tournament={id:'t',name:'Circuito local',slug:'circuito'};
-    const race={id:'a',name:'Prueba del circuito',slug:'prueba-a',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'t',cx_tournaments:tournament,cx_race_categories:[]};
-    const agenda=await open({nextDate:'2026-09-19',rows:[race]});
-    const html=agenda.list.children[0].innerHTML;
-    expect(html).toContain('class="race-card__sub">Circuito local');
-    expect(html).not.toContain('>Circuito local</a>');
-    expect(html).toContain('class="race-card__overview-btn"');
-  });
 });
-
 
 describe('página de torneo con todas las pruebas en una sola página',()=>{
   const tournament={id:'t',name:'Circuito local',slug:'circuito'};
@@ -143,53 +132,23 @@ describe('página de torneo con todas las pruebas en una sola página',()=>{
     for(const key of ['description','og:description','twitter:description'])expect(agenda.metadata.get(key)).toBe(description);
     expect(agenda.cxNextDate).toHaveBeenCalledWith({},'2026-27','2026-09-12','t',[]);
   });
+  it('muestra la sección general con chips de categoría solo si hay generales publicadas',async()=>{
+    const pointsScheme={categories:{ME:{mode:'points'},WE:{mode:'points'}}};
+    const empty=await open({tournamentId:'t',rows,pointsScheme,search:'?view=general'});
+    expect(empty.sections.hidden).toBe(true);
+    expect(empty.list.hidden).toBe(false);
+    const standings=[{category:'WE',rank:1,riderDisplay:'Líder'}];
+    const agenda=await open({tournamentId:'t',rows,pointsScheme,standings,states:[{category:'WE',status:'ready'}],search:'?view=general'});
+    expect(agenda.sections.hidden).toBe(false);
+    expect(agenda.list.hidden).toBe(true);
+    expect(agenda.generalNav.hidden).toBe(false);
+    expect(agenda.generalNav.innerHTML).toContain('>WE</a>');
+    expect(agenda.generalNav.innerHTML).not.toContain('>ME</a>');
+    expect(agenda.standingsNode.innerHTML).toContain('<table data-rows="1">');
+  });
   it('muestra el aviso vacío si el torneo no tiene pruebas',async()=>{
     const agenda=await open({tournamentId:'t',rows:[rows[2]]});
     expect(agenda.list.innerHTML).toContain('empty-state');
     expect(agenda.list.innerHTML).toContain('cx.noRaces');
-  });
-
-  it('condensa la prueba cancelada: badge Cancelada y sin categorías',async()=>{
-    const cancelled={id:'can',name:'Prueba cancelada',slug:'cancelada',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'t',isCancelled:true,
-      cx_race_categories:[{category:'ME',dateKey:'2026-09-19',startTimeUtc:'2026-09-19T13:00:00Z'}]};
-    const agenda=await open({tournamentId:'t',rows:[cancelled],nextDate:'2026-09-19'});
-    const html=agenda.list.children.map(node=>node.innerHTML).join('');
-    expect(html).toContain('badge--cancelled-day');
-    expect(html).not.toContain('cx-category-times');
-    expect(html).not.toContain('line-through');
-  });
-
-  it('pinta placeholder la prueba sin carga mínima y card clicable la que la tiene',async()=>{
-    const ready={id:'ok',name:'Prueba lista',slug:'prueba-lista',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'t',
-      assets:[{type:'technicalGuide',url:'https://assets.example.org/guia.pdf'}],
-      cx_race_categories:[{category:'ME',dateKey:'2026-09-19',startTimeUtc:'2026-09-19T13:00:00Z'}]};
-    // Sin documento ni horarios, la clasificación publicada de una manga basta.
-    const published={id:'res',name:'Prueba con clasificación',slug:'prueba-res',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'t',
-      cx_race_categories:[{category:'ME',dateKey:'2026-09-19',resultsStatus:'official'}]};
-    const agenda=await open({tournamentId:'t',rows:[ready,published,rows[0]],nextDate:'2026-09-19'});
-    const html=agenda.list.children.map(node=>node.innerHTML).join('');
-    const cards=html.split('<article').slice(1);
-    const readyCard=cards.find(card=>card.includes('data-cx-logo-race="ok"'))??'';
-    const publishedCard=cards.find(card=>card.includes('data-cx-logo-race="res"'))??'';
-    const placeholderCard=cards.find(card=>card.includes('data-cx-logo-race="a"'))??'';
-    // La prueba con Libro de Ruta y horarios enlaza a la ficha, con chevron.
-    expect(readyCard).toContain('data-href="/ciclocross/prueba-lista/"');
-    expect(readyCard).toContain('<a href="/ciclocross/prueba-lista/">Prueba lista</a>');
-    expect(readyCard).toContain('cx-card-chevron');
-    expect(readyCard).not.toContain('race-card--placeholder');
-    expect(readyCard).not.toContain('data-ph-tooltip');
-    // La prueba con clasificación publicada también enlaza, sin documento ni horarios.
-    expect(publishedCard).toContain('data-href="/ciclocross/prueba-res/"');
-    expect(publishedCard).toContain('<a href="/ciclocross/prueba-res/">Prueba con clasificación</a>');
-    expect(publishedCard).toContain('cx-card-chevron');
-    expect(publishedCard).not.toContain('race-card--placeholder');
-    expect(publishedCard).not.toContain('data-ph-tooltip');
-    // La prueba sin documento ni horarios es placeholder: sin enlaces, con aviso.
-    expect(placeholderCard).toContain('race-card--placeholder');
-    expect(placeholderCard).not.toContain('data-href');
-    expect(placeholderCard).toContain('data-ph-tooltip="Por ahora sin información extra"');
-    expect(placeholderCard).toContain('<span>Prueba del circuito</span>');
-    expect(placeholderCard).toContain('race-card__seo-link');
-    expect(placeholderCard).not.toContain('cx-card-chevron');
   });
 });

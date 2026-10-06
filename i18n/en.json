@@ -44,6 +44,10 @@
     "videos": "Videos",
     "noVideos": "Videos pending.",
     "standings": "Overall standings",
+    "general": "Standings",
+    "calendar": "Calendar",
+    "droppedResult": "Dropped result",
+      "moreRounds": "More rounds",
     "official": "Official results",
     "provisional": "Provisional results",
     "raceDescription": "Schedule, startlist, TV, results and videos for {name} ({class}, {date})",
@@ -190,8 +194,8 @@
     "noInfo": "No TV information",
     "noTvRegion": "No TV available in your region",
     "fullStage": "Full Race",
-    "filterAll": "All countries",
-    "filterMine": "My country",
+    "filterAll": "All",
+    "filterMine": "My region",
     "status": {
       "pending": "Unconfirmed",
       "none": "No broadcast",
@@ -350,7 +354,7 @@
   "seo": {
     "siteName": "Calendario Ciclismo",
     "defaultTitle": "Calendario Ciclismo App",
-    "defaultDesc": "Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez."
+    "defaultDesc": "All professional cycling races with schedule, route, profile and how to watch on TV and streaming."
   },
   "locale": {
     "code": "en-GB",
@@ -388,6 +392,7 @@
     "baseMap": "Map",
     "satellite": "Satellite",
     "profile": "Profile",
+    "profileExplore": "Explore the profile and locate the point on the map",
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen"
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPdfSummaryIrms, classify, classificationsFromStageHtml, fnv1a, provisionalClassificationsFromHtml, rowsFromPayload, stageNumber, stagePdfUrlFromHtml, stagesFromRaceHtml, suggestCompetitionId, summaryIrmsFromPdfText } from '../results-fetchers/classificacoes-results-fetch.mjs';
+import { applyPdfSummaryIrms, classify, classificationsFromStageHtml, provisionalClassificationsFromHtml, rowsFromPayload, stageNumber, stagePdfUrlFromHtml, stagesFromRaceHtml, suggestCompetitionId, summaryIrmsFromPdfText } from '../results-fetchers/classificacoes-results-fetch.mjs';
 import { extractRidersForNameResolve } from '../results-fetchers/results-upsert.mjs';
 
 describe('Classificações.net', () => {
@@ -9,10 +9,9 @@ describe('Classificações.net', () => {
     expect(stageNumber('6ª Etapa')).toBe(6);
   });
 
-  it('genera un identificador sintético estable por slug, sin colisionar con DataRide', () => {
-    expect(suggestCompetitionId('86-volta-a-portugal-continente')).toBeLessThan(0);
-    expect(suggestCompetitionId('86-volta-a-portugal-continente')).toBe(suggestCompetitionId('86-volta-a-portugal-continente'));
-    expect(fnv1a('classificacoes:a')).not.toBe(fnv1a('classificacoes:b'));
+  it('genera un identificador sintético negativo y fijo por slug', () => {
+    // Ancla: si cambia, se duplican los IDs ya volcados desde esta fuente.
+    expect(suggestCompetitionId('86-volta-a-portugal-continente')).toBe(-108341);
   });
 
   it('conserva la etapa y las cinco generales, no las clasificaciones secundarias de etapa', () => {

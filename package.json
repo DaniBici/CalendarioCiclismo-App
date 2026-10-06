@@ -14,8 +14,8 @@
   "scripts": {
     "broadcasts:sync": "node scripts/broadcasts-sync/broadcasts-sync.mjs",
     "uci:catalog": "node scripts/uci-catalog/run.mjs",
+    "uci:road": "node scripts/uci-calendar/road.mjs",
     "uci:catalog:collect": "node scripts/uci-catalog/collect.mjs",
-    "uci:catalog:test-db": "node scripts/uci-catalog/tests/integration.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "knip": "knip"

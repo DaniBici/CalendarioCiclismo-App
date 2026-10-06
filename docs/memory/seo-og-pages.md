@@ -35,7 +35,7 @@ Trigger: push a `main`, cron diario 05:00 UTC, `workflow_dispatch`. Python inlin
 - `og:image:alt` / `twitter:image:alt` / `og:locale=es_ES`.
 - `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">`.
 - Excepción: las carreras con `races.year` entre 2020 y 2025 llevan `noindex, follow` (ver sección «Temporadas archivadas»).
-- `hreflang="es"` + `hreflang="x-default"` auto-referenciales.
+- `hreflang="es"` + `hreflang="x-default"` hacia el canonical y `hreflang="en"` con `en_url=` cuando existe la gemela EN.
 - `<link rel="alternate" type="application/atom+xml" href="/atom.xml">`.
 - JSON-LD: `SportsEvent` (`startDate`, `endDate`, `location`, `superEvent` para etapas de vuelta, `eventStatus`, `eventAttendanceMode`, `organizer`).
 - JSON-LD: `BreadcrumbList` (Inicio › Temporada N › [Competición] › Jornada).
@@ -115,11 +115,23 @@ Las páginas de detalle (`jornada`, `competición`, `inscritos`) **sí** llevan 
 Decisión de producto (Dani): todas las páginas de carrera de las temporadas 2020-2025 se publican con `noindex, follow`, incluidos resultados.
 
 - **Criterio:** `races.year` (temporada UCI), no `startDate`: hay carreras de temporada 2021-2025 que empiezan en octubre del año anterior.
-- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos; `js/__tests__/archived-season-robots.test.js` comprueba que coinciden.
+- **Fuente del rango:** `tools/site/archived_seasons.py` (`ARCHIVED_SEASONS`, `race_robots`, `race_is_archived`). Espejo JS: `isArchivedSeason`/`setRaceRobots` en `js/shared.js`. Cambiar el rango exige tocar ambos, sin prueba que compare los dos; `js/__tests__/archived-season-robots.test.js` fija solo el rango de `isArchivedSeason` y se actualiza con él.
 - **Estático:** `og_page()`/`og_page_en()` aceptan `robots=` (por defecto el `index, follow, …` de siempre). Las 14 llamadas de carrera (competición, jornada, inscritos, orden de salida, perfil, mapa y resultados, ES y EN) pasan `robots=race_robots(race)`. Ciclocross y el resto de páginas usan el valor por defecto.
 - **SPA:** competición, jornada, inscritos, orden de salida, perfil, mapa y resultados llaman a `setRaceRobots(race)` junto al canonical, lo que cubre las URLs con query string y la navegación interna.
 - **Sitemap:** `gen_sitemap.py` descarta esas carreras antes de construir entradas (competición, inscritos, jornadas, perfiles, mapas, órdenes de salida y resultados).
 - **Caché del build:** `archived_seasons.py` forma parte de la huella de los bloques OG y del sitemap en `build_generated.py`.
+
+## Páginas EN — traducidas e indexables (2026-09-30)
+
+Decisión de producto (Dani): las páginas `/en/` se sirven íntegramente en inglés (title, description, OG, Twitter, JSON-LD y texto pre-renderizado), se indexan con el mismo `robots` que su gemela ES y figuran en el sitemap con `hreflang`. Sustituye a la regla de 2026-06-27 (reconfirmada el 2026-07-18) que servía el `<head>` de las páginas EN en castellano. El mismo día se publicó una primera versión con `noindex, follow` y sin URL EN en el sitemap; Dani la revirtió: se acepta que Google muestre la versión inglesa a búsquedas en castellano.
+
+- **Motivo:** con la cabecera castellana, cada página EN era un duplicado de la ES. La página ES no enlazaba siempre de vuelta con `hreflang="en"` y Google trataba ambas como páginas en castellano que competían entre sí. En el Tour 2026, `/en/route-map/tour-de-france-2026-stage-15/` recibió unas 4.450 impresiones con consultas en castellano, sobre todo desde México, Colombia y Venezuela. Las páginas `/en/` sumaban el 15 % de los clics del sitio (2.080 de 13.537 entre el 28-06 y el 27-09-2026).
+- **Estático:** `og_page_en()` (páginas con slug y ciclocross) recibe `robots=race_robots(race)` como `og_page()`; las páginas EN de ciclocross solo nacional llevan `noindex, follow`. `tools/build-i18n-html.py` escribe la cabecera inglesa de sus páginas (`PAGE_SEO_EN`) y el texto pre-renderizado de la portada (`PRERENDER_EN`), y conserva el `robots` del maestro ES. Las páginas EN mantenidas a mano en `en/` llevan la cabecera inglesa en el propio HTML; las redirecciones de `tools/site/redirects.py` llevan noindex.
+- **SPA:** `js/shared.js` no filtra el SEO en EN; cada escritor de SEO redacta su versión inglesa. Los constructores de JSON-LD del SPA de jornada, competición e inscritos son solo castellanos y en EN conservan el bloque estático. `setRaceRobots` aplica en EN la misma regla que en ES.
+- **Sitemap:** cada par ES/EN entra con sus dos URL y alternativas `hreflang` `es`, `en` y `x-default` (ES).
+- **hreflang en HTML:** cada grupo ES/EN declara las mismas tres alternativas en ambas páginas: `es`, `en` y `x-default` = URL ES, todas canónicas. Estático: `og_page(en_url=…)` y `og_page_en(es_url=…)`. SPA: `setHreflangPair` (`js/shared.js`). `js/lang-switch.js` lee esos enlaces para cambiar de idioma.
+- **Consolidación EN:** `/en/race/` de un día lleva canonical a `/en/stage/` de su jornada (espejo de `/competicion/` → `/jornada/`), y `/en/stage/` de un alias de slug, a la jornada maestra.
+- **Comprobación:** `tools/site/check_hreflang.py _site` (paso «Comprobar hreflang» de `build-site.yml`) avisa de grupos no recíprocos, alternativas no canónicas o `noindex` y `x-default` distintos. `--strict` termina con error.
 
 ## Sitemap + Atom
 

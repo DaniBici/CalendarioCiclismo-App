@@ -6,11 +6,8 @@ import UserNotifications
 /// step más temprano que no esté completo es el que se muestra. `done` indica
 /// que toda la secuencia se ha cumplido.
 ///
-/// Flujo completo (instalación nueva 4.2.3):
-///   language → notifications → premiumShowcase → done
-///
-/// Flujo para actualizaciones:
-///   language → notifications → premiumShowcase → done
+/// Flujo completo (instalación nueva y actualización):
+///   language → notifications → supportIntro → done
 ///
 /// El paso de modo OFFLINE se retiró del onboarding en 4.0 (decisión Dani:
 /// apenas aportaba; la función sigue disponible en Ajustes).
@@ -19,13 +16,13 @@ import UserNotifications
 /// Los usuarios que ya tenían inglés activado en 2.0 (Premium) saltan este
 /// paso automáticamente (migración en `LocaleService.init`).
 ///
-/// `premiumShowcase` anuncia la retirada definitiva de publicidad y el modelo
-/// voluntario Amigo. En 4.3.1 vuelve a mostrarse una vez para cubrir también
-/// a quienes ya completaron la primera versión del anuncio en 4.3.0.
+/// `supportIntro` presenta el apoyo voluntario Amigo. A quien actualiza desde
+/// una versión anterior a 4.3.1 le anuncia la retirada de publicidad y el icono
+/// Fundador. Se muestra una sola vez.
 private enum OnboardingStep: Int, CaseIterable, Comparable {
     case language
     case notifications
-    case premiumShowcase
+    case supportIntro
     case done
 
     static func < (lhs: OnboardingStep, rhs: OnboardingStep) -> Bool {
@@ -38,7 +35,7 @@ private enum OnboardingStep: Int, CaseIterable, Comparable {
         if !LocaleService.shared.hasShownLanguageAnnouncement { return .language }
         if !NotificationManager.shared.hasCompletedOnboarding { return .notifications }
         if !UserDefaults.standard.bool(forKey: "support_intro_v4_3_1_done") {
-            return .premiumShowcase
+            return .supportIntro
         }
         return .done
     }
@@ -118,6 +115,7 @@ struct CalendarioCiclismoApp: App {
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
+                ForegroundTap.sceneBecameActive()
                 WidgetBridge.appBecameActive()
             }
         }
@@ -170,8 +168,8 @@ struct CalendarioCiclismoApp: App {
                     removal: .move(edge: .leading)
                 ))
                 .zIndex(3)
-        case .premiumShowcase:
-            PremiumShowcaseOnboardingView(
+        case .supportIntro:
+            SupportIntroOnboardingView(
                 isNewInstallation: supportIntroIsNewInstallation,
                 onDismiss: advance
             )

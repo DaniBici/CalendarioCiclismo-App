@@ -139,7 +139,7 @@ El panel permite programar una notificación para que se envíe automáticamente
 
 | Archivo | Qué hace |
 |---|---|
-| `supabase/migrations/032_scheduled_push_notifications.sql` | Tabla `scheduled_push_notifications` + RLS + índice parcial |
+| `supabase/migrations-archivo/032_scheduled_push_notifications.sql` | Tabla `scheduled_push_notifications` + RLS + índice parcial (aplicada sin registro en `schema_migrations`) |
 | `supabase/functions/send-push/index.ts` | Tres modos: inmediato / `scheduledAt` / `processScheduled` |
 | `supabase/migrations/036_pg_cron_scheduled_push.sql` | Crea el job `pg_cron` que invoca `processScheduled` cada 5 min |
 | `.github/workflows/scheduled-push.yml` | Ejecución manual de diagnóstico de `processScheduled` con `CRON_SECRET` |

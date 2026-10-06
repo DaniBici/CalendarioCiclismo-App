@@ -1,31 +1,33 @@
-import {dateNavigationButton} from './components/date-navigation.js?v=20260912cxcohesion';
-import { loadFeaturedRaces, todayRaceState, profileProgress, waitingResultsHtml, resultsTrophyHtml, startlistCyclistHtml } from './services/race-presentation.js?v=20260912cxactionicons';
+import {dateNavigationButton} from './components/date-navigation.js';
+import { loadFeaturedRaces, todayRaceState, startlistCyclistHtml } from './services/race-presentation.js';
 // ─────────────────────────────────────────────────────────────────
 //  APP PÚBLICA — index.html
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, esc, toDateKey, formatTime, formatTimeUser,
+import { supabase, toDateKey, formatTime, formatTimeUser,
          stageLabel,
          countryFlag, effectiveCountryCode, resolveTypeBadges,
-         categoryBadge, jornadaUrl, raceUrl, raceName, rdLocation, setMeta, setMetaProperty,
-         setCachedRace, tsSeconds, initPhTooltip, nameImpliesFemale,
+         categoryBadge, raceUrl, raceName, rdLocation, setMeta, setMetaProperty,
+         setCachedRace, tsSeconds, initPhTooltip, needsFemaleMark, cleanFeminineName,
          getPinnedFilter, renderFilterPins, handleFilterEvent,
-         filterBroadcastsByRegion, extractYouTubeId, startlistUrl, startOrderUrl,
-         setPressed, announce, makeCardActivatable }
+         filterBroadcastsByRegion, startlistUrl, startOrderUrl,
+         setPressed, announce }
          from './shared.js';
 import { isTourDelPorvenir } from './category-filter.js';
 import { t, initI18n, getLocale, getLang } from './i18n.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 initI18n(); // carga el diccionario EN en paralelo con los datos
 import { annotateDoubleSectors } from './services/races.js';
-import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
-import { buildElevationSparkline } from './stage/elevation-profile.js';
-import { initCintillo } from './cintillo.js?v=20260913cxscopes';
-import { isU23Championship, isFemaleChampionship,
-         isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js?v=20260924sitefix';
-import { isReviveBroadcast, pickBadgeBroadcast } from './broadcast-priority.js';
-import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js?v=20260928hoy';
-import { sortAgenda } from './services/today-agenda-order.js?v=20260928hoy';
+import { openRaceDataModal, hasModalData, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { createRaceCard, cardLogoHtml, overviewButtonHtml, raceCardHtml, setInfoTooltip } from './components/race-card.js';
+import { tvIconHtml, noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
+         startOrderBadgeHtml, scheduleHtml, appendProfile, appendResultsActions, activateStageCard } from './components/stage-card.js';
+import { initCintillo } from './cintillo.js';
+import { championshipMatchesCategoryFilter,
+         isChampWeekFilterLock, CHAMP_WEEK_HOY_FILTERS, champWeekHoyDefault } from './campeonatos-config.js';
+import { pickBadgeBroadcast } from './broadcast-priority.js';
+import { agendaCardIsFeatured, agendaMetaState } from './services/today-agenda-layout.js';
+import { sortAgenda } from './services/today-agenda-order.js';
 import { todaySeasonLastDay, clampToTodaySeason, isWithinTodaySeason } from './services/today-season.js';
 
 // ── Progress bar / elevation sparkline en cards de carrera en curso ─
@@ -53,10 +55,7 @@ function _updateProgressCards() {
 }
 
 const _liveTextSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m14 14-4-4-4 4 4 4"/><path d="M5 7H3v14h14v-2"/></svg>';
-const _tvSvg        = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
-const _trophySvg = resultsTrophyHtml;
 const _cyclistSvg = startlistCyclistHtml;
-const _timerSvg     = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
 
 function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBlocked = false) {
   // En la versión EN (/en/), "unavailable_es" es irrelevante: el usuario no está en España.
@@ -123,16 +122,16 @@ function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBl
   if (refTs) {
     const refMs = refTs.toDate ? refTs.toDate().getTime() : new Date(refTs).getTime();
     if (tvStatus === 'confirmed_time' && refMs <= nowMs) {
-      return wrapTv(`${_tvSvg} Live`, true);
+      return wrapTv(`${tvIconHtml} Live`, true);
     }
     // Si el broadcast de referencia empieza antes de la salida neutralizada → cobertura íntegra
     const label = (neutralMs !== null && refMs <= neutralMs) ? t('tv.fullStage') : formatTime(refTs);
     // Live texto junto al TV mientras la carrera ya empezó pero la TV sigue en reposo
     const liveTextAlongside = (liveTextBadge && raceStarted && refMs > nowMs) ? liveTextBadge : '';
-    return wrapTv(`${_tvSvg} ${label}`) + liveTextAlongside;
+    return wrapTv(`${tvIconHtml} ${label}`) + liveTextAlongside;
   }
   // Hay TV pero sin hora concreta
-  return wrapTv(`${_tvSvg} TV`);
+  return wrapTv(`${tvIconHtml} TV`);
 }
 
 // ── Render date bar ───────────────────────────────────────────────
@@ -287,6 +286,10 @@ async function loadDay(dateKey, { skipEmptyDay = false, refresh = false } = {}) 
   // Campeonatos Nacionales (uciCategory='CN') se muestran como cualquier otra
   // carrera del día (tarjetas normales). La rejilla país×prueba sigue accesible
   // aparte, pero no sustituye ni oculta nada en Hoy.
+
+  // El texto pre-renderizado (oculto) sale de la lista para no perderse al pintarla.
+  const prerender = list.querySelector('.static-prerender');
+  if (prerender) list.after(prerender);
 
   if (!refresh) list.innerHTML = `<div class="loading"><div class="loading__icons"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><p class="loading__text">${t('loading.stages')}</p><div class="loading__dots"><span></span><span></span><span></span></div></div>`;
 
@@ -445,8 +448,11 @@ function updateSeoDay(dateKey, raceDays) {
 
   // Valores evergreen — espejo exacto del HTML estático (`index.html` / `en/index.html`).
   // Se reescriben explícitamente por si una navegación previa en la misma sesión los tocó.
-  const title = 'Calendario Ciclismo App';
-  const description = 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
+  // Título EN propio: con el mismo título que la home ES, Google agrupaba /en/ con /.
+  const title = isEn ? 'Pro Cycling Races Today: Schedule, TV and Streaming — Calendario Ciclismo App' : 'Calendario Ciclismo App';
+  const description = isEn
+    ? 'All professional cycling races with schedule, route, profile and how to watch on TV and streaming.'
+    : 'Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming. Una idea de Dani Sánchez.';
 
   document.title = title;
   setMeta('description', description);
@@ -565,111 +571,35 @@ async function ensureYearRacesCached(year) {
   return promise;
 }
 
-// Devuelve el color ajustado para que sea visible como raya/borde en ambos temas.
-// Si el color es demasiado claro (blanco o cercano), lo oscurece.
-function safeCardColor(hex) {
-  if (!hex || !/^#[0-9a-fA-F]{3,6}$/.test(hex)) return '#888';
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
-  const r = parseInt(full.slice(0,2), 16);
-  const g = parseInt(full.slice(2,4), 16);
-  const b = parseInt(full.slice(4,6), 16);
-  const lum = 0.299*r + 0.587*g + 0.114*b;
-  if (lum > 210) {
-    const darken = v => Math.round(v * 0.6).toString(16).padStart(2,'0');
-    return '#' + darken(r) + darken(g) + darken(b);
-  }
-  return hex;
-}
-
-// Detecta si el color original es muy claro (blanco/cercano) o inválido para añadir borde mínimo.
-function isLightCardColor(hex) {
-  if (!hex || !/^#[0-9a-fA-F]{3,6}$/.test(hex)) return true;
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
-  const r = parseInt(full.slice(0,2), 16);
-  const g = parseInt(full.slice(2,4), 16);
-  const b = parseInt(full.slice(4,6), 16);
-  return (0.299*r + 0.587*g + 0.114*b) > 210;
-}
-
-function cleanFeminineAgendaName(name) {
-  if (_agendaCat !== 'female' && _agendaCat !== 'wwt') return name;
-  if (/women cycling pro|sanremo women|tour de feminin/i.test(name)) return name;
-  const cleaned = name
-    .replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ')
-    .trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '');
-  return cleaned || name;
-}
-
 // ── Tarjetas de la agenda ─────────────────────────────────────────
-// Una sola estructura para todas las tarjetas: logo | datos | horario, con el
+// Estructura común de components/race-card.js: logo | datos | horario, con el
 // miniperfil como banda inferior. Las destacadas añaden la clase
 // race-card--featured y, en la rejilla de escritorio, el CSS lleva el perfil a
 // una columna central. Carreras sin jornada, canceladas y días de descanso son
 // la misma tarjeta con otro estado. El DOM no depende del ancho de pantalla.
 
 const _overviewBtnHtml = race => race.raceFormat === 'stage_race' && race.startDate !== race.endDate && race.id && !race.isNoClickable
-  ? `<a class="race-card__overview-btn" href="${raceUrl(race)}" aria-label="${t('race.viewFull')}" onclick="event.stopPropagation()"><span aria-hidden="true">☰</span></a>`
+  ? overviewButtonHtml(raceUrl(race), t('race.viewFull'))
   : '';
-
-// ♀ junto a la categoría salvo que el nombre, la categoría WWT (categoryBadge)
-// o el filtro femenino activo ya lo indiquen.
-function agendaFemaleMark(race) {
-  return race.gender === 'female' && !nameImpliesFemale(race.name || '') && _agendaCat !== 'female' && _agendaCat !== 'wwt';
-}
-
-function cardLogoHtml(race, flag, hideFlag) {
-  if (race.logoUrl) {
-    return `<div class="race-card__logo">
-         <img class="race-logo-img" src="${race.logoUrl}" alt="" loading="lazy" onerror="this.style.display='none'">
-         ${hideFlag ? '' : `<span>${flag}</span>`}
-       </div>`;
-  }
-  return hideFlag ? '' : `<div class="race-card__flag">${flag}</div>`;
-}
-
-function createAgendaCard(race, extraClass = '') {
-  const card = document.createElement('div');
-  card.className = ['race-card', extraClass, isLightCardColor(race.colorHex) ? 'race-card--light-color' : ''].filter(Boolean).join(' ');
-  card.style.setProperty('--card-color', safeCardColor(race.colorHex));
-  return card;
-}
-
-// Tarjeta sin página ni modal: tooltip al pasar el ratón y aviso al pulsar en
-// móvil (initPhTooltip de shared.js).
-function setInfoTooltip(card, { message, name, flag, sub }) {
-  card.style.cursor = 'default';
-  card.dataset.phTooltip = message;
-  card.dataset.phName = name;
-  card.dataset.phFlag = flag;
-  if (sub) card.dataset.phSub = sub;
-}
-
-function noExtraInfoMessage(dateKey) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  return dateKey && todayStr < dateKey ? 'Por ahora sin información extra' : 'Sin información extra';
-}
 
 const _shortDate = dateKey => dateKey
   ? new Date(dateKey + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
   : '';
 
+const _catBadgesHtml = (race, uci) => `<span class="race-card__name-cat">${categoryBadge(uci, needsFemaleMark(race, _agendaCat))}</span>`;
+
 function buildPlaceholderCard(race) {
   const flag = race.hideFlag ? '' : countryFlag(race.countryCode);
-  const name = cleanFeminineAgendaName(raceName(race) || t('race.unknown'));
+  const name = cleanFeminineName(raceName(race) || t('race.unknown'), _agendaCat);
   const uci = race.uciCategory || '';
   const stage = race.raceFormat === 'stage_race' ? stageLabel(theoreticalStageNumber(race, race._dateKey)) : '';
-  const card = createAgendaCard(race, 'race-card--placeholder');
-  card.innerHTML = `
-    ${cardLogoHtml(race, flag, race.hideFlag)}
-    <div class="race-card__main">
-      <div class="race-card__name"><span>${name}</span></div>
-      ${stage ? `<div class="race-card__sub"><span class="race-card__stage">${stage}</span></div>` : ''}
-      <div class="race-card__badges"><span class="race-card__name-cat">${categoryBadge(uci, agendaFemaleMark(race))}</span></div>
-    </div>
-    <div class="race-card__meta"></div>
-  `;
+  const card = createRaceCard(race.colorHex, 'race-card--placeholder');
+  card.innerHTML = raceCardHtml({
+    logo: cardLogoHtml(race.logoUrl, flag, race.hideFlag),
+    name: `<span>${name}</span>`,
+    sub: stage ? `<span class="race-card__stage">${stage}</span>` : '',
+    badges: _catBadgesHtml(race, uci),
+  });
   setInfoTooltip(card, {
     message: noExtraInfoMessage(race.startDate),
     name, flag,
@@ -678,132 +608,43 @@ function buildPlaceholderCard(race) {
   return card;
 }
 
-function formatStageMetrics(rd, isEn) {
-  const km = rd.distanceKm ? `${isEn ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')}${isEn ? 'km' : ' km'}` : '';
-  const gain = rd.elevationProfile?.elevationGain;
-  const elev = gain != null ? `+${String(Math.round(gain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, isEn ? ',' : '.')} m` : '';
-  return { km, elev };
-}
-
-// Subtítulo: etapa · ruta · km · desnivel. Km y desnivel van en
-// .race-card__metrics con su separador inicial, que el CSS oculta cuando la
-// ruta desaparece (móvil) o cuando las cifras pasan a otra línea (destacadas).
-function stageSubHtml({ stage, route, km, elev }) {
-  const sep = cls => `<span class="race-card__sep${cls ? ` ${cls}` : ''}">·</span>`;
-  const stagePart = stage ? `<span class="race-card__stage">${stage}</span>` : '';
-  const routeWrap = route
-    ? `<span class="race-card__route-wrap">${stagePart ? sep('race-card__sep--in-route') : ''}<span class="race-card__route">${route}</span></span>`
-    : '';
-  const values = [km && `<span class="race-card__km">${km}</span>`, elev && `<span class="race-card__elev">${elev}</span>`]
-    .filter(Boolean).join(sep());
-  if (!values) return stagePart + routeWrap;
-  const lead = stagePart ? sep('race-card__sep--lead')
-    : routeWrap ? sep('race-card__sep--lead race-card__sep--after-route') : '';
-  return `${stagePart}${routeWrap}<span class="race-card__metrics">${lead}${values}</span>`;
-}
-
-function stageIsClickable(rd, race) {
-  const viewableProfile = !!(rd.elevationProfile && !rd.profileNotViewable
-    && Array.isArray(rd.elevationProfile.points) && rd.elevationProfile.points.length >= 2);
-  const hasAssets = viewableProfile || (rd._assets
-    ? rd._assets.some(a => (a.url || a.filePath) && ['startOrder', 'roadbook', 'profile', 'map', 'ports'].includes(a.type))
-    : rd.hasAssets === true);
-  return !race.isNoClickable && hasAssets;
-}
-
-function scheduleHtml(metaState, startTU, finishTU) {
-  if (metaState.kind === 'waiting') return waitingResultsHtml(getLang());
-  if (metaState.kind !== 'schedule') return '';
-  const tip = (metaState.time === 'finish' ? finishTU : startTU)?.tooltip;
-  const finishClass = metaState.time === 'finish' ? ' race-card__schedule--finish' : '';
-  const title = tip ? ` title="${getLang() === 'en' ? 'Madrid time' : 'Hora Madrid'} · ${esc(tip)}"` : '';
-  return `<div class="race-card__schedule${finishClass}"${title}><span>${metaState.label}</span><strong>${metaState.value}</strong></div>`;
-}
-
-function appendResultsActions(card, rd, race) {
-  const metaTop = card.querySelector('.race-card__meta-top');
-  const resultsBadge = document.createElement('button');
-  resultsBadge.type = 'button';
-  resultsBadge.className = 'badge badge--results badge--icon';
-  resultsBadge.title = t('stage.results');
-  resultsBadge.setAttribute('aria-label', t('stage.results'));
-  resultsBadge.innerHTML = `${_trophySvg}<span class="badge__label">${t('stage.results')}</span>`;
-  resultsBadge.addEventListener('click', e => { e.stopPropagation(); openResultsModal(rd, race); });
-  metaTop.appendChild(resultsBadge);
-
-  // Revive: redes sociales antes que el resto, después sortOrder.
-  const revive = (rd._broadcasts || [])
-    .filter(isReviveBroadcast)
-    .sort((a, b) => {
-      const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-      const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-      return (aSoc - bSoc) || ((a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    })[0] ?? null;
-  if (!revive?.url) return;
-  const ytId = revive.embeddable !== false ? extractYouTubeId(revive.url) : null;
-  const reviveBadge = document.createElement('a');
-  reviveBadge.className = 'badge badge--tv badge--tv-link badge--revive badge--icon';
-  reviveBadge.href = revive.url;
-  reviveBadge.target = '_blank';
-  reviveBadge.rel = 'noopener';
-  reviveBadge.title = t('tv.reviveRace');
-  reviveBadge.setAttribute('aria-label', t('tv.reviveRace'));
-  reviveBadge.innerHTML = `${_tvSvg}<span class="badge__label">${t('tv.reviveRace')}</span>`;
-  reviveBadge.addEventListener('click', ytId
-    ? e => { e.preventDefault(); e.stopPropagation(); openYoutubeTvModal(rd, race, ytId); }
-    : e => e.stopPropagation());
-  resultsBadge.after(reviveBadge);
-}
-
 // ── Construir tarjeta ─────────────────────────────────────────────
 function buildCard(rd) {
   const race = rd._race || {};
-  const color = safeCardColor(race.colorHex);
   const flag = countryFlag(effectiveCountryCode(rd, race));
   // El override de país de la jornada vence al hideFlag de la carrera:
   // si la jornada fija un país, se muestra bandera aunque la carrera la oculte.
   const hideFlag = race.hideFlag && !rd.countryCode;
-  const name = cleanFeminineAgendaName(raceName(race) || t('race.unknown'));
+  const name = cleanFeminineName(raceName(race) || t('race.unknown'), _agendaCat);
   const uci = race.uciCategory || '';
-  const catBadgeHtml = categoryBadge(uci, agendaFemaleMark(race));
+  const catBadgeHtml = _catBadgesHtml(race, uci);
   const isFinalStage = race.raceFormat === 'stage_race' && rd.stageNumber != null && !rd.isRestDay
     && !rd.isCancelledDay && !!rd.dateKey && rd.dateKey === race.endDate;
   const stage = stageLabel(rd.stageNumber, rd._stageSuffix, isFinalStage);
-  const route = rd.startLocation
-    ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} > ${rdLocation(rd, 'finishLocation')}`) : '';
-  const isEn = getLang() === 'en';
-  const { km, elev } = formatStageMetrics(rd, isEn);
+  const { km, elev } = formatStageMetrics(rd);
   const startTU = formatTimeUser(rd.neutralStartTimeUtc);
   const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
   if (!rd._broadcasts) rd._broadcasts = [];
   const overviewBtn = _overviewBtnHtml({ ...race, id: rd.raceId });
-  const logo = cardLogoHtml(race, flag, hideFlag);
+  const logo = cardLogoHtml(race.logoUrl, flag, hideFlag);
 
   if (rd.isRestDay) {
-    const card = createAgendaCard(race, 'race-card--rest-day');
-    card.innerHTML = `
-      ${logo}
-      <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span>${overviewBtn}</div>
-        <div class="race-card__sub"><span class="race-card__stage">${t('stage.restDay')}</span></div>
-        <div class="race-card__badges"><span class="race-card__name-cat">${catBadgeHtml}</span></div>
-      </div>
-      <div class="race-card__meta"></div>
-    `;
+    const card = createRaceCard(race.colorHex, 'race-card--rest-day');
+    card.innerHTML = raceCardHtml({
+      logo, name: `<span>${name}</span>${overviewBtn}`,
+      sub: `<span class="race-card__stage">${t('stage.restDay')}</span>`,
+      badges: catBadgeHtml,
+    });
     return card;
   }
 
   if (race.isCancelled) {
-    const card = createAgendaCard(race, 'race-card--placeholder race-card--cancelled');
-    card.innerHTML = `
-      ${logo}
-      <div class="race-card__main">
-        <div class="race-card__name"><span>${name}</span></div>
-        <div class="race-card__badges"><span class="race-card__name-cat">${catBadgeHtml}</span><span class="badge badge--cancelled-day">${t('stage.cancelled')}</span></div>
-      </div>
-      <div class="race-card__meta"></div>
-    `;
-    setInfoTooltip(card, { message: 'Carrera cancelada', name, flag: hideFlag ? '' : flag, sub: uci });
+    const card = createRaceCard(race.colorHex, 'race-card--placeholder race-card--cancelled');
+    card.innerHTML = raceCardHtml({
+      logo, name: `<span>${name}</span>`,
+      badges: `${catBadgeHtml}<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>`,
+    });
+    setInfoTooltip(card, { message: t('race.cancelled'), name, flag: hideFlag ? '' : flag, sub: uci });
     return card;
   }
 
@@ -811,9 +652,7 @@ function buildCard(rd) {
   const showResults = state === 'results';
   const waiting = state === 'waiting';
   const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-  const isFeatured = agendaCardIsFeatured(_agendaSort, rd._featured);
-  const clickable = stageIsClickable(rd, race);
-  const card = createAgendaCard(race);
+  const card = createRaceCard(race.colorHex);
 
   // Con «Hora Meta» la tarjeta programada muestra la llegada prevista.
   const metaState = agendaMetaState(_agendaSort === 'finishtime' && state === 'scheduled' ? 'running' : state,
@@ -830,20 +669,16 @@ function buildCard(rd) {
   const startlistHtml = race.startlistImportedAt && !showResults && !waiting && !rd.isCancelledDay && isFirstOrOnlyDay
     ? `<a class="badge badge--startlist" href="${startlistUrl(race)}" onclick="event.stopPropagation()">${_cyclistSvg} ${race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'))}</a>` : '';
   const startOrderHtml = isTimeTrial && rd._assets?.some(a => a.url && a.type === 'startOrder') && !rd.isCancelledDay && !showResults && !waiting
-    ? `<a class="badge badge--startorder" href="${startOrderUrl(rd)}" onclick="event.stopPropagation()">${_timerSvg} ${t('assets.startOrder')}</a>` : '';
+    ? startOrderBadgeHtml(startOrderUrl(rd)) : '';
 
-  card.innerHTML = `
-    ${logo}
-    <div class="race-card__main">
-      <div class="race-card__name"><span>${name}</span>${overviewBtn}</div>
-      <div class="race-card__sub">${stageSubHtml({ stage, route, km, elev })}</div>
-      <div class="race-card__badges"><span class="race-card__name-cat">${catBadgeHtml}</span>${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>` : ''}${typeBadgeHtml}${tvHtml}${startlistHtml}${startOrderHtml}</div>
-    </div>
-    <div class="race-card__meta">
-      <div class="race-card__meta-top">${showResults || rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU)}</div>
-    </div>
-  `;
-  card.classList.toggle('race-card--featured', isFeatured);
+  card.innerHTML = raceCardHtml({
+    logo,
+    name: `<span>${name}</span>${overviewBtn}`,
+    sub: stageSubHtml({ stage, route: stageRouteText(rd, rdLocation), km, elev }),
+    badges: `${catBadgeHtml}${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.cancelled')}</span>` : ''}${typeBadgeHtml}${tvHtml}${startlistHtml}${startOrderHtml}`,
+    meta: showResults || rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU),
+  });
+  card.classList.toggle('race-card--featured', agendaCardIsFeatured(_agendaSort, rd._featured));
   card.classList.toggle('race-card--waiting', waiting);
 
   const tvEmbedBadge = card.querySelector('.badge--tv-link[data-tv-embed]');
@@ -853,61 +688,33 @@ function buildCard(rd) {
     openBroadcastTvModal(rd, race, tvEmbedBadge.href);
   });
 
-  // Miniperfil: banda inferior (o columna central en las destacadas). Sigue el
-  // avance de la carrera salvo en contrarreloj, con resultados o en espera.
-  const sparkline = !rd.profileNotViewable && !rd.isCancelledDay
-    ? buildElevationSparkline(rd.elevationProfile, profileProgress(rd), rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? [])
-    : null;
-  if (sparkline) {
-    card.classList.add('race-card--elevation');
-    card.insertAdjacentHTML('beforeend', `<div class="race-card__profile">${sparkline}</div>`);
+  // Miniperfil: banda inferior (o columna central en las destacadas). La
+  // barra de avance se actualiza cada minuto mientras la carrera está en curso.
+  if (appendProfile(card, rd)) {
     const startMs = Date.parse(rd.neutralStartTimeUtc), endMs = Date.parse(rd.estimatedFinishTimeUtc);
     if (!isTimeTrial && !showResults && !waiting && Number.isFinite(startMs) && endMs > startMs) {
       _progressCards.push({ card, startMs, endMs, clipRect: card.querySelector('.race-card__elevation rect') });
     }
   }
 
-  // Con clasificaciones propias la tarjeta pasa a modo terminado: sin horario,
-  // con Resultados y Revive a la derecha.
   if (showResults) {
-    card.classList.add('race-card--finished');
-    appendResultsActions(card, rd, race);
-  }
-
-  if (clickable) {
-    const go = () => {
-      sessionStorage.removeItem('cc_nav');
-      window.location.href = jornadaUrl(rd);
-    };
-    card.addEventListener('click', go);
-    // La card navega: se anuncia como enlace y responde a Enter/Espacio.
-    makeCardActivatable(card, { role: 'link', href: jornadaUrl(rd), label: _cardAriaLabel(name, stage, uci), onActivate: go });
-    return card;
-  }
-
-  // Link para buscadores: la jornada tiene su propia URL indexable aunque el
-  // usuario no pueda activar la card; visible solo al recibir el foco.
-  const seoLink = document.createElement('a');
-  seoLink.href = jornadaUrl(rd);
-  seoLink.className = 'race-card__seo-link';
-  seoLink.textContent = raceName(race) || t('race.unknown');
-  card.appendChild(seoLink);
-
-  if (hasModalData(rd)) {
-    const open = e => {
-      if (e?.target?.closest?.('a.badge, .race-card__overview-btn')) return;
-      openRaceDataModal(rd, race);
-    };
-    card.addEventListener('click', open);
-    // Abre un diálogo, no navega → botón.
-    makeCardActivatable(card, { role: 'button', label: _cardAriaLabel(name, stage, uci), onActivate: open });
-  } else {
-    setInfoTooltip(card, {
-      message: rd.isCancelledDay ? 'Etapa cancelada' : noExtraInfoMessage(rd.dateKey),
-      name, flag: hideFlag ? '' : flag,
-      sub: [stage, _shortDate(rd.dateKey), uci].filter(Boolean).join(' · '),
+    appendResultsActions(card, rd, {
+      onResults: () => openResultsModal(rd, race),
+      onYoutube: ytId => openYoutubeTvModal(rd, race, ytId),
     });
   }
+
+  activateStageCard(card, rd, {
+    clickable: stageIsClickable(rd, race.isNoClickable),
+    label: _cardAriaLabel(name, stage, uci),
+    seoText: raceName(race) || t('race.unknown'),
+    onModal: hasModalData(rd) ? () => openRaceDataModal(rd, race) : null,
+    tooltip: {
+      message: rd.isCancelledDay ? t('stage.stageCancelledTooltip') : noExtraInfoMessage(rd.dateKey),
+      name, flag: hideFlag ? '' : flag,
+      sub: [stage, _shortDate(rd.dateKey), uci].filter(Boolean).join(' · '),
+    },
+  });
   return card;
 }
 
@@ -979,13 +786,7 @@ function matchesCategoryFilter(race, cat) {
   const cc = (race.countryCode || '').toUpperCase();
 
   // Campeonatos Nacionales: élite cuenta como pro / por género; sub23 fuera.
-  if (uci === 'CN') {
-    if (isU23Championship(race)) return false;
-    if (cat === 'pro')    return true;
-    if (cat === 'male')   return !isFemaleChampionship(race);
-    if (cat === 'female') return isFemaleChampionship(race);
-    return false;
-  }
+  if (uci === 'CN') return championshipMatchesCategoryFilter(race, cat);
 
   let base = false;
   if (cat === 'pro')    base = ['1.UWT','2.UWT','1.WWT','2.WWT','1.Pro','2.Pro','1.1','2.1','WC','CC'].includes(uci)

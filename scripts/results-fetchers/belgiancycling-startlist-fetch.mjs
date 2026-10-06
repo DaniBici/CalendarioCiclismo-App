@@ -26,7 +26,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { isPlaceholder, parseCode, resultPdfUrl } from './belgiancycling-results-fetch.mjs';
+import { BELGIAN_DATE, dateKeyOf, isPlaceholder, parseCode, resultPdfUrl } from './belgiancycling-results-fetch.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const index = argv.indexOf(name); return index < 0 ? fallback : argv[index + 1]; };
@@ -63,7 +63,7 @@ export function pagesOfWords(xml) {
 const FOOTER_TOKENS = new Set(['Last', 'Update:', ';', 'Results', 'at', ':', 'www.results.belgiancycling.be']);
 const isFooter = (text) => FOOTER_TOKENS.has(text)
   || /^\d{1,2}:\d{2}$/.test(text)
-  || /^\d{2}\/\d{2}\/\d{4}$/.test(text);
+  || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text);
 
 function columnAnchors(words) {
   const anchors = [];
@@ -170,13 +170,13 @@ export function parseStartlistXml(code, xml, expectedDate = null) {
   // Marca de versión de la federación («Last Update: dd/mm/yyyy HH:MM», hora
   // local de la federación). Es evidencia de la edición descargada; no se
   // convierte a UTC porque su uso es comparativo, no horario.
-  const lastUpdateMatch = flat.match(/Last\s+Update:\s*;?\s*(\d{2}\/\d{2}\/(20\d{2}))\s+(\d{1,2}:\d{2})/i);
+  const lastUpdateMatch = flat.match(/Last\s+Update:\s*;?\s*(\d{1,2})\/(\d{1,2})\/(20\d{2})\s+(\d{1,2}:\d{2})/i);
   const lastUpdate = lastUpdateMatch
-    ? { dateKey: `${lastUpdateMatch[2]}-${lastUpdateMatch[1].slice(3, 5)}-${lastUpdateMatch[1].slice(0, 2)}`, time: lastUpdateMatch[3], zone: 'Europe/Brussels' }
+    ? { dateKey: dateKeyOf(lastUpdateMatch), time: lastUpdateMatch[4], zone: 'Europe/Brussels' }
     : null;
-  const dateMatch = text.match(/\b(\d{2})\/(\d{2})\/(20\d{2})\b/);
+  const dateMatch = text.match(BELGIAN_DATE);
   if (!dateMatch) throw new Error('el PDF no contiene fecha');
-  const dateKey = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+  const dateKey = dateKeyOf(dateMatch);
   if (dateKey.slice(0, 4) !== parsedCode.slice(0, 4)) throw new Error(`el PDF es de ${dateKey.slice(0, 4)}, no de ${parsedCode.slice(0, 4)}`);
   // La fecha impresa puede llevar errata de un día (misma regla que el carril
   // de resultados): se avisa y se normaliza a la fecha de la carrera.

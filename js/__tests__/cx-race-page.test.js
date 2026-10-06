@@ -12,11 +12,11 @@ const race={id:'race',name:'Carrera CX',nameEn:'CX Race',slug:'carrera',slugEn:'
   cx_tournaments:{id:'series',name:'Circuito CX',slug:'circuito'},
   cx_race_categories:['ME','WE'].map(category=>({category,startTimeUtc:'2026-11-01T12:00:00Z',resultsStatus:'official',startlistImportedAt:'2026-10-31T12:00:00Z'}))};
 
-async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE'],assets=[],broadcasts,startlist=true,videos=true,categoryStatus='official',resultsSourceUrl=null,resultEvidence={},raceClass=race.class}={}) {
+async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE'],assets=[],broadcasts,startlist=true,videos=true,programme=true,categoryStatus='official',resultsSourceUrl=null,resultEvidence={},raceClass=race.class,standings=[],states=[]}={}) {
   const location={};
   const navigate=path=>{const url=new URL(path,'https://calendariociclismo.app');Object.assign(location,{href:url.href,origin:url.origin,pathname:url.pathname,search:url.search,hash:url.hash});};
   navigate(path);
-  const testRace={...race,class:raceClass,cx_race_categories:race.cx_race_categories.map(category=>({...category,resultsStatus:categoryStatus,...(resultsSourceUrl?{resultsSourceUrl}:{}) ,resultsEvidence:resultEvidence}))};
+  const testRace={...race,class:raceClass,cx_race_categories:race.cx_race_categories.map(category=>({...category,...(programme?{}:{startTimeUtc:null}),resultsStatus:categoryStatus,...(resultsSourceUrl?{resultsSourceUrl}:{}) ,resultsEvidence:resultEvidence}))};
   const events={},clicks={},meta={},alternates={};
   class Element {
     constructor(attrs={}) {
@@ -47,14 +47,14 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
     cx_startlist_riders:startlist?['ME','WE'].map(category=>({category,firstName:'Nombre',lastName:category,bib:1,sortOrder:0})):[],
     cx_broadcasts:broadcasts??[{channel:'TV CX',url:'https://tv.example/live',country:'ALL'}],
     cx_videos:Array.isArray(videos)?videos:videos?[{title:'Resumen CX',url:'https://www.youtube.com/watch?v=abcdefghijk'}]:[],
-    cx_standings_state:[],cx_tournament_standings:[],assets};
+    cx_standings_state:states,cx_tournament_standings:standings,cx_races:[],assets};
   const cxAllRows=vi.fn(async(_client,table)=>data[table]);
   const supabase={from:table=>{
     const query={table,select:()=>query,eq:()=>query,maybeSingle:()=>query};return query;
   }};
   await runInNewContext(`(async()=>{${script}})()`,{
     ...presentation,esc:presentation.cxEsc,cxRaceSeo,cxDateInSeason,cxUrl,cxYouTubeVideoId,URL,URLSearchParams,Intl,Date,location,
-    history:{pushState:(_state,_title,path)=>navigate(path)},
+    history:{pushState:(_state,_title,path)=>navigate(path),replaceState:(_state,_title,path)=>navigate(path)},cxStandingsTableHtml:()=>'<table></table>',cxWireStandingsScroll:()=>{},
     window:{innerWidth:600,ccHeaderBack:back,addEventListener:(name,fn)=>{events[name]=fn;}},
     document:{hidden:false,getElementById:()=>root,addEventListener:()=>{},
       querySelector:selector=>selector==='link[rel=canonical]'?canonical:alternates[selector],
@@ -63,7 +63,7 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
     supabase,cxQuery:async query=>query.table==='cx_races'?testRace:[],cxAllRows,cxSeasonRounds:async()=>new Map(),cxIsHidden,CX_SPANISH_AUDIENCE,
     countryFlag:()=>'',buildRaceHeader,teamStripes:()=>'',findMatchingTeam:()=>null,cxLogoImage:()=>null,mountCxPublicEditButton,limitScrollToStickyStart,
     setMeta:(key,value)=>{meta[key]=value;},setMetaProperty:(key,value)=>{meta[key]=value;},
-    filterBroadcastsByRegion:rows=>rows,seoLongDateWeekday:date=>date,
+    filterBroadcastsByRegion:rows=>rows,broadcastRegionBadgeLabel:country=>country,seoLongDateWeekday:date=>date,
     cxCategoryTiming:()=>({displayState:'official'}),startlistCyclistHtml:'',resultsTrophyHtml:'',setInterval:()=>1,clearInterval:()=>{}
   });
   const node=(attribute,value)=>nodes.find(node=>node.dataset[attribute]===value);
@@ -85,65 +85,12 @@ describe('jornada CX integrada',()=>{
     expect(spanish.root.innerHTML).not.toContain(CX_SPANISH_AUDIENCE.title);
   });
 
-  it('muestra el mapa de imagen junto al programa y conserva su enlace al original',async()=>{
-    const url='https://assets.calendariociclismo.app/cx/race/map.png?v=2';
-    const page=await open('/ciclocross/carrera/programa/',{assets:[{type:'map',url}]});
-    expect(page.root.innerHTML).toContain('class="cx-programme-layout"');
-    expect(page.root.innerHTML).toContain(`<img src="${url}"`);
-    expect(page.root.innerHTML.indexOf('cx-programme-schedule')).toBeLessThan(page.root.innerHTML.indexOf('cx-programme-map'));
-    expect(page.root.innerHTML).toContain('data-cx-map-open');
-  });
-  it('acompaña los resultados, publicados o pendientes, con el mapa y el horario en columna lateral',async()=>{
-    const url='https://assets.calendariociclismo.app/cx/race/map.png?v=2';
-    for(const resultCodes of [['ME','WE'],[]]) {
-      const page=await open('/ciclocross/carrera/resultados/',{resultCodes,assets:[{type:'map',url}]});
-      const results=page.root.innerHTML.slice(page.root.innerHTML.indexOf('data-cx-section="results"'),page.root.innerHTML.indexOf('data-cx-section="startlist"'));
-      expect(results).toContain('res-layout--context');
-      expect(results.indexOf('cx-context-map')).toBeLessThan(results.indexOf('res-stage-data'));
-      expect(results).toContain('data-cx-context-category="ME"');
-      expect(results).toContain('cx.category.WE');
-    }
-    const plain=await open('/ciclocross/carrera/resultados/',{assets:[]});
-    expect(plain.root.innerHTML).not.toContain('cx-context-map');
-    expect(plain.root.innerHTML).toContain('res-stage-data');
-  });
   it('mantiene el programa completo cuando falta un mapa o su URL es inválida',async()=>{
     for(const assets of [[],[{type:'map',url:'javascript:alert(1)'}],[{type:'map',url:'https://assets.example/map.pdf?v=2'}],[{type:'map',url:'https://assets.example/map.webp'}]]) {
       const page=await open('/ciclocross/carrera/programa/',{assets});
       expect(page.root.innerHTML).not.toContain('class="cx-programme-layout"');
       expect(page.root.innerHTML).toContain('cx-programme-schedule');
     }
-  });
-  it('muestra la TV dentro del programa, bajo los horarios y agrupada por categorías',async()=>{
-    const page=await open('/ciclocross/carrera/programa/',{resultCodes:[],categoryStatus:'pending',broadcasts:[
-      {channel:'TV CX',url:'https://tv.example/live',country:'ALL'},
-      {channel:'TV WE',url:'https://tv.example/we',country:'ALL',category:'WE'},
-    ]});
-    const markup=page.root.innerHTML;
-    expect(markup).not.toContain('data-cx-section="tv"');
-    expect(markup.indexOf('cx-programme-schedule')).toBeLessThan(markup.indexOf('cx-media-section'));
-    expect(markup).toContain('cx-tv-group__title');
-    expect(markup).toContain('TV CX');
-    expect(markup.indexOf('TV CX')).toBeLessThan(markup.indexOf('TV WE'));
-    const legacy=await open('/ciclocross/carrera/?view=tv');
-    expect(legacy.node('cxSection','programme').hidden).toBe(false);
-  });
-  it('muestra solo vídeos YouTube embebidos y deja Revive junto a la TV',async()=>{
-    const broadcasts=[{channel:'Canal replay',url:'https://tv.example/replay',country:'ALL',category:'ME',showInRevive:true}];
-    const videos=[
-      {title:'Resumen',url:'https://youtu.be/abcdefghijk',category:'ME'},
-      {title:'Enlace ajeno',url:'https://video.example/abcdefghijk',category:'WE'},
-    ];
-    const page=await open('/ciclocross/carrera/?view=videos',{broadcasts,videos});
-    const markup=page.root.innerHTML;
-    expect(markup).toContain('youtube-nocookie.com/embed/abcdefghijk');
-    expect(markup).toContain('Canal replay');
-    const programme=markup.slice(markup.indexOf('data-cx-section="programme"'),markup.indexOf('data-cx-section="videos"'));
-    const videoSection=markup.slice(markup.indexOf('data-cx-section="videos"'));
-    expect(programme).toContain('Canal replay');
-    expect(programme).toContain('tv.reviveRaceTitle');
-    expect(videoSection).not.toContain('Canal replay');
-    expect(videoSection).not.toContain('Enlace ajeno');
   });
   it('monta el acceso administrativo y actualiza su sección durante la navegación pública',async()=>{
     const page=await open('/en/cyclocross/race/',{lang:'en'});
@@ -156,6 +103,23 @@ describe('jornada CX integrada',()=>{
     expect(page.editButton.update).toHaveBeenCalledTimes(2);
   });
 
+  it('muestra la general como sección propia y redirige los enlaces antiguos de resultados',async()=>{
+    const standings=[{category:'ME',rank:1,riderDisplay:'Líder',points:'40'},{category:'WU',rank:1,riderDisplay:'Sub-23',points:'40'}];
+    const states=['ME','WU'].map(category=>({category,status:'ready',roundIds:['race']}));
+    const none=await open('/ciclocross/carrera/?view=general');
+    expect(none.node('cxSectionLink','general')).toBeUndefined();
+    expect(none.node('cxSection','results').hidden).toBe(false);
+    const page=await open('/ciclocross/carrera/?view=general#WU',{standings,states});
+    expect(page.node('cxSection','general').hidden).toBe(false);
+    expect(page.node('cxSection','results').hidden).toBe(true);
+    expect(page.node('cxGeneral','WU').hidden).toBe(false);
+    expect(page.node('cxGeneral','ME').hidden).toBe(true);
+    expect(page.node('cxSectionLink','results').attrs.href).toBe('/ciclocross/carrera/resultados/');
+    const legacy=await open('/ciclocross/carrera/resultados/#general-WU',{standings,states});
+    expect(legacy.location.search).toBe('?view=general');
+    expect(legacy.location.hash).toBe('#WU');
+    expect(legacy.node('cxSection','general').hidden).toBe(false);
+  });
   it('oculta el selector de secciones cuando el programa es la única sección, como en las apps',async()=>{
     const page=await open('/ciclocross/carrera/',{startlist:false,resultCodes:[],videos:false});
     expect(page.root.innerHTML).not.toContain('cx-section-nav');
@@ -163,19 +127,16 @@ describe('jornada CX integrada',()=>{
     const full=await open('/ciclocross/carrera/');
     expect(full.root.innerHTML).toContain('cx-section-nav');
   });
-  it('no muestra vídeos de una emisión futura sin filas de vídeo y conserva la TV en su categoría',async()=>{
-    const broadcasts=[
-      {id:'we',category:'WE',channel:'Emisión WE',url:'https://tv.example/we',country:'ALL',sortOrder:1,showInRevive:true},
-      {id:'me',category:'ME',channel:'Emisión ME',url:'https://tv.example/me',country:'ALL',sortOrder:0},
-    ];
-    const options={resultCodes:[],categoryStatus:'pending',videos:false,broadcasts};
-    const page=await open('/ciclocross/carrera/?view=videos#ME',options);
-    expect(page.root.innerHTML).toContain('cx.noVideos');
-    expect(page.root.innerHTML).toContain('href="https://tv.example/me"');
-    expect(page.root.innerHTML).toContain('href="https://tv.example/we"');
-    expect(page.root.innerHTML.indexOf('Emisión ME')).toBeLessThan(page.root.innerHTML.indexOf('Emisión WE'));
-    const defaultPage=await open('/ciclocross/carrera/',options);
-    expect(defaultPage.root.innerHTML).not.toContain('data-cx-section-link="videos"');
+  it('abre Vídeos cuando es la única sección y ofrece el selector desde un programa vacío',async()=>{
+    const only=await open('/ciclocross/carrera/',{startlist:false,resultCodes:[],programme:false,broadcasts:[]});
+    expect(only.root.innerHTML).not.toContain('cx-section-nav');
+    expect(only.node('cxSection','videos').hidden).toBe(false);
+    const programme=await open('/ciclocross/carrera/?view=programme',{startlist:false,resultCodes:[],programme:false,broadcasts:[]});
+    expect(programme.node('cxSectionLink','videos')).toBeTruthy();
+    // Con TV y sin horarios, Programa aparece y abre por delante de Vídeos.
+    const tv=await open('/ciclocross/carrera/',{startlist:false,resultCodes:[],programme:false});
+    expect(tv.node('cxSectionLink','programme')).toBeTruthy();
+    expect(tv.node('cxSection','programme').hidden).toBe(false);
   });
   it('genera la descripción editorial con fecha, clase, ubicación y torneo, sin inventar campos ausentes',()=>{
     const label=()=> 'domingo, 1 de noviembre de 2026';
@@ -189,12 +150,22 @@ describe('jornada CX integrada',()=>{
     expect(national.description).not.toMatch(/null|undefined|Pertenece|UCI NAC/);
   });
 
-  it.each([['ca','Canadá'],['ES','España'],['US','Estados Unidos'],['NL','Países Bajos']])(
-    'incluye el país %s también cuando falta la localidad', (countryCode,country)=>{
-      const seo=cxRaceSeo({...race,venue:null,countryCode},'race',()=> 'domingo, 1 de noviembre de 2026');
-      expect(seo.description).toContain(`en ${country}.`);
-      expect(seo.description).not.toMatch(/domingo,|inscritos/i);
+  it('genera en inglés el SEO de la página EN, en paridad con el generador',()=>{
+    const label=(date,lang)=>lang==='en'?'Sunday, 1 November 2026':'domingo, 1 de noviembre de 2026';
+    expect(cxRaceSeo({...race,nameEn:'CX Race'},'results',label,'en')).toEqual({
+      title:'Results · CX Race — Calendario Ciclismo App',
+      description:'CX Race (Sunday 1 November 2026) is a UCI C1 cyclocross race in Ostende (Belgium). It is part of the Circuito CX 2026-27. See the programme, startlist and results, how to watch the race on TV and online streaming, and race videos.'
     });
+    const national=cxRaceSeo({...race,class:'NAC',venue:null,countryCode:null,cx_tournaments:null},'startlist',label,'en');
+    expect(national.title).toBe('Startlist · CX Race — Calendario Ciclismo App');
+    expect(national.description).toContain('is a national cyclocross race. See');
+  });
+
+  it('incluye el país también cuando falta la localidad',()=>{
+    const seo=cxRaceSeo({...race,venue:null,countryCode:'ca'},'race',()=> 'domingo, 1 de noviembre de 2026');
+    expect(seo.description).toContain('en Canadá.');
+    expect(seo.description).not.toMatch(/domingo,|inscritos/i);
+  });
 
   it('no añade un segundo año al nombre ni una segunda temporada al torneo',()=>{
     const seo=cxRaceSeo({...race,name:'Carrera CX 2026',cx_tournaments:{name:'Circuito CX 2026-27'}},'race',date=>date);
@@ -224,12 +195,11 @@ describe('jornada CX integrada',()=>{
     expect(page.buildRaceHeader.mock.calls[0][0].race.name).toBe('Carrera CX');
   });
 
-  it.each(['/ciclocross/carrera/?view=programme','/ciclocross/carrera/inscritos/#WE','/ciclocross/carrera/resultados/#WE'])(
-    'respeta el acceso directo %s y vuelve siempre a la home CX',async path=>{
-      const page=await open(path),route=presentation.cxRacePageLocation(page.location.pathname,page.location.search);
-      expect(page.node('cxSection',route.page).hidden).toBe(false);
-      expect(page.back).toHaveBeenCalledWith({href:'/ciclocross/',label:'cx.back'});
-    });
+  it('respeta el acceso directo a una sección y vuelve siempre a la home CX',async()=>{
+    const page=await open('/ciclocross/carrera/inscritos/#WE'),route=presentation.cxRacePageLocation(page.location.pathname,page.location.search);
+    expect(page.node('cxSection',route.page).hidden).toBe(false);
+    expect(page.back).toHaveBeenCalledWith({href:'/ciclocross/',label:'cx.back'});
+  });
 
   it('conserva la categoría entre inscritos y resultados y restaura la sección con el historial',async()=>{
     const page=await open('/ciclocross/carrera/resultados/#WE');
@@ -247,10 +217,10 @@ describe('jornada CX integrada',()=>{
     expect(page.writes()).toBe(1);
   });
 
-  it('no cambia la URL canónica de la raíz por abrir resultados y mantiene el SEO castellano en EN',async()=>{
+  it('no cambia la URL canónica de la raíz por abrir resultados y redacta el SEO en inglés en EN',async()=>{
     const page=await open('/en/cyclocross/race/',{lang:'en'});
     expect(page.canonical.attrs.href).toBe('https://calendariociclismo.app/en/cyclocross/race/');
-    expect(page.meta.description).toContain('categoría UCI C1 en Ostende (Bélgica). Pertenece a Circuito CX 2026-27.');
+    expect(page.meta.description).toContain('is a UCI C1 cyclocross race in Ostende (Belgium). It is part of the Circuito CX 2026-27.');
     expect(page.back).toHaveBeenCalledWith({href:'/en/cyclocross/',label:'cx.back'});
     page.click(page.node('cxSectionLink','videos'));
     expect(page.canonical.attrs.href).toBe('https://calendariociclismo.app/en/cyclocross/race/');

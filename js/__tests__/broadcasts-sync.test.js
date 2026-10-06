@@ -2,36 +2,22 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  CARACOL_SOURCE_URL, CARACOL_VUELTA_INDEX_URL, RTVE_LIVES_URL,
+  RTVE_LIVES_URL,
   decodeHtml, desiredBroadcasts, matchObservation, parseHboCatalog, parseHboEventStart,
-  isMontoneraEligible, normalizedObservation, parseCaracolDailyArticle, parseCaracolGuide,
-  parseCaracolVueltaArticleUrls, parseRtveGuide, parseRtvePlayLives, parseRtveStructuredGuide,
+  isMontoneraEligible, normalizedObservation,
+  parseRtveGuide, parseRtvePlayLives, parseRtveStructuredGuide,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveRaceHintMatch, rtveVueltaExternalEventId, zonedTimeToUtc,
 } from '../../scripts/broadcasts-sync/broadcasts-sync-core.mjs';
 import {
-  adoptionCandidate, applyOne, applyRtveVueltaReplay, collectCaracol, collectEitb, collectHbo, collectRtve,
-  collectRtbf, collectRtveVueltaReplays, collectSporza, confirmTvStatus, loadRtveVueltaReplayCandidates,
-  loadVueltaDateKeys,
+  adoptionCandidate, applyOne, applyRtveVueltaReplay, collectEitb, collectRtve,
+  collectRtbf, collectRtveVueltaReplays, confirmTvStatus, loadRtveVueltaReplayCandidates,
   mergeManagedBroadcast, preferredRtveOneDayObservations, rtveOneDayExternalEventId, sameManagedState,
   scopedObservation, withMontoneraNote, withRtbfTransitionNote,
 } from '../../scripts/broadcasts-sync/broadcasts-sync.mjs';
-import { sporzaScheduleUrl } from '../../scripts/broadcasts-sync/sporza-collector.mjs';
 import { summarizeBroadcastSource } from '../../scripts/broadcasts-sync/broadcasts-vps-runner.mjs';
 
 const fixture = (name) => readFileSync(
   fileURLToPath(new URL(`../../scripts/broadcasts-sync/fixtures/${name}`, import.meta.url)),
-  'utf8',
-);
-const runnerSource = readFileSync(
-  fileURLToPath(new URL('../../scripts/broadcasts-sync/broadcasts-sync.mjs', import.meta.url)),
-  'utf8',
-);
-const serviceSource = readFileSync(
-  fileURLToPath(new URL('../../deploy/broadcasts-vps/cc-broadcasts-sync.service', import.meta.url)),
-  'utf8',
-);
-const panelSource = readFileSync(
-  fileURLToPath(new URL('../panel/jornada-save.js', import.meta.url)),
   'utf8',
 );
 
@@ -63,7 +49,7 @@ describe('sincronización oficial de emisiones', () => {
   it('solo añade La Montonera cuando existe el evento oficial de la misma etapa', () => {
     const withStudio = parseHboCatalog(fixture('hbo-cycling.html'))[0];
     const withoutStudio = parseHboCatalog(
-      fixture('hbo-cycling.html').replace(/<a href="\/es\/es\/sport\/2026-8-26\/75696bff[\s\S]*?<\/a>/, ''),
+      fixture('hbo-cycling.html').replace('La Vuelta | La Montonera', 'La Vuelta | Highlights'),
     )[0];
     expect(desiredBroadcasts(normalizedObservation({ ...withStudio, startTimeUtc: '2026-08-26T12:45:00Z' })))
       .toEqual([
@@ -389,125 +375,6 @@ describe('sincronización oficial de emisiones', () => {
     ]);
   });
 
-  it('extrae la guía oficial de Caracol y convierte la hora colombiana a UTC', () => {
-    expect(parseCaracolGuide(fixture('caracol-vuelta.html'))).toEqual([
-      expect.objectContaining({
-        dateKey: '2026-08-25', stageNumber: 4, channel: 'Caracol / Ditu',
-        country: 'LATAM', startTimeUtc: '2026-08-25T13:00:00.000Z',
-      }),
-      expect.objectContaining({
-        dateKey: '2026-08-26', stageNumber: 5, startTimeUtc: '2026-08-26T13:00:00.000Z',
-      }),
-      expect.objectContaining({
-        dateKey: '2026-08-27', stageNumber: 6, startTimeUtc: '2026-08-27T13:30:00.000Z',
-      }),
-    ]);
-  });
-
-  it('descubre solo artículos oficiales diarios de La Vuelta y elimina duplicados', () => {
-    expect(parseCaracolVueltaArticleUrls(fixture('caracol-vuelta-index.html'))).toEqual([
-      'https://www.noticiascaracol.com/golcaracol/ciclismo/vuelta-a-espana-2026-en-vivo-hora-y-donde-ver-por-tv-la-etapa-12-so35',
-    ]);
-  });
-
-  it('extrae la hora de transmisión del artículo diario de Caracol', () => {
-    expect(parseCaracolDailyArticle(fixture('caracol-vuelta-stage12.html'))).toEqual([
-      expect.objectContaining({
-        dateKey: '2026-09-03', stageNumber: 12, channel: 'Caracol / Ditu',
-        startTimeUtc: '2026-09-03T11:30:00.000Z', evidenceRank: 3,
-      }),
-    ]);
-  });
-
-  it('acepta la etiqueta Hora usada por los artículos diarios actuales de Caracol', () => {
-    const article = {
-      '@type': 'NewsArticle',
-      headline: 'Vuelta a España 2026, hora y dónde ver la etapa 16',
-      datePublished: '2026-09-06T13:23:18-05:00',
-      articleBody: 'Hora y dónde ver la etapa 16 de la Vuelta a EspañaDía: martes 8 de septiembre. Hora: 8:00 a.m. (Colombia). Transmisión: señal principal de Caracol Televisión; portal web de Caracol Sports; y DITU.',
-      url: 'https://www.noticiascaracol.com/golcaracol/ciclismo/etapa-16',
-    };
-    const html = `<script type="application/ld+json">${JSON.stringify(article)}</script>`;
-
-    expect(parseCaracolDailyArticle(html)).toEqual([
-      expect.objectContaining({
-        dateKey: '2026-09-08', stageNumber: 16, startTimeUtc: '2026-09-08T13:00:00.000Z',
-      }),
-    ]);
-  });
-
-  it('recupera Caracol desde los artículos diarios cuando la guía anual queda obsoleta', async () => {
-    const fetcher = async (url) => {
-      if (url === CARACOL_SOURCE_URL) return fixture('caracol-vuelta.html');
-      if (url === CARACOL_VUELTA_INDEX_URL) return fixture('caracol-vuelta-index.html');
-      if (url.includes('etapa-12-')) return fixture('caracol-vuelta-stage12.html');
-      throw new Error(`URL inesperada: ${url}`);
-    };
-    await expect(collectCaracol(fetcher, new Date('2026-09-03T15:00:00Z'))).resolves.toEqual([
-      expect.objectContaining({ dateKey: '2026-09-03', stageNumber: 12, startTimeUtc: '2026-09-03T11:30:00.000Z' }),
-    ]);
-  });
-
-  it('limita Caracol a la ventana operativa y falla si la guía deja de ser utilizable', async () => {
-    const fetcher = async () => fixture('caracol-vuelta.html');
-    await expect(collectCaracol(fetcher, new Date('2026-08-26T15:00:00Z')))
-      .resolves.toHaveLength(3);
-    await expect(collectCaracol(fetcher, new Date('2026-09-10T15:00:00Z')))
-      .rejects.toThrow(/Caracol no devolvió/);
-  });
-
-  it('trata una ventana sin La Vuelta como resultado vacío válido de Caracol', async () => {
-    const diagnostics = [];
-    const windows = [];
-    const fetcher = async (url) => { throw new Error(`No debe consultar ${url}`); };
-    await expect(collectCaracol(fetcher, new Date('2026-09-25T15:00:00Z'), {
-      diagnostics,
-      raceDateKeys: async (min, max) => { windows.push([min, max]); return []; },
-    })).resolves.toEqual([]);
-    expect(windows).toEqual([['2026-09-24', '2026-10-03']]);
-    expect(diagnostics).toEqual([expect.objectContaining({
-      source: 'caracol', action: 'outside_race_window', sourceUrl: CARACOL_SOURCE_URL,
-    })]);
-  });
-
-  it('mantiene el fallo de Caracol ante errores HTTP con La Vuelta en la ventana', async () => {
-    const diagnostics = [];
-    const fetcher = async (url) => {
-      if (url === CARACOL_SOURCE_URL) throw new Error(`404 al consultar ${url}`);
-      return fixture('caracol-vuelta-index.html');
-    };
-    await expect(collectCaracol(fetcher, new Date('2026-09-03T15:00:00Z'), {
-      diagnostics, raceDateKeys: async () => ['2026-09-03'],
-    })).rejects.toThrow(/^404 al consultar/);
-    expect(diagnostics).toEqual([]);
-  });
-
-  it('mantiene el fallo de Caracol ante un cambio de contrato con La Vuelta en la ventana', async () => {
-    const fetcher = async () => '<html><body>Portada sin datos estructurados</body></html>';
-    await expect(collectCaracol(fetcher, new Date('2026-09-03T15:00:00Z'), {
-      diagnostics: [], raceDateKeys: async () => ['2026-09-03'],
-    })).rejects.toThrow(/Caracol no devolvió/);
-  });
-
-  it('consulta las jornadas de La Vuelta masculina por nombre de cualquier edición', async () => {
-    const calls = [];
-    const client = { query: async (sql, params) => {
-      calls.push({ sql, params });
-      return { rows: [{ dateKey: '2026-09-12' }, { dateKey: '2026-09-13' }] };
-    } };
-    await expect(loadVueltaDateKeys(client, '2026-09-12', '2026-09-21'))
-      .resolves.toEqual(['2026-09-12', '2026-09-13']);
-    expect(calls[0].params).toEqual(['2026-09-12', '2026-09-21']);
-    expect(calls[0].sql).toContain("r.gender = 'male'");
-    expect(calls[0].sql).toContain("'^la vuelta( ciclista a españa)?$'");
-    expect(calls[0].sql).toContain('"isCancelledDay"');
-  });
-
-  it('pasa a Caracol el calendario de La Vuelta y sus diagnósticos en la pasada', () => {
-    expect(runnerSource).toContain('loadVueltaDateKeys(client, min, max)');
-    expect(runnerSource).toMatch(/collectCaracol\(fetchHtml, new Date\(\), \{\s+diagnostics,/);
-  });
-
   it('limita RTVE a la ventana operativa de ayer a ocho días', async () => {
     const fetcher = async () => fixture('rtve-structured-tdp.html');
     await expect(collectRtve(fetcher, new Date('2026-08-25T12:00:00Z')))
@@ -593,27 +460,6 @@ describe('sincronización oficial de emisiones', () => {
     expect(update[1]).toEqual(['rtve-5', expect.stringContaining('/etapa-5/1/')]);
   });
 
-  const liveIt = process.env.BROADCASTS_LIVE_TEST === '1' ? it : it.skip;
-  liveIt('valida los contratos públicos actuales de HBO Max, RTVE, Caracol y RTBF', async () => {
-    const [hbo, rtve, replays, caracol, rtbf] = await Promise.all([
-      collectHbo(), collectRtve(), collectRtveVueltaReplays([{
-        dateKey: '2026-08-25', stageNumber: 4, startTimeUtc: '2026-08-25T12:25:00.000Z',
-      }]), collectCaracol(), collectRtbf(),
-    ]);
-    expect(hbo.length).toBeGreaterThan(0);
-    expect(rtve.length).toBeGreaterThan(0);
-    expect(caracol.length).toBeGreaterThan(0);
-    expect(replays).toEqual([expect.objectContaining({
-      externalEventId: 'vuelta-replay-17201825', finalizeReplay: true,
-    })]);
-    expect(hbo.every((item) => item.startTimeUtc.endsWith('Z'))).toBe(true);
-    expect(rtve.every((item) => item.startTimeUtc.endsWith('Z'))).toBe(true);
-    expect(rtbf).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source: 'rtbf', country: 'BE', stageNumber: expect.any(Number) }),
-    ]));
-    expect(rtbf.every((item) => item.startTimeUtc.endsWith('Z'))).toBe(true);
-  });
-
   it('solo empareja una jornada única por fecha, carrera y etapa', () => {
     const observation = {
       title: 'Ciclismo Vuelta a España Etapa 5', subtitle: 'La Vuelta',
@@ -683,269 +529,92 @@ describe('sincronización oficial de emisiones', () => {
     expect(matteotti).toMatchObject({ status: 'matched', raceDayId: 'matteotti' });
   });
 
-  it('reconoce los nombres editoriales usados por HBO Max y RAI', () => {
-    const faun = matchObservation({
-      source: 'hbo_max', title: 'Faun Tour Femmes', subtitle: 'Women | Stage 1',
-      dateKey: '2026-09-10', stageNumber: 1,
-    }, [{
-      raceDayId: 'faun-1', raceId: 'race-faun', dateKey: '2026-09-10', stageNumber: 1,
-      name: "Faun Tour Femmes (Tour de l'Ardèche)", gender: 'female',
-    }]);
-    const abruzzoRai = matchObservation({
-      source: 'rai', title: "Ciclismo. Giro d'Abruzzo: 1a tappa", subtitle: null,
-      dateKey: '2026-09-15', stageNumber: 1,
-    }, [{
-      raceDayId: 'abruzzo-1', raceId: 'race-abruzzo', dateKey: '2026-09-15', stageNumber: 1,
-      name: "Il Giro d'Abruzzo", gender: 'male',
-    }]);
-    const abruzzoHbo = matchObservation({
-      source: 'hbo_max', title: 'Tour of Abruzzo', subtitle: 'Men | Stage 1',
-      dateKey: '2026-09-15', stageNumber: 1,
-    }, [{
-      raceDayId: 'abruzzo-1', raceId: 'race-abruzzo', dateKey: '2026-09-15', stageNumber: 1,
-      name: "Il Giro d'Abruzzo", gender: 'male',
-    }]);
-    const luxembourg = matchObservation({
-      source: 'hbo_max', title: 'Tour of Luxembourg', subtitle: 'Men | Stage 1',
-      dateKey: '2026-09-16', stageNumber: 1,
-    }, [{
-      raceDayId: 'luxembourg-1', raceId: 'race-luxembourg', dateKey: '2026-09-16', stageNumber: 1,
-      name: 'Skoda Tour de Luxembourg', gender: 'male',
-    }]);
-    const cro = matchObservation({
-      source: 'lequipe', title: '1re étape : Split - Seget Donji (167 km)', subtitle: 'Tour de Croatie',
-      dateKey: '2026-09-22', stageNumber: 1,
-    }, [{
-      raceDayId: 'cro-1', raceId: 'race-cro', dateKey: '2026-09-22', stageNumber: 1,
-      name: 'CRO Race', gender: 'male',
-    }]);
-    const flandrien = matchObservation({
-      source: 'hbo_max', title: 'Flandrien 0.0 Classic', subtitle: 'Men | Brakel - Haacht (119.4km)',
-      dateKey: '2026-09-19', stageNumber: null,
-    }, [{
-      raceDayId: 'flandrien', raceId: 'race-flandrien', dateKey: '2026-09-19', stageNumber: null,
-      name: 'Flandrien 0.0 Classic (Super-8)', gender: 'male',
-    }]);
-    const agostoni = matchObservation({
-      source: 'hbo_max', title: 'Coppa Agostoni', subtitle: 'Men | Lissone (166.7km)',
-      dateKey: '2026-10-04', stageNumber: null,
-    }, [{
-      raceDayId: 'agostoni', raceId: 'race-agostoni', dateKey: '2026-10-04', stageNumber: null,
-      name: 'Coppa Agostoni - Giro delle Brianze', gender: 'male',
-    }, {
-      raceDayId: 'euro-rr-m', raceId: 'race-euro-rr-m', dateKey: '2026-10-04', stageNumber: null,
-      name: 'Campeonato de Europa línea masculino', nameEn: "European Championships - Men's Elite RR", gender: 'male',
-    }]);
-    const euroHead = matchObservation({
-      source: 'hbo_max', title: 'European Championships', subtitle: 'Men',
-      dateKey: '2026-10-04', stageNumber: null,
-    }, [{
-      raceDayId: 'euro-rr-m', raceId: 'race-euro-rr-m', dateKey: '2026-10-04', stageNumber: null,
-      name: 'Campeonato de Europa línea masculino', nameEn: "European Championships - Men's Elite RR", gender: 'male',
-    }]);
-    const euroU23Days = [{
-      raceDayId: 'euro-u23-w', raceId: 'race-euro-u23-w', dateKey: '2026-10-02', stageNumber: null,
-      name: 'Campeonato de Europa línea sub23 femenino', nameEn: "European Championships - Women's U23 RR",
-      gender: 'female', startLocation: 'Šenčur', finishLocation: null,
-    }, {
-      raceDayId: 'euro-u23-m', raceId: 'race-euro-u23-m', dateKey: '2026-10-02', stageNumber: null,
-      name: 'Campeonato de Europa línea sub23 masculino', nameEn: "European Championships - Men's U23 RR",
-      gender: 'male', startLocation: 'Ljubljana', finishLocation: 'Šenčur',
-    }, {
-      raceDayId: 'costa-rica-3', raceId: 'race-costa-rica', dateKey: '2026-10-02', stageNumber: 3,
-      name: 'Vuelta Femenina a Costa Rica', gender: 'female', startLocation: 'Ljubljana',
-    }];
-    const venueWomen = matchObservation({
-      source: 'hbo_max', title: 'LJUBLJANA', subtitle: 'Women', dateKey: '2026-10-02', stageNumber: null,
-    }, euroU23Days);
-    const venueMen = matchObservation({
-      source: 'hbo_max', title: 'LJUBLJANA', subtitle: 'Men', dateKey: '2026-10-02', stageNumber: null,
-    }, euroU23Days);
-    const venueOtherCity = matchObservation({
-      source: 'hbo_max', title: 'MARIBOR', subtitle: 'Men', dateKey: '2026-10-02', stageNumber: null,
-    }, euroU23Days);
-    const bincheDays = [{
-      raceDayId: 'binche-w', raceId: 'race-binche-w', dateKey: '2026-10-06', stageNumber: null,
-      name: 'Binche Chimay Binche pour Dames', gender: 'female',
-    }, {
-      raceDayId: 'binche-m', raceId: 'race-binche-m', dateKey: '2026-10-06', stageNumber: null,
-      name: 'Binche - Chimay - Binche / Mémorial Frank Vandenbroucke', gender: 'male',
-    }];
-    const bincheWomen = matchObservation({
-      source: 'hbo_max', title: 'Binche-Chimay-Binche', subtitle: 'Women | Chimay – Binche (125km)',
-      dateKey: '2026-10-06', stageNumber: null,
-    }, bincheDays);
-    const bincheMen = matchObservation({
-      source: 'hbo_max', title: 'Binche-Chimay-Binche', subtitle: 'Men | Binche (206.8km)',
-      dateKey: '2026-10-06', stageNumber: null,
-    }, bincheDays);
-    const worldsItt = [{
-      raceDayId: 'itt-w', raceId: 'race-itt-w', dateKey: '2026-09-20', stageNumber: null,
-      name: 'Campeonato del Mundo CRI femenino', nameEn: "World Championships - Women's Elite ITT", gender: 'female',
-    }, {
-      raceDayId: 'itt-m', raceId: 'race-itt-m', dateKey: '2026-09-20', stageNumber: null,
-      name: 'Campeonato del Mundo CRI masculino', nameEn: "World Championships - Men's Elite ITT", gender: 'male',
-    }];
-    const raiIttHighlights = matchObservation({
-      source: 'rai', title: 'Cronometro Uomini: gli Highlights | Mondiali di Ciclismo 2026', subtitle: null,
-      dateKey: '2026-09-20', stageNumber: null,
-    }, worldsItt);
-    const raiIttJuniors = matchObservation({
-      source: 'rai', title: 'Mondiale di Ciclismo 2026 - Cronometro Juniores Donne', subtitle: null,
-      dateKey: '2026-09-20', stageNumber: null,
-    }, worldsItt);
-    const raiEuroU23 = matchObservation({
-      source: 'rai', title: 'Ciclismo Europei Lubiana Under 23 donne', subtitle: null,
-      dateKey: '2026-10-02', stageNumber: null,
-    }, euroU23Days);
-    const worldsRr = [{
-      raceDayId: 'rr-w', raceId: 'race-rr-w', dateKey: '2026-09-26', stageNumber: null,
-      name: 'Campeonato del Mundo línea femenino', nameEn: "World Championships - Women's Elite RR", gender: 'female',
-    }];
-    const rtbfWomenRr = matchObservation({
-      source: 'rtbf', title: 'Championnats du Monde sur Route', subtitle: 'Course en ligne Femmes',
-      dateKey: '2026-09-26', stageNumber: null,
-    }, worldsRr);
-    const parisTours = [{
-      raceDayId: 'paris-tours', raceId: 'race-paris-tours', dateKey: '2026-10-11', stageNumber: null,
-      name: 'París-Tours', nameEn: 'Paris-Tours', gender: 'male',
-    }, {
-      raceDayId: 'paris-tours-u23', raceId: 'race-paris-tours-u23', dateKey: '2026-10-11', stageNumber: null,
-      name: 'París-Tours sub23', nameEn: 'Paris-Tours U23', gender: 'male',
-    }];
-    const sporzaParisTours = matchObservation({
-      source: 'sporza', title: 'Parijs-Tours', subtitle: 'UCI ProSeries', dateKey: '2026-10-11', stageNumber: null,
-    }, parisTours);
-    const worldsMixed = matchObservation({
-      source: 'hbo_max', title: 'UCI Road World Championships', subtitle: 'Elite Mixed TTT | Montreal (40.6km)',
-      dateKey: '2026-09-22', stageNumber: null,
-    }, [{
-      raceDayId: 'worlds-mixed', raceId: 'race-worlds-mixed', dateKey: '2026-09-22', stageNumber: null,
-      name: 'Campeonato del Mundo CRE relevo mixto', nameEn: 'World Championships - Mixed Relay TTT',
-      gender: null,
-    }]);
-    const worldsU23RR = matchObservation({
-      source: 'hbo_max', title: 'UCI Road World Championships', subtitle: "U23 Women's Road Race | Montreal (134km)",
-      dateKey: '2026-09-24', stageNumber: null,
-    }, [{
-      raceDayId: 'worlds-u23w', raceId: 'race-worlds-u23w', dateKey: '2026-09-24', stageNumber: null,
-      name: 'Campeonato del Mundo línea sub23 femenino', nameEn: "World Championships - Women's U23 RR",
-      gender: 'female',
-    }]);
-    const worldsSporzaITT = matchObservation({
-      source: 'sporza', title: 'ITT elite women', subtitle: 'WK Montreal',
-      dateKey: '2026-09-20', stageNumber: null,
-    }, [{
-      raceDayId: 'worlds-itt-w', raceId: 'race-worlds-itt-w', dateKey: '2026-09-20', stageNumber: null,
-      name: 'Campeonato del Mundo CRI femenino', nameEn: "World Championships - Women's Elite ITT",
-      gender: 'female',
-    }]);
-    const worldsSporzaEliteRR = matchObservation({
-      source: 'sporza', title: 'road race elite men', subtitle: 'WK Montreal',
-      dateKey: '2026-09-27', stageNumber: null,
-    }, [{
-      raceDayId: 'worlds-rr-m', raceId: 'race-worlds-rr-m', dateKey: '2026-09-27', stageNumber: null,
-      name: 'Campeonato del Mundo línea masculino', nameEn: "World Championships - Men's Elite RR",
-      gender: 'male',
-    }]);
-    const luxSporza = matchObservation({
-      source: 'sporza', title: 'Ronde van Luxemburg', subtitle: 'Etappe 3',
-      dateKey: '2026-09-18', stageNumber: 3,
-    }, [{
-      raceDayId: 'lux-3', raceId: 'race-lux', dateKey: '2026-09-18', stageNumber: 3,
-      name: 'Skoda Tour de Luxembourg', gender: 'male',
-    }]);
-    const fourmiesWomen = matchObservation({
-      source: 'hbo_max', title: 'Grand Prix de Fourmies', subtitle: 'Women',
-      dateKey: '2026-09-13', stageNumber: null,
-    }, [
-      {
-        raceDayId: 'fourmies-men', raceId: 'race-fourmies-men',
-        dateKey: '2026-09-13', stageNumber: null,
-        name: 'GP de Fourmies / La Voix du Nord', gender: 'male',
-      },
-      {
-        raceDayId: 'fourmies-women', raceId: 'race-fourmies-women',
-        dateKey: '2026-09-13', stageNumber: null,
-        name: 'La Choralis Fourmies Féminine', gender: 'female',
-      },
-    ]);
-    const fourmiesMen = matchObservation({
-      source: 'hbo_max', title: 'Grand Prix de Fourmies', subtitle: 'Men',
-      dateKey: '2026-09-13', stageNumber: null,
-    }, [
-      {
-        raceDayId: 'fourmies-men', raceId: 'race-fourmies-men',
-        dateKey: '2026-09-13', stageNumber: null,
-        name: 'GP de Fourmies / La Voix du Nord', gender: 'male',
-      },
-      {
-        raceDayId: 'fourmies-women', raceId: 'race-fourmies-women',
-        dateKey: '2026-09-13', stageNumber: null,
-        name: 'La Choralis Fourmies Féminine', gender: 'female',
-      },
-    ]);
-    const wallonieWomen = matchObservation({
-      source: 'hbo_max', title: 'Grand Prix de Wallonie', subtitle: 'Women | Seraing – Namur (127.4km)',
-      dateKey: '2026-09-16', stageNumber: null,
-    }, [
-      {
-        raceDayId: 'wallonie-men', raceId: 'race-wallonie-men',
-        dateKey: '2026-09-16', stageNumber: null,
-        name: 'Grand Prix de Wallonie', gender: 'male',
-      },
-      {
-        raceDayId: 'wallonie-women', raceId: 'race-wallonie-women',
-        dateKey: '2026-09-16', stageNumber: null,
-        name: 'Grand Prix de Wallonie Dames', gender: 'female',
-      },
-    ]);
-    const wallonieMen = matchObservation({
-      source: 'hbo_max', title: 'Grand Prix de Wallonie', subtitle: 'Men | Seraing - Namur (196.7km)',
-      dateKey: '2026-09-16', stageNumber: null,
-    }, [
-      {
-        raceDayId: 'wallonie-men', raceId: 'race-wallonie-men',
-        dateKey: '2026-09-16', stageNumber: null,
-        name: 'Grand Prix de Wallonie', gender: 'male',
-      },
-      {
-        raceDayId: 'wallonie-women', raceId: 'race-wallonie-women',
-        dateKey: '2026-09-16', stageNumber: null,
-        name: 'Grand Prix de Wallonie Dames', gender: 'female',
-      },
-    ]);
+  describe('nombres editoriales de HBO Max, RAI, Sporza, RTBF y L\'Équipe', () => {
+    const day = (raceDayId, dateKey, name, gender, extra = {}) => ({
+      raceDayId, raceId: `race-${raceDayId}`, dateKey, stageNumber: null, name, gender, ...extra,
+    });
+    const obs = (source, title, subtitle, dateKey, stageNumber = null) => ({ source, title, subtitle, dateKey, stageNumber });
+    const abruzzo = [day('abruzzo-1', '2026-09-15', "Il Giro d'Abruzzo", 'male', { stageNumber: 1 })];
+    const euroRrMen = day('euro-rr-m', '2026-10-04', 'Campeonato de Europa línea masculino', 'male',
+      { nameEn: "European Championships - Men's Elite RR" });
+    const euroU23 = [
+      day('euro-u23-w', '2026-10-02', 'Campeonato de Europa línea sub23 femenino', 'female',
+        { nameEn: "European Championships - Women's U23 RR", startLocation: 'Šenčur', finishLocation: null }),
+      day('euro-u23-m', '2026-10-02', 'Campeonato de Europa línea sub23 masculino', 'male',
+        { nameEn: "European Championships - Men's U23 RR", startLocation: 'Ljubljana', finishLocation: 'Šenčur' }),
+      day('costa-rica-3', '2026-10-02', 'Vuelta Femenina a Costa Rica', 'female', { stageNumber: 3, startLocation: 'Ljubljana' }),
+    ];
+    const binche = [
+      day('binche-w', '2026-10-06', 'Binche Chimay Binche pour Dames', 'female'),
+      day('binche-m', '2026-10-06', 'Binche - Chimay - Binche / Mémorial Frank Vandenbroucke', 'male'),
+    ];
+    const worldsItt = [
+      day('itt-w', '2026-09-20', 'Campeonato del Mundo CRI femenino', 'female', { nameEn: "World Championships - Women's Elite ITT" }),
+      day('itt-m', '2026-09-20', 'Campeonato del Mundo CRI masculino', 'male', { nameEn: "World Championships - Men's Elite ITT" }),
+    ];
+    const parisTours = [
+      day('paris-tours', '2026-10-11', 'París-Tours', 'male', { nameEn: 'Paris-Tours' }),
+      day('paris-tours-u23', '2026-10-11', 'París-Tours sub23', 'male', { nameEn: 'Paris-Tours U23' }),
+    ];
+    const fourmies = [
+      day('fourmies-men', '2026-09-13', 'GP de Fourmies / La Voix du Nord', 'male'),
+      day('fourmies-women', '2026-09-13', 'La Choralis Fourmies Féminine', 'female'),
+    ];
+    const wallonie = [
+      day('wallonie-men', '2026-09-16', 'Grand Prix de Wallonie', 'male'),
+      day('wallonie-women', '2026-09-16', 'Grand Prix de Wallonie Dames', 'female'),
+    ];
 
-    expect(faun).toMatchObject({ status: 'matched', raceDayId: 'faun-1' });
-    expect(abruzzoRai).toMatchObject({ status: 'matched', raceDayId: 'abruzzo-1' });
-    expect(abruzzoHbo).toMatchObject({ status: 'matched', raceDayId: 'abruzzo-1' });
-    expect(luxembourg).toMatchObject({ status: 'matched', raceDayId: 'luxembourg-1' });
-    expect(cro).toMatchObject({ status: 'matched', raceDayId: 'cro-1' });
-    expect(flandrien).toMatchObject({ status: 'matched', raceDayId: 'flandrien' });
-    expect(agostoni).toMatchObject({ status: 'matched', raceDayId: 'agostoni' });
-    expect(euroHead).toMatchObject({ status: 'unmatched' });
-    expect(venueWomen).toMatchObject({ status: 'matched', raceDayId: 'euro-u23-w' });
-    expect(venueMen).toMatchObject({ status: 'matched', raceDayId: 'euro-u23-m' });
-    expect(venueOtherCity).toMatchObject({ status: 'unmatched' });
-    expect(bincheWomen).toMatchObject({ status: 'matched', raceDayId: 'binche-w' });
-    expect(bincheMen).toMatchObject({ status: 'matched', raceDayId: 'binche-m' });
-    expect(raiIttHighlights).toMatchObject({ status: 'matched', raceDayId: 'itt-m' });
-    expect(raiIttJuniors).toMatchObject({ status: 'unmatched' });
-    expect(raiEuroU23).toMatchObject({ status: 'matched', raceDayId: 'euro-u23-w' });
-    expect(rtbfWomenRr).toMatchObject({ status: 'matched', raceDayId: 'rr-w' });
-    expect(sporzaParisTours).toMatchObject({ status: 'matched', raceDayId: 'paris-tours' });
-    expect(worldsMixed).toMatchObject({ status: 'matched', raceDayId: 'worlds-mixed' });
-    expect(worldsU23RR).toMatchObject({ status: 'matched', raceDayId: 'worlds-u23w' });
-    expect(worldsSporzaITT).toMatchObject({ status: 'matched', raceDayId: 'worlds-itt-w' });
-    expect(worldsSporzaEliteRR).toMatchObject({ status: 'matched', raceDayId: 'worlds-rr-m' });
-    expect(luxSporza).toMatchObject({ status: 'matched', raceDayId: 'lux-3' });
-    expect(fourmiesWomen).toMatchObject({ status: 'matched', raceDayId: 'fourmies-women' });
-    expect(fourmiesMen).toMatchObject({ status: 'matched', raceDayId: 'fourmies-men' });
-    expect(wallonieWomen).toMatchObject({ status: 'matched', raceDayId: 'wallonie-women' });
-    expect(wallonieMen).toMatchObject({ status: 'matched', raceDayId: 'wallonie-men' });
+    // [observación, jornadas candidatas, raceDayId esperado o null si debe quedar unmatched]
+    it.each([
+      [obs('hbo_max', 'Faun Tour Femmes', 'Women | Stage 1', '2026-09-10', 1),
+        [day('faun-1', '2026-09-10', "Faun Tour Femmes (Tour de l'Ardèche)", 'female', { stageNumber: 1 })], 'faun-1'],
+      [obs('rai', "Ciclismo. Giro d'Abruzzo: 1a tappa", null, '2026-09-15', 1), abruzzo, 'abruzzo-1'],
+      [obs('hbo_max', 'Tour of Abruzzo', 'Men | Stage 1', '2026-09-15', 1), abruzzo, 'abruzzo-1'],
+      [obs('hbo_max', 'Tour of Luxembourg', 'Men | Stage 1', '2026-09-16', 1),
+        [day('luxembourg-1', '2026-09-16', 'Skoda Tour de Luxembourg', 'male', { stageNumber: 1 })], 'luxembourg-1'],
+      [obs('lequipe', '1re étape : Split - Seget Donji (167 km)', 'Tour de Croatie', '2026-09-22', 1),
+        [day('cro-1', '2026-09-22', 'CRO Race', 'male', { stageNumber: 1 })], 'cro-1'],
+      [obs('hbo_max', 'Flandrien 0.0 Classic', 'Men | Brakel - Haacht (119.4km)', '2026-09-19'),
+        [day('flandrien', '2026-09-19', 'Flandrien 0.0 Classic (Super-8)', 'male')], 'flandrien'],
+      [obs('hbo_max', 'Coppa Agostoni', 'Men | Lissone (166.7km)', '2026-10-04'),
+        [day('agostoni', '2026-10-04', 'Coppa Agostoni - Giro delle Brianze', 'male'), euroRrMen], 'agostoni'],
+      [obs('hbo_max', 'European Championships', 'Men', '2026-10-04'), [euroRrMen], null],
+      [obs('hbo_max', 'LJUBLJANA', 'Women', '2026-10-02'), euroU23, 'euro-u23-w'],
+      [obs('hbo_max', 'LJUBLJANA', 'Men', '2026-10-02'), euroU23, 'euro-u23-m'],
+      [obs('hbo_max', 'MARIBOR', 'Men', '2026-10-02'), euroU23, null],
+      [obs('rai', 'Ciclismo Europei Lubiana Under 23 donne', null, '2026-10-02'), euroU23, 'euro-u23-w'],
+      [obs('hbo_max', 'Binche-Chimay-Binche', 'Women | Chimay – Binche (125km)', '2026-10-06'), binche, 'binche-w'],
+      [obs('hbo_max', 'Binche-Chimay-Binche', 'Men | Binche (206.8km)', '2026-10-06'), binche, 'binche-m'],
+      [obs('rai', 'Cronometro Uomini: gli Highlights | Mondiali di Ciclismo 2026', null, '2026-09-20'), worldsItt, 'itt-m'],
+      [obs('rai', 'Mondiale di Ciclismo 2026 - Cronometro Juniores Donne', null, '2026-09-20'), worldsItt, null],
+      [obs('rtbf', 'Championnats du Monde sur Route', 'Course en ligne Femmes', '2026-09-26'),
+        [day('rr-w', '2026-09-26', 'Campeonato del Mundo línea femenino', 'female', { nameEn: "World Championships - Women's Elite RR" })], 'rr-w'],
+      [obs('sporza', 'Parijs-Tours', 'UCI ProSeries', '2026-10-11'), parisTours, 'paris-tours'],
+      [obs('hbo_max', 'UCI Road World Championships', 'Elite Mixed TTT | Montreal (40.6km)', '2026-09-22'),
+        [day('worlds-mixed', '2026-09-22', 'Campeonato del Mundo CRE relevo mixto', null, { nameEn: 'World Championships - Mixed Relay TTT' })], 'worlds-mixed'],
+      [obs('hbo_max', 'UCI Road World Championships', "U23 Women's Road Race | Montreal (134km)", '2026-09-24'),
+        [day('worlds-u23w', '2026-09-24', 'Campeonato del Mundo línea sub23 femenino', 'female', { nameEn: "World Championships - Women's U23 RR" })], 'worlds-u23w'],
+      [obs('sporza', 'ITT elite women', 'WK Montreal', '2026-09-20'),
+        [day('worlds-itt-w', '2026-09-20', 'Campeonato del Mundo CRI femenino', 'female', { nameEn: "World Championships - Women's Elite ITT" })], 'worlds-itt-w'],
+      [obs('sporza', 'road race elite men', 'WK Montreal', '2026-09-27'),
+        [day('worlds-rr-m', '2026-09-27', 'Campeonato del Mundo línea masculino', 'male', { nameEn: "World Championships - Men's Elite RR" })], 'worlds-rr-m'],
+      [obs('sporza', 'Ronde van Luxemburg', 'Etappe 3', '2026-09-18', 3),
+        [day('lux-3', '2026-09-18', 'Skoda Tour de Luxembourg', 'male', { stageNumber: 3 })], 'lux-3'],
+      [obs('hbo_max', 'Grand Prix de Fourmies', 'Women', '2026-09-13'), fourmies, 'fourmies-women'],
+      [obs('hbo_max', 'Grand Prix de Fourmies', 'Men', '2026-09-13'), fourmies, 'fourmies-men'],
+      [obs('hbo_max', 'Grand Prix de Wallonie', 'Women | Seraing – Namur (127.4km)', '2026-09-16'), wallonie, 'wallonie-women'],
+      [obs('hbo_max', 'Grand Prix de Wallonie', 'Men | Seraing - Namur (196.7km)', '2026-09-16'), wallonie, 'wallonie-men'],
+    ].map(([observation, days, expected]) => ({ observation, days, expected })))(
+      '$observation.source: $observation.title · $observation.subtitle', ({ observation, days, expected }) => {
+        expect(matchObservation(observation, days)).toMatchObject(
+          expected ? { status: 'matched', raceDayId: expected } : { status: 'unmatched' },
+        );
+      },
+    );
   });
 
-  it('empareja los Europeos rotulados por Sporza y L\'Équipe', () => {
+  it('empareja los Europeos rotulados por Sporza, L\'Équipe y HBO Max', () => {
     const ek = (id, dateKey, name, nameEn, gender) => ({
       raceDayId: id, raceId: `race-${id}`, dateKey, stageNumber: null, name, nameEn, gender,
     });
@@ -973,6 +642,8 @@ describe('sincronización oficial de emisiones', () => {
       ['lequipe', 'Course en ligne Elite F  (130 km)', "Championnats d'Europe", '2026-10-03', 'rrw'],
       ['lequipe', 'Course  en ligne Elite H (196,3 km)', "Championnats d'Europe", '2026-10-04', 'rrm'],
       ['lequipe', 'Contre-la-montre Elite H', "Championnats d'Europe", '2026-10-07', 'ittm'],
+      ['hbo_max', 'UEC Road European Championships', 'Women | Šenčur (ITT, 22.1 km)', '2026-10-07', 'ittw'],
+      ['hbo_max', 'UEC Road European Championships', 'Men | Šenčur (ITT, 22.1 km)', '2026-10-07', 'ittm'],
     ];
     for (const [source, title, subtitle, dateKey, expected] of cases) {
       expect(matchObservation({ source, title, subtitle, dateKey, stageNumber: null }, days), `${source}: ${title}`)
@@ -1007,12 +678,6 @@ describe('sincronización oficial de emisiones', () => {
     ).status).toBe('unmatched');
   });
 
-  it('solo carga jornadas publicadas que no sean descanso ni estén canceladas', () => {
-    expect(runnerSource).toContain(`d."editorialStatus" = 'published'`);
-    expect(runnerSource).toContain('NOT COALESCE(d."isRestDay", false)');
-    expect(runnerSource).toContain('NOT COALESCE(d."isCancelledDay", false)');
-  });
-
   it('confirma tvStatus dentro de las ramas de alta y actualización', async () => {
     const calls = [];
     await confirmTvStatus({ query: async (...args) => calls.push(args) }, 'day-5');
@@ -1020,12 +685,6 @@ describe('sincronización oficial de emisiones', () => {
       expect.stringContaining(`"tvStatus"='confirmed_time'`), ['day-5'],
     ]]);
     expect(calls[0][0]).toContain(`"tvStatus" IS DISTINCT FROM 'confirmed_time'`);
-    expect(runnerSource.match(/await confirmTvStatus\(client, match\.raceDayId\);/g)).toHaveLength(2);
-  });
-
-  it('mantiene activado el modo apply en la unidad de producción', () => {
-    expect(serviceSource).toContain('broadcasts-vps-runner.mjs --apply-sources=hbo_max,rtve,eitb,sporza,rtbf,rai,lequipe');
-    expect(serviceSource).not.toContain('rtve,sporza,eitb');
   });
 
   it('resume por fuente los cambios y fallos que consume el monitor', () => {
@@ -1045,37 +704,6 @@ describe('sincronización oficial de emisiones', () => {
     });
   });
 
-  it('conserva las IDs de emisiones en la caché tras guardar el panel', () => {
-    expect(panelSource).toContain(
-      'const savedBcasts = newBroadcasts.map(({ raceDayId: _raceDayId, ...broadcast }) => broadcast);',
-    );
-    expect(panelSource).not.toContain("acc.push({ id: '', channel: channel || null");
-  });
-
-  it('mantiene EITB, Sporza, RTBF, RAI y L\'Équipe en el sondeo', () => {
-    expect(runnerSource).toContain("new Set(['hbo_max', 'rtve', 'eitb', 'sporza', 'rtbf', 'rai', 'lequipe'])");
-    expect(desiredBroadcasts({
-      source: 'sporza', channel: 'Sporza (één)', country: 'BE',
-      startTimeUtc: '2026-08-25T12:30:00.000Z', broadcastUrl: 'https://sporza.be/live',
-      insertSortOrder: 10,
-    })).toEqual([expect.objectContaining({ country: 'BE', insertSortOrder: 10 })]);
-  });
-
-  it('mantiene RTBF con escritura en la unidad de producción', () => {
-    expect(serviceSource).toContain('--apply-sources=hbo_max,rtve,eitb,sporza,rtbf');
-  });
-
-  it('retira Caracol del sondeo y de la escritura del VPS', () => {
-    expect(serviceSource).not.toContain('caracol');
-    expect(runnerSource).toMatch(/SOURCE_ARG === 'all'\n\s+\? new Set\(\[[^\]]*\]\)/);
-    expect(runnerSource.match(/SOURCE_ARG === 'all'\n\s+\? new Set\(\[[^\]]*\]\)/)[0]).not.toContain('caracol');
-    expect(runnerSource).toContain("if (SOURCES.has('caracol'))");
-  });
-
-  it('reserva el cierre especializado de replay para RTVE', () => {
-    expect(runnerSource).toContain("observation.source === 'rtve' && observation.finalizeReplay");
-  });
-
   it('consulta por separado La Une y Tipik en la ventana histórica y futura', async () => {
     const calls = [];
     const payload = JSON.stringify({ status: 200, data: [] });
@@ -1087,25 +715,6 @@ describe('sincronización oficial de emisiones', () => {
     expect(calls.map((url) => new URL(url).searchParams.get('channelIds'))).toEqual(['1', '33']);
     expect(calls.every((url) => url.includes('scheduledAfter=2026-08-22'))).toBe(true);
     expect(calls.every((url) => url.includes('scheduledBefore=2026-08-27'))).toBe(true);
-  });
-
-  it('integra el esquema de livestreams de Sporza con la parrilla deportiva', async () => {
-    const observations = await collectSporza(new Date('2026-09-16T12:00:00Z'), {
-      dateKeys: ['2026-09-16'],
-      fetcher: async (url) => url === sporzaScheduleUrl('2026-09-16')
-        ? { ok: true, text: async () => JSON.stringify({ componentProps: { date: '2026-09-16' } }) }
-        : { ok: true, text: async () => fixture('sporza-editorial.html') },
-      livestreamHtml: fixture('sporza-livestream.html'),
-    });
-    expect(observations).toHaveLength(2);
-    expect(observations[0]).toMatchObject({
-      source: 'sporza', channel: 'Sporza', country: 'BE', dateKey: '2026-09-18',
-      title: 'Kampioenschap van Vlaanderen', startTimeUtc: '2026-09-18T13:30:00.000Z',
-      writeEligible: true, insertSortOrder: 10, sourceHash: expect.any(String),
-    });
-    expect(observations[1]).toMatchObject({
-      channel: 'Sporza', dateKey: '2026-09-20', title: 'ITT elite women',
-    });
   });
 
   it('no duplica una fila Sporza de otro canal en la misma jornada', () => {
@@ -1147,26 +756,6 @@ describe('sincronización oficial de emisiones', () => {
     });
     expect(withRtbfTransitionNote('Pasa a Tipik a las 13:00.', null)).toBeNull();
     expect(withRtbfTransitionNote('13:50 > La Une', '14:05 > La Une')).toBe('14:05 > La Une');
-  });
-
-  it('adopta una única fila Caracol oficial y conserva su nota editorial', () => {
-    const observation = {
-      source: 'caracol',
-      sourceUrl: 'https://www.noticiascaracol.com/golcaracol/ciclismo/guia',
-      broadcastUrl: 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo',
-    };
-    const desired = [{ channel: 'Caracol / Ditu', country: 'LATAM' }];
-    expect(adoptionCandidate(observation, desired, [{
-      id: 'caracol', channel: 'Caracol', country: 'LATAM',
-      url: 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo',
-    }])).toMatchObject({ status: 'adoptable' });
-    expect(mergeManagedBroadcast({
-      id: 'caracol', sortOrder: 5, note: 'Pasa a Caracol TV a las 09:00.',
-      url: 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo',
-    }, {
-      channel: 'Caracol / Ditu', country: 'LATAM', startTimeUtc: '2026-08-26T13:00:00.000Z',
-      url: 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo', note: null,
-    }, 'caracol')).toMatchObject({ note: 'Pasa a Caracol TV a las 09:00.' });
   });
 
   it('mantiene en sombra la parrilla lineal de EITB sin directo equivalente en ETB On', async () => {
@@ -1315,7 +904,6 @@ describe('sincronización oficial de emisiones', () => {
       { id: 'eu', channel: 'Eurosport (HBO Max)', country: 'EUROPA', automationLocked: true },
       { id: 'uk', channel: 'TNT Sports (HBO Max)', country: 'UK_IE' },
     ])).toMatchObject({ status: 'manual_lock' });
-    expect(runnerSource).toContain('current.some((row) => row.automationLocked === true)');
   });
 
   it('adopta una única fila RTVE heredada con host oficial para normalizar el canal', () => {

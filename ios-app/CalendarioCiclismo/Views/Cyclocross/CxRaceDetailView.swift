@@ -21,6 +21,10 @@ enum CxDetailSection: String, CaseIterable, Identifiable {
     static func from(anchor: String?, detail: CxDetail) -> Self {
         if anchor == "general" { return Self(section: .general, category: nil) }
         if anchor == "videos" { return Self(section: .videos, category: nil) }
+        if anchor == "programme" {
+            let available = actualCategories(detail)
+            return Self(section: .programme, category: available.contains("ME") ? "ME" : available.first)
+        }
         if let anchor, anchor.hasPrefix("general-") { return Self(section: .general, category: String(anchor.dropFirst(8))) }
         if let anchor, anchor.hasPrefix("resultados-") { return Self(section: .results, category: String(anchor.dropFirst(11))) }
         if let anchor, anchor.hasPrefix("inscritos-") { return Self(section: .startlist, category: String(anchor.dropFirst(10))) }
@@ -29,7 +33,10 @@ enum CxDetailSection: String, CaseIterable, Identifiable {
         }
         let results = resultCategories(detail)
         let available = results.isEmpty ? actualCategories(detail) : results
-        return Self(section: results.isEmpty ? .programme : .results,
+        // Sección por defecto de la web: resultados, programa con horario,
+        // dorsales y, por último, programa. La TV no la altera.
+        let fallback: CxDetailSection = hasScheduledProgramme(detail) || detail.startlist.isEmpty ? .programme : .startlist
+        return Self(section: results.isEmpty ? fallback : .results,
                     category: available.contains("ME") ? "ME" : available.first)
     }
     static func actualCategories(_ detail: CxDetail) -> [String] {
@@ -65,15 +72,21 @@ enum CxDetailSection: String, CaseIterable, Identifiable {
         let actual = Set(actualCategories(detail))
         return detail.race.categories.contains { actual.contains($0.category) && $0.startTimeUtc != nil }
     }
+    /// TV en directo (de cualquier región) o Revive de la región: la TV vive
+    /// en el programa, que se muestra aunque no haya horarios.
+    static func hasMedia(_ detail: CxDetail, allowedGroups: Set<String>? = nil, at now: Date = Date()) -> Bool {
+        let media = CyclocrossPresentation.programmeMedia(detail, allowedGroups: allowedGroups ?? RegionService.shared.allowedBroadcastGroups, at: now)
+        return media.showsLiveTV || !media.revive.isEmpty
+    }
     static func sections(_ detail: CxDetail) -> [CxDetailSection] {
-        let hasProgramme = hasScheduledProgramme(detail)
+        let hasProgramme = hasScheduledProgramme(detail) || hasMedia(detail)
         let hasStartlist = !detail.startlist.isEmpty
         return (hasProgramme ? [.programme] : []) + (hasStartlist ? [.startlist] : []) + (resultCategories(detail).isEmpty ? [] : [.results])
             + (generalCategories(detail).isEmpty ? [] : [.general])
             + (CyclocrossPresentation.videos(detail).isEmpty ? [] : [.videos])
     }
     static func showsSectionSelector(_ detail: CxDetail) -> Bool {
-        sections(detail).count > 1 && (hasScheduledProgramme(detail) || !detail.startlist.isEmpty || !CyclocrossPresentation.videos(detail).isEmpty)
+        sections(detail).count > 1 && (hasScheduledProgramme(detail) || hasMedia(detail) || !detail.startlist.isEmpty || !CyclocrossPresentation.videos(detail).isEmpty)
     }
     static func categories(_ detail: CxDetail, section: CxDetailSection) -> [String] {
         switch section {
@@ -107,6 +120,8 @@ struct CxRaceDetailView: View {
     @State private var region = RegionService.shared
     @State private var locale = LocaleService.shared
     @State private var round: CxRound?
+    /// Numeración de rondas de la temporada: cabeceras «#n» de la general.
+    @State private var tournamentRounds: [String: CxRound] = [:]
     /// Mapa precargado durante la pantalla de carga: el contenido se publica
     /// con la imagen ya disponible, sin cargas asíncronas posteriores.
     @State private var mapImage: UIImage?
@@ -120,6 +135,8 @@ struct CxRaceDetailView: View {
     /// Web oficial, Libro de Ruta y Mapa se abren dentro de la app mediante
     /// `SFSafariViewController`, igual que en carretera (StageDetailView).
     @State private var safariURL: URL?
+    /// Aviso sin conexión de los enlaces de TV y Revive (mecanismo de carretera).
+    @State private var offlineAlert: OfflineAccessAlert?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -171,6 +188,7 @@ struct CxRaceDetailView: View {
             }
         }
         .safariSheet(url: $safariURL)
+        .offlineAccessAlert($offlineAlert)
         .refreshable { await refresh(forceArtwork: true) }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -232,14 +250,21 @@ struct CxRaceDetailView: View {
                 detail: detail,
                 broadcastColumns: wide ? 2 : 1,
                 onStartlist: { code in category = code; section = .startlist },
-                onResults: { code in category = code; section = .results }
+                onResults: { code in category = code; section = .results },
+                onOpenLink: { ExternalLinkOpener.open($0, safariURL: $safariURL, offlineAlert: $offlineAlert) }
             )
         } else if section == .videos {
-            CxVideosSection(videos: CyclocrossPresentation.videos(detail))
+            CxVideosSection(videos: CyclocrossPresentation.videos(detail),
+                            onOpen: { ExternalLinkOpener.open($0, safariURL: $safariURL, offlineAlert: $offlineAlert) })
         } else if section == .general {
-            CxStandingsSection(detail: detail, category: category, matcher: teamMatcher)
+            // Con columnas de ronda, el gesto horizontal desplaza la tabla y no
+            // cambia de categoría.
+            let rows = detail.standings.filter { $0.category == category }
+            let rounds = CxStandingsTable.hasRounds(state: detail.standingsState?.first { $0.category == category },
+                mode: CyclocrossPresentation.standingMode(scheme: detail.race.tournament?.pointsScheme, category: category, rows: rows))
+            CxStandingsSection(detail: detail, category: category, matcher: teamMatcher, rounds: tournamentRounds)
                 .contentShape(Rectangle())
-                .classificationSwipe(options: CxDetailSelection.categories(detail, section: section), current: category) { category = $0 }
+                .classificationSwipe(options: rounds ? [] : CxDetailSelection.categories(detail, section: section), current: category) { category = $0 }
         } else if let selected = detail.race.categories.first(where: { $0.category == category && actualCategories(detail).contains($0.category) }) {
             switch section {
             case .programme: EmptyView()
@@ -324,7 +349,8 @@ struct CxRaceDetailView: View {
     private func publish(_ value: CxCached<CxDetail>, forceArtwork: Bool) async {
         if !loaded { await preloadMap(mapAssetUrl(value.data)) }
         let season = value.data.race.seasonKey
-        round = await CyclocrossRepository.shared.rounds(season: season, force: forceArtwork)[value.data.race.id]
+        tournamentRounds = await CyclocrossRepository.shared.rounds(season: season, force: forceArtwork)
+        round = tournamentRounds[value.data.race.id]
         accept(value)
     }
     private func preloadMap(_ url: URL?) async {
@@ -432,6 +458,7 @@ private struct CxProgrammeSection: View {
     let broadcastColumns: Int
     let onStartlist: (String) -> Void
     let onResults: (String) -> Void
+    let onOpenLink: (URL) -> Void
     private var categories: [CxCategory] { CxDetailSelection.scheduledCategories(detail) }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -473,7 +500,7 @@ private struct CxProgrammeSection: View {
                     }
                 }
             }
-            CxBroadcastSection(detail: detail, columns: broadcastColumns)
+            CxBroadcastSection(detail: detail, columns: broadcastColumns, onOpen: onOpenLink)
         }
     }
 }
@@ -595,101 +622,355 @@ private struct CxStandingsSection: View {
     let detail: CxDetail
     let category: String
     let matcher: UciResultsLogic.TeamMatcher
+    let rounds: [String: CxRound]
     var body: some View {
-        let rows = detail.standings.filter { $0.category == category }.sorted { $0.rank < $1.rank }
-        let mode = CxDetailSelection.standingMode(detail, category: category) ?? (rows.contains { $0.timeSeconds != nil } ? "time" : "points")
-        ResultsClassificationTable(rows: rows.map { row in
-            let vm = CyclocrossPresentation.standingRow(row, mode: mode, matcher: matcher)
-            return (vm: vm, kind: vm.valueKind, value: vm.valueText)
-        }, showTeam: rows.contains { !($0.teamName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, showUciPoints: false, valueHeader: mode == "time" ? CyclocrossPresentation.t("Tiempo", "Time") : "Pts")
+        let rows = detail.standings.filter { $0.category == category }
+        CxStandingsTable(rows: rows, state: detail.standingsState?.first { $0.category == category },
+                         mode: CyclocrossPresentation.standingMode(scheme: detail.race.tournament?.pointsScheme, category: category, rows: rows),
+                         matcher: matcher, rounds: rounds, races: detail.tournamentRaces ?? [])
+    }
+}
+
+/// Tabla de una general CX, común a la ficha de carrera y a la página de
+/// torneo. Con desglose por ronda, puesto y corredor quedan fijos y el total
+/// y las rondas se desplazan en horizontal; sin él, tabla de clasificación
+/// estándar.
+struct CxStandingsTable: View {
+    let rows: [CxStanding]
+    let state: CxStandingState?
+    let mode: String
+    let matcher: UciResultsLogic.TeamMatcher
+    let rounds: [String: CxRound]
+    let races: [CxRaceRef]
+
+    /// `true` si la tabla lleva columnas de ronda (desplazamiento horizontal
+    /// propio, incompatible con el deslizamiento entre categorías).
+    static func hasRounds(state: CxStandingState?, mode: String) -> Bool {
+        CyclocrossPresentation.standingsBreakdown(state: state, mode: mode) != nil
+    }
+
+    var body: some View {
+        let isEn = LocaleService.shared.current.rawValue == "en"
+        let values = CyclocrossPresentation.standingValues(rows, mode: mode, isEn: isEn)
+        let showTeam = rows.contains { !($0.teamName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let valueHeader = mode == "time" ? CyclocrossPresentation.t("Tiempo", "Time") : "Pts"
+        if let breakdown = CyclocrossPresentation.standingsBreakdown(state: state, mode: mode) {
+            CxStandingsRoundsTable(values: values, breakdown: breakdown,
+                                   headers: CyclocrossPresentation.roundHeaders(breakdown.roundIds, rounds: rounds, races: races),
+                                   showTeam: showTeam, valueHeader: valueHeader, matcher: matcher)
+                // Cada categoría parte del inicio de sus rondas.
+                .id(state?.category ?? "")
+        } else {
+            ResultsClassificationTable(rows: values.map { entry in
+                let vm = CyclocrossPresentation.standingRow(entry.row, mode: mode, matcher: matcher)
+                return (vm: vm, kind: entry.value.kind, value: entry.value.text)
+            }, showTeam: showTeam, showUciPoints: false, valueHeader: valueHeader)
+        }
+    }
+}
+
+/// Posición horizontal de la tabla de rondas, fuera del estado observado: el
+/// desplazamiento no reconstruye la tabla en cada fotograma.
+private final class CxScrollOffset { var x: CGFloat = 0 }
+
+/// General con desglose por ronda. Dos bloques de filas de altura fija
+/// (identidad fija a la izquierda; total y rondas desplazables) comparten
+/// cabecera y separadores, con la superficie de `ResultsClassificationTable`.
+private struct CxStandingsRoundsTable: View {
+    let values: [(row: CxStanding, value: CxStandingValue)]
+    let breakdown: CxStandingsBreakdown
+    let headers: [CxRoundHeader]
+    let showTeam: Bool
+    let valueHeader: String
+    let matcher: UciResultsLogic.TeamMatcher
+
+    @State private var width: CGFloat = 0
+    @State private var hasMore = false
+    @State private var position = ScrollPosition(idType: String.self)
+    @State private var offset = CxScrollOffset()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let headerHeight: CGFloat = 32
+    private let rankWidth: CGFloat = 32
+    private let totalWidth: CGFloat = 56
+    private let roundWidth: CGFloat = 40
+    private var rowHeight: CGFloat { showTeam ? 50 : 36 }
+    /// Columna del corredor: ocupa el espacio sobrante si todas las rondas
+    /// caben; si no, se limita para dejar ver el total y las primeras rondas.
+    private var riderWidth: CGFloat {
+        let minimum = min(220, max(150, width * 0.45))
+        return max(minimum, width - rankWidth - 14 - valuesWidth)
+    }
+    private var identityWidth: CGFloat { rankWidth + 14 + riderWidth }
+    private var valuesWidth: CGFloat { totalWidth + CGFloat(headers.count) * roundWidth + 8 }
+    private var viewportWidth: CGFloat { max(0, width - identityWidth) }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            identityColumn
+            ScrollView(.horizontal, showsIndicators: false) {
+                valueColumns
+            }
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 1
+            } action: { _, more in hasMore = more }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in offset.x = x }
+            .overlay(alignment: .topTrailing) {
+                if hasMore { scrollHint }
+            }
+        }
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        // La geometría del desplazamiento solo avisa de cambios: el estado
+        // inicial y los cambios de ancho se calculan con las medidas fijas.
+        .onChange(of: width, initial: true) { _, _ in
+            hasMore = width > 0 && offset.x + viewportWidth < valuesWidth - 1
+        }
+    }
+
+    // MARK: Columnas
+
+    private var identityColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                headerText("#").frame(width: rankWidth, alignment: .leading)
+                headerText(CyclocrossPresentation.t("Corredor", "Rider")).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.leading, 8)
+            .frame(width: identityWidth, height: headerHeight, alignment: .leading)
+            .background(AppTheme.cardBackgroundHover)
+            Divider().opacity(0.4)
+            ForEach(values.indices, id: \.self) { index in
+                let entry = values[index]
+                identityRow(entry.row, value: entry.value)
+                    .frame(width: identityWidth, height: rowHeight, alignment: .leading)
+                Divider().opacity(0.4)
+            }
+        }
+        .frame(width: identityWidth)
+    }
+
+    private var valueColumns: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            HStack(spacing: 0) {
+                headerText(valueHeader).frame(width: totalWidth, alignment: .trailing)
+                ForEach(headers) { header in roundHeader(header) }
+            }
+            .padding(.trailing, 8)
+            .frame(height: headerHeight)
+            .background(AppTheme.cardBackgroundHover)
+            Divider().opacity(0.4)
+            ForEach(values.indices, id: \.self) { index in
+                let entry = values[index]
+                HStack(spacing: 0) {
+                    valueText(entry.value).frame(width: totalWidth, alignment: .trailing)
+                    ForEach(Array(breakdown.cells(entry.row).enumerated()), id: \.offset) { _, cell in
+                        roundCell(cell).frame(width: roundWidth, alignment: .trailing)
+                    }
+                }
+                .padding(.trailing, 8)
+                .frame(height: rowHeight)
+                .accessibilityElement(children: .combine)
+                Divider().opacity(0.4)
+            }
+        }
+        .frame(width: valuesWidth)
+    }
+
+    // MARK: Celdas
+
+    private func identityRow(_ row: CxStanding, value: CxStandingValue) -> some View {
+        let team = matcher.match(row.teamName)
+        return HStack(spacing: 6) {
+            Text(String(row.rank))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: rankWidth, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    if let country = row.isoCode2, !country.isEmpty {
+                        CountryFlag(countryCode: country, width: 17.33)
+                    }
+                    Text(row.riderDisplay.isEmpty ? "—" : row.riderDisplay)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+                if let teamName = row.teamName, !teamName.isEmpty {
+                    HStack(spacing: 5) {
+                        if let team, team.hasVisibleBadge {
+                            TeamColorBands(team: team)
+                        }
+                        Text(teamName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func headerText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private func roundHeader(_ header: CxRoundHeader) -> some View {
+        if header.linked {
+            NavigationLink(value: CxDestination(raceId: header.raceId)) {
+                headerText(header.label)
+                    .frame(width: roundWidth, height: headerHeight, alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(header.title ?? header.label)
+        } else {
+            headerText(header.label)
+                .frame(width: roundWidth, alignment: .trailing)
+        }
+    }
+
+    private func valueText(_ value: CxStandingValue) -> some View {
+        let (color, weight): (Color, Font.Weight) = {
+            switch value.kind {
+            case .winnerTime: return (Color.accentColor, .bold)
+            case .points: return (Color.primary, .semibold)
+            default: return (Color.secondary, .regular)
+            }
+        }()
+        return Text(value.text)
+            .font(.system(size: 13, weight: weight))
+            .foregroundStyle(color)
+            .lineLimit(1)
+    }
+
+    private func roundCell(_ cell: CxRoundCell) -> some View {
+        Text(cell.text)
+            .font(.system(size: 12))
+            .monospacedDigit()
+            .strikethrough(cell.dropped)
+            .foregroundStyle(cell.dropped ? Color.secondary : Color.primary)
+            .lineLimit(1)
+            .accessibilityLabel(cell.dropped ? cell.text + ", " + CyclocrossPresentation.t("resultado descartado", "dropped result") : cell.text)
+    }
+
+    /// Indicador de desplazamiento: flecha a la altura de la cabecera y
+    /// degradado hacia el fondo de la tabla mientras quedan rondas fuera.
+    private var scrollHint: some View {
+        VStack(spacing: 0) {
+            Button(action: advance) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: headerHeight)
+                    .background(AppTheme.cardBackgroundHover)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(CyclocrossPresentation.t("Más rondas", "More rounds"))
+            LinearGradient(colors: [AppTheme.cardBackground.opacity(0), AppTheme.cardBackground], startPoint: .leading, endPoint: .trailing)
+                .frame(width: 28)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func advance() {
+        let target = min(offset.x + viewportWidth * 0.6, max(0, valuesWidth - viewportWidth))
+        if reduceMotion { position.scrollTo(x: target) } else { withAnimation(.easeOut(duration: 0.25)) { position.scrollTo(x: target) } }
     }
 }
 
 private struct CxBroadcastSection: View {
     let detail: CxDetail
     let columns: Int
+    /// Apertura con el mecanismo de carretera: aviso sin conexión, app nativa
+    /// si existe y, si no, navegador interno.
+    let onOpen: (URL) -> Void
     @State private var showAll = false
     @State private var region = RegionService.shared
-    @Environment(\.openURL) private var openURL
-    private var media: CxMediaSelection {
-        CyclocrossPresentation.programmeMedia(detail, allowedGroups: region.allowedBroadcastGroups, showAll: showAll)
-    }
+
     var body: some View {
-        let selection = media
-        if selection.showsLiveTV {
-            JornadaInfoCard {
-                HStack {
-                    Text(CyclocrossPresentation.t("Retransmisión", "Broadcast")).font(.headline).accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    if selection.hasHiddenTV {
-                        Button(CyclocrossPresentation.t(showAll ? "Mi región" : "Todas", showAll ? "My region" : "All")) { showAll.toggle() }.font(.caption).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 3))
-                    }
-                }
-                if selection.tv.isEmpty { Text(CyclocrossPresentation.t("Sin emisiones publicadas para esta región", "No broadcasts published for this region")).font(.caption).foregroundStyle(.secondary) }
-                // Presentación de carretera, dividida por categorías: emisiones
-                // comunes (sin categoría) sin encabezado y un bloque por
-                // categoría con TV publicada y sin resultados.
-                ForEach(Array(Self.tvGroups(detail: detail, showAll: showAll, allowedGroups: region.allowedBroadcastGroups).enumerated()), id: \.offset) { _, group in
-                    if let title = group.title {
-                        Text(title).font(.subheadline.weight(.semibold))
-                    }
-                    LazyVGrid(
-                        columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 8, alignment: .top), count: columns),
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-                        ForEach(group.rows) { row in
-                            BroadcastRowView(broadcast: Broadcast(id: row.id, raceDayId: detail.race.id, channel: row.channel, startTimeUtc: row.startTimeUtc,
-                                url: CyclocrossPresentation.link(row.url)?.absoluteString, note: row.note, sortOrder: row.sortOrder, showInRevive: row.showInRevive, country: row.country),
-                                showsRegion: showAll) { openURL($0) }
-                        }
-                    }
+        // La TV en directo se retira al concluir cada categoría: se recalcula
+        // cada minuto aunque el detalle no cambie.
+        TimelineView(.everyMinute) { context in
+            let selection = CyclocrossPresentation.programmeMedia(detail, allowedGroups: region.allowedBroadcastGroups, showAll: showAll, at: context.date)
+            if selection.showsLiveTV { tvCard(selection) }
+            if !selection.revive.isEmpty { reviveCard(selection.revive) }
+        }
+    }
+
+    /// Presentación de carretera, dividida por categorías: emisiones comunes
+    /// (sin categoría) sin encabezado y un bloque por categoría en directo, en
+    /// el orden del programa. Filas y mensaje vacío salen de `programmeMedia`.
+    private func tvCard(_ selection: CxMediaSelection) -> some View {
+        JornadaInfoCard {
+            HStack {
+                Text(CyclocrossPresentation.t("TV y streaming", "TV and streaming")).font(.headline).accessibilityAddTraits(.isHeader)
+                Spacer()
+                if selection.hasHiddenTV {
+                    Button(showAll ? CyclocrossPresentation.t("Mi región", "My region") : CyclocrossPresentation.t("Todas", "All")) { showAll.toggle() }
+                        .font(.caption).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 3))
                 }
             }
-        }
-        if !selection.revive.isEmpty {
-            JornadaInfoCard {
-                Text(CyclocrossPresentation.t("Revive la carrera", "Relive the race")).font(.headline).accessibilityAddTraits(.isHeader)
+            // Conmutador y mensaje con las reglas de carretera (StageDetailView):
+            // botón solo con filas de otras regiones, etiqueta de región con
+            // «Todas» y mensaje solo sin filas de la región y sin «Todas».
+            if selection.showsRegionEmpty {
+                Text(CyclocrossPresentation.t("No hay TV en tu región", "No TV available in your region")).font(.subheadline).foregroundStyle(.secondary)
+            }
+            ForEach(selection.tv) { group in
+                if let code = group.category {
+                    Text(CyclocrossPresentation.category(code)).font(.subheadline.weight(.semibold))
+                }
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 8, alignment: .top), count: columns),
                     alignment: .leading,
                     spacing: 8
                 ) {
-                    ForEach(selection.revive) { item in
-                        BroadcastRowView(broadcast: Broadcast(id: item.id, raceDayId: detail.race.id, channel: item.title, startTimeUtc: nil,
-                            url: item.url.absoluteString, note: nil, sortOrder: nil, showInRevive: true, country: nil), isRevive: true, hasResults: true) { openURL($0) }
+                    ForEach(group.rows) { row in
+                        BroadcastRowView(broadcast: Broadcast(id: row.id, raceDayId: detail.race.id, channel: row.channel, startTimeUtc: row.startTimeUtc,
+                            url: CyclocrossPresentation.link(row.url)?.absoluteString, note: row.note, sortOrder: row.sortOrder, showInRevive: row.showInRevive, country: row.country),
+                            showsRegion: showAll, onTap: onOpen)
                     }
                 }
             }
         }
     }
 
-    /// Grupos de TV por categoría: emisiones comunes (sin categoría) sin
-    /// título y un bloque por categoría con TV publicada y sin resultados,
-    /// en el orden CX. Espejo del reparto de CxProgrammeCard en Android.
-    private static func tvGroups(detail: CxDetail, showAll: Bool, allowedGroups: Set<String>) -> [(title: String?, rows: [CxBroadcast])] {
-        var seen = Set<String>()
-        let visible = detail.broadcasts
-            .filter { showAll || RaceLogic.broadcastMatchesRegion($0.country, allowedGroups: allowedGroups) }
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .filter { seen.insert("\(CyclocrossPresentation.link($0.url)?.absoluteString ?? $0.id)|\($0.country ?? "ALL")|\($0.channel ?? "")").inserted }
-        let liveCategories = Set(detail.race.categories.filter { cat in
-            CyclocrossLogic.categories.contains(cat.category) && !detail.race.isCancelled && !cat.isCancelled &&
-            !(["official", "provisional"].contains(cat.resultsStatus) && detail.results.contains { result in result.category == cat.category })
-        }.map(\.category))
-        var groups: [(title: String?, rows: [CxBroadcast])] = []
-        let common = visible.filter { ($0.category ?? "").isEmpty }
-        if !common.isEmpty { groups.append((nil, common)) }
-        for code in CyclocrossLogic.categories where liveCategories.contains(code) {
-            let rows = visible.filter { $0.category == code }
-            if !rows.isEmpty { groups.append((CyclocrossPresentation.category(code), rows)) }
+    private func reviveCard(_ links: [CxReplayLink]) -> some View {
+        JornadaInfoCard {
+            Text(CyclocrossPresentation.t("Revive la carrera", "Race replay")).font(.headline).accessibilityAddTraits(.isHeader)
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 8, alignment: .top), count: columns),
+                alignment: .leading,
+                spacing: 8
+            ) {
+                ForEach(links) { item in
+                    BroadcastRowView(broadcast: Broadcast(id: item.id, raceDayId: detail.race.id, channel: item.title, startTimeUtc: nil,
+                        url: item.url.absoluteString, note: nil, sortOrder: nil, showInRevive: true, country: nil), isRevive: true, hasResults: true, onTap: onOpen)
+                }
+            }
         }
-        return groups
     }
 }
 
 private struct CxVideosSection: View {
     let videos: [CxVideo]
+    /// Mismo mecanismo que TV y Revive: aviso sin conexión, app nativa o
+    /// navegador interno.
+    let onOpen: (URL) -> Void
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 14) {
@@ -697,11 +978,12 @@ private struct CxVideosSection: View {
                 if let id = CyclocrossPresentation.youtubeVideoId(video.url),
                    let url = CyclocrossPresentation.link(video.url) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(video.title).font(.headline)
+                        Text(CyclocrossPresentation.title(video)).font(.headline)
                         CxYouTubePlayer(id: id)
                             .aspectRatio(16.0 / 9.0, contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                        Link("YouTube ↗", destination: url).font(.caption)
+                        BroadcastRowView(broadcast: Broadcast(id: video.id, raceDayId: video.raceId, channel: "YouTube", startTimeUtc: nil,
+                            url: url.absoluteString, note: nil, sortOrder: nil, showInRevive: true, country: nil), isRevive: true, hasResults: true, onTap: onOpen)
                     }.padding().ccCardSurface()
                 }
             }

@@ -72,7 +72,7 @@ Las páginas generadas por competición y jornada —incluidos sus resultados—
 ```bash
 npm ci && npm test                              # web
 open ios-app/CalendarioCiclismo.xcodeproj       # iOS
-cd android-app && ./gradlew test assembleDebug  # Android
+cd android-app && ./gradlew testDebugUnitTest assembleDebug  # Android
 ```
 
 Las apps necesitan archivos de configuración que no se versionan: `Supabase.xcconfig` y `GoogleService-Info.plist` en iOS; `google-services.json` y `secrets.properties` en Android. Hay plantillas `.template` para un entorno de desarrollo. Consulta [`android-app/README.md`](android-app/README.md) para el entorno Android; `ios-app/setup.sh` permite regenerar el proyecto Xcode con XcodeGen cuando sea necesario.

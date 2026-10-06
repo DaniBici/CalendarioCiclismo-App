@@ -3,10 +3,10 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, esc } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import {
   isMarketDestinationTeamEligible, marketDestinationTeamOptions, transferRowBorderColor,
-} from '../services/transfer-rider.js?v=20260908a';
+} from '../services/transfer-rider.js';
 import { panelState } from './state.js';
 import { MARKET_SEASON } from './constants.js';
 import { showToast } from './helpers.js';
@@ -82,7 +82,7 @@ export async function openTeamSituationEditor(teamId) {
     level: 1,
     wide: true,
     render: (body) => {
-      body.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:1rem 0">Cargando plantilla…</div>`;
+      body.innerHTML = `<div class="u-fs-085 u-c-dim u-py-100 u-px-0">Cargando plantilla…</div>`;
     },
   });
 
@@ -145,7 +145,7 @@ export async function openTeamSituationEditor(teamId) {
   } catch (err) {
     console.error('[openTeamSituationEditor]', err);
     const b = body_of(1);
-    if (b) b.innerHTML = `<div style="color:var(--red);font-size:0.9rem;padding:1rem 0">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
+    if (b) b.innerHTML = `<div class="u-c-red u-fs-090 u-py-100 u-px-0">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -190,40 +190,39 @@ const _AFF_DATE_FROM = `${MARKET_SEASON}-01-01`;
 function _tseRenderEditor(body, { teamName, teamCat }) {
   if (!body) return;
   const rows = [..._tseSituations.values()];
-  const staying = rows.filter(s => s.state === 'stay').length;
 
   body.innerHTML = `
-    <div class="u-stack" style="gap:1rem">
-      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:1rem;font-weight:700">${esc(teamName)}</div>
-          <div class="u-fs-xs u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
+    <div class="u-stack u-gap-100">
+      <div class="tse-header">
+        <div class="u-grow u-min0">
+          <div class="u-fs-100 u-fw-700">${esc(teamName)}</div>
+          <div class="u-fs-072 u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
         </div>
-        <button class="btn btn--ghost" id="tse-edit-identity" style="padding:0.3rem 0.7rem;font-size:0.75rem" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
+        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-075" id="tse-edit-identity" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
       </div>
 
       <div class="u-stack u-stack--xs">
-        <div style="display:flex;align-items:center;gap:0.75rem">
-          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Plantilla 2026 → situación ${MARKET_SEASON}</div>
+        <div class="u-flex u-items-center u-gap-075">
+          <div class="u-micro u-nowrap">Plantilla 2026 → situación ${MARKET_SEASON}</div>
           <div class="u-grow u-hr-line"></div>
-          <span class="u-fs-sm u-c-dim" id="tse-roster-count">${rows.length} corredor${rows.length === 1 ? '' : 'es'}</span>
+          <span class="u-fs-075 u-c-dim" id="tse-roster-count">${rows.length} corredor${rows.length === 1 ? '' : 'es'}</span>
         </div>
-        <div class="u-fs-sm u-c-dim">Marca la situación de cada corredor. <strong style="color:var(--accent)">Continúa</strong> lo incluye en la plantilla ${MARKET_SEASON}; el resto lo saca. Los que dejes sin marcar NO entran en ${MARKET_SEASON}.</div>
-        <div id="tse-roster" class="u-stack u-stack--xs" style="margin-top:0.35rem"></div>
+        <div class="u-fs-075 u-c-dim">Marca la situación de cada corredor. <strong class="u-c-accent">Continúa</strong> lo incluye en la plantilla ${MARKET_SEASON}; el resto lo saca. Los que dejes sin marcar NO entran en ${MARKET_SEASON}.</div>
+        <div id="tse-roster" class="u-stack u-stack--xs u-mt-035"></div>
       </div>
 
       <div class="u-stack u-stack--xs">
-        <div style="display:flex;align-items:center;gap:0.75rem">
-          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);font-weight:600;white-space:nowrap">Incorporaciones ${MARKET_SEASON}</div>
+        <div class="u-flex u-items-center u-gap-075">
+          <div class="u-micro u-nowrap">Incorporaciones ${MARKET_SEASON}</div>
           <div class="u-grow u-hr-line"></div>
-          <button class="btn btn--ghost" id="tse-new-signing" style="padding:0.2rem 0.6rem;font-size:0.74rem;color:var(--accent)">+ Nueva incorporación</button>
+          <button class="btn btn--ghost u-py-020 u-px-060 u-fs-074 u-c-accent" id="tse-new-signing">+ Nueva incorporación</button>
         </div>
         <div id="tse-incoming" class="u-stack u-stack--xs"></div>
       </div>
     </div>
-    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1.25rem;position:sticky;bottom:0;background:var(--bg-card);padding:0.75rem 0;border-top:1px solid var(--border)">
+    <div class="u-row tse-save-bar">
       <button class="btn btn--primary" id="tse-save">Guardar equipo</button>
-      <span class="u-fs-md u-c-dim" id="tse-save-status"></span>
+      <span class="u-fs-080 u-c-dim" id="tse-save-status"></span>
     </div>
   `;
 
@@ -247,24 +246,22 @@ function _tseRenderRoster() {
   if (!box) return;
   const rows = [..._tseSituations.values()];
   if (rows.length === 0) {
-    box.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.5rem 0">Este equipo no tiene plantilla 2026 (sin corredores con currentTeamId aquí).</div>`;
+    box.innerHTML = `<div class="u-fs-085 u-c-dim u-py-050 u-px-0">Este equipo no tiene plantilla 2026 (sin corredores con currentTeamId aquí).</div>`;
     return;
   }
   box.innerHTML = rows.map(s => {
     const r = s.rider;
     const seg = TSE_STATES.map(st => {
       const active = s.state === st.key;
-      return `<button type="button" class="tse-seg-btn" data-rider="${esc(r.id)}" data-state="${st.key}"
-        style="padding:0.22rem 0.5rem;font-size:0.72rem;font-weight:600;border:1px solid ${active ? st.color : 'var(--border)'};border-radius:5px;cursor:pointer;
-        background:${active ? st.color + '22' : 'transparent'};color:${active ? st.color : 'var(--text-muted)'};white-space:nowrap">${st.label}</button>`;
+      return `<button type="button" class="tse-seg-btn${active ? ' is-active' : ''}" data-rider="${esc(r.id)}" data-state="${st.key}"${active ? ` style="--seg-color:${st.color};--seg-bg:${st.color}22"` : ''}>${st.label}</button>`;
     }).join('');
     return `
-      <div class="tse-rider-row" data-rider="${esc(r.id)}" style="display:flex;flex-direction:column;gap:0.4rem;padding:0.55rem 0.65rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px">
-        <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap">
-          <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(r.nationality || '')}</span>
-          <span style="flex:1;min-width:9rem;font-size:0.85rem"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+      <div class="tse-rider-row" data-rider="${esc(r.id)}">
+        <div class="tse-rider-main">
+          <span class="u-w-150em u-center">${_slRiderFlagPreview(r.nationality || '')}</span>
+          <span class="u-grow u-minw-900 u-fs-085"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
             <span class="u-c-dim u-fs-070">${r.gender === 'female' ? '♀' : '♂'}</span></span>
-          <div style="display:flex;gap:0.3rem;flex-wrap:wrap">${seg}</div>
+          <div class="u-flex u-gap-030 u-wrap">${seg}</div>
         </div>
         <div class="tse-rider-extra" data-rider="${esc(r.id)}"></div>
       </div>`;
@@ -293,23 +290,23 @@ function _tseRenderRiderExtra(s) {
   const wrap = document.querySelector(`.tse-rider-extra[data-rider="${CSS.escape(s.rider.id)}"]`);
   if (!wrap) return;
   const yearInput = (disabled) => `<input type="number" class="tse-year" data-rider="${esc(s.rider.id)}" min="2026" max="2040" placeholder="año contrato"
-      value="${s.year || ''}" ${disabled ? 'disabled' : ''} style="width:8rem;padding:0.25rem 0.45rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)${disabled ? ';opacity:0.5' : ''}">`;
-  const chk = (cls, checked, label) => `<label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer">
+      value="${s.year || ''}" ${disabled ? 'disabled' : ''}>`;
+  const chk = (cls, checked, label) => `<label class="tse-check u-pointer">
       <input type="checkbox" class="${cls}" data-rider="${esc(s.rider.id)}" ${checked ? 'checked' : ''}><span>${label}</span></label>`;
 
   let html = '';
   if (s.state === 'stay') {
     // Vitalicio deshabilita el año y el "sin año" (contrato sin fecha de fin).
-    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+    html = `<div class="tse-extra-row">
       ${yearInput(s.yearUnknown || s.lifetime)}
       ${chk('tse-yearunknown', s.yearUnknown, 'No se sabe el año')}
       ${chk('tse-lifetime', s.lifetime, 'Vitalicio ∞')}
       ${chk('tse-stay-rumor', s.rumor, 'Rumor (continuidad sin confirmar)')}
     </div>`;
   } else if (s.state === 'doubt') {
-    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+    html = `<div class="tse-extra-row">
       ${yearInput(false)}
-      <span class="u-fs-sm u-c-dim">Duda de renovación: sigue en plantilla ${MARKET_SEASON} pero sin confirmar.</span>
+      <span class="u-fs-075 u-c-dim">Duda de renovación: sigue en plantilla ${MARKET_SEASON} pero sin confirmar.</span>
     </div>`;
   } else if (s.state === 'change') {
     // El destino de un fichaje es la temporada del MERCADO → nombre/categoría de
@@ -324,28 +321,27 @@ function _tseRenderRiderExtra(s) {
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     // Fecha de confirmación (announcedAt): solo aplica a un fichaje CONFIRMADO
     // (ordena y agrupa el feed). Un rumor no sale en el feed → sin fecha.
-    const dateRow = s.rumor ? '' : `<label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem">
+    const dateRow = s.rumor ? '' : `<label class="tse-check">
         <span class="u-c-dim">Confirmado el</span>
-        <input type="date" class="tse-announced" data-rider="${esc(s.rider.id)}" value="${esc(s.announcedAt || _localDateKey())}"
-          style="padding:0.22rem 0.4rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+        <input type="date" class="tse-announced" data-rider="${esc(s.rider.id)}" value="${esc(s.announcedAt || _localDateKey())}">
       </label>`;
-    html = `<div style="display:flex;flex-direction:column;gap:0.5rem;padding-left:2.05rem">
-      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
-        <select class="tse-newteam" data-rider="${esc(s.rider.id)}" style="flex:1;min-width:11rem;padding:0.25rem 0.4rem;font-size:0.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+    html = `<div class="tse-change-box">
+      <div class="editor-actions u-wrap">
+        <select class="tse-newteam" data-rider="${esc(s.rider.id)}">
           <option value="">— Equipo de destino —</option>
           ${teams.map(t => `<option value="${esc(t.id)}"${t.id === s.newTeamId ? ' selected' : ''}>${esc(t.name)}${t.category ? ` (${esc(t.category)})` : ''}</option>`).join('')}
         </select>
         ${yearInput(false)}
       </div>
-      <div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap">
+      <div class="tse-extra-row u-pl-0">
         ${chk('tse-rumor', s.rumor, 'Rumor (aún sin confirmar)')}
         ${dateRow}
       </div>
     </div>`;
   } else if (s.state === 'end') {
-    html = `<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding-left:2.05rem">
+    html = `<div class="tse-extra-row">
       ${chk('tse-retired', s.retired, 'Se retira')}
-      <span class="u-fs-sm u-c-dim">${s.retired ? 'Cuelga la bici.' : 'Acaba contrato sin equipo conocido (baja sin destino).'}</span>
+      <span class="u-fs-075 u-c-dim">${s.retired ? 'Cuelga la bici.' : 'Acaba contrato sin equipo conocido (baja sin destino).'}</span>
     </div>`;
   }
   wrap.innerHTML = html;
@@ -372,7 +368,7 @@ function _tseRenderIncoming() {
   const box = document.getElementById('tse-incoming');
   if (!box) return;
   if (_tseIncoming.length === 0) {
-    box.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.35rem 0">Sin incorporaciones registradas hacia este equipo.</div>`;
+    box.innerHTML = `<div class="u-fs-085 u-c-dim u-py-035 u-px-0">Sin incorporaciones registradas hacia este equipo.</div>`;
     return;
   }
   box.innerHTML = _tseIncoming.map(t => {
@@ -380,13 +376,13 @@ function _tseRenderIncoming() {
     const name = r ? `${r.lastName}, ${r.firstName}` : t.riderId;
     const from = _trTeamLabel(t.fromTeamId, t.fromTeamName, 'from');
     const isRumor = t.status === 'rumor';
-    return `<div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;padding:0.45rem 0.65rem;background:var(--bg-card);border:1px solid ${transferRowBorderColor(t.status)};border-radius:6px">
-      <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
-      <span style="flex:1;min-width:9rem;font-size:0.85rem"><strong>${esc(name)}</strong>
-        <span class="u-c-dim" style="font-size:0.72rem">· ${esc(from)}</span></span>
-      ${t.contractUntil ? `<span class="u-fs-xs u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
-      ${isRumor ? `<span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;padding:0.1rem 0.35rem;border-radius:4px;background:rgba(245,158,11,0.15);color:#f59e0b">Rumor</span>` : ''}
-      <button class="btn btn--ghost tse-incoming-edit" data-id="${esc(t.id)}" style="padding:0.15rem 0.45rem;font-size:0.7rem">Editar</button>
+    return `<div class="transfer-row u-gap-055" style="--row-border:${transferRowBorderColor(t.status)}">
+      <span class="u-w-150em u-center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
+      <span class="u-grow u-minw-900 u-fs-085"><strong>${esc(name)}</strong>
+        <span class="u-c-dim u-fs-072">· ${esc(from)}</span></span>
+      ${t.contractUntil ? `<span class="u-fs-072 u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
+      ${isRumor ? `<span class="tse-rumor-chip">Rumor</span>` : ''}
+      <button class="btn btn--ghost tse-incoming-edit u-py-015 u-px-045 u-fs-070" data-id="${esc(t.id)}">Editar</button>
     </div>`;
   }).join('');
   box.querySelectorAll('.tse-incoming-edit').forEach(btn => {

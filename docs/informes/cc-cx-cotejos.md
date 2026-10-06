@@ -77,11 +77,11 @@ Se inspeccionaron cinco generales oficiales adicionales y sus grupos de igualdad
 | 2024–25 MJ | [PDF 391](https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/391/391.pdf?t=1737884088) | 52 | 10 |
 | 2024–25 WJ | [PDF 390](https://www.ucicyclocrossworldcup.com/storage/rankings/file_results/390/390.pdf?t=1737895729) | 45 | 8 |
 
-El [registro de búsqueda](../../js/__tests__/fixtures/cx-cotejos/worldcup-drop-search-2024-26.json) conserva alcance, URL y SHA-256. Esta búsqueda usa celdas de la propia general para localizar un caso discriminante; no es un cotejo contra resultados independientes de ronda. No añade categorías verificadas ni resuelve la política de descartes.
+El registro de búsqueda `worldcup-drop-search-2024-26.json`, con alcance, URL y SHA-256, se retiró del repositorio el 2026-09-29 por no tener lector; se recupera del historial de git (`a03301dba8c`). Esta búsqueda usa celdas de la propia general para localizar un caso discriminante; no es un cotejo contra resultados independientes de ronda. No añade categorías verificadas ni resuelve la política de descartes.
 
 ### Ampliación 2021–24
 
-El [segundo registro](../../js/__tests__/fixtures/cx-cotejos/worldcup-drop-search-2021-24.json) conserva nueve informes adicionales enlazados por la página oficial de generales, sus fechas de cabecera, número de celdas por fila, URL y SHA-256. En MU/MJ/WJ 2023–24, PDF 341/369/371, hay seis rondas; en MU/MJ/WJ 2022–23, PDF 255/251/252, cinco. Sus 64 grupos empatados tampoco distinguen las políticas `all` y `retained`: ambas reproducen el orden publicado con la hipótesis de comparación de puntos hacia atrás.
+El segundo registro, `worldcup-drop-search-2021-24.json` (retirado el 2026-09-29; historial de git, `a03301dba8c`), conservaba nueve informes adicionales enlazados por la página oficial de generales, sus fechas de cabecera, número de celdas por fila, URL y SHA-256. En MU/MJ/WJ 2023–24, PDF 341/369/371, hay seis rondas; en MU/MJ/WJ 2022–23, PDF 255/251/252, cinco. Sus 64 grupos empatados tampoco distinguen las políticas `all` y `retained`: ambas reproducen el orden publicado con la hipótesis de comparación de puntos hacia atrás.
 
 Los informes 177/175/176 de 2021–22 tienen cabecera 16-01-2022 y solo cuatro celdas de ronda por fila. Se registran como generales intermedias, sin descartes aplicables. No se presentan como una general final ni se suman a los ejemplos que prueban rondas descartadas. En los nueve informes no aparecen grupos aún empatados bajo las claves examinadas; esto no sustituye resultados independientes ni verifica una política universal.
 

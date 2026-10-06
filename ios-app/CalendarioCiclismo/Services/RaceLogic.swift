@@ -154,9 +154,15 @@ enum RaceLogic {
     }
 
     static func isReviveBroadcast(_ broadcast: Broadcast) -> Bool {
-        guard let url = broadcast.url, !url.isEmpty else { return false }
-        if broadcast.showInRevive == true { return true }
-        let channel = (broadcast.channel ?? "").lowercased()
+        isReviveLink(channel: broadcast.channel, url: broadcast.url, showInRevive: broadcast.showInRevive == true)
+    }
+
+    /// Criterio de Revive por canal y URL, compartido con las emisiones de
+    /// ciclocross (`CxBroadcast`), que no usan el tipo `Broadcast`.
+    static func isReviveLink(channel: String?, url: String?, showInRevive: Bool) -> Bool {
+        guard let url, !url.isEmpty else { return false }
+        if showInRevive { return true }
+        let channel = (channel ?? "").lowercased()
         return channel.contains("eurosport") || channel.contains("hbo max")
             || isSocialReplay(url)
             || isEtbOnDemand(url)
@@ -489,19 +495,6 @@ enum RaceLogic {
             guard let race = item.race else { return true }
             return matchesCategory(race, filter: category)
         }
-    }
-
-    // MARK: - Color helpers
-
-    /// Determina si un color hex es oscuro.
-    static func isColorDark(_ hex: String?) -> Bool {
-        guard let hex, hex.count >= 7 else { return true }
-        let h = hex.dropFirst() // quitar #
-        guard h.count == 6,
-              let r = UInt8(h.prefix(2), radix: 16),
-              let g = UInt8(h.dropFirst(2).prefix(2), radix: 16),
-              let b = UInt8(h.dropFirst(4).prefix(2), radix: 16) else { return true }
-        return (Double(r) * 299 + Double(g) * 587 + Double(b) * 114) / 1000 < 128
     }
 
     /// Determina si un nombre indica carrera femenina.

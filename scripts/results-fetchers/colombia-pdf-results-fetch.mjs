@@ -19,6 +19,7 @@ import { execFileSync } from 'child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i < 0 ? fallback : argv[i + 1]; };
@@ -37,7 +38,6 @@ const ONE_DAY = has('--one-day');
 const BASE = 'https://www.clasificacionesdelciclismocolombiano.com';
 const log = (message) => process.stderr.write(`${message}\n`);
 
-export function fnv1a(value) { let h = 0x811c9dc5; for (let i = 0; i < value.length; i++) { h ^= value.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 export const suggestCompetitionId = (code) => -(fnv1a(`colombia-pdf:${code}`) % 200000);
 export const synthRaceId = (code, stage) => -(Math.abs(suggestCompetitionId(code)) * 100 + stage);
 const CLASS_INDEX = { stage: 0, gc: 1, points: 2, kom: 3, youth: 4, teams: 5 };
@@ -115,7 +115,25 @@ const dottedMonths = new Map([
   ['SET', '09'], ['OCT', '10'], ['OUT', '10'], ['NOV', '11'], ['DIC', '12'],
   ['DEC', '12'], ['DEZ', '12'],
 ]);
+const longMonths = new Map([
+  ['ENERO', '01'], ['FEBRERO', '02'], ['MARZO', '03'], ['ABRIL', '04'],
+  ['MAYO', '05'], ['JUNIO', '06'], ['JULIO', '07'], ['AGOSTO', '08'],
+  ['SEPTIEMBRE', '09'], ['SETIEMBRE', '09'], ['OCTUBRE', '10'],
+  ['NOVIEMBRE', '11'], ['DICIEMBRE', '12'],
+]);
 const fullYear = (value) => value.length === 2 ? `20${value}` : value;
+const weekdayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+const unaccented = (value) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleUpperCase('es');
+const weekdayOf = (date) => weekdayNames[new Date(`${date}T12:00:00Z`).getUTCDay()];
+// Portada cuyo día de la semana contradice la fecha (Vuelta a Venezuela 2026,
+// etapa 2: `LUNES 4 DE OCTUBRE DE 2026`, cuando el lunes fue el día 5).
+const CONTRADICTORY_COVER = Symbol('contradictory-cover');
+const tableDateKey = (text) => {
+  const match = String(text).match(/Fecha\s*:\s*(\d{2})\/(\d{2})\/(\d{2,4})/i);
+  if (!match) return null;
+  const year = fullYear(match[3]);
+  return `${year}-${match[2]}-${match[1]}`;
+};
 const dateKey = (text) => {
   const source = String(text);
   // Algunas hojas brasileñas abren con una portada cuya única fecha fiable usa
@@ -126,16 +144,35 @@ const dateKey = (text) => {
     const month = dottedMonths.get(dotted[2].toLocaleUpperCase('es'));
     if (month) return `${fullYear(dotted[3])}-${month}-${String(Number(dotted[1])).padStart(2, '0')}`;
   }
-  const match = source.match(/Fecha\s*:\s*(\d{2})\/(\d{2})\/(\d{2,4})/i);
-  if (!match) return null;
-  const year = fullYear(match[3]);
-  return `${year}-${match[2]}-${match[1]}`;
+  // Las portadas de Word de Vuelta a Colombia escriben la fecha en letra al
+  // principio de la línea (`12 DE AGOSTO DE 2026`); la tabla la repite en la
+  // página siguiente como `Fecha : 12/08/26`. La Vuelta a Venezuela antepone el
+  // día de la semana (`LUNES 5 DE OCTUBRE DE 2026`).
+  const long = source.match(/^\s*(?:(LUNES|MARTES|MI[EÉ]RCOLES|JUEVES|VIERNES|S[AÁ]BADO|DOMINGO)\s+)?(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚ]+)\s+DE\s+(\d{4})\b/im);
+  if (long) {
+    const month = longMonths.get(long[3].toLocaleUpperCase('es'));
+    if (month) {
+      const date = `${long[4]}-${month}-${String(Number(long[2])).padStart(2, '0')}`;
+      if (long[1] && unaccented(long[1]) !== weekdayOf(date)) return CONTRADICTORY_COVER;
+      return date;
+    }
+  }
+  return tableDateKey(source);
+};
+// La fecha de edición se lee en la primera página con texto: Word exporta a
+// veces una hoja inicial en blanco (Vuelta Femenina a Costa Rica 2026), y las
+// páginas finales pueden anunciar la fecha de la etapa siguiente. Una portada
+// contradictoria cede ante el `Fecha :` de la tabla de la página siguiente.
+const publishedDateKey = (text) => {
+  const [cover = '', following = ''] = String(text).split(/\f/).filter((page) => page.trim());
+  const date = dateKey(cover);
+  return date === CONTRADICTORY_COVER ? tableDateKey(following) : date;
 };
 const declaredCount = (text) => Number(String(text).match(/Corredores clasificados\s*:\s*(\d+)/i)?.[1] || 0) || null;
 const countryCode = (nac) => ({
-  ARG: 'ar', BOL: 'bo', BRA: 'br', CHI: 'cl', COL: 'co', CRC: 'cr', ECU: 'ec',
-  ESP: 'es', GUA: 'gt', HON: 'hn', HUN: 'hu', MEX: 'mx', PAN: 'pa', PAR: 'py',
-  SRB: 'rs', URU: 'uy', VEN: 've',
+  ARG: 'ar', BOL: 'bo', BRA: 'br', BUL: 'bg', CHI: 'cl', COL: 'co', CRC: 'cr',
+  ECU: 'ec', ESP: 'es', GUA: 'gt', HON: 'hn', HUN: 'hu', MEX: 'mx', NED: 'nl',
+  NLD: 'nl', PAN: 'pa', PAR: 'py', SRB: 'rs', UKR: 'ua', URU: 'uy', VEN: 've',
 }[nac] ?? null);
 
 function individualRow(line, general = false) {
@@ -275,7 +312,9 @@ function normalizeTimeRows(rows) {
       return { ...row, resultValue: groupGap, gapText: groupGap };
     }
     const derivedGap = seconds(row.timeText) == null ? null : secondsGap(seconds(row.timeText) - winnerSeconds);
-    const gap = row.gapText || derivedGap;
+    // El tiempo absoluto prevalece sobre la columna de diferencia: en la CRI de
+    // la Vuelta a Colombia Femenina 2026 el PDF publica 01:24:45 con `42:00`.
+    const gap = derivedGap || row.gapText;
     if (!gap) return row;
     groupGap = gap;
     return { ...row, resultValue: gap, timeText: null, gapText: gap };
@@ -351,12 +390,21 @@ function stageRowsWithIrms(text, mainRows) {
   const dnfBlock = sectionAfter(text, /CORREDORES RETIRADOS\/DNF[^\n]*/i,
     /\n\s*(?:CORREDORES EXPULSADOS\b|FDO\b)/i);
   const dsqBlock = sectionAfter(text, /CORREDORES EXPULSADOS\/DSQ[^\n]*/i, /\n\s*FDO\b/i);
-  const otlBibs = new Set([...bibsFromIrmSection(otlBlock), ...shortIrmBibs('OTL')]);
+  // Vuelta a Venezuela 2026: retiros y fueras de control solo figuran en el
+  // boletín del jurado (`RETIROS DORSAL 83`, `RETIROS: CORREDORES 83 – 165`,
+  // `CORREDORES FUERA DEL LIMITE EN PUNTO INTERMEDIO_: 65 – 84`).
+  const bulletin = sectionAfter(text, /BOLET[IÍ]N\s+(?:DEL\s+)?JURADO\s+DE\s+COMISARIOS[^\n]*/i, /\n\s*FDO\b/i);
+  const bulletinBibs = (pattern) => [...String(bulletin || '').matchAll(pattern)].flatMap((match) => match[1].match(/\d+/g) ?? []);
+  const bulletinDnfBibs = bulletinBibs(/^\s*RETIROS?\b\s*:?\s*(?:DORSAL(?:ES)?|CORREDOR(?:ES)?)?\s*([\d\s,–—-]+)$/gim);
+  const bulletinOtlBibs = bulletinBibs(/^\s*CORREDORES\s+FUERA\s+DEL\s+L[IÍ]MITE\b[^:\n]*:\s*([\d\s,–—-]+)$/gim);
+  const otlBibs = new Set([...bibsFromIrmSection(otlBlock), ...shortIrmBibs('OTL'), ...bulletinOtlBibs]);
   const { classifiedRows, otlRows } = splitMainRows(mainRows, otlBibs);
   const listedRows = [
     ...irmRowsFromSection(dnsBlock, 'DNS'),
     ...otlRows,
+    ...bulletinOtlBibs.map((bib) => asIrm({ bib }, 'OTL')),
     ...irmRowsFromSection(dnfBlock, 'DNF'),
+    ...bulletinDnfBibs.map((bib) => asIrm({ bib }, 'DNF')),
     ...irmRowsFromSection(dsqBlock, 'DSQ'),
     ...parseRows(text, standaloneIrmRow),
     ...['DNS', 'DNF', 'OTL', 'DSQ'].flatMap((irm) => shortIrmBibs(irm).map((bib) => asIrm({ bib }, irm))),
@@ -377,7 +425,7 @@ function stageRowsWithIrms(text, mainRows) {
 
 export function validateExpectedYear(text, expectedYear, label = 'PDF') {
   if (expectedYear == null) return;
-  const publishedDate = dateKey(String(text).split(/\f/, 1)[0]);
+  const publishedDate = publishedDateKey(text);
   if (!publishedDate) throw new Error(`${label}: no se pudo verificar la fecha del PDF`);
   if (!publishedDate.startsWith(`${expectedYear}-`)) {
     throw new Error(`${label}: fecha ${publishedDate} incompatible con el año esperado ${expectedYear}`);
@@ -418,7 +466,7 @@ export function parseOneDayPdfText(code, text, sourcePdfUrl = null, expectedYear
   return {
     stage: {
       uciRaceId: synthRaceId(code, FINAL_SLOT), stageNumber: null, isFinalClassification: true,
-      dateKey: dateKey(text), eventName: 'Final Classification', sourcePdfUrl, classifications: [cl],
+      dateKey: publishedDateKey(text), eventName: 'Final Classification', sourcePdfUrl, classifications: [cl],
     },
     final: null,
   };
@@ -426,7 +474,7 @@ export function parseOneDayPdfText(code, text, sourcePdfUrl = null, expectedYear
 
 export function parsePdfText(code, stageNumber, text, totalStages = null, expectedYear = null, expectedDate = null) {
   validateExpectedYear(text, expectedYear, `etapa ${stageNumber}`);
-  const publishedDate = dateKey(text);
+  const publishedDate = publishedDateKey(text);
   if (expectedDate && publishedDate !== expectedDate) {
     throw new Error(`etapa ${stageNumber}: el PDF es de ${publishedDate || 'fecha desconocida'}, no de ${expectedDate}`);
   }
@@ -440,6 +488,10 @@ export function parsePdfText(code, stageNumber, text, totalStages = null, expect
   const stageParser = (line) => cronoIndividualRow(line) || individualRow(line);
   const mainRows = validateRows(parseRows(stageBlock, stageParser), declaredCount(stageBlock), `etapa ${stageNumber}`);
   const stageRows = stageRowsWithIrms(text, mainRows);
+  const stageHeader = text.match(/CLASIFICACI[OÓ]N\s+(?:(?:[A-ZÁÉÍÓÚ]+|\d+(?:RA|DA|A|ª|º)?)\s+)?ETAPA[^\n]*/i)?.[0] ?? '';
+  // Las cronos se anuncian en el encabezado (`SEXTA ETAPA C.R.I APIA`) o por la
+  // columna de tiempo intermedio de la tabla.
+  const isItt = /\bC\.?\s?R\.?\s?I\b|CONTRA\s*RELOJ|CRONOESCALADA/i.test(stageHeader) || /\bT\.\s*Inter\b/i.test(stageBlock);
   const classifications = [classification(code, stageNumber, 'stage', 'stage', 'Stage Classification', stageRows, false, stageRows.length)];
 
   const gcBlock = sectionAfter(text, /CLASIFICACI[OÓ]N\s+GENERAL(?:\s+DESPUES[^\n]*)?/i,
@@ -472,7 +524,7 @@ export function parsePdfText(code, stageNumber, text, totalStages = null, expect
     const rows = parseRows(teamsBlock, teamRow);
     if (rows.length) classifications.push(classification(code, stageNumber, 'teams', 'overall', 'Overall Teams Classification', normalizeTimeRows(validateRows(rows, null, `equipos etapa ${stageNumber}`)), true));
   }
-  const stage = { uciRaceId: synthRaceId(code, stageNumber), stageNumber, dateKey: publishedDate, eventName: `Stage ${stageNumber}`, classifications: classifications.filter(Boolean) };
+  const stage = { uciRaceId: synthRaceId(code, stageNumber), stageNumber, dateKey: publishedDate, eventName: `Stage ${stageNumber}`, ...(isItt ? { raceType: 'ITT' } : {}), classifications: classifications.filter(Boolean) };
   const final = totalStages != null && stageNumber === totalStages
     ? { uciRaceId: synthRaceId(code, FINAL_SLOT), stageNumber: null, isFinalClassification: true, eventName: 'Final Classification', classifications: stage.classifications.filter((item) => item.classKind !== 'stage').map((item) => ({ ...item, scope: 'stage', eventId: synthEventId(code, FINAL_SLOT, item.classKind, 'stage') })) }
     : null;

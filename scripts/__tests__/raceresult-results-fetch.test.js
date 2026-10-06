@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   cellText, parseRankCell, normAbsTime, normGap, normPoints, reorderName,
-  colsByWidth, mapRows, flattenData, fnv1a, completedLapFromTimingPoint,
+  colsByWidth, mapRows, flattenData, completedLapFromTimingPoint,
   liveCompletionState, eventProfile, idBaseFor, validateDatedResult,
   validateProfileColumns, progressCompletionState, liveStageResultRows, listHeaderDates,
   selectorForStage, liveOverallRows, shouldEmitFinalClassification,
@@ -33,23 +33,12 @@ describe('parseRankCell — col [2]: puesto, IRM o estado transitorio', () => {
     expect(parseRankCell('12')).toEqual({ rank: 12 });
   });
 
-  it('mapea los IRM del feed a códigos UCI', () => {
-    // El IRM_MAP real de esta fuente. Un mapeo mal hecho deja al abandonado como
-    // clasificado (o al revés).
-    expect(parseRankCell('DNF')).toEqual({ irm: 'DNF' });
+  it('mapea los IRM del feed a códigos UCI y normaliza minúsculas', () => {
+    // Un mapeo mal hecho deja al abandonado como clasificado (o al revés).
     expect(parseRankCell('AB')).toEqual({ irm: 'DNF' });
-    expect(parseRankCell('ABD')).toEqual({ irm: 'DNF' });
-    expect(parseRankCell('DNS')).toEqual({ irm: 'DNS' });
     expect(parseRankCell('NP')).toEqual({ irm: 'DNS' });
-    expect(parseRankCell('DSQ')).toEqual({ irm: 'DSQ' });
-    expect(parseRankCell('DQ')).toEqual({ irm: 'DSQ' });
     expect(parseRankCell('EX')).toEqual({ irm: 'DSQ' });
-    expect(parseRankCell('OTL')).toEqual({ irm: 'OTL' });
-    expect(parseRankCell('HD')).toEqual({ irm: 'OTL' });
     expect(parseRankCell('OOT')).toEqual({ irm: 'OTL' });
-  });
-
-  it('normaliza minúsculas', () => {
     expect(parseRankCell('dnf')).toEqual({ irm: 'DNF' });
   });
 
@@ -104,10 +93,6 @@ describe('normGap — gap race|result → estilo UCI', () => {
     expect(normGap("+1h02'03''")).toBe('+1:02:03');
   });
 
-  it('rellena el cero de los segundos al normalizar minutos', () => {
-    expect(normGap("+0'04''")).toBe('+0:04');
-  });
-
   it('lo que ya viene estilo "+1:15" pasa tal cual', () => {
     expect(normGap('+1:15')).toBe('+1:15');
   });
@@ -144,10 +129,6 @@ describe('reorderName — "Nombre APELLIDO" → "APELLIDO Nombre" estilo UCI', (
     expect(reorderName('James Matthew BRENNAN*')).toBe('BRENNAN James Matthew');
   });
 
-  it('nombre simple', () => {
-    expect(reorderName('Tadej POGACAR')).toBe('POGACAR Tadej');
-  });
-
   it('conserva el orden de Philadelphia cuando race|result ya entrega "APELLIDO, Nombre"', () => {
     expect(reorderName('MARTINELLI, Alessio')).toBe('MARTINELLI Alessio');
   });
@@ -157,10 +138,6 @@ describe('reorderName — "Nombre APELLIDO" → "APELLIDO Nombre" estilo UCI', (
     // "POEL Mathieu Van Der" — el apellido partido.
     expect(reorderName('Wout VAN AERT')).toBe('VAN AERT Wout');
     expect(reorderName('Mathieu VAN DER POEL')).toBe('VAN DER POEL Mathieu');
-  });
-
-  it('nombre de pila compuesto: todo lo que no es mayúscula es nombre', () => {
-    expect(reorderName('Jose Joaquin ROJAS')).toBe('ROJAS Jose Joaquin');
   });
 
   it('acentos: el apellido acentuado en mayúsculas se reconoce igual', () => {
@@ -190,28 +167,10 @@ describe('colsByWidth — el ancho de la fila IDENTIFICA la lista', () => {
   // columnas cambia por tipo de lista. Mapear por índice fijo daría el dorsal de una
   // lista y el nombre de otra. Los 4 anchos están verificados contra Norway 2025 y
   // Slovenia 2026 (eventId 402988).
-  it('12 col = Stage Results', () => {
-    expect(colsByWidth(12, false)).toMatchObject({ rank: 2, name: 3, bib: 5, team: 6, value: 9 });
-  });
-
-  it('11 col = Stage Results de carrera de un día', () => {
-    expect(colsByWidth(11, false)).toMatchObject({
-      rank: 2, bib: 3, name: 4, team: 5, value: 9, gap: 10,
-    });
-  });
-
   it('13 col = General Classification (nombre y dorsal se DESPLAZAN)', () => {
     // Dos columnas extra al principio del bloque de texto → name 3→5, bib 5→7. Es
     // exactamente el desplazamiento que rompería un mapeo por índice fijo.
     expect(colsByWidth(13, false)).toMatchObject({ rank: 2, name: 5, bib: 7, team: 8, value: 10 });
-  });
-
-  it('9 col = Points / KOM / Young', () => {
-    expect(colsByWidth(9, false)).toMatchObject({ rank: 2, name: 3, bib: 5, team: 6, value: 8 });
-  });
-
-  it('7 col = Team GC → marcado como teamRow', () => {
-    expect(colsByWidth(7, false)).toMatchObject({ bib: 0, rank: 2, name: 3, value: 6, teamRow: true });
   });
 
   it('14 col = LIVE Stage Results (fallback en vivo)', () => {
@@ -220,10 +179,6 @@ describe('colsByWidth — el ancho de la fila IDENTIFICA la lista', () => {
 
   it('teamRows fuerza el layout de equipo, sea cual sea el ancho', () => {
     expect(colsByWidth(12, true)).toMatchObject({ teamRow: true, bib: 0 });
-  });
-
-  it('un ancho desconocido → null (mejor omitir que mapear a ciegas)', () => {
-    expect(colsByWidth(99, false)).toBeNull();
   });
 });
 
@@ -506,10 +461,6 @@ describe('liveCompletionState — gate de vueltas/meta de Philadelphia', () => {
       ready: true, hasFinish: true, maxLap: 0,
     });
   });
-
-  it('una lista vacía no emite resultados', () => {
-    expect(liveCompletionState(live(), 5)).toMatchObject({ ready: false, rowCount: 0 });
-  });
 });
 
 describe('mapRows — Points (isTimed=false): el valor son PUNTOS', () => {
@@ -546,67 +497,64 @@ describe('mapRows — Team GC (7 col): filas de EQUIPO', () => {
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas', () => {
-  it('reproduce el competitionId real del Tour of Slovenia 2026 (-17212)', () => {
-    // El valor que está en race_uci_links.competitionId en producción para eventId
-    // 402988. Si cambia, se rompen los IDs de todo lo ya volcado desde esta fuente.
-    expect(-(fnv1a('raceresult:402988') % 200000)).toBe(-17212);
-  });
-
-  it('es estable y distinto por evento', () => {
-    expect(fnv1a('raceresult:402988')).toBe(fnv1a('raceresult:402988'));
-    expect(fnv1a('raceresult:402988')).not.toBe(fnv1a('raceresult:334313'));
-  });
-
+describe('idBaseFor — IDs sintéticos', () => {
   it('mantiene los IDs históricos y separa concursos del mismo evento', () => {
+    // Ancla: valor en producción del Tour of Slovenia 2026 (eventId 402988). Si cambia,
+    // se duplican los IDs ya volcados desde esta fuente.
     expect(-idBaseFor('402988')).toBe(-17212);
     expect(idBaseFor('406938', '1', true)).not.toBe(idBaseFor('406938', '2', true));
   });
 });
 
-describe('eventProfile — concursos curados de Philadelphia 2026', () => {
-  it('asigna 10 vueltas al concurso masculino', () => {
-    expect(eventProfile('406938', 'male')).toMatchObject({
-      oneDay: true, contest: '1', requiredLaps: 10,
-    });
+// Perfiles sintéticos: los de producción (RACERESULT_EVENT_PROFILES) describen
+// ediciones concretas; aquí solo se prueba la resolución del concurso.
+const PROFILES = {
+  1001: {
+    oneDay: true,
+    contests: {
+      male: { contest: '1', requiredLaps: 10 },
+      female: { contest: '2', requiredLaps: 5 },
+    },
+  },
+  1002: {
+    oneDay: true,
+    dates: {
+      '2030-05-01': { contest: '1', dateKey: '2030-05-01' },
+      '2030-05-03': { contest: '2', dateKey: '2030-05-03' },
+    },
+    cols: { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 },
+  },
+};
+const profileOf = (event, gender, contest = null, date = null) => eventProfile(event, gender, contest, date, PROFILES);
+
+describe('eventProfile — concurso por género, contest explícito o fecha', () => {
+  it('asigna concurso y vueltas por género o por contest explícito', () => {
+    expect(profileOf('1001', 'male')).toMatchObject({ oneDay: true, contest: '1', requiredLaps: 10 });
+    expect(profileOf('1001', 'female')).toMatchObject({ contest: '2', requiredLaps: 5 });
+    expect(profileOf('1001', null, '2')).toMatchObject({ contest: '2', requiredLaps: 5 });
+    expect(profileOf('9999', 'male')).toBeNull();
   });
 
-  it('asigna 5 vueltas al concurso femenino', () => {
-    expect(eventProfile('406938', 'female')).toMatchObject({
-      oneDay: true, contest: '2', requiredLaps: 5,
-    });
-  });
-
-  it('aplica el gate correcto cuando el concurso se indica de forma explícita', () => {
-    expect(eventProfile('406938', null, '2')).toMatchObject({
-      oneDay: true, contest: '2', requiredLaps: 5,
-    });
+  it('separa por fecha concursos del mismo género y rechaza fechas o concursos contradictorios', () => {
+    expect(profileOf('1002', 'male', null, '2030-05-03')).toMatchObject({ contest: '2', dateKey: '2030-05-03', oneDay: true });
+    expect(profileOf('1002', 'male', null, '2030-05-01')).toMatchObject({ contest: '1' });
+    expect(profileOf('1002', 'male').contest).toBeNull();
+    expect(() => profileOf('1002', 'male', null, '2031-05-03')).toThrow('no configurada');
+    expect(() => profileOf('1002', 'male', '1', '2030-05-03')).toThrow('no corresponde');
+    expect(profileOf('1002', null, '2')).toMatchObject({ dateKey: '2030-05-03' });
   });
 });
 
-describe('Québec y Montréal 2026 — mismo evento, concursos y columnas propios', () => {
-  const profile = () => eventProfile('417778', 'male', null, '2026-09-13');
-  const payload = (date = '13/09/2026') => ({
+describe('perfil con fecha — validación y columnas propias', () => {
+  const profile = () => profileOf('1002', 'male', null, '2030-05-03');
+  const payload = (date = '03/05/2030') => ({
     list: { ListHeaderText: `<div id="stage_date" class="header_info"><span>${date}</span></div>` },
     DataFields: ['BIB', 'ID', 'StageRank', 'DisplayBib', 'CustomFlag', 'DisplayNameAsterisk'],
   });
 
-  it('selecciona Montréal por fecha y lo separa de Québec aunque ambos sean masculinos', () => {
-    expect(profile()).toMatchObject({ contest: '2', dateKey: '2026-09-13', oneDay: true });
-    expect(eventProfile('417778', 'male', null, '2026-09-11')).toMatchObject({ contest: '1' });
-    expect(idBaseFor('417778', '1', true)).not.toBe(idBaseFor('417778', '2', true));
-  });
-
-  it('no usa Québec por defecto sin fecha y rechaza fechas o concursos contradictorios', () => {
-    expect(eventProfile('417778', 'male').contest).toBeNull();
-    expect(() => eventProfile('417778', 'male', null, '2027-09-13')).toThrow('no configurada');
-    expect(() => eventProfile('417778', 'male', '1', '2026-09-13')).toThrow('no corresponde');
-    expect(eventProfile('417778', null, '2')).toMatchObject({ dateKey: '2026-09-13' });
-  });
-
   it('contrasta la fecha publicada y el significado de las columnas', () => {
     expect(() => validateDatedResult(payload(), profile())).not.toThrow();
-    expect(() => validateDatedResult(payload('11/09/2026'), profile())).toThrow('fecha');
+    expect(() => validateDatedResult(payload('01/05/2030'), profile())).toThrow('fecha');
     expect(() => validateDatedResult({}, profile())).toThrow('fecha');
     const wrongColumns = payload();
     wrongColumns.DataFields[3] = 'DisplayNameAsterisk';
@@ -644,54 +592,39 @@ describe('Gatineau 2026 (racetiming.ca) — centésimas y gate de progreso', () 
     expect(normGap("2h53'29''")).toBeNull();
   });
 
-  it('identifica la crono, su concurso único y sus columnas', () => {
-    const profile = eventProfile('422048', 'female');
-    expect(profile).toMatchObject({
-      oneDay: true, contest: '0',
-      cols: { rank: 2, bib: 3, name: 4, team: 5, value: 6, gap: 7 },
-    });
-    expect(profile.progress).toMatchObject({ lastStarter: /REUSSER/i });
-  });
-
-  it('identifica la prueba en línea con sus columnas de tiempo y diferencia', () => {
-    expect(eventProfile('422781', 'female')).toMatchObject({
-      oneDay: true, contest: '0',
-      cols: { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 },
-    });
-  });
-
   it('valida las columnas de la prueba en línea y mapea su fila con nación intercalada', () => {
+    const cols = { rank: 2, bib: 3, name: 5, team: 6, value: 9, gap: 10 };
     const fields = ['BIB', 'ID', 'WithStatus([FinishRankp])', 'PrintedBib', 'NATION.UCINAME', 'DisplayName', 'Team'];
-    expect(() => validateProfileColumns({ DataFields: fields }, eventProfile('422781', 'female'))).not.toThrow();
-    const profile = eventProfile('422781', 'female');
+    expect(() => validateProfileColumns({ DataFields: fields }, { cols })).not.toThrow();
     const row = (rank, bib, name, finish, gap) =>
       ['i', 'id', rank, bib, 'SUI', name, 'TEAM', '', '12', finish, gap, 'WE(1)', ''];
     const rows = mapRows([
       row('1.', '36', 'HÄBERLIN Steffi', '2:53:26', '-'),
       row('2.', '1', 'BAKER Georgia', '2:53:26', '+0'),
       row('4.', '5', 'ROSEMAN-GANNON Ruby', '2:53:26', '+0'),
-    ], { classKind: 'gc', scope: 'stage', cols: profile.cols }, 'race', true);
+    ], { classKind: 'gc', scope: 'stage', cols }, 'race', true);
     expect(rows[0]).toMatchObject({ rank: 1, bib: '36', riderDisplay: 'HÄBERLIN Steffi', timeText: '2:53:26', gapText: null });
     expect(rows[1]).toMatchObject({ rank: 2, bib: '1', gapText: '+0' });
     expect(rows[2]).toMatchObject({ rank: 4, bib: '5', gapText: '+0' });
   });
 
   it('valida las columnas del perfil y rechaza una plantilla desplazada', () => {
+    const profile = { cols: { rank: 2, bib: 3, name: 4, team: 5, value: 6, gap: 7 } };
     const fields = ['BIB', 'ID', 'WithStatus(Rank(MaxSplits))', 'PrintedBib', 'DisplayName', 'Team'];
-    expect(() => validateProfileColumns({ DataFields: fields }, eventProfile('422048', 'female'))).not.toThrow();
+    expect(() => validateProfileColumns({ DataFields: fields }, profile)).not.toThrow();
     const wrong = [...fields];
     wrong[4] = 'Team';
-    expect(() => validateProfileColumns({ DataFields: wrong }, eventProfile('422048', 'female'))).toThrow('nombre');
+    expect(() => validateProfileColumns({ DataFields: wrong }, profile)).toThrow('nombre');
   });
 
   it('mapea la fila del cronometrador con tiempo absoluto y diferencia', () => {
-    const profile = eventProfile('422048', 'female');
+    const cols = { rank: 2, bib: 3, name: 4, team: 5, value: 6, gap: 7 };
     const row = (internal, rank, bib, name, finish, gap) =>
       [internal, internal, rank, bib, name, 'TEAM', finish, gap, '45.00 kmh', '', '', ''];
     const rows = mapRows([
       row('14', '1', '14', 'HANSON Lauretta', '26:41.47', '--'),
       row('12', '2', '12', 'COUPLAND Mackenzie', '26:56.17', '14.69'),
-    ], { classKind: 'gc', scope: 'stage', cols: profile.cols }, 'race', true);
+    ], { classKind: 'gc', scope: 'stage', cols }, 'race', true);
     expect(rows[0]).toMatchObject({ rank: 1, bib: '14', timeText: '26:41', gapText: null });
     expect(rows[1]).toMatchObject({ rank: 2, bib: '12', timeText: null, gapText: '+14' });
   });

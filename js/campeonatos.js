@@ -10,11 +10,11 @@ import { supabase, countryFlag, rdLocation, filterBroadcastsByRegion,
          formatTimeUser, raceName, esc, setMeta, setMetaProperty, jornadaUrl, setPressed }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
-import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
+import { openRaceDataModal, openResultsModal, hasModalData, isRaceConcluded, loadInhouseStageSet } from './race-data-modal.js';
 import { tvBadge, buildAssetButtons } from './race-assets.js';
-import { initCintillo } from './cintillo.js?v=20260913cxscopes';
+import { initCintillo } from './cintillo.js';
 import { CAMP, championshipSlot, slotLabels, campTitle,
-         isChampTodayFilterActive, campTodayKey } from './campeonatos-config.js?v=20260924sitefix';
+         isChampTodayFilterActive, campTodayKey } from './campeonatos-config.js';
 
 // Mapas globales para resolver el modal al hacer click en una celda.
 const _rdById   = {};

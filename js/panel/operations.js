@@ -7,12 +7,11 @@ import { confirmDialog } from '../components/dialog.js';
 import {
   operationSourceCatalog, operationRunStatus, selectOperationHistory,
   shortOperationRevision,
-} from '../services/operations-monitor.js?v=20260912cxruntime';
+} from '../services/operations-monitor.js';
 import { showToast } from './helpers.js';
 
 // ── Monitor de automatizaciones del VPS ─────────────────────────
 let _operationsReady = false;
-let _operationsRefreshTimer = null;
 let _operationsRefreshVersion = 0;
 let _operationsQueues = {};
 const _operationsForcing = new Set();
@@ -284,7 +283,7 @@ export function setupOperationsView() {
   if (!_operationsReady) {
     _operationsReady = true;
     document.getElementById('operationsRefreshBtn').addEventListener('click', refreshOperationsMonitor);
-    _operationsRefreshTimer = window.setInterval(() => {
+    window.setInterval(() => {
       if (document.getElementById('operationsView').style.display !== 'none') refreshOperationsMonitor();
     }, 30_000);
   }

@@ -131,9 +131,12 @@ final class TodayHighlightsViewModel {
                     if let rdRaceId = rd?.raceId { return racesById[rdRaceId] }
                     return nil
                 }()
-                // Campeonatos y Fichajes: destinos sin carrera (pantalla nativa).
+                // Campeonatos, Fichajes y Calendario: destinos sin carrera (pantalla nativa).
                 if h.targetType == "championships" || h.targetType == "transfers" {
                     return TodayHighlightView(highlight: h, race: nil, raceDay: nil)
+                }
+                if h.targetType == "season" {
+                    return h.seasonYear == nil ? nil : TodayHighlightView(highlight: h, race: nil, raceDay: nil)
                 }
                 guard let race else {
                     print("[TodayHighlights] DROP \(h.id) — no race resolved (raceId=\(h.raceId ?? "nil") raceDayId=\(h.raceDayId ?? "nil"))")

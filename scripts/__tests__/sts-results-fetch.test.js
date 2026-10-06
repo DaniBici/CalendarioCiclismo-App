@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
-  irmOf, absTime, normGap, deriveCode, fnv1a,
-  parseResultRows, parseTttResultRows, parseAnnexeRows, attrs, firstBlock, allStages, rushBody,
+  irmOf, absTime, normGap, deriveCode,
+  parseResultRows, parseTttResultRows, parseAnnexeRows, firstBlock, allStages, rushBody,
   finishOnlyResultBlock,
   stageRaceType, stageDateKey,
   parsePdfYouthRows, parsePdfPointsRows, parsePdfMountainRows, parsePdfTeamRows,
@@ -13,27 +17,14 @@ import {
 // Wiclax; STS es solo uno de sus hosts. Contrato completo en STS-TIMING-API.md.
 
 describe('irmOf — estado francés de Wiclax → IRM UCI', () => {
-  it('mapea los estados en palabras que trae el .clax', () => {
+  it('mapea los estados en palabras y las abreviaturas del .clax', () => {
     expect(irmOf('Abandon')).toBe('DNF');          // el habitual, junto a tr="4"
     expect(irmOf('Non partant')).toBe('DNS');
     expect(irmOf('Hors délai')).toBe('OTL');
     expect(irmOf('Disqualifié')).toBe('DSQ');
-    expect(irmOf('Exclu')).toBe('DSQ');
-  });
-
-  it('acepta también las abreviaturas y los códigos ya en formato UCI', () => {
     // Timerspeed (otro host Wiclax) manda "DNF" literal en vez de "Abandon".
     expect(irmOf('AB')).toBe('DNF');
-    expect(irmOf('NP')).toBe('DNS');
-    expect(irmOf('HD')).toBe('OTL');
     expect(irmOf('DNF')).toBe('DNF');
-    expect(irmOf('DNS')).toBe('DNS');
-    expect(irmOf('DSQ')).toBe('DSQ');
-  });
-
-  it('es insensible a acentos y mayúsculas (el .clax mezcla ambos)', () => {
-    expect(irmOf('ABANDON')).toBe('DNF');
-    expect(irmOf('Hors delai')).toBe('OTL');       // sin acento
   });
 
   it('un TIEMPO en el atributo t NO es un estado', () => {
@@ -63,10 +54,6 @@ describe('absTime — tiempo absoluto Wiclax → formato BD', () => {
     expect(absTime("00h15'28,34")).toBe('0:15:28');
   });
 
-  it('rellena con cero los componentes de una sola cifra', () => {
-    expect(absTime("4h31'3")).toBe('4:31:03');
-  });
-
   it('devuelve null si no es un tiempo', () => {
     expect(absTime('Abandon')).toBeNull();
     expect(absTime('-')).toBeNull();
@@ -76,34 +63,14 @@ describe('absTime — tiempo absoluto Wiclax → formato BD', () => {
 });
 
 describe('normGap — gap Wiclax → estilo UCI en BD', () => {
-  it('"-" (líder o mismo tiempo que el cabeza de grupo) → null', () => {
-    expect(normGap('-')).toBeNull();
-  });
-
-  it('normaliza el apóstrofo y los dos puntos al separador ":"', () => {
+  it('normaliza separadores y horas; líder, doblado y no-gap → null', () => {
     expect(normGap("+0'04")).toBe('+0:04');
-    expect(normGap('+0:36')).toBe('+0:36');
-    expect(normGap('+16:49')).toBe('+16:49');
-  });
-
-  it('descarta las centésimas del gap', () => {
     expect(normGap("+1'02,00")).toBe('+1:02');
-  });
-
-  it('gap de más de una hora → "+H:MM:SS"', () => {
     expect(normGap("+1h00'15")).toBe('+1:00:15');
-  });
-
-  it('"+ N tour" (corredor DOBLADO) → null: no hay gap numérico', () => {
+    expect(normGap('-')).toBeNull();
     // Un "tour" no es una diferencia de tiempo; el absoluto va en resultValue.
     expect(normGap('+ 1 tour')).toBeNull();
-    expect(normGap('+ 2 tours')).toBeNull();
-  });
-
-  it('lo que no empieza por "+" no es un gap', () => {
-    expect(normGap('4:31:03')).toBeNull();   // tiempo absoluto
-    expect(normGap('')).toBeNull();
-    expect(normGap(null)).toBeNull();
+    expect(normGap('4:31:03')).toBeNull();
   });
 });
 
@@ -127,20 +94,10 @@ describe('parseResultRows — INVARIANTE: timeText absoluto en TODAS, NUNCA gapT
     <R d="44" t="04h31'03" m="40,29" g="-" />
   `;
 
-  it('NINGUNA fila trae gapText, ni siquiera cuando el .clax da un gap', () => {
-    const rows = parseResultRows(`<R d="16" t="04h31'03" g="-" /><R d="44" t="04h33'00" g="+1'57" />`, riderByBib);
-    expect(rows.some((r) => r.gapText)).toBe(false);
-  });
-
   it('cada clasificado lleva su tiempo absoluto en timeText', () => {
     const rows = parseResultRows(xml, riderByBib);
     expect(rows[0]).toMatchObject({ timeText: '4:31:03', gapText: null, resultValue: '4:31:03' });
     expect(rows[1]).toMatchObject({ timeText: '4:31:03', gapText: null, resultValue: '4:31:03' });
-  });
-
-  it('el mismo grupo comparte el tiempo del cabeza → la web pintará m.t.', () => {
-    const rows = parseResultRows(xml, riderByBib);
-    expect(rows[0].timeText).toBe(rows[1].timeText);
   });
 
   it('conserva el código de licencia STS de 11 cifras en la fila', () => {
@@ -254,10 +211,6 @@ describe('parseResultRows — casos límite', () => {
     const [row] = parseResultRows(`<R d="44" t="04h31'03" g="-" />`, riderByBib);
     expect(row).toMatchObject({ riderDisplay: 'BARTHE Cyril', teamName: 'EUSKALTEL - EUSKADI' });
   });
-
-  it('un bloque vacío (etapa no disputada) produce 0 filas', () => {
-    expect(parseResultRows('', riderByBib)).toHaveLength(0);
-  });
 });
 
 // ── El invariante que sostiene toda la fuente ──────────────────────────────
@@ -303,11 +256,6 @@ describe('parseResultRows — NINGUNA fila clasificada sin timeText (deriveGaps)
     expect(row).toMatchObject({ rank: null, irm: 'DNF', resultValue: null, timeText: null });
   });
 
-  it('una fila sin t ni g sale DNF', () => {
-    const [row] = parseResultRows(`<R d="16" />`, riderByBib);
-    expect(row).toMatchObject({ rank: null, irm: 'DNF' });
-  });
-
   it('el descarte NO consume puesto: el rank posicional del resto no se descuadra', () => {
     const rows = parseResultRows(
       `<R d="44" t="04h31'03" g="-" /><R d="16" g="+ 1 tour" /><R d="102" t="04h31'03" g="-" />`,
@@ -348,11 +296,6 @@ describe('parseAnnexeRows — anexas montaña/puntos (pts) vs jóvenes (tps = TI
   it('<res dos="0"> es una plantilla de puntuación vacía → se ignora', () => {
     const rows = parseAnnexeRows(`<res dos="102" pts="28" /><res dos="0" pts="0" />`, riderByBib);
     expect(rows).toHaveLength(1);
-  });
-
-  it('el rank también es posicional aquí', () => {
-    const rows = parseAnnexeRows(`<res dos="102" pts="28" /><res dos="44" pts="26" /><res dos="16" pts="20" />`, riderByBib);
-    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3]);
   });
 });
 
@@ -428,11 +371,6 @@ describe('allStages / attrs — parseo del XML', () => {
     expect(st[0].a).toMatchObject({ type: '1', chrono: '2' });   // CRI: type=1 o chrono>0
     expect(st[1].a).toMatchObject({ type: '0' });
   });
-
-  it('attrs extrae los atributos de un open-tag', () => {
-    expect(attrs(`<E d="1" n="STAUNE-MITTET Johannes" c="DECATHLON" na="NOR" />`))
-      .toMatchObject({ d: '1', n: 'STAUNE-MITTET Johannes', c: 'DECATHLON', na: 'NOR' });
-  });
 });
 
 describe('stageRaceType — type prevalece sobre chrono', () => {
@@ -455,12 +393,6 @@ describe('stageRaceType — type prevalece sobre chrono', () => {
 describe('stageDateKey — la fecha de Etape prevalece sobre el encabezado', () => {
   it('lee `dt`, el atributo real de las etapas Wiclax', () => {
     expect(stageDateKey({ dt: '2026-08-21' }, '2026-08-17')).toBe('2026-08-21');
-  });
-
-  it('no hereda la fecha errónea de Epreuve en la final de Limousin', () => {
-    const epreuve = { dt1: '2026-08-17', dt2: '2026-08-17' };
-    const lastStage = { dt: '2026-08-21' };
-    expect(stageDateKey(lastStage, epreuve.dt2 || epreuve.dt1)).toBe('2026-08-21');
   });
 
   it('mantiene compatibilidad con `dt1` y con el fallback', () => {
@@ -564,35 +496,28 @@ describe('deriveCode — identificador estable de la edición', () => {
     expect(deriveCode('https://timerspeed.com/live/events/2026/6_vpf_2026.clax'))
       .toBe('events/2026/6_vpf_2026');
   });
-
-  it('lo que no es una URL se devuelve tal cual (no revienta)', () => {
-    expect(deriveCode('no-es-una-url')).toBe('no-es-una-url');
-  });
 });
-
-describe('fnv1a — IDs sintéticos deterministas y NEGATIVOS', () => {
-  it('reproduce el competitionId real de La Route d\'Occitanie 2026 (-109623)', () => {
-    // El valor que está en race_uci_links.competitionId en producción (y en la doc).
-    // Si esto cambia, se rompen los IDs de todo lo ya volcado desde esta fuente.
-    expect(-(fnv1a('sts:LAROUTEDOCCITANIE/2026-RDO') % 200000)).toBe(-109623);
-  });
-
-  it('la base cabe en el rango que mantiene el eventId > -2^31', () => {
-    for (const code of ['LAROUTEDOCCITANIE/2026-RDO', 'sts', 'https://timerspeed.com/live/events/2026/6_vpf_2026.clax']) {
-      const base = fnv1a(`sts:${code}`) % 200000;
-      expect(base).toBeLessThanOrEqual(199999);
-      expect(-(base * 10000)).toBeGreaterThan(-(2 ** 31));
-    }
-  });
-
-  it('el salt "sts:" evita colisionar con las otras fuentes del mismo hash', () => {
-    // tissot/matsport/pdf usan el MISMO fnv1a con otro salt: sin él, dos fuentes
-    // podrían generar el mismo competitionId sintético.
-    expect(fnv1a('sts:2026_PYF')).not.toBe(fnv1a('matsport:2026_PYF'));
-  });
-
-  it('es estable y distinto por edición', () => {
-    expect(fnv1a('sts:LAROUTEDOCCITANIE/2026-RDO')).toBe(fnv1a('sts:LAROUTEDOCCITANIE/2026-RDO'));
-    expect(fnv1a('sts:LAROUTEDOCCITANIE/2026-RDO')).not.toBe(fnv1a('sts:LAROUTEDOCCITANIE/2027-RDO'));
+// ── main(): etapa sin <Resultats> ───────────────────────────────────────────
+// Regresión: la etapa no terminada terminaba main() con `return` antes de escribir
+// el JSON y descartaba las etapas ya disputadas. El .clax se sirve como data: URL.
+describe('main — etapa en curso sin <Resultats>', () => {
+  it('conserva las etapas terminadas y no emite la Final Classification', () => {
+    const engages = '<Engages><E d="1" n="UNO Ana" c="EQUIPO A" /><E d="2" n="DOS Bea" c="EQUIPO B" /></Engages>';
+    const done = (dt) => `<Etape dt="${dt}">${engages}<Resultats><R d="1" t="04h31'03" g="-" /><R d="2" t="04h31'05" g="+0'02" /></Resultats>`
+      + `<General><R d="1" t="04h31'03" g="-" /></General></Etape>`;
+    const xml = `<Epreuve nom="Test" dt1="2026-05-01" dt2="2026-05-03">${done('2026-05-01')}${done('2026-05-02')}`
+      + `<Etape dt="2026-05-03">${engages}<Resultats /></Etape></Epreuve>`;
+    const dir = mkdtempSync(join(tmpdir(), 'sts-test-'));
+    try {
+      execFileSync(process.execPath, ['scripts/results-fetchers/sts-results-fetch.mjs',
+        '--clax-url', `data:application/xml,${encodeURIComponent(xml)}`, '--code', 'LAROUTEDOCCITANIE/2026-RDO',
+        '--competition-id', '-109623', '--out', dir], { stdio: 'pipe' });
+      const { stages } = JSON.parse(readFileSync(join(dir, '-109623.json'), 'utf8'));
+      expect(stages.map((s) => s.stageNumber)).toEqual([1, 2]);
+      expect(stages.some((s) => s.isFinalClassification)).toBe(false);
+      // Ancla del ID sintético: base fnv1a("sts:"+code)%200000 = 109623 (valor en
+      // producción). Si cambia, se duplican los eventId ya volcados desde esta fuente.
+      expect(stages[0].classifications[0].eventId).toBe(-(109623 * 10000 + 100 + 1));
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

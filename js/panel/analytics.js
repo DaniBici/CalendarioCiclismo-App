@@ -245,7 +245,7 @@ async function loadAllAnalytics(force = false) {
     }
     if (containerId) {
       const el = document.getElementById(containerId);
-      if (el) el.innerHTML = `<div class="ga-placeholder" style="color:var(--red)">${esc(msg)}</div>`;
+      if (el) el.innerHTML = `<div class="ga-placeholder u-c-red">${esc(msg)}</div>`;
     }
   });
   notice.style.display = configMissing ? 'flex' : 'none';
@@ -255,7 +255,7 @@ async function loadAllAnalytics(force = false) {
   } else {
     console.warn('Platform report not available:', platformsResult.reason?.message);
     document.getElementById('gaPlatforms').innerHTML =
-      '<div class="ga-placeholder" style="color:var(--text-dim)">Redespliega la edge function <code>ga-analytics</code> para activar el reporte de plataforma.</div>';
+      '<div class="ga-placeholder u-c-dim">Redespliega la edge function <code>ga-analytics</code> para activar el reporte de plataforma.</div>';
   }
 
   // Push subscriptions count — queried directly from Supabase, independent of GA
@@ -326,10 +326,6 @@ function formatDuration(seconds) {
   return `${m}m ${sec}s`;
 }
 
-function formatPercent(val) {
-  return (Number(val) * 100).toFixed(1) + '%';
-}
-
 // ── Render KPI overview ──────────────────────────────────────────
 function renderOverviewKpis(data) {
   const row = data?.rows?.[0];
@@ -377,7 +373,7 @@ function renderPlatforms(data) {
     const label    = platformLabels[key] || platform;
     const color    = platformColors[key] || 'var(--accent)';
     const text     = pct >= 8 ? `<span class="ga-stacked-label">${esc(label)} ${pct.toFixed(1)}%</span>` : '';
-    html += `<div class="ga-stacked-segment" data-platform="${key}" style="width:${pct}%;background:${color};min-width:${pct > 0 ? 3 : 0}px" data-tip="${esc(label)} · ${pct.toFixed(1)}%">${text}</div>`;
+    html += `<div class="ga-stacked-segment${pct > 0 ? ' ga-stacked-segment--filled' : ''}" data-platform="${key}" style="--ga-size:${pct}%;--ga-color:${color}" data-tip="${esc(label)} · ${pct.toFixed(1)}%">${text}</div>`;
   }
   html += '</div>';
 
@@ -391,7 +387,7 @@ function renderPlatforms(data) {
     const users    = formatNumber(gaMetricValue(row, 0));
     const newUsersMetric = _gaHideNewUsers ? '' :
       `<div class="ga-platform-card__metric"><span class="ga-platform-card__val">${formatNumber(gaMetricValue(row, 3))}</span><span class="ga-platform-card__lbl">Nuevos</span></div>`;
-    html += `<div class="ga-platform-card" data-platform="${key}" style="background:${color};border-color:${color}">
+    html += `<div class="ga-platform-card" data-platform="${key}" style="--ga-color:${color}">
       <div class="ga-platform-card__name">${esc(label)}</div>
       <div class="ga-platform-card__metrics">
         <div class="ga-platform-card__metric"><span class="ga-platform-card__val">${users}</span><span class="ga-platform-card__lbl">Usuarios</span></div>
@@ -474,12 +470,12 @@ function renderPeakHour(data) {
     for (const key of PLATFORM_ORDER) {
       if (!bucket[key]) continue;
       const segPct = bucket.total > 0 ? (bucket[key] / bucket.total * 100) : 0;
-      segments += `<div class="ga-hour-seg" data-platform="${key}" style="bottom:${cumulative}%;height:${segPct}%;background:${PLATFORM_COLORS[key]}"></div>`;
+      segments += `<div class="ga-hour-seg" data-platform="${key}" style="--ga-offset:${cumulative}%;--ga-size:${segPct}%;--ga-color:${PLATFORM_COLORS[key]}"></div>`;
       cumulative += segPct;
     }
 
     html += `<div class="ga-hour-bar${isPeak ? ' ga-hour-bar--peak' : ''}" data-tip="${esc(tip)}">
-      <div class="ga-hour-fill" style="height:${pct}%">${segments}</div>
+      <div class="ga-hour-fill" style="--ga-size:${pct}%">${segments}</div>
       <div class="ga-hour-label">${h}</div>
     </div>`;
   }
@@ -567,7 +563,7 @@ function renderDailyPageviews(data, platformTotals) {
   html += '<div class="ga-day-legend">';
   for (const key of PLATFORM_ORDER) {
     if (!legendTotals[key]) continue;
-    html += `<div class="ga-day-legend__item"><span class="ga-day-legend__swatch" style="background:${PLATFORM_COLORS[key]}"></span>${PLATFORM_LABELS[key]} <span class="ga-day-legend__val">${formatNumber(legendTotals[key])}</span></div>`;
+    html += `<div class="ga-day-legend__item"><span class="ga-day-legend__swatch" style="--ga-color:${PLATFORM_COLORS[key]}"></span>${PLATFORM_LABELS[key]} <span class="ga-day-legend__val">${formatNumber(legendTotals[key])}</span></div>`;
   }
   html += '</div>';
 
@@ -589,13 +585,13 @@ function renderDailyPageviews(data, platformTotals) {
     for (const key of PLATFORM_ORDER) {
       if (!day[key]) continue;
       const segPct = day.total > 0 ? (day[key] / day.total * 100) : 0;
-      segments += `<div class="ga-day-seg" data-platform="${key}" style="bottom:${cumulative}%;height:${segPct}%;background:${PLATFORM_COLORS[key]}"></div>`;
+      segments += `<div class="ga-day-seg" data-platform="${key}" style="--ga-offset:${cumulative}%;--ga-size:${segPct}%;--ga-color:${PLATFORM_COLORS[key]}"></div>`;
       cumulative += segPct;
     }
 
     html += `<div class="ga-day-bar" data-tip="${esc(tip)}">
       <div class="ga-day-bar__col">
-        <div class="ga-day-stack" style="height:${totalPct}%">${segments}</div>
+        <div class="ga-day-stack" style="--ga-size:${totalPct}%">${segments}</div>
       </div>
       <div class="ga-day-label">${showLabel ? fmtDay(day.iso) : ''}</div>
     </div>`;
@@ -716,7 +712,7 @@ function renderWeeklyPageviews(data, platformTotals) {
   html += '<div class="ga-day-legend">';
   for (const key of PLATFORM_ORDER) {
     if (!legendTotals[key]) continue;
-    html += `<div class="ga-day-legend__item"><span class="ga-day-legend__swatch" style="background:${PLATFORM_COLORS[key]}"></span>${PLATFORM_LABELS[key]} <span class="ga-day-legend__val">${formatNumber(legendTotals[key])}</span></div>`;
+    html += `<div class="ga-day-legend__item"><span class="ga-day-legend__swatch" style="--ga-color:${PLATFORM_COLORS[key]}"></span>${PLATFORM_LABELS[key]} <span class="ga-day-legend__val">${formatNumber(legendTotals[key])}</span></div>`;
   }
   html += '</div>';
 
@@ -735,13 +731,13 @@ function renderWeeklyPageviews(data, platformTotals) {
     for (const key of PLATFORM_ORDER) {
       if (!week[key]) continue;
       const segPct = week.total > 0 ? (week[key] / week.total * 100) : 0;
-      segments += `<div class="ga-day-seg" data-platform="${key}" style="bottom:${cumulative}%;height:${segPct}%;background:${PLATFORM_COLORS[key]}"></div>`;
+      segments += `<div class="ga-day-seg" data-platform="${key}" style="--ga-offset:${cumulative}%;--ga-size:${segPct}%;--ga-color:${PLATFORM_COLORS[key]}"></div>`;
       cumulative += segPct;
     }
 
     html += `<div class="ga-day-bar" data-tip="${esc(tip)}">
       <div class="ga-day-bar__col">
-        <div class="ga-day-stack" style="height:${totalPct}%">${segments}</div>
+        <div class="ga-day-stack" style="--ga-size:${totalPct}%">${segments}</div>
       </div>
       <div class="ga-day-label">${showLabel ? fmtWeek(week) : ''}</div>
     </div>`;
@@ -767,7 +763,7 @@ function renderTopPages(data) {
     const duration = formatDuration(gaMetricValue(row, 2));
     const pct      = maxViews > 0 ? (views / maxViews * 100) : 0;
     html += `<tr>
-      <td class="ga-bar-cell"><span class="ga-bar" style="width:${pct}%"></span><span style="position:relative">${page}</span></td>
+      <td class="ga-bar-cell"><span class="ga-bar" style="--ga-size:${pct}%"></span><span class="u-relative">${page}</span></td>
       <td>${users}</td><td>${formatNumber(views)}</td><td>${duration}</td>
     </tr>`;
   }
@@ -793,8 +789,8 @@ function renderTopStages(data) {
     const users     = formatNumber(gaMetricValue(row, 1));
     const pct       = maxViews > 0 ? (views / maxViews * 100) : 0;
     html += `<tr>
-      <td class="ga-bar-cell" style="width:35%"><span class="ga-bar" style="width:${pct}%"></span><span style="position:relative">${stageName}</span></td>
-      <td style="width:35%">${raceName}</td>
+      <td class="ga-bar-cell u-w-35pc"><span class="ga-bar" style="--ga-size:${pct}%"></span><span class="u-relative">${stageName}</span></td>
+      <td class="u-w-35pc">${raceName}</td>
       <td>${users}</td><td>${formatNumber(views)}</td>
     </tr>`;
   }

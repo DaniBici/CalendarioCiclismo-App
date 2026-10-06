@@ -137,13 +137,12 @@ describe('colector aislado de emisiones Sporza', () => {
     expect(() => parseSporzaLivestreamSchedule(fixture('sporza-livestream.html'))).toThrow(/fecha de referencia/);
   });
 
-  it('resuelve los días relativos del esquema contra la fecha de referencia', () => {
+  it('resuelve «Vandaag» contra la fecha de referencia', () => {
     const html = fixture('sporza-livestream.html')
-      .replace('Morgen, 17 september 2026', 'Vandaag');
-    expect(parseSporzaLivestreamSchedule(html, { todayKey: '2026-09-16' }))
-      .toHaveLength(2);
-    expect(parseSporzaLivestreamSchedule(fixture('sporza-livestream.html'), {
-      todayKey: '2026-09-16',
-    })).toHaveLength(2);
+      .replace('>18 september 2026<', '>Vandaag<');
+    expect(parseSporzaLivestreamSchedule(html, { todayKey: '2026-09-16' })[0]).toMatchObject({
+      title: 'Kampioenschap van Vlaanderen', dateKey: '2026-09-16',
+      startTimeUtc: '2026-09-16T13:30:00.000Z',
+    });
   });
 });

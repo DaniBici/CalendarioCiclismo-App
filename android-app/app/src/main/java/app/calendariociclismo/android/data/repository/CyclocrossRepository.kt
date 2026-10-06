@@ -7,6 +7,7 @@ import app.calendariociclismo.android.data.model.CxDetail
 import app.calendariociclismo.android.data.model.CxRace
 import app.calendariociclismo.android.data.model.CxRound
 import app.calendariociclismo.android.data.model.CxTournament
+import app.calendariociclismo.android.data.model.CxTournamentGeneral
 import app.calendariociclismo.android.util.CxPresentation
 import app.calendariociclismo.android.util.CyclocrossLogic
 import java.time.YearMonth
@@ -28,6 +29,8 @@ interface CxRemote {
         cxTournamentNextDate(season, date, tournamentId)
     /** `true` si el torneo tiene alguna carrera publicada fuera de [excluding]. */
     suspend fun cxTournamentHasRaces(tournamentId: String, excluding: List<String>): Boolean = true
+    suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = throw java.io.IOException("Offline")
+    suspend fun cxTournamentGeneral(tournamentId: String, seasonKey: String): CxTournamentGeneral = throw java.io.IOException("Offline")
 }
 
 data class CxCached<T>(val data: T, val offline: Boolean = false, val cachedAt: Long)
@@ -109,6 +112,23 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             emptyMap()
+        }
+    }
+
+    /** Clasificaciones generales de un torneo; el fallo se propaga. */
+    suspend fun tournamentGeneral(tournamentId: String, seasonKey: String): CxTournamentGeneral =
+        remote.cxTournamentGeneral(tournamentId, seasonKey)
+
+    /** Carreras de las rondas de una general (nombre y enlace de cada columna).
+     *  Sin conexión, las que ya estén en la caché de meses. */
+    suspend fun roundRaces(ids: List<String>): List<CxRace> {
+        if (ids.isEmpty()) return emptyList()
+        return try {
+            remote.cxRacesByIds(ids)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            val wanted = ids.toSet()
+            dao.allMonths().flatMap { json.decodeFromString<List<CxRace>>(it.payload) }.filter { it.id in wanted }.distinctBy { it.id }
         }
     }
 

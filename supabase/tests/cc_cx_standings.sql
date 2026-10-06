@@ -89,8 +89,10 @@ BEGIN
   rejected:=false;
   BEGIN PERFORM public.cx_publish_standings(current_setting('cc.cx_standings_tournament'),'ME',snapshot->>'digest',calculation);
   EXCEPTION WHEN serialization_failure THEN rejected:=true; END;
-  IF NOT rejected OR EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "tournamentId"=current_setting('cc.cx_standings_tournament') AND category='ME') THEN
-    RAISE EXCEPTION 'Se conserva o publica una general calculada con entrada obsoleta'; END IF;
+  -- La general anterior sigue visible hasta que el recálculo la sustituye.
+  IF NOT rejected OR NOT EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "tournamentId"=current_setting('cc.cx_standings_tournament') AND category='ME')
+    OR NOT EXISTS(SELECT 1 FROM private.cx_standings_queue WHERE "tournamentId"=current_setting('cc.cx_standings_tournament') AND category='ME' AND status='pending') THEN
+    RAISE EXCEPTION 'Se publica una general con entrada obsoleta, se retira la anterior o no se encola el recálculo'; END IF;
   snapshot:=public.cx_standings_snapshot(current_setting('cc.cx_standings_tournament'),'ME');
   calculation:=jsonb_set(calculation,'{rows}',jsonb_build_array(calculation#>'{rows,0}'));
   PERFORM public.cx_publish_standings(current_setting('cc.cx_standings_tournament'),'ME',snapshot->>'digest',calculation);
@@ -184,8 +186,8 @@ BEGIN
     RAISE EXCEPTION 'La general por tiempo pierde BIGINT o mezcla puntos'; END IF;
   INSERT INTO public.cx_race_categories("raceId",category) VALUES(time_race,'MU');
   UPDATE public.cx_results SET category='MU' WHERE "raceId"=time_race AND category='ME';
-  IF EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "tournamentId"=time_id AND category='ME') THEN
-    RAISE EXCEPTION 'Reasignar resultados deja calculada la categoría anterior'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM private.cx_standings_queue WHERE "tournamentId"=time_id AND category='ME' AND status='pending') THEN
+    RAISE EXCEPTION 'Reasignar resultados no encola el recálculo de la categoría anterior'; END IF;
   UPDATE public.cx_results SET category='ME' WHERE "raceId"=time_race AND category='MU';
   snapshot:=public.cx_standings_snapshot(time_id,'ME');
   PERFORM public.cx_publish_standings(time_id,'ME',snapshot->>'digest',calculation);
@@ -207,7 +209,7 @@ BEGIN
   calculation:=jsonb_set(calculation,'{rows,0,globalRiderId}',to_jsonb(current_setting('cc.cx_standings_woman')));
   PERFORM public.cx_publish_standings(current_setting('cc.cx_standings_tournament'),'WU',snapshot->>'digest',calculation);
   UPDATE public.cx_riders_women SET verified=false WHERE id=current_setting('cc.cx_standings_woman');
-  IF EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "tournamentId"=current_setting('cc.cx_standings_tournament') AND category='WU') THEN
+  IF NOT EXISTS(SELECT 1 FROM private.cx_standings_queue WHERE "tournamentId"=current_setting('cc.cx_standings_tournament') AND category='WU' AND status='pending') THEN
     RAISE EXCEPTION 'Cambiar la identidad/edad no invalida WU derivada'; END IF;
   -- Quitar la regla deja una revisión sin filas; nunca hereda la modalidad élite.
   snapshot:=public.cx_standings_snapshot(time_id,'WJ');
@@ -216,8 +218,9 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM public.cx_standings_state WHERE "tournamentId"=time_id AND category='WJ' AND status='needs_review' AND "engineVersion"=3) THEN
     RAISE EXCEPTION 'Una categoría sin esquema no queda pendiente de revisión'; END IF;
   UPDATE public.cx_riders_men SET id=id||'-changed' WHERE id=current_setting('cc.cx_standings_rider');
-  IF EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "tournamentId"=time_id AND source='computed') THEN
-    RAISE EXCEPTION 'Cambiar el ID sin cambiar nacimiento/verified conserva general obsoleta'; END IF;
+  IF EXISTS(SELECT 1 FROM public.cx_tournament_standings WHERE "globalRiderId"=current_setting('cc.cx_standings_rider'))
+    OR NOT EXISTS(SELECT 1 FROM private.cx_standings_queue WHERE "tournamentId"=time_id AND category='ME' AND status='pending') THEN
+    RAISE EXCEPTION 'Cambiar el ID sin cambiar nacimiento/verified conserva la referencia antigua o no encola recálculo'; END IF;
   snapshot:=public.cx_standings_snapshot(current_setting('cc.cx_standings_tournament'),'ME');
   calculation:='{"engineVersion":3,"category":"ME","unit":"points","status":"empty","issues":[],"breakdown":[],"roundIds":[],"rows":[]}';
   PERFORM public.cx_publish_standings(current_setting('cc.cx_standings_tournament'),'ME',snapshot->>'digest',calculation,true,'manual',

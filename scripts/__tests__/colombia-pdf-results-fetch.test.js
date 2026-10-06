@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertSelectedPdfsParsed, cronoIndividualRow, normalizeColombiaTeamName, parseCode, parseOneDayPdfText, pdfLinksFromRaceHtml, parsePdfText, stageFromLabel, suggestCompetitionId, validateExpectedYear } from '../results-fetchers/colombia-pdf-results-fetch.mjs';
+import { assertSelectedPdfsParsed, cronoIndividualRow, parseCode, parseOneDayPdfText, pdfLinksFromRaceHtml, parsePdfText, stageFromLabel, suggestCompetitionId, validateExpectedYear } from '../results-fetchers/colombia-pdf-results-fetch.mjs';
 
 const layout = `
 CLASIFICACION PRIMERA ETAPA YOPAL-PORE-TRINIDAD
@@ -114,29 +114,13 @@ CLASIFICACION GENERAL DE SUB23
     expect(() => parsePdfText('volta-santa-catarina-2026', 5, text, 6, 2026, '2026-09-05')).toThrow('no de 2026-09-05');
   });
 
-  it('descubre las dos etapas de Clásica Azuero en la estructura Drupal de la página', () => {
-    const html = `
-      <div class="field--name-field-etapas field--type-entity-reference field-items">
-        <a href="/sites/default/files/documents/guia-tecnica-clasica-azuero-2026.pdf">Guia Técnica</a>
-        <a href="/sites/default/files/documents/listado-de-inscritos-clasica-de-azuero-panama-2026.pdf">LISTADO DE INSCRITOS</a>
-        <a href="/sites/default/files/documents/clasificacion-primera-etapa-clasica-azuero-2026.pdf">CLASIFICACION PRIMERA ETAPA</a>
-        <a href="/sites/default/files/documents/clasificacion-segunda-etapa-clasica-azuero-2026.pdf">CLASIFICACION SEGUNDA ETAPA</a>
-      </div>`;
-    expect(pdfLinksFromRaceHtml(html).map(({ stageNumber, href }) => [stageNumber, href])).toEqual([
-      [1, 'https://www.clasificacionesdelciclismocolombiano.com/sites/default/files/documents/clasificacion-primera-etapa-clasica-azuero-2026.pdf'],
-      [2, 'https://www.clasificacionesdelciclismocolombiano.com/sites/default/files/documents/clasificacion-segunda-etapa-clasica-azuero-2026.pdf'],
-    ]);
-    expect(stageFromLabel('CLASIFICACIÓN ETAPA 2')).toBe(2);
-    expect(stageFromLabel('CLASIFICACION 1A ETAPA')).toBe(1);
-  });
-
   it('descubre solo PDFs de etapas y normaliza el slug', () => {
     const links = pdfLinksFromRaceHtml('<a href="/files/guia.pdf">Guía técnica</a><a href="/files/e1.pdf">CLASIFICACION PRIMERA ETAPA</a><a href="/files/e2.pdf">CLASIFICACION SEGUNDA ETAPA</a>');
     expect(links.map((link) => link.stageNumber)).toEqual([1, 2]);
     expect(pdfLinksFromRaceHtml('<a href="/files/chitre.pdf">CLASIFICACION GRAN PRIX CHITRE</a>', { oneDay: true })).toMatchObject([{ stageNumber: null }]);
     expect(stageFromLabel('CLASIFICACION SÉPTIMA ETAPA')).toBe(7);
     expect(parseCode('/vuelta-colombia-sistecredito-2026/')).toBe('vuelta-colombia-sistecredito-2026');
-    expect(suggestCompetitionId('vuelta-colombia-sistecredito-2026')).toBeLessThan(0);
+    expect(suggestCompetitionId('vuelta-colombia-sistecredito-2026')).toBe(-67446);   // ancla del ID guardado
   });
 
   it('conserva filas, dorsales, tiempos y generales desde pdftotext -layout', () => {
@@ -252,19 +236,91 @@ DNF: 185 – 10173418301 - BAU Orlando Isidoro BRA - SELEÇÃO GAUCHA
     expect(() => validateExpectedYear('Fecha : 30/08/25', 2026, 'Azuero')).toThrow('incompatible');
     expect(() => validateExpectedYear('Fecha : 30/08/26', 2026, 'Azuero')).not.toThrow();
     expect(() => validateExpectedYear('02.SEPT.2026\fFecha : 01/09/26', 2026, 'Santa Catarina')).not.toThrow();
-    expect(() => validateExpectedYear('\fFecha : 30/08/26', 2026, 'Azuero')).toThrow('no se pudo verificar');
+    expect(() => validateExpectedYear('PORTADA\fFecha : 30/08/26', 2026, 'Azuero')).toThrow('no se pudo verificar');
+    expect(() => validateExpectedYear('  \n\fFecha : 30/09/26', 2026, 'Costa Rica')).not.toThrow();
+  });
+
+  it('lee la fecha en letra de la portada de Word de Vuelta a Colombia', () => {
+    const cover = '   07 DE JUNIO DE 2026                         Luisa Calderón\f Del 2 al 7 de Junio de 2026\nFecha : 07/06/26';
+    expect(() => validateExpectedYear(cover, 2026, 'Vuelta a Colombia Femenina')).not.toThrow();
+    expect(() => validateExpectedYear('  12 DE AGOSTO DE 2025\fFecha : 12/08/25', 2026, 'Vuelta a Colombia')).toThrow('incompatible');
+  });
+
+  it('toma la fecha de la primera página con texto, no la de la etapa siguiente', () => {
+    const pdf = `
+\f
+                     CLASIFICACION ETAPA 1 / STAGE 1 CLASSIFICATION – CAÑAS 109 KM
+Fecha                 : 30/09/26
+Cls     Dor UCI-ID        Apellido,Nombre     Categ Nac Equipo                       Tiempos Diferen.
+------------------------------------------------------------------------------------------------------
+  1      73 10053554791 SOTO,Catalina         ELITE CHI CHILE                        02:55:51
+  2      31 10088833287 SAFRONIUK,Natalia     SUB23 UKR PATOBIKE BMC                      mt.
+Corredores clasificados : 2
+\f
+                                                 ETAPA 2
+                                          1 DE OCTUBRE DE 2026
+`;
+    const { stage } = parsePdfText('vuelta-femenina-costa-rica-2026', 1, pdf, 5, 2026, '2026-09-30');
+    expect(stage.dateKey).toBe('2026-09-30');
+    expect(stage.classifications.find((item) => item.classKind === 'stage').rows.map((row) => row.isoCode2)).toEqual(['cl', 'ua']);
+  });
+
+  it('marca la CRI y deriva la diferencia del tiempo final', () => {
+    const crono = `
+       07 DE JUNIO DE 2026
+\f
+                            CLASIFICACION SEXTA ETAPA C.R.I INGENIO RISARALDA-APIA
+Fecha                : 07/06/26
+Cls     Dor UCI-ID       Apellido,Nombre      Categ Nac Equipo            T.Inter      T.final        Diferen.
+---------------------------------------------------------------------------------------------------------------
+ 1    3 ROJAS,Laura Daniela     ELITE COL TEAM SISTECREDITO               00:21:39:080 01:00:03-060
+ 2   11 CHACON,Lilibeth         ELITE VEN ENEICAT-BECALL                  00:22:10:810 01:00:39-000      36
+ 3   84 ALZATE,Andrea           ELITE COL ORGULLO PAISA-M.ANTIOQUIA       00:27:13:300 01:24:45-310     42:00
+Corredores clasificados : 3
+`;
+    const { stage } = parsePdfText('vuelta-colombia-femenina-2026', 6, crono, 6, 2026, '2026-06-07');
+    expect(stage).toMatchObject({ raceType: 'ITT', dateKey: '2026-06-07' });
+    const rows = stage.classifications.find((item) => item.classKind === 'stage').rows;
+    expect(rows.map((row) => [row.bib, row.rank, row.timeText, row.gapText])).toEqual([
+      ['3', 1, '1:00:03', null],
+      ['11', 2, null, '+36'],
+      ['84', 3, null, '+24:42'],
+    ]);
+  });
+
+  it('lee la portada con día de la semana y los IRM del boletín de comisarios de la Vuelta a Venezuela', () => {
+    const venezuela = (cover) => `Del 4 al 11 de Octubre -2026
+                               RESULTADOS SEGUNDA ETAPA
+                               ${cover}
+\f
+                                        CLASIFICACION SEGUNDA ETAPA
+Fecha                 : 05/10/2026
+Cls     Dor UCI-ID        Apellido,Nombre     Categ Nac Equipo                       Tiempos Diferen. Bonif
+  1       44 10035246548 HOYOS,Juan Diego     ELITE COL TEAM SISTECREDITO            03:52:35          -10
+  2        3 10111097518 RIVAS,Angel          ELITE VEN ALC VALERA CONF GUACAMAYA         mt.          -06
+Corredores clasificados : 2
+\f
+                                                BOLETIN JURADO DE COMISARIOS
+SANCION         2.12.007 # 4.7 ABRIGO TRAS UN VEHICULO
+                CORRDORES 76 ENRIQUEZ DIAZ UCIID 10124212625 Y 104 JAIKER MORILLO UCIID 10095805769
+CORREDORES FUERA DEL LIMITE EN PUNTO INTERMEDIO_: 65 – 84 - 113
+RETIROS:        CORREDORES 83 – 165 - 3
+FDO
+                                           SEGUNDA ETAPA LUNES 5 DE OCTUBRE – 2026
+`;
+    const contradictory = parsePdfText('vuelta-ciclistica-venezuela-2026', 2, venezuela('LUNES 4 DE OCTUBRE DE 2026'), 8, 2026, '2026-10-05');
+    expect(contradictory.stage.dateKey).toBe('2026-10-05');
+    expect(parsePdfText('vuelta-ciclistica-venezuela-2026', 2, venezuela('LUNES 5 DE OCTUBRE DE 2026'), 8, 2026, '2026-10-05').stage.dateKey).toBe('2026-10-05');
+    expect(() => parsePdfText('vuelta-ciclistica-venezuela-2026', 2, venezuela('DOMINGO 4 DE OCTUBRE DE 2026'), 8, 2026, '2026-10-05')).toThrow('no de 2026-10-05');
+    const rows = contradictory.stage.classifications.find((item) => item.classKind === 'stage').rows;
+    expect(rows.map(({ bib, rank, irm }) => [bib, rank, irm])).toEqual([
+      ['44', 1, null], ['3', 2, null], ['65', null, 'OTL'], ['84', null, 'OTL'], ['113', null, 'OTL'], ['83', null, 'DNF'], ['165', null, 'DNF'],
+    ]);
   });
 
   it('propaga como error un PDF descubierto que no produce ninguna etapa', () => {
     expect(() => assertSelectedPdfsParsed(1, 0, 1)).toThrow('No se pudo interpretar ninguno');
     expect(() => assertSelectedPdfsParsed(0, 0, 0)).not.toThrow();
     expect(() => assertSelectedPdfsParsed(2, 1, 1)).not.toThrow();
-  });
-
-  it('normaliza las abreviaturas del PDF a los nombres de la startlist', () => {
-    expect(normalizeColombiaTeamName('4WD RENTACAR FACATATIVA')).toBe('4WD Rent a Car - Facatativa');
-    expect(normalizeColombiaTeamName('CANELS JAVA')).toBe("Canel's - Java");
-    expect(normalizeColombiaTeamName('GOB PUTUMAYO-B.STRONGMAN')).toBe('Gobernación Putumayo-Bicicletas Strongman');
-    expect(normalizeColombiaTeamName('AG NECTAR-C.MARCA-S.NATUR')).toBe('AG Néctar-Cundinamarca-Somos Natural');
   });
 });

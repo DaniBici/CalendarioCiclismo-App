@@ -47,11 +47,28 @@ sealed class DeepLink {
          * guiones y guiones bajos para prevenir inyección de rutas.
          */
         private val VALID_ID_REGEX = Regex("^[a-zA-Z0-9_-]+$")
-        private val VALID_CX_ANCHOR = Regex("^(ME|WE|MU|WU|MJ|WJ|general|(?:general|inscritos)-(?:ME|WE|MU|WU|MJ|WJ))$")
+        private val VALID_CX_ANCHOR = Regex("^(ME|WE|MU|WU|MJ|WJ|general|programme|videos|(?:general|inscritos)-(?:ME|WE|MU|WU|MJ|WJ))$")
+        private val CX_CATEGORY = Regex("^(ME|WE|MU|WU|MJ|WJ)$")
 
         private val RESULTS_STAGE_REGEX = Regex("^(\\d{1,3})([A-Z]?)$")
 
         private fun cxAnchorIsValid(anchor: String?): Boolean = anchor == null || VALID_CX_ANCHOR.matches(anchor)
+
+        /**
+         * Anchor de la ficha CX para una sección de la web: `?view=programme|tv|
+         * videos|general` y las rutas `inscritos/` y `resultados/` (`startlist/`
+         * y `results/` en EN), con la categoría del fragmento.
+         */
+        private fun cxWebAnchor(section: String?, fragment: String?): String? {
+            val category = fragment?.takeIf { CX_CATEGORY.matches(it) }
+            return when (section) {
+                "programme", "tv" -> "programme"
+                "videos" -> "videos"
+                "general" -> category?.let { "general-$it" } ?: "general"
+                "startlist" -> "inscritos-${category ?: "ME"}"
+                else -> fragment
+            }
+        }
 
         fun parse(value: String?): DeepLink? {
             if (value.isNullOrEmpty()) return null
@@ -132,16 +149,22 @@ sealed class DeepLink {
                 val expected = if (english) "cyclocross" else "ciclocross"
                 if (path.firstOrNull() != expected || path.size !in 1..3) return null
                 if (path.size == 1) return Tab("cyclocross")
-                if (path.size == 3) {
-                    // Solo las páginas de serie: torneos/ en ES, series/ en EN.
-                    if (path[1] != if (english) "series" else "torneos") return null
+                if (path.size == 3 && path[1] == if (english) "series" else "torneos") {
+                    // Página de serie: torneos/ en ES, series/ en EN.
                     val tournamentSlug = path[2]
                     if (!Regex("^[a-z0-9-]+$").matches(tournamentSlug)) return null
                     return CxTournamentSlug(tournamentSlug)
                 }
+                val section = when {
+                    path.size == 2 -> uri.getQueryParameter("view")
+                    path[2] == if (english) "startlist" else "inscritos" -> "startlist"
+                    path[2] == if (english) "results" else "resultados" -> "results"
+                    else -> return null
+                }
                 val slug = path[1]
-                if (!Regex("^[a-z0-9-]+$").matches(slug) || !cxAnchorIsValid(uri.fragment)) return null
-                return CxRaceSlug(slug, uri.fragment)
+                val anchor = cxWebAnchor(section, uri.fragment)
+                if (!Regex("^[a-z0-9-]+$").matches(slug) || !cxAnchorIsValid(anchor)) return null
+                return CxRaceSlug(slug, anchor)
             }
             if (uri.scheme != "calendariociclismo") return null
             val host = uri.host ?: return null

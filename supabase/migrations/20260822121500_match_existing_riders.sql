@@ -26,11 +26,7 @@ BEGIN
     RAISE EXCEPTION 'p_gender debe ser male|female, recibido %', p_gender;
   END IF;
 
-  FOR v_row IN
-    SELECT value
-    FROM jsonb_array_elements(
-      CASE WHEN jsonb_typeof(p_rows) = 'array' THEN p_rows ELSE '[]'::jsonb END
-    )
+  FOR v_row IN SELECT value FROM jsonb_array_elements(COALESCE(p_rows, '[]'::jsonb))
   LOOP
     v_idx := NULLIF(v_row->>'idx', '')::integer;
     v_identity_key := public.compute_identity_key(

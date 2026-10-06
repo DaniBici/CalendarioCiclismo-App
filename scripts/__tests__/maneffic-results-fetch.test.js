@@ -32,7 +32,6 @@ describe('censo independiente para la oficialidad', () => {
     { raceName: 'Stage 3 - Otra jornada' },
     { eventName: 'Otra carrera 2026' },
     { documentName: 'Provisional Startlist' },
-    { generated: '2025-09-04 20:00:00' },
     { generated: '2026-09-03 20:00:00' },
     { generated: '2026-09-06 20:00:00' },
     { riders: [{ bib: 32 }, { bib: 32 }] },

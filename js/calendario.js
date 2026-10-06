@@ -3,7 +3,8 @@
 //  Fusión de las antiguas vistas Mes y Temporada en una sola página con
 //  toggle, espejo del CalendarScreen de las apps 3.1 (Android
 //  ui/calendar/CalendarScreen.kt): subvista persistida (localStorage
-//  cc-cal-subview ≙ DataStore calendarSubview) y deep-link ?vista=mes|temporada.
+//  cc-cal-subview ≙ DataStore calendarSubview) y deep-link por idioma
+//  (?vista=mes|temporada en ES, ?view=month|season en EN; js/calendario-query.js).
 //
 //  Cada subvista se importa de forma diferida al activarse:
 //   · temporada → js/temporada.js (se auto-inicializa al importarse, igual
@@ -18,6 +19,9 @@
 //  estático para que no haya hueco sin marcador.
 // ─────────────────────────────────────────────────────────────────
 
+import { getLang } from './i18n.js';
+import { readCalendarView, readCalendarMonth, writeCalendarParams } from './calendario-query.js';
+
 const SUBVIEW_KEY = 'cc-cal-subview';
 const VALID = new Set(['mes', 'temporada']);
 
@@ -29,10 +33,10 @@ let _current = null;
 
 function resolveInitialSubview() {
   const p = new URLSearchParams(location.search);
-  const fromUrl = p.get('vista');
-  if (VALID.has(fromUrl)) return fromUrl;
-  // URLs legacy de mes.html redirigidas con ?month=YYYY-MM
-  if (/^\d{4}-\d{2}$/.test(p.get('month') || '')) return 'mes';
+  const fromUrl = readCalendarView(p);
+  if (fromUrl) return fromUrl;
+  // Mes sin vista (incluidas las URLs legacy de mes.html con ?month=YYYY-MM)
+  if (readCalendarMonth(p)) return 'mes';
   const stored = localStorage.getItem(SUBVIEW_KEY);
   if (VALID.has(stored)) return stored;
   // Por defecto Mes (decisión Dani 2026-06-12): es la vista "qué se corre
@@ -67,7 +71,7 @@ async function activate(view, { first = false } = {}) {
 
   if (!first) {
     const qs = new URLSearchParams(location.search);
-    qs.set('vista', view);
+    writeCalendarParams(qs, getLang(), { view });
     history.replaceState(null, '', `${location.pathname}?${qs}`);
   }
 
@@ -77,7 +81,7 @@ async function activate(view, { first = false } = {}) {
       const content = document.getElementById('temporadaContent');
       content.innerHTML = LOADING_HTML;
       removeStaticLoading();
-      await import('./temporada.js?v=20260924sitefix'); // se auto-inicializa y renderiza
+      await import('./temporada.js'); // se auto-inicializa y renderiza
     } else {
       resetCanonical();
     }
@@ -87,10 +91,10 @@ async function activate(view, { first = false } = {}) {
       const content = document.getElementById('mesContent');
       content.innerHTML = LOADING_HTML;
       removeStaticLoading();
-      const mod = await import('./calendario-mes.js?v=20260924sitefix');
+      const mod = await import('./calendario-mes.js');
       await mod.initMesView();
     } else {
-      const mod = await import('./calendario-mes.js?v=20260924sitefix');
+      const mod = await import('./calendario-mes.js');
       await mod.initMesView(); // re-render (estado conservado en el módulo)
     }
   }

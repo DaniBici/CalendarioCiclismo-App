@@ -37,25 +37,25 @@ El CLI consulta cuatro fichas como máximo en paralelo. Si falla una ficha, camb
 
 Cada temporada CX admite únicamente agosto–diciembre del año inicial y enero–febrero del siguiente. El colector rechaza una prueba con fechas fuera de esa ventana antes de generar el manifiesto; el panel aplica la misma validación. No desplazar fechas oficiales para encajarlas. Marzo–julio no se muestran ni se consultan como meses CX, tampoco desde una caché anterior. Fuera de temporada, la agenda abre agosto de la temporada siguiente; febrero es el último mes navegable.
 
-Panel → Ciclocross → Agenda/Carreras → Importar calendario UCI → Consultar UCI o abrir el manifiesto local → revisar → Aplicar calendario. La Edge Function `cx-calendar` valida JWT y administración con la identidad del editor; solo consulta UCI. El panel aplica `cx_import_calendar` con el cliente autenticado. El agente usa esa RPC por MCP cuando corresponda, sin REST ni credenciales en scripts.
+Panel → Ciclocross → Agenda/Carreras → Importar calendario UCI → Consultar UCI o abrir el manifiesto local → revisar → Aplicar calendario. La Edge Function `cx-calendar` valida JWT y administración con la identidad del editor; solo consulta UCI. El panel aplica `cx_import_calendar` con el cliente autenticado. El agente usa esa RPC por la vía SQL de `cc-nucleo`, sin REST ni credenciales en scripts.
 
-`cx_import_calendar` valida fuente, temporada, IDs, URLs oficiales y recuentos antes de confirmar la transacción. Identidad estable por `(seasonKey,uciCalendarId)` y UUID v4 para altas. Reimportar actualiza fechas, clase y recinto; conserva nombres editoriales, slugs, torneo, cancelación, horas y resultados. Una prueba ausente no se borra automáticamente. Fuente y resumen quedan en la auditoría privada.
+`cx_import_calendar` valida fuente, temporada, IDs, URLs oficiales y recuentos antes de confirmar la transacción. Identidad estable por `(seasonKey,uciCalendarId)` y UUID v4 para altas. Una prueba nueva se crea con sus categorías. En una prueba existente, reimportar no modifica fechas, clase, país, sede ni categorías (tampoco recrea las borradas): solo completa `websiteUrl` ausente y devuelve en `differences` los campos y categorías en que UCI difiere, para revisarlos a mano (migración `20260929063019`). Una prueba ausente no se borra automáticamente. Fuente y resumen quedan en la auditoría privada.
 
 ### Convención de slugs y URLs públicas
 
-La URL pública de una prueba CX es `/ciclocross/{slug}/` (y `/en/cyclocross/{slugEn o slug}/`). El slug lleva siempre el año civil de su disputa (2026 o 2027, nunca la temporada 2026-27):
+La URL pública de una prueba CX es `/ciclocross/{slug}/` (y `/en/cyclocross/{slugEn o slug}/`). El slug lleva siempre el año civil de su disputa (2026 o 2027, nunca la temporada 2026-27) y no repite la disciplina que ya indica la ruta: se eliminan `ciclocross`, `ciclocros`, `ciclocrosse`, `cyclocross`, `cyclo-cross` y `cx` como palabra (con el «de»/«del»/«of» que los precede o que queda al inicio), también en `slugEn` (`copa-de-espana-de-ciclocross-marin` → `copa-de-espana-marin`, `european-cyclo-cross-championships` → `european-championships`). Las palabras compuestas (`xaxancx`, `trek-uscx`, `velocx`) y los términos en otras lenguas (`ziklokrosa`, `radquer`) se conservan:
 
 - Campeonatos (CN/CC/CM): fórmula de campeonatos de carretera, sin año, sin federación y sin categoría; nombre castellano en `name` («Campeonato de España», «Campeonatos de Europa», «Campeonatos Panamericanos», «Campeonato del Mundo») e inglés rellenado en `nameEn`; `slug` castellano y `slugEn` inglés, ambos con el año civil.
-- Prueba de un trofeo: `{slug del trofeo}-{ciudad}-{año}`; si el trofeo repite ciudad en el mismo año, se antepone la ronda («coupe-de-france-de-cyclo-cross-nommay-1-2026»). Sin sede confirmada, el número de ronda sustituye a la ciudad.
+- Prueba de un trofeo: `{slug del trofeo}-{ciudad}-{año}`; si el trofeo repite ciudad en el mismo año, se antepone la ronda («coupe-de-france-nommay-1-2026»). Sin sede confirmada, el número de ronda sustituye a la ciudad.
 - Prueba sin trofeo: `{denominación actual}-{año}`; si dos pruebas comparten denominación y año (findes C1/C2), se añade `day-1`/`day-2`.
 
-El colector UCI genera de forma automática `{denominación}-{año civil}` para las altas (con `-2`, `-3`… si el nombre y el año se repiten) y la reimportación conserva los slugs editoriales existentes. El panel recalcula slug y slugEn al crear una prueba y mientras sus valores no se hayan editado a mano (cambios de nombre, torneo, recinto o fecha); los slugs editoriales nunca se sobrescriben solos. Tras guardar, el panel comprueba la URL canónica y, si responde 404, encola la regeneración del sitio (`admin_mark_web_pages_dirty`), igual que en jornadas de carretera. La limpieza de la temporada 2026-27 y su regla quedan auditadas en `private.cx_change_log` (operaciones `campeonatos_rebrand` y `slug_cleanup` del 2026-09-13).
+El colector UCI genera de forma automática `{denominación}-{año civil}` para las altas (con `-2`, `-3`… si el nombre y el año se repiten) y la reimportación conserva los slugs editoriales existentes. El panel recalcula slug y slugEn al crear una prueba y mientras sus valores no se hayan editado a mano (cambios de nombre, torneo, recinto o fecha); los slugs editoriales nunca se sobrescriben solos. Tras guardar, el panel comprueba la URL canónica y, si responde 404, encola la regeneración del sitio (`admin_mark_web_pages_dirty`), igual que en jornadas de carretera. La limpieza de la temporada 2026-27 y su regla quedan auditadas en `private.cx_change_log` (operaciones `campeonatos_rebrand` y `slug_cleanup` del 2026-09-13); la retirada de la disciplina de 127 slugs, como `save_race` del 2026-09-29.
 
 Asignar torneos en el panel y completar las salidas con programas oficiales y zonas IANA verificadas. Crear enlaces `cx_race_uci_links` solo tras verificar la correspondencia real en DataRide; el calendario no depende de esos enlaces. Las referencias de reglamento F1 permanecen pendientes de revisión de edición y no activan cálculos.
 
 ### Verificación de implementación
 
-Contratos SQL: `supabase/tests/cc_cx_f2.sql`, con rollback, comprueban importación repetida, conservación editorial, publicación atómica, fichas por género, cambio concurrente de inscritos, permisos y separación entre NULL y cero en bonos. Pruebas de JS: calendario y lógica editorial en `js/__tests__/cx-*.test.js`.
+Pruebas de JS: calendario y lógica editorial en `js/__tests__/cx-*.test.js`.
 
 ### Pendientes de documentos 2026-27
 
@@ -118,7 +118,7 @@ La vista es SECURITY INVOKER y tiene SELECT explícito para anon, authenticated,
 
 ### Verificación
 
-`supabase/tests/cc_cx_manga_timing.sql` se ejecuta por MCP con rollback. Cubre duraciones y límites, agrupación verificada, omisión de campos por clientes anteriores, formatos/horas desconocidos, cancelación, fecha multidía, cambio horario y privilegios. `js/__tests__/cx-timing.test.js` cubre además la presentación y la evaluación conjunta de las mangas. Los horarios y resultados de prueba no se cargan en producción.
+`js/__tests__/cx-timing.test.js` cubre la presentación y la evaluación conjunta de las mangas. Los horarios y resultados de prueba no se cargan en producción.
 
 ## Esquemas de puntos de torneos
 
@@ -144,7 +144,7 @@ ME y WE: puestos 1–15 → **15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1*
 
 [Reglamento del organizador, 2025-26](https://x2otrofee.be/wp-content/uploads/sites/133/2025/09/Reglement-X2O-Badkamers-trofee-veldrijden-2025-2026.pdf), arts. 3–5 y 8; [Rookie Trophy](https://x2otrofee.be/trimetal-rookie-trophy/).
 
-ME/WE/MU tienen **general por tiempo**, ascendente, sumando ocho rondas, sin descartes. Penalización de 300 segundos sobre el ganador para ausencia, abandono, retirada por 80% o llegada a más de cinco minutos. Las bonificaciones ganadas se restan aparte del límite de cinco minutos. Solo entra en la general quien termina alguna ronda dentro de cinco minutos del ganador. Desempates: mejor puesto de la serie; después puesto de la última ronda; precisión de segundos, sin centésimas.
+ME/WE/MU tienen **general por tiempo**, ascendente, sumando ocho rondas, sin descartes. Penalización de 300 segundos sobre el ganador para ausencia, abandono, retirada por 80% o llegada a más de cinco minutos. Los cinco minutos no incluyen las bonificaciones ganadas: el forfait vale 300 segundos sin descontar bonos (política `discard`, cotejada en F5 con los DNF de 2025-26; el texto 2026-27 conserva la redacción). Solo entra en la general quien termina alguna ronda dentro de cinco minutos del ganador. Desempates: mejor puesto de la serie; después puesto de la última ronda; precisión de segundos, sin centésimas.
 
 Un sprint al final de la primera vuelta: **15/10/5 segundos** para sus tres primeros. Desde 2025-26 hay además **15/10/5 segundos** a los tres corredores con vueltas más rápidas, excluyendo el bucle de salida. No son puntos. No sumar estos valores a `bonusPoints`. No hay general WU/MJ/WJ definida en este reglamento.
 
@@ -162,9 +162,20 @@ El [portal de resultados X2O](https://x2otrofee.be/uitslagen/) y sus generales [
 
 [RFEC, Título V, actualización 09-09-2025](https://yosoyciclista.s3.amazonaws.com/documentos/smartweb/menu/123/doc_68c7c0ddc9db25_29075634_5-Pruebas-de-Ciclo-Cross--ap-CD-20250909_b_IZDA.pdf), V-J, arts. 4, 6–8 y 14–15.
 
-Cada categoría: puestos 1–15 → **25, 20, 16, 14, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1**. Incluye ME/WE/MU/WU/MJ/WJ; cadetes y másteres quedan fuera de las seis categorías v1. Todos los resultados cuentan, sin descartes. Desempate: mejor plaza en la última prueba celebrada. Participantes extranjeros pueden figurar en la general. No hay sprints puntuables de torneo en esta norma. Incumplimiento del maillot de líder: sanción de 25 puntos, que requiere entrada auditada.
+Cada categoría: puestos 1–15 → **25, 20, 16, 14, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1**. El art. 4 define «Élite y Sub23» como una sola categoría por sexo, además de junior, cadete y máster; el modelo usa ME/WE (Élite–Sub23) y MJ/WJ. La RFEC publica una única general ELITE-SUB23 por sexo y deduce de ella el mejor sub-23: no hay general MU/WU propia. Todos los resultados cuentan, sin descartes. Desempate: mejor plaza en la última prueba celebrada. Participantes extranjeros pueden figurar en la general. No hay sprints puntuables de torneo en esta norma. Incumplimiento del maillot de líder: sanción de 25 puntos, que requiere entrada auditada.
 
-El programa puede agrupar categorías; el cálculo debe usar el puesto de la clasificación de cada categoría RFEC, no deducirlo de la fila DataRide de una manga élite agrupada. WU puede ser líder absoluta; evitar duplicar una manga de salida para representar dos generales. Cotejar las generales RFEC y resolver puestos por categoría antes del cómputo. La clase de la ronda C1/C2/NAC no cambia esta tabla. No confundirla con el ranking individual RFEC ni el ranking UCI.
+Los puntos corresponden al puesto absoluto en la manga conjunta Élite–Sub23, extranjeros incluidos: la general 2025-26 lo acredita (Orts 25+25, Lauryssen noveno, Mira tercero como mejor sub-23) y el cotejo de Alcobendas (registro F5, sección 78) casa ese puesto con la manga ME/WE de DataRide sin renumerar por edad. WU puede ser líder absoluta; no se crean mangas MU/WU. La clase de la ronda C1/C2/NAC no cambia esta tabla. No confundirla con el ranking individual RFEC ni el ranking UCI.
+
+### Edición 2026-27
+
+Esquemas guardados el 2026-09-30 con `cx_save_tournament` en `verified`, `edition.seasonKey="2026-27"` y `review.recotejoAfterFirstRound=true`: el cotejo de cada categoría apunta a la general oficial 2025-26 cotejada en F5 y se repite con la primera general 2026-27 de cada torneo.
+
+| Torneo | Fuente de reglas | Categorías | Decisiones de edición |
+| --- | --- | --- | --- |
+| Copa del Mundo UCI | [Parte V 01-07-2026](https://assets.ctfassets.net/761l7gh5x5an/3X0PPNdbWNAhMGaZzKly8J/c1ffde19720611fa2fddae4e4601845b/5-CRO-20260701-E.pdf), art. 5.3.013, y [lista de rondas](https://assets.ctfassets.net/761l7gh5x5an/6RPKCNSSFTxx8PQcWPqKei/b918c644280083ef53889e795861695d/2026-2027_UCI_Cyclo-cross_World_Cup-publication.pdf) | ME, WE, MU, MJ, WJ y WU derivada de WE | Cinco rondas juveniles: cuentan las cuatro mejores. `droppedPlacingsPolicy="all"`: la frase del desempate es idéntica en la Parte V de 21-06-2019 y en la de 2026, y el caso MU 2019-20 (sección 77) solo se reproduce contando los puestos descartados. `awardedAtLeastOnce` y `backwardsUntilDifferent`, como en los cotejos F5 |
+| Superprestige | [Reglamento 2025-26](https://www.superprestigecyclocross.be/nl/reglement); no hay texto 2026-27 publicado | ME, WE | Baremo 2025-26 por indicación de Dani (`edition.rulesEdition="2025-26"`, `pendingEditionRules=true`); revisar el reglamento cuando se publique |
+| X2O Badkamers Trofee | [Reglamento 2026-27](https://x2otrofee.be/wp-content/uploads/sites/133/2026/09/Regulation-X2O-Badkamers-trophy-2026-2027-ENG.pdf) (18-09-2026) | ME, WE, MU por tiempo | `forfaitBonusesPolicy="discard"`, `missingRoundBonuses="none"`. Novedad: una sola bonificación de vuelta rápida por corredor y ronda. Sin fuente oficial de bonos por ronda: la general exige `bonusSeconds` y `bonusSourceUrl` cargados a mano en cada ronda o el ajuste manual del panel |
+| Copa de España | [Título V a 09-09-2025](https://yosoyciclista.s3.amazonaws.com/documentos/smartweb/menu/123/doc_68c7c0ddc9db25_29075634_5-Pruebas-de-Ciclo-Cross--ap-CD-20250909_b_IZDA.pdf) y [Disposiciones Generales a 02-06-2026](https://yosoyciclista.s3.amazonaws.com/documentos/smartweb/menu/123/doc_6ab10e66d5a054_43963131_1--Disposiciones-Generales-ap-CD-20260602_2109.pdf) | ME, WE (Élite–Sub23), MJ, WJ | Sin `rankPolicy`: puntúa el puesto de la manga conjunta. El reglamento de KH7 cita una «Normativa específica de la Copa de España 2026/2027» no publicada; revisarla si aparece |
 
 ### Contrato de configuración
 

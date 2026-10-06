@@ -15,7 +15,10 @@ export const ISO3to2 = {
   POR:'pt', ESP:'es', ITA:'it', FRA:'fr', KGZ:'kg', GUM:'gu', BOL:'bo', KOS:'xk', ESA:'sv',
   SVN:'si', LIE:'li', MKD:'mk', AZE:'az', GEO:'ge', ARM:'am', MDA:'md', MNE:'me', BIH:'ba',
   ALB:'al', LBN:'lb', SYR:'sy', IRQ:'iq', JOR:'jo', PAK:'pk', SRI:'lk', BAN:'bd', NEP:'np',
-  MYA:'mm', CAM:'kh', LAO:'la', BRU:'bn', MGО:'mn', PER:'pe', PAR:'py', DOM:'do', HAI:'ht',
+  MYA:'mm', CAM:'kh', LAO:'la', BRU:'bn', PER:'pe', PAR:'py', DOM:'do', HAI:'ht',
   NCA:'ni', HKO:'hk', HND:'hn', HKD:'hk',
+  BEN:'bj', BDI:'bi', SEN:'sn', GAB:'ga', CIV:'ci', MLI:'ml', TOG:'tg', GHA:'gh', NIG:'ne', CGO:'cg',
+  GUI:'gn', MAD:'mg', TAN:'tz', ZAM:'zm', ZIM:'zw', BOT:'bw', MOZ:'mz', LBA:'ly', SUD:'sd',
+  TKM:'tm', TJK:'tj', ISL:'is', PLE:'ps',
 };
 export const countryCode = code => ISO3to2[String(code || "").toUpperCase()] || null;

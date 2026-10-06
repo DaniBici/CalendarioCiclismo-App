@@ -2,9 +2,9 @@
 //  PANEL DE ADMINISTRACIÓN — Challenges (challenge_groups)
 // ─────────────────────────────────────────────────────────────────
 
-import { attachCountryAutocomplete } from '../country-select.js?v=20260917cxflags';
+import { attachCountryAutocomplete } from '../country-select.js';
 import { supabase } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { attachInlineUpload } from './uploads.js';
@@ -31,7 +31,7 @@ export async function renderChallengesView() {
     });
 
     if (!groups.length) {
-      container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:1rem 0">
+      container.innerHTML = `<div class="u-c-dim u-fs-085 u-py-100 u-px-0">
         No hay challenge groups todavía. Crea uno con el botón de arriba.
       </div>`;
       return;
@@ -41,31 +41,20 @@ export async function renderChallengesView() {
       const raceCount = Array.isArray(cg.raceIds) ? cg.raceIds.length : 0;
       const genderLabel = cg.gender === 'female' ? 'Femenino' : 'Masculino';
       const colorDot = cg.colorHex
-        ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cg.colorHex};margin-right:0.35rem;flex-shrink:0"></span>`
+        ? `<span class="challenge-dot" style="--dot-color:${cg.colorHex}"></span>`
         : '';
 
-      return `<div class="challenge-item" data-id="${cg.id}" style="
-        display:flex;align-items:center;gap:0.75rem;
-        padding:0.75rem 1rem;border-radius:8px;
-        border:1px solid var(--border);background:var(--surface);
-        margin-bottom:0.5rem
-      ">
+      return `<div class="challenge-item" data-id="${cg.id}">
         ${colorDot}
         <div class="u-grow u-min0">
-          <div style="font-weight:600;font-size:0.95rem">${cg.name || '—'}</div>
-          <div style="font-size:0.78rem;color:var(--text-dim);margin-top:0.15rem">
+          <div class="u-fw-600 u-fs-095">${cg.name || '—'}</div>
+          <div class="u-fs-078 u-c-dim u-mt-015">
             ${cg.year || '—'} · ${genderLabel} · ${cg.uciCategory || '1.1'} · ${raceCount} carrera${raceCount !== 1 ? 's' : ''}
-            ${cg.slug ? `· <span style="font-family:monospace;font-size:0.75rem">${cg.slug}</span>` : ''}
+            ${cg.slug ? `· <span class="u-mono u-fs-075">${cg.slug}</span>` : ''}
           </div>
         </div>
-        <button class="cg-edit-btn" data-id="${cg.id}" style="
-          padding:0.35rem 0.75rem;border-radius:6px;border:1px solid var(--border);
-          background:none;color:var(--text);font-size:0.8rem;cursor:pointer;font-family:inherit
-        ">Editar</button>
-        <button class="cg-delete-btn" data-id="${cg.id}" style="
-          padding:0.35rem 0.6rem;border-radius:6px;border:1px solid rgba(229,62,62,0.3);
-          background:none;color:#e53e3e;font-size:0.8rem;cursor:pointer;font-family:inherit
-        ">
+        <button class="cg-edit-btn" data-id="${cg.id}">Editar</button>
+        <button class="cg-delete-btn" data-id="${cg.id}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>
       </div>`;
@@ -84,7 +73,7 @@ export async function renderChallengesView() {
     });
 
   } catch (err) {
-    container.innerHTML = `<div style="color:var(--red);font-size:0.82rem">Error: ${err.message}</div>`;
+    container.innerHTML = `<div class="u-c-red u-fs-082">Error: ${err.message}</div>`;
   }
 }
 
@@ -100,7 +89,7 @@ function challengeBodyHtml() {
       </div>
       <div class="field">
         <label>Slug</label>
-        <input type="text" id="cg-slug" placeholder="challenge-mallorca-2026" style="font-family:monospace">
+        <input type="text" id="cg-slug" placeholder="challenge-mallorca-2026">
       </div>
     </div>
     <div class="field-row field-row--2">
@@ -136,10 +125,10 @@ function challengeBodyHtml() {
     </div>
     <div class="field">
       <label>Color</label>
-      <div class="color-preview" style="max-width:100%;overflow:hidden">
+      <div class="color-preview u-maxw-full u-clip">
         <input class="u-color-dot" type="color" id="cg-colorPicker" value="#217cc4"
               >
-        <input type="text" id="cg-color" placeholder="#217cc4" style="flex:1;min-width:0;max-width:120px">
+        <input type="text" id="cg-color" placeholder="#217cc4" class="u-grow u-min0 u-maxw-120px">
       </div>
     </div>
     <div class="field">
@@ -148,27 +137,24 @@ function challengeBodyHtml() {
     </div>
     <div class="field">
       <label>Carreras incluidas</label>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:0.5rem;align-items:start">
-        <div class="u-stack" style="gap:0.3rem">
+      <div class="cg-race-picker">
+        <div class="u-stack u-gap-030">
           <div class="u-micro">Disponibles</div>
-          <input type="text" id="cg-search-available" placeholder="Buscar…"
-            style="padding:0.3rem 0.5rem;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.78rem;font-family:inherit">
-          <select id="cg-available" multiple size="8"
-            style="border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:0.8rem;font-family:inherit;padding:0.25rem;width:100%;cursor:pointer"></select>
+          <input type="text" id="cg-search-available" placeholder="Buscar…">
+          <select id="cg-available" multiple size="8"></select>
         </div>
-        <div class="u-stack" style="gap:0.4rem;padding-top:1.8rem">
-          <button type="button" id="cg-add-race" class="btn btn--ghost" style="padding:0.35rem 0.6rem" title="Añadir">›</button>
-          <button type="button" id="cg-remove-race" class="btn btn--ghost" style="padding:0.35rem 0.6rem" title="Quitar">‹</button>
+        <div class="u-stack u-gap-040 u-pt-180">
+          <button type="button" id="cg-add-race" class="btn btn--ghost u-py-035 u-px-060" title="Añadir">›</button>
+          <button type="button" id="cg-remove-race" class="btn btn--ghost u-py-035 u-px-060" title="Quitar">‹</button>
         </div>
-        <div class="u-stack" style="gap:0.3rem">
+        <div class="u-stack u-gap-030">
           <div class="u-micro">Incluidas</div>
-          <div style="height:1.75rem"></div>
-          <select id="cg-selected" multiple size="8"
-            style="border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:0.8rem;font-family:inherit;padding:0.25rem;width:100%;cursor:pointer"></select>
+          <div class="u-h-175"></div>
+          <select id="cg-selected" multiple size="8"></select>
         </div>
       </div>
     </div>
-    <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:flex-end">
+    <div class="panel-form-actions">
       <button class="btn btn--primary" id="challengeSaveBtn">Guardar challenge</button>
     </div>
   `;

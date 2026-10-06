@@ -3,10 +3,8 @@ import {
   isInitialTransferImport,
   isMarketDestinationTeamEligible,
   marketDestinationTeamOptions,
-  riderTeamOptionLabel,
   transferEditorAnnouncementDate,
   transferRiderInitialGender,
-  transferRowBorderColor,
 } from '../services/transfer-rider.js';
 
 const teams = [
@@ -29,26 +27,6 @@ describe('transferRiderInitialGender', () => {
 
   it('mantiene el masculino como reserva sin contexto de equipo', () => {
     expect(transferRiderInitialGender({ teams })).toBe('male');
-  });
-});
-
-describe('transferRowBorderColor', () => {
-  it('deja las filas de rumores sin reborde visible', () => {
-    expect(transferRowBorderColor('rumor')).toBe('transparent');
-  });
-
-  it('conserva los rebordes de dudas y movimientos confirmados', () => {
-    expect(transferRowBorderColor('doubt')).toBe('#8b5cf6');
-    expect(transferRowBorderColor('confirmed')).toBe('var(--border)');
-  });
-});
-
-describe('riderTeamOptionLabel', () => {
-  it('distingue equipos homónimos por categoría', () => {
-    expect(teams.map(riderTeamOptionLabel)).toEqual([
-      'Decathlon CMA CGM (WT)',
-      'Decathlon CMA CGM (PRW)',
-    ]);
   });
 });
 

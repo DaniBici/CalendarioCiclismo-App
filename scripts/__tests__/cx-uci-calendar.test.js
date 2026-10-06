@@ -26,6 +26,10 @@ describe('calendario oficial UCI CX',()=>{
     expect(item.categories.map(c=>c.category)).toEqual(['ME','WJ']);
     expect(item.categories.every(c=>c.startTimeUtc===null)).toBe(true);
   });
+  it('no repite la disciplina en el slug',()=>{
+    const p=structuredClone(props);p.competitionDetails.name='Cyclo-cross Gernelle';
+    expect(normalizeUciCompetition(entry,p,'2026-27',()=> 'fr').race.slug).toBe('gernelle-2026');
+  });
   it('desambigua slugs repetidos del mismo nombre y año civil',async()=>{
     const first={...entry,detailsLink:{url:'/competition-details/2027/CRO/79079'}};
     const second={...entry,uciCalendarId:79080,detailsLink:{url:'/competition-details/2027/CRO/79080'}};

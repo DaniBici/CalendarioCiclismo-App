@@ -2,13 +2,13 @@
 //  PANEL DE ADMINISTRACIÓN — Editor de jornada: apertura, assets y formulario
 // ─────────────────────────────────────────────────────────────────
 
-import { panelEditorTopbarHtml, panelEditorTabsHtml } from './editor-ui.js?v=20260912cxcohesion';
-import { attachCountryAutocomplete } from '../country-select.js?v=20260917cxflags';
+import { panelEditorTopbarHtml, panelEditorTabsHtml } from './editor-ui.js';
+import { attachCountryAutocomplete } from '../country-select.js';
 import { mountDayTimingEditor } from './race-presentation.js';
 import { supabase, countryFlag, stageLabel, esc } from '../shared.js';
 import { exportElevationProfilePNG } from '../stage/elevation-profile.js';
 import { buildProfileAssetDownloadRequest, mountProfileDigitizer } from '../stage/profile-digitizer.js';
-import { openDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer } from '../components/drawer.js';
 import { confirmDialog, alertDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { formatDateTime, formatTimeHHMM, showToast, toSlug, validateSlug } from './helpers.js';
@@ -66,7 +66,7 @@ export async function openEditor(raceDayId, cachedData = null) {
     return;
   }
 
-  area.innerHTML = '<div class="loading" style="margin:3rem auto">Cargando jornada</div>';
+  area.innerHTML = '<div class="loading editor-loading">Cargando jornada</div>';
 
   try {
     const { data: rdData, error: rdError } = await supabase.from('race_days').select('*').eq('id', raceDayId).single();
@@ -264,34 +264,33 @@ function renderEditor(rd, race, broadcasts, assets) {
             </div>
           </div>
           <div class="field">
-            <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer">
-              <input type="checkbox" id="ed-isRestDay" ${rd.isRestDay ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+            <label class="editor-check">
+              <input type="checkbox" id="ed-isRestDay" ${rd.isRestDay ? 'checked' : ''} class="editor-check__box">
               <span>Jornada de descanso</span>
               <span class="u-field-hint">— no se mostrará como etapa ni será clicable</span>
             </label>
           </div>
           <div class="field">
-            <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer">
-              <input type="checkbox" id="ed-isCancelledDay" ${rd.isCancelledDay ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#e55">
-              <span style="color:#e55;font-weight:600">Jornada cancelada</span>
+            <label class="editor-check">
+              <input type="checkbox" id="ed-isCancelledDay" ${rd.isCancelledDay ? 'checked' : ''} class="editor-check__box editor-check__box--danger">
+              <span class="u-c-danger u-fw-600">Jornada cancelada</span>
               <span class="u-field-hint">— se mostrará con indicador visual en la jornada y en las cards</span>
             </label>
           </div>
           <div class="field">
             <label>Carrera</label>
-            <div style="display:flex;align-items:center;gap:0.75rem">
-              <span style="font-family:var(--font-display);font-weight:700;
-                           font-size:0.95rem;text-transform:uppercase;flex:1">
+            <div class="u-flex u-items-center u-gap-075">
+              <span class="editor-race-name">
                 ${flag} ${race.name || '—'}
               </span>
-              <button class="btn btn--ghost" id="ed-changeRace" style="font-size:0.75rem;padding:0.35rem 0.7rem">
+              <button class="btn btn--ghost u-fs-075 u-py-035 u-px-070" id="ed-changeRace">
                 Cambiar
               </button>
             </div>
           </div>
           <div class="lang-pair" data-lang="es">
             <div class="lang-pair__header">
-              <label style="display:flex;align-items:center;gap:0.5rem;margin:0">
+              <label class="u-row u-m0">
                 <span class="lang-field--es">Slug</span>
                 <span class="lang-field--en">Slug (EN)</span>
                 <span class="u-field-hint">— URL amigable (opcional, solo a-z, 0-9 y guiones)</span>
@@ -301,22 +300,20 @@ function renderEditor(rd, race, broadcasts, assets) {
             <div class="field lang-field--es">
               <div class="u-row">
                 <input type="text" id="ed-slug" value="${esc(rd.slug || '')}" placeholder="tour-de-france-2025-etapa-3" maxlength="80"
-                       style="flex:1;font-family:var(--font-display);font-size:0.85rem;letter-spacing:0.01em"
                        autocomplete="off" spellcheck="false" ${!rd.slug ? 'data-auto="1"' : ''}>
-                <button type="button" id="ed-slug-suggest" class="btn btn--ghost u-fs-xs u-btn-sm"
+                <button type="button" id="ed-slug-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
                        >Auto</button>
               </div>
-              <div id="ed-slug-error" style="color:#e55;font-size:0.75rem;margin-top:0.25rem;display:none"></div>
+              <div id="ed-slug-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
             </div>
             <div class="field lang-field--en">
               <div class="u-row">
                 <input type="text" id="ed-slug-en" value="${esc(rd.slugEn || '')}" placeholder="tour-de-france-2025-stage-3" maxlength="80"
-                       style="flex:1;font-family:var(--font-display);font-size:0.85rem;letter-spacing:0.01em"
                        autocomplete="off" spellcheck="false" ${!rd.slugEn ? 'data-auto="1"' : ''}>
-                <button type="button" id="ed-slug-en-suggest" class="btn btn--ghost u-fs-xs u-btn-sm"
+                <button type="button" id="ed-slug-en-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
                        >Auto</button>
               </div>
-              <div id="ed-slug-en-error" style="color:#e55;font-size:0.75rem;margin-top:0.25rem;display:none"></div>
+              <div id="ed-slug-en-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
             </div>
           </div>
           <div class="field">
@@ -331,7 +328,7 @@ function renderEditor(rd, race, broadcasts, assets) {
 
       <!-- Recorrido -->
       <div class="editor-section" data-tab="general">
-        <div class="editor-section__header u-between u-gap-sm">
+        <div class="editor-section__header u-between u-gap-050">
           <span class="editor-section__title">Recorrido</span>
         </div>
         <div class="editor-section__body">
@@ -444,7 +441,7 @@ function renderEditor(rd, race, broadcasts, assets) {
           <div id="broadcastsList">
             ${(broadcasts || []).map((b, i) => broadcastHTML(b, i)).join('')}
           </div>
-          <button class="btn btn--ghost" id="addBroadcastBtn" style="margin-top:0.25rem">
+          <button class="btn btn--ghost u-mt-025" id="addBroadcastBtn">
             + Añadir emisión
           </button>
         </div>
@@ -453,7 +450,7 @@ function renderEditor(rd, race, broadcasts, assets) {
       <!-- Editorial -->
       <div class="editor-section" data-tab="general">
         <div class="lang-pair" data-lang="es">
-          <div class="editor-section__header u-between u-gap-sm">
+          <div class="editor-section__header u-between u-gap-050">
             <span class="editor-section__title">
               <span class="lang-field--es">Editorial</span>
               <span class="lang-field--en">Editorial (EN)</span>
@@ -481,7 +478,7 @@ function renderEditor(rd, race, broadcasts, assets) {
             </div>
             <div class="field lang-field--en">
               <label class="u-row">Description (EN) ${statusBadge('description')}
-                ${tr.description?.status !== 'manual' ? `<button type="button" class="btn btn--ghost" onclick="markTranslationAsManual('description')" style="font-size:0.7rem;padding:0.15rem 0.5rem">✓ Manual</button>` : ''}
+                ${tr.description?.status !== 'manual' ? `<button type="button" class="btn btn--ghost u-fs-070 u-py-015 u-px-050" onclick="markTranslationAsManual('description')">✓ Manual</button>` : ''}
               </label>
               <div class="md-editor">
                 ${mdToolbarHtml('md-toolbar-en', { bold: 'Bold (Cmd+B)', italic: 'Italic (Cmd+I)', h2: 'Heading H2', h3: 'Heading H3', ul: 'List', blockquote: 'Blockquote', hr: 'Horizontal rule' })}
@@ -526,28 +523,28 @@ function renderEditor(rd, race, broadcasts, assets) {
             ? `<div class="so-editor-status so-editor-status--ok" id="soStatus">✓ Importado el ${new Date(rd.startOrderImportedAt).toLocaleDateString('es-ES')} — <a href="${rd.slug ? `${CONFIG.basePath}/orden-salida/${encodeURIComponent(rd.slug)}/` : `/orden-salida.html?id=${rd.id}`}" target="_blank" rel="noopener">ver página ↗</a></div>`
             : `<div class="so-editor-status" id="soStatus">Sin datos importados.</div>`
           }
-          <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem">
+          <p class="editor-hint">
             ${rd.primaryType === 'ttt'
               ? `Pega el orden de salida en formato <code>HH:MM nombre del equipo</code>, un equipo por línea. El sistema cruzará automáticamente con los equipos de la carrera.`
               : `Pega el orden de salida en formato <code>HH:MM:SS dorsal</code>, una entrada por línea. El sistema cruzará automáticamente con los inscritos por dorsal.`}
           </p>
           <textarea id="soRawInput" class="so-editor-textarea" placeholder="${rd.primaryType === 'ttt' ? '14:00:00 UAE Team Emirates&#10;14:05:00 Visma | Lease a Bike&#10;14:10:00 Soudal Quick-Step&#10;…' : '14:00:00 1&#10;14:00:30 2&#10;14:01:00 3&#10;…'}"></textarea>
-          <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;align-items:center">
+          <div class="u-row u-mt-050 u-wrap">
             <button class="btn btn--ghost" id="soParseBtn" type="button">Procesar</button>
             <button class="btn btn--primary" id="soSaveBtn" type="button" disabled>Guardar</button>
             ${(rd.startOrderImportedAt && rd.primaryType !== 'ttt')
               ? `<button class="btn btn--ghost" id="soResyncBtn" type="button" title="Re-aplica nombres canónicos desde riders_men/women a las entradas ya importadas">Re-sincronizar nombres</button>`
               : ''}
             ${rd.startOrderImportedAt
-              ? `<button class="btn btn--ghost" id="soDeleteBtn" type="button" style="color:var(--red,#e55)">Eliminar</button>`
+              ? `<button class="btn btn--ghost u-c-red" id="soDeleteBtn" type="button">Eliminar</button>`
               : ''}
-            <span class="u-fs-md u-c-muted" id="soMsg"></span>
+            <span class="u-fs-080 u-c-muted" id="soMsg"></span>
           </div>
-          <div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem">
+          <div class="so-group-fields">
             <div>
               <label class="u-sublabel" for="soTimezone">Zona horaria de la jornada (IANA)</label>
               <input type="text" id="soTimezone" class="input u-input-block" value="${esc(rd.timezone || '')}" placeholder="Ej: Europe/Madrid, Asia/Tokyo, America/New_York" autocomplete="off" spellcheck="false">
-              <p style="font-size:0.72rem;color:var(--text-muted);margin:0.25rem 0 0">Si se indica, la página pública convierte las horas a la zona del visitante.</p>
+              <p class="editor-hint editor-hint--sm">Si se indica, la página pública convierte las horas a la zona del visitante.</p>
             </div>
             ${rd.primaryType === 'ttt' ? '' : `
             <div>
@@ -558,10 +555,10 @@ function renderEditor(rd, race, broadcasts, assets) {
               <label class="u-sublabel" for="soGcDorsals">Dorsales General / GC (separados por coma)</label>
               <input type="text" id="soGcDorsals" class="input u-input-block" value="${(rd.startOrderGcDorsals || []).join(', ')}" placeholder="Ej: 1, 12, 45">
             </div>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin:0">Los grupos con al menos un dorsal muestran filtros en la página pública.</p>`}
-            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem">
+            <p class="u-fs-075 u-c-muted u-m0">Los grupos con al menos un dorsal muestran filtros en la página pública.</p>`}
+            <div class="u-row u-mt-025">
               <button class="btn btn--ghost u-fs-082" id="soGroupSaveBtn" type="button">${rd.primaryType === 'ttt' ? 'Guardar zona horaria' : 'Guardar zona y grupos'}</button>
-              <span id="soGroupMsg" style="font-size:0.78rem;color:var(--text-muted)"></span>
+              <span id="soGroupMsg" class="u-fs-078 u-c-muted"></span>
             </div>
           </div>
           <div id="soPreview" class="so-editor-preview"></div>
@@ -570,7 +567,7 @@ function renderEditor(rd, race, broadcasts, assets) {
 
       <!-- Assets -->
       <div class="editor-section" data-tab="mas">
-        <div class="editor-section__header u-between u-gap-sm">
+        <div class="editor-section__header u-between u-gap-050">
           <span class="editor-section__title">Documentación</span>
           <div class="assets-add">
             <select id="assetTypeSelector" class="assets-add__select">
@@ -604,18 +601,18 @@ function renderEditor(rd, race, broadcasts, assets) {
           <span class="editor-section__title"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg> Perfil de elevación GPX</span>
         </div>
         <div class="editor-section__body">
-          <div id="ed-gpx-summary" style="${rd.elevationProfile ? '' : 'display:none'}; font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem"${rd.elevationProfile ? ` data-distance="${rd.elevationProfile.distance}"` : ''}>
+          <div id="ed-gpx-summary" class="editor-gpx-summary"${rd.elevationProfile ? '' : ' style="display:none"'}${rd.elevationProfile ? ` data-distance="${rd.elevationProfile.distance}"` : ''}>
             ${rd.elevationProfile ? `${rd.elevationProfile.distance} km &middot; +${rd.elevationProfile.elevationGain} m / -${rd.elevationProfile.elevationLoss} m &middot; ${rd.elevationProfile.points?.length ?? '?'} puntos` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:0.6rem">
+          <div class="editor-actions">
             <button class="btn btn--ghost" id="ed-gpx-btn">${rd.elevationProfile ? 'Reemplazar GPX' : 'Subir GPX'}</button>
-            <button class="btn btn--ghost" id="ed-gpx-del" style="font-size:0.8rem;color:var(--red);${rd.elevationProfile ? '' : 'display:none'}">Borrar</button>
-            <a class="btn btn--ghost u-fs-082" id="ed-gpx-view" href="/panel/perfil.html?id=${rd.id}" target="_blank" rel="noopener" style="${rd.elevationProfile ? '' : 'display:none'}">Ver perfil ↗</a>
-            <button class="btn btn--ghost u-fs-082" id="ed-gpx-png" style="${rd.elevationProfile ? '' : 'display:none'}" title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.3em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>
-            <span class="u-fs-md u-c-muted" id="ed-gpx-status"></span>
+            <button class="btn btn--ghost u-fs-080 u-c-red" id="ed-gpx-del"${rd.elevationProfile ? '' : ' style="display:none"'}>Borrar</button>
+            <a class="btn btn--ghost u-fs-082" id="ed-gpx-view" href="/perfil.html?id=${rd.id}" target="_blank" rel="noopener"${rd.elevationProfile ? '' : ' style="display:none"'}>Ver perfil ↗</a>
+            <button class="btn btn--ghost u-fs-082" id="ed-gpx-png"${rd.elevationProfile ? '' : ' style="display:none"'} title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon u-mr-030em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>
+            <span class="u-fs-080 u-c-muted" id="ed-gpx-status"></span>
           </div>
-          <label id="ed-profile-not-viewable-label" style="display:${rd.elevationProfile ? 'flex' : 'none'};align-items:center;gap:0.45rem;margin-top:0.5rem;cursor:pointer;font-size:0.82rem;color:var(--text-muted)">
-            <input type="checkbox" id="ed-profile-not-viewable" ${rd.profileNotViewable ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--red)">
+          <label id="ed-profile-not-viewable-label" class="editor-profile-hidden"${rd.elevationProfile ? '' : ' style="display:none"'}>
+            <input type="checkbox" id="ed-profile-not-viewable" ${rd.profileNotViewable ? 'checked' : ''} class="editor-profile-hidden__box">
             No visualizable en público
           </label>
         </div>
@@ -638,14 +635,14 @@ function renderEditor(rd, race, broadcasts, assets) {
           <span class="editor-section__title"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg> Mapa interactivo del recorrido</span>
         </div>
         <div class="editor-section__body">
-          <div id="ed-map-summary" style="${rd.routeGpxUrl ? '' : 'display:none'};font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem">
+          <div id="ed-map-summary" class="editor-gpx-summary"${rd.routeGpxUrl ? '' : ' style="display:none"'}>
             ${rd.routeGpxUrl ? 'Mapa activo · GPX en Storage' : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+          <div class="editor-actions u-wrap">
             <button class="btn btn--ghost" id="ed-map-btn">${rd.routeGpxUrl ? 'Reemplazar GPX del mapa' : 'Subir GPX del mapa'}</button>
-            ${rd.routeGpxUrl ? `<button class="btn btn--ghost" id="ed-map-del" style="font-size:0.8rem;color:var(--red)">Quitar mapa</button>` : ''}
+            ${rd.routeGpxUrl ? `<button class="btn btn--ghost u-fs-080 u-c-red" id="ed-map-del">Quitar mapa</button>` : ''}
             ${rd.routeGpxUrl ? `<a class="btn btn--ghost u-fs-082" href="/mapa.html?id=${rd.id}" target="_blank" rel="noopener">Ver mapa ↗</a>` : ''}
-            <span class="u-fs-md u-c-muted" id="ed-map-status"></span>
+            <span class="u-fs-080 u-c-muted" id="ed-map-status"></span>
           </div>
         </div>
       </div>
@@ -670,7 +667,7 @@ function renderEditor(rd, race, broadcasts, assets) {
             <span class="ann-del-placeholder"></span>
           </div>
           <div id="summitsList">${(rd.profileSummits || []).map(summitRowHTML).join('')}</div>
-          <button class="btn btn--ghost" id="addSummitBtn" style="margin-top:0.5rem;font-size:0.82rem">+ Añadir puerto</button>
+          <button class="btn btn--ghost u-mt-050 u-fs-082" id="addSummitBtn">+ Añadir puerto</button>
         </div>
       </div>
 
@@ -681,14 +678,14 @@ function renderEditor(rd, race, broadcasts, assets) {
         </div>
         <div class="editor-section__body">
           <div class="ann-row ann-row--header" aria-hidden="true">
-            <span class="u-w-time u-fs-xs u-c-muted">km</span>
-            <span style="flex:1;font-size:0.72rem;color:var(--text-muted)">Nombre</span>
-            <span style="width:12rem;font-size:0.72rem;color:var(--text-muted)">Tipo</span>
-            <span style="width:5.5em;font-size:0.72rem;color:var(--text-muted)">hora</span>
-            <span style="width:2rem"></span>
+            <span class="u-w-time u-fs-072 u-c-muted">km</span>
+            <span class="u-grow u-fs-072 u-c-muted">Nombre</span>
+            <span class="u-w-1200 u-fs-072 u-c-muted">Tipo</span>
+            <span class="u-w-550em u-fs-072 u-c-muted">hora</span>
+            <span class="u-w-200"></span>
           </div>
           <div id="waypointsList">${(rd.profileWaypoints || []).filter(w => w.type !== 'kom').map(waypointRowHTML).join('')}</div>
-          <button class="btn btn--ghost" id="addWaypointBtn" style="margin-top:0.5rem;font-size:0.82rem">+ Añadir localidad</button>
+          <button class="btn btn--ghost u-mt-050 u-fs-082" id="addWaypointBtn">+ Añadir localidad</button>
         </div>
       </div>
 
@@ -698,12 +695,12 @@ function renderEditor(rd, race, broadcasts, assets) {
           <span class="editor-section__title">Clasificaciones</span>
         </div>
         <div class="editor-section__body" id="ruSectionBody">
-          <div style="color:var(--text-muted);font-size:0.8rem">Cargando clasificaciones…</div>
+          <div class="u-c-muted u-fs-080">Cargando clasificaciones…</div>
         </div>
       </div>
 
-      <div id="editorFeedback" style="margin-top:1rem"></div>
-      <div style="height:3rem"></div>
+      <div id="editorFeedback" class="u-mt-100"></div>
+      <div class="u-h-300"></div>
 
     </div><!-- /editor-content -->
   `;

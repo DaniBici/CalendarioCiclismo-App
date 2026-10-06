@@ -61,7 +61,6 @@ import app.calendariociclismo.android.ui.startorder.StartOrderScreen
 import app.calendariociclismo.android.ui.transfers.TransfersScreen
 import app.calendariociclismo.android.ui.transfers.TransfersTeamScreen
 import app.calendariociclismo.android.ui.rememberApp
-import app.calendariociclismo.android.data.premium.PremiumService
 import app.calendariociclismo.android.ui.today.TodayScreen
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.rememberHaptics
@@ -346,7 +345,7 @@ fun AppNavHost(navController: NavHostController) {
                 TextButton(onClick = {
                     showContributionPrompt = false
                     app.analytics.logEvent("contribution_prompt_action")
-                    app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
+                    app.premium.presentSupport()
                 }) { Text(stringResource(R.string.contribution_prompt_open)) }
             },
             dismissButton = {

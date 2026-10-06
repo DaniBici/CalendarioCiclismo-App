@@ -126,6 +126,20 @@ enum CyclocrossLogic {
         return CxTiming(temporalState: state, resultsStatus: category.resultsStatus, estimatedEnd: end)
     }
 
+    /// Instante en que una categoría deja de admitir TV en directo. Con hora de
+    /// salida: fin estimado (duración reglamentaria verificada o, sin ella,
+    /// 60 min) más 30 min. Sin hora: día siguiente a su fecha a las 06:00 UTC.
+    /// `category` nil es la pseudocategoría de una carrera sin categorías, con
+    /// el último día de la carrera (paridad con `cxCategoryConcludedAt` web).
+    static func concludedAt(race: CxRace, category: CxCategory?) -> Date {
+        if let category, let start = instant(category.startTimeUtc) {
+            let end = timing(race: race, category: category, at: start).estimatedEnd ?? start.addingTimeInterval(60 * 60)
+            return end.addingTimeInterval(30 * 60)
+        }
+        guard let day = instant((category.map { $0.dateKey ?? race.dateKey } ?? race.endDateKey ?? race.dateKey) + "T06:00:00Z") else { return .distantFuture }
+        return day.addingTimeInterval(24 * 60 * 60)
+    }
+
     static func duration(_ seconds: Int64?) -> String {
         guard let seconds, seconds >= 0 else { return "—" }
         return String(format: "%lld:%02lld:%02lld", seconds / 3600, seconds / 60 % 60, seconds % 60)

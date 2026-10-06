@@ -1,5 +1,5 @@
-import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from './results/time.js?v=20260914cxresults';
-import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js?v=20260927stickyscroll';
+import {timeToSeconds,secondsToGap,formatGap,cleanTimeText,secondsToAbsText} from './results/time.js';
+import { updateResultsHtml, limitScrollToStickyStart } from './results/dom.js';
 import { mountStageProfile } from './stage/profile.js';
 import { stageContextHtml, stageMetricsHtml } from './stage/context.js';
 import { teamStripes, teamsForSeason } from './team-appearance.js';
@@ -169,7 +169,7 @@ async function init() {
   // El módulo del feed se carga en diferido para no engordar las páginas de
   // carrera, que son la ruta caliente.
   if (!raceId && !raceSlug) {
-    const { renderResultsFeed } = await import('./resultados-feed.js?v=20260924sitefix');
+    const { renderResultsFeed } = await import('./resultados-feed.js');
     renderResultsFeed(content);
     return;
   }

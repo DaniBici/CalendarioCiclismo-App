@@ -1,28 +1,41 @@
-import {resolveCxPanelResultRows} from '../cx/result-identity.js?v=20260927foldname';
-import {CxCalendarImportState} from '../cx/calendar-import-state.js?v=20260912cximportstate';
-import {PdfTextImportState} from '../pdf-text-import-state.js?v=20260912cxpdf';
-import {extractPdfText} from '../services/pdf-text.js?v=20260912cxpdf';
-import {panelEditorTopbarHtml,panelEditorTabsHtml,panelSectionHtml,panelClassificationRowHtml,panelTeamRowHtml,panelTeamCatalogHtml,panelRiderRowHtml} from './editor-ui.js?v=20260912cxcohesion';
+import {resolveCxPanelResultRows} from '../cx/result-identity.js';
+import {CxCalendarImportState} from '../cx/calendar-import-state.js';
+import {PdfTextImportState} from '../pdf-text-import-state.js';
+import {extractPdfText} from '../services/pdf-text.js';
+import {panelEditorTopbarHtml,panelEditorTabsHtml,panelSectionHtml,panelClassificationRowHtml,panelTeamRowHtml,panelTeamCatalogHtml,panelRiderRowHtml} from './editor-ui.js';
 import {riderMatchesSearch,riderSearchLookupToken} from '../results/panel-logic.js';
-import {panelDayNavigationHtml,panelCatalogHeaderHtml,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml,panelAgendaItemHtml,renderPanelCatalog} from './catalog-ui.js?v=20260912cxcohesion';
-import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces} from '../cx/panel-presentation.js?v=20260912cxcohesion';
+import {panelDayNavigationHtml,panelCatalogHeaderHtml,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml,panelAgendaItemHtml,renderPanelCatalog} from './catalog-ui.js';
+import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces} from '../cx/panel-presentation.js';
 import {madridDateKey} from '../services/timezone.js';
-import {cxLogoImage} from '../components/cx-logo.js?v=20260912cxlogos1';
-import {cxAllRows,cxQuery,cxRpc} from '../services/cx-data.js?v=20260914cxstandings2';
+import {cxLogoImage} from '../components/cx-logo.js';
+import {cxAllRows,cxQuery,cxRpc} from '../services/cx-data.js';
 import {buildTeamBadgeSvg} from '../shared.js';
-import {attachCountryAutocomplete} from '../country-select.js?v=20260917cxflags';
-import {automaticTeamHeaderText} from '../team-appearance.js?v=20260913cxbadge';
-import {CX_CATEGORIES,CX_CLASSES,CX_COUNTRY_GROUPS,cxGender,cxSlug,cxRaceSlugSuggestion,cxUniqueRaceSlug,cxSaveErrorMessage,cxEscape as esc,cxUrl,cxYouTubeWatchUrl,cxLocalParts,cxLocalToUtc,cxDuration,parseCxRows,compareCxStandings} from '../cx/editor-logic.js?v=20260924cxyoutube1';
-import {CX_DURATION_RULE_VERSION,cxCategoryTiming} from '../cx/timing.js?v=20260913cxdropschedule';
-import {cxSeason,cxSeasonBounds,cxDateInSeason} from '../cx/season.js?v=20260912cxmonths7';
-import {isValidRiderSlug} from '../rider-rename-logic.js?v=20260915rename1';
+import {attachCountryAutocomplete} from '../country-select.js';
+import {automaticTeamHeaderText} from '../team-appearance.js';
+import {CX_CATEGORIES,CX_CLASSES,CX_COUNTRY_GROUPS,cxGender,cxSlug,cxSlugWithoutDiscipline,cxRaceSlugSuggestion,cxUniqueRaceSlug,cxSaveErrorMessage,cxEscape as esc,cxUrl,cxAssertMapImageUrl,cxYouTubeWatchUrl,cxLocalParts,cxLocalToUtc,cxDuration,parseCxRows,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
+import {CX_DURATION_RULE_VERSION,cxCategoryTiming} from '../cx/timing.js';
+import {cxSeason,cxSeasonBounds,cxDateInSeason} from '../cx/season.js';
+import {isValidRiderSlug} from '../rider-rename-logic.js';
 import {confirmDialog as confirmNative} from '../components/dialog.js';
+
+// Las carreras existentes conservan sus datos editoriales; lo que UCI publica
+// distinto se lista para revisarlo a mano.
+const CALENDAR_FIELD_LABELS={dateKey:'fecha',endDateKey:'fecha final',class:'clase',countryCode:'país',venue:'sede'};
+function calendarResultHtml(result){
+  const diffs=result.differences||[];
+  const rows=diffs.map(d=>{
+    const fields=Object.entries(d.fields||{}).map(([k,v])=>`${esc(CALENDAR_FIELD_LABELS[k]||k)}: ${esc(v.actual??'—')} → UCI ${esc(v.uci??'—')}`);
+    if(d.missingCategories?.length)fields.push(`categorías solo en UCI: ${d.missingCategories.map(c=>esc(c)).join(', ')}`);
+    return `<li>${esc(d.name)}: ${fields.join('; ')}</li>`;
+  }).join('');
+  return `<p>Calendario aplicado: ${esc(result.inserted)} altas; ${esc(result.existing)} pruebas existentes sin cambios; ${esc(result.categories)} categorías.</p>`
+    +(diffs.length?`<p>${diffs.length} pruebas difieren de UCI y no se han modificado:</p><ul>${rows}</ul>`:'');
+}
 const confirmDialog=({message,title,confirmText})=>confirmNative(message,{title,confirmText});
 
 const COMMON_TABS=['highlights','notifications','operations','analytics'];
 const EDITOR_TABS=[['identity','General'],['tv','TV'],['videos','Vídeos'],['docs','Docs'],['results','Resultados']];
 const EDITOR_TAB_KEYS=EDITOR_TABS.map(([key])=>key);
-const AGENDA_GROUPS=[['published','Publicadas'],['draft','Borrador']];
 const TABS={cxAgenda:'Agenda',cxRaces:'Carreras',cxTournaments:'Trofeos',cxStartlists:'Dorsales',cxRiders:'Corredores',cxTeams:'Equipos'};
 const CX_RAIL_ORDER=['cxAgenda','analytics','operations','cxStartlists','notifications','highlights','cxRiders','cxTeams','cxRaces','cxTournaments'];
 const TAB_ICONS={
@@ -186,12 +199,7 @@ async function render(tab,keepHeader=false) {
 function agendaList(root,dateKey,rows,section='identity') {
   root.replaceChildren();
   const dayRaces=cxPanelAgendaRaces(rows,dateKey);
-  for(const [status,label] of AGENDA_GROUPS) {
-    const group=dayRaces.filter(race=>status==='published'?race.editorialStatus==='published':race.editorialStatus!=='published');
-    if(!group.length)continue;
-    const header=document.createElement('div');header.className='sidebar-group-label';header.textContent=label;root.append(header);
-    for(const race of group)root.append(agendaItem(race,dateKey,section));
-  }
+  for(const race of dayRaces)root.append(agendaItem(race,dateKey,section));
   if(!root.children.length)root.innerHTML='<p class="panel-catalog-empty">No hay jornadas para este día.</p>';
 }
 function agendaItem(race,dateKey,section) {
@@ -259,32 +267,32 @@ function riderList(renderToken) {
 }
 function cxOriginHtml(link,lastDumpAt) {
   if(!link)return `<div class="ru-origin"><div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> — sin enlace no hay resultados in-house.</div>
-    <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-      <a class="btn btn--ghost" href="https://dataride.uci.ch/" target="_blank" rel="noopener" style="font-size:0.72rem;padding:0.3rem 0.7rem">Últimos resultados de DataRide ↗</a>
-      <button type="button" class="btn btn--primary cru-link-edit" style="font-size:0.72rem;padding:0.3rem 0.7rem">Enlazar fuente</button>
+    <div class="u-row u-mt-045 u-wrap">
+      <a class="btn btn--ghost btn--compact" href="https://dataride.uci.ch/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
+      <button type="button" class="btn btn--primary cru-link-edit btn--compact">Enlazar fuente</button>
     </div></div>`;
   return `<div class="ru-origin">
     <div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
-    ${link.lastFetchError?`<div style="color:#e55;font-size:0.72rem;margin-top:0.25rem">${esc(link.lastFetchError)}</div>`:''}
-    <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-      <button type="button" class="btn btn--ghost cru-link-edit" style="font-size:0.72rem;padding:0.3rem 0.7rem">Cambiar enlace</button>
-      <button type="button" class="btn btn--ghost cru-unlink" style="font-size:0.72rem;padding:0.3rem 0.7rem;color:#e55">Desenlazar</button>
-      <button type="button" class="btn btn--primary cru-dump" style="font-size:0.72rem;padding:0.3rem 0.7rem"
+    ${link.lastFetchError?`<div class="u-c-danger u-fs-072 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
+    <div class="u-row u-mt-045 u-wrap">
+      <button type="button" class="btn btn--ghost cru-link-edit btn--compact">Cambiar enlace</button>
+      <button type="button" class="btn btn--ghost cru-unlink btn--compact u-c-danger">Desenlazar</button>
+      <button type="button" class="btn btn--primary cru-dump btn--compact"
         title="Re-vuelca esta carrera, respetando las mangas bloqueadas manualmente.">▶ Volcar esta carrera</button>
     </div></div>`;
 }
 // Las ventanas CX son minutos relativos al final estimado de cada manga, no horas absolutas.
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
-  return `<div class="ru-sync-policy" style="margin-top:0.65rem">
-    <div style="font-size:0.76rem;color:var(--text-muted)">Horario de volcado automático</div>
-    <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
+  return `<div class="ru-sync-policy u-mt-065">
+    <div class="u-fs-076 u-c-muted">Horario de volcado automático</div>
+    <div class="ru-sync-box">
       <label><input type="checkbox" data-sync-enabled ${link.syncEnabled?'checked':''}> Recogida automática</label>
-      <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;margin-top:0.5rem;align-items:end">
-        <label> <span class="u-c-dim">Apertura (min antes del final estimado)</span><input type="number" data-sync-start value="${start}" min="-1440" max="1440" style="width:6rem"></label>
-        <label> <span class="u-c-dim">Cierre (min después)</span><input type="number" data-sync-stop value="${stop}" min="0" max="2880" style="width:6rem"></label>
-        <label> <span class="u-c-dim">Cadencia (min)</span><input type="number" data-sync-interval value="${interval}" min="1" max="240" style="width:5rem"></label>
-        <button type="button" class="btn btn--primary cru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar programación</button>
+      <div class="u-row u-gap-055 u-wrap u-mt-050 u-items-end">
+        <label> <span class="u-c-dim">Apertura (min antes del final estimado)</span><input type="number" data-sync-start value="${start}" min="-1440" max="1440" class="u-w-600"></label>
+        <label> <span class="u-c-dim">Cierre (min después)</span><input type="number" data-sync-stop value="${stop}" min="0" max="2880" class="u-w-600"></label>
+        <label> <span class="u-c-dim">Cadencia (min)</span><input type="number" data-sync-interval value="${interval}" min="1" max="240" class="u-w-500"></label>
+        <button type="button" class="btn btn--primary cru-sync-save btn--compact">Guardar programación</button>
       </div></div></div>`;
 }
 async function resultsView(root,race,categories) {
@@ -293,18 +301,18 @@ async function resultsView(root,race,categories) {
   const link=links[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
   const render=()=>resultsView(root,race,categories);
   const byCategory=new Map(categories.map(c=>[c.category,c]));
-  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}<div class="cru-link-panel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
+  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-080" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
-    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock" data-category="${esc(c.category)}" style="font-size:0.68rem;padding:0 0.55rem">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit" data-category="${esc(c.category)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete" data-category="${esc(c.category)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
+    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-068 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);
   root.querySelectorAll('.cru-link-edit').forEach(button=>button.onclick=()=>{
     const panel=root.querySelector('.cru-link-panel');
     panel.style.display='block';
-    panel.innerHTML=`<div class="u-row" style="gap:0.5rem;align-items:center;flex-wrap:wrap">
-      <input type="number" data-comp placeholder="competitionId" min="1" value="${link?.competitionId??''}" style="width:9.5rem">
-      <input type="number" data-season placeholder="seasonId" min="1" value="${link?.seasonId??472}" style="width:8rem" title="Season ID de resultados de DataRide; 472 = 2026-27.">
-      <input type="number" data-uci placeholder="uciRaceId (manga, opc.)" min="0" value="${link?.uciRaceId||''}" style="width:12rem" title="Race ID de DataRide para volcar solo una prueba de la competición. Vacío o 0 = competición entera.">
-      <button type="button" class="btn btn--primary cru-link-save" style="font-size:0.7rem;padding:0 0.6rem">Guardar enlace</button></div>`;
+    panel.innerHTML=`<div class="u-row u-gap-050 u-items-center u-wrap">
+      <input type="number" data-comp placeholder="competitionId" min="1" value="${link?.competitionId??''}" class="u-w-950">
+      <input type="number" data-season placeholder="seasonId" min="1" value="${link?.seasonId??472}" class="u-w-800" title="Season ID de resultados de DataRide; 472 = 2026-27.">
+      <input type="number" data-uci placeholder="uciRaceId (manga, opc.)" min="0" value="${link?.uciRaceId||''}" class="u-w-1200" title="Race ID de DataRide para volcar solo una prueba de la competición. Vacío o 0 = competición entera.">
+      <button type="button" class="btn btn--primary cru-link-save u-fs-070 u-py-0 u-px-060">Guardar enlace</button></div>`;
     panel.querySelector('[data-comp]').focus();
     panel.querySelector('.cru-link-save').onclick=async event=>{
       const save=event.currentTarget;
@@ -378,7 +386,7 @@ async function calendarImport() {
     else if(state.status==='error')root.textContent='No se ha aplicado ningún dato.';
     else if(state.status==='ready')preview(state.manifest);
     else if(state.status==='applying')root.querySelector('[data-apply]').disabled=true;
-    else if(state.status==='applied')root.innerHTML=`<p>Calendario aplicado: ${esc(state.result.inserted)} altas y ${esc(state.result.updated)} actualizaciones; ${esc(state.result.categories)} categorías.</p>`;
+    else if(state.status==='applied')root.innerHTML=calendarResultHtml(state.result);
   });
   file.onchange=async event=>{const selected=event.target.files[0];if(!selected)return;event.target.value='';await session.load(async()=>JSON.parse(await selected.text()));};
   fetch.onclick=()=>session.load(async()=>{const {data,error}=await ctx.supabase.functions.invoke('cx-calendar',{body:{seasonKey:selectedSeason}});if(error)throw error;if(data?.error)throw new Error(data.error);return data;});
@@ -487,7 +495,7 @@ function raceForm(root,race,categories,handle,slugRaces=[]) {
   form.addEventListener('input',updateTimingFromEvent);form.addEventListener('change',updateTimingFromEvent);updateAllTiming();
   const slugField=form.elements.slug,slugEnField=form.elements.slugEn;
   const identityField=name=>form.querySelector(`.cx-grid [name=${name}]`);
-  const cxAutoSlug=lang=>cxUniqueRaceSlug(cxRaceSlugSuggestion({name:identityField('name')?.value,nameEn:identityField('nameEn')?.value,tournamentName:tournaments.find(t=>t.id===identityField('tournamentId')?.value)?.name,venue:identityField('venue')?.value,dateKey:identityField('dateKey')?.value,lang}),{races:slugRaces,raceId:race.id,dateKey:identityField('dateKey')?.value,lang});
+  const cxAutoSlug=lang=>cxUniqueRaceSlug(cxRaceSlugSuggestion({name:identityField('name')?.value,nameEn:identityField('nameEn')?.value,tournamentName:(tournament=>lang==='en'?tournament?.nameEn||tournament?.name:tournament?.name)(tournaments.find(t=>t.id===identityField('tournamentId')?.value)),venue:identityField('venue')?.value,dateKey:identityField('dateKey')?.value,lang}),{races:slugRaces,raceId:race.id,dateKey:identityField('dateKey')?.value,lang});
   const applyAutoSlug=()=>{
     if(slugField.dataset.auto)slugField.value=cxAutoSlug('es');
     if(slugEnField?.dataset.auto)slugEnField.value=cxAutoSlug('en');
@@ -495,7 +503,7 @@ function raceForm(root,race,categories,handle,slugRaces=[]) {
   if(!race.id){slugField.dataset.auto='1';if(slugEnField&&!slugEnField.value)slugEnField.dataset.auto='1';}
   else {
     const season=identityField('seasonKey')?.value||'',year=identityField('dateKey')?.value?.slice(0,4)||'';
-    const base=cxSlug(identityField('name')?.value||'');
+    const base=cxSlugWithoutDiscipline(cxSlug(identityField('name')?.value||''));
     const generated=[season?`${base}-${season}`:'',year?`${base}-${year}`:'',season?`${base}-${season}-`:''].filter(p=>p&&slugField.value&&(slugField.value===p||slugField.value.startsWith(p)));
     if(!slugField.value||generated.length)slugField.dataset.auto='1';
     if(slugEnField&&!slugEnField.value)slugEnField.dataset.auto='1';
@@ -544,7 +552,7 @@ async function mediaForm(root,race,categories,section) {
   const add=(row={})=>{
     const item=document.createElement('fieldset');item.dataset.id=row.id||crypto.randomUUID();item.className='cx-media-row';
     const local=cxLocalParts(row.startTimeUtc,race.timezone);item.dataset.utc=row.startTimeUtc||'';item.dataset.local=local?`${local.dateKey}T${local.time}`:'';
-    item.innerHTML=`<div class="cx-grid"><label class="field cx-field">Categoría<select name="category">${categoryOptions(categories,row.category||'',true)}</select></label>${input(section==='tv'?'channel':'title',section==='tv'?'Canal':'Título',section==='tv'?row.channel:row.title,'text','required')}${input('url',section==='tv'?'Enlace':'Vídeo de YouTube',row.url,'url','required')}${section==='tv'?`${select('country','Región',CX_COUNTRY_GROUPS,row.country||'ALL')}${input('localStart','Inicio local',local?`${local.dateKey}T${local.time}`:'','datetime-local')}${input('note','Nota',row.note)}${checkbox('showInRevive','Disponible en Revive',row.showInRevive)}${checkbox('isSporza','Sporza',row.isSporza)}`:''}</div><button type="button" class="btn btn--ghost" data-remove>Quitar</button>`;
+    item.innerHTML=`<div class="cx-grid"><label class="field cx-field">Categoría<select name="category">${categoryOptions(categories,row.category||'',true)}</select></label>${input(section==='tv'?'channel':'title',section==='tv'?'Canal':'Título',section==='tv'?row.channel:row.title,'text','required')}${section==='videos'?input('titleEn','Título (EN)',row.titleEn):''}${input('url',section==='tv'?'Enlace':'Vídeo de YouTube',row.url,'url','required')}${section==='tv'?`${select('country','Región',CX_COUNTRY_GROUPS,row.country||'ALL')}${input('localStart','Inicio local',local?`${local.dateKey}T${local.time}`:'','datetime-local')}${input('note','Nota',row.note)}${checkbox('showInRevive','Disponible en Revive',row.showInRevive)}${checkbox('isSporza','Sporza',row.isSporza)}`:''}</div><button type="button" class="btn btn--ghost" data-remove>Quitar</button>`;
     item.querySelector('[data-remove]').onclick=async()=>{if(await confirmDialog({title:'Quitar enlace',message:'El enlace se elimina al guardar.',confirmText:'Quitar'})){item.remove();empty();}};list.append(item);empty();
   };
   rows.forEach(add);form.querySelector('[data-add]').onclick=()=>add();
@@ -552,6 +560,7 @@ async function mediaForm(root,race,categories,section) {
     const payload=[...list.children].map((item,i)=>{
       const value=get(item);value.id=item.dataset.id;value.sortOrder=i;
       value.url=section==='videos'?cxYouTubeWatchUrl(value.url):cxUrl(value.url,{optional:false});
+      if(section==='videos')value.titleEn=emptyNull(value.titleEn);
       if(section==='tv'){const local=value.localStart;value.startTimeUtc=local===item.dataset.local?emptyNull(item.dataset.utc):local?cxLocalToUtc(local.slice(0,10),local.slice(11,16),race.timezone):null;delete value.localStart;}
       return value;
     });
@@ -614,8 +623,7 @@ async function docsForm(root,race) {
       row.querySelector('.asset-row__remove').onclick=()=>{input.value='';};
     }
     onSubmit(form,async()=>{
-      const mapUrl=cxUrl(form.querySelector('.asset-url-input[data-type=map]').value.trim());
-      if(mapUrl&&!/\.(jpe?g|png)$/i.test(new URL(mapUrl).pathname))throw new Error('El mapa debe ser JPG o PNG.');
+      cxAssertMapImageUrl(cxUrl(form.querySelector('.asset-url-input[data-type=map]').value.trim()));
       for(const {type} of CX_DOC_TYPES) {
         const input=form.querySelector(`.asset-url-input[data-type=${type}]`),url=cxUrl(input.value.trim());
         const current=assets.find(a=>a.type===type);
@@ -732,25 +740,70 @@ async function standingsView(root,tournament) {
   root.innerHTML=panelSectionHtml('General','');
   const body=root.querySelector('.editor-section__body');
   if(!categories.length){body.innerHTML='<p>Sin reglamento asignado.</p>';return;}
-  body.innerHTML=`<label class="field cx-field">Categoría<select data-standing-category>${options(categories,categories[0])}</select></label><div data-standing-list></div>${textarea('officialStandings','General oficial para cotejar','','rows="6"')}<button class="btn btn--ghost" type="button" data-compare disabled>Comparar</button><div data-discrepancies role="status"></div>`;
-  let stored=[],paintVersion=0;
-  const choice=root.querySelector('[data-standing-category]'),target=root.querySelector('[data-standing-list]'),compare=root.querySelector('[data-compare]'),discrepancies=root.querySelector('[data-discrepancies]');
+  // Los campos del ajuste no llevan `name`: no forman parte del guardado del torneo.
+  body.innerHTML=`<label class="field cx-field">Categoría<select data-standing-category>${options(categories,categories[0])}</select></label><p data-standing-state role="status"></p><div data-standing-list></div><div class="cx-grid" data-standing-adjust hidden><label class="field cx-field">Clasificación oficial<input type="url" data-standing-source placeholder="https://"></label><label class="field cx-field">Motivo del ajuste<input type="text" data-standing-reason></label></div><div class="cx-actions" data-standing-actions hidden><button class="btn btn--ghost" type="button" data-standing-sort>Ordenar por total</button><button class="btn btn--primary" type="button" data-standing-publish>Publicar ajuste manual</button><button class="btn btn--ghost" type="button" data-standing-restore hidden>Volver al cálculo automático</button><span class="cx-error" role="alert"></span></div>${textarea('officialStandings','General oficial para cotejar','','rows="6"')}<button class="btn btn--ghost" type="button" data-compare disabled>Comparar</button><div data-discrepancies role="status"></div>`;
+  let stored=[],state=null,paintVersion=0;
+  const q=selector=>root.querySelector(selector);
+  const choice=q('[data-standing-category]'),target=q('[data-standing-list]'),compare=q('[data-compare]'),discrepancies=q('[data-discrepancies]');
+  const stateLine=q('[data-standing-state]'),adjust=q('[data-standing-adjust]'),adjustActions=q('[data-standing-actions]'),restore=q('[data-standing-restore]'),adjustError=adjustActions.querySelector('.cx-error');
+  const modeOf=()=>tournament.pointsScheme.categories[choice.value]?.mode;
+  const STATES={ready:'Calculada automáticamente',manual:'Ajustada a mano: el cálculo automático no la sustituye',empty:'Sin rondas oficiales',needs_review:'Cálculo en revisión',pending:'Cálculo pendiente'};
+  // Tabla editable: puesto y total por fila; «Quitar» la excluye del ajuste.
+  const editable=(rows,mode)=>`<div class="cx-table-wrap"><table><thead><tr><th>Puesto</th><th>Corredor</th><th>Equipo</th><th>${mode==='time'?'Tiempo acumulado':'Puntos'}</th><th>Quitar</th></tr></thead><tbody>${rows.map((r,index)=>`<tr data-standing-row="${index}"><td><input class="ru-in" data-key="rank" inputmode="numeric" value="${esc(r.rank)}"></td><td>${esc(r.riderDisplay)}</td><td>${esc(r.teamName)}</td><td><input class="ru-in" data-key="total" value="${esc(mode==='time'?cxDuration(r.timeSeconds):r.points??'')}"></td><td><input type="checkbox" data-key="remove"></td></tr>`).join('')}</tbody></table></div>`;
+  const editedRows=()=>[...target.querySelectorAll('[data-standing-row]')].flatMap(tr=>{
+    if(tr.querySelector('[data-key=remove]').checked)return [];
+    const row=stored[Number(tr.dataset.standingRow)];
+    return [{...row,rank:tr.querySelector('[data-key=rank]').value.trim(),value:tr.querySelector('[data-key=total]').value.trim()}];
+  });
   const paint=async()=>{
-    const version=++paintVersion,category=choice.value,mode=tournament.pointsScheme.categories[category]?.mode;
-    compare.disabled=true;stored=[];discrepancies.textContent='';target.innerHTML='<p>Cargando general…</p>';
+    const version=++paintVersion,category=choice.value,mode=modeOf();
+    compare.disabled=true;stored=[];state=null;discrepancies.textContent='';adjustError.textContent='';stateLine.textContent='';target.innerHTML='<p>Cargando general…</p>';
+    adjust.hidden=adjustActions.hidden=true;
     if(!['points','time'].includes(mode)){target.textContent='Categoría sin modalidad verificada.';return;}
     try{
-      const rows=await cxAllRows(ctx.supabase,'cx_tournament_standings','*',{tournamentId:tournament.id,category});
+      const filters={tournamentId:tournament.id,category};
+      const [rows,states]=await Promise.all([cxAllRows(ctx.supabase,'cx_tournament_standings','*',filters),cxAllRows(ctx.supabase,'cx_standings_state','*',filters,'category')]);
       if(version!==paintVersion||!root.isConnected)return;
-      stored=rows.sort((a,b)=>a.rank-b.rank);
-      target.innerHTML=stored.length?`<div class="cx-table-wrap"><table><thead><tr><th>Puesto</th><th>Corredor</th><th>Equipo</th><th>${mode==='time'?'Tiempo acumulado':'Puntos'}</th></tr></thead><tbody>${stored.map(r=>`<tr><td>${r.rank}</td><td>${esc(r.riderDisplay)}</td><td>${esc(r.teamName)}</td><td>${mode==='time'?cxDuration(r.timeSeconds):esc(r.points??'—')}</td></tr>`).join('')}</tbody></table></div>`:'<p>No hay general publicada para esta categoría.</p>';
+      stored=rows.sort((a,b)=>a.rank-b.rank);state=states[0]||null;
+      stateLine.textContent=state?`Estado: ${STATES[state.status]||state.status}.`:'';
+      target.innerHTML=stored.length?editable(stored,mode):'<p>No hay general publicada para esta categoría.</p>';
+      adjust.hidden=adjustActions.hidden=!stored.length&&state?.status!=='manual';
+      restore.hidden=state?.status!=='manual';
+      q('[data-standing-sort]').hidden=q('[data-standing-publish]').hidden=!stored.length;
+      q('[data-standing-source]').value=state?.status==='manual'?state.sourceUrl||'':'';
       compare.disabled=!stored.length;
     }catch(error){if(version!==paintVersion||!root.isConnected)return;target.innerHTML=`<p class="cx-error" role="alert">${esc(error.message)}</p><button class="btn btn--ghost" type="button">Reintentar</button>`;target.querySelector('button').onclick=()=>void paint();}
   };
+  const run=async(button,action)=>{
+    adjustError.textContent='';button.disabled=true;
+    try{await action();await paint();}catch(error){adjustError.textContent=cxSaveErrorMessage(error);}finally{button.disabled=false;}
+  };
+  q('[data-standing-sort]').onclick=()=>{try{
+    adjustError.textContent='';
+    const sorted=cxManualStandingsRows(editedRows(),modeOf(),{sortByTotal:true}),byId=new Map(sorted.map(row=>[row.globalRiderId,row.rank]));
+    for(const tr of target.querySelectorAll('[data-standing-row]')){const rank=byId.get(stored[Number(tr.dataset.standingRow)].globalRiderId);if(rank)tr.querySelector('[data-key=rank]').value=rank;}
+    const body=target.querySelector('tbody');[...body.children].sort((a,b)=>Number(a.querySelector('[data-key=rank]').value||Infinity)-Number(b.querySelector('[data-key=rank]').value||Infinity)).forEach(tr=>body.append(tr));
+  }catch(error){adjustError.textContent=error.message;}};
+  q('[data-standing-publish]').onclick=event=>void run(event.currentTarget,async()=>{
+    const category=choice.value,sourceUrl=cxUrl(q('[data-standing-source]').value,{optional:false}),reason=q('[data-standing-reason]').value.trim();
+    if(!reason)throw new Error('Indicar el motivo del ajuste.');
+    const calculation=cxManualStandingsCalculation(category,modeOf(),editedRows(),state);
+    if(!await confirmDialog({title:'Publicar ajuste manual',message:'La general quedará fijada a mano y el cálculo automático no la sustituirá hasta volver a él.',confirmText:'Publicar'}))return;
+    const snapshot=await cxRpc(ctx.supabase,'cx_standings_snapshot',{p_tournament_id:tournament.id,p_category:category});
+    await cxRpc(ctx.supabase,'cx_publish_standings',{p_tournament_id:tournament.id,p_category:category,p_expected_digest:snapshot.digest,p_calculation:calculation,
+      p_replace_manual:state?.status==='manual'||stored.some(row=>row.source!=='computed'),p_source:'manual',p_evidence:{sourceUrl,reason}});
+    ctx.showToast('General ajustada','success');
+  });
+  restore.onclick=event=>void run(event.currentTarget,async()=>{
+    if(!await confirmDialog({title:'Volver al cálculo automático',message:'Se sustituye el ajuste manual por el cálculo con los resultados publicados.',confirmText:'Recalcular'}))return;
+    const {data,error}=await ctx.supabase.functions.invoke('cx-recompute-standings',{body:{tournamentId:tournament.id,category:choice.value,replaceManual:true}});
+    if(error)throw error;if(data?.error)throw new Error(data.error);
+    ctx.showToast(data?.calculation?.status==='ready'?'General recalculada':'Cálculo sin general publicable: queda en revisión','success');
+  });
   choice.onchange=()=>void paint();await paint();
   compare.onclick=()=>{try{
-    const official=parseCxRows(root.querySelector('[name=officialStandings]').value),mode=tournament.pointsScheme.categories[choice.value]?.mode;
-    const problems=compareCxStandings(official,stored,mode);
+    const official=parseCxRows(root.querySelector('[name=officialStandings]').value);
+    const problems=compareCxStandings(official,stored,modeOf());
     discrepancies.textContent=problems.length?problems.join('\n'):'Sin diferencias en las filas cotejadas.';
   }catch(error){discrepancies.textContent=error.message;}};
 }

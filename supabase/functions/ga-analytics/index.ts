@@ -9,6 +9,9 @@
 //                               Si se define, los informes combinan ambas propiedades.
 //    GA_SERVICE_ACCOUNT_EMAIL — Email de la service account
 //    GA_PRIVATE_KEY           — Clave privada RSA (PEM) de la service account
+//
+//  Auth: sesión de administrador (private.admin_users, vía RPC
+//  public.is_admin), salvo el informe público portfolio_stats.
 // ─────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -19,30 +22,23 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
 
-// ── Verify Supabase JWT + email allowlist ────────────────────────
-// Si la variable `GA_ADMIN_EMAILS` está definida (lista CSV), solo los emails
-// incluidos pueden consultar el informe. Sin esa variable, cualquier usuario
-// autenticado de Supabase pasa (comportamiento previo).
-async function verifyAuth(req: Request): Promise<boolean> {
+// ── Verify Supabase JWT + administración ────────────────────────
+// Una sesión válida no basta: el usuario debe figurar en
+// private.admin_users. public.is_admin() se consulta con el JWT del propio
+// usuario y por GET (el pre-request de PostgREST solo bloquea escrituras).
+// Cualquier error o respuesta distinta de true se trata como no admin.
+async function verifyAuth(req: Request): Promise<401 | 403 | null> {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return false;
+  if (!authHeader) return 401;
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
+    { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
   );
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  const rawAllowlist = Deno.env.get('GA_ADMIN_EMAILS');
-  if (!rawAllowlist) return true;
-  const allowlist = rawAllowlist
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-  if (allowlist.length === 0) return true;
-  const userEmail = (user.email ?? '').toLowerCase();
-  return allowlist.includes(userEmail);
+  if (!user) return 401;
+  const { data: isAdmin, error } = await supabase.rpc('is_admin', undefined, { get: true });
+  return !error && isAdmin === true ? null : 403;
 }
 
 function jsonRes(body: Record<string, unknown>, status: number) {
@@ -478,9 +474,11 @@ Deno.serve(async (req: Request) => {
     return jsonRes({ error: 'Método no soportado' }, 405);
   }
 
-  // Auth check
-  if (!isPortfolioStats && !(await verifyAuth(req))) {
-    return jsonRes({ error: 'No autorizado' }, 401);
+  // Auth check: todos los informes salvo portfolio_stats.
+  if (!isPortfolioStats) {
+    const authStatus = await verifyAuth(req);
+    if (authStatus === 401) return jsonRes({ error: 'No autorizado' }, 401);
+    if (authStatus === 403) return jsonRes({ error: 'La operación requiere permisos de administración' }, 403);
   }
 
   const GA_PROPERTY_ID           = Deno.env.get('GA_PROPERTY_ID');

@@ -1,5 +1,5 @@
 import {CX_AGENDA_SELECT,cxHiddenClasses,cxIsHidden} from './services/cx-data.js';
-import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx/highlight.js?v=20260913cxscopes';
+import {cxHighlightSlide,cxTournamentHighlightSlide} from './cx/highlight.js';
 import { arrowHtml } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  CINTILLO «HOY» — carrusel editorial (tabla today_highlights)
@@ -10,6 +10,7 @@ import { arrowHtml } from './scroll-rail.js';
 import { supabase, toDateKey, jornadaUrl, raceUrl, startlistUrl, startOrderUrl }
         from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
+import { writeCalendarParams } from './calendario-query.js';
 
 // Color de fondo de las entradas custom (sin carrera de la que heredar color):
 // el azul de acento del sitio.
@@ -166,6 +167,28 @@ export async function initCintillo(scope = 'road') {
         href,
         iconSvg,
         logoUrl: h.customLogo || null,
+        name,
+        detail,
+        colorHex: _customAccent,
+      }));
+      return;
+    }
+
+    // Calendario de una temporada: /calendario/ (+ EN /en/calendar/) en la
+    // subvista Temporada. Un año distinto del actual abre en enero; el actual,
+    // en el mes en curso. Las apps abren su pestaña Calendario (5.0.11).
+    if (h.targetType === 'season') {
+      const year = Number(h.seasonYear);
+      if (!year) return;
+      const month = year === new Date().getFullYear() ? null : `${year}-01`;
+      const qs = writeCalendarParams(new URLSearchParams(), _isEn ? 'en' : 'es', { view: 'temporada', month });
+      const name = _isEn
+        ? (h.customTitleEn || h.customTitle || `${year} calendar`)
+        : (h.customTitle || `Calendario ${year}`);
+      const detail = _isEn ? (h.customDetailEn || h.customDetail || '') : (h.customDetail || '');
+      slides.push(_buildGcSlide({
+        href: `${_isEn ? '/en/calendar/' : '/calendario/'}?${qs}`,
+        iconSvg: `<svg class="giro-countdown__logo" viewBox="0 0 24 24" fill="none" stroke="${_customAccent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
         name,
         detail,
         colorHex: _customAccent,

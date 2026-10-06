@@ -9,6 +9,7 @@ import { execFileSync } from 'child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : fallback; };
@@ -21,12 +22,6 @@ const FIXTURE = arg('--fixture');
 const TOTAL_STAGES = arg('--total-stages') == null ? null : Number(arg('--total-stages'));
 const BASE = 'https://www.classificacoes.net';
 const log = (s) => process.stderr.write(`${s}\n`);
-
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h >>> 0;
-}
 
 export const suggestCompetitionId = (code) => -(fnv1a(`classificacoes:${code}`) % 200000);
 const CLASS_IDX = {

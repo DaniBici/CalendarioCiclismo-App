@@ -175,8 +175,8 @@ def static_entries():
         # /buscar.html: fuera del sitemap desde 2026-07-17 y retirado el
         # 2026-09-28 (archive/buscador-web-2026); 404.html lo lleva a la home.
         ("/about/","/about/","monthly","0.4"),
-        # /betaandroid.html: fuera del sitemap desde 2026-09-28. La beta de
-        # Android terminó; la página sigue viva por URL directa.
+        # /betaandroid.html y /en/beta/ redirigen a /apps/ desde 2026-09-28.
+        ("/apps/","/apps/","monthly","0.5"),
         ("/suscripcion/","/subscription/","monthly","0.6"),
         ("/apoyar/","/support/","monthly","0.4"),
     ]:

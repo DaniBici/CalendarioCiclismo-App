@@ -30,7 +30,7 @@ describe('Vuelta a Burgos — PDF', () => {
   it('deriva la URL estable de cada etapa y localiza ambos PDFs', () => {
     expect(pageUrl(5)).toBe('https://www.vueltaburgos.com/es/clasificaciones-5a-etapa/');
     expect(pdfLinksFromHtml('<a href="/e.pdf">Clasificaciones de la etapa</a><a href="/g.pdf">Clasificación General</a>')).toEqual({ stage: 'https://www.vueltaburgos.com/e.pdf', general: 'https://www.vueltaburgos.com/g.pdf' });
-    expect(suggestCompetitionId(2026)).toBeLessThan(0);
+    expect(suggestCompetitionId(2026)).toBe(-171470);   // ancla del ID guardado
   });
 
   it('emite las seis clasificaciones públicas con dorsales, tiempos y puntos', () => {

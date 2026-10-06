@@ -1,4 +1,4 @@
-import {describe,expect,it} from 'vitest';
+import {afterAll,beforeAll,describe,expect,it,vi} from 'vitest';
 import {collectCxRace,cxMadridDate,runCxPipeline} from '../results-fetchers/cx-results-cron.mjs';
 
 const now=new Date('2026-11-01T14:50:00Z');
@@ -84,6 +84,9 @@ function pipelineClient(candidates,request=null,{acquired=true}={}){
 }
 const collected=options=>({raceId:options,status:'ok',rowsFound:3,rowsMatched:2,rowsChanged:2});
 describe('pasadas operativas CX separadas de carretera',()=>{
+  // La revisión fija evita un `git rev-parse` en cada apertura de pasada.
+  beforeAll(()=>{vi.stubEnv('CC_DEPLOY_REVISION','test');});
+  afterAll(()=>{vi.unstubAllEnvs();});
   it('dry-run solo lee decisiones; no reclama, registra ni accede a proveedores',async()=>{
     const client=pipelineClient([fixture().context]);const value=await runCxPipeline(client,{now,dryRun:true,collect:async()=>{throw new Error('No se recoge');},processQueue:async()=>{throw new Error('No se calcula');}});
     expect(value.dryRun).toBe(true);expect(client.calls).toHaveLength(1);expect(value.candidates[0].decisions[0].due).toBe(true);

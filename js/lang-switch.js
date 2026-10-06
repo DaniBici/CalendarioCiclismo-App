@@ -69,6 +69,25 @@
     }
   }
 
+  // ── Query del calendario en el idioma de destino ───────────────
+  // Espejo de js/calendario-query.js (este script no es módulo):
+  // ES ?vista=mes|temporada&mes=AAAA-MM ↔ EN ?view=month|season&month=AAAA-MM.
+  function calendarSearch(targetLang) {
+    const p = new URLSearchParams(window.location.search);
+    const toEn = { mes: 'month', temporada: 'season' };
+    const fromEn = { month: 'mes', season: 'temporada' };
+    let view = p.get('vista');
+    if (view !== 'mes' && view !== 'temporada') view = fromEn[p.get('view')] || null;
+    const month = [p.get('mes'), p.get('month')]
+      .find(v => /^\d{4}-(0[1-9]|1[0-2])$/.test(v || '')) || null;
+    ['vista', 'view', 'mes', 'month'].forEach(k => p.delete(k));
+    const en = targetLang === 'en';
+    if (view) p.set(en ? 'view' : 'vista', en ? toEn[view] : view);
+    if (month) p.set(en ? 'month' : 'mes', month);
+    const s = p.toString();
+    return s ? '?' + s : '';
+  }
+
   // ── Construir URL en el idioma de destino ──────────────────────
   function buildTargetUrl(targetLang) {
     const path = window.location.pathname;
@@ -103,13 +122,18 @@
         '/abierto/':     '/en/open/',
         '/abierto.html': '/en/open/',
         '/apoyar/':      '/en/support/',
+        '/apps/':        '/en/apps/',
+        '/betaandroid.html': '/en/apps/',
         '/resultados/':  '/en/results/',
         '/fichajes/':    '/en/transfers/',
         '/privacidad.html': '/en/privacy/',
         '/suscripcion/': '/en/subscription/',
         '/campeonatos-nacionales-2026.html': '/en/2026-national-championships/',
       };
-      if (staticMap[path]) return toEnDomain(window.location.origin + staticMap[path] + window.location.search);
+      if (staticMap[path]) {
+        const search = staticMap[path] === '/en/calendar/' ? calendarSearch('en') : window.location.search;
+        return toEnDomain(window.location.origin + staticMap[path] + search);
+      }
 
       // Para rutas dinámicas: leer hreflang="en" escrito por la SPA al cargar datos
       if (path.startsWith('/jornada/') || path.startsWith('/competicion/') || path.startsWith('/inscritos/') || path.startsWith('/orden-salida/') || path.startsWith('/resultados/') || path.startsWith('/ciclocross/')) {
@@ -156,10 +180,12 @@
           '/transfers/':    '/fichajes/',
           '/privacy/':      '/privacidad.html',
           '/subscription/': '/suscripcion/',
-          '/beta/':         '/betaandroid.html',
+          '/apps/':         '/apps/',
+          '/beta/':         '/apps/',
           '/2026-national-championships/': '/campeonatos-nacionales-2026.html',
         };
-        return appBase + (cleanPathMap[path] || '/') + window.location.search;
+        const esPath = cleanPathMap[path] || '/';
+        return appBase + esPath + (esPath === '/calendario/' ? calendarSearch('es') : window.location.search);
       }
 
       // Para rutas dinámicas EN: leer hreflang="es" del DOM (presente en páginas pre-renderizadas)
@@ -171,12 +197,14 @@
       // Reescribir rutas /en/* → ES equivalente
       const qs = window.location.search;
       if (path === '/en/' || path === '/en') return '/' + qs;
-      if (path.startsWith('/en/calendar/')) return '/calendario/' + qs;
-      if (path.startsWith('/en/month/')) return '/calendario/' + qs;
-      if (path.startsWith('/en/season/')) return '/calendario/' + qs;
+      if (path.startsWith('/en/calendar/')) return '/calendario/' + calendarSearch('es');
+      if (path.startsWith('/en/month/')) return '/calendario/' + calendarSearch('es');
+      if (path.startsWith('/en/season/')) return '/calendario/' + calendarSearch('es');
       if (path.startsWith('/en/about/')) return '/about/' + qs;
       if (path.startsWith('/en/open/')) return '/abierto/' + qs;
       if (path.startsWith('/en/support/')) return '/apoyar/' + qs;
+      if (path.startsWith('/en/apps/')) return '/apps/' + qs;
+      if (path.startsWith('/en/beta/')) return '/apps/' + qs;
       if (path.startsWith('/en/results/')) return '/resultados/' + qs;
       if (path.startsWith('/en/transfers/')) return '/fichajes/' + qs;
       if (path.startsWith('/en/privacy/')) return '/privacidad.html' + qs;

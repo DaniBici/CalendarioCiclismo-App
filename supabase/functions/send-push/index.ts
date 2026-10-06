@@ -4,7 +4,8 @@
 //
 //  1. Envío inmediato (comportamiento original):
 //       { title, subtitle?, imageUrl?, deepLink?, category?, targetRegions?, targetPlatforms? }
-//     → Requiere sesión de usuario autenticado (admin).
+//     → Requiere sesión de administrador (private.admin_users, vía RPC
+//       public.is_admin): 401 sin sesión, 403 sin permisos.
 //     → Modo debug: si se pasa `targetToken` (deviceToken concreto), la
 //       notificación se entrega SOLO a ese dispositivo, ignorando filtros
 //       de región/plataforma/categoría/idioma. No se persiste en el
@@ -13,7 +14,7 @@
 //  2. Programar para más tarde:
 //       { title, subtitle?, imageUrl?, deepLink?, category?, targetRegions?, targetPlatforms?, scheduledAt: "<ISO>" }
 //     → Guarda en scheduled_push_notifications (status=pending) y retorna.
-//     → Requiere sesión de usuario autenticado (admin).
+//     → Requiere sesión de administrador (mismo control que el modo 1).
 //
 //  3. Procesar programadas (invocado por pg_cron cada 5 min):
 //       { processScheduled: true }
@@ -181,6 +182,9 @@ const CORS_HEADERS = {
 // trunque silenciosamente cuando la audiencia crece.
 const RECIPIENT_PAGE_SIZE = 500;
 const TOKEN_FILTER_CHUNK_SIZE = 200;
+// Desactivación de tokens: el filtro .in() viaja en la URL y un token FCM
+// ocupa unos 150 caracteres codificado; 50 tokens quedan por debajo de 8 KB.
+const TOKEN_DEACTIVATE_CHUNK_SIZE = 50;
 
 type PageError = { message: string };
 type PageResult<T> = { data: T[] | null; error: PageError | null };
@@ -282,6 +286,25 @@ async function createAPNsJWT(keyId: string, teamId: string, privateKey: CryptoKe
   return `${header}.${payload}.${base64url(rawSig)}`;
 }
 
+// APNs exige reutilizar el JWT del proveedor: renovarlo más de una vez cada
+// 20 min responde 429 TooManyProviderTokenUpdates, y caduca a los 60 min. Se
+// conserva por instancia durante 40 min; un cron que despacha varios avisos
+// seguidos comparte así un único JWT.
+const APNS_JWT_TTL_MS = 40 * 60 * 1000;
+let apnsJwtCache: { jwt: string; keyId: string; teamId: string; issuedAt: number } | null = null;
+
+async function getAPNsJWT(keyId: string, teamId: string, privateKeyPem: string): Promise<{ jwt: string; reused: boolean }> {
+  const now = Date.now();
+  if (apnsJwtCache && apnsJwtCache.keyId === keyId && apnsJwtCache.teamId === teamId
+      && now - apnsJwtCache.issuedAt < APNS_JWT_TTL_MS) {
+    return { jwt: apnsJwtCache.jwt, reused: true };
+  }
+  const privateKey = await importAPNsKey(privateKeyPem);
+  const jwt = await createAPNsJWT(keyId, teamId, privateKey);
+  apnsJwtCache = { jwt, keyId, teamId, issuedAt: now };
+  return { jwt, reused: false };
+}
+
 /** Convierte firma DER de ECDSA a formato raw (r||s, 64 bytes) */
 function derToRaw(der: Uint8Array): Uint8Array {
   if (der.length === 64) return der;
@@ -341,9 +364,11 @@ async function sendApns(tokens: string[], msg: PushMessage): Promise<SendResult>
     return result;
   }
 
-  let privateKey: CryptoKey;
+  let jwt: string;
   try {
-    privateKey = await importAPNsKey(privateKeyPem);
+    const apnsJwt = await getAPNsJWT(keyId, teamId, privateKeyPem);
+    jwt = apnsJwt.jwt;
+    console.log(`[send-push][apns] JWT ${apnsJwt.reused ? 'reutilizado' : 'generado'} (longitud: ${jwt.length})`);
   } catch (keyErr) {
     console.error('[send-push][apns] Error importando clave privada:', String(keyErr));
     result.failed = tokens.length;
@@ -352,9 +377,6 @@ async function sendApns(tokens: string[], msg: PushMessage): Promise<SendResult>
     }));
     return result;
   }
-
-  const jwt = await createAPNsJWT(keyId, teamId, privateKey);
-  console.log('[send-push][apns] JWT generado (longitud:', jwt.length, ')');
 
   const apnsHosts = [
     'https://api.push.apple.com',          // production (TestFlight/App Store)
@@ -415,12 +437,17 @@ async function sendApns(tokens: string[], msg: PushMessage): Promise<SendResult>
         const reason = errBody.reason ?? errText.slice(0, 120);
         console.warn(`[send-push][apns] ✗ ${tokenPrefix} → ${hostLabel} (${res.status}): ${reason}`);
 
+        // Solo un BadDeviceToken de producción justifica probar sandbox: el
+        // token puede ser de una build de desarrollo. Cualquier otro error de
+        // producción se resuelve aquí; sandbox respondería BadDeviceToken a un
+        // token de producción y lo desactivaría por error.
+        if (errBody.reason === 'BadDeviceToken' && hostLabel === 'production') continue;
         if (errBody.reason === 'BadDeviceToken' || errBody.reason === 'Unregistered') {
           hardBounce = true;
-          break; // definitivo: no tiene sentido probar el otro host
+          break;
         }
-        if (res.status === 403) {
-          console.error(`[send-push][apns] ⚠ 403 en ${hostLabel} — posible problema con JWT, keyId o teamId`);
+        if (res.status === 403 || errBody.reason === 'TooManyProviderTokenUpdates') {
+          console.error(`[send-push][apns] ⚠ ${res.status} ${reason} en ${hostLabel} — problema con el JWT, keyId o teamId`);
           // error de infraestructura, no penalizar el token
         } else {
           softFailed = true;
@@ -430,13 +457,16 @@ async function sendApns(tokens: string[], msg: PushMessage): Promise<SendResult>
         }
         if (errBody.reason === 'ExpiredProviderToken' || errBody.reason === 'InvalidProviderToken') {
           console.error(`[send-push][apns] ⚠ JWT rechazado (${errBody.reason}) — revisar KEY_ID / TEAM_ID / PRIVATE_KEY`);
+          if (apnsJwtCache?.jwt === jwt) apnsJwtCache = null;
         }
+        break;
       } catch (fetchErr) {
         console.error(`[send-push][apns] ✗ ${tokenPrefix} → ${hostLabel} error de red:`, String(fetchErr));
         result.details.push({
           token: tokenPrefix, status: 'network_error', channel: `apns-${hostLabel}`, reason: String(fetchErr),
         });
         softFailed = true;
+        break;
       }
     }
 
@@ -1145,11 +1175,13 @@ async function doSend(
 
   console.log(`[send-push] Resumen — enviados: ${totalSent} | fallidos: ${totalFailed} | hard: ${invalidTokens.length} | soft: ${softFailedTokens.length}`);
 
-  if (invalidTokens.length > 0) {
+  // Sin trocear, varios cientos de tokens superan la longitud máxima de la
+  // URL y la petición responde 400.
+  for (const tokens of chunksOf(invalidTokens, TOKEN_DEACTIVATE_CHUNK_SIZE)) {
     const { error } = await adminClient
       .from('push_subscriptions')
       .update({ isActive: false, updatedAt: new Date().toISOString() })
-      .in('deviceToken', invalidTokens);
+      .in('deviceToken', tokens);
     if (error) console.error('[send-push] Error desactivando tokens:', error.message);
   }
   if (softFailedTokens.length > 0) {
@@ -1417,9 +1449,15 @@ Deno.serve(async (req) => {
       return await handleProcessScheduled(adminClient);
     }
 
-    // ── Modos 1 y 2: requieren sesión de usuario autenticado (admin) ──
+    // ── Modos 1 y 2: requieren sesión de administrador ──
+    // Solo los invoca el panel con el JWT del usuario; las invocaciones de
+    // sistema (pg_cron, GitHub Actions) usan processScheduled. Una sesión
+    // válida no basta: public.is_admin() se consulta con el JWT del propio
+    // usuario y por GET (el pre-request de PostgREST solo bloquea escrituras).
+    // Cualquier error o respuesta distinta de true se trata como no admin.
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
     });
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
@@ -1429,7 +1467,15 @@ Deno.serve(async (req) => {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
-    console.log('[send-push] Usuario autenticado:', user.email);
+    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin', undefined, { get: true });
+    if (adminError || isAdmin !== true) {
+      console.warn('[send-push] Usuario sin permisos de administración:', user.id, adminError?.message ?? '');
+      return new Response(JSON.stringify({ error: 'La operación requiere permisos de administración' }), {
+        status: 403,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    console.log('[send-push] Administrador autenticado:', user.email);
 
     const { title, subtitle, imageUrl, scheduledAt } = body;
     let deepLink = body.deepLink;

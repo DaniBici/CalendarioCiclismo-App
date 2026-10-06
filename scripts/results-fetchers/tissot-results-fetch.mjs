@@ -97,6 +97,7 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -121,11 +122,6 @@ const log = (...a) => process.stderr.write(a.join(' ') + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── IDs sintéticos (negativos, deterministas) ─────────────────────────────
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h;
-}
 // Semilla de los IDs sintéticos. En una carrera por etapas es el comp_id
 // ("ara2026"); en un MultiEvents (Mundial) se añade el nº de evento para que las
 // pruebas del mismo campeonato no compartan eventId/raceId. Exportadas para tests.

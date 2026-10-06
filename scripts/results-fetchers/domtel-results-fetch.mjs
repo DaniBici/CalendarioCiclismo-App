@@ -83,6 +83,7 @@
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const getArg = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -97,12 +98,6 @@ const TOTAL_STAGES = getArg('--total-stages') != null ? Number(getArg('--total-s
 const PRETTY = hasFlag('--pretty');
 
 // fnv1a → base determinista para los ids sintéticos negativos.
-// Exportada para tests (scripts/__tests__/domtel-results-fetch.test.js).
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h >>> 0;
-}
 const SALT_KEY = PID || (FILE ? FILE : 'domtel');
 const ID_BASE = fnv1a(`domtel:${SALT_KEY}`) % 200000;   // ≤199999 → eventId > -2^31
 

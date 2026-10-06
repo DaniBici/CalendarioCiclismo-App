@@ -26,7 +26,7 @@
             android:strokeWidth="2.3"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
-            android:pathData="M18.5,41 L39.5,41 Q42.5,41 42.5,44 L42.5,62 Q42.5,65 39.5,65 L18.5,65 Q15.5,65 15.5,62 L15.5,44 Q15.5,41 18.5,41 Z"/>
+            android:pathData="M18.5,38 L39.5,38 A3,3 0 0 1 42.5,41 L42.5,62 A3,3 0 0 1 39.5,65 L18.5,65 A3,3 0 0 1 15.5,62 L15.5,41 A3,3 0 0 1 18.5,38 Z"/>
         <!-- Tab izquierdo -->
         <path
             android:strokeColor="#FFFFFF"

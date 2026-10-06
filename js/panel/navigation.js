@@ -2,9 +2,9 @@
 //  PANEL DE ADMINISTRACIÓN — Navegación entre vistas (rail lateral y hash)
 // ─────────────────────────────────────────────────────────────────
 
-import { mountCxPanel, showCxTab, areaAgenda } from './cx.js?v=20260927foldname';
+import { mountCxPanel, showCxTab, areaAgenda } from './cx.js';
 import { supabase, countryFlag, categoryBadge } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
 import { attachInlineUpload, R2_PUBLIC_BASE, r2PutObject, r2PutTechnicalGuide } from './uploads.js';
@@ -25,40 +25,13 @@ import { setupFichajesView } from './fichajes.js';
 // ── Navegación (rail lateral; antes pestañas) ─────────────────────
 export function initTabs() {
   mountCxPanel({supabase,openDrawer,closeDrawer,showToast,attachInlineUpload,countryFlag,categoryBadge,navigate:switchTab,r2PutObject,r2PutTechnicalGuide,r2PublicBase:R2_PUBLIC_BASE});
-  document.querySelectorAll('.rail-item[data-tab], .panel-tab').forEach(tab => {
+  document.querySelectorAll('.rail-item[data-tab]').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
   // Logo → Agenda
   const logoHome = document.getElementById('logoHome');
   if (logoHome) logoHome.addEventListener('click', e => { e.preventDefault(); switchTab(areaAgenda()); });
-
-  // Burger menu (mobile)
-  const burger = document.getElementById('panelBurger');
-  const burgerMenu = document.getElementById('panelBurgerMenu');
-  if (burger && burgerMenu) {
-    burger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const open = burgerMenu.classList.toggle('open');
-      burger.setAttribute('aria-expanded', String(open));
-      burgerMenu.setAttribute('aria-hidden', String(!open));
-    });
-    burgerMenu.querySelectorAll('.panel-burger-item[data-tab]').forEach(item => {
-      item.addEventListener('click', () => {
-        switchTab(item.dataset.tab);
-        burgerMenu.classList.remove('open');
-        burger.setAttribute('aria-expanded', 'false');
-        burgerMenu.setAttribute('aria-hidden', 'true');
-      });
-    });
-    document.addEventListener('click', (e) => {
-      if (!burgerMenu.contains(e.target) && !burger.contains(e.target)) {
-        burgerMenu.classList.remove('open');
-        burger.setAttribute('aria-expanded', 'false');
-        burgerMenu.setAttribute('aria-hidden', 'true');
-      }
-    });
-  }
 
   // Navegación con botones atrás/adelante del navegador
   window.addEventListener('hashchange', () => switchTab(tabFromHash(), { updateHash: false }));
@@ -74,10 +47,8 @@ export function tabFromHash() {
 export function switchTab(tab, { updateHash = true } = {}) {
   closeDrawer(1);
   showCxTab(tab);
-  // Rail lateral (nav permanente). Se conservan los selectores antiguos
-  // (.panel-tab/.panel-burger-item) por si quedan referencias; el rail usa
-  // .rail-item[data-tab].
-  document.querySelectorAll('.rail-item, .panel-tab, .panel-burger-item').forEach(t =>
+  // Rail lateral (nav permanente): .rail-item[data-tab].
+  document.querySelectorAll('.rail-item').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tab)
   );
   const isAgenda        = tab === 'agenda';
@@ -100,8 +71,7 @@ export function switchTab(tab, { updateHash = true } = {}) {
   document.getElementById('teamsView').style.display                   = isTeams         ? 'flex' : 'none';
   document.getElementById('notificationsView').style.display           = isNotifications ? 'flex' : 'none';
   document.getElementById('highlightsView').style.display              = isHighlights    ? 'flex' : 'none';
-  const fichajesView = document.getElementById('fichajesView');
-  if (fichajesView) fichajesView.style.display                         = isFichajes      ? 'flex' : 'none';
+  document.getElementById('fichajesView').style.display                = isFichajes      ? 'flex' : 'none';
   // La vista Carreras tiene dos subvistas (Carreras / Challenges) con toggle
   // propio; al entrar se renderiza la subvista activa.
   if (isRaces)         applyRacesSubview(panelState._racesSubview);

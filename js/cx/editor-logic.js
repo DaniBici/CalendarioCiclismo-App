@@ -3,6 +3,11 @@ export const CX_CLASSES=['CM','CDM','CC','C1','C2','CN','NAC'];
 export const CX_COUNTRY_GROUPS=['ALL','ES','EUROPA','PT','FR','BE','NL','IT','DE_AT_CH','UK_IE','SCANDI','EE','LATAM','NORTEAM','ASIAPAC','AFRICA','MENA'];
 export const cxGender=category=>category.startsWith('M')?'men':'women';
 export const cxSlug=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+// La URL ya empieza por /ciclocross/ (/en/cyclocross/): el slug no repite la disciplina.
+export const cxSlugWithoutDiscipline=slug=>{
+  const clean=`-${slug}-`.replace(/-(?:(?:de|del|of)-)?(?:ciclo-?cros(?:s|se)?|cyclo-?cross|cx)(?=-)/g,'').replace(/^-(?:de|del)(?=-)/,'').replace(/^-|-$/g,'');
+  return /[a-z]/.test(clean)?clean:slug;
+};
 export const cxVenueCity=venue=>{
   const text=String(venue??'').replace(/ł/g,'l').replace(/Ł/g,'L').replace(/\([^)]*\)/g,'').trim();
   if(!text) return '';
@@ -16,7 +21,7 @@ export function cxRaceSlugSuggestion({name,nameEn,tournamentName,venue,dateKey,l
   const base=tournamentName
     ? [cxSlug(tournamentName),city].filter(Boolean).join('-')
     : cxSlug(String(lang==='en'?(nameEn||name):(name)||'').replace(/ł/g,'l').replace(/Ł/g,'L'));
-  return [base,year].filter(Boolean).join('-').slice(0,80);
+  return [cxSlugWithoutDiscipline(base),year].filter(Boolean).join('-').slice(0,80);
 }
 export function cxUniqueRaceSlug(suggestion,{races=[],raceId,dateKey,lang='es'}={}) {
   const key=lang==='en'?'slugEn':'slug';
@@ -43,6 +48,11 @@ export function cxUrl(value,{optional=true}={}) {
   let url;try{url=new URL(value);}catch{throw new Error('Dirección web inválida. Usar una URL completa http o https.');}
   if(!['https:','http:'].includes(url.protocol)) throw new Error('Usar una dirección http o https.');
   return url.href;
+}
+// El mapa de Docs se publica como imagen: la ruta de su URL termina en JPG o PNG.
+export function cxAssertMapImageUrl(url) {
+  if(url&&!/\.(jpe?g|png)$/i.test(new URL(url).pathname))throw new Error('El mapa debe ser JPG o PNG.');
+  return url;
 }
 export function cxYouTubeVideoId(value) {
   let url;
@@ -109,6 +119,28 @@ export function compareCxStandings(official,stored,mode) {
   }
   for(const row of stored)if(!seen.has(cxSlug(row.riderDisplay)))problems.push(`${row.riderDisplay}: falta en la tabla oficial pegada`);
   return problems;
+}
+// Ajuste manual de una general publicada: `value` es el total editado (tiempo
+// h:mm:ss o puntos). `sortByTotal` reordena por total (tiempo ascendente,
+// puntos descendentes) y conserva el puesto anterior en los empates.
+export function cxManualStandingsRows(rows,mode,{sortByTotal=false}={}) {
+  if(!['points','time'].includes(mode))throw new Error('Categoría sin modalidad verificada.');
+  const parsed=rows.map(row=>{
+    if(String(row.value??'').trim()==='')throw new Error(`${row.riderDisplay}: total vacío.`);
+    return {...row,rank:Number(row.rank),total:mode==='time'?BigInt(cxSeconds(row.value)):cxPointValue(row.value)};
+  });
+  const byTotal=(a,b)=>mode==='time'?(a.total<b.total?-1:a.total>b.total?1:0):Number(b.total)-Number(a.total);
+  const ordered=[...parsed].sort((a,b)=>(sortByTotal?byTotal(a,b):0)||a.rank-b.rank);
+  if(sortByTotal)ordered.forEach((row,index)=>{row.rank=index+1;});
+  if(ordered.some((row,index)=>row.rank!==index+1))throw new Error('Los puestos deben ir de 1 al número de filas, sin repetir.');
+  return ordered.map(({total,value:_value,...row})=>({...row,points:mode==='points'?total:null,timeSeconds:mode==='time'?total.toString():null}));
+}
+// Cálculo que publica `cx_publish_standings` con origen manual. Sin desglose:
+// el de la general automática no cuadra con totales editados.
+export function cxManualStandingsCalculation(category,mode,rows,state) {
+  const ordered=cxManualStandingsRows(rows,mode);
+  return {category,unit:mode,status:ordered.length?'ready':'empty',issues:[],roundIds:state?.roundIds||[],breakdown:[],
+    rows:ordered.map(row=>({rank:row.rank,globalRiderId:row.globalRiderId,riderDisplay:row.riderDisplay,teamName:row.teamName||null,isoCode2:row.isoCode2||null,points:row.points,timeSeconds:row.timeSeconds}))};
 }
 export function cxChipText(hex) {
   const channels=hex.slice(1).match(/../g).map(x=>{const n=parseInt(x,16)/255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});

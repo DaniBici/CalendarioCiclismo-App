@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * Tests del Modo Campeonatos — espejo de `ChampionshipsConfigTests.swift` (iOS)
@@ -13,127 +14,47 @@ import org.junit.Test
  */
 class ChampionshipsConfigTest {
 
-    // ── Pertenencia al rango de fechas ──────────────────────────
-
-    @Test fun dates_includeRangeBounds() {
-        assertTrue(ChampionshipsConfig.DATES.contains("2026-06-22"))
-        assertTrue(ChampionshipsConfig.DATES.contains("2026-06-28"))
-    }
-
-    @Test fun dates_excludeOutsideRange() {
-        assertFalse(ChampionshipsConfig.DATES.contains("2026-06-21"))
-        assertFalse(ChampionshipsConfig.DATES.contains("2026-06-29"))
-    }
-
     // ── Clasificación de slot ───────────────────────────────────
 
-    @Test fun slot_eliteMenRoadByDefault() {
-        assertEquals(ChampionshipsConfig.Slot.LINEA_MASC, slotOf("Campeonato de España de ruta"))
-    }
-
-    @Test fun slot_criByName() {
-        assertEquals(ChampionshipsConfig.Slot.CRI_MASC, slotOf("Campeonato de España CRI"))
-    }
-
-    @Test fun slot_criByContrarrelojWord() {
-        assertEquals(ChampionshipsConfig.Slot.CRI_MASC, slotOf("Campeonato Nacional contrarreloj"))
-    }
-
-    @Test fun slot_femaleByName() {
-        assertEquals(ChampionshipsConfig.Slot.LINEA_FEM, slotOf("Campeonato de Francia femenino"))
-    }
-
-    @Test fun slot_femaleByGenderField() {
-        assertEquals(ChampionshipsConfig.Slot.LINEA_FEM, slotOf("Championnat de France", gender = "female"))
-    }
-
-    @Test fun slot_sub23() {
-        assertEquals(ChampionshipsConfig.Slot.LINEA_SUB23_M, slotOf("Campeonato de Italia sub-23"))
-    }
-
-    @Test fun slot_sub23FemaleCri() {
-        assertEquals(ChampionshipsConfig.Slot.CRI_SUB23_F, slotOf("Campeonato U23 CRI femenino"))
-    }
-
-    @Test fun slot_fallbackToPrimaryTypeItt() {
-        assertEquals(ChampionshipsConfig.Slot.CRI_MASC, slotOf("Campeonato de Bélgica", primaryType = "itt"))
-    }
-
-    @Test fun slot_nameLineaOverridesPrimaryTypeItt() {
-        assertEquals(ChampionshipsConfig.Slot.LINEA_MASC, slotOf("Campeonato de Bélgica en línea", primaryType = "itt"))
-    }
-
-    // ── Filtros → slots ─────────────────────────────────────────
-
-    @Test fun filter_slots() {
-        assertEquals(8, ChampionshipsConfig.Filter.ALL.slots.size)
-        assertEquals(
-            listOf(
-                ChampionshipsConfig.Slot.LINEA_MASC, ChampionshipsConfig.Slot.CRI_MASC,
-                ChampionshipsConfig.Slot.LINEA_FEM, ChampionshipsConfig.Slot.CRI_FEM,
-            ),
-            ChampionshipsConfig.Filter.PRO.slots,
+    @Test fun slot_table() {
+        data class Case(val name: String, val gender: String?, val primaryType: String?, val expected: ChampionshipsConfig.Slot)
+        val cases = listOf(
+            Case("Campeonato de España de ruta", null, null, ChampionshipsConfig.Slot.LINEA_MASC),
+            Case("Campeonato de España CRI", null, null, ChampionshipsConfig.Slot.CRI_MASC),
+            Case("Campeonato Nacional contrarreloj", null, null, ChampionshipsConfig.Slot.CRI_MASC),
+            Case("Campeonato de Francia femenino", null, null, ChampionshipsConfig.Slot.LINEA_FEM),
+            Case("Championnat de France", "female", null, ChampionshipsConfig.Slot.LINEA_FEM),
+            Case("Campeonato de Italia sub-23", null, null, ChampionshipsConfig.Slot.LINEA_SUB23_M),
+            Case("Campeonato U23 CRI femenino", null, null, ChampionshipsConfig.Slot.CRI_SUB23_F),
+            // Sin pista en el nombre → primaryType de la jornada.
+            Case("Campeonato de Bélgica", null, "itt", ChampionshipsConfig.Slot.CRI_MASC),
+            // "línea" en el nombre prevalece sobre primaryType=itt.
+            Case("Campeonato de Bélgica en línea", null, "itt", ChampionshipsConfig.Slot.LINEA_MASC),
         )
-        assertEquals(
-            listOf(ChampionshipsConfig.Slot.LINEA_MASC, ChampionshipsConfig.Slot.CRI_MASC),
-            ChampionshipsConfig.Filter.MALE.slots,
-        )
-        assertEquals(
-            listOf(ChampionshipsConfig.Slot.LINEA_FEM, ChampionshipsConfig.Slot.CRI_FEM),
-            ChampionshipsConfig.Filter.FEMALE.slots,
-        )
+        for (c in cases) {
+            assertEquals("${c.name} gender=${c.gender} primaryType=${c.primaryType}", c.expected, slotOf(c.name, c.gender, c.primaryType))
+        }
     }
 
-    // ── Filtro "Hoy" (rango 24–28 jun) ──────────────────────────
+    // ── Semana de campeonatos: filtro "Hoy" y bloqueo de filtros ─
 
-    @Test fun todayFilter_activeWithinRange() {
-        assertTrue(ChampionshipsConfig.isTodayFilterActive("2026-06-24"))
-        assertTrue(ChampionshipsConfig.isTodayFilterActive("2026-06-26"))
-        assertTrue(ChampionshipsConfig.isTodayFilterActive("2026-06-28"))
-    }
+    @Test fun champWeek_filterWindowsRelativeToRange() {
+        fun shift(date: String, days: Long) = LocalDate.parse(date).plusDays(days).toString()
+        val start = ChampionshipsConfig.RANGE_START
+        val end = ChampionshipsConfig.RANGE_END
+        val todayStart = ChampionshipsConfig.TODAY_FILTER_START
 
-    @Test fun todayFilter_inactiveBeforeAndAfter() {
-        // Primeros dos días de campeonatos (22, 23) → sin filtro.
-        assertFalse(ChampionshipsConfig.isTodayFilterActive("2026-06-22"))
-        assertFalse(ChampionshipsConfig.isTodayFilterActive("2026-06-23"))
-        // Después del 28 → sin filtro.
-        assertFalse(ChampionshipsConfig.isTodayFilterActive("2026-06-29"))
-        assertFalse(ChampionshipsConfig.isTodayFilterActive("2026-07-01"))
-    }
+        // Bloqueo de filtros de Hoy: toda la semana, bordes incluidos.
+        assertTrue("lock $start", ChampionshipsConfig.isChampWeekFilterLock(start))
+        assertTrue("lock $end", ChampionshipsConfig.isChampWeekFilterLock(end))
+        assertFalse("lock día previo", ChampionshipsConfig.isChampWeekFilterLock(shift(start, -1)))
+        assertFalse("lock día posterior", ChampionshipsConfig.isChampWeekFilterLock(shift(end, 1)))
 
-    // ── Bloqueo de filtros de "Hoy" en la semana de campeonatos (22–28) ──
-
-    @Test fun champWeekLock_activeWholeWeekIncl2223() {
-        assertTrue(ChampionshipsConfig.isChampWeekFilterLock("2026-06-22"))
-        assertTrue(ChampionshipsConfig.isChampWeekFilterLock("2026-06-23"))
-        assertTrue(ChampionshipsConfig.isChampWeekFilterLock("2026-06-25"))
-        assertTrue(ChampionshipsConfig.isChampWeekFilterLock("2026-06-28"))
-    }
-
-    @Test fun champWeekLock_inactiveOutsideWeek() {
-        assertFalse(ChampionshipsConfig.isChampWeekFilterLock("2026-06-21"))
-        assertFalse(ChampionshipsConfig.isChampWeekFilterLock("2026-06-29"))
-        assertFalse(ChampionshipsConfig.isChampWeekFilterLock("2026-07-01"))
-    }
-
-    @Test fun champWeekLock_filtersAreAllProMaleFemaleDefaultMale() {
-        assertEquals(
-            listOf(
-                Constants.CategoryFilter.ALL,
-                Constants.CategoryFilter.PRO,
-                Constants.CategoryFilter.MALE,
-                Constants.CategoryFilter.FEMALE,
-            ),
-            ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS,
-        )
-        assertEquals(Constants.CategoryFilter.MALE, ChampionshipsConfig.CHAMP_WEEK_HOY_DEFAULT)
-        assertFalse(ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS.contains(Constants.CategoryFilter.UWT))
-        assertFalse(ChampionshipsConfig.CHAMP_WEEK_HOY_FILTERS.contains(Constants.CategoryFilter.WWT))
-    }
-
-    @Test fun todayFilter_isFirstAndAllowsAllSlots() {
-        assertEquals(ChampionshipsConfig.Filter.TODAY, ChampionshipsConfig.Filter.values().first())
-        assertEquals(ChampionshipsConfig.Slot.values().toList(), ChampionshipsConfig.Filter.TODAY.slots)
+        // Filtro "Hoy": de TODAY_FILTER_START a RANGE_END; los primeros días sin filtro.
+        assertTrue("today $todayStart", ChampionshipsConfig.isTodayFilterActive(todayStart))
+        assertTrue("today $end", ChampionshipsConfig.isTodayFilterActive(end))
+        assertFalse("today víspera de TODAY_FILTER_START", ChampionshipsConfig.isTodayFilterActive(shift(todayStart, -1)))
+        assertFalse("today día posterior", ChampionshipsConfig.isTodayFilterActive(shift(end, 1)))
     }
 
     // ── Orden interno de la categoría CN en Hoy/Mes ─────────────

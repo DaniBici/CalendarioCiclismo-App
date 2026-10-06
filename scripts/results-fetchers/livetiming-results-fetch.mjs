@@ -138,6 +138,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { COMPUTER_EVENTS, computerPdfLinks, parseComputerPdf, readComputerPdf } from './computerauswertung-pdf.mjs';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -172,11 +173,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BASE_VID = VID || (VIDS ? VIDS.split(',')[0].trim() : null);
 
 // ── IDs sintéticos (negativos, deterministas; salt "livetiming:" sobre el V_ID base) ──
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h;
-}
 // ≤199999 → eventId > -2^31 garantizado. Sin --vid queda NaN: solo lo usa main(), que
 // valida los args antes (importar el módulo desde un test no ejecuta nada).
 const ID_BASE = BASE_VID ? fnv1a(`livetiming:${BASE_VID}`) % 200000 : NaN;

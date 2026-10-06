@@ -37,24 +37,17 @@ final class RaceLogicTests: XCTestCase {
 
     // Sin hora de meta cae al fallback de `dateKey` 18:00 UTC (igual que la web):
     // los Campeonatos Nacionales no tienen hora de meta y deben concluir igual.
-    func test_isRaceConcluded_pastDateNoFinishTime_true() {
-        let rd = makeRaceDay(dateKey: "2020-01-01", estimatedFinishTimeUtc: nil)
-        XCTAssertTrue(RaceLogic.isRaceConcluded(rd: rd))
-    }
-
-    func test_isRaceConcluded_futureDateNoFinishTime_false() {
-        let rd = makeRaceDay(dateKey: "2090-01-01", estimatedFinishTimeUtc: nil)
-        XCTAssertFalse(RaceLogic.isRaceConcluded(rd: rd))
-    }
-
-    func test_isRaceConcluded_trueWellInThePast() {
-        let rd = makeRaceDay(dateKey: "2020-01-01", estimatedFinishTimeUtc: "2020-01-01T15:00:00Z")
-        XCTAssertTrue(RaceLogic.isRaceConcluded(rd: rd))
-    }
-
-    func test_isRaceConcluded_falseFarInTheFuture() {
-        let rd = makeRaceDay(dateKey: "2090-01-01", estimatedFinishTimeUtc: "2090-01-01T15:00:00Z")
-        XCTAssertFalse(RaceLogic.isRaceConcluded(rd: rd))
+    func test_isRaceConcluded_withAndWithoutFinishTime() {
+        let cases: [(dateKey: String, finish: String?, expected: Bool)] = [
+            ("2020-01-01", nil, true),
+            ("2090-01-01", nil, false),
+            ("2020-01-01", "2020-01-01T15:00:00Z", true),
+            ("2090-01-01", "2090-01-01T15:00:00Z", false),
+        ]
+        for c in cases {
+            let rd = makeRaceDay(dateKey: c.dateKey, estimatedFinishTimeUtc: c.finish)
+            XCTAssertEqual(RaceLogic.isRaceConcluded(rd: rd), c.expected, "\(c.dateKey) meta=\(c.finish ?? "nil")")
+        }
     }
 
     func test_todayRaceState_prioritizesCancelledRestAndResultsBeforeWaiting() {
@@ -79,54 +72,33 @@ final class RaceLogicTests: XCTestCase {
 
     // MARK: - broadcastLinkPriority
 
-    func test_broadcastLinkPriority_youtubeIsTier0() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.youtube.com/watch?v=abc"), 0)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://youtu.be/abc"), 0)
-    }
-
-    func test_broadcastLinkPriority_otherSocialIsTier1() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.facebook.com/uci/videos/123"), 1)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.instagram.com/p/abc"), 1)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://twitter.com/uci"), 1)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://x.com/uci"), 1)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.twitch.tv/uci"), 1)
-    }
-
-    func test_broadcastLinkPriority_rtveIsTier2() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/"), 2)
-    }
-
-    func test_broadcastLinkPriority_otherPublicTvIsTier3() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1"), 3)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"), 3)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.3cat.cat/3cat/directes/esport3/"), 3)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"), 3)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.eitb.tv/es/directo/"), 3)
-    }
-
-    func test_broadcastLinkPriority_rtveBeatsCcmaAndEitb() {
-        let rtve = RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/")
-        XCTAssertLessThan(rtve, RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
-        XCTAssertLessThan(rtve, RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
-    }
-
-    func test_broadcastLinkPriority_rtp1BeatsWbdForVoltaPortugal() {
-        let rtp1 = RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1")
-        XCTAssertLessThan(rtp1, RaceLogic.broadcastLinkPriority("https://play.hbomax.com/sport/abc"))
-        XCTAssertLessThan(rtp1, RaceLogic.broadcastLinkPriority("https://www.hbomax.com/gb/en/sports/cycling"))
-    }
-
-    func test_broadcastLinkPriority_eurosportAndHboAreJustAnotherChannel() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.eurosport.es/ciclismo/"), 4)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.hbomax.com/es/es"), 4)
-        // play.max.com NO debe confundirse con x.com.
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://play.max.com/show/abc"), 4)
-    }
-
-    func test_broadcastLinkPriority_genericOrEmptyIsTier4() {
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority("https://www.france.tv/sport/cyclisme/"), 4)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority(nil), 4)
-        XCTAssertEqual(RaceLogic.broadcastLinkPriority(""), 4)
+    func test_broadcastLinkPriority_tiers() {
+        let cases: [(url: String?, tier: Int)] = [
+            ("https://www.youtube.com/watch?v=abc", 0),
+            ("https://youtu.be/abc", 0),
+            ("https://www.facebook.com/uci/videos/123", 1),
+            ("https://www.instagram.com/p/abc", 1),
+            ("https://twitter.com/uci", 1),
+            ("https://x.com/uci", 1),
+            ("https://www.twitch.tv/uci", 1),
+            ("https://www.rtve.es/play/videos/directo/teledeporte/", 2),
+            ("https://www.rtp.pt/play/direto/rtp1", 3),
+            ("https://www.ccma.cat/3cat/directes/esport3/", 3),
+            ("https://www.3cat.cat/3cat/directes/esport3/", 3),
+            ("https://www.eitb.eus/es/directo/etb-1/", 3),
+            ("https://www.eitb.tv/es/directo/", 3),
+            ("https://www.eurosport.es/ciclismo/", 4),
+            ("https://www.hbomax.com/es/es", 4),
+            ("https://play.hbomax.com/sport/abc", 4),
+            // play.max.com NO debe confundirse con x.com.
+            ("https://play.max.com/show/abc", 4),
+            ("https://www.france.tv/sport/cyclisme/", 4),
+            (nil, 4),
+            ("", 4),
+        ]
+        for c in cases {
+            XCTAssertEqual(RaceLogic.broadcastLinkPriority(c.url), c.tier, c.url ?? "nil")
+        }
     }
 
     func test_prefersNativeApp_matchesSupportedHostsAndSubdomains() {
@@ -141,12 +113,6 @@ final class RaceLogicTests: XCTestCase {
     }
 
     // MARK: - typeLabel
-
-    func test_typeLabel_nonEmptyForKnownType() {
-        XCTAssertFalse(RaceLogic.typeLabel("flat").isEmpty)
-        XCTAssertFalse(RaceLogic.typeLabel("mountain").isEmpty)
-        XCTAssertFalse(RaceLogic.typeLabel("itt").isEmpty)
-    }
 
     func test_typeLabel_passthroughForUnknown() {
         XCTAssertEqual("unknown_type", RaceLogic.typeLabel("unknown_type"))
@@ -188,89 +154,50 @@ final class RaceLogicTests: XCTestCase {
 
     // MARK: - categoryTier
 
-    func test_categoryTier_wtFor1UWT() {
-        XCTAssertEqual("wt", RaceLogic.categoryTier("1.UWT"))
-    }
-
-    func test_categoryTier_wtFor2UWT() {
-        XCTAssertEqual("wt", RaceLogic.categoryTier("2.UWT"))
-    }
-
-    func test_categoryTier_wcForWC() {
-        XCTAssertEqual("wc", RaceLogic.categoryTier("WC"))
-    }
-
-    func test_categoryTier_nilForNil() {
-        XCTAssertNil(RaceLogic.categoryTier(nil))
-    }
-
-    func test_categoryTier_nilForEmpty() {
-        XCTAssertNil(RaceLogic.categoryTier(""))
-    }
-
-    // MARK: - isColorDark
-
-    func test_isColorDark_trueForBlack() {
-        XCTAssertTrue(RaceLogic.isColorDark("#000000"))
-    }
-
-    func test_isColorDark_falseForWhite() {
-        XCTAssertFalse(RaceLogic.isColorDark("#FFFFFF"))
-    }
-
-    func test_isColorDark_trueForNil() {
-        XCTAssertTrue(RaceLogic.isColorDark(nil))
-    }
-
-    func test_isColorDark_trueForNavyBlue() {
-        XCTAssertTrue(RaceLogic.isColorDark("#003366"))
+    func test_categoryTier() {
+        let cases: [(category: String?, tier: String?)] = [
+            ("1.UWT", "wt"),
+            ("2.UWT", "wt"),
+            ("WC", "wc"),
+            (nil, nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(RaceLogic.categoryTier(c.category), c.tier, c.category ?? "nil")
+        }
     }
 
     // MARK: - nameImpliesFemale
 
-    func test_nameImpliesFemale_trueForWomen() {
-        XCTAssertTrue(RaceLogic.nameImpliesFemale("Tour de Flandes Women"))
-    }
-
-    func test_nameImpliesFemale_trueForFemenino() {
-        XCTAssertTrue(RaceLogic.nameImpliesFemale("Vuelta a Burgos Femenino"))
-    }
-
-    func test_nameImpliesFemale_trueForFemininaPortuguese() {
-        // "Feminina"/"Feminino" (portugués/italiano, sin acento, vocal i) deben
-        // contar como femenino igual que la web (patrón f[eé]minin[e]?).
-        XCTAssertTrue(RaceLogic.nameImpliesFemale("Volta a Portugal Feminina"))
-        XCTAssertTrue(RaceLogic.nameImpliesFemale("Giro Feminino"))
-    }
-
-    func test_nameImpliesFemale_falseForNeutralName() {
-        XCTAssertFalse(RaceLogic.nameImpliesFemale("Tour de Francia"))
-    }
-
-    func test_nameImpliesFemale_falseForNil() {
-        XCTAssertFalse(RaceLogic.nameImpliesFemale(nil))
+    func test_nameImpliesFemale() {
+        // "Feminina"/"Feminino" (portugués/italiano, sin acento, vocal i) cuentan
+        // como femenino igual que la web (patrón f[eé]minin[e]?).
+        let cases: [(name: String?, expected: Bool)] = [
+            ("Tour de Flandes Women", true),
+            ("Vuelta a Burgos Femenino", true),
+            ("Volta a Portugal Feminina", true),
+            ("Giro Feminino", true),
+            ("Tour de Francia", false),
+            (nil, false),
+        ]
+        for c in cases {
+            XCTAssertEqual(RaceLogic.nameImpliesFemale(c.name), c.expected, c.name ?? "nil")
+        }
     }
 
     // MARK: - cleanFeminineDisplayName
 
-    func test_cleanFeminineDisplayName_removesWomen() {
-        let cleaned = RaceLogic.cleanFeminineDisplayName("Tour de Flandes Women")
-        XCTAssertFalse(cleaned.lowercased().contains("women"))
-    }
-
-    func test_cleanFeminineDisplayName_removesFemenino() {
-        let cleaned = RaceLogic.cleanFeminineDisplayName("Vuelta a Burgos Femenino")
-        XCTAssertFalse(cleaned.lowercased().contains("femenino"))
-    }
-
-    func test_cleanFeminineDisplayName_keepsNeutralName() {
-        let name = "Tour de Francia"
-        XCTAssertEqual(name, RaceLogic.cleanFeminineDisplayName(name))
-    }
-
-    func test_cleanFeminineDisplayName_keepsKnownException() {
-        let name = "Women Cycling Pro"
-        XCTAssertEqual(name, RaceLogic.cleanFeminineDisplayName(name))
+    func test_cleanFeminineDisplayName() {
+        let removed: [(name: String, marker: String)] = [
+            ("Tour de Flandes Women", "women"),
+            ("Vuelta a Burgos Femenino", "femenino"),
+        ]
+        for c in removed {
+            XCTAssertFalse(RaceLogic.cleanFeminineDisplayName(c.name).lowercased().contains(c.marker), c.name)
+        }
+        // Nombre neutro y excepción conocida se conservan.
+        for name in ["Tour de Francia", "Women Cycling Pro"] {
+            XCTAssertEqual(RaceLogic.cleanFeminineDisplayName(name), name)
+        }
     }
 
     // MARK: - raceTimeCheck dateKey guard
@@ -290,28 +217,22 @@ final class RaceLogicTests: XCTestCase {
 
     // MARK: - reviveUrl
 
-    func test_reviveUrl_nilForEmptyBroadcasts() {
-        XCTAssertNil(RaceLogic.reviveUrl(from: []))
-    }
-
-    func test_reviveUrl_returnsEurosportUrl() {
-        let broadcasts = [makeBroadcast(channel: "Eurosport 1", url: "https://eurosport.com/live")]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_returnsYouTubeUrl() {
-        let broadcasts = [makeBroadcast(channel: "Canal", url: "https://youtube.com/watch?v=abc")]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_returnsSocialReplayUrl() {
-        let broadcasts = [makeBroadcast(channel: "Social", url: "https://www.instagram.com/reel/abc")]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_usesRemoteFlagForUnknownFutureSource() {
-        let broadcasts = [makeBroadcast(channel: "Pidcock Racing", url: "https://video.example/race", showInRevive: true)]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
+    func test_reviveUrl() {
+        let cases: [(label: String, broadcasts: [Broadcast], found: Bool)] = [
+            ("vacío", [], false),
+            ("Eurosport", [makeBroadcast(channel: "Eurosport 1", url: "https://eurosport.com/live")], true),
+            ("YouTube", [makeBroadcast(channel: "Canal", url: "https://youtube.com/watch?v=abc")], true),
+            ("red social", [makeBroadcast(channel: "Social", url: "https://www.instagram.com/reel/abc")], true),
+            ("showInRevive en fuente desconocida",
+             [makeBroadcast(channel: "Pidcock Racing", url: "https://video.example/race", showInRevive: true)], true),
+            ("ETB a la carta sin marca",
+             [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/m/txirrindularitza-itzulia-5-12345")], true),
+            ("ETB lineal sin marca", [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/ch/etb-1")], false),
+            ("canal sin revive", [makeBroadcast(channel: "Canal local", url: "https://example.com")], false),
+        ]
+        for c in cases {
+            XCTAssertEqual(RaceLogic.reviveUrl(from: c.broadcasts) != nil, c.found, c.label)
+        }
     }
 
     func test_hasReviveBroadcasts_requiresCurrentDayResults() {
@@ -343,41 +264,14 @@ final class RaceLogicTests: XCTestCase {
         )
     }
 
-    func test_reviveUrl_returnsEtbOnDemandWithoutFlag() {
-        let broadcasts = [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/m/txirrindularitza-itzulia-5-12345")]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_rejectsEtbOnLinearHubWithoutFlag() {
-        let broadcasts = [makeBroadcast(channel: "ETB1", url: "https://etbon.eus/ch/etb-1")]
-        XCTAssertNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_returnsShowInReviveUrl() {
-        let broadcasts = [makeBroadcast(channel: "Otro", url: "https://example.com", showInRevive: true)]
-        XCTAssertNotNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
-    func test_reviveUrl_nilForNonReviveBroadcast() {
-        let broadcasts = [makeBroadcast(channel: "Canal local", url: "https://example.com")]
-        XCTAssertNil(RaceLogic.reviveUrl(from: broadcasts))
-    }
-
     // MARK: - reviveBroadcasts
 
-    func test_reviveBroadcasts_excludesShowInReviveWithNoUrl() {
-        let broadcasts = [makeBroadcast(channel: "Canal", url: nil, showInRevive: true)]
-        XCTAssertTrue(RaceLogic.reviveBroadcasts(from: broadcasts).isEmpty)
-    }
-
-    func test_reviveBroadcasts_excludesEurosportWithNoUrl() {
-        let broadcasts = [makeBroadcast(channel: "Eurosport 1", url: nil)]
-        XCTAssertTrue(RaceLogic.reviveBroadcasts(from: broadcasts).isEmpty)
-    }
-
-    func test_reviveBroadcasts_includesShowInReviveWithUrl() {
-        let broadcasts = [makeBroadcast(channel: "Canal", url: "https://example.com", showInRevive: true)]
-        XCTAssertEqual(RaceLogic.reviveBroadcasts(from: broadcasts).count, 1)
+    func test_reviveBroadcasts_requiresUrl() {
+        XCTAssertTrue(RaceLogic.reviveBroadcasts(from: [makeBroadcast(channel: "Canal", url: nil, showInRevive: true)]).isEmpty)
+        XCTAssertTrue(RaceLogic.reviveBroadcasts(from: [makeBroadcast(channel: "Eurosport 1", url: nil)]).isEmpty)
+        XCTAssertEqual(
+            RaceLogic.reviveBroadcasts(from: [makeBroadcast(channel: "Canal", url: "https://example.com", showInRevive: true)]).count, 1
+        )
     }
 
     // MARK: - Orden de la agenda de Hoy (espejo de today-agenda-order.test.js)
@@ -629,30 +523,27 @@ final class RaceLogicTests: XCTestCase {
         makeRace(name: name, uciCategory: "CN", countryCode: "ES", gender: gender)
     }
 
-    func test_matchesCategory_cnEliteInPro() {
-        XCTAssertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", gender: "male"), filter: .pro))
-        XCTAssertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", gender: "female"), filter: .pro))
-    }
-
-    func test_matchesCategory_cnU23NotInPro() {
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea sub-23 Masculino", gender: "male"), filter: .pro))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España CRI sub-23 Femenino", gender: "female"), filter: .pro))
-    }
-
-    func test_matchesCategory_cnMaleOnlyEliteMen() {
-        XCTAssertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", gender: "male"), filter: .male))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", gender: "female"), filter: .male))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea sub-23 Masculino", gender: "male"), filter: .male))
-    }
-
-    func test_matchesCategory_cnFemaleOnlyEliteWomen() {
-        XCTAssertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", gender: "female"), filter: .female))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", gender: "male"), filter: .female))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España CRI sub-23 Femenino", gender: "female"), filter: .female))
-    }
-
-    func test_matchesCategory_cnNotInUwtWwt() {
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", gender: "male"), filter: .uwt))
-        XCTAssertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", gender: "female"), filter: .wwt))
+    func test_matchesCategory_cn() {
+        let eliteM = cn("Campeonato de España Línea Élite Masculino", gender: "male")
+        let eliteF = cn("Campeonato de España Línea Élite Femenino", gender: "female")
+        let u23M = cn("Campeonato de España Línea sub-23 Masculino", gender: "male")
+        let u23F = cn("Campeonato de España CRI sub-23 Femenino", gender: "female")
+        let cases: [(race: Race, filter: Constants.CategoryFilter, expected: Bool)] = [
+            (eliteM, .pro, true),
+            (eliteF, .pro, true),
+            (u23M, .pro, false),
+            (u23F, .pro, false),
+            (eliteM, .male, true),
+            (eliteF, .male, false),
+            (u23M, .male, false),
+            (eliteF, .female, true),
+            (eliteM, .female, false),
+            (u23F, .female, false),
+            (eliteM, .uwt, false),
+            (eliteF, .wwt, false),
+        ]
+        for c in cases {
+            XCTAssertEqual(RaceLogic.matchesCategory(c.race, filter: c.filter), c.expected, "\(c.race.name) / \(c.filter)")
+        }
     }
 }

@@ -37,9 +37,9 @@ enum WidgetSample {
                 tv: WidgetTV(status: "time", channel: "Sporza", channels: ["Sporza"], startUtc: at(13, 25)),
                 liveTextUrl: nil, hasResults: false, resultsLink: nil, reviveUrl: nil,
                 sessions: [
-                    WidgetSession(category: "WE", label: t("Élite fem.", "Women Elite"), elite: true, startUtc: at(13, 30),
+                    WidgetSession(category: "WE", label: t("Elite fem.", "Women Elite"), elite: true, startUtc: at(13, 30),
                                   finishUtc: at(14, 20), cancelled: false, hasResults: false),
-                    WidgetSession(category: "ME", label: t("Élite masc.", "Men Elite"), elite: true, startUtc: at(15, 0),
+                    WidgetSession(category: "ME", label: t("Elite masc.", "Men Elite"), elite: true, startUtc: at(15, 0),
                                   finishUtc: at(16, 0), cancelled: false, hasResults: false),
                 ]),
         ]

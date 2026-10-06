@@ -4,69 +4,20 @@ import { broadcastLinkPriority, hasReviveBroadcastsForDay, isReviveBroadcast, pi
 // Prioridad del enlace del badge de TV en directo:
 //  -1) CyLTV embebible  0) YouTube  1) otras redes  2) RTVE.es  3) RTP1/CCMA/EITB  4) resto.
 describe('broadcastLinkPriority', () => {
-  it('el reproductor embebible de CyLTV tiene prioridad máxima en la web', () => {
-    expect(broadcastLinkPriority('https://www.cyltvplay.es/player/uuid/la8bu/la-8-burgos')).toBe(-1);
-  });
-
-  it('YouTube es el tier 0', () => {
-    expect(broadcastLinkPriority('https://www.youtube.com/watch?v=abc')).toBe(0);
-    expect(broadcastLinkPriority('https://youtu.be/abc')).toBe(0);
-  });
-
-  it('otras redes sociales son tier 1', () => {
-    expect(broadcastLinkPriority('https://www.facebook.com/uci/videos/123')).toBe(1);
-    expect(broadcastLinkPriority('https://fb.watch/abc')).toBe(1);
-    expect(broadcastLinkPriority('https://www.instagram.com/p/abc')).toBe(1);
-    expect(broadcastLinkPriority('https://www.tiktok.com/@uci/live')).toBe(1);
-    expect(broadcastLinkPriority('https://www.twitch.tv/uci')).toBe(1);
-    expect(broadcastLinkPriority('https://kick.com/uci')).toBe(1);
-    expect(broadcastLinkPriority('https://twitter.com/uci')).toBe(1);
-    expect(broadcastLinkPriority('https://x.com/uci')).toBe(1);
-    expect(broadcastLinkPriority('https://www.x.com/uci')).toBe(1);
-  });
-
-  it('RTVE.es es tier 2 (por delante del resto de cadenas españolas)', () => {
-    expect(broadcastLinkPriority('https://www.rtve.es/play/videos/directo/teledeporte/')).toBe(2);
-  });
-
-  it('otras TV públicas en abierto (RTP1, CCMA/3Cat, EITB) son tier 3', () => {
-    expect(broadcastLinkPriority('https://www.rtp.pt/play/direto/rtp1')).toBe(3);
-    expect(broadcastLinkPriority('https://www.ccma.cat/3cat/directes/esport3/')).toBe(3);
-    expect(broadcastLinkPriority('https://www.3cat.cat/3cat/directes/esport3/')).toBe(3);
-    expect(broadcastLinkPriority('https://www.eitb.eus/es/directo/etb-1/')).toBe(3);
-    expect(broadcastLinkPriority('https://www.eitb.tv/es/directo/')).toBe(3);
-  });
-
-  it('RTVE gana a CCMA y EITB cuando compiten (caso etapa 4)', () => {
-    const rtve = broadcastLinkPriority('https://www.rtve.es/play/videos/directo/teledeporte/');
-    const eitb = broadcastLinkPriority('https://www.eitb.eus/es/directo/etb-1/');
-    const ccma = broadcastLinkPriority('https://www.ccma.cat/3cat/directes/esport3/');
-    expect(rtve).toBeLessThan(eitb);
-    expect(rtve).toBeLessThan(ccma);
-  });
-
-  it('RTP1 gana a Eurosport / HBO Max para la Volta a Portugal', () => {
-    const rtp1 = broadcastLinkPriority('https://www.rtp.pt/play/direto/rtp1');
-    expect(rtp1).toBeLessThan(broadcastLinkPriority('https://play.hbomax.com/sport/abc'));
-    expect(rtp1).toBeLessThan(broadcastLinkPriority('https://www.hbomax.com/gb/en/sports/cycling'));
-  });
-
-  it('Eurosport / HBO Max / Max son "una cadena más" (tier 4)', () => {
-    expect(broadcastLinkPriority('https://www.eurosport.es/ciclismo/')).toBe(4);
-    expect(broadcastLinkPriority('https://www.hbomax.com/es/es')).toBe(4);
-    expect(broadcastLinkPriority('https://play.max.com/show/abc')).toBe(4);
-  });
-
-  it('play.max.com NO se confunde con x.com (no es red social)', () => {
-    // Caso límite: "max.com" contiene la subcadena "x.com".
-    expect(broadcastLinkPriority('https://play.max.com/show/abc')).toBe(4);
-  });
-
-  it('cadena genérica sin URL conocida es tier 4', () => {
-    expect(broadcastLinkPriority('https://www.france.tv/sport/cyclisme/')).toBe(4);
-    expect(broadcastLinkPriority('')).toBe(4);
-    expect(broadcastLinkPriority(null)).toBe(4);
-    expect(broadcastLinkPriority(undefined)).toBe(4);
+  it.each([
+    [-1, ['https://www.cyltvplay.es/player/uuid/la8bu/la-8-burgos']],
+    [0, ['https://www.youtube.com/watch?v=abc', 'https://youtu.be/abc']],
+    [1, ['https://www.facebook.com/uci/videos/123', 'https://fb.watch/abc', 'https://www.instagram.com/p/abc',
+      'https://www.tiktok.com/@uci/live', 'https://www.twitch.tv/uci', 'https://kick.com/uci',
+      'https://twitter.com/uci', 'https://x.com/uci', 'https://www.x.com/uci']],
+    [2, ['https://www.rtve.es/play/videos/directo/teledeporte/']],
+    [3, ['https://www.rtp.pt/play/direto/rtp1', 'https://www.ccma.cat/3cat/directes/esport3/',
+      'https://www.3cat.cat/3cat/directes/esport3/', 'https://www.eitb.eus/es/directo/etb-1/', 'https://www.eitb.tv/es/directo/']],
+    // play.max.com contiene la subcadena "x.com" y no es una red social.
+    [4, ['https://www.eurosport.es/ciclismo/', 'https://www.hbomax.com/es/es', 'https://play.hbomax.com/sport/abc', 'https://play.max.com/show/abc',
+      'https://www.france.tv/sport/cyclisme/', '', null, undefined]],
+  ])('asigna el tier %i', (tier, urls) => {
+    for (const url of urls) expect(broadcastLinkPriority(url)).toBe(tier);
   });
 });
 
@@ -101,12 +52,9 @@ describe('isReviveBroadcast', () => {
 });
 
 describe('shouldShowBroadcastNote', () => {
-  it('oculta cualquier nota cuando ya han entrado resultados', () => {
+  it('oculta cualquier nota con resultados y conserva la regla de Revive sin ellos', () => {
     expect(shouldShowBroadcastNote(true, false, false)).toBe(false);
     expect(shouldShowBroadcastNote(true, true, true)).toBe(false);
-  });
-
-  it('conserva la regla de Revive mientras aún no hay resultados', () => {
     expect(shouldShowBroadcastNote(false, false, false)).toBe(true);
     expect(shouldShowBroadcastNote(false, true, false)).toBe(false);
     expect(shouldShowBroadcastNote(false, true, true)).toBe(true);

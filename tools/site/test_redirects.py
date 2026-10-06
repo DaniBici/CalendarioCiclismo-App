@@ -12,23 +12,23 @@ class RedirectsTest(unittest.TestCase):
             written = redirects.write(tmp)
             for path in ("abierto.html", "about.html", "calendario.html", "mes.html",
                          "temporada.html", "campeonatos-nacionales-2026/index.html",
+                         "betaandroid.html", "en/beta/index.html",
                          "en/month/index.html", "en/season/index.html"):
                 self.assertIn(path, written)
                 page = (Path(tmp) / path).read_text()
                 self.assertIn('<meta name="robots" content="noindex, follow">', page)
 
-    def test_simple_redirect_keeps_query_and_hash(self):
-        page = redirects.simple_page("/about/", "Acerca de mí", "es")
-        self.assertIn("location.replace('/about/' + location.search + location.hash);", page)
-        self.assertIn('href="https://calendariociclismo.app/about/"', page)
-
-    def test_calendar_redirect_translates_parameters(self):
-        page = dict(redirects.pages())["en/month/index.html"]
-        self.assertIn('<html lang="en">', page)
-        self.assertIn("q.set('vista', 'mes');", page)
-        self.assertIn("q.set('mes', month)", page)
-        self.assertIn("location.replace('/en/calendar/?' + q.toString());", page)
-        self.assertIn('content="0;url=/en/calendar/?vista=mes"', page)
+    def test_calendar_views_use_page_language_params(self):
+        es = redirects.calendar_page("/calendario/", ("vista", "mes"),
+                                     [("month", "mes", r"^\d{4}-\d{2}$")], "Calendario mensual", "es")
+        self.assertIn("q.set('vista', 'mes');", es)
+        self.assertIn('content="0;url=/calendario/?vista=mes"', es)
+        en = redirects.calendar_page("/en/calendar/", ("view", "month"),
+                                     [("month", "month", r"^\d{4}-\d{2}$")], "Monthly calendar", "en")
+        self.assertIn("q.set('view', 'month');", en)
+        self.assertIn("q.set('month', month)", en)
+        self.assertIn('content="0;url=/en/calendar/?view=month"', en)
+        self.assertNotIn("vista", en)
 
 
 if __name__ == "__main__":

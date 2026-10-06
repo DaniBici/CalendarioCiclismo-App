@@ -1,0 +1,3 @@
+# ripgrep y herramientas compatibles: el archivo de changelogs solo se busca
+# con ruta explícita (rg <patrón> docs/changelog/). git grep no lo aplica.
+docs/changelog/

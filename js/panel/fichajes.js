@@ -3,14 +3,14 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, esc } from '../shared.js';
-import { activeCatalogTeams } from '../services/team-catalog.js?v=20260907144500';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { activeCatalogTeams } from '../services/team-catalog.js';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import {
   isInitialTransferImport, isMarketDestinationTeamEligible, MARKET_DESTINATION_DIVISIONS,
   marketDestinationTeamOptions, transferEditorAnnouncementDate,
   transferRiderInitialGender, transferRowBorderColor,
-} from '../services/transfer-rider.js?v=20260908a';
+} from '../services/transfer-rider.js';
 import { panelState } from './state.js';
 import { MARKET_PREV_SEASON, MARKET_SEASON } from './constants.js';
 import { showToast } from './helpers.js';
@@ -97,8 +97,7 @@ export function renderMarketTeams() {
   btns.innerHTML = MARKET_DIVISIONS.map(d => {
     const active = d === _marketDiv;
     const n = panelState._marketSeasons.filter(s => s.category === d).length;
-    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost'}" data-mdiv="${d}"
-      style="padding:0.3rem 0.7rem;font-size:0.75rem">${d}${n ? ` <span style="opacity:0.65">${n}</span>` : ''}</button>`;
+    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost'} u-py-030 u-px-070 u-fs-075" data-mdiv="${d}">${d}${n ? ` <span class="u-o65">${n}</span>` : ''}</button>`;
   }).join('');
   btns.querySelectorAll('[data-mdiv]').forEach(b =>
     b.addEventListener('click', () => { _marketDiv = b.dataset.mdiv; renderMarketTeams(); })
@@ -109,12 +108,12 @@ export function renderMarketTeams() {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
 
   if (teams.length === 0) {
-    list.innerHTML = `<div class="u-fs-085 u-c-dim" style="padding:0.5rem 0">Sin equipos en esta división. Usa <strong>+ Equipo ${MARKET_SEASON}</strong> para crear uno que nazca este año.</div>`;
+    list.innerHTML = `<div class="u-fs-085 u-c-dim u-py-050 u-px-0">Sin equipos en esta división. Usa <strong>+ Equipo ${MARKET_SEASON}</strong> para crear uno que nazca este año.</div>`;
     return;
   }
 
   const chip = (text, color) =>
-    `<span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:0.1rem 0.35rem;border-radius:4px;background:${color}26;color:${color};white-space:nowrap">${esc(text)}</span>`;
+    `<span class="market-chip" style="--chip-color:${color};--chip-bg:${color}26">${esc(text)}</span>`;
 
   list.innerHTML = teams.map(s => {
     // El nombre de la temporada EN CURSO cuando difiere del del mercado: es la
@@ -130,13 +129,13 @@ export function renderMarketTeams() {
         ? chip(`Colores ${MARKET_PREV_SEASON}`, '#6b7280')
         : chip('Nuevo · sin colores', '#9ca3af');
     return `
-      <div class="market-team-row" data-team="${esc(s.teamId)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.65rem;background:var(--bg-card);border:1px solid ${s.continuityDoubt ? '#8b5cf6' : 'var(--border)'};border-radius:6px;cursor:pointer">
-        <span style="flex:1;min-width:0;font-size:0.85rem"><strong>${esc(s.name || s.teamId)}</strong>
-          ${renamed ? `<span class="u-c-dim" style="font-size:0.72rem;margin-left:0.3rem">· ${MARKET_PREV_SEASON}: ${esc(prev)}</span>` : ''}
+      <div class="market-team-row${s.continuityDoubt ? ' market-team-row--doubt' : ''}" data-team="${esc(s.teamId)}">
+        <span class="u-grow u-min0 u-fs-085"><strong>${esc(s.name || s.teamId)}</strong>
+          ${renamed ? `<span class="u-c-dim u-fs-072 u-ml-030">· ${MARKET_PREV_SEASON}: ${esc(prev)}</span>` : ''}
         </span>
         ${s.continuityDoubt ? chip('Duda', '#8b5cf6') : ''}
         ${badgeChip}
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-dim);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="u-c-dim u-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
   }).join('');
 
@@ -185,17 +184,17 @@ function openAllTransfersDrawer() {
     wide: true,
     render: (body) => {
       body.innerHTML = `
-        <div class="u-row" style="gap:0.6rem;flex-wrap:wrap;margin-bottom:0.75rem">
-          <input type="search" id="transfersSearch" placeholder="Buscar corredor o equipo…" style="flex:1;min-width:12rem;padding:0.4rem 0.7rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
-          <select id="transfersStatusFilter" style="padding:0.4rem 0.5rem;font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+        <div class="u-row u-gap-060 u-wrap u-mb-075">
+          <input type="search" id="transfersSearch" placeholder="Buscar corredor o equipo…" class="panel-search u-grow u-minw-1200">
+          <select id="transfersStatusFilter" class="panel-search u-px-050 u-fs-080">
             <option value="all">Todos</option>
             <option value="confirmed">Confirmados</option>
             <option value="rumor">Rumores</option>
             <option value="doubt">Dudas</option>
             <option value="hidden">Fecha oculta</option>
           </select>
-          <button class="btn btn--primary" id="addTransferBtn" style="padding:0.4rem 0.8rem;font-size:0.78rem">+ Nuevo movimiento</button>
-          <span class="u-fs-sm u-c-dim" id="transfersCount" style="align-self:center"></span>
+          <button class="btn btn--primary btn--view" id="addTransferBtn">+ Nuevo movimiento</button>
+          <span class="u-fs-075 u-c-dim u-self-center" id="transfersCount"></span>
         </div>
         <div class="u-stack u-stack--xs" id="transfersList"><div class="u-fs-085 u-c-dim">Cargando…</div></div>
       `;
@@ -246,7 +245,7 @@ export async function loadTransfers() {
     panelState._transfersCache = rows.map(t => ({ ...t, rider: riderByKey.get(`${t.riderGender}:${t.riderId}`) || null }));
   } catch (err) {
     console.error('[loadTransfers]', err);
-    if (list) list.innerHTML = `<div style="color:var(--red);font-size:0.85rem">Error cargando los movimientos: ${esc(err.message || String(err))}</div>`;
+    if (list) list.innerHTML = `<div class="u-c-red u-fs-085">Error cargando los movimientos: ${esc(err.message || String(err))}</div>`;
     panelState._transfersCache = [];
   }
 }
@@ -302,7 +301,7 @@ export function renderTransfersList() {
   if (countEl) countEl.textContent = filtered.length ? `${filtered.length} movimiento${filtered.length === 1 ? '' : 's'}` : '';
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:0.5rem 0">
+    container.innerHTML = `<div class="u-c-dim u-fs-085 u-py-050 u-px-0">
       ${(panelState._transfersCache || []).length === 0
         ? 'No hay movimientos todavía. Pulsa <strong>+ Nuevo movimiento</strong> para registrar el primero.'
         : 'Sin resultados con ese filtro.'}
@@ -329,33 +328,30 @@ export function renderTransfersList() {
       movement = `${esc(_trTeamLabel(t.fromTeamId, t.fromTeamName, 'from'))} <span class="u-c-dim">→</span> <strong>${esc(_trTeamLabel(t.toTeamId, t.toTeamName))}</strong>`;
     }
     const contractBit = t.contractUntil
-      ? `<span class="u-c-dim" style="white-space:nowrap">${t.contractUntil === TSE_LIFETIME_YEAR ? 'vitalicio ∞' : `hasta ${esc(String(t.contractUntil))}`}</span>`
+      ? `<span class="u-c-dim u-nowrap">${t.contractUntil === TSE_LIFETIME_YEAR ? 'vitalicio ∞' : `hasta ${esc(String(t.contractUntil))}`}</span>`
       : '';
-    const chipCss = 'font-size:0.64rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:0.12rem 0.4rem;border-radius:4px;white-space:nowrap';
     const statusChip = isRumor
-      ? `<span style="${chipCss};background:rgba(245,158,11,0.15);color:#f59e0b">Rumor</span>`
+      ? `<span class="tr-chip tr-chip--rumor">Rumor</span>`
       : isDoubt
-      ? `<span style="${chipCss};background:rgba(139,92,246,0.15);color:#8b5cf6">Duda</span>`
-      : `<span style="${chipCss};background:var(--accent-dim, rgba(26,115,232,0.12));color:var(--accent)">Confirmado</span>`;
+      ? `<span class="tr-chip tr-chip--doubt">Duda</span>`
+      : `<span class="tr-chip tr-chip--confirmed">Confirmado</span>`;
     const midSeasonChip = t.midSeason
-      ? `<span style="${chipCss};background:rgba(59,130,246,0.14);color:#2563eb">M. temporada</span>`
+      ? `<span class="tr-chip tr-chip--midseason">M. temporada</span>`
       : '';
     const borderColor = transferRowBorderColor(t.status);
-    // Fecha tachada = no sale en el feed público (dateVisible=false).
-    const dateStyle = dateHidden ? 'text-decoration:line-through;opacity:0.55' : '';
     return `
-      <div class="transfer-row" data-id="${esc(t.id)}" style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.65rem;background:var(--bg-card);border:1px solid ${borderColor};border-radius:6px;flex-wrap:wrap">
-        <span class="u-fs-xs u-c-dim" style="width:4.2em;flex-shrink:0;${dateStyle}" ${dateHidden ? 'title="Oculto del listado de últimos"' : ''}>${esc(dateBit)}</span>
-        <span style="flex-shrink:0;width:1.5em;text-align:center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
-        <span style="min-width:10rem;font-size:0.85rem"><strong>${esc(_trRiderLabel(t))}</strong>
-          <span class="u-c-dim" style="font-size:0.66rem;margin-left:0.25rem">${t.riderGender === 'female' ? '♀' : '♂'}</span>
+      <div class="transfer-row" data-id="${esc(t.id)}" style="--row-border:${borderColor}">
+        <span class="u-fs-072 u-c-dim tr-date${dateHidden ? ' tr-date--hidden' : ''}" ${dateHidden ? 'title="Oculto del listado de últimos"' : ''}>${esc(dateBit)}</span>
+        <span class="u-shrink-0 u-w-150em u-center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
+        <span class="u-minw-1000 u-fs-085"><strong>${esc(_trRiderLabel(t))}</strong>
+          <span class="u-c-dim u-fs-066 u-ml-025">${t.riderGender === 'female' ? '♀' : '♂'}</span>
         </span>
-        <span class="u-fs-xs u-c-dim" style="white-space:nowrap">${esc(typeLabel)}</span>
-        <span style="flex:1;min-width:12rem;font-size:0.8rem">${movement} ${contractBit}</span>
+        <span class="u-fs-072 u-c-dim u-nowrap">${esc(typeLabel)}</span>
+        <span class="u-grow u-minw-1200 u-fs-080">${movement} ${contractBit}</span>
         ${statusChip}
         ${midSeasonChip}
-        ${isRumor || isDoubt ? `<button class="btn btn--ghost transfer-confirm" style="padding:0.2rem 0.5rem;font-size:0.72rem;color:var(--accent)">Confirmar</button>` : ''}
-        <button class="btn btn--ghost transfer-edit" style="padding:0.2rem 0.5rem;font-size:0.72rem">Editar</button>
+        ${isRumor || isDoubt ? `<button class="btn btn--ghost transfer-confirm u-btn-xs u-c-accent">Confirmar</button>` : ''}
+        <button class="btn btn--ghost transfer-edit u-btn-xs">Editar</button>
       </div>`;
   }).join('');
 
@@ -414,37 +410,36 @@ function transferEditorBodyHtml() {
       <div class="field" id="tr-rider-row">
         <label>Corredor</label>
         <input type="search" id="tr-rider-search" placeholder="Busca por nombre o apellido (mín. 3 letras)…" autocomplete="off" class="u-w-full">
-        <div id="tr-rider-results" style="display:none;flex-direction:column;gap:0.2rem;max-height:240px;overflow-y:auto;margin-top:0.25rem"></div>
-        <div id="tr-rider-selected" style="display:none;padding:0.5rem 0.7rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;align-items:center;gap:0.6rem">
-          <span id="tr-rider-selected-flag" style="width:1.5em;text-align:center"></span>
-          <span id="tr-rider-selected-name" style="flex:1;font-size:0.9rem;font-weight:600"></span>
-          <span id="tr-rider-selected-team" class="u-fs-xs u-c-dim"></span>
-          <button class="btn btn--ghost" id="tr-rider-clear" style="padding:0.25rem 0.55rem;font-size:0.72rem">Cambiar</button>
+        <div id="tr-rider-results" class="tr-rider-results" style="display:none"></div>
+        <div id="tr-rider-selected" class="tr-rider-selected" style="display:none">
+          <span id="tr-rider-selected-flag" class="u-w-150em u-center"></span>
+          <span id="tr-rider-selected-name" class="u-grow u-fs-090 u-fw-600"></span>
+          <span id="tr-rider-selected-team" class="u-fs-072 u-c-dim"></span>
+          <button class="btn btn--ghost u-py-025 u-px-055 u-fs-072" id="tr-rider-clear">Cambiar</button>
         </div>
       </div>
 
       <div>
-        <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Situación ${MARKET_SEASON}</label>
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-          ${TSE_STATES.map(st => `<button type="button" class="tr-situation-btn" data-state="${st.key}"
-            style="padding:0.3rem 0.65rem;font-size:0.78rem;font-weight:600;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:transparent;color:var(--text-muted)">${st.label}</button>`).join('')}
+        <label class="panel-field-heading">Situación ${MARKET_SEASON}</label>
+        <div class="u-flex u-gap-040 u-wrap">
+          ${TSE_STATES.map(st => `<button type="button" class="tr-situation-btn" data-state="${st.key}">${st.label}</button>`).join('')}
         </div>
       </div>
 
       <div class="field" id="tr-from-row">
         <label>Equipo de origen <span class="u-dim" id="tr-from-hint">— solo editable si el corredor no tiene equipo asociado</span></label>
-        <div id="tr-from-associated" class="u-fs-085" style="display:none;padding:0.45rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:5px"></div>
+        <div id="tr-from-associated" class="u-fs-085 tr-from-associated" style="display:none"></div>
         <div class="u-row u-row--gap-sm" id="tr-from-inputs">
-          <select id="tr-fromTeamId" style="flex:1;min-width:10rem"></select>
-          <input type="text" id="tr-fromTeamName" placeholder="Texto libre (júnior, amateur…)" style="flex:1;min-width:8rem">
+          <select id="tr-fromTeamId" class="u-grow u-minw-1000"></select>
+          <input type="text" id="tr-fromTeamName" placeholder="Texto libre (júnior, amateur…)" class="u-grow u-minw-800">
         </div>
       </div>
 
       <div class="field" id="tr-to-row">
         <label>Equipo de destino <span class="u-dim">— si no está en el catálogo, usa el texto libre</span></label>
         <div class="u-row u-row--gap-sm">
-          <select id="tr-toTeamId" style="flex:1;min-width:10rem"></select>
-          <input type="text" id="tr-toTeamName" placeholder="Texto libre" style="flex:1;min-width:8rem">
+          <select id="tr-toTeamId" class="u-grow u-minw-1000"></select>
+          <input type="text" id="tr-toTeamName" placeholder="Texto libre" class="u-grow u-minw-800">
         </div>
       </div>
 
@@ -452,39 +447,39 @@ function transferEditorBodyHtml() {
         <div class="field" id="tr-contract-row">
           <label>Contrato hasta <span class="u-dim">— año</span></label>
           <input type="number" id="tr-contractUntil" min="2026" max="2040" placeholder="2029" class="u-w-full">
-          <div id="tr-stay-contract-options" style="display:none;gap:0.8rem;flex-wrap:wrap;margin-top:0.4rem">
-            <label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer"><input type="checkbox" id="tr-yearUnknown"><span>No se sabe el año</span></label>
-            <label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;cursor:pointer"><input type="checkbox" id="tr-lifetime"><span>Vitalicio ∞</span></label>
+          <div id="tr-stay-contract-options" class="u-gap-080 u-wrap u-mt-040" style="display:none">
+            <label class="tr-check tr-check--option"><input type="checkbox" id="tr-yearUnknown"><span>No se sabe el año</span></label>
+            <label class="tr-check tr-check--option"><input type="checkbox" id="tr-lifetime"><span>Vitalicio ∞</span></label>
           </div>
         </div>
         <div class="field" id="tr-flags-row">
           <label>Condición</label>
-          <label id="tr-rumor-label" style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.82rem;padding-top:0.35rem">
+          <label id="tr-rumor-label" class="tr-check tr-check--flag">
             <input type="checkbox" id="tr-rumor"><span>Rumor (sin confirmar)</span>
           </label>
-          <label id="tr-retired-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.82rem;padding-top:0.35rem">
+          <label id="tr-retired-label" class="tr-check tr-check--flag" style="display:none">
             <input type="checkbox" id="tr-retired"><span>Se retira</span>
           </label>
-          <span id="tr-doubt-label" class="u-fs-sm u-c-dim" style="display:none;padding-top:0.35rem">Duda de renovación.</span>
+          <span id="tr-doubt-label" class="u-fs-075 u-c-dim u-pt-035" style="display:none">Duda de renovación.</span>
         </div>
         <div class="field">
           <label>Fecha del anuncio</label>
           <input type="date" id="tr-announcedAt" class="u-w-full">
-          <label style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.8rem;margin-top:0.35rem">
+          <label class="tr-check tr-check--date">
             <input type="checkbox" id="tr-dateHidden">
             <span>Ocultar del listado de últimos</span>
           </label>
-          <label style="display:inline-flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.8rem;margin-top:0.35rem">
+          <label class="tr-check tr-check--date">
             <input type="checkbox" id="tr-midSeason">
             <span>Fichaje de mitad de temporada</span>
           </label>
         </div>
       </div>
     </div>
-    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1rem">
+    <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveTransferBtn">Guardar</button>
-      <button class="btn btn--ghost" id="deleteTransferBtn" style="color:var(--red);display:none">Eliminar</button>
-      <span class="u-fs-md u-c-dim" id="transferSaveStatus"></span>
+      <button class="btn btn--ghost u-c-red" id="deleteTransferBtn" style="display:none">Eliminar</button>
+      <span class="u-fs-080 u-c-dim" id="transferSaveStatus"></span>
     </div>
   `;
 }
@@ -590,7 +585,7 @@ async function _trSearchRiders(q) {
   if (term.length < 3) { results.style.display = 'none'; results.innerHTML = ''; return; }
   const safe = term.replace(/[%,()]/g, '');
   results.style.display = 'flex';
-  results.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem;padding:0.3rem 0">Buscando…</div>';
+  results.innerHTML = '<div class="u-c-dim u-fs-080 u-py-030 u-px-0">Buscando…</div>';
   try {
     const cols = 'id, firstName, lastName, nationality, birthDate, currentTeamId, contractUntil';
     const filter = `lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
@@ -604,18 +599,18 @@ async function _trSearchRiders(q) {
     ].sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
     if (rows.length === 0) {
       results.innerHTML = `
-        <div style="color:var(--text-dim);font-size:0.8rem;padding:0.3rem 0">Sin resultados para «${esc(term)}».</div>
+        <div class="u-c-dim u-fs-080 u-py-030 u-px-0">Sin resultados para «${esc(term)}».</div>
         ${_trCreateRiderBtnHtml(term)}`;
       _trWireCreateRiderBtn(term);
       return;
     }
     results.innerHTML = rows.map((r, i) => {
       const team = r.currentTeamId ? (panelState._teamsCache || []).find(t => t.id === r.currentTeamId) : null;
-      return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0.5rem;border-radius:5px;background:var(--bg-card);border:1px solid var(--border);cursor:pointer" data-idx="${i}">
-        <span style="width:1.5em;text-align:center">${_slRiderFlagPreview(r.nationality)}</span>
-        <span style="flex:1;min-width:0;font-size:0.82rem"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+      return `<div class="tr-rider-option" data-idx="${i}">
+        <span class="u-w-150em u-center">${_slRiderFlagPreview(r.nationality)}</span>
+        <span class="u-grow u-min0 u-fs-082"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
           <span class="u-c-dim u-fs-070">${r.gender === 'female' ? '♀' : '♂'}${r.birthDate ? ` '${esc(String(r.birthDate).slice(2, 4))}` : ''}</span>
-          ${team ? `<span style="display:block;font-size:0.66rem;color:var(--text-dim)">${esc(team.name)}</span>` : ''}
+          ${team ? `<span class="u-block u-fs-066 u-c-dim">${esc(team.name)}</span>` : ''}
         </span>
       </div>`;
     // Con resultados también se ofrece crear: ninguno puede ser el corredor
@@ -627,7 +622,7 @@ async function _trSearchRiders(q) {
     _trWireCreateRiderBtn(term);
   } catch (err) {
     console.error('[_trSearchRiders]', err);
-    results.innerHTML = `<div style="color:var(--red);font-size:0.8rem;padding:0.3rem 0">Error: ${esc(err.message || String(err))}</div>`;
+    results.innerHTML = `<div class="u-c-red u-fs-080 u-py-030 u-px-0">Error: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -637,8 +632,7 @@ async function _trSearchRiders(q) {
  * júniors que suben, fichajes desde fuera del catálogo).
  */
 function _trCreateRiderBtnHtml(term) {
-  return `<button type="button" class="btn btn--ghost" id="tr-create-rider"
-    style="padding:0.3rem 0.6rem;font-size:0.76rem;color:var(--accent);align-self:flex-start;margin-top:0.15rem">
+  return `<button type="button" class="btn btn--ghost tr-create-rider-btn" id="tr-create-rider">
     + Crear ficha de «${esc(term)}»
   </button>`;
 }

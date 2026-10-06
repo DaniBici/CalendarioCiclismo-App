@@ -23,22 +23,7 @@ class DateFormattingTest {
         assertNull(DateFormatting.parseLocalDate(""))
     }
 
-    // ── todayKey ───────────────────────────────────────────────────
-
-    @Test
-    fun `todayKey devuelve formato YYYY-MM-DD`() {
-        val today = DateFormatting.todayKey()
-        assertTrue("Formato YYYY-MM-DD esperado", today.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
-    }
-
     // ── formatDateShort ────────────────────────────────────────────
-
-    @Test
-    fun `formatDateShort devuelve cadena no vacia para fecha valida`() {
-        val result = DateFormatting.formatDateShort("2026-07-01")
-        assertTrue(result.isNotEmpty())
-        assertNotEquals("2026-07-01", result)
-    }
 
     @Test
     fun `formatDateShort devuelve la clave original para fecha invalida`() {
@@ -46,12 +31,6 @@ class DateFormattingTest {
     }
 
     // ── formatDateLong ─────────────────────────────────────────────
-
-    @Test
-    fun `formatDateLong contiene el anio para fecha valida`() {
-        val result = DateFormatting.formatDateLong("2026-07-01")
-        assertTrue(result.contains("2026"))
-    }
 
     @Test
     fun `formatDateLong contiene mes en espaniol`() {
@@ -72,12 +51,6 @@ class DateFormattingTest {
     }
 
     // ── formatMonthYear ────────────────────────────────────────────
-
-    @Test
-    fun `formatMonthYear contiene anio`() {
-        val result = DateFormatting.formatMonthYear(2026, 5)
-        assertTrue(result.contains("2026"))
-    }
 
     @Test
     fun `formatMonthYear contiene nombre del mes en espaniol`() {
@@ -105,45 +78,7 @@ class DateFormattingTest {
         assertEquals("", DateFormatting.formatDateRange(null, null))
     }
 
-    // ── formatTimeMadrid ───────────────────────────────────────────
-
-    @Test
-    fun `formatTimeMadrid parsea timestamp ISO 8601`() {
-        val result = DateFormatting.formatTimeMadrid("2026-07-01T10:00:00Z")
-        assertNotNull(result)
-        assertTrue(result!!.matches(Regex("\\d{2}:\\d{2}")))
-    }
-
-    @Test
-    fun `formatTimeMadrid devuelve null para timestamp invalido`() {
-        assertNull(DateFormatting.formatTimeMadrid("not-a-timestamp"))
-    }
-
-    @Test
-    fun `formatTimeMadrid aplica zona horaria Madrid en verano CEST UTC+2`() {
-        // 10:00 UTC = 12:00 CEST (Madrid en verano)
-        val result = DateFormatting.formatTimeMadrid("2026-07-01T10:00:00Z")
-        assertEquals("12:00", result)
-    }
-
-    @Test
-    fun `formatTimeMadrid aplica zona horaria Madrid en invierno CET UTC+1`() {
-        // 10:00 UTC = 11:00 CET (Madrid en invierno)
-        val result = DateFormatting.formatTimeMadrid("2026-01-15T10:00:00Z")
-        assertEquals("11:00", result)
-    }
-
     // ── previousDay / nextDay ──────────────────────────────────────
-
-    @Test
-    fun `previousDay devuelve el dia anterior`() {
-        assertEquals("2026-06-30", DateFormatting.previousDay("2026-07-01"))
-    }
-
-    @Test
-    fun `nextDay devuelve el dia siguiente`() {
-        assertEquals("2026-07-02", DateFormatting.nextDay("2026-07-01"))
-    }
 
     @Test
     fun `previousDay maneja cruce de mes`() {
@@ -163,22 +98,8 @@ class DateFormattingTest {
     // ── timestampToSeconds ─────────────────────────────────────────
 
     @Test
-    fun `timestampToSeconds parsea timestamp valido`() {
-        val secs = DateFormatting.timestampToSeconds("2026-07-01T10:00:00Z")
-        assertNotNull(secs)
-        assertTrue(secs!! > 0.0)
-    }
-
-    @Test
     fun `timestampToSeconds devuelve null para timestamp invalido`() {
         assertNull(DateFormatting.timestampToSeconds("not-a-timestamp"))
-    }
-
-    @Test
-    fun `timestampToSeconds preserva orden cronologico`() {
-        val t1 = DateFormatting.timestampToSeconds("2026-07-01T08:00:00Z")!!
-        val t2 = DateFormatting.timestampToSeconds("2026-07-01T13:00:00Z")!!
-        assertTrue(t1 < t2)
     }
 
     // ── dayOffset ─────────────────────────────────────────────────

@@ -4,17 +4,17 @@
 
 import {
   panelDayNavigationHtml, wirePanelDayNavigation,
-} from './catalog-ui.js?v=20260912cxcohesion';
+} from './catalog-ui.js';
 import { supabase, esc, normalizeTeamName } from '../shared.js';
 import { isSelectionTeam } from '../services/team-roster.js';
-import { activeCatalogTeams } from '../services/team-catalog.js?v=20260907144500';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { activeCatalogTeams } from '../services/team-catalog.js';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog, alertDialog } from '../components/dialog.js';
 import { madridDateKey } from '../services/timezone.js';
 import {
   saveEnrichedStartlist, hasAssignedStartlistDorsals, loadCompleteStartlistCatalog,
   orderStartlistTeamsForSave, selectUpcomingStartlistRaces,
-} from '../startlist/import.js?v=20260912120000';
+} from '../startlist/import.js';
 import { startlistRosterCandidates } from '../results/panel-logic.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
@@ -56,17 +56,15 @@ async function openNewStartlist() {
     level: 1,
     render: (body) => {
       body.innerHTML = `
-        <div class="u-stack" style="gap:1rem">
+        <div class="u-stack u-gap-100">
           <div>
-            <label for="newStartlistRaceSearch" class="panel-view-label" style="display:block;margin-bottom:0.4rem">Carrera</label>
-            <input id="newStartlistRaceSearch" type="search" placeholder="Buscar por nombre, fecha o ID…" autocomplete="off"
-                   style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-bottom:0.5rem">
-            <select id="newStartlistRace" size="10" aria-label="Carrera de destino"
-                    style="width:100%;box-sizing:border-box;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)"></select>
-            <div id="newStartlistRaceCount" class="u-fs-xs u-c-dim" style="margin-top:0.35rem"></div>
+            <label for="newStartlistRaceSearch" class="panel-view-label u-block u-mb-040">Carrera</label>
+            <input id="newStartlistRaceSearch" type="search" placeholder="Buscar por nombre, fecha o ID…" autocomplete="off" class="panel-input u-py-055 u-px-070 u-mb-050">
+            <select id="newStartlistRace" size="10" aria-label="Carrera de destino" class="panel-input u-p-035"></select>
+            <div id="newStartlistRaceCount" class="u-fs-072 u-c-dim u-mt-035"></div>
           </div>
-          <div id="newStartlistStatus" class="u-fs-md u-c-dim" role="status">Selecciona una carrera para abrir el editor de inscritos.</div>
-          <div class="u-row" style="justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;padding-top:0.75rem;border-top:1px solid var(--border)">
+          <div id="newStartlistStatus" class="u-fs-080 u-c-dim" role="status">Selecciona una carrera para abrir el editor de inscritos.</div>
+          <div class="u-row panel-drawer-footer">
             <button class="btn btn--ghost" id="cancelNewStartlistBtn" type="button">Cancelar</button>
             <button class="btn btn--primary" id="continueNewStartlistBtn" type="button" disabled>Abrir editor</button>
           </div>
@@ -122,7 +120,7 @@ async function loadExistingStartlists() {
   try {
     const days=await loadPanelAgendaDay(dateKey);
     if(request!==_startlistsRequest)return;
-    renderRoadPanelAgenda(container,days,dateKey,{onRaceDay:(_dayId,raceId)=>void window.openStartlistEditor(raceId),onPendingRace:raceId=>void window.openStartlistEditor(raceId),onlyFirstStageDay:true,hideStageLabel:true,hideCompletenessGroups:true});
+    renderRoadPanelAgenda(container,days,dateKey,{onRaceDay:(_dayId,raceId)=>void window.openStartlistEditor(raceId),onPendingRace:raceId=>void window.openStartlistEditor(raceId),onlyFirstStageDay:true,hideStageLabel:true});
   } catch(error) {
     if(request!==_startlistsRequest)return;
     container.innerHTML='<p class="cx-error" role="alert"></p><button type="button" class="btn btn--ghost">Reintentar</button>';
@@ -131,14 +129,21 @@ async function loadExistingStartlists() {
   }
 }
 
-window.deleteStartlist = async function(raceId) {
+// Borra la lista guardada de la carrera abierta en el editor (botón «Eliminar
+// lista» del pie del drawer).
+async function deleteStartlist() {
+  const raceId = panelState._editingRaceId;
+  if (!raceId || _slSaving) return;
   if (!await confirmDialog('¿Eliminar la lista de inscritos de esta carrera?', { danger: true })) return;
-  await supabase.from('startlist_riders').delete().eq('raceId', raceId);
-  await supabase.from('startlist_teams').delete().eq('raceId', raceId);
-  await supabase.from('races').update({
-    startlistImportedAt: null,
-    startlistProvisional: false,
-  }).eq('id', raceId);
+  const steps = [
+    () => supabase.from('startlist_riders').delete().eq('raceId', raceId),
+    () => supabase.from('startlist_teams').delete().eq('raceId', raceId),
+    () => supabase.from('races').update({ startlistImportedAt: null, startlistProvisional: false }).eq('id', raceId),
+  ];
+  for (const step of steps) {
+    const { error } = await step();
+    if (error) { showToast('No se pudo eliminar la lista: ' + error.message, 'error'); return; }
+  }
   const race = panelState.allRaces.find(r => r.id === raceId);
   if (race) {
     race.startlistImportedAt = null;
@@ -147,7 +152,7 @@ window.deleteStartlist = async function(raceId) {
   showToast('Lista de inscritos eliminada', 'success');
   closeStartlistEditor();
   loadExistingStartlists();
-};
+}
 
 // ── Editor de startlist ──────────────────────────────────────────
 let _slPreparedImport = null;
@@ -322,18 +327,17 @@ function _slCreateRiderRow(teamEl) {
   const row = document.createElement('div');
   row.className = 'sl-edit-rider';
   row.dataset.rowKey = crypto.randomUUID();
-  row.style = 'display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap';
-  row.innerHTML = `<div style="display:flex;align-items:center;gap:0.35rem;flex:1;min-width:0">
-    <input type="number" class="sl-dorsal" value="" placeholder="—" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
-    <span class="sl-flag-preview u-icon-box"><span style="display:inline-block;width:1.2em;height:0.9em"></span></span>
-    <input type="text" class="sl-country" value="" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)" style="width:3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.72rem;padding:0.2rem 0.3rem;text-align:center;text-transform:lowercase;outline:none">
+  row.innerHTML = `<div class="sl-edit-rider__main">
+    <input type="number" class="sl-dorsal" value="" placeholder="—" min="1">
+    <span class="sl-flag-preview u-icon-box"><span class="flag-placeholder"></span></span>
+    <input type="text" class="sl-country" value="" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)">
     <input type="text" class="sl-firstname u-input-sm" value="" placeholder="Nombre">
     <input type="text" class="sl-lastname u-input-sm" value="" placeholder="Apellido">
-    <button type="button" class="sl-rider-match-btn" data-action="picker" title="Buscar o forzar un match en la BD de corredores" style="background:none;border:1px solid var(--border);border-radius:4px;padding:0.05rem 0.4rem;font-size:0.7rem;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-dim)">🔗</button>
-    <span class="sl-rider-matched" style="display:none;font-size:0.65rem;color:#22c55e;font-weight:700;flex-shrink:0">✓</span>
-    <button type="button" class="btn btn--ghost sl-remove-rider-btn" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0">✕</button>
+    <button type="button" class="sl-rider-match-btn" data-action="picker" title="Buscar o forzar un match en la BD de corredores">🔗</button>
+    <span class="sl-rider-matched sl-verify-mark u-c-ok" style="display:none">✓</span>
+    <button type="button" class="btn btn--ghost sl-remove-rider-btn">✕</button>
   </div>
-  <div class="sl-rider-suggestion" style="display:none;width:100%;padding:0.1rem 0.75rem 0.3rem 4.2rem"></div>`;
+  <div class="sl-rider-suggestion" style="display:none"></div>`;
   ridersDiv.appendChild(row);
   _slUpdateTeamOrderControls();
   return row;
@@ -601,15 +605,17 @@ function _slOpenTeamPicker(rowEl) {
 function startlistEditorBodyHtml() {
   return `
     <div id="startlistEditorContent"></div>
-    <div class="u-row" style="gap:0.75rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+    <div class="u-row panel-save-row">
       <button class="btn btn--primary" id="saveStartlistBtn" disabled>Guardar cambios</button>
-      <span class="u-fs-md u-c-dim" id="startlistSaveStatus"></span>
+      <span class="u-fs-080 u-c-dim" id="startlistSaveStatus"></span>
+      <button class="btn btn--ghost u-c-red u-ml-auto" id="deleteStartlistBtn" style="display:none">Eliminar lista</button>
     </div>`;
 }
 
 // Listeners del editor de inscritos (por apertura del drawer).
 function wireStartlistEditor() {
   document.getElementById('saveStartlistBtn').addEventListener('click', saveStartlistEdits);
+  document.getElementById('deleteStartlistBtn').addEventListener('click', deleteStartlist);
   const content = document.getElementById('startlistEditorContent');
   content.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.matches('.sl-dorsal, .sl-firstname, .sl-lastname')) {
@@ -645,7 +651,7 @@ window.openStartlistEditor = async function(raceId) {
   });
 
   const content = document.getElementById('startlistEditorContent');
-  content.innerHTML = '<div style="color:var(--text-dim)">Cargando…</div>';
+  content.innerHTML = '<div class="u-c-dim">Cargando…</div>';
 
   const season = _slEditingRaceSeason();
   // Catálogos completos y filas de la carrera en paralelo.
@@ -685,8 +691,8 @@ window.openStartlistEditor = async function(raceId) {
     ridersByTeam[r.teamId].push(r);
   });
 
-  const toolbar = `<div style="margin-bottom:0.75rem">
-    <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem">
+  const toolbar = `<div class="u-mb-075">
+    <label class="panel-check-label u-gap-050 u-fs-082">
       <input type="checkbox" id="slProvisionalToggle" ${panelState._editingRaceProvisional ? 'checked' : ''}>
       <span>Lista provisional</span>
     </label>
@@ -704,13 +710,15 @@ window.openStartlistEditor = async function(raceId) {
   if (!(teams || []).length) {
     html += _slTeamRowHtml({ teamName: '', teamId: null, riders: [] });
   }
-  html += `</div><button class="btn btn--ghost" id="addTeamBtn" style="padding:0.35rem 0.75rem;font-size:0.75rem;margin-top:0.25rem">+ Añadir equipo</button>`;
+  html += `</div><button class="btn btn--ghost u-py-035 u-px-075 u-fs-075 u-mt-025" id="addTeamBtn">+ Añadir equipo</button>`;
   content.innerHTML = html;
   _slUpdateTeamOrderControls();
 
   // Las identidades ambiguas requieren revisión antes del guardado.
   _slAutoMatchAll();
   document.getElementById('saveStartlistBtn').disabled = false;
+  // Solo hay algo que borrar si la carrera ya tiene equipos guardados.
+  document.getElementById('deleteStartlistBtn').style.display = (teams || []).length ? '' : 'none';
 
   document.getElementById('slProvisionalToggle').addEventListener('change', (e) => {
     panelState._editingRaceProvisional = e.target.checked;

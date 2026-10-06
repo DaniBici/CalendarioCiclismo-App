@@ -53,3 +53,18 @@ enum NativeAppLinkOpener {
         }
     }
 }
+
+/// Apertura de enlaces externos compartida por carretera (web oficial,
+/// emisiones, live texto) y ciclocross (TV y Revive). Sin red, aviso de
+/// enlace externo; con red, app nativa si está instalada y, si no,
+/// `SFSafariViewController` dentro de la app.
+@MainActor
+enum ExternalLinkOpener {
+    static func open(_ url: URL, safariURL: Binding<URL?>, offlineAlert: Binding<OfflineAccessAlert?>) {
+        guard NetworkMonitor.shared.isOnline else {
+            offlineAlert.wrappedValue = .externalLinkOffline
+            return
+        }
+        NativeAppLinkOpener.openIfInstalled(url) { safariURL.wrappedValue = url }
+    }
+}

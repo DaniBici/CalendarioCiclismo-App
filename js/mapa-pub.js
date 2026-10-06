@@ -1,25 +1,20 @@
-// Página pública del MAPA del recorrido (Leaflet) — gemela de perfil-pub.js.
+// Página pública del MAPA del recorrido — gemela de perfil-pub.js.
 // Misma cabecera, route-grid y listas de puntos clave que el perfil; en lugar
-// del SVG de elevación, un mapa interactivo: la LÍNEA sale del GPX crudo en R2
-// (race_days.routeGpxUrl) y los MARCADORES de profileSummits/profileWaypoints
-// proyectados por kilómetro sobre la traza. Los iconos son los MISMOS que el
-// perfil (indicatorBadgeSVG).
+// del SVG de elevación, el mapa interactivo de route-map.js, que recibe el GPX
+// de Storage (race_days.routeGpxUrl) y los profileSummits/profileWaypoints.
+// Esta página carga los datos de Supabase y fija el SEO.
 
 import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          setMeta as setM, setMetaProperty as setMP,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, enBase,
          seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
-import { indicatorBadgeSVG, buildElevationProfileSVG } from './stage/elevation-profile.js';
 import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
+import { mountRouteMap, splitWaypoints, terrainLabel } from './route-map.js';
 
 const params  = new URLSearchParams(location.search);
 const content = document.getElementById('mapaEtapaContent');
 const backBtn = document.getElementById('backBtn');
-
-const SPRINT_TYPES  = new Set(['intermediate_sprint', 'bonus_sprint']);
-const TERRAIN_TYPES = new Set(['cobblestone', 'sterrato']);
-const TERRAIN_LABELS = new Proxy({}, { get(_, key) { return t(`terrain.${key}`) || key; } });
 
 // URL de la página gemela (clean URL ES/EN) — espejo de perfilUrl en shared.js.
 function mapaUrl(rd) {
@@ -117,11 +112,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   const isEn    = getLang() === 'en';
   const summits   = rd.profileSummits   ?? [];
   const waypoints = rd.profileWaypoints ?? [];
-  const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-  const sprints   = isTimeTrial
-    ? waypoints.filter(w => w.type === 'intermediate_split')
-    : waypoints.filter(w => SPRINT_TYPES.has(w.type));
-  const terrain   = waypoints.filter(w => TERRAIN_TYPES.has(w.type));
+  const { sprints, terrain, isTimeTrial } = splitWaypoints(waypoints, rd.primaryType);
 
   const name  = (isEn && race?.nameEn) || race?.name || '';
   const year  = race?.year ?? '';
@@ -333,9 +324,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
           <p class="pfe-box-title">${t('profile.sectors')} (${terrain.length})</p>
           ${terrain.map(w => {
             const km     = w.km != null ? `${w.km}${kmUnit}` : '?';
-            const label  = (rd.primaryType === 'ribinou' && w.type === 'sterrato')
-              ? t('terrain.ribinou')
-              : (TERRAIN_LABELS[w.type] ?? w.type);
+            const label  = terrainLabel(w.type, rd.primaryType);
             const name   = w.name?.trim() || null;
             const length = w.lengthKm != null ? `${w.lengthKm}${kmUnit}` : null;
             const parts  = [name, label, length].filter(Boolean);
@@ -362,19 +351,7 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
     ${actionButtonsHtml}
     ${routeGridHtml}
 
-    <div class="cc-map-wrap">
-      <div id="ccRouteMap" class="cc-map"></div>
-      <div class="cc-map-toolbar">
-        <button id="ccMapBase" class="cc-map-tbtn is-active">${t('map.baseMap')}</button>
-        <button id="ccMapSat" class="cc-map-tbtn">${t('map.satellite')}</button>
-        <span class="cc-map-tsep"></span>
-        <button id="ccMap2d" class="cc-map-tbtn">2D</button>
-        <button id="ccMap3d" class="cc-map-tbtn is-active">3D</button>
-        <span class="cc-map-tsep"></span>
-        <button id="ccMapProf" class="cc-map-tbtn is-active">${t('map.profile')}</button>
-      </div>
-      <div id="ccMapProfile" class="cc-map-profile" hidden></div>
-    </div>
+    <div class="cc-map-wrap" id="ccRouteMapWrap"></div>
 
     ${keyPointsHtml}
   `;
@@ -393,372 +370,10 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
   });
 
   // ── Mapa MapLibre (terreno 3D) ────────────────────────────────
-  initRouteMap(rd, race, { summits, sprints, terrain, isTimeTrial, isEn, waypoints });
-}
-
-// ─────────────────────────────────────────────────────────────────
-// MAPA
-// ─────────────────────────────────────────────────────────────────
-const haversineKm = (a, b, c, d) => {
-  const R = 6371, toRad = x => x * Math.PI / 180;
-  const dLat = toRad(c - a), dLon = toRad(d - b);
-  const h = Math.sin(dLat/2)**2 + Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-};
-
-// Salto máximo (km) entre dos puntos consecutivos antes de cortar la línea.
-// Algunos GPX de organizadores (ASO: 400+ <trkseg>) traen el recorrido en
-// fragmentos que, concatenados a ciegas, dibujan rectas-fantasma de decenas de
-// km uniendo trozos lejanos. Cortamos en cada salto > umbral y entre <trkseg>.
-const GPX_SEGMENT_BREAK_KM = 1;
-
-// Devuelve { points, segments }:
-//  - points:   lista plana {lat,lon,km} con km acumulado en orden del GPX (para
-//              proyectar marcadores por km y situar salida/meta).
-//  - segments: array de arrays [[lat,lon],...], cada uno una traza CONTINUA
-//              (se corta entre <trkseg> y en saltos > GPX_SEGMENT_BREAK_KM) →
-//              cada uno se dibuja como una polyline sin unir los huecos.
-function parseGpx(xml) {
-  const doc = new DOMParser().parseFromString(xml, 'text/xml');
-  const segNodes = [...doc.getElementsByTagName('trkseg')];
-  // Fallback: GPX sin <trkseg> (p.ej. solo <rtept>) → tratar todos los trkpt
-  // como un único segmento.
-  const rawSegs = segNodes.length
-    ? segNodes.map(seg => [...seg.getElementsByTagName('trkpt')])
-    : [[...doc.getElementsByTagName('trkpt')]];
-
-  const points = [];
-  const segments = [];
-  let cur = null;        // segmento contiguo en construcción ([[lat,lon],...])
-  let cum = 0;
-  let prev = null;       // último punto válido (para km y detección de saltos)
-
-  const flush = () => { if (cur && cur.length > 1) segments.push(cur); cur = null; };
-
-  for (const nodes of rawSegs) {
-    // Cada <trkseg> empieza un corte de línea, pero el km sigue acumulando.
-    flush();
-    for (const n of nodes) {
-      const lat = parseFloat(n.getAttribute('lat'));
-      const lon = parseFloat(n.getAttribute('lon'));
-      if (Number.isNaN(lat) || Number.isNaN(lon)) continue;
-      const eleNode = n.getElementsByTagName('ele')[0];
-      const ele = eleNode ? parseFloat(eleNode.textContent) : null;
-      let jump = 0;
-      if (prev) jump = haversineKm(prev.lat, prev.lon, lat, lon);
-      cum += jump;
-      points.push({ lat, lon, km: cum, ele: Number.isNaN(ele) ? null : ele });
-      // Corte de la línea (no del km) si el salto al punto anterior es grande.
-      if (cur && jump > GPX_SEGMENT_BREAK_KM) flush();
-      if (!cur) cur = [];
-      cur.push([lat, lon]);
-      prev = { lat, lon };
-    }
-  }
-  flush();
-  return { points, segments };
-}
-
-// Proyecta un km de carrera (escalado a la longitud real del GPX) a [lat,lng].
-function kmToLatLng(points, officialKm, officialTotal) {
-  const gpxTotal = points[points.length - 1].km || 0;
-  const targetKm = officialTotal > 0 ? (officialKm / officialTotal) * gpxTotal : officialKm;
-  for (let i = 1; i < points.length; i++) {
-    if (points[i].km >= targetKm) {
-      const a = points[i-1], b = points[i];
-      const span = (b.km - a.km) || 1e-9;
-      const f = (targetKm - a.km) / span;
-      return [a.lat + (b.lat - a.lat) * f, a.lon + (b.lon - a.lon) * f];
-    }
-  }
-  const last = points[points.length - 1];
-  return [last.lat, last.lon];
-}
-
-// Ventana de búsqueda (km de GPX) alrededor del km escalado para el snap.
-const SNAP_WINDOW_KM = 2.5;
-// 1 metro de diferencia de altitud pesa como SNAP_KM_PENALTY km de desvío en
-// el score; alto = prioriza estar cerca del km esperado, bajo = prioriza clavar
-// la altitud. 8 da buen equilibrio (verificado en el circuito de Montjuïc).
-const SNAP_KM_PENALTY = 8;
-
-// Proyecta un punto-clave a coordenadas COMBINANDO km y altitud. En circuitos
-// repetidos (mismo lugar pasado N veces) el escalado proporcional puro desvía
-// cada pasada; si conocemos la altitud del punto (summit.altitude / waypoint),
-// buscamos el punto del GPX que mejor case altitud DENTRO de una ventana de km
-// → cada pasada hace snap a SU cima real. Sin altitud o sin <ele> en el GPX →
-// fallback al escalado proporcional (kmToLatLng), que va bien en lineales.
-function markerLatLng(points, officialKm, officialTotal, altTarget) {
-  const hasEle = altTarget != null && points.some(p => p.ele != null);
-  if (!hasEle) return kmToLatLng(points, officialKm, officialTotal);
-  const gpxTotal = points[points.length - 1].km || 0;
-  const center = officialTotal > 0 ? (officialKm / officialTotal) * gpxTotal : officialKm;
-  let best = null, bestScore = Infinity;
-  for (const p of points) {
-    if (p.ele == null) continue;
-    const dKm = Math.abs(p.km - center);
-    if (dKm > SNAP_WINDOW_KM) continue;
-    const score = Math.abs(p.ele - altTarget) + dKm * SNAP_KM_PENALTY;
-    if (score < bestScore) { bestScore = score; best = p; }
-  }
-  return best ? [best.lat, best.lon] : kmToLatLng(points, officialKm, officialTotal);
-}
-
-// Convierte [lat,lon] (helpers de proyección) → [lon,lat] (orden GeoJSON/MapLibre).
-const toLngLat = (ll) => [ll[1], ll[0]];
-
-// Base: estilo VECTOR de OpenFreeMap por tema (claro/oscuro), sin clave y con uso
-// comercial permitido (sustituye a MapTiler, que invalidó la clave por uso). Es un
-// style.json completo (sources + layers propios) → se carga como `style` del mapa
-// y nuestras capas (satélite, relieve, recorrido, marcadores) se añaden ENCIMA al
-// cargar el estilo (y se re-añaden tras cada cambio de tema con setStyle). Satélite:
-// Esri World Imagery (raster, gratis y sin clave). Relieve 3D: DEM de AWS Terrain
-// Tiles (terrarium, público y gratis). Ninguno requiere clave ni cuota.
-const BASE_STYLE = {
-  light: 'https://tiles.openfreemap.org/styles/liberty',
-  dark:  'https://tiles.openfreemap.org/styles/dark',
-};
-const SAT_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
-const SAT_ATTRIB = 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
-
-const isDarkTheme = () => !document.documentElement.classList.contains('light');
-
-const EXPAND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
-const COLLAPSE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
-
-async function initRouteMap(rd, race, ctx) {
-  const el = document.getElementById('ccRouteMap');
-  if (!el || typeof maplibregl === 'undefined') return;
-  const { summits, sprints, terrain, isTimeTrial, isEn, waypoints } = ctx;
-  const kmUnit = isEn ? 'km' : ' km';
-  const colorHex = race?.colorHex || '#d8442e';
-  const totalKm = rd.distanceKm ? Number(rd.distanceKm) : 0;
-  const errHtml = `<p style="text-align:center;color:var(--text-muted);padding:2rem">${t('map.loadError')}</p>`;
-
-  let points, segments;
-  try {
-    const xml = await fetch(rd.routeGpxUrl).then(r => { if (!r.ok) throw new Error('GPX ' + r.status); return r.text(); });
-    ({ points, segments } = parseGpx(xml));
-  } catch (err) { el.innerHTML = errHtml; return; }
-  if (!points.length || !segments.length) { el.innerHTML = errHtml; return; }
-
-  const bounds = new maplibregl.LngLatBounds();
-  points.forEach(p => bounds.extend([p.lon, p.lat]));
-
-  // Estado del toolbar (lo refleja setBase/setDim); se conserva entre cambios de
-  // tema para reaplicarlo al reconstruir las capas tras setStyle.
-  const mapState = { base: 'base', dim: '3d' };
-
-  const map = new maplibregl.Map({
-    container: el,
-    style: isDarkTheme() ? BASE_STYLE.dark : BASE_STYLE.light, // OpenFreeMap (vector)
-    center: [points[0].lon, points[0].lat], zoom: 9, pitch: 60, bearing: -18, maxPitch: 85,
-    attributionControl: { compact: true },
-  });
-
-  // Añade NUESTRAS capas (satélite Esri, DEM/relieve de AWS, sky, recorrido) ENCIMA
-  // del estilo vector de OpenFreeMap. Se ejecuta al cargar el estilo y se RE-EJECUTA
-  // tras cada setStyle (cambio de tema), porque setStyle reemplaza sources/layers
-  // del estilo (los marcadores DOM, en cambio, sobreviven y se añaden una sola vez).
-  const addCustomLayers = () => {
-    if (!map.getSource('sat')) {
-      map.addSource('sat', { type: 'raster', tiles: [SAT_TILES], tileSize: 256, maxzoom: 19, attribution: SAT_ATTRIB });
-    }
-    if (!map.getSource('terrain')) {
-      map.addSource('terrain', { type: 'raster-dem', tiles: [DEM_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
-    }
-    // Relieve (hillshade) sobre el callejero + satélite (oculto por defecto) ENCIMA
-    // de las capas de OpenFreeMap. El recorrido va sobre ambos.
-    if (!map.getLayer('hills')) {
-      map.addLayer({ id: 'hills', type: 'hillshade', source: 'terrain', paint: { 'hillshade-exaggeration': 0.45 } });
-    }
-    if (!map.getLayer('sat')) {
-      map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: mapState.base === 'sat' ? 'visible' : 'none' } });
-    }
-    try { map.setSky({ 'sky-color': '#7fb4e8', 'horizon-color': '#cfe4f5', 'fog-color': '#dfe7ee', 'fog-ground-blend': 0.4, 'sky-horizon-blend': 0.6 }); } catch (_) {}
-    if (mapState.dim === '3d') { try { map.setTerrain({ source: 'terrain', exaggeration: 1.2 }); } catch (_) {} }
-
-    // Recorrido: casing blanco + trazo del color. Una línea por segmento contiguo
-    // → los huecos del GPX (saltos) NO se dibujan como rectas. seg es [lat,lon].
-    if (!map.getSource('route')) {
-      map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection',
-        features: segments.map(seg => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: seg.map(([la, lo]) => [lo, la]) } })) } });
-    }
-    if (!map.getLayer('route-casing')) {
-      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#fff', 'line-width': 7, 'line-opacity': 0.9 } });
-    }
-    if (!map.getLayer('route-line')) {
-      map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': colorHex, 'line-width': 4.5 } });
-    }
-  };
-  const fitRoute = () => map.fitBounds(bounds, { padding: 40, pitch: 58, bearing: -18, duration: 600 });
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-  map.scrollZoom.disable();
-
-  // ── Control de expandir (overlay a viewport; sin Fullscreen API por iOS) ──
-  // Conmuta una clase que pone el contenedor en position:fixed sobre todo el
-  // viewport; tras conmutar, map.resize() recalcula el lienzo.
-  const wrap = el.closest('.cc-map-wrap') || el.parentElement;
-  let expandBtn = null;
-  const setExpanded = (on) => {
-    if (!wrap) return;
-    wrap.classList.toggle('cc-map--expanded', on);
-    document.body.classList.toggle('cc-map-expanded-lock', on); // bloquea scroll de fondo
-    if (expandBtn) {
-      expandBtn.innerHTML = on ? COLLAPSE_SVG : EXPAND_SVG;
-      expandBtn.title = on ? t('map.exitFullscreen') : t('map.fullscreen');
-    }
-    setTimeout(() => { map.resize(); fitRoute(); }, 60);
-  };
-  const expandCtrl = {
-    onAdd() {
-      const c = document.createElement('div');
-      c.className = 'maplibregl-ctrl maplibregl-ctrl-group cc-map-expand-ctrl';
-      expandBtn = document.createElement('button');
-      expandBtn.type = 'button';
-      expandBtn.innerHTML = EXPAND_SVG;
-      expandBtn.title = t('map.fullscreen');
-      expandBtn.addEventListener('click', () => setExpanded(!wrap.classList.contains('cc-map--expanded')));
-      c.appendChild(expandBtn);
-      this._c = c;
-      return c;
-    },
-    onRemove() { this._c?.remove(); },
-  };
-  map.addControl(expandCtrl, 'top-right');
-  const onKey = (e) => { if (e.key === 'Escape' && wrap?.classList.contains('cc-map--expanded')) setExpanded(false); };
-  document.addEventListener('keydown', onKey);
-  map.on('remove', () => document.removeEventListener('keydown', onKey));
-
-  // ── Cambio de tema (claro/oscuro): recargar el estilo de OpenFreeMap ──
-  // theme.js muta la clase de <html>; con un estilo VECTOR completo hay que
-  // recargarlo con setStyle (no basta setTiles). setStyle reemplaza las capas
-  // del estilo → reconstruimos las nuestras al cargar el nuevo (style.load).
-  let curDark = isDarkTheme();
-  const themeObserver = new MutationObserver(() => {
-    const d = isDarkTheme();
-    if (d === curDark) return;
-    curDark = d;
-    map.setStyle(d ? BASE_STYLE.dark : BASE_STYLE.light);
-  });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-  map.on('remove', () => themeObserver.disconnect());
-  // Reconstruir nuestras capas tras CADA carga de estilo (inicial y por setStyle).
-  map.on('style.load', addCustomLayers);
-
-  map.on('load', () => {
-    const addMarker = (node, lngLat, popupHtml) =>
-      new maplibregl.Marker({ element: node, anchor: 'center' })
-        .setLngLat(lngLat)
-        .setPopup(new maplibregl.Popup({ offset: 16, closeButton: false }).setHTML(popupHtml))
-        .addTo(map);
-    const pinNode = (svg) => { const n = document.createElement('div'); n.className = 'cc-map-pin'; n.innerHTML = svg; return n; };
-    const flagNode = (which, glyph) => { const n = document.createElement('div'); n.className = `cc-map-flag cc-map-flag--${which}`; n.textContent = glyph; return n; };
-
-    // Salida y meta.
-    addMarker(flagNode('start', '▶'), [points[0].lon, points[0].lat],
-      `<b>${t('map.start')}</b><br><span class="cc-map-km">${t('profile.kmLabel')} 0</span>`);
-    const finishKmLabel = totalKm ? Number(totalKm).toLocaleString(isEn ? 'en-GB' : 'es-ES') : '';
-    const fp = points[points.length - 1];
-    addMarker(flagNode('finish', '🏁'), [fp.lon, fp.lat],
-      `<b>${t('map.finish')}</b>${finishKmLabel ? `<br><span class="cc-map-km">${t('profile.kmLabel')} ${finishKmLabel}</span>` : ''}`);
-
-    // Puertos (snap por altitud → en circuitos repetidos cada paso cae en su cima).
-    summits.forEach(s => {
-      if (s.km == null) return;
-      const cat = (s.category && s.category !== 'M') ? ` · ${t('profile.cat')} ${s.category}` : '';
-      const altRaw = effectiveSummitAlt(s, rd.elevationProfile?.points);
-      const ll = markerLatLng(points, s.km, totalKm, altRaw);
-      const alt = altRaw != null ? ` · ${fmt(altRaw, isEn ? ',' : '.')} m` : '';
-      addMarker(pinNode(indicatorBadgeSVG('summit', s, { size: 26 })), toLngLat(ll),
-        `<b>${esc(s.name || t('profile.climbsOne'))}</b><br><span class="cc-map-km">${s.km}${kmUnit}${cat}${alt}</span>`);
-    });
-
-    // Sprints / puntos intermedios.
-    sprints.forEach(w => {
-      if (w.km == null) return;
-      const lbl = isTimeTrial ? t('profile.splitsOne') : (w.type === 'bonus_sprint' ? t('profile.bonusSprint') : t('profile.intSprint'));
-      addMarker(pinNode(indicatorBadgeSVG(w.type, w, { size: 26 })), toLngLat(kmToLatLng(points, w.km, totalKm)),
-        `<b>${esc(w.name || lbl)}</b><br><span class="cc-map-km">${lbl} · ${w.km}${kmUnit}</span>`);
-    });
-
-    // Sectores (pavé / sterrato).
-    terrain.forEach(w => {
-      if (w.km == null) return;
-      const lbl = (rd.primaryType === 'ribinou' && w.type === 'sterrato') ? t('terrain.ribinou') : (TERRAIN_LABELS[w.type] ?? w.type);
-      addMarker(pinNode(indicatorBadgeSVG(w.type, w, { size: 26 })), toLngLat(kmToLatLng(points, w.km, totalKm)),
-        `<b>${esc(w.name || lbl)}</b><br><span class="cc-map-km">${lbl} · ${w.km}${kmUnit}</span>`);
-    });
-
-    fitRoute();
-    renderProfileOverlay(rd, { summits, waypoints, colorHex, isEn });
-  });
-
-  wireMapControls(map, fitRoute, mapState);
-}
-
-// Perfil SVG superpuesto al fondo del mapa (silueta iconsOnly, a todo el ancho).
-function renderProfileOverlay(rd, { summits, waypoints, colorHex, isEn }) {
-  const host = document.getElementById('ccMapProfile');
-  if (!host) return;
-  if (!rd.elevationProfile?.points?.length) {
-    document.getElementById('ccMapProf')?.setAttribute('disabled', ''); // sin perfil → toggle inerte
-    return;
-  }
-  const { svg, hoverData } = buildElevationProfileSVG({
-    profile: rd.elevationProfile, summits, waypoints,
-    width: 1200, height: 360, color: colorHex, lang: isEn ? 'en' : 'es', iconsOnly: true,
-  });
-  host.innerHTML = svg;
-  // Recortar el viewBox al área de dibujo (ML/MR/MB salen de hoverData, sin
-  // hardcodear) → la silueta toca ambos bordes y llega al fondo; preserveAspect
-  // por defecto (meet) para no deformar los badges; height natural del recorte.
-  const svgEl = host.querySelector('svg');
-  if (svgEl && hoverData) {
-    const { ML, MR, width, BL } = hoverData;
-    svgEl.setAttribute('viewBox', `${ML} 0 ${width - ML - MR} ${BL}`);
-    svgEl.removeAttribute('width');
-    svgEl.removeAttribute('height');
-  }
-  host.hidden = false;
-}
-
-// Controles del toolbar: base (mapa/satélite) · 2D/3D · mostrar/ocultar perfil.
-// `state` se comparte con addCustomLayers para reaplicar la elección tras un
-// cambio de tema (setStyle reconstruye las capas).
-function wireMapControls(map, fitRoute, state) {
-  const base = document.getElementById('ccMapBase'), sat = document.getElementById('ccMapSat');
-  const b2d = document.getElementById('ccMap2d'), b3d = document.getElementById('ccMap3d');
-  const prof = document.getElementById('ccMapProf');
-
-  // "Mapa" = ocultar el satélite (queda el callejero vector de OpenFreeMap debajo);
-  // "Satélite" = mostrar la capa raster de Esri por encima.
-  const setBase = (which) => {
-    state.base = which;
-    if (map.getLayer('sat')) map.setLayoutProperty('sat', 'visibility', which === 'sat' ? 'visible' : 'none');
-    base?.classList.toggle('is-active', which === 'base');
-    sat?.classList.toggle('is-active', which === 'sat');
-  };
-  base?.addEventListener('click', () => setBase('base'));
-  sat?.addEventListener('click', () => setBase('sat'));
-
-  const setDim = (dim) => {
-    state.dim = dim;
-    if (dim === '3d') { try { map.setTerrain({ source: 'terrain', exaggeration: 1.2 }); } catch (_) {} map.easeTo({ pitch: 60, duration: 500 }); }
-    else              { try { map.setTerrain(null); } catch (_) {} map.easeTo({ pitch: 0, bearing: 0, duration: 500 }); }
-    b3d?.classList.toggle('is-active', dim === '3d');
-    b2d?.classList.toggle('is-active', dim === '2d');
-  };
-  b2d?.addEventListener('click', () => setDim('2d'));
-  b3d?.addEventListener('click', () => setDim('3d'));
-
-  prof?.addEventListener('click', () => {
-    if (prof.hasAttribute('disabled')) return;
-    const host = document.getElementById('ccMapProfile');
-    const show = host.hidden;
-    host.hidden = !show;
-    prof.classList.toggle('is-active', show);
+  mountRouteMap(document.getElementById('ccRouteMapWrap'), {
+    gpxUrl: rd.routeGpxUrl, distanceKm: rd.distanceKm, colorHex: race?.colorHex,
+    elevationProfile: rd.elevationProfile, summits, waypoints,
+    primaryType: rd.primaryType, lang: isEn ? 'en' : 'es',
   });
 }
 

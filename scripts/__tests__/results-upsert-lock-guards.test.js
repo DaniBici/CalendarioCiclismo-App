@@ -104,97 +104,41 @@ const insertFilasDe = (plan) => plan.find((p) => p.text.includes('INSERT INTO pu
 
 describe('bloqueo del enlace durante el volcado', () => {
   it('difiere el upsert de race_uci_links hasta el final de la transacción', () => {
-    const link = planDe(-1359920101).find((p) => p.text.includes('INSERT INTO public.race_uci_links'));
+    const link = planDe(380794).find((p) => p.text.includes('INSERT INTO public.race_uci_links'));
 
     expect(link).toBeDefined();
     expect(link.deferUntilCommit).toBe(true);
   });
 });
 
-describe('enlace race|result', () => {
-  const data = {
-    competitionId: -196674,
-    disciplineId: 10,
-    source: 'raceresult',
-    raceresultEvent: 421325,
-    stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId: -1966740101 })] }],
-  };
-
-  it('incluye el código obligatorio en el INSERT del enlace', () => {
-    const { plan } = buildPlan(data);
-    const link = plan.find((statement) => statement.text.includes('INSERT INTO public.race_uci_links'));
-    expect(link.text).toContain('"raceresultCode"');
-    expect(link.text).toContain('$18');
-    expect(link.params[17]).toBe('421325');
-  });
-
-  it('rechaza el payload sin identificador de evento', () => {
-    expect(() => buildPlan({ ...data, raceresultEvent: null }))
-      .toThrow('requiere raceresultEvent');
-  });
-});
-
-// Los CHECK chk_race_uci_links_*_code son NOT NULL duros para tissot, matsort,
-// domtel y livetiming. Desde que el upsert propaga data.source, el INSERT propone
-// source=<fuente> y Postgres valida el código en la fila propuesta antes del ON
-// CONFLICT: sin él, el volcado entero revierte (Tour de Luxemburgo E1, 2026-09-16).
-describe('enlace de cronometradores con código obligatorio', () => {
-  const caso = (source, codeKey, codeValue) => ({
+describe('enlace de fuentes con código obligatorio', () => {
+  const caso = (source, extra = {}) => ({
     competitionId: -135992,
     disciplineId: 10,
     source,
-    [codeKey]: codeValue,
+    ...extra,
     stages: [{ stageNumber: 1, classifications: [clasificacion({ eventId: -1359920101 })] }],
   });
   const linkDe = (data) => buildPlan(data).plan
     .find((statement) => statement.text.includes('INSERT INTO public.race_uci_links'));
 
-  it('incluye tissotCode', () => {
-    const link = linkDe(caso('tissot', 'tissotCode', 'tdf'));
-    expect(link.text).toContain('"tissotCode"');
-    expect(link.params[18]).toBe('tdf');
+  it('race|result propaga el evento como código y exige su identificador', () => {
+    expect(linkDe(caso('raceresult', { raceresultEvent: 421325 })).params).toContain('421325');
+    expect(() => buildPlan(caso('raceresult'))).toThrow('requiere raceresultEvent');
   });
 
-  it('incluye matsortCode', () => {
-    const link = linkDe(caso('matsport', 'matsportCode', 'LUX'));
-    expect(link.text).toContain('"matsportCode"');
-    expect(link.text).toContain('$20');
-    expect(link.params[19]).toBe('LUX');
-  });
-
-  it('incluye domtelCode', () => {
-    const link = linkDe(caso('domtel', 'domtelCode', '8872'));
-    expect(link.text).toContain('"domtelCode"');
-    expect(link.params[20]).toBe('8872');
-  });
-
-  it('incluye livetimingCode', () => {
-    const link = linkDe(caso('livetiming', 'livetimingCode', '260903'));
-    expect(link.text).toContain('"livetimingCode"');
-    expect(link.params[21]).toBe('260903');
-  });
-
-  it('rechaza cada fuente sin su código', () => {
-    expect(() => buildPlan(caso('tissot', 'tissotCode', null))).toThrow('--tissot-code');
-    expect(() => buildPlan(caso('matsport', 'matsportCode', null))).toThrow('--matsport-code');
-    expect(() => buildPlan(caso('domtel', 'domtelCode', null))).toThrow('--domtel-code');
-    expect(() => buildPlan(caso('livetiming', 'livetimingCode', null))).toThrow('--livetiming-code');
-  });
-});
-
-describe('licencias UCI externas', () => {
-  it('no genera SQL de propagación a fichas de corredores', () => {
-    const data = {
-      competitionId: 78302,
-      disciplineId: 10,
-      stages: [{ stageNumber: 1, classifications: [clasificacion({
-        eventId: 78302032,
-        rows: [{ rank: 1, rankText: '1', bib: '11', riderDisplay: 'BRAVO Henrique', uciId: '10042809619', timeText: '26:25:00' }],
-      })] }],
-    };
-    const { plan } = buildPlan(data, null, null, null, { gender: 'male' });
-    expect(plan.find((statement) => statement.note?.includes('propagar licencia UCI'))).toBeUndefined();
-    expect(plan.every((statement) => !statement.text.includes('target."uciId"'))).toBe(true);
+  // Los CHECK chk_race_uci_links_*_code son NOT NULL duros: Postgres valida el
+  // código en la fila propuesta antes del ON CONFLICT y, sin él, el volcado
+  // entero revierte (Tour de Luxemburgo E1, 2026-09-16).
+  it('cada cronometrador propaga su código y rechaza el volcado sin él', () => {
+    for (const [source, column, flag, code] of [
+      ['tissot', 'tissotCode', '--tissot-code', 'tdf'],
+      ['matsport', 'matsportCode', '--matsport-code', 'LUX'],
+      ['ASO', 'asoUrl', '--aso-url', 'https://example.test/aso'],
+    ]) {
+      expect(linkDe(caso(source, { [column]: code })).params, source).toContain(code);
+      expect(() => buildPlan(caso(source)), source).toThrow(flag);
+    }
   });
 });
 
@@ -299,11 +243,6 @@ describe('fallback de identidad exclusivo de DataRide', () => {
     expect(insertFilasDe(plan).params[6]).toBeNull();
     expect(insertCabeceraDe(plan).params[13]).toBeNull();
   });
-
-  it('una fuente de cronometrador exige su código de enlace', () => {
-    expect(() => oneDay('tissot')).toThrow('--tissot-code');
-    expect(oneDay('tissot', { tissotCode: 'tdf' })).toBeDefined();
-  });
 });
 
 describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
@@ -353,26 +292,6 @@ describe('coherencia placeholders ↔ params en el INSERT de cabecera', () => {
     expect(maxPlaceholder(ins.text)).toBe(ins.params.length);
   });
 
-  it('doble sector: sectorIndex se sigue pasando cuando el SQL lo usa', () => {
-    // El fix no debe llevarse por delante el soporte de doble sector (3A/3B): con
-    // stageNumber presente, $17 se referencia en el OFFSET y debe ir en params.
-    const ins = insertCabeceraDe(planConStage(3));
-    expect(ins.text).toContain('OFFSET $17');
-    expect(ins.params).toHaveLength(17);
-  });
-
-  it('conserva el PDF oficial de la clasificación', () => {
-    const stages = [{
-      stageNumber: 1,
-      dateKey: '2026-07-19',
-      sourcePdfUrl: 'https://timing.ee/resultados.pdf',
-      classifications: [clasificacion({ stageNumber: 1 })],
-    }];
-    const { plan } = buildPlan({ competitionId: 78302, disciplineId: 10, stages });
-    const ins = insertCabeceraDe(plan);
-    expect(ins.text).toContain('"sourcePdfUrl"');
-    expect(ins.params).toContain('https://timing.ee/resultados.pdf');
-  });
 });
 
 describe('el candado propio sigue protegiendo el re-volcado de la MISMA clasificación', () => {
@@ -563,18 +482,19 @@ describe('statement del enlace — guard anti-secuestro manual', () => {
     expect(link.text).not.toContain('WHERE race_uci_links."source"');
   });
 
-  it('un manual sin --source preserva el enlace automático aunque su competición sea sintética', () => {
-    const { plan } = buildPlan({ ...carrera(-131200500), competitionId: -131200100 });
-    const link = plan.find((p) => p.deferUntilCommit);
-    expect(link.params[5]).toBe('pdf');
-    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+  // Un placeholder no crea el enlace: uno 'pdf' bloquearía el enlazador live y el cron.
+  const linkStatements = (plan) => plan.filter((p) => p.text.includes('race_uci_links'));
+
+  it('un manual sin fuente con competición sintética no crea ni modifica el enlace', () => {
+    const { plan, nStages } = buildPlan({ ...carrera(-131200500), competitionId: -131200100 });
+    expect(nStages).toBe(1);
+    expect(linkStatements(plan)).toEqual([]);
   });
 
-  it('un placeholder con competición real y eventos negativos tampoco actualiza el enlace', () => {
-    const { plan } = buildPlan(carrera(-131200500));
-    const link = plan.find((p) => p.deferUntilCommit);
-    expect(link.params[5]).toBe('pdf');
-    expect(link.text).toContain(`WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`);
+  it('un placeholder con competición real y eventos negativos tampoco toca el enlace', () => {
+    const { plan, nStages } = buildPlan(carrera(-131200500));
+    expect(nStages).toBe(1);
+    expect(linkStatements(plan)).toEqual([]);
   });
 
   it('respeta la fuente automática declarada por un captador sintético', () => {

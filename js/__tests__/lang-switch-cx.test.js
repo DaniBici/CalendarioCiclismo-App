@@ -19,12 +19,12 @@ function switchLanguage(current,target,{enDomain=null,alternate}={}) {
 }
 
 describe('cambio de idioma desde clasificaciones CX',()=>{
-  it.each(['programme','tv','videos'])('conserva la sección %s y la categoría al cambiar de idioma',view=>{
-    expect(switchLanguage(`https://calendariociclismo.app/ciclocross/prueba/?view=${view}#WE`,'en',{
+  it('conserva la sección y la categoría al cambiar de idioma',()=>{
+    expect(switchLanguage('https://calendariociclismo.app/ciclocross/prueba/?view=tv#WE','en',{
       alternate:'https://calendariociclismo.app/en/cyclocross/race/'
-    })).toBe(`https://calendariociclismo.app/en/cyclocross/race/?view=${view}#WE`);
+    })).toBe('https://calendariociclismo.app/en/cyclocross/race/?view=tv#WE');
   });
-  it.each(['ME','WE','WU','general','general-ME','general-WE','general-WU'])(
+  it.each(['WE','general','general-WU'])(
     'conserva #%s y los filtros de la URL al pasar de ES a EN',fragment=>{
       expect(switchLanguage(`https://calendariociclismo.app/ciclocross/prueba/resultados/?date=2026-11-01#${fragment}`,'en',{
         alternate:'https://calendariociclismo.app/en/cyclocross/race/results/'

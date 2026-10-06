@@ -19,10 +19,6 @@ describe('A.S.O. Rankings', () => {
     expect(gapOf("+ 00' 04''")).toBe('+4');
     expect(rowsFromRankingHtml(TABLE)).toMatchObject([{ rank: 1, bib: '103', riderDisplay: 'GIOVANNI LONARDI', timeText: '4:05:23' }, { rank: 2, gapText: '+4' }]);
   });
-  it('solo emite una clasificación con ganador válido', () => {
-    const classifications = classificationsFromPages(URL, 1, new Map([['ite', TABLE]]));
-    expect(classifications).toMatchObject([{ classKind: 'stage', scope: 'stage', rowCount: 2, winnerName: 'GIOVANNI LONARDI' }]);
-  });
   it('separa las generales finales de la etapa final', () => {
     const pages = new Map([['ite', TABLE], ['itg', TABLE], ['ipg', TABLE], ['img', TABLE], ['ijg', TABLE], ['etg', TABLE]]);
     const finals = finalClassificationsFromPages(URL, pages);

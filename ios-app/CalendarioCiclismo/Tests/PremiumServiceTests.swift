@@ -7,64 +7,17 @@ final class PremiumServiceTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         // Resetear estado del singleton al empezar cada test.
-        PremiumService.shared.dismissPaywall()
+        PremiumService.shared.dismissSupport()
         PremiumService.shared._debugSetSubscribed(false)
+        PremiumService.shared._debugSetLegacyPremiumActive(false)
     }
 
     override func tearDown() async throws {
         // Dejar el singleton en estado limpio para no contaminar otros tests.
-        PremiumService.shared.dismissPaywall()
+        PremiumService.shared.dismissSupport()
         PremiumService.shared._debugSetSubscribed(false)
+        PremiumService.shared._debugSetLegacyPremiumActive(false)
         try await super.tearDown()
-    }
-
-    // MARK: - PaywallSource
-
-    func test_paywallSource_allCases_contractoConUI() {
-        let expected: Set<String> = [
-            "region", "notifications", "raceCards", "raceNotifications", "general",
-        ]
-        let actual = Set(PremiumService.PaywallSource.allCases.map { $0.rawValue })
-        XCTAssertEqual(actual, expected, "Las sources deben coincidir con los CTAs cableados en la app")
-    }
-
-    func test_paywallSource_idMatchesRawValue() {
-        for source in PremiumService.PaywallSource.allCases {
-            XCTAssertEqual(source.id, source.rawValue)
-        }
-    }
-
-    // MARK: - PremiumPlan
-
-    func test_premiumPlan_hasMonthlyAndYearly() {
-        let actual = Set(PremiumService.PremiumPlan.allCases.map { $0.rawValue })
-        XCTAssertEqual(actual, ["monthly", "yearly"])
-    }
-
-    // MARK: - isSubscribed
-
-    func test_default_isNotSubscribed_afterReset() {
-        // setUp ya llamó _debugSetSubscribed(false).
-        XCTAssertFalse(PremiumService.shared.isSubscribed)
-    }
-
-    func test_debugSetTrue_persistsFlag() {
-        PremiumService.shared._debugSetSubscribed(true)
-        XCTAssertTrue(PremiumService.shared.isSubscribed)
-    }
-
-    func test_debugSetFalse_clearsFlag() {
-        PremiumService.shared._debugSetSubscribed(true)
-        PremiumService.shared._debugSetSubscribed(false)
-        XCTAssertFalse(PremiumService.shared.isSubscribed)
-    }
-
-    func test_debugToggle_flipsFlag() {
-        let initial = PremiumService.shared.isSubscribed
-        PremiumService.shared._debugToggle()
-        XCTAssertNotEqual(PremiumService.shared.isSubscribed, initial)
-        PremiumService.shared._debugToggle()
-        XCTAssertEqual(PremiumService.shared.isSubscribed, initial)
     }
 
     // MARK: - Funciones gratuitas
@@ -94,45 +47,23 @@ final class PremiumServiceTests: XCTestCase {
         ])
     }
 
-    // MARK: - Paywall presentation
+    // MARK: - Aviso de apoyo tras el uso
 
-    func test_presentPaywall_setsPendingSource() {
-        XCTAssertNil(PremiumService.shared.pendingPaywallSource)
-        PremiumService.shared.presentPaywall(.region)
-        XCTAssertEqual(PremiumService.shared.pendingPaywallSource, .region)
-    }
+    /// Quien pagó Premium y lo tiene vigente no recibe el aviso de apoyo: la
+    /// pantalla de contenido ni siquiera suma al contador de la campaña.
+    func test_contributionPrompt_skipsActiveLegacyPremium() {
+        let key = "contribution_prompt_v4_2_4_content_views"
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: key)
+        defer { defaults.set(saved, forKey: key) }
+        defaults.set(5, forKey: key)
 
-    func test_presentPaywall_overwritesPreviousSource() {
-        PremiumService.shared.presentPaywall(.region)
-        PremiumService.shared.presentPaywall(.notifications)
-        XCTAssertEqual(PremiumService.shared.pendingPaywallSource, .notifications)
-    }
+        PremiumService.shared._debugSetLegacyPremiumActive(true)
+        ContributionPromptService.shared.recordContentScreenView("race_detail")
+        XCTAssertEqual(defaults.integer(forKey: key), 5)
 
-    func test_dismissPaywall_clearsPendingSource() {
-        PremiumService.shared.presentPaywall(.general)
-        PremiumService.shared.dismissPaywall()
-        XCTAssertNil(PremiumService.shared.pendingPaywallSource)
-    }
-
-    // MARK: - Compra (Debug)
-
-    func test_subscribe_inDebug_activatesFlag() {
-        // En Debug, `subscribe(plan:)` activa isSubscribed directamente para
-        // permitir probar la UI Premium sin SDK.
-        XCTAssertFalse(PremiumService.shared.isSubscribed)
-        PremiumService.shared.subscribe(plan: .yearly)
-        XCTAssertTrue(PremiumService.shared.isSubscribed)
-    }
-
-    func test_cancelSubscription_inDebug_deactivatesFlag() {
-        PremiumService.shared._debugSetSubscribed(true)
-        PremiumService.shared.cancelSubscription()
-        XCTAssertFalse(PremiumService.shared.isSubscribed)
-    }
-
-    func test_restorePurchases_async_withoutEntitlements_returnsFalse() async {
-        // Fase 6: sin sandbox configurado ni entitlements activos, devuelve false.
-        let result = await PremiumService.shared.restorePurchases()
-        XCTAssertFalse(result)
+        PremiumService.shared._debugSetLegacyPremiumActive(false)
+        ContributionPromptService.shared.recordContentScreenView("race_detail")
+        XCTAssertEqual(defaults.integer(forKey: key), 6)
     }
 }

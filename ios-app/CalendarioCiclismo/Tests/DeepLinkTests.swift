@@ -46,6 +46,18 @@ final class DeepLinkTests: XCTestCase {
         }
     }
 
+    func testWebSectionsOpenTheSameSectionOfTheRace() {
+        let cases: [(String, String)] = [
+            ("ciclocross/cross-2026/?view=videos", "videos"), ("en/cyclocross/cross-2026/?view=tv", "programme"),
+            ("ciclocross/cross-2026/?view=general#WU", "general-WU"), ("ciclocross/cross-2026/inscritos/#WE", "inscritos-WE"),
+            ("en/cyclocross/cross-2026/results/#MJ", "MJ"),
+        ]
+        for (path, anchor) in cases {
+            XCTAssertEqual(NotificationManager.DeepLink.fromURL(URL(string: "https://calendariociclismo.app/\(path)")!), .cxRaceSlug("cross-2026", anchor: anchor), path)
+        }
+        XCTAssertEqual(NotificationManager.DeepLink.fromURL(URL(string: "calendariociclismo://cxRace/cx-123#videos")!), .cxRace("cx-123", anchor: "videos"))
+    }
+
     func testTournamentPagesResolveSeriesSlugsForBothLanguages() {
         XCTAssertEqual(NotificationManager.DeepLink.fromURL(URL(string: "https://calendariociclismo.app/ciclocross/torneos/copa-espana/")!), .cxTournamentSlug("copa-espana"))
         XCTAssertEqual(NotificationManager.DeepLink.fromURL(URL(string: "https://calendariociclismo.app/ciclocross/torneos/copa-espana")!), .cxTournamentSlug("copa-espana"))
@@ -63,7 +75,7 @@ final class DeepLinkTests: XCTestCase {
             "https://user@calendariociclismo.app/ciclocross/canmore/", "calendariociclismo://cxRace/a%2Fb",
             "calendariociclismo://cxRace/x/y", "calendariociclismo://cxRace/x#relay",
             "https://calendariociclismo.app/ciclocross/series/canmore/", "https://calendariociclismo.app/en/cyclocross/torneos/canmore/",
-            "https://calendariociclismo.app/ciclocross/torneos/canmore/extra/"
+            "https://calendariociclismo.app/ciclocross/torneos/canmore/extra/", "https://calendariociclismo.app/en/cyclocross/canmore/inscritos/"
         ] { XCTAssertNil(NotificationManager.DeepLink.fromURL(URL(string: value)!), value) }
     }
 }

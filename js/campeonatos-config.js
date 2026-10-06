@@ -172,6 +172,16 @@ export const isFemaleChampionship = (race) =>
   /\bfemenin/i.test(race?.name || '') ||
   (race?.gender === 'female' && !/\bmasculin/i.test(race?.name || ''));
 
+// ¿Pasa una CN el filtro de categoría de Hoy/Mes? Élite cuenta como Pro y como
+// Masc/Fem según su género; sub23 queda fuera; WT/WWT no aceptan CN.
+export function championshipMatchesCategoryFilter(race, cat) {
+  if (isU23Championship(race)) return false;
+  if (cat === 'pro')    return true;
+  if (cat === 'male')   return !isFemaleChampionship(race);
+  if (cat === 'female') return isFemaleChampionship(race);
+  return false;
+}
+
 // ── Orden interno de la categoría CN en Hoy/Mes ───────────────────
 // Cuando dos jornadas son Campeonatos Nacionales (uciCategory === 'CN')
 // se ordenan entre sí por: (1) país según COUNTRY_ORDER, (2) LÍNEA antes
@@ -195,12 +205,12 @@ const _CN_SLOT_ORDER = [
   'cri_masc',   'cri_fem',   'cri_sub23_m',   'cri_sub23_f',
 ];
 const _CN_SLOT_INDEX = new Map(_CN_SLOT_ORDER.map((s, i) => [s, i]));
-export function championshipSlotRank(race, rd) {
+function championshipSlotRank(race, rd) {
   return _CN_SLOT_INDEX.get(championshipSlot(race, rd)) ?? _CN_SLOT_ORDER.length;
 }
 
 // ¿Es una jornada de Campeonato Nacional?
-export const isChampionshipRace = (race) => (race?.uciCategory || '') === 'CN';
+const isChampionshipRace = (race) => (race?.uciCategory || '') === 'CN';
 
 // Comparador parcial para dos CN: país → slot. Devuelve un número (≠0 ⇒
 // orden decidido; 0 ⇒ desempate al comparador genérico) o null si alguna

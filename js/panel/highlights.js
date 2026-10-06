@@ -5,9 +5,9 @@
 import {
   panelArea, loadCxCommonRaces, fillCxRaceSelect, cxCommonRaceName,
   loadCxCommonTournaments, fillCxTournamentSelect, cxCommonTournamentName,
-} from './cx.js?v=20260927foldname';
+} from './cx.js';
 import { supabase, countryFlag, esc } from '../shared.js';
-import { openDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
@@ -145,15 +145,15 @@ function _onHighlightRaceSearch() {
       .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
       .slice(0, 20);
     if (matches.length === 0) {
-      resultsDiv.innerHTML = '<div style="padding:0.5rem 0.7rem;color:var(--text-dim);font-size:0.82rem">Sin resultados</div>';
+      resultsDiv.innerHTML = '<div class="u-py-050 u-px-070 u-c-dim u-fs-082">Sin resultados</div>';
     } else {
       resultsDiv.innerHTML = matches.map(r => {
         const flag = r.hideFlag ? '' : countryFlag(r.countryCode);
         return `
-          <div class="hl-race-option" data-race-id="${esc(r.id)}" style="padding:0.5rem 0.7rem;cursor:pointer;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid var(--border)">
+          <div class="hl-race-option" data-race-id="${esc(r.id)}">
             ${flag ? `<span>${flag}</span>` : ''}
-            <span style="flex:1;font-size:0.85rem">${esc(r.name)}</span>
-            <span class="u-fs-xs u-c-dim">${esc(r.startDate || '')} · ${esc(r.uciCategory || '')}</span>
+            <span class="u-grow u-fs-085">${esc(r.name)}</span>
+            <span class="u-fs-072 u-c-dim">${esc(r.startDate || '')} · ${esc(r.uciCategory || '')}</span>
           </div>`;
       }).join('');
       resultsDiv.querySelectorAll('.hl-race-option').forEach(opt => {
@@ -234,15 +234,17 @@ function _refreshHighlightTargetWarning() {
   const targetType = document.querySelector('input[name="hl-targetType"]:checked')?.value || 'raceDay';
 
   // Entrada custom: ocultar selección de carrera/jornada, mostrar campos custom.
-  // Modo Campeonatos y Fichajes: tampoco usan carrera (destino fijo), sin campos custom de URL.
+  // Modo Campeonatos, Fichajes y Calendario: tampoco usan carrera (destino fijo), sin campos custom de URL.
   const isCustom = targetType === 'custom';
   const isChampionships = targetType === 'championships';
   const isTransfers = targetType === 'transfers';
+  const isSeason = targetType === 'season';
   const isCx = targetType === 'cxRace';
   const isCxTournament = targetType === 'cxTournament';
   document.getElementById('hl-cx-race-row').style.display = isCx ? '' : 'none';
   document.getElementById('hl-cx-tournament-row').style.display = isCxTournament ? '' : 'none';
-  const noRace = isCustom || isChampionships || isTransfers || isCx || isCxTournament;
+  document.getElementById('hl-season-row').style.display = isSeason ? '' : 'none';
+  const noRace = isCustom || isChampionships || isTransfers || isSeason || isCx || isCxTournament;
   document.getElementById('hl-race-row').style.display   = noRace ? 'none' : '';
   document.getElementById('hl-custom-row').style.display = isCustom ? 'flex' : 'none';
   if (noRace) {
@@ -289,6 +291,7 @@ const HIGHLIGHT_TARGETS = [
   ['startOrder', 'Orden de salida', 'road'],
   ['championships', 'Modo Campeonatos — web abre la página; apps, la pantalla nativa', 'road'],
   ['transfers', 'Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa', 'road'],
+  ['season', 'Calendario de una temporada — web abre la vista Temporada; apps, la pestaña Calendario', 'road'],
   ['custom', 'Personalizado (solo web) — URL, título y logo libres', 'road'],
   ['cxRace', 'Prueba de ciclocross (página de la jornada)', 'cx'],
   ['cxTournament', 'Torneo de ciclocross (página de la serie)', 'cx'],
@@ -308,11 +311,11 @@ function highlightEditorBodyHtml(scope) {
   const isCx = scope === 'cx';
   return `
     <div>
-      <label style="display:block;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:0.4rem">Destino del cintillo de ${isCx ? 'Ciclocross' : 'carretera'}</label>
-      <div class="hl-target-options" style="display:flex;flex-direction:column;gap:0.5rem">
+      <label class="panel-field-heading">Destino del cintillo de ${isCx ? 'Ciclocross' : 'carretera'}</label>
+      <div class="hl-target-options">
         ${_highlightTargetOptionsHtml(scope)}
       </div>
-      <div id="hl-target-warning" style="display:none;color:var(--red);font-size:0.78rem;margin-top:0.4rem"></div>
+      <div id="hl-target-warning" class="u-c-red u-fs-078 u-mt-040" style="display:none"></div>
     </div>
     <div class="field" id="hl-cx-race-row" style="display:none">
       <label>Carrera de ciclocross</label>
@@ -324,24 +327,28 @@ function highlightEditorBodyHtml(scope) {
       <select id="hl-cx-tournament-id"></select>
       <button type="button" class="btn btn--ghost" id="hl-cx-tournament-retry" hidden>Reintentar</button>
     </div>
+    <div class="field" id="hl-season-row" style="display:none">
+      <label>Temporada</label>
+      <select id="hl-seasonYear"></select>
+    </div>
     <div class="field" id="hl-race-row">
       <label>Carrera</label>
       <input type="text" id="hl-race-search" placeholder="Busca por nombre de carrera…" autocomplete="off">
-      <div id="hl-race-results" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;background:var(--bg)"></div>
-      <div id="hl-race-selected" style="display:none;padding:0.5rem 0.7rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;align-items:center;gap:0.6rem">
-        <span id="hl-race-selected-flag" style="font-size:1.1rem;line-height:1"></span>
-        <span id="hl-race-selected-name" style="flex:1;font-size:0.9rem;font-weight:600"></span>
-        <button class="btn btn--ghost" id="hl-race-clear" style="padding:0.25rem 0.55rem;font-size:0.72rem">Cambiar</button>
+      <div id="hl-race-results" class="hl-race-results" style="display:none"></div>
+      <div id="hl-race-selected" class="hl-race-selected" style="display:none">
+        <span id="hl-race-selected-flag" class="u-fs-110 u-lh-100"></span>
+        <span id="hl-race-selected-name" class="u-grow u-fs-090 u-fw-600"></span>
+        <button class="btn btn--ghost u-py-025 u-px-055 u-fs-072" id="hl-race-clear">Cambiar</button>
       </div>
     </div>
     <div class="field" id="hl-stage-row" style="display:none">
       <label>Jornada</label>
       <select id="hl-raceDayId"></select>
     </div>
-    <div id="hl-custom-row" style="display:none;flex-direction:column;gap:1rem">
+    <div id="hl-custom-row" class="u-col u-gap-100" style="display:none">
       <div class="field-row field-row--2">
         <div class="field">
-          <label>URL de destino (ES) <span style="color:var(--red)">*</span></label>
+          <label>URL de destino (ES) <span class="u-c-red">*</span></label>
           <input type="text" id="hl-customUrl" placeholder="Ej.: /campeonatos-nacionales-2026.html" class="u-w-full">
         </div>
         <div class="field">
@@ -384,10 +391,10 @@ function highlightEditorBodyHtml(scope) {
         <input type="datetime-local" id="hl-visibleUntil">
       </div>
     </div>
-    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1rem">
+    <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveHighlightBtn">Guardar</button>
-      <button class="btn btn--ghost" id="deleteHighlightBtn" style="color:var(--red);display:none">Eliminar</button>
-      <span class="u-fs-md u-c-dim" id="highlightSaveStatus"></span>
+      <button class="btn btn--ghost u-c-red" id="deleteHighlightBtn" style="display:none">Eliminar</button>
+      <span class="u-fs-080 u-c-dim" id="highlightSaveStatus"></span>
     </div>
   `;
 }
@@ -519,6 +526,14 @@ async function openHighlightEditor(highlight) {
   document.getElementById('hl-customLogo').value      = highlight?.customLogo      || '';
   document.getElementById('hl-visibleFrom').value     = _toDatetimeLocal(highlight?.visibleFrom);
   document.getElementById('hl-visibleUntil').value    = _toDatetimeLocal(highlight?.visibleUntil);
+  // Temporada: la actual y la siguiente (las que ofrecen las apps), más la
+  // guardada si ya no está entre ellas. Por defecto, la siguiente.
+  const currentYear = new Date().getFullYear();
+  const seasonYear = highlight?.seasonYear || currentYear + 1;
+  const seasonYears = [...new Set([currentYear, currentYear + 1, seasonYear])].sort((a, b) => a - b);
+  const seasonSelect = document.getElementById('hl-seasonYear');
+  seasonSelect.innerHTML = seasonYears.map(y => `<option value="${y}">${y}</option>`).join('');
+  seasonSelect.value = String(seasonYear);
   const targetType = highlight?.targetType || (editor.scope === 'cx' ? 'cxRace' : 'raceDay');
   const targetRadio = document.querySelector(`input[name="hl-targetType"][value="${targetType}"]`);
   if (targetRadio) targetRadio.checked = true;
@@ -560,10 +575,6 @@ async function openHighlightEditor(highlight) {
   }
 }
 
-function closeHighlightEditor() {
-  _highlightEditor?.drawer.close();
-}
-
 async function saveHighlight() {
   const editor = _highlightEditor;
   if (!editor?.drawer.isCurrent() || editor.busy || editor.loading) return;
@@ -572,6 +583,7 @@ async function saveHighlight() {
   const isCustom = targetType === 'custom';
   const isChampionships = targetType === 'championships';
   const isTransfers = targetType === 'transfers';
+  const isSeason = targetType === 'season';
   const isCx = targetType === 'cxRace';
   const isCxTournament = targetType === 'cxTournament';
   if ((isCx && editor.cxLoading) || (isCxTournament && editor.cxTournamentLoading)) return;
@@ -579,7 +591,7 @@ async function saveHighlight() {
   status.textContent = 'Guardando…';
   const cxRaceId = isCx ? document.getElementById('hl-cx-race-id').value || null : null;
   const cxTournamentId = isCxTournament ? document.getElementById('hl-cx-tournament-id').value || null : null;
-  const noRace = isCustom || isChampionships || isTransfers || isCx || isCxTournament;
+  const noRace = isCustom || isChampionships || isTransfers || isSeason || isCx || isCxTournament;
   if (isCx && !cxRaceId) {
     status.style.color = 'var(--red)';
     status.textContent = 'Selecciona una carrera de ciclocross.';
@@ -591,7 +603,7 @@ async function saveHighlight() {
     return;
   }
 
-  // Carrera obligatoria salvo para entradas custom, Campeonatos o Fichajes (sin carrera).
+  // Carrera obligatoria salvo para entradas custom, Campeonatos, Fichajes o Calendario (sin carrera).
   if (!noRace && !_hlSelectedRace) {
     status.style.color = 'var(--red)';
     status.textContent = 'Selecciona una carrera.';
@@ -652,6 +664,7 @@ async function saveHighlight() {
     customUrl:       isCustom ? customUrl   : null,
     customUrlEn:     isCustom ? customUrlEn : null,
     customLogo:      isCustom ? customLogo  : null,
+    seasonYear:      isSeason ? Number(document.getElementById('hl-seasonYear').value) : null,
     visibleFrom:     _fromDatetimeLocal(document.getElementById('hl-visibleFrom').value),
     visibleUntil:    _fromDatetimeLocal(document.getElementById('hl-visibleUntil').value),
   };
@@ -728,7 +741,7 @@ function renderHighlightsList() {
   const container = document.getElementById('highlightsList');
   const list = _highlightsCache || [];
   if (list.length === 0) {
-    container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;padding:1rem;text-align:center">
+    container.innerHTML = `<div class="u-empty-note u-fs-085">
       No hay destacados todavía. Pulsa <strong>+ Añadir destacado</strong> para empezar.
     </div>`;
     return;
@@ -742,6 +755,7 @@ function renderHighlightsList() {
     custom:        'Personalizado',
     championships: 'Campeonatos',
     transfers:     'Fichajes',
+    season:        'Calendario',
     cxRace:        'Prueba CX',
     cxTournament:  'Torneo CX',
   };
@@ -756,6 +770,8 @@ function renderHighlightsList() {
       lhs = h.customTitle || 'Campeonatos Nacionales';
     } else if (h.targetType === 'transfers') {
       lhs = h.customTitle || 'Mercado de Fichajes';
+    } else if (h.targetType === 'season') {
+      lhs = h.customTitle || `Calendario ${h.seasonYear}`;
     } else if (h.targetType === 'cxRace') {
       lhs = cxCommonRaceName(h.cxRaceId) || h.customTitle || '(carrera CX desconocida)';
     } else if (h.targetType === 'cxTournament') {
@@ -777,17 +793,17 @@ function renderHighlightsList() {
     if (dateRange)      detailBits.push('Visible: ' + esc(dateRange));
     const subtitle = detailBits.join(' · ');
     return `
-      <div class="hl-row" data-id="${esc(h.id)}" data-idx="${idx}" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.7rem;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
-        <span class="hl-handle" style="color:var(--text-dim);font-size:1.2rem;cursor:grab;touch-action:none;user-select:none;padding:0.35rem 0.2rem;margin:-0.35rem -0.1rem;line-height:1" title="Arrastrar para reordenar">⋮⋮</span>
+      <div class="hl-row" data-id="${esc(h.id)}" data-idx="${idx}">
+        <span class="hl-handle" title="Arrastrar para reordenar">⋮⋮</span>
         <div class="u-grow u-min0">
-          <div style="font-size:0.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            <span style="font-weight:600">${esc(lhs)}</span>
-            <span style="color:var(--text-dim);margin:0 0.3rem">→</span>
-            <span style="font-weight:500">${esc(targetLabel)}</span>
+          <div class="u-truncate u-fs-092">
+            <span class="u-fw-600">${esc(lhs)}</span>
+            <span class="u-c-dim u-ml-030 u-mr-030">→</span>
+            <span class="u-fw-500">${esc(targetLabel)}</span>
           </div>
-          ${subtitle ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:0.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${subtitle}</div>` : ''}
+          ${subtitle ? `<div class="u-truncate u-fs-074 u-c-dim u-mt-015">${subtitle}</div>` : ''}
         </div>
-        <button class="btn btn--ghost hl-edit-btn" data-id="${esc(h.id)}" style="padding:0.25rem 0.55rem;font-size:0.72rem">Editar</button>
+        <button class="btn btn--ghost hl-edit-btn u-py-025 u-px-055 u-fs-072" data-id="${esc(h.id)}">Editar</button>
       </div>`;
   }).join('');
 

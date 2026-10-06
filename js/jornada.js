@@ -1,34 +1,20 @@
-import { mountStageProfile } from './stage/profile.js?v=20260908b';
+import { mountStageProfile } from './stage/profile.js';
 // ─────────────────────────────────────────────────────────────────
 //  JORNADA — detalle de una jornada concreta
 //  URL: jornada.html?id=RACE_DAY_ID
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
+import { supabase, broadcastRegionBadgeLabel, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
          TYPE_LABELS, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
          raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
-         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots }
+         filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots, setHreflangPair }
          from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
+import { writeCalendarParams } from './calendario-query.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
-import { annotateDoubleSectors, buildInhouseResultsMatcher, hasCalendarForYear } from './services/races.js?v=20260914ical';
-import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js?v=20260923revive-results';
-
-function broadcastRegionBadgeLabel(country) {
-  if (!country || country === 'ALL') return '';
-  if (getLang() !== 'en') {
-    return {
-      UK_IE: 'GB / IRL',
-      SCANDI: 'ESCANDI',
-    }[country] || country;
-  }
-  return {
-    EUROPA: 'EUROPE',
-    UK_IE: 'UK / IRL',
-    NORTEAM: 'NORTH AM.',
-  }[country] || country;
-}
+import { annotateDoubleSectors, buildInhouseResultsMatcher, hasCalendarForYear } from './services/races.js';
+import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
 
 function descriptionHtml(str) {
   if (!str) return '';
@@ -113,28 +99,29 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const fromVal   = urlParams.get('from') || navState.from;
   const _isEn = getLang() === 'en';
   const _navBase = _isEn ? '/en' : '';
-  // Mes y Temporada viven fusionadas en /calendario/ (subvistas ?vista=).
+  // Mes y Temporada viven fusionadas en /calendario/ (subvistas por
+  // parámetro según idioma: js/calendario-query.js).
   const _navCalendar = _isEn ? '/calendar/' : '/calendario/';
   const _navToday  = '/';
   if (fromVal === 'temporada') {
     const year = urlParams.get('year') || navState.year || '';
     const cat  = urlParams.get('cat')  || navState.cat  || '';
     const qs   = new URLSearchParams();
-    qs.set('vista', 'temporada');
+    writeCalendarParams(qs, getLang(), { view: 'temporada' });
     if (year) qs.set('year', year);
     if (cat) qs.set('cat', cat);
     backBtn.href = _navBase + _navCalendar + '?' + qs;
   } else if (fromVal === 'mes') {
     const monthRaw = urlParams.get('month') || navState.month;
     const yearRaw  = urlParams.get('year')  || navState.year;
-    const qs       = new URLSearchParams();
-    qs.set('vista', 'mes');
+    let month = null;
     if (yearRaw !== undefined && yearRaw !== null && monthRaw !== undefined && monthRaw !== null) {
       // navState stores 0-based month; format as YYYY-MM
       const y = Number(yearRaw);
       const m = Number(monthRaw) + 1;
-      qs.set('mes', `${y}-${String(m).padStart(2, '0')}`);
+      month = `${y}-${String(m).padStart(2, '0')}`;
     }
+    const qs = writeCalendarParams(new URLSearchParams(), getLang(), { view: 'mes', month });
     backBtn.href = _navBase + _navCalendar + '?' + qs;
   } else if (rd.dateKey) {
     backBtn.href = _navBase + _navToday + `?date=${rd.dateKey}`;
@@ -612,20 +599,11 @@ function updateSeoJornada(rd, race) {
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.rel = 'canonical'; document.head.appendChild(canon); }
   canon.href = canonicalUrl;
-  setHreflang(canonicalUrl);
-  // Expose cross-language alternate for lang switcher
-  if (!_canonIsEn && rd.slugEn) {
-    const enUrl = `${CONFIG.webOrigin}/en/stage/${encodeURIComponent(rd.slugEn)}/`;
-    let enEl = document.querySelector('link[rel="alternate"][hreflang="en"]');
-    if (!enEl) { enEl = document.createElement('link'); enEl.rel = 'alternate'; enEl.hreflang = 'en'; document.head.appendChild(enEl); }
-    enEl.href = enUrl;
-  }
-  if (_canonIsEn && rd.slug) {
-    const esUrl = `${CONFIG.webOrigin}/jornada/${encodeURIComponent(rd.slug)}/`;
-    let esEl = document.querySelector('link[rel="alternate"][hreflang="es"]');
-    if (!esEl) { esEl = document.createElement('link'); esEl.rel = 'alternate'; esEl.hreflang = 'es'; document.head.appendChild(esEl); }
-    esEl.href = esUrl;
-  }
+  // Alternativas ES/EN (también las lee el selector de idioma).
+  setHreflangPair(
+    rd.slug ? `${CONFIG.webOrigin}/jornada/${encodeURIComponent(rd.slug)}/` : canonicalUrl,
+    rd.slugEn ? `${CONFIG.webOrigin}/en/stage/${encodeURIComponent(rd.slugEn)}/` : (_canonIsEn ? canonicalUrl : null),
+  );
 
   // ── JSON-LD SportsEvent ──
   const origin = CONFIG.webOrigin;
@@ -694,7 +672,7 @@ function updateSeoJornada(rd, race) {
 }
 
 function setJsonLd(id, obj) {
-  // EN: conservar el JSON-LD en castellano del HTML estático (SEO en español).
+  // EN: conservar el JSON-LD inglés del HTML estático (este constructor es solo ES).
   if (getLang() === 'en') return;
   let el = document.getElementById(id);
   if (!obj) {
@@ -708,19 +686,6 @@ function setJsonLd(id, obj) {
     document.head.appendChild(el);
   }
   el.textContent = JSON.stringify(obj);
-}
-
-function setHreflang(url) {
-  ['es', 'x-default'].forEach(lang => {
-    let el = document.querySelector(`link[rel="alternate"][hreflang="${lang}"]`);
-    if (!el) {
-      el = document.createElement('link');
-      el.rel = 'alternate';
-      el.hreflang = lang;
-      document.head.appendChild(el);
-    }
-    el.href = url;
-  });
 }
 
 // ── Visor de assets (iframe) ──────────────────────────────────────

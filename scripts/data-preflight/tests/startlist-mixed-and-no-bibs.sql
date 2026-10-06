@@ -25,19 +25,17 @@ BEGIN
   applied := public.apply_startlist_import((prepared->>'importId')::uuid);
   SELECT array_agg(id ORDER BY id) INTO second_ids FROM public.startlist_riders WHERE "raceId"='zz-test-startlist-zero-20260912';
   IF first_ids IS DISTINCT FROM second_ids THEN RAISE EXCEPTION 'No conserva filas sin dorsal'; END IF;
-  -- Un mismo id puede existir en ambos catálogos; el género explícito debe resolverlo.
-  INSERT INTO public.riders_men(id,"firstName","lastName",nationality) VALUES(female_id,'Zzcollision20260912','Fixture','be');
+  -- Los ids de carretera son únicos entre géneros (road_rider_id_unique_across_genders).
+  BEGIN
+    INSERT INTO public.riders_men(id,"firstName","lastName",nationality) VALUES(female_id,'Zzcollision20260912','Fixture','be');
+    RAISE EXCEPTION 'Acepta un id de carretera compartido entre géneros';
+  EXCEPTION WHEN unique_violation THEN
+    IF SQLERRM NOT LIKE 'El id % ya pertenece a una ficha de carretera del otro género' THEN RAISE; END IF;
+  END;
   doc := jsonb_build_object('raceId','zz-test-startlist-mixed-20260912','expectedRiderCount',2,'teams',jsonb_build_array(
     jsonb_build_object('teamName','Belgium','teamId',national_id,'riders',jsonb_build_array(
       jsonb_build_object('rowKey','male','dorsal',0,'firstName','Remco','lastName','Evenepoel','globalRiderId',male_id),
       jsonb_build_object('rowKey','female','riderGender','female','dorsal',0,'firstName','Lotte','lastName','Kopecky','globalRiderId',female_id)))));
-  BEGIN
-    PERFORM private.plan_startlist_import('zz-test-startlist-mixed-20260912',
-      jsonb_set(doc,'{teams,0,riders,1}',(doc#>'{teams,0,riders,1}')-'riderGender'));
-    RAISE EXCEPTION 'Acepta una ficha ambigua sin catálogo explícito';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM NOT LIKE 'Una lista mixta requiere una ficha existente y unívoca:%' THEN RAISE; END IF;
-  END;
   prepared := public.prepare_startlist_import('zz-test-startlist-mixed-20260912',doc,true);
   applied := public.apply_startlist_import((prepared->>'importId')::uuid);
   IF applied->>'status'<>'applied' OR applied->>'createdRiders'<>'0' THEN RAISE EXCEPTION 'Relevo mixto incorrecto: %',applied; END IF;

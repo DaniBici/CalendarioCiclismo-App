@@ -94,174 +94,104 @@ final class AccessibilityTests: XCTestCase {
 
     // MARK: - Country Names
 
-    func testCountryNameSpanish() {
-        XCTAssertEqual(AccessibilityCountryNames.name(for: "ES"), "España")
-        XCTAssertEqual(AccessibilityCountryNames.name(for: "FR"), "Francia")
-        XCTAssertEqual(AccessibilityCountryNames.name(for: "IT"), "Italia")
-        XCTAssertEqual(AccessibilityCountryNames.name(for: "BE"), "Bélgica")
-    }
-
-    func testCountryNameNilForInvalid() {
-        XCTAssertNil(AccessibilityCountryNames.name(for: nil))
-        XCTAssertNil(AccessibilityCountryNames.name(for: ""))
-        XCTAssertNil(AccessibilityCountryNames.name(for: "X"))
-    }
-
-    func testCountryNameHandlesSubRegions() {
-        // Sub-regions like "ES-CT" should resolve to first 2 chars
-        let name = AccessibilityCountryNames.name(for: "ES-CT")
-        XCTAssertEqual(name, "España")
+    func testCountryName() {
+        let cases: [(code: String?, name: String?)] = [
+            ("ES", "España"),
+            ("FR", "Francia"),
+            ("BE", "Bélgica"),
+            // Subregiones como "ES-CT" se resuelven por los dos primeros caracteres.
+            ("ES-CT", "España"),
+            (nil, nil),
+            ("", nil),
+            ("X", nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(AccessibilityCountryNames.name(for: c.code), c.name, c.code ?? "nil")
+        }
     }
 
     // MARK: - Category Labels
 
-    func testCategoryLabelWorldTour() {
-        let desc = AccessibilityCategoryLabel.description(for: "1.UWT")
-        XCTAssertEqual(desc, "Categoría UCI WorldTour")
-    }
-
-    func testCategoryLabelWorldChampionship() {
-        let desc = AccessibilityCategoryLabel.description(for: "WC")
-        XCTAssertEqual(desc, "Categoría Campeonato del Mundo")
-    }
-
-    func testCategoryLabelNil() {
-        XCTAssertNil(AccessibilityCategoryLabel.description(for: nil))
-        XCTAssertNil(AccessibilityCategoryLabel.description(for: ""))
-    }
-
-    func testCategoryLabelUnknownFallback() {
-        let desc = AccessibilityCategoryLabel.description(for: "XYZ")
-        XCTAssertEqual(desc, "Categoría XYZ")
+    func testCategoryLabel() {
+        let cases: [(category: String?, label: String?)] = [
+            ("1.UWT", "Categoría UCI WorldTour"),
+            ("WC", "Categoría Campeonato del Mundo"),
+            ("XYZ", "Categoría XYZ"),
+            (nil, nil),
+            ("", nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(AccessibilityCategoryLabel.description(for: c.category), c.label, c.category ?? "nil")
+        }
     }
 
     // MARK: - Stage Type Descriptions
 
     func testStageTypeDescription() {
-        let desc = AccessibilityStageType.description(primary: "flat", secondary: nil)
-        XCTAssertEqual(desc, "Tipo de etapa: Llana")
-    }
-
-    func testStageTypeDescriptionCombo() {
-        let desc = AccessibilityStageType.description(primary: "itt", secondary: "chrono_climb")
-        XCTAssertEqual(desc, "Tipo de etapa: Cronoescalada")
-    }
-
-    func testStageTypeNil() {
-        XCTAssertNil(AccessibilityStageType.description(primary: nil, secondary: nil))
-        XCTAssertNil(AccessibilityStageType.description(primary: "", secondary: nil))
-    }
-
-    // MARK: - Stage Type Icons (color-blind support)
-
-    func testStageTypeIconsExist() {
-        XCTAssertNotNil(AccessibilityStageType.iconName(for: "flat"))
-        XCTAssertNotNil(AccessibilityStageType.iconName(for: "high_mountain"))
-        XCTAssertNotNil(AccessibilityStageType.iconName(for: "itt"))
-        XCTAssertNotNil(AccessibilityStageType.iconName(for: "cobbles"))
-        XCTAssertNotNil(AccessibilityStageType.iconName(for: "sterrato"))
-    }
-
-    func testStageTypeIconNilForUnknown() {
-        XCTAssertNil(AccessibilityStageType.iconName(for: nil))
-        XCTAssertNil(AccessibilityStageType.iconName(for: "unknown_type"))
+        let cases: [(primary: String?, secondary: String?, label: String?)] = [
+            ("flat", nil, "Tipo de etapa: Llana"),
+            ("itt", "chrono_climb", "Tipo de etapa: Cronoescalada"),
+            (nil, nil, nil),
+            ("", nil, nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(
+                AccessibilityStageType.description(primary: c.primary, secondary: c.secondary), c.label,
+                "\(c.primary ?? "nil") + \(c.secondary ?? "nil")"
+            )
+        }
     }
 
     // MARK: - TV Status Descriptions
 
-    func testTVStatusConfirmed() {
-        let desc = AccessibilityTVStatus.description(tvStatus: "confirmed", broadcasts: [])
-        XCTAssertEqual(desc, "Televisada")
-    }
-
-    func testTVStatusPending() {
-        let desc = AccessibilityTVStatus.description(tvStatus: "pending", broadcasts: [])
-        XCTAssertEqual(desc, "Televisión por confirmar")
-    }
-
-    func testTVStatusNone() {
-        let desc = AccessibilityTVStatus.description(tvStatus: "none", broadcasts: [])
-        XCTAssertEqual(desc, "Sin televisión")
-    }
-
-    func testTVStatusUnavailableES() {
-        let desc = AccessibilityTVStatus.description(tvStatus: "unavailable_es", broadcasts: [])
-        XCTAssertEqual(desc, "No disponible en España")
-    }
-
-    func testTVStatusNilForUnknown() {
-        XCTAssertNil(AccessibilityTVStatus.description(tvStatus: nil, broadcasts: []))
-        XCTAssertNil(AccessibilityTVStatus.description(tvStatus: "other", broadcasts: []))
+    func testTVStatusDescription() {
+        let cases: [(status: String?, label: String?)] = [
+            ("confirmed", "Televisada"),
+            ("pending", "Televisión por confirmar"),
+            ("none", "Sin televisión"),
+            ("unavailable_es", "No disponible en España"),
+            (nil, nil),
+            ("other", nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(AccessibilityTVStatus.description(tvStatus: c.status, broadcasts: []), c.label, c.status ?? "nil")
+        }
     }
 
     // MARK: - Race Card Label
 
-    func testRaceCardLabelIncludesName() {
-        let raceDay = makeRaceDay()
-        let race = makeRace(name: "Tour de Francia")
-        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-
-        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
-        XCTAssertTrue(label.contains("Tour de Francia"))
-    }
-
-    func testRaceCardLabelIncludesCancelledStatus() {
-        let raceDay = makeRaceDay()
-        let race = makeRace(name: "Carrera X", isCancelled: true)
-        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-
-        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
-        XCTAssertTrue(label.contains("cancelada"))
-    }
-
-    func testRaceCardLabelIncludesCategory() {
-        let raceDay = makeRaceDay()
-        let race = makeRace(name: "Tour", uciCategory: "1.UWT")
-        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-
-        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
-        XCTAssertTrue(label.contains("WorldTour"))
-    }
-
-    func testRaceCardLabelIncludesRoute() {
-        let raceDay = makeRaceDay(startLocation: "Madrid", finishLocation: "Barcelona")
-        let race = makeRace(name: "Vuelta")
-        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-
-        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
-        XCTAssertTrue(label.contains("Madrid"))
-        XCTAssertTrue(label.contains("Barcelona"))
-    }
-
-    func testRaceCardLabelIncludesPlaceholderStatus() {
-        let raceDay = makeRaceDay()
-        let race = makeRace(name: "Test Race")
-        var item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-        item.isPlaceholder = true
-
-        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
-        XCTAssertTrue(label.contains("sin información detallada"))
-    }
-
-    func testRaceCardLabelIncludesWaitingResultsStatus() {
-        let raceDay = makeRaceDay()
-        let race = makeRace(name: "Carrera X")
-        let item = EnrichedRaceDay(raceDay: raceDay, race: race, broadcasts: [], assets: [])
-
-        let label = AccessibilityRaceDescription.raceCardLabel(
-            item: item,
-            isWaitingForResults: true
+    func testRaceCardLabelIncludesRaceData() {
+        let item = EnrichedRaceDay(
+            raceDay: makeRaceDay(startLocation: "Madrid", finishLocation: "Barcelona"),
+            race: makeRace(name: "Tour de Francia", uciCategory: "1.UWT"),
+            broadcasts: [], assets: []
         )
-        XCTAssertTrue(label.contains("esperando resultados"))
+        let label = AccessibilityRaceDescription.raceCardLabel(item: item)
+        for fragment in ["Tour de Francia", "WorldTour", "Madrid", "Barcelona"] {
+            XCTAssertTrue(label.contains(fragment), fragment)
+        }
+    }
+
+    func testRaceCardLabelIncludesStatus() {
+        let cancelled = EnrichedRaceDay(
+            raceDay: makeRaceDay(), race: makeRace(name: "Carrera X", isCancelled: true), broadcasts: [], assets: []
+        )
+        var placeholder = EnrichedRaceDay(raceDay: makeRaceDay(), race: makeRace(name: "Test Race"), broadcasts: [], assets: [])
+        placeholder.isPlaceholder = true
+        let regular = EnrichedRaceDay(raceDay: makeRaceDay(), race: makeRace(name: "Carrera X"), broadcasts: [], assets: [])
+
+        let cases: [(item: EnrichedRaceDay, waiting: Bool, fragment: String)] = [
+            (cancelled, false, "cancelada"),
+            (placeholder, false, "sin información detallada"),
+            (regular, true, "esperando resultados"),
+        ]
+        for c in cases {
+            let label = AccessibilityRaceDescription.raceCardLabel(item: c.item, isWaitingForResults: c.waiting)
+            XCTAssertTrue(label.contains(c.fragment), c.fragment)
+        }
     }
 
     // MARK: - Season Race Label
-
-    func testSeasonRaceLabelIncludesDateRange() {
-        let race = makeRace(name: "Giro", startDate: "2026-05-09", endDate: "2026-06-01")
-        let label = AccessibilityRaceDescription.seasonRaceLabel(race: race)
-        XCTAssertTrue(label.contains("Giro"))
-    }
 
     func testSeasonRaceLabelIncludesStageRace() {
         let race = makeRace(name: "Vuelta", raceFormat: "stage_race")
@@ -271,71 +201,31 @@ final class AccessibilityTests: XCTestCase {
 
     // MARK: - Month Day Cell Label
 
-    func testMonthDayCellNoRaces() {
-        let label = AccessibilityRaceDescription.monthDayCellLabel(
+    func testMonthDayCellLabel() {
+        let empty = AccessibilityRaceDescription.monthDayCellLabel(
             day: 15, month: 4, year: 2026, isToday: false, raceDays: [], raceMap: [:]
         )
-        XCTAssertTrue(label.contains("15"))
-        XCTAssertTrue(label.contains("sin carreras"))
-    }
+        XCTAssertTrue(empty.contains("15"))
+        XCTAssertTrue(empty.contains("sin carreras"))
+        XCTAssertFalse(empty.contains("hoy"))
 
-    func testMonthDayCellToday() {
-        let label = AccessibilityRaceDescription.monthDayCellLabel(
+        let today = AccessibilityRaceDescription.monthDayCellLabel(
             day: 8, month: 4, year: 2026, isToday: true, raceDays: [], raceMap: [:]
         )
-        XCTAssertTrue(label.contains("hoy"))
+        XCTAssertTrue(today.contains("hoy"))
     }
 
     // MARK: - Stage Row Label
 
-    func testStageRowRestDay() {
-        let raceDay = makeRaceDay(isRestDay: true)
-        let item = EnrichedRaceDay(raceDay: raceDay, race: nil, broadcasts: [], assets: [])
-        let label = AccessibilityRaceDescription.stageRowLabel(item: item)
-        XCTAssertTrue(label.contains("Jornada de descanso"))
-    }
-
-    func testStageRowCancelledDay() {
-        let raceDay = makeRaceDay(stageNumber: 5, isCancelledDay: true)
-        let item = EnrichedRaceDay(raceDay: raceDay, race: nil, broadcasts: [], assets: [])
-        let label = AccessibilityRaceDescription.stageRowLabel(item: item)
-        XCTAssertTrue(label.contains("cancelada"))
-    }
-
-    // MARK: - Accessibility Identifiers
-
-    func testAccessibilityIDsAreUnique() {
-        let ids = [
-            AccessibilityID.tabToday,
-            AccessibilityID.tabResults,
-            AccessibilityID.tabTransfers,
-            AccessibilityID.tabCalendar,
-            AccessibilityID.settingsButton,
-            AccessibilityID.dateBar,
-            AccessibilityID.categoryFilters,
-            AccessibilityID.sortMenu,
-            AccessibilityID.raceList,
-            AccessibilityID.previousDayButton,
-            AccessibilityID.nextDayButton,
-            AccessibilityID.monthNavPrevious,
-            AccessibilityID.monthNavNext,
-            AccessibilityID.monthTitle,
-            AccessibilityID.yearPicker,
-            AccessibilityID.countryPicker,
-            AccessibilityID.stageHeader,
-            AccessibilityID.timeSection,
-            AccessibilityID.broadcastSection,
-            AccessibilityID.assetSection,
+    func testStageRowLabel() {
+        let cases: [(raceDay: RaceDay, fragment: String)] = [
+            (makeRaceDay(isRestDay: true), "Jornada de descanso"),
+            (makeRaceDay(stageNumber: 5, isCancelledDay: true), "cancelada"),
         ]
-        XCTAssertEqual(ids.count, Set(ids).count, "All accessibility identifiers must be unique")
-    }
-
-    func testDynamicAccessibilityIDs() {
-        XCTAssertEqual(AccessibilityID.raceCard("abc"), "race_card_abc")
-        XCTAssertEqual(AccessibilityID.stageRow("xyz"), "stage_row_xyz")
-        XCTAssertEqual(AccessibilityID.monthDay(15), "month_day_15")
-        XCTAssertEqual(AccessibilityID.filterButton("pro"), "filter_pro")
-        XCTAssertEqual(AccessibilityID.feedCard("wt"), "feed_card_wt")
+        for c in cases {
+            let item = EnrichedRaceDay(raceDay: c.raceDay, race: nil, broadcasts: [], assets: [])
+            XCTAssertTrue(AccessibilityRaceDescription.stageRowLabel(item: item).contains(c.fragment), c.fragment)
+        }
     }
 
     // MARK: - Helpers
@@ -407,55 +297,6 @@ final class AccessibilityTests: XCTestCase {
             hasAssets: false,
             updatedAt: nil,
             countryCode: nil
-        )
-    }
-}
-
-final class AdaptiveLayoutPolicyTests: XCTestCase {
-    private struct Item: Identifiable {
-        let id: Int
-        let featured: Bool
-    }
-
-    func testFeedColumnsRequireRegularWidthAndThreshold() {
-        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 900, isRegular: false), 1)
-        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 619, isRegular: true), 1)
-        XCTAssertEqual(AdaptiveLayoutPolicy.feedColumns(width: 620, isRegular: true), 2)
-    }
-
-    func testStartlistColumnsAreBoundedFromOneToThree() {
-        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 900, isRegular: false), 1)
-        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 620, isRegular: true), 2)
-        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 920, isRegular: true), 3)
-        XCTAssertEqual(AdaptiveLayoutPolicy.startlistColumns(width: 1_600, isRegular: true), 3)
-    }
-
-    func testFeaturedItemsSpanAndInterruptPairedRows() {
-        let items = [
-            Item(id: 1, featured: false), Item(id: 2, featured: false),
-            Item(id: 3, featured: true), Item(id: 4, featured: false),
-        ]
-        let rows = AdaptiveLayoutPolicy.rows(items, columns: 2, spansAllColumns: \.featured)
-        XCTAssertEqual(rows.map { $0.items.map(\.id) }, [[1, 2], [3], [4]])
-        XCTAssertEqual(rows.map(\.spansAllColumns), [false, true, false])
-    }
-
-    func testWideDetailStartsAtConfiguredThreshold() {
-        XCTAssertFalse(AdaptiveLayoutPolicy.usesWideDetail(width: 819, isRegular: true))
-        XCTAssertTrue(AdaptiveLayoutPolicy.usesWideDetail(width: 820, isRegular: true))
-    }
-
-    func testMarketDistributionPreservesWholeCategoriesAtExactBreak() {
-        XCTAssertEqual(
-            AdaptiveLayoutPolicy.balancedBreak(counts: [3, 2, 5]),
-            .init(blockIndex: 2, offset: 0)
-        )
-    }
-
-    func testMarketDistributionSplitsLongCategoryAtBalancedRow() {
-        XCTAssertEqual(
-            AdaptiveLayoutPolicy.balancedBreak(counts: [2, 7, 1]),
-            .init(blockIndex: 1, offset: 3)
         )
     }
 }

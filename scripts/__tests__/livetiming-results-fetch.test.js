@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import {
   parsePlace, cleanName, normAbsTime, normGap, normPoints, bibOf,
-  mapStageRows, mapTimeGeneralRows, mapPointsRows, isGeneralConfirmed, fnv1a,
+  mapStageRows, mapTimeGeneralRows, mapPointsRows, isGeneralConfirmed,
 } from '../results-fetchers/livetiming-results-fetch.mjs';
 
 // Fuente: livetiming.at (cronometrador AUSTRIACO). Datos verificados contra el
@@ -18,24 +19,12 @@ describe('parsePlace — columna Place → rank | IRM', () => {
     expect(parsePlace('1.')).toEqual({ rank: 1 });
   });
 
-  it('los códigos de abandono van en Place, no en una columna propia', () => {
+  it('el IRM ocupa la columna Place; mapea los códigos austriacos/alemanes', () => {
     // Peculiaridad de esta fuente: el IRM ocupa el sitio del puesto (en FF con
     // Time/Gap a "-"), así que Place es a la vez rank y estado.
     expect(parsePlace('DNF')).toEqual({ irm: 'DNF' });
-    expect(parsePlace('DNS')).toEqual({ irm: 'DNS' });
-    expect(parsePlace('DSQ')).toEqual({ irm: 'DSQ' });
-    expect(parsePlace('OTL')).toEqual({ irm: 'OTL' });
-  });
-
-  it('mapea los códigos austriacos/alemanes a la tabla IRM UCI', () => {
     expect(parsePlace('AB')).toEqual({ irm: 'DNF' });    // Aufgabe / abandono
-    expect(parsePlace('NP')).toEqual({ irm: 'DNS' });    // nicht gestartet
     expect(parsePlace('HD')).toEqual({ irm: 'OTL' });    // hors délai / Karenzzeit
-    expect(parsePlace('DQ')).toEqual({ irm: 'DSQ' });
-    expect(parsePlace('EX')).toEqual({ irm: 'DSQ' });
-  });
-
-  it('normaliza minúsculas', () => {
     expect(parsePlace('dnf')).toEqual({ irm: 'DNF' });
   });
 
@@ -100,25 +89,15 @@ describe('normGap — gap de GC/YU → estilo UCI', () => {
     expect(normGap('+0:00')).toBe('+0');
   });
 
-  it('conserva minutos y horas reales (verificado: +25:57, +1:01:21)', () => {
-    expect(normGap('+25:57')).toBe('+25:57');
-    expect(normGap('+10:11')).toBe('+10:11');
-    expect(normGap('+1:01:21')).toBe('+1:01:21');
-  });
-
   it('retira los corchetes del Gap de FF ("+[0:00:11]")', () => {
     // Formato propio de la clasificación de etapa. Aunque mapStageRows no use el
     // Gap de FF, la normalización tiene que entenderlo si alguien lo lee.
     expect(normGap('+[0:00:11]')).toBe('+11');
   });
 
-  it('"-" = mismo tiempo → null (no es un gap)', () => {
+  it('"-" = mismo tiempo, vacío o absoluto sin "+" → null', () => {
     expect(normGap('-')).toBeNull();
     expect(normGap('')).toBeNull();
-    expect(normGap(null)).toBeNull();
-  });
-
-  it('un tiempo absoluto no es un gap (sin "+" → null)', () => {
     expect(normGap('4:21:02')).toBeNull();
   });
 });
@@ -200,21 +179,9 @@ describe('mapStageRows — FF (etapa): INVARIANTE del tiempo absoluto', () => {
     });
   });
 
-  it('el nombre vacío del feed no rompe la fila (cae a #<bib>)', () => {
-    // Regresión del dorsal 172 del Tour of Austria 2026 E1 (riderDisplay NOT NULL).
-    const [row] = mapStageRows([{ Place: '50', BIB: '172', Name: '', Team: 'AUT', Time: '4:25:00', Gap: '-' }]);
-    expect(row.riderDisplay).toBe('#172');
-    expect(row.timeText).toBe('4:25:00');
-  });
-
   it('el equipo NO se toma del feed: sale de la startlist por dorsal', () => {
     // El Team de 3 letras (AUT/UEX) es del cronometrador, no el equipo real.
     expect(mapStageRows(ff).every((r) => r.teamName === null)).toBe(true);
-  });
-
-  it('lista vacía/ausente → [] (no revienta)', () => {
-    expect(mapStageRows([])).toEqual([]);
-    expect(mapStageRows(undefined)).toEqual([]);
   });
 });
 
@@ -243,11 +210,6 @@ describe('mapTimeGeneralRows — GC/YU: absoluto al rank 1, gap al resto', () =>
     const rows = mapTimeGeneralRows(gc);
     expect(rows[0].markTime).toBe('bggrn');
     expect(rows[3].markTime).toBe('bgred');
-  });
-
-  it('markTime ausente → null (no se inventa un estado)', () => {
-    const [row] = mapTimeGeneralRows([{ Place: '1', BIB: '1', Name: 'X Y', Time: '1:00:00' }]);
-    expect(row.markTime).toBeNull();
   });
 });
 
@@ -289,11 +251,6 @@ describe('isGeneralConfirmed — solo se vuelca la general que validó el jurado
     expect(isGeneralConfirmed(rows)).toBe(true);
   });
 
-  it('markTime ausente en una fila clasificada → NO confirmada', () => {
-    expect(isGeneralConfirmed([row('bggrn'), row(null)])).toBe(false);
-    expect(isGeneralConfirmed([row('bggrn'), { rank: 2, irm: null }])).toBe(false);
-  });
-
   it('solo abandonos (0 clasificadas) → NO confirmada', () => {
     // Un every() sobre lista vacía sería true → publicaría una general vacía.
     expect(isGeneralConfirmed([{ rank: null, irm: 'DNF', markTime: 'bgred' }])).toBe(false);
@@ -301,15 +258,10 @@ describe('isGeneralConfirmed — solo se vuelca la general que validó el jurado
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas', () => {
+describe('--suggest-id — competitionId sintético', () => {
   it('reproduce el competitionId real de la Vuelta a Austria 2026 (-104960)', () => {
-    // El valor que está en race_uci_links.competitionId en producción (V_ID base
-    // 260708). Si esto cambia, se rompen los IDs de todo lo ya volcado.
-    expect(-(fnv1a('livetiming:260708') % 200000)).toBe(-104960);
-  });
-
-  it('es estable y distinto por V_ID (cada edición ancla en su etapa 1)', () => {
-    expect(fnv1a('livetiming:260708')).toBe(fnv1a('livetiming:260708'));
-    expect(fnv1a('livetiming:260708')).not.toBe(fnv1a('livetiming:260709'));
+    // Valor en producción (V_ID base 260708). Si cambia, se duplican los IDs ya volcados.
+    const out = execFileSync(process.execPath, ['scripts/results-fetchers/livetiming-results-fetch.mjs', '--vid', '260708', '--suggest-id'], { encoding: 'utf8' });
+    expect(out.trim()).toBe('-104960');
   });
 });

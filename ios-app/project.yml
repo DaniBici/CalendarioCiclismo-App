@@ -15,8 +15,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "5.0.10"
-    CURRENT_PROJECT_VERSION: 1438
+    MARKETING_VERSION: "5.0.13"
+    CURRENT_PROJECT_VERSION: 1453
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
     STRING_CATALOG_GENERATE_SYMBOLS: YES
 
@@ -115,8 +115,8 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconFounder AppIconFriend"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: "5.0.10"
-        CURRENT_PROJECT_VERSION: 1438
+        MARKETING_VERSION: "5.0.13"
+        CURRENT_PROJECT_VERSION: 1453
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         CODE_SIGN_ENTITLEMENTS: CalendarioCiclismo/CalendarioCiclismo.entitlements
@@ -203,6 +203,22 @@ targets:
     dependencies:
       - target: CalendarioCiclismo
 
+  # Herramienta manual, fuera de la suite: vuelca el render CoreSVG de las
+  # banderas para `scripts/flags/verify-flags-render.py gate2`
+  # (procedimiento en `scripts/flags/README.md`).
+  FlagRenderAudit:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tools/FlagRenderAudit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.calendariociclismo.flagrenderaudit
+        SWIFT_VERSION: "6.0"
+    dependencies:
+      - target: CalendarioCiclismo
+
 schemes:
   CalendarioCiclismo:
     build:
@@ -222,3 +238,12 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  FlagRenderAudit:
+    build:
+      targets:
+        CalendarioCiclismo: all
+    test:
+      config: Debug
+      targets:
+        - FlagRenderAudit

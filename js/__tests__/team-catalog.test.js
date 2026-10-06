@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeCatalogTeams,
-  teamGenderLabel,
   teamListYearOptions,
-  teamSeasonRange,
   teamsForSeasonList,
 } from '../services/team-catalog.js';
 
@@ -21,14 +19,6 @@ describe('catálogo de equipos del panel', () => {
   it('ofrece todos los años del listado hasta 2020', () => {
     expect(teamListYearOptions([2019, 2023], { currentYear: 2026, marketYear: 2027 }))
       .toEqual([2027, 2026, 2025, 2024, 2023, 2022, 2021, 2020]);
-  });
-
-  it('resume el rango de temporadas y el sexo del equipo', () => {
-    expect(teamSeasonRange([2027, 2024, 2025, 2024])).toBe('2024–2027');
-    expect(teamSeasonRange([2026])).toBe('2026');
-    expect(teamSeasonRange([])).toBe('');
-    expect(teamGenderLabel('male')).toBe('Masculino');
-    expect(teamGenderLabel('female')).toBe('Femenino');
   });
 
   it('construye el listado anual desde los datos de temporada', () => {

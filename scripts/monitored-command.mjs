@@ -6,6 +6,7 @@ import {
   openAutomationClient,
   startAutomationRun,
 } from './automation-monitor.mjs';
+import { databaseUrl } from './db/env.mjs';
 
 function option(name) {
   return process.argv.find((arg) => arg.startsWith(`--${name}=`))?.split('=').slice(1).join('=') || null;
@@ -35,9 +36,9 @@ async function main() {
   const triggerKind = option('trigger') || 'scheduled';
   const [command, ...args] = commandArgs();
   if (!job) throw new Error('Falta --job');
-  if (!process.env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
 
-  const client = await openAutomationClient(process.env.DATABASE_URL);
+  const client = await openAutomationClient(databaseUrl());
   let runId = null;
   try {
     runId = await startAutomationRun(client, { job, triggerKind });

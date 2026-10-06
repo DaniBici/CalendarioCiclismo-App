@@ -897,10 +897,7 @@ struct SettingsView: View {
             .padding(.horizontal)
             .accessibilityAddTraits(.isHeader)
 
-            if premium.isLegacyPremiumActive {
-                founderCard
-                    .padding(.horizontal)
-            } else if premium.isSubscribed {
+            if premium.isSubscribed {
                 premiumActiveCard
                     .padding(.horizontal)
             } else if premium.isFounder {
@@ -967,7 +964,7 @@ struct SettingsView: View {
 
     private var premiumCTACard: some View {
         Button {
-            premium.presentPaywall(.general)
+            premium.presentSupport()
         } label: {
             HStack(spacing: 12) {
                 Image("SupportIconFriend")
@@ -1002,9 +999,8 @@ struct SettingsView: View {
         .accessibilityHint(localeService.t("Abre las opciones voluntarias de sostenimiento", "Opens the voluntary support options"))
     }
 
-    /// Fila de "Canjear código" mostrada también cuando el usuario NO tiene
-    /// Premium. Sin esta entrada, alguien con un código promocional tendría
-    /// que abrir la paywall primero — flujo poco intuitivo.
+    /// Fila de "Canjear código" para quien no es Amigo ni Fundador. Sin esta
+    /// entrada, un código promocional exigiría abrir antes la hoja de apoyo.
     private var redeemCodeRow: some View {
         Button {
             Haptics.play(.selection)

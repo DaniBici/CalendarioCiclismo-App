@@ -109,6 +109,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 import { normalizeUciLicense } from './uci-license.mjs';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -148,11 +149,6 @@ const codeFlat = (CODE || 'sts').replace(/[^A-Za-z0-9]+/g, '-');
 const OUT = getArg('out') || join(dirname(fileURLToPath(import.meta.url)), '_results_run', `sts-${codeFlat}`);
 
 // ── IDs sintéticos (negativos, deterministas; salt "sts:") ─────────────────
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h;
-}
 // ≤199999 → eventId > -2^31 garantizado. Sin --clax-url/--code queda NaN: solo lo usa
 // main(), que valida los args antes (importar el módulo desde un test no ejecuta nada).
 const ID_BASE = CODE ? fnv1a(`sts:${CODE}`) % 200000 : NaN;
@@ -192,6 +188,9 @@ const IRM_MAP = {
   NP: 'DNS', 'NON PARTANT': 'DNS', DNS: 'DNS',
   HD: 'OTL', 'HORS DELAI': 'OTL', OTL: 'OTL',
   DSQ: 'DSQ', DQ: 'DSQ', EX: 'DSQ', EXCLU: 'DSQ', DISQUALIFIE: 'DSQ',
+  // Wiclax en castellano (Becrono y otros cronometradores españoles).
+  ABANDONO: 'DNF', RETIRADO: 'DNF', 'NO SALE': 'DNS', 'NO PRESENTADO': 'DNS',
+  DESCALIFICADO: 'DSQ', 'FUERA DE CONTROL': 'OTL',
 };
 export function irmOf(tValue) {
   // En el .clax el ESTADO viaja en el atributo t cuando no es un tiempo
@@ -886,7 +885,7 @@ async function main() {
     let stageRows = isTtt
       ? parseTttResultRows(resultatsXml, riderByBib)
       : parseResultRows(resultatsXml, riderByBib);
-    if (!stageRows.length) { log(`  E${stageNumber} sin <Resultats> publicado (no terminada) — omitida`); return; }
+    if (!stageRows.length) { log(`  E${stageNumber} sin <Resultats> publicado (no terminada) — omitida`); continue; }
     const pdfStageNumber = idx + 1;
     const pdfLink = stagePdfs.get(pdfStageNumber);
     let pdfText = null;

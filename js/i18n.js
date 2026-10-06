@@ -53,6 +53,10 @@ const LOCALES = {
       "videos": "Vídeos",
       "noVideos": "Vídeos pendientes.",
       "standings": "Clasificación general",
+      "general": "General",
+      "calendar": "Calendario",
+      "droppedResult": "Resultado descartado",
+      "moreRounds": "Más rondas",
       "official": "Resultados oficiales",
       "provisional": "Resultados provisionales",
       "raceDescription": "Horarios, dorsales, TV, resultados y vídeos de {name} ({class}, {date})",
@@ -183,7 +187,7 @@ const LOCALES = {
       title: 'Televisión', reviveRace: 'Revive', reviveStage: 'Revive', reviveRaceTitle: 'Revive la carrera', reviveStageTitle: 'Revive la etapa',
       localTimezone: 'Horarios en tu hora local ({tz})', madridLabel: 'Madrid: {time}',
       noInfo: 'Sin información de TV', noTvRegion: 'No hay TV en tu región', fullStage: 'Íntegra',
-      filterAll: 'Todas', filterMine: 'Mi país',
+      filterAll: 'Todas', filterMine: 'Mi región',
       status: { pending: 'Sin confirmar', none: 'Sin TV', unavailable_es: 'No TV España' },
     },
     assets: {
@@ -322,6 +326,7 @@ const LOCALES = {
       baseMap: 'Mapa',
       satellite: 'Satélite',
       profile: 'Perfil',
+      profileExplore: 'Recorrer el perfil y situar el punto en el mapa',
       fullscreen: 'Pantalla completa',
       exitFullscreen: 'Salir de pantalla completa',
     },
@@ -334,7 +339,7 @@ let _enLoaded = false;
 async function _loadEN() {
   if (_enLoaded || LOCALES.en) return;
   try {
-    const res = await fetch('/i18n/en.json?v=20260914cxsections2');
+    const res = await fetch('/i18n/en.json?v=20260930cxgenerales');
     LOCALES.en = await res.json();
     _enLoaded = true;
   } catch { /* fallback to ES */ }

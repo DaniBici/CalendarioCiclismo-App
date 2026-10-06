@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+import version_assets
 from check_seo_output import check_paths, check_site
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,12 +77,12 @@ def og_family_source(source, family):
         left = source.index(start)
         return source[left:source.index(end, left)] if end else source[left:]
 
-    shared = source[:source.index("# SEO ES capturado por raceId para reusarlo en las páginas EN (/en/race).")]
-    shared += part("# ── JORNADAS ──", "# SEO ES capturado por slug para reusarlo en las páginas EN (/en/stage).")
+    shared = source[:source.index("# ── COMPETICIONES: páginas ──")]
+    shared += part("# ── JORNADAS ──", "# ── JORNADAS: páginas ──")
     sections = {
-        "og-races": (("# SEO ES capturado por raceId para reusarlo en las páginas EN (/en/race).", "# ── JORNADAS ──"),
+        "og-races": (("# ── COMPETICIONES: páginas ──", "# ── JORNADAS ──"),
                      ("# EN — competiciones", "# EN — jornadas")),
-        "og-stages": (("# SEO ES capturado por slug para reusarlo en las páginas EN (/en/stage).", "# ── INSCRITOS ──"),
+        "og-stages": (("# ── JORNADAS: páginas ──", "# ── INSCRITOS ──"),
                       ("# EN — jornadas", "# EN — inscritos")),
         "og-results": (("# ── RESULTADOS (UCI in-house) ──", "# ── PERFILES DE ELEVACIÓN ──"),),
         "og-extras": (("# ── INSCRITOS ──", "# ── RESULTADOS (UCI in-house) ──"),
@@ -385,51 +386,26 @@ def move_generated_payload(payload):
     payload.rmdir()
 
 
-ASSET_REF = re.compile(rb'(?P<prefix>(?:src|href)=["\'])/(?P<asset>(?:js|css)/[A-Za-z0-9_./-]+\.(?:js|css))(?:\?[^"\']*)?(?P<quote>["\'])')
-
-
-def asset_version(asset, versions):
-    if asset not in versions:
-        source = ROOT / "_site" / asset
-        if not source.is_file():
-            raise ValueError(f"Asset local ausente: {asset}")
-        versions[asset] = digest(source)[:12]
-    return versions[asset]
+def asset_version(versions=None):
+    """Versión global de JS/CSS del `_site` actual (ver version_assets.py)."""
+    versions = {} if versions is None else versions
+    if "site" not in versions:
+        versions["site"] = version_assets.site_version(ROOT / "_site")
+    return versions["site"]
 
 
 def version_published_assets(base, names, versions=None):
-    """Versiona las referencias JS/CSS y devuelve la tabla de los assets usados."""
-    versions = {} if versions is None else versions
-    used = set()
-    changed = 0
+    """Versiona las referencias JS/CSS del HTML y devuelve la versión aplicada."""
+    version = asset_version(versions)
     started = time.monotonic()
-    for name in names:
-        path = base / name
-        original = path.read_bytes()
-
-        def replace(match):
-            asset = match.group("asset").decode("ascii")
-            used.add(asset)
-            return (match.group("prefix") + b"/" + match.group("asset") +
-                    b"?v=" + asset_version(asset, versions).encode("ascii") + match.group("quote"))
-
-        updated = ASSET_REF.sub(replace, original)
-        if updated != original:
-            path.write_bytes(updated)
-            changed += 1
-    print(f"  Assets publicados: {changed} HTML, {len(used)} JS/CSS, {time.monotonic() - started:.2f} s")
-    return {asset: versions[asset] for asset in sorted(used)}
+    changed = version_assets.version_files(base, names, version)
+    print(f"  Assets publicados: {changed} HTML, versión {version}, {time.monotonic() - started:.2f} s")
+    return version
 
 
-def assets_current(table, versions=None):
-    """La tabla guardada con el tar coincide con los JS/CSS del checkout."""
-    if not isinstance(table, dict):
-        return False
-    versions = {} if versions is None else versions
-    try:
-        return all(asset_version(asset, versions) == version for asset, version in table.items())
-    except ValueError:
-        return False
+def assets_current(version, versions=None):
+    """La versión guardada con el tar coincide con los JS/CSS del checkout."""
+    return isinstance(version, str) and version == asset_version(versions)
 
 
 def file_names(directory):
@@ -469,12 +445,12 @@ def generate_all_og(state):
         names = file_names(payload)
         if not names or not all(allowed_file(block, name) for name in names) or not complete_files(block, names, state["day"]):
             raise ValueError(f"Familia OG incompleta: {block}")
-        # El tar guarda el HTML ya versionado y la tabla de assets aplicada.
-        assets = version_published_assets(payload, names, versions)
+        # El tar guarda el HTML ya versionado y la versión de assets aplicada.
+        version = version_published_assets(payload, names, versions)
         files = inventory(payload)
         archive = directory / "output.tar"
         metadata = {"prefix": state["blocks"][block]["prefix"], "started": started,
-                    "files": files, "verified": False, "assets": assets,
+                    "files": files, "verified": False, "asset_version": version,
                     "archive_sha256": archive_output(payload, files, archive)}
         (directory / "manifest.json").write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
         state["blocks"][block]["prefilled"] = True
@@ -538,10 +514,10 @@ def extend_og_family(block, archive, metadata, state):
         if block == "og-stages" and any(
                 f"jornada/{slug}/index.html" not in names for slug in state["stage_slugs"]):
             raise ValueError("Falta una jornada solicitada en el resultado incremental")
-        # Si la tabla del tar sigue vigente solo se versionan las páginas nuevas.
+        # Si la versión del tar sigue vigente solo se versionan las páginas nuevas.
         versions = {}
-        base_current = assets_current(metadata.get("assets"), versions)
-        assets = version_published_assets(delta, names, versions)
+        base_current = assets_current(metadata.get("asset_version"), versions)
+        version = version_published_assets(delta, names, versions)
         additions = inventory(delta)
         payload.mkdir(parents=True)
         extract_archive(archive, metadata["files"], payload)
@@ -554,10 +530,8 @@ def extend_og_family(block, archive, metadata, state):
     replaced = set(additions) & set(metadata["files"])
     if base_current:
         files = {**metadata["files"], **additions}
-        assets = {**metadata["assets"], **assets}
     else:
-        assets = {**version_published_assets(payload, sorted(set(metadata["files"]) - replaced), versions),
-                  **assets}
+        version_published_assets(payload, sorted(set(metadata["files"]) - replaced), versions)
         files = inventory(payload)
     if not complete_files(block, files, state["day"]):
         raise ValueError(f"Familia incremental incompleta: {block}")
@@ -569,7 +543,7 @@ def extend_og_family(block, archive, metadata, state):
     # para las páginas no tocadas; verify solo revisa las añadidas.
     updated = {"prefix": state["blocks"][block]["prefix"], "started": metadata["started"],
                "extended": utc_now().isoformat(), "files": files, "verified": False,
-               "assets": assets, "archive_sha256": archive_sha256,
+               "asset_version": version, "archive_sha256": archive_sha256,
                "stage_added": sorted(additions), "stage_new": sorted(set(additions) - replaced)}
     if metadata.get("seo"):
         updated["seo"] = metadata["seo"]
@@ -646,15 +620,16 @@ def run_block(block):
         metadata = {"prefix": state["blocks"][block]["prefix"], "started": generation_started,
                     "verified": False}
         if block in OG_FAMILIES:
-            metadata["assets"] = version_published_assets(payload, names)
+            metadata["asset_version"] = version_published_assets(payload, names)
         metadata["files"] = inventory(payload)
         metadata["archive_sha256"] = archive_output(payload, metadata["files"], archive)
         manifest.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
     state["blocks"][block]["regenerated"] = not reused or stage_update
     STATE_PATH.write_text(json.dumps(state), encoding="utf-8")
     # En frío se renombran los directorios ya generados; en caliente se extrae
-    # el tar restaurado. El tar contiene el HTML versionado con la tabla de
-    # assets del manifiesto; solo se reescribe _site si algún JS/CSS cambió.
+    # el tar restaurado. El tar contiene el HTML versionado con la versión de
+    # assets del manifiesto. Si algún JS/CSS cambió, version_assets.py
+    # reescribe la familia en _site al final de la composición.
     extract_started = time.monotonic()
     if payload.is_dir():
         move_generated_payload(payload)
@@ -664,10 +639,10 @@ def run_block(block):
         operation = "Extraído"
     print(f"  {operation} {block}: {time.monotonic() - extract_started:.2f} s")
     if block in OG_FAMILIES and operation == "Extraído":
-        if assets_current(metadata.get("assets")):
-            print(f"  Assets vigentes: {len(metadata['assets'])} JS/CSS, sin reescritura")
+        if assets_current(metadata.get("asset_version")):
+            print(f"  Assets vigentes: versión {metadata['asset_version']}, sin reescritura")
         else:
-            version_published_assets(ROOT / "_site", metadata["files"])
+            print("  Assets desactualizados: se versionan al componer _site")
     status = "ampliado" if stage_update and reused else "reutilizado" if reused else "regenerado"
     print(f"Bloque {block}: {status}, {len(metadata['files'])} ficheros, {time.monotonic() - started:.2f} s")
 

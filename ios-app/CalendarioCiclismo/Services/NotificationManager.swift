@@ -32,6 +32,9 @@ final class NotificationManager: NSObject {
     /// Deep link recibido de una notificación para navegación.
     var pendingDeepLink: DeepLink?
 
+    /// Temporada pedida por el cintillo; `SeasonView` la aplica y la limpia.
+    var pendingSeasonYear: Int?
+
     /// Tipos de deep link que puede recibir la app.
     enum DeepLink: Equatable {
         case tab(Int)          // Hoy, Resultados, Fichajes, CX y Calendario
@@ -42,6 +45,7 @@ final class NotificationManager: NSObject {
         case profile(String)    // raceDayId → perfil de elevación de la jornada
         case routeMap(String)   // raceDayId → mapa del recorrido de la jornada
         case team(String)       // teamId → ficha del equipo en Mercado de Fichajes
+        case season(Int)        // año → Calendario en Temporada (cintillo)
         case cxRace(String, anchor: String?)
         case cxRaceSlug(String, anchor: String?)
         // Página de serie web: /ciclocross/torneos/<slug>/ y /en/cyclocross/series/<slug>.
@@ -161,8 +165,21 @@ final class NotificationManager: NSObject {
             value.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil
         }
         private static func validCxAnchor(_ value: String) -> Bool {
-            value == "general" || CyclocrossLogic.categories.contains(value) ||
+            ["general", "programme", "videos"].contains(value) || CyclocrossLogic.categories.contains(value) ||
                 CyclocrossLogic.categories.contains { value == "general-" + $0 || value == "inscritos-" + $0 }
+        }
+        /// Anchor de la ficha CX para una sección de la web: `?view=programme|tv|
+        /// videos|general` y las rutas `inscritos/` y `resultados/` (`startlist/`
+        /// y `results/` en EN), con la categoría del fragmento.
+        private static func cxWebAnchor(section: String?, fragment: String?) -> String? {
+            let category = fragment.flatMap { CyclocrossLogic.categories.contains($0) ? $0 : nil }
+            switch section {
+            case "programme", "tv": return "programme"
+            case "videos": return "videos"
+            case "general": return category.map { "general-" + $0 } ?? "general"
+            case "startlist": return "inscritos-" + (category ?? "ME")
+            default: return fragment
+            }
         }
         private static func fromCxWebURL(_ url: URL) -> DeepLink? {
             guard url.host?.lowercased() == "calendariociclismo.app", url.user == nil,
@@ -178,9 +195,17 @@ final class NotificationManager: NSObject {
                rest[1].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil {
                 return .cxTournamentSlug(rest[1])
             }
-            guard rest.count == 1, rest[0].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil,
-                  url.fragment == nil || validCxAnchor(url.fragment!) else { return nil }
-            return .cxRaceSlug(rest[0], anchor: url.fragment)
+            let section: String?
+            switch rest.count {
+            case 1: section = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "view" }?.value
+            case 2 where rest[1] == (english ? "startlist" : "inscritos"): section = "startlist"
+            case 2 where rest[1] == (english ? "results" : "resultados"): section = "results"
+            default: return nil
+            }
+            let anchor = cxWebAnchor(section: section, fragment: url.fragment)
+            guard rest[0].range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil,
+                  anchor == nil || validCxAnchor(anchor!) else { return nil }
+            return .cxRaceSlug(rest[0], anchor: anchor)
         }
     }
 

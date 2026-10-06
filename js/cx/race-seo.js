@@ -1,4 +1,3 @@
-// El catálogo EN conserva el SEO castellano, igual que las jornadas de ruta.
 // Nombres fijos, en paridad con PAIS_ES del generador, sin depender de ICU.
 const CX_SEO_COUNTRIES = {
   AD:'Andorra',AE:'Emiratos Árabes Unidos',AF:'Afganistán',AL:'Albania',
@@ -31,9 +30,47 @@ const CX_SEO_COUNTRIES = {
   VN:'Vietnam',XK:'Kosovo',ZA:'Sudáfrica',
 };
 
-export function cxRaceSeo(race,page,dateLabel) {
+// Espejo de COUNTRY_EN del generador.
+const CX_SEO_COUNTRIES_EN = {
+  AD:'Andorra',AE:'United Arab Emirates',AF:'Afghanistan',AL:'Albania',
+  AM:'Armenia',AO:'Angola',AR:'Argentina',AT:'Austria',AU:'Australia',
+  AZ:'Azerbaijan',BA:'Bosnia and Herzegovina',BE:'Belgium',
+  BF:'Burkina Faso',BG:'Bulgaria',BH:'Bahrain',BJ:'Benin',BM:'Bermuda',
+  BO:'Bolivia',BR:'Brazil',BY:'Belarus',CA:'Canada',CD:'DR Congo',
+  CH:'Switzerland',CL:'Chile',CN:'China',CO:'Colombia',CR:'Costa Rica',
+  CU:'Cuba',CY:'Cyprus',CZ:'Czechia',DE:'Germany',DK:'Denmark',
+  DZ:'Algeria',EC:'Ecuador',EE:'Estonia',ER:'Eritrea',ES:'Spain',
+  ET:'Ethiopia',FI:'Finland',FR:'France',GB:'United Kingdom',GE:'Georgia',
+  GR:'Greece',GT:'Guatemala',GU:'Guam',HK:'Hong Kong',HN:'Honduras',
+  HR:'Croatia',HU:'Hungary',ID:'Indonesia',IE:'Ireland',IL:'Israel',
+  IN:'India',IR:'Iran',IS:'Iceland',IT:'Italy',JP:'Japan',KE:'Kenya',
+  KG:'Kyrgyzstan',KR:'South Korea',KZ:'Kazakhstan',LA:'Laos',
+  LT:'Lithuania',LU:'Luxembourg',LV:'Latvia',MA:'Morocco',MC:'Monaco',
+  MN:'Mongolia',MT:'Malta',MU:'Mauritius',MX:'Mexico',MY:'Malaysia',
+  NL:'Netherlands',NO:'Norway',NZ:'New Zealand',PA:'Panama',
+  PH:'Philippines',PL:'Poland',PT:'Portugal',PY:'Paraguay',RO:'Romania',
+  RS:'Serbia',RU:'Russia',RW:'Rwanda',SA:'Saudi Arabia',SE:'Sweden',
+  SI:'Slovenia',SK:'Slovakia',SV:'El Salvador',TH:'Thailand',TR:'Türkiye',
+  TW:'Taiwan',TZ:'Tanzania',UA:'Ukraine',UG:'Uganda',US:'United States',
+  UY:'Uruguay',UZ:'Uzbekistan',VE:'Venezuela',VN:'Vietnam',XK:'Kosovo',
+  ZA:'South Africa',
+};
+
+// Paridad con cx_race_seo de tools/site/gen_og_pages.py.
+export function cxRaceSeo(race,page,dateLabel,lang='es') {
   const dates=[race.dateKey];
   if(race.endDateKey&&race.endDateKey!==race.dateKey)dates.push(race.endDateKey);
+  if(lang==='en'){
+    const name=race.nameEn||race.name,tournament=race.cx_tournaments;
+    const dateText=dates.map(date=>dateLabel(date,'en').replace(', ', ' ')).join(' – ');
+    const category=race.class==='NAC'?'national':race.class?`UCI ${race.class}`:'';
+    const code=(race.countryCode||'').toUpperCase(),country=CX_SEO_COUNTRIES_EN[code]||code;
+    const location=race.venue?` in ${race.venue}${country?` (${country})`:''}`:country?` in ${country}`:'';
+    const membership=tournament?` It is part of the ${tournament.nameEn||tournament.name}${race.seasonKey&&!tournament.name.includes(race.seasonKey)?` ${race.seasonKey}`:''}.`:'';
+    const description=`${name} (${dateText}) is a ${category?`${category} `:''}cyclocross race${location}.${membership} See the programme, startlist and results, how to watch the race on TV and online streaming, and race videos.`;
+    const prefix=page==='startlist'?'Startlist · ':page==='results'?'Results · ':'';
+    return {title:`${prefix}${name} — Calendario Ciclismo App`,description};
+  }
   const dateText=dates.map(date=>dateLabel(date,'es').replace(', ', ' ')).join(' – ');
   const category=race.class==='NAC'?'de categoría nacional':race.class?`de categoría UCI ${race.class}`:'';
   const tournament=race.cx_tournaments;

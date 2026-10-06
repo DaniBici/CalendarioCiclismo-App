@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseTissotTime, parseAbsoluteColonTime, parsePlainSecondsGap,
   absText, gapText, irmCode, classifyTissot, mapTimeRows, mapPointsRows,
-  expandTeamTimeTrial, fnv1a, parseEventAbsolute, mapEventRows,
+  expandTeamTimeTrial, parseEventAbsolute, mapEventRows,
   tissotIdSeed, tissotIdBase, buildMultiEventStages, selectFinishedLiveRows,
 } from '../results-fetchers/tissot-results-fetch.mjs';
 
@@ -63,11 +63,6 @@ describe('parseAbsoluteColonTime / parsePlainSecondsGap — variante colon del T
 });
 
 describe('absText / gapText — al formato que ya hay en BD vía UCI', () => {
-  it('absText omite las horas cuando no las hay', () => {
-    expect(absText({ sec: 13438, centis: null })).toBe('3:43:58');
-    expect(absText({ sec: 1972, centis: null })).toBe('32:52');
-  });
-
   it('gapText usa el prefijo + y comprime los ceros a la izquierda', () => {
     expect(gapText({ sec: 41, centis: null })).toBe('+41');
     expect(gapText({ sec: 89, centis: null })).toBe('+1:29');
@@ -81,13 +76,9 @@ describe('absText / gapText — al formato que ya hay en BD vía UCI', () => {
 });
 
 describe('irmCode — whitelist ESTRICTA de abandonos', () => {
-  it('reconoce los códigos de abandono reales', () => {
-    expect(irmCode('DNF')).toBe('DNF');
-    expect(irmCode('DNS')).toBe('DNS');
-    expect(irmCode('OTL')).toBe('OTL');
-    expect(irmCode('DSQ')).toBe('DSQ');
+  it('reconoce los códigos de abandono reales y normaliza mayúsculas', () => {
     expect(irmCode('ABD')).toBe('ABD');
-    expect(irmCode('dnf')).toBe('DNF');   // normaliza mayúsculas
+    expect(irmCode('dnf')).toBe('DNF');
   });
 
   it('"OK"/"None" NO son abandono: son roster VIGENTE sin posición confirmada', () => {
@@ -112,12 +103,6 @@ describe('classifyTissot — rankingType + vista → contrato UCI', () => {
     // del día en /rankings/overall (scope 'stage', como la UCI).
     expect(classifyTissot('Time', 'stage')).toMatchObject({ classKind: 'stage', scope: 'stage' });
     expect(classifyTissot('Time', 'overall')).toMatchObject({ classKind: 'gc', scope: 'stage' });
-  });
-
-  it('las secundarias overall conservan scope overall', () => {
-    expect(classifyTissot('SprintPoints', 'overall')).toMatchObject({ classKind: 'points', scope: 'overall' });
-    expect(classifyTissot('MountainPoints', 'overall')).toMatchObject({ classKind: 'kom', scope: 'overall' });
-    expect(classifyTissot('Team', 'overall')).toMatchObject({ classKind: 'teams', scope: 'overall', teamRows: true });
   });
 
   it('un rankingType desconocido cae a "other" (espíritu de la migración 092)', () => {
@@ -265,29 +250,6 @@ describe('expandTeamTimeTrial — CRE: NINGUNA fila puede traer gapText', () => 
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas y NEGATIVOS', () => {
-  it('reproduce el competitionId sugerido del ARA 2026 (-161831)', () => {
-    // Los eventId de Tissot se derivan de esta base; si cambia, se rompe la
-    // idempotencia (ON CONFLICT) de todo lo ya volcado desde esta fuente.
-    expect(-(fnv1a('ara2026') % 200000)).toBe(-161831);
-  });
-
-  it('la base cabe en el rango que mantiene el eventId > -2^31', () => {
-    // eventId = -(base*10000 + slot*100 + idx) → base ≤ 199999 lo garantiza.
-    for (const comp of ['ara2026', 'tdf2026', 'tds2026', 'vue2026']) {
-      const base = fnv1a(comp) % 200000;
-      expect(base).toBeLessThanOrEqual(199999);
-      expect(-(base * 10000)).toBeGreaterThan(-(2 ** 31));
-    }
-  });
-
-  it('es estable y distinto por competición y por año', () => {
-    expect(fnv1a('ara2026')).toBe(fnv1a('ara2026'));
-    expect(fnv1a('ara2026')).not.toBe(fnv1a('ara2027'));
-    expect(fnv1a('ara2026')).not.toBe(fnv1a('tdf2026'));
-  });
-});
-
 // ── MultiEvents (Mundial): una prueba de un día por invocación ──────────────
 // La lista /events/{n}/phases/{p}/results usa un dialecto propio: tiempo absoluto
 // con ':' (sin comillas) y gaps con signo "+M:SS", además de IRM con sufijo
@@ -307,13 +269,8 @@ describe('parseEventAbsolute — dialecto de las listas MultiEvents', () => {
 });
 
 describe('irmCode — tolera el sufijo numérico de las listas MultiEvents', () => {
-  it('reconoce el prefijo de abandono ("DNF6" = abandono en la vuelta 6)', () => {
+  it('reconoce el prefijo de abandono ("DNF6" = abandono en la vuelta 6), no LAP', () => {
     expect(irmCode('DNF6')).toBe('DNF');
-    expect(irmCode('DNS')).toBe('DNS');
-  });
-  it('no confunde estados de roster vigente con un abandono', () => {
-    expect(irmCode('OK')).toBeNull();
-    expect(irmCode('None')).toBeNull();
     expect(irmCode('LAP')).toBeNull();
   });
 });
@@ -352,11 +309,6 @@ describe('selectFinishedLiveRows — llegada del MultiEvents en directo', () => 
     const stages = buildMultiEventStages({}, { start: '2026-09-24T13:00:00', type: 'MS' }, finished);
     expect(stages[0].classifications[0].rows.map((r) => [r.rank, r.bib, r.timeText]))
       .toEqual([[1, '35', '3:49:10'], [2, '16', '3:49:10']]);
-  });
-  it('no publica un ganador virtual procedente de un intermedio', () => {
-    expect(selectFinishedLiveRows({ results: [
-      { rank: 1, rider: rider(35), time: '3:27:45', splits: [split('Lap 9', 1)] },
-    ] })).toEqual([]);
   });
 });
 

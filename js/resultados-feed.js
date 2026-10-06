@@ -65,12 +65,12 @@ function safeCardColor(hex) {
   return '#' + full;
 }
 
-export function stageLabel(sn, isEn, suffix = '') {
+function stageLabel(sn, isEn, suffix = '') {
   if (sn === 0) return isEn ? 'Prologue' : 'Prólogo';
   if (sn != null) return isEn ? `Stage ${sn}${suffix}` : `Etapa ${sn}${suffix}`;
   return '';   // pruebas de un día: sin etiqueta (decisión 2026-06-11)
 }
-export function inhouseHref(race, sn, hash, isEn, suffix = '') {
+function inhouseHref(race, sn, hash, isEn, suffix = '') {
   const slug = isEn ? (race.slugEn || race.slug) : race.slug;
   const sfx = suffix ? String(suffix).toLowerCase() : '';
   let url;

@@ -8,8 +8,9 @@
 //    GITHUB_TOKEN — PAT con scope `workflow` (actions: read+write)
 //    GH_REPO      — "DaniBici/calendario-ciclismo"
 //
-//  Auth: cualquier usuario autenticado de Supabase (el panel ya
-//  requiere login). No hace falta allowlist adicional.
+//  Auth: cabecera X-Internal-Token = INTERNAL_TRIGGER_TOKEN (invocación de
+//  Postgres por pg_net, trigger trigger_workflows_for_start_order) o sesión
+//  de administrador (private.admin_users, vía RPC public.is_admin).
 //
 //  Request body (JSON, opcional):
 //    { workflows?: string[] }   — lista de workflows a disparar.
@@ -18,6 +19,7 @@
 //  Respuesta:
 //    200 { dispatched: { workflow, status }[] }
 //    401 { error: "Unauthorized" }
+//    403 { error: "La operación requiere permisos de administración" }
 //    502 { error: "GitHub API …", detail: … }
 // ─────────────────────────────────────────────────────────────────
 
@@ -50,21 +52,28 @@ function shouldDispatch(workflow: string): boolean {
   return true;
 }
 
-async function verifyAuth(req: Request): Promise<boolean> {
-  // Bypass interno legado para llamadas operativas de Postgres con pg_net.
+// Devuelve null si la petición está autorizada, o el código HTTP de rechazo.
+// Una sesión válida no basta: public.is_admin() se consulta con el JWT del
+// propio usuario y por GET (el pre-request de PostgREST solo bloquea
+// escrituras). Cualquier error o respuesta distinta de true se trata como no
+// admin.
+async function verifyAuth(req: Request): Promise<401 | 403 | null> {
+  // Invocación interna de Postgres con pg_net (trigger de orden de salida).
   const internal = req.headers.get('X-Internal-Token');
   const expected = Deno.env.get('INTERNAL_TRIGGER_TOKEN');
-  if (internal && expected && internal === expected) return true;
+  if (internal && expected && internal === expected) return null;
 
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return false;
+  if (!authHeader) return 401;
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
+    { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
   );
   const { data: { user } } = await supabase.auth.getUser();
-  return !!user;
+  if (!user) return 401;
+  const { data: isAdmin, error } = await supabase.rpc('is_admin', undefined, { get: true });
+  return !error && isAdmin === true ? null : 403;
 }
 
 function jsonRes(body: Record<string, unknown>, status: number) {
@@ -78,7 +87,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== 'POST')    return jsonRes({ error: 'Method not allowed' }, 405);
 
-  if (!await verifyAuth(req)) return jsonRes({ error: 'Unauthorized' }, 401);
+  const authStatus = await verifyAuth(req);
+  if (authStatus === 401) return jsonRes({ error: 'Unauthorized' }, 401);
+  if (authStatus === 403) return jsonRes({ error: 'La operación requiere permisos de administración' }, 403);
 
   const token = Deno.env.get('GITHUB_TOKEN');
   const repo  = Deno.env.get('GH_REPO');

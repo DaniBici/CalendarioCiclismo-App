@@ -7,7 +7,6 @@ import {
   loadCompleteStartlistCatalog,
   orderStartlistTeamsForSave,
   selectUpcomingStartlistRaces,
-  uniqueExistingRiderMatchId,
 } from '../startlist/import.js';
 
 const source = () => ({ raceId: 'vuelta-2026', expectedRiderCount: 1, sourceUrl: 'https://official.test/list',
@@ -116,12 +115,6 @@ describe('importación enriquecida compartida con el panel', () => {
     const edited = source(); edited.teams[0].riders[0].birthDate = '2001-01-01';
     await saveEnrichedStartlist(rpc, edited, false, first.prepared);
     expect(calls[1].p_document.teams[0].riders[0].birthDate).toBe('2001-01-01');
-  });
-
-  it('solo acepta el enlace automático si la RPC devuelve una coincidencia única', () => {
-    expect(uniqueExistingRiderMatchId({ match_count: 1, matched_id: 'ana-garcia' })).toBe('ana-garcia');
-    expect(uniqueExistingRiderMatchId({ match_count: 0, matched_id: null })).toBeNull();
-    expect(uniqueExistingRiderMatchId({ match_count: 2, matched_id: 'no-debe-usarse' })).toBeNull();
   });
 
   it('ofrece desde hoy y ordena las carreras por fecha de inicio ascendente', () => {

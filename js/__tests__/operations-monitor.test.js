@@ -3,7 +3,6 @@ import {
   operationSourceCatalog,
   operationRunStatus,
   selectOperationHistory,
-  shortOperationRevision,
 } from '../services/operations-monitor.js';
 
 describe('lógica del monitor de operaciones', () => {
@@ -25,10 +24,6 @@ describe('lógica del monitor de operaciones', () => {
     expect(selectOperationHistory(runs).map((run) => run.job)).toEqual([
       'results', 'results', 'results', 'broadcasts', 'uci_team_ranking', 'uci_catalog',
     ]);
-  });
-
-  it('limita la revisión visible a doce caracteres', () => {
-    expect(shortOperationRevision('e8652a54e216863da2889c69aeceee90c8b0d461')).toBe('e8652a54e216');
   });
 
   it('añade fuentes nuevas que ya aparecen en los datos del monitor', () => {

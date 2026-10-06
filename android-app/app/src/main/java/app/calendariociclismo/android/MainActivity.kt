@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,8 +37,8 @@ import app.calendariociclismo.android.ui.navigation.AppNavHost
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.onboarding.LanguageAnnouncementOnboardingScreen
 import app.calendariociclismo.android.ui.onboarding.NotificationOnboardingScreen
-import app.calendariociclismo.android.ui.onboarding.PremiumShowcaseOnboardingScreen
-import app.calendariociclismo.android.ui.premium.PaywallSheet
+import app.calendariociclismo.android.ui.onboarding.SupportIntroOnboardingScreen
+import app.calendariociclismo.android.ui.support.SupportSheet
 import app.calendariociclismo.android.ui.splash.SplashOverlay
 import app.calendariociclismo.android.ui.theme.CalendarioCiclismoTheme
 import kotlinx.coroutines.delay
@@ -154,8 +155,14 @@ class MainActivity : ComponentActivity() {
                     splashDismissing = true
                 }
 
-                // Deep link inicial (desde notificación o App Link)
+                // Deep link inicial (desde notificación o App Link). La
+                // actividad se recrea (rotación, tema, pliegue) con el mismo
+                // intent y la pila de navegación restaurada: sin la marca
+                // guardada, el destino se volvía a abrir encima.
+                var initialIntentHandled by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
+                    if (initialIntentHandled) return@LaunchedEffect
+                    initialIntentHandled = true
                     parseIntent(intent)?.let { pendingDeepLink.value = it }
                 }
 
@@ -179,7 +186,7 @@ class MainActivity : ComponentActivity() {
                 // offline se retiró en 4.0 — la función vive solo en Ajustes)
                 var onboardingStep by remember { mutableStateOf<OnboardingStep?>(null) }
                 var supportIntroIsNewInstallation by remember { mutableStateOf(false) }
-                val paywallSource by app.premium.pendingPaywallSource.collectAsState()
+                val supportVisible by app.premium.supportVisible.collectAsState()
 
                 LaunchedEffect(Unit) {
                     // Migración: si el usuario ya tiene push activado, marcar su
@@ -227,7 +234,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                 )
-                                OnboardingStep.PremiumShowcase -> PremiumShowcaseOnboardingScreen(
+                                OnboardingStep.SupportIntro -> SupportIntroOnboardingScreen(
                                     isNewInstallation = supportIntroIsNewInstallation,
                                     onDismiss = {
                                         scope.launch {
@@ -250,11 +257,8 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    if (paywallSource != null) {
-                        PaywallSheet(
-                            source = paywallSource!!,
-                            onDismiss = { app.premium.dismissPaywall() },
-                        )
+                    if (supportVisible) {
+                        SupportSheet(onDismiss = { app.premium.dismissSupport() })
                     }
                 }
             }
@@ -452,17 +456,17 @@ class MainActivity : ComponentActivity() {
  * El orden refleja la prioridad: el step más temprano que no esté completo
  * es el que se muestra. `Done` indica que toda la secuencia se ha cumplido.
  *
- * Flujo completo (instalación nueva 4.0): Language → Notifications → PremiumShowcase → Done.
- * Flujo para actualizaciones (notif ya completado): Language → PremiumShowcase → Done.
+ * Flujo completo (instalación nueva 4.0): Language → Notifications → SupportIntro → Done.
+ * Flujo para actualizaciones (notif ya completado): Language → SupportIntro → Done.
  * El paso de modo OFFLINE se retiró del onboarding en 4.0 (decisión Dani:
  * apenas aportaba; la función sigue disponible en Ajustes).
  *
  * `Language` es el anuncio one-shot introducido en 2.1 (inglés ya no es Premium).
- * `PremiumShowcase` anuncia en 4.3 la retirada definitiva de publicidad y el
- * modelo voluntario Amigo. Su clave versionada permite mostrarlo una sola vez
- * tanto a instalaciones nuevas como a quienes actualizan, incluidos Fundadores.
+ * `SupportIntro` presenta el apoyo voluntario Amigo. A quien actualiza desde
+ * una versión anterior a 4.3.1 le anuncia la retirada de publicidad y el icono
+ * Fundador. Su clave versionada permite mostrarlo una sola vez.
  */
-private enum class OnboardingStep { Language, Notifications, PremiumShowcase, Done }
+private enum class OnboardingStep { Language, Notifications, SupportIntro, Done }
 
 /**
  * Calcula el siguiente onboarding pendiente leyendo persistencia local.
@@ -475,7 +479,7 @@ private suspend fun nextOnboardingStep(app: CalendarioCiclismoApp): OnboardingSt
     return when {
         !languageDone -> OnboardingStep.Language
         !notifDone -> OnboardingStep.Notifications
-        !supportIntroDone -> OnboardingStep.PremiumShowcase
+        !supportIntroDone -> OnboardingStep.SupportIntro
         else -> OnboardingStep.Done
     }
 }

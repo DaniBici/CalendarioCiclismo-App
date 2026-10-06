@@ -56,6 +56,15 @@ final class SupabaseService {
             .value
     }
 
+    /// Challenges de un año (agrupaciones de carreras de un día).
+    func challengeGroups(year: Int) async throws -> [ChallengeGroup] {
+        try await client.from("challenge_groups")
+            .select("id,name,gender,year,uciCategory,countryCode,colorHex,logoUrl,raceIds")
+            .eq("year", value: year)
+            .execute()
+            .value
+    }
+
     /// Una carrera por ID.
     func race(byId id: String) async throws -> Race {
         try await client.from("races")

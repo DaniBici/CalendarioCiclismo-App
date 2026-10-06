@@ -11,7 +11,7 @@ import { extractYouTubeId } from './broadcast-embed.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 import { hasCustomTeamBadgeColors } from './team-badge.js';
 export { extractYouTubeId };
-export { hasCustomTeamBadgeColors } from './team-badge.js';
+export { isNoTeamPlaceholderTeam } from './no-team-placeholder.js';
 
 // ── Supabase singleton ───────────────────────────────────────────
 // SUPABASE_URL y SUPABASE_ANON_KEY son globals definidos en js/config.js
@@ -56,7 +56,7 @@ export function withRaceTechnicalGuide(assets = [], technicalGuide = null) {
 }
 
 // ── Constantes ───────────────────────────────────────────────────
-export { UCI_ORDER, categoryRank, raceCategoryRank, genderRank, grandTourRank, tsSeconds } from './services/race-order.js';
+export { UCI_ORDER, categoryRank, genderRank, grandTourRank, tsSeconds } from './services/race-order.js';
 
 // TYPE_LABELS: proxy que devuelve la etiqueta en el idioma activo
 export const TYPE_LABELS = new Proxy({}, {
@@ -72,13 +72,6 @@ export function formatDateLabel(dateKey) {
   const [y, m, d] = dateKey.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   const label = date.toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-export function formatDateLabelShort(dateKey) {
-  const [y, m, d] = dateKey.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  const label = date.toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric' });
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
@@ -157,9 +150,6 @@ export function formatTime(ts) {
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 }
 
-// Alias semántico: hora Madrid para uso interno/admin/feeds
-export const formatTimeMadrid = formatTime;
-
 export function formatTimeUser(ts) {
   if (!ts) return null;
   const d = typeof ts === 'string' ? new Date(ts) : (ts.toDate ? ts.toDate() : new Date(ts));
@@ -170,23 +160,6 @@ export function formatTimeUser(ts) {
   if (Math.round((userOffset - madridOffset) / 60000) === 0) return { display: madridStr, tooltip: null };
   const localStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: userTZ });
   return { display: localStr, tooltip: madridStr };
-}
-
-// Horario apilado para las race cards (paridad iOS): salida arriba, flecha ↓,
-// meta abajo (en negrita). Si solo hay una de las dos, se muestra esa sola.
-// `start`/`finish` son los strings ya formateados (display); `timeTip` el tooltip
-// de zona horaria (o null). Devuelve '' si no hay ninguna hora.
-export function buildTimeStack(start, finish, timeTip) {
-  if (!start && !finish) return '';
-  const open = `<span class="race-card__time-stack${timeTip ? ' badge--time-user' : ''}"${timeTip ? ` data-tztip="${timeTip}"` : ''}>`;
-  if (start && finish) {
-    return open
-      + `<span class="race-card__time-start">${start}</span>`
-      + `<span class="race-card__time-arrow" aria-hidden="true">↓</span>`
-      + `<span class="race-card__time-finish">${finish}</span>`
-      + `</span>`;
-  }
-  return open + `<span class="race-card__time-finish">${start || finish}</span></span>`;
 }
 
 // Etiquetas de salida/meta de una jornada: en CRI/CRE ("salida neutralizada"/
@@ -338,6 +311,22 @@ const { group: _userCountryGroup, isEuropean: _userIsEuropean } = _detectUserGro
 // no opera en Reino Unido ni Irlanda, donde su lugar lo ocupa TNT Sports
 // (que ya pertenece al grupo `UK_IE`). Por eso, a los usuarios de `UK_IE`
 // no se les muestran los broadcasts marcados como `EUROPA`.
+// Etiqueta corta de la región de una emisión ajena (carretera y ciclocross).
+export function broadcastRegionBadgeLabel(country) {
+  if (!country || country === 'ALL') return '';
+  if (getLang() !== 'en') {
+    return {
+      UK_IE: 'GB / IRL',
+      SCANDI: 'ESCANDI',
+    }[country] || country;
+  }
+  return {
+    EUROPA: 'EUROPE',
+    UK_IE: 'UK / IRL',
+    NORTEAM: 'NORTH AM.',
+  }[country] || country;
+}
+
 export function filterBroadcastsByRegion(broadcasts) {
   if (!broadcasts || !broadcasts.length) return broadcasts;
   return broadcasts.filter(b => {
@@ -349,9 +338,9 @@ export function filterBroadcastsByRegion(broadcasts) {
 }
 
 // ── Tipo de etapa ────────────────────────────────────────────────
-export function typeLabel(t) { return TYPE_LABELS[t] || t || ''; }
+function typeLabel(t) { return TYPE_LABELS[t] || t || ''; }
 
-export function typeBadge(type) {
+function typeBadge(type) {
   const MAP = {
     flat: 'flat', cobbles: 'cobbles',
     rolling: 'rolling',
@@ -472,7 +461,7 @@ export function startlistUrl(race) {
 // Edad en años a partir de una fecha de nacimiento ('YYYY-MM-DD' o Date).
 // Devuelve null si no hay fecha válida — el llamador decide omitir la edad
 // (nunca inventarla). Cálculo por fecha de calendario, no por días/365.
-export function riderAge(birthDate, ref = new Date()) {
+function riderAge(birthDate, ref = new Date()) {
   if (!birthDate) return null;
   const b = (birthDate instanceof Date) ? birthDate : new Date(birthDate + 'T00:00:00');
   if (isNaN(b.getTime())) return null;
@@ -489,21 +478,6 @@ export function riderAge(birthDate, ref = new Date()) {
 export function teamLinkUrl(_team) { return null; }
 export function riderLinkUrl(_riderId, _team) { return null; }
 
-// Fecha de nacimiento localizada en formato numérico corto (DD/MM/YYYY según
-// locale). Devuelve '' si no hay fecha válida. Se combina con riderAge() para
-// mostrar "DD/MM/YYYY (edad)".
-export function formatBirthDate(birthDate) {
-  if (!birthDate) return '';
-  const d = (birthDate instanceof Date) ? birthDate : new Date(birthDate + 'T00:00:00');
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-export function startlistOrStageUrl(rd, race) {
-  if (race?.startlistImportedAt) return startlistUrl(race);
-  return jornadaUrl(rd);
-}
-
 export function startOrderUrl(rd) {
   if (getLang() === 'en') {
     const base = enBase();
@@ -517,71 +491,17 @@ export function startOrderUrl(rd) {
   return null;
 }
 
-export function startOrderFullUrl(rd) {
-  if (getLang() === 'en') {
-    // Con dominio EN dedicado (CONFIG.enDomain) la URL vive en su raíz; sin él,
-    // el sitio EN cuelga de /en/ del dominio canónico.
-    const enDomain = (typeof CONFIG !== 'undefined' && CONFIG.enDomain) || '';
-    const webOrigin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : 'https://calendariociclismo.app';
-    const origin = enDomain ? `https://${enDomain}` : webOrigin;
-    const prefix = enDomain ? '' : '/en';
-    const s = rd?.slugEn || rd?.slug;
-    if (s) return `${origin}${prefix}/start-order/${encodeURIComponent(s)}/`;
-    if (rd?.id) return `${origin}${prefix}/start-order/?id=${rd.id}`;
-    return null;
-  }
-  const origin = (typeof CONFIG !== 'undefined' && CONFIG.webOrigin) ? CONFIG.webOrigin : 'https://calendariociclismo.app';
-  if (rd?.slug) return `${origin}/orden-salida/${encodeURIComponent(rd.slug)}/`;
-  if (rd?.id) return `${origin}/orden-salida.html?id=${rd.id}`;
-  return null;
-}
-
 // ── SEO helpers ──────────────────────────────────────────────────
-// Bloqueo de SEO en castellano para páginas EN (decisión de producto 2026-06):
-// en las páginas en inglés el SEO que indexa Google y se comparte en redes va
-// en CASTELLANO (copiado de la versión ES), aunque el contenido visible y el
-// título que ve el usuario en la página sigan en inglés. El HTML estático ya
-// trae el SEO en español (og-pages.yml para las páginas con slug + los shells
-// de /en/). Aquí impedimos que el SPA lo sobrescriba con inglés al hidratar:
-// ignoramos las escrituras de SEO-texto y congelamos document.title cuando la
-// página es EN. canonical / hreflang / og:url NO se tocan: deben seguir
-// apuntando a la URL EN real (la verdad a nivel de URL es inglesa).
-export const SEO_ES_LOCK = getLang() === 'en';
-
-// Campos de SEO-texto (e imagen OG, que lleva el título horneado) que NO deben
-// recibir el valor inglés del SPA en páginas EN. og:url / og:image:width/height
-// / twitter:card quedan fuera a propósito (URL o constantes, no texto inglés).
-const _SEO_LOCKED_META = new Set([
-  'description', 'keywords',
-  'twitter:title', 'twitter:description', 'twitter:image', 'twitter:image:alt',
-  'og:title', 'og:description', 'og:image', 'og:image:alt',
-]);
-
-if (SEO_ES_LOCK) {
-  // Congela document.title: en EN cualquier asignación del SPA se ignora y se
-  // conserva el <title> en castellano del HTML estático. Si el navegador no
-  // permite redefinir la propiedad, el guard de setMeta cubre el resto del SEO.
-  try {
-    const _titleDesc = Object.getOwnPropertyDescriptor(Document.prototype, 'title');
-    if (_titleDesc && _titleDesc.get) {
-      Object.defineProperty(document, 'title', {
-        configurable: true,
-        get() { return _titleDesc.get.call(document); },
-        set() { /* EN: conservar el <title> en castellano */ },
-      });
-    }
-  } catch { /* noop */ }
-}
+// Las páginas /en/ se sirven traducidas (decisión de Dani, 2026-09-30): el SPA
+// escribe su SEO en inglés.
 
 export function setMeta(name, content) {
-  if (SEO_ES_LOCK && _SEO_LOCKED_META.has(name)) return;
   let el = document.querySelector(`meta[name="${name}"]`);
   if (!el) { el = document.createElement('meta'); el.name = name; document.head.appendChild(el); }
   el.content = content;
 }
 
 export function setMetaProperty(property, content) {
-  if (SEO_ES_LOCK && _SEO_LOCKED_META.has(property)) return;
   let el = document.querySelector(`meta[property="${property}"]`);
   if (!el) { el = document.createElement('meta'); el.setAttribute('property', property); document.head.appendChild(el); }
   el.content = content;
@@ -600,9 +520,16 @@ export function setRaceRobots(race) {
   el.content = isArchivedSeason(race?.year) ? 'noindex, follow' : ROBOTS_INDEX;
 }
 
-// JSON-LD: en EN conservamos el bloque estático en castellano y no dejamos que
-// el SPA lo reemplace por la versión inglesa. true ⇒ el llamante debe abortar.
-export function seoJsonLdLocked() { return SEO_ES_LOCK; }
+// Alternativas hreflang de una pareja ES/EN, iguales en ambas versiones:
+// x-default siempre es la URL ES. Sin URL EN se retira el enlace en.
+export function setHreflangPair(esUrl, enUrl) {
+  for (const [lang, href] of [['es', esUrl], ['en', enUrl], ['x-default', esUrl]]) {
+    let el = document.querySelector(`link[rel="alternate"][hreflang="${lang}"]`);
+    if (!href) { el?.remove(); continue; }
+    if (!el) { el = document.createElement('link'); el.rel = 'alternate'; el.hreflang = lang; document.head.appendChild(el); }
+    el.href = href;
+  }
+}
 
 // Comprueba contra el endpoint público oEmbed si un vídeo de YouTube permite
 // embed (iframe). Devuelve true (embeddable), false (embed deshabilitado o
@@ -746,7 +673,7 @@ export function trapFocus(modal, opts = {}) {
 // Ancho a partir del cual las tarjetas usan la composición móvil y los avisos
 // de «sin información» se abren al pulsar en vez de al pasar el ratón. Mismo
 // valor que el breakpoint de tarjetas de css/app.css.
-export const COMPACT_VIEWPORT_QUERY = '(max-width: 760px)';
+const COMPACT_VIEWPORT_QUERY = '(max-width: 760px)';
 
 export function openPhBanner(el) {
   const msg     = el.dataset.phMsg || el.dataset.phTooltip || '';
@@ -908,7 +835,7 @@ export function getPinnedFilter(storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_
   } catch { return null; }
 }
 
-export function setPinnedFilter(cat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
+function setPinnedFilter(cat, storageKey = PIN_STORAGE_KEY, valid = VALID_PIN_CATS) {
   try {
     if (valid.includes(cat)) localStorage.setItem(storageKey, cat);
     else localStorage.removeItem(storageKey);
@@ -985,37 +912,6 @@ export function normalizeTeamName(s) {
   return tokens.join(' ').trim();
 }
 
-// Estados emitidos por fuentes UCI para corredores sin equipo. No son equipos
-// de catálogo: la fila de startlist se conserva para mantener el vínculo con
-// sus corredores, pero la presentación no debe mostrarla como una formación.
-const NO_TEAM_PLACEHOLDER_FOLDS = new Set([
-  'individual',
-  'private member',
-  'sin equipo',
-  'un',
-  'un attached leinster',
-]);
-
-function normalizeNoTeamPlaceholderName(value) {
-  return String(value || '')
-    .replace(/-/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-}
-
-export function isNoTeamPlaceholderTeam(slTeam) {
-  return !!slTeam && !slTeam.teamId
-    && NO_TEAM_PLACEHOLDER_FOLDS.has(normalizeNoTeamPlaceholderName(slTeam.teamName));
-}
-
-// Compatibilidad para consumidores externos; el tratamiento común se aplica
-// mediante isNoTeamPlaceholderTeam().
-export function isIndividualPlaceholderTeam(slTeam) {
-  return isNoTeamPlaceholderTeam(slTeam)
-    && normalizeNoTeamPlaceholderName(slTeam.teamName) === 'individual';
-}
-
 /** Busca un equipo en `teams` que corresponda al nombre `teamName`.
  *  Estrategia: coincidencia exacta normalizada (name + aliases) → subcadena. */
 export function findMatchingTeam(teamName, teams) {
@@ -1039,7 +935,7 @@ export function findMatchingTeam(teamName, teams) {
 }
 
 // ── Formato de fecha largo ───────────────────────────────────────
-export function formatDateKeyLong(dateKey) {
+function formatDateKeyLong(dateKey) {
   if (!dateKey) return '';
   try {
     const [y, m, d] = dateKey.split('-').map(Number);
@@ -1427,6 +1323,24 @@ if (typeof document !== 'undefined') {
 // ── Detecta si el nombre de la carrera ya implica género femenino ─
 export const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
 
+// ♀ explícito solo cuando nada más lo indica: ni el nombre, ni la categoría
+// WWT ni el filtro femenino/WWT activo (misma regla que categoryBadge).
+export function needsFemaleMark({ gender, name, uciCategory } = {}, activeCat = '') {
+  return gender === 'female' && !nameImpliesFemale(name || '') && !/WWT$/.test(uciCategory || '')
+    && activeCat !== 'female' && activeCat !== 'wwt';
+}
+
+// Con el filtro femenino/WWT activo el nombre prescinde del sufijo femenino,
+// salvo en las pruebas cuyo nombre propio lo contiene.
+export function cleanFeminineName(name, activeCat) {
+  if (activeCat !== 'female' && activeCat !== 'wwt') return name;
+  if (/women cycling pro|sanremo women|tour de feminin/i.test(name)) return name;
+  const cleaned = name
+    .replace(/\s*\b(women'?s?\s+elite|femenino|femenina|féminas|femeninos|féminin|féminine|femmes|women'?s?|ladies|donne|dames|elite women|emakumeen|pour dames)\b\s*/gi, ' ')
+    .trim().replace(/\s{2,}/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '');
+  return cleaned || name;
+}
+
 // ── Hero de carrera (logo, bandera, nombre, categoría, fecha) ────
 // Wrapper sobre buildRaceHeader para la vista de jornada: detalle = etapa ·
 // categoría, más la fecha larga y, si procede, el banner de jornada anulada.
@@ -1488,7 +1402,7 @@ export function buildRaceHeader({
 } = {}) {
   const r = race || {};
   const name = raceName(r) || '';
-  const female = r.gender === 'female' && !nameImpliesFemale(name)
+  const female = needsFemaleMark({ gender: r.gender, name, uciCategory: r.uciCategory })
     ? femaleMark({ style: 'font-size:0.55em;opacity:0.7;font-weight:400;vertical-align:0.15em' })
     : '';
   const flag = countryFlag(countryCode != null ? countryCode : r.countryCode || '');
@@ -1584,7 +1498,7 @@ export function buildTeamBadgeSvg(team, { size = 24, className = 'team-badge' } 
 }
 
 // ── Modal de assets (escritorio) ─────────────────────────────────
-export function openAssetModal(url, label) {
+function openAssetModal(url, label) {
   let overlay = document.getElementById('assetModalOverlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -1635,7 +1549,7 @@ export function openAssetModal(url, label) {
 let _releaseAssetFocus = null;
 window.openAssetModal = openAssetModal;
 
-export function closeAssetModal() {
+function closeAssetModal() {
   const overlay = document.getElementById('assetModalOverlay');
   if (!overlay) return;
   overlay.classList.remove('asset-modal--open');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyCxRace, createCxDataRideClient, cxDataRideDate, cxDataRideSeconds, cxNaturalRiderDisplay, fetchCxCompetition, normalizeCxDataRideRows } from '../results-fetchers/cx-dataride-results.mjs';
+import { classifyCxRace, createCxDataRideClient, cxDataRideDate, cxDataRideSeconds, fetchCxCompetition, normalizeCxDataRideRows } from '../results-fetchers/cx-dataride-results.mjs';
 
 const race = (id, category = 'Men Elite', type = 'CRO-IND') => ({ Id: id, CategoryCode: category, RaceName: category,
   RaceTypeCode: type, DisciplineCode: 'CRO', Date: '12 Sep 2026' });
@@ -64,10 +64,30 @@ describe('mangas CX y normalización DataRide', () => {
     expect(rows[5]).toMatchObject({ lastName: 'Bažantová', firstName: 'Anežka', riderDisplay: 'Anežka Bažantová' });
     expect(rows[1].riderDisplay).toBe('Alanna Van de Hoef');
     expect(rows[3].riderDisplay).toBe('José Manuel García-López');
+    const [deDiego] = normalizeCxDataRideRows([sourceRow(7, 1, '1:00:00', { DisplayName: 'DE DIEGO MARTINEZ Claudia' })]);
+    expect(deDiego).toMatchObject({ lastName: 'De Diego Martinez', firstName: 'Claudia', riderDisplay: 'Claudia De Diego Martinez' });
   });
-  it('forma el display en orden natural usando las partes separadas', () => {
-    expect(cxNaturalRiderDisplay('GARRY', 'MILLBURN', 'MILLBURN Garry')).toBe('Garry Millburn');
-    expect(cxNaturalRiderDisplay(null, null, 'MILLBURN Garry')).toBe('MILLBURN Garry');
+  it('normaliza las filas crudas de Alcobendas ME 2025–26: vueltas perdidas sin tiempo, DNF y DNS', () => {
+    // El PDF oficial publica «+ 2 vueltas» y «+ 5 vueltas» para los dorsales 33 y 41;
+    // DataRide solo da el déficit en ResultValue y el estado en Irm.
+    const columns = ['Rank', 'RankNumber', 'Bib', 'DisplayName', 'ResultValue', 'Irm'];
+    const raw = [
+      ['1', 1, '2', 'INGUANZO MACHO Gonzalo', '00:58:10', null],
+      ['2', 2, '3', 'MIRA BONASTRE Raul', '00:58:32', null],
+      ['27', 27, '33', 'CARRERA JIMENEZ Pablo', '-2', 'LAP'],
+      ['35', 35, '41', 'GOMEZ MENDEZ Borja', '-5', 'LAP'],
+      ['', null, '40', 'HERRAN MARTIJA Diego', null, 'DNF'],
+      ['', null, '20', 'GONZALEZ BELLIDO Cesar', null, 'DNS'],
+    ].map((values) => Object.fromEntries(columns.map((column, i) => [column, values[i]])));
+    const fields = ['rank', 'bib', 'riderDisplay', 'timeText', 'timeSeconds', 'gapText', 'irm'];
+    expect(normalizeCxDataRideRows(raw).map((row) => fields.map((field) => row[field]))).toEqual([
+      [1, '2', 'Gonzalo Inguanzo Macho', '00:58:10', '3490', null, null],
+      [2, '3', 'Raul Mira Bonastre', '00:58:32', '3512', '+22', null],
+      [27, '33', 'Pablo Carrera Jimenez', null, null, '-2 LAP', 'LAP'],
+      [35, '41', 'Borja Gomez Mendez', null, null, '-5 LAP', 'LAP'],
+      [null, '40', 'Diego Herran Martija', null, null, null, 'DNF'],
+      [null, '20', 'Cesar Gonzalez Bellido', null, null, null, 'DNS'],
+    ]);
   });
   it('preserva IRM y vueltas perdidas, sin convertir LAP en DNF ni tiempo real', () => {
     const rows = normalizeCxDataRideRows([sourceRow(1, 1, '1:00:00'), sourceRow(2, 20, '-1 LAP', { Irm: 'LAP' }),

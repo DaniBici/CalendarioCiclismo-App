@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { COMPUTER_EVENTS, computerPdfLinks, parseComputerPdf } from '../results-fetchers/computerauswertung-pdf.mjs';
-import { fetchComputerStages, mapStageRows, normAbsTime, normGap } from '../results-fetchers/livetiming-results-fetch.mjs';
+import { fetchComputerStages } from '../results-fetchers/livetiming-results-fetch.mjs';
 
 const event = COMPUTER_EVENTS['260903'];
 const pdfUrl = 'https://www.computerauswertung.at/veranstaltungen/2026/260906/stage1.pdf';
@@ -115,12 +115,5 @@ describe('Computerauswertung y live', () => {
     expect(stages[1]).toMatchObject({ stageNumber: null, isFinalClassification: true });
     expect(stages[1].classifications.map((c) => c.classKind)).toEqual(['gc', 'points', 'teams']);
     expect(new Set(stages.flatMap((s) => s.classifications.map((c) => c.eventId))).size).toBe(7);
-  });
-  it('normaliza centésimas sin alterar el contrato de las etapas en ruta', () => {
-    expect(normAbsTime('0:17:15,93')).toBe('0:17:15');
-    expect(normGap('+[0:07,30]')).toBe('+7');
-    expect(mapStageRows(live.FF)[1].gapText).toBe('+7');
-    const route = mapStageRows([{ Place: '1', BIB: '1', Time: '4:00:00' }, { Place: '2', BIB: '2', Time: '4:00:08', Gap: '+0:08' }]);
-    expect(route[1]).toMatchObject({ timeText: '4:00:08', gapText: null });
   });
 });

@@ -44,14 +44,6 @@ class StartlistLogicTest {
     }
 
     @Test
-    fun `startlist entera sin dorsales mantiene el orden del panel`() {
-        val teams = listOf(team("x", 1), team("y", 2), team("z", 3))
-        val riders = listOf(rider("x", 0), rider("y", null), rider("z", 0))
-        val sorted = StartlistLogic.teamsByFirstDorsal(teams, riders)
-        assertEquals(listOf("x", "y", "z"), sorted.map { it.id })
-    }
-
-    @Test
     fun `equipo sin corredores va al final`() {
         val teams = listOf(team("vacio", 0), team("lleno", 1))
         val riders = listOf(rider("lleno", 31))

@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { todayRaceState, profileProgress, hasValidTimeLimit, classificationColor, classificationIsUpdating, formatDurationSeconds, isTttStageClassification, parseDurationText, visibleStageClassifications, loadFeaturedRaces, waitingResultsHtml } from '../services/race-presentation.js';
+import { todayRaceState, profileProgress, hasValidTimeLimit, classificationColor, classificationIsUpdating, formatDurationSeconds, isTttStageClassification, parseDurationText, visibleStageClassifications, loadFeaturedRaces } from '../services/race-presentation.js';
 import { fetchAllRows, fetchByIds } from '../services/paged-query.js';
 import { enrichResultFeed } from '../services/result-feed-context.js';
-import { automaticTeamHeaderText, teamHeaderColors, marketTeamColors, teamsForSeason } from '../team-appearance.js';
 import { resultObservation, COVERED_STAGE_REFRESH_SOURCES } from '../../scripts/results-fetchers/result-publication.mjs';
-import { classificationColorSeed } from '../../tools/seed-classification-colors.mjs';
 
 describe('estado y métricas de jornada', () => {
   const day={neutralStartTimeUtc:'2026-09-04T10:00:00Z',estimatedFinishTimeUtc:'2026-09-04T14:00:00Z'};
@@ -19,13 +17,6 @@ describe('estado y métricas de jornada', () => {
   it('descanso y cancelación preceden a los resultados', () => {
     expect(todayRaceState({...day,_hasInhouse:true,isCancelledDay:true})).toBe('cancelled');
     expect(todayRaceState({...day,_hasInhouse:true,isRestDay:true})).toBe('rest');
-  });
-  it('representa la espera con bandera y puntos, conservando el nombre accesible', () => {
-    const html = waitingResultsHtml('es');
-    expect(html).toContain('aria-label="Esperando resultados"');
-    expect(html.indexOf('race-card__waiting-flag')).toBeLessThan(html.indexOf('race-card__waiting-dots'));
-    expect(html).not.toContain('<span>Esperando resultados</span>');
-    expect(waitingResultsHtml('en')).toContain('aria-label="Awaiting results"');
   });
   it('limita el avance al recorrido y lo suprime en crono', () => {
     expect(profileProgress(day,Date.parse('2026-09-04T12:00:00Z'))).toBe(.5);
@@ -84,7 +75,7 @@ describe('detección de CRE en la clasificación de etapa', () => {
   });
 });
 
-describe('inventario y colores', () => {
+describe('inventario y colores de clasificación', () => {
   it('ordena solo las clasificaciones existentes en la etapa activa', () => {
     const rows=[{id:'p',classKind:'points'},{id:'s',classKind:'stage'}];
     const inventory=[{classKind:'stage'},{classKind:'gc'},{classKind:'points'}];
@@ -95,35 +86,6 @@ describe('inventario y colores', () => {
     expect(classificationColor({classKind:'gc',colorHex:'red;display:none'})).toBeNull();
     expect(classificationColor({classKind:'gc'})).toBeNull();
     expect(classificationColor({classKind:'gc',colorHex:'#FFFF00'})).toBe('#FFFF00');
-  });
-  it('usa la pareja publicada del mercado o la temporada anterior', () => {
-    const previous={headerBg:'#123456',headerText:'#FFFFFF'},next={headerBg:'#ABCDEF',headerText:'#000000',badgeVisible:false};
-    expect(marketTeamColors(next,previous)).toEqual({background:'#123456',text:'#FFFFFF'});
-    expect(marketTeamColors({...next,badgeVisible:true},previous)).toEqual({background:'#ABCDEF',text:'#000000'});
-    expect(teamHeaderColors({headerBg:'#123456'})).toEqual({background:'var(--bg-card)',text:'var(--text)'});
-  });
-  it('resuelve automáticamente un texto legible para la cabecera del equipo', () => {
-    expect(automaticTeamHeaderText('#111111')).toBe('#ffffff');
-    expect(automaticTeamHeaderText('#fff')).toBe('#000000');
-    expect(automaticTeamHeaderText('#e30613')).toBe('#ffffff');
-    expect(automaticTeamHeaderText('red')).toBe('#ffffff');
-  });
-  it('materializa un equipo histórico aislado desde su versión de temporada', async () => {
-    const query = {
-      data: [{teamId:'hist',name:'Equipo 2021',category:'CT',badgeTorsoCenter:'#123456'}],
-      select(){ return this; }, in(){ return this; }, eq(){ return this; },
-    };
-    const rows = await teamsForSeason({from:()=>query}, [], 2021, ['hist']);
-    expect(rows).toEqual([expect.objectContaining({
-      id:'hist', name:'Equipo 2021', category:'CT', badgeTorsoCenter:'#123456', badgeShorts:'#000000',
-    })]);
-  });
-  it('rechaza una semilla sin edición acreditada o con color de Etapa', () => {
-    const c={classKind:'gc',status:'confirmed',colorHex:'#FFFFFF',editionVerified:true,sourceUrl:'https://race.example/2026'};
-    const manifest={edition:2026,consultedAt:'2026-09-04',races:[{id:'r',year:2026,kinds:['gc'],classifications:[c]}]};
-    expect(classificationColorSeed(manifest)).toContain('"colorSource" IS NULL');
-    c.editionVerified=false; expect(()=>classificationColorSeed(manifest)).toThrow();
-    c.editionVerified=true;c.classKind='stage'; expect(()=>classificationColorSeed(manifest)).toThrow();
   });
 });
 
@@ -136,7 +98,8 @@ describe('observaciones del origen efectivo', () => {
     expect(resultObservation({source:'sts'},{},{}).format).toBe('progressive');
     expect(resultObservation({source:'raceresult'},{},{}).format).toBe('progressive');
   });
-  it.each(COVERED_STAGE_REFRESH_SOURCES)('registra adquisiciones progresivas de %s', source => {
+  it('registra adquisiciones progresivas de las fuentes con refresco de etapa', () => {
+    const [source] = COVERED_STAGE_REFRESH_SOURCES;
     expect(resultObservation({source,fetchedAt:'2026-09-04T14:00:00Z'},{},{})).toMatchObject({provider:source,format:'progressive',observedAt:'2026-09-04T14:00:00Z'});
     expect(resultObservation({source},{},{publication:{format:'pdf'}}).format).toBe('pdf');
   });

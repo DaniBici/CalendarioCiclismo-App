@@ -70,6 +70,7 @@
 import { execFileSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArgs = (n) => args.reduce((acc, a, i) => (a === `--${n}` && args[i + 1] != null ? [...acc, args[i + 1]] : acc), []);
@@ -221,7 +222,7 @@ async function validateAmbiguous(rec, startlist) {
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  if (!env.DATABASE_URL) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
+  if (!databaseUrl(env)) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
 
   const years = yearsToSweep();
   const known = years.filter((y) => ROAD_SEASON[y]);
@@ -230,7 +231,7 @@ async function main() {
   log(`Pasada de tarde — años: [${known.join(', ')}]${DRY ? ' (DRY-RUN)' : ''} · umbral ${THRESHOLD} margen ${MARGIN} min-compartidos ${MIN_SHARED}`);
 
   const { default: pg } = await import('pg');
-  const client = new pg.Client({ connectionString: env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+  const client = new pg.Client({ connectionString: databaseUrl(env), ssl: { rejectUnauthorized: false } });
   await client.connect();
 
   // Estado actual de enlaces (en memoria; se actualiza al insertar para la des-colisión).

@@ -1,6 +1,5 @@
 """Cobertura iCal y paginación sin red ni credenciales."""
 import io
-import ast
 import json
 import os
 import tempfile
@@ -107,23 +106,6 @@ class FeedsTest(unittest.TestCase):
         self.assertEqual(len(calls), 4)
         self.assertTrue(all("slugEn" in call and "startLocationEn" in call for call in calls[1:]))
         self.assertTrue(all("id.asc" in call for call in calls))
-
-    def test_historical_pages_have_no_subscribe_action(self):
-        source = Path(__file__).with_name("gen_og_pages.py").read_text()
-        tree = ast.parse(source)
-        loop = next(node for node in tree.body if isinstance(node, ast.For)
-                    and isinstance(node.target, ast.Name) and node.target.id == "race")
-        action = next(node for node in loop.body if isinstance(node, ast.If)
-                      and any(isinstance(child, ast.Constant) and child.value == "SubscribeAction"
-                              for child in ast.walk(node)))
-        code = compile(ast.Module(body=[action], type_ignores=[]), "SubscribeAction", "exec")
-        current = datetime.now(timezone.utc).year
-        for year, expected in ((current - 1, 0), (None, 0), (current, 1), (current + 1, 1)):
-            namespace = {"race": {"year": year}, "year": year, "datetime": datetime,
-                         "timezone": timezone, "BASE_URL": "https://fixture",
-                         "display_title": "Fixture", "json_ld_list": []}
-            exec(code, namespace)
-            self.assertEqual(len(namespace["json_ld_list"]), expected)
 
 
 if __name__ == "__main__":

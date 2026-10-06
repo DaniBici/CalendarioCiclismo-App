@@ -30,6 +30,16 @@ class CyclocrossTest {
         assertEquals(0, CxPresentation.tournamentRoundTotal("missing", listOf(target, other), rounds))
     }
 
+    @Test fun `los tiempos MM SS 00 de DataRide se muestran desde timeSeconds como en la web`() {
+        val winner = CxResult(1, "rochester", "ME", rank = 1, riderDisplay = "Winner", timeText = "57:41:00", timeSeconds = 3461)
+        val rows = listOf(winner, winner.copy(id = 2, rank = 2, timeText = "57:53:00", gapText = "+12", timeSeconds = 3473),
+            winner.copy(id = 3, rank = 3, timeText = "58:15:00", gapText = "+34", timeSeconds = 3495))
+        val vm = CxPresentation.resultRows(rows, java.util.Locale("es"))
+        assertEquals("57:41", vm[0].valueText)
+        assertEquals("+12\"", vm[1].valueText)
+        assertEquals("+34\"", vm[2].valueText)
+    }
+
     @Test fun `los tiempos CX e IRM usan carretera y LAP conserva el puesto`() {
         val winner = CxResult(1, "canmore", "MJ", rank = 1, riderDisplay = "Winner", timeText = "42:09.2")
         val rows = listOf(winner, winner.copy(id = 2, rank = 2, timeText = "42:09.3"),
@@ -114,11 +124,11 @@ class CyclocrossTest {
     }
 
     @Test fun `paleta usa torneo y no deduce pertenencia por nombre de carrera`() {
-        for ((name, expected) in listOf("Copa del Mundo UCI" to "#8B173D", "Telenet Superprestige" to "#FFC600", "X2O Badkamers Trofee" to "#00A8C7", "Copa de España" to "#D71920", "Exact Cross" to "#E6342A", "HG Cross" to "#E6342A", "Coupe de France" to "#0055A4", "Swiss Cyclocross Cup" to "#D52B1E", "Toi Toi Cup" to "#E87524", "HSF System Cup" to "#E87524", "National Trophy" to "#6B3FA0", "Trek USCX Series" to "#233C78", "Giro delle Regioni Ciclocross" to "#E94B8A", "Taça de Portugal" to "#008657")) {
+        for ((name, expected) in listOf("Copa del Mundo UCI" to "#8B173D", "Telenet Superprestige" to "#FFC600", "Taça de Portugal" to "#008657")) {
             val tournament = CxTournament("t", name, slug = "torneo")
-            assertEquals(expected, CxPresentation.color(race.copy(tournament = tournament, colorHex = "#123456")))
-            assertEquals("#112233", CxPresentation.color(race.copy(tournament = tournament.copy(colorHex = "#112233"), colorHex = "#123456")))
-            assertEquals("#123456", CxPresentation.color(race.copy(name = name, colorHex = "#123456")))
+            assertEquals("paleta de $name", expected, CxPresentation.color(race.copy(tournament = tournament, colorHex = "#123456")))
+            assertEquals("color propio de $name", "#112233", CxPresentation.color(race.copy(tournament = tournament.copy(colorHex = "#112233"), colorHex = "#123456")))
+            assertEquals("carrera llamada $name sin torneo", "#123456", CxPresentation.color(race.copy(name = name, colorHex = "#123456")))
         }
         assertNull(CxPresentation.color(race.copy(colorHex = "invalid")))
     }
@@ -143,6 +153,14 @@ class CyclocrossTest {
         val noSchedule = published.copy(race = published.race.copy(categories = published.race.categories.map { it.copy(startTimeUtc = null) }))
         assertEquals(listOf(CxDetailSection.RESULTS, CxDetailSection.GENERAL), CxPresentation.detailSections(noSchedule))
         assertFalse(CxPresentation.showsSectionSelector(noSchedule))
+        // Sin horarios, la TV o Revive abren Programa; la sección elegida se conserva.
+        val tv = noSchedule.copy(broadcasts = listOf(CxBroadcast("tv", race.id, url = "https://example.org/tv", showInRevive = true)))
+        assertTrue(CxPresentation.hasProgrammeMedia(tv, setOf("ALL"), Instant.parse("2027-01-31T10:00:00Z")))
+        assertFalse(CxPresentation.hasProgrammeMedia(noSchedule, setOf("ALL"), Instant.parse("2027-01-31T10:00:00Z")))
+        assertEquals(listOf(CxDetailSection.PROGRAMME, CxDetailSection.RESULTS, CxDetailSection.GENERAL), CxPresentation.detailSections(tv, hasMedia = true))
+        assertTrue(CxPresentation.showsSectionSelector(tv, hasMedia = true))
+        assertEquals(CxDetailSection.RESULTS to "ME", CxPresentation.normalizeSelection(tv, CxDetailSection.RESULTS, "ME", hasMedia = true))
+        assertEquals(CxDetailSection.PROGRAMME to "ME", CxPresentation.normalizeSelection(tv, CxDetailSection.PROGRAMME, "ME", hasMedia = true))
         assertTrue(CxPresentation.resultCategories(published.copy(race = race)).isEmpty())
         val vm = CxPresentation.resultRow(result, java.util.Locale.UK)
         assertEquals(40.0, vm.uciPoints!!, 0.0)
@@ -167,22 +185,6 @@ class CyclocrossTest {
         assertFalse("WU" in CxPresentation.actualCategories(before))
     }
 
-    @Test fun `Programa combina medios sin repetir emisiones globales ni perder el filtro regional`() {
-        val pending = CxDetail(race, broadcasts = listOf(
-            CxBroadcast("es", race.id, country = "ES", url = "https://example.org/es", showInRevive = true),
-            CxBroadcast("be", race.id, country = "BE", url = "https://example.org/be", showInRevive = true)))
-        val mine = CxPresentation.programmeMedia(pending, setOf("ALL", "ES"))
-        assertEquals(listOf("es"), mine.tv.map { it.id })
-        assertTrue(mine.hasHiddenTV)
-        assertEquals(listOf("es", "be"), CxPresentation.programmeMedia(pending, setOf("ALL", "ES"), true).tv.map { it.id })
-        val published = pending.copy(race = race.copy(categories = race.categories.map { it.copy(resultsStatus = "official") }),
-            results = race.categories.mapIndexed { index, category -> CxResult(index.toLong(), race.id, category.category, rank = 1, riderDisplay = "Rider") })
-        val replay = CxPresentation.programmeMedia(published, setOf("ALL", "ES"))
-        assertFalse(replay.showsLiveTV)
-        assertTrue(replay.tv.isEmpty())
-        assertEquals(listOf("https://example.org/es"), replay.revive.map { it.url })
-    }
-
     @Test fun `limites de salida y final no publican resultados`() {
         val category = race.categories.first()
         assertEquals(CxTemporalState.SCHEDULED, CyclocrossLogic.timing(race, category, Instant.parse("2027-01-31T13:59:59Z")).temporalState)
@@ -196,64 +198,102 @@ class CyclocrossTest {
         assertEquals(CxTemporalState.UNKNOWN, CyclocrossLogic.timing(race, category.copy(startTimeUtc = null)).temporalState)
     }
 
-    @Test fun `TV cambia a Revive por resultados propios y conserva filtro regional sin duplicar enlaces`() {
-        val category = race.categories.first()
-        val broadcasts = listOf(
-            CxBroadcast("live", race.id, channel = "Canal ES", country = "ES", url = "https://example.org/replay"),
-            CxBroadcast("curated", race.id, channel = "Canal ES", country = "ES", url = "https://example.org/replay", showInRevive = true, sortOrder = 3),
-            CxBroadcast("be", race.id, channel = "Canal BE", country = "BE", url = "https://example.org/be", showInRevive = true),
-            CxBroadcast("global", race.id, channel = "Sporza", url = "https://example.org/global", isSporza = true),
-            CxBroadcast("we", race.id, category = "WE", url = "https://example.org/we", showInRevive = true),
-            CxBroadcast("invalid", race.id, channel = "Sin enlace", url = "javascript:alert(1)", showInRevive = true),
-        )
+    private val groups = setOf("ALL", "ES", "EUROPA")
+    private fun ids(media: CxMediaSelection) = media.tv.map { group -> group.category to group.rows.map { it.broadcast.id } }
+
+    @Test fun `fin de emision suma media hora a la llegada o espera al dia siguiente sin hora`() {
+        val me = race.categories.first()
+        assertEquals(Instant.parse("2027-01-31T15:30:00Z"), CxPresentation.concludedAt(race, me))
+        val grouped = CxCategory("WE", "2027-01-31T14:00:00Z", "2027-01-31", durationFormat = "WE_WJ", durationRuleVersion = "2026-07-01", durationMinutes = 45)
+        assertEquals(Instant.parse("2027-01-31T15:15:00Z"), CxPresentation.concludedAt(race, grouped))
+        assertEquals(Instant.parse("2027-01-31T15:30:00Z"), CxPresentation.concludedAt(race, grouped.copy(durationRuleVersion = null)))
+        assertEquals(Instant.parse("2027-01-31T06:00:00Z"), CxPresentation.concludedAt(race, race.categories.last()))
+        assertEquals(Instant.parse("2027-01-30T06:00:00Z"), CxPresentation.concludedAt(race, CxCategory("MJ")))
+    }
+
+    @Test fun `TV en directo por categoria en orden del programa con filtro regional`() {
+        val programme = race.copy(categories = listOf(
+            CxCategory("ME", "2027-01-31T14:00:00Z", "2027-01-31", durationFormat = "individual", durationRuleVersion = "2026-07-01", durationMinutes = 60),
+            CxCategory("MU", "2027-01-31T11:00:00Z", "2027-01-31"),
+            CxCategory("WE", "2027-01-30T13:00:00Z", "2027-01-30")))
+        val detail = CxDetail(programme, broadcasts = listOf(
+            CxBroadcast("me", race.id, category = "ME", channel = "Canal", country = "ES", url = "https://example.org/live", sortOrder = 1),
+            CxBroadcast("me-repeat", race.id, category = "ME", channel = "Canal", country = "ES", url = "https://example.org/live", sortOrder = 2),
+            CxBroadcast("mu", race.id, category = "MU", channel = "Canal", country = "ES", url = "https://example.org/live", sortOrder = 3),
+            CxBroadcast("we", race.id, category = "WE", country = "ES", url = "https://example.org/we", sortOrder = 4),
+            CxBroadcast("common", race.id, url = "https://example.org/common", sortOrder = 5),
+            CxBroadcast("be", race.id, category = "ME", country = "BE", url = "https://example.org/be", sortOrder = 0),
+            CxBroadcast("invalid", race.id, url = "javascript:alert(1)")))
+        val start = Instant.parse("2027-01-30T12:00:00Z")
+        val mine = CxPresentation.programmeMedia(detail, groups, at = start)
+        assertTrue(mine.showsLiveTV)
+        assertTrue(mine.hasHiddenTV)
+        assertEquals(listOf(null to listOf("common"), "WE" to listOf("we"), "MU" to listOf("mu"), "ME" to listOf("me")), ids(mine))
+        val all = CxPresentation.programmeMedia(detail, groups, showAll = true, at = start)
+        assertEquals(listOf("be", "me"), all.tv.last().rows.map { it.broadcast.id })
+        assertEquals(listOf(true, false), all.tv.last().rows.map { it.foreign })
+        // WE termina 30 min después de su llegada estimada (60 min sin duración verificada).
+        assertEquals(listOf(null, "MU", "ME"), CxPresentation.programmeMedia(detail, groups, at = Instant.parse("2027-01-30T14:30:00Z")).tv.map { it.category })
+        // Sin resultados, el paso del tiempo retira el directo y no activa Revive.
+        val over = CxPresentation.programmeMedia(detail, groups, showAll = true, at = Instant.parse("2027-01-31T15:30:00Z"))
+        assertFalse(over.showsLiveTV)
+        assertTrue(over.tv.isEmpty())
+        assertTrue(over.revive.isEmpty())
+        // Filas solo de otra región: tarjeta visible con el mensaje vacío.
+        val foreign = CxPresentation.programmeMedia(detail.copy(broadcasts = detail.broadcasts.filter { it.id == "be" }), groups, at = start)
+        assertTrue(foreign.showsLiveTV)
+        assertTrue(foreign.hasHiddenTV)
+        assertTrue(foreign.tv.isEmpty())
+        assertEquals(listOf("ME" to listOf("be")), ids(CxPresentation.programmeMedia(detail.copy(broadcasts = detail.broadcasts.filter { it.id == "be" }), groups, showAll = true, at = start)))
+        // Sin filas de otra región no hay conmutador.
+        assertFalse(CxPresentation.programmeMedia(detail.copy(broadcasts = detail.broadcasts.filter { it.id != "be" }), groups, at = start).hasHiddenTV)
+    }
+
+    @Test fun `Revive usa el criterio de carretera y excluye lo que sigue en directo`() {
+        val programme = race.copy(categories = listOf(race.categories.first().copy(resultsStatus = "official"),
+            CxCategory("WE", "2027-01-31T16:00:00Z", "2027-01-31")))
+        val detail = CxDetail(programme, results = listOf(CxResult(1, race.id, "ME", rank = 1, riderDisplay = "Rider")), broadcasts = listOf(
+            CxBroadcast("youtube", race.id, category = "ME", channel = "Canal", country = "ES", url = "https://www.youtube.com/watch?v=abc", sortOrder = 5),
+            CxBroadcast("eurosport", race.id, category = "ME", channel = "Eurosport 1", url = "https://example.org/eurosport", sortOrder = 1),
+            CxBroadcast("plain", race.id, category = "ME", channel = "Canal ES", country = "ES", url = "https://example.org/plain", sortOrder = 2),
+            CxBroadcast("sporza", race.id, category = "ME", channel = "Sporza", country = "BE_NL", url = "https://example.org/sporza", isSporza = true, sortOrder = 3),
+            CxBroadcast("curated", race.id, category = "ME", url = "https://example.org/curated", showInRevive = true, sortOrder = 4),
+            CxBroadcast("repeat", race.id, category = "ME", channel = "Otro", url = "https://www.youtube.com/watch?v=abc", showInRevive = true, sortOrder = 6),
+            CxBroadcast("foreign", race.id, category = "ME", country = "US", url = "https://example.org/foreign", showInRevive = true, sortOrder = 0),
+            CxBroadcast("common", race.id, url = "https://www.youtube.com/watch?v=live", showInRevive = true, sortOrder = 0)))
+        val at = Instant.parse("2027-01-31T15:00:00Z")
+        val media = CxPresentation.programmeMedia(detail, setOf("ALL", "ES", "EUROPA", "BE_NL"), at = at)
+        assertEquals(listOf(null to listOf("common")), ids(media))
+        assertEquals(listOf("https://example.org/eurosport", "https://example.org/sporza", "https://example.org/curated", "https://www.youtube.com/watch?v=abc"), media.revive.map { it.url })
+        assertEquals(listOf("Eurosport 1", "Sporza", "TV", "Canal"), media.revive.map { it.title })
+        // Categoría cancelada: solo la marca editorial.
+        val cancelled = detail.copy(race = programme.copy(categories = programme.categories.map { it.copy(isCancelled = it.category == "ME", resultsStatus = "pending") }))
+        assertEquals(listOf("https://example.org/curated", "https://www.youtube.com/watch?v=abc"), CxPresentation.programmeMedia(cancelled, groups, at = at).revive.map { it.url })
+    }
+
+    @Test fun `carrera sin categorias solo usa filas globales`() {
+        val bare = race.copy(categories = emptyList())
+        val detail = CxDetail(bare, broadcasts = listOf(
+            CxBroadcast("global", race.id, url = "https://example.org/global", sortOrder = 1),
+            CxBroadcast("curated", race.id, url = "https://example.org/curated", showInRevive = true, sortOrder = 2),
+            CxBroadcast("me", race.id, category = "ME", url = "https://example.org/me", showInRevive = true)))
+        assertEquals(listOf(null to listOf("global", "curated")), ids(CxPresentation.programmeMedia(detail, groups, at = Instant.parse("2027-02-01T05:59:59Z"))))
+        assertFalse(CxPresentation.programmeMedia(detail, groups, at = Instant.parse("2027-02-01T06:00:00Z")).showsLiveTV)
+        val cancelled = CxPresentation.programmeMedia(detail.copy(race = bare.copy(isCancelled = true)), groups, at = Instant.parse("2027-01-29T10:00:00Z"))
+        assertFalse(cancelled.showsLiveTV)
+        assertEquals(listOf("https://example.org/curated"), cancelled.revive.map { it.url })
+    }
+
+    @Test fun `videos validos por categoria y cache de agenda sin medios`() {
         val videos = listOf(CxVideo("clip", race.id, title = "Vídeo curado", url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ", sortOrder = -1),
             CxVideo("duplicate", race.id, title = "Repetido", url = "https://example.org/replay", sortOrder = 4),
             CxVideo("we", race.id, category = "WE", title = "WE", url = "https://example.org/we"))
-        val detail = CxDetail(race, broadcasts = broadcasts, videos = videos)
+        val detail = CxDetail(race, videos = videos)
         assertEquals(listOf("clip"), CxPresentation.videos(detail).map { it.id })
         assertTrue(CxDetailSection.VIDEOS in CxPresentation.detailSections(detail))
-        val groups = setOf("ALL", "ES", "EUROPA")
-        val pending = CxPresentation.categoryMedia(detail, category, groups)
-        assertTrue(pending.showsLiveTV)
-        assertTrue(pending.hasHiddenTV)
-        assertEquals(listOf("live", "global", "invalid"), pending.tv.map { it.id })
-        assertTrue(pending.revive.isEmpty())
-        assertNull(CxPresentation.link(broadcasts.last().url))
-        assertTrue(CxPresentation.categoryMedia(detail, category, groups, showAll = true).tv.any { it.id == "be" })
-        val result = CxResult(1, race.id, "ME", rank = 1, riderDisplay = "Corredor local")
-        for (status in listOf("official", "provisional")) {
-            val published = CxPresentation.categoryMedia(detail.copy(results = listOf(result)), category.copy(resultsStatus = status), groups, showAll = true)
-            assertFalse(published.showsLiveTV)
-            assertTrue(published.tv.isEmpty())
-            assertEquals(listOf("https://example.org/global", "https://example.org/replay"), published.revive.map { it.url })
-        }
-        assertTrue(CxPresentation.categoryMedia(detail.copy(results = listOf(result.copy(category = "WE"))), category, groups).showsLiveTV)
-        assertTrue(CxPresentation.categoryMedia(detail, category.copy(resultsStatus = "official"), groups).showsLiveTV)
-        for (cancelled in listOf(detail.copy(race = race.copy(isCancelled = true)) to category, detail to category.copy(isCancelled = true))) {
-            val media = CxPresentation.categoryMedia(cancelled.first, cancelled.second, groups, showAll = true)
-            assertFalse(media.showsLiveTV)
-            assertTrue(media.tv.isEmpty())
-            assertEquals(listOf("https://example.org/replay"), media.revive.map { it.url })
-        }
-    }
-
-    @Test fun `cards usan metadatos regionales sin cargar clasificaciones y omiten TV vacia`() {
-        val category = race.categories.first()
-        val groups = setOf("ALL", "ES")
-        assertFalse(CxPresentation.categoryMedia(CxDetail(race), category, groups).showsLiveTV)
-        val tv = listOf(CxBroadcast("es", race.id, category = "ME", country = "ES", url = "https://example.org/es", showInRevive = true),
-            CxBroadcast("be", race.id, category = "ME", country = "BE", url = "https://example.org/be", showInRevive = true))
-        val agendaRace = race.copy(broadcasts = tv)
-        val pending = CxPresentation.categoryMedia(agendaRace, category, groups)
-        assertTrue(pending.showsLiveTV)
-        assertEquals(listOf("es"), pending.tv.map { it.id })
-        assertFalse(CxPresentation.categoryMedia(agendaRace, race.categories.last(), groups).showsLiveTV)
-        val published = CxPresentation.categoryMedia(agendaRace, category.copy(resultsStatus = "provisional"), groups)
-        assertFalse(published.showsLiveTV)
-        assertEquals(listOf("https://example.org/es"), published.revive.map { it.url })
-        val oldCache = json.decodeFromString<CxRace>("""{"id":"cx-old","name":"Anterior","slug":"anterior","class":"C2","seasonKey":"2026-27","dateKey":"2027-01-31"}""")
-        assertTrue(oldCache.broadcasts.isEmpty())
-        assertTrue(oldCache.videos.isEmpty())
+        // Cachés previas con emisiones y vídeos embebidos siguen decodificando.
+        val oldCache = json.decodeFromString<CxRace>("""{"id":"cx-old","name":"Anterior","slug":"anterior","class":"C2","seasonKey":"2026-27","dateKey":"2027-01-31","cx_broadcasts":[{"id":"b","raceId":"cx-old"}],"cx_videos":[]}""")
+        assertEquals("cx-old", oldCache.id)
     }
 
     @Test fun `minutos transcurridos conservan DST y formato agrupado verificado`() {

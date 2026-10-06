@@ -19,22 +19,6 @@ enum AccessibilityStageType {
         let label = RaceLogic.resolveTypeLabel(primary: primary, secondary: secondary)
         return "Tipo de etapa: \(label)"
     }
-
-    /// SF Symbol icon name for a stage type (color-blind support).
-    static func iconName(for type: String?) -> String? {
-        switch type {
-        case "flat": return "arrow.right"
-        case "rolling": return "point.topleft.down.to.point.bottomright.curvepath"
-        case "cotas": return "triangle"
-        case "medium_mountain": return "mountain.2"
-        case "high_mountain", "summit_finish", "uphill_finish", "chrono_climb": return "mountain.2.fill"
-        case "itt": return "stopwatch"
-        case "ttt": return "stopwatch"
-        case "cobbles": return "square.grid.3x3.topleft.filled"
-        case "sterrato": return "road.lanes"
-        default: return nil
-        }
-    }
 }
 
 /// Provides accessible descriptions for TV status.

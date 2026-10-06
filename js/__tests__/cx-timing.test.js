@@ -5,9 +5,13 @@ const start='2027-01-30T14:00:00Z';
 const category=(code,extra={})=>({category:code,startTimeUtc:start,durationFormat:'individual',durationRuleVersion:CX_DURATION_RULE_VERSION,resultsStatus:'pending',...extra});
 
 describe('duración UCI y estados de mangas CX',()=>{
-  it.each([['ME',60],['WE',50],['MU',50],['WU',45],['MJ',40],['WJ',40]])('aplica %s en los límites de su duración de %i minutos',(code,minutes)=>{
-    const c=category(code),end=Date.parse(start)+minutes*60000;
-    expect(cxRegulationMinutes(code,'individual')).toBe(minutes);
+  it('aplica la duración individual reglamentaria de cada categoría',()=>{
+    const codes=['ME','WE','MU','WU','MJ','WJ'];
+    expect(Object.fromEntries(codes.map(code=>[code,cxRegulationMinutes(code,'individual')])))
+      .toEqual({ME:60,WE:50,MU:50,WU:45,MJ:40,WJ:40});
+  });
+  it('pasa de programada a en directo y a finalizada estimada en los límites de la duración',()=>{
+    const c=category('WE'),end=Date.parse(start)+50*60000;
     expect(cxCategoryTiming({},c,Date.parse(start)-1).temporalState).toBe('scheduled');
     expect(cxCategoryTiming({},c,start).temporalState).toBe('live');
     expect(cxCategoryTiming({},c,end-1).temporalState).toBe('live');

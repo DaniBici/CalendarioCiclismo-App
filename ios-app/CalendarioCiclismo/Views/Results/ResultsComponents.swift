@@ -107,7 +107,7 @@ struct ResultsStageSelector: View {
 /// Deslizamiento lateral sobre una clasificación: pasa a la anterior o a la
 /// siguiente de `options` con la transición de Hoy (el contenido sale por el
 /// lado del gesto y el nuevo entra por el contrario). Ignora el borde
-/// izquierdo (retroceso del sistema) y los gestos principalmente verticales.
+/// izquierdo (retroceso del sistema) y los gestos que empiezan en vertical.
 private struct ClassificationSwipe: ViewModifier {
     let options: [String]
     let current: String?
@@ -122,18 +122,13 @@ private struct ClassificationSwipe: ViewModifier {
         content
             .offset(x: offset)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 20, coordinateSpace: .global)
-                    .onEnded { value in
-                        let h = value.translation.width, v = value.translation.height
-                        guard !isAnimating, value.startLocation.x > 24, abs(h) > 60, abs(h) > abs(v) * 1.5,
-                              let current, let index = options.firstIndex(of: current) else { return }
-                        let target = index + (h < 0 ? 1 : -1)
-                        guard options.indices.contains(target) else { return }
-                        Haptics.play(.selection)
-                        select(options[target], forward: h < 0)
-                    }
-            )
+            .gesture(HorizontalSwipeRecognizer(isEnabled: !isAnimating && options.count > 1) { h in
+                guard abs(h) > 60, let current, let index = options.firstIndex(of: current) else { return }
+                let target = index + (h < 0 ? 1 : -1)
+                guard options.indices.contains(target) else { return }
+                Haptics.play(.selection)
+                select(options[target], forward: h < 0)
+            })
     }
 
     private func select(_ key: String, forward: Bool) {
@@ -148,6 +143,55 @@ private struct ClassificationSwipe: ViewModifier {
             withAnimation(.easeOut(duration: 0.2)) { offset = 0 }
             try? await Task.sleep(for: .milliseconds(200))
             isAnimating = false
+        }
+    }
+}
+
+/// Arrastre horizontal resuelto en UIKit. El eje se decide al empezar: un
+/// arrastre vertical hace fallar el reconocedor y el `ScrollView` que contiene
+/// la clasificación se desplaza sin competencia; uno horizontal impide el
+/// desplazamiento vertical mientras dura. Con un `DragGesture` simultáneo, la
+/// lista se movía en vertical durante el deslizamiento y un desplazamiento
+/// vertical con componente lateral cambiaba de clasificación.
+private struct HorizontalSwipeRecognizer: UIGestureRecognizerRepresentable {
+    let isEnabled: Bool
+    let onEnded: (CGFloat) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        recognizer.isEnabled = isEnabled
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        guard recognizer.state == .ended else { return }
+        onEnded(recognizer.translation(in: recognizer.view).x)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let translation = pan.translation(in: pan.view)
+            let startX = pan.location(in: nil).x - translation.x
+            return startX > 24 && abs(translation.x) > abs(translation.y) * 1.5
+        }
+
+        /// El desplazamiento vertical espera a que este reconocedor falle. Los
+        /// carriles horizontales (selector de etapas, rondas) no esperan.
+        func gestureRecognizer(
+            _ recognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy other: UIGestureRecognizer
+        ) -> Bool {
+            guard let scrollView = other.view as? UIScrollView,
+                  other === scrollView.panGestureRecognizer else { return false }
+            return scrollView.contentSize.width <= scrollView.bounds.width + 1
         }
     }
 }

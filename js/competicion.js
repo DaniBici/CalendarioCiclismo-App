@@ -4,49 +4,23 @@ import { arrowHtml } from './scroll-rail.js';
 //  COMPETICIÓN — competicion.html?id=RACE_ID
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, stageLabel, countryFlag, formatTime, formatTimeUser,
-         typeBadge, resolveTypeBadges, setMeta, setMetaProperty, tsSeconds, initPhTooltip, esc,
+import { supabase, stageLabel, countryFlag, formatTimeUser,
+         resolveTypeBadges, setMeta, setMetaProperty, initPhTooltip,
          jornadaUrl, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase,
-         extractYouTubeId, startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
-         articuloNombre, femaleMark, setRaceRobots }
+         startOrderUrl, seoLongDate, seoDayMonth, buildRaceHeader,
+         articuloNombre, femaleMark, needsFemaleMark, setRaceRobots, setHreflangPair }
          from './shared.js';
 import { t, getLang, getLocale, initI18n } from './i18n.js';
+import { writeCalendarParams } from './calendario-query.js';
 import { annotateDoubleSectors } from './services/races.js';
-import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js?v=20260924sitefix';
-import { buildElevationSparkline } from './stage/elevation-profile.js';
-import { isReviveBroadcast } from './broadcast-priority.js';
-import { agendaMetaState } from './services/today-agenda-layout.js?v=20260920featured-sort';
+import { hasModalData, openRaceDataModal, openResultsModal, openBroadcastTvModal, openYoutubeTvModal, loadInhouseStageSet } from './race-data-modal.js';
+import { createRaceCard, raceCardHtml } from './components/race-card.js';
+import { noExtraInfoMessage, stageRouteText, formatStageMetrics, stageSubHtml, stageIsClickable,
+         startOrderBadgeHtml, scheduleHtml, appendProfile, appendResultsActions, activateStageCard } from './components/stage-card.js';
+import { agendaMetaState } from './services/today-agenda-layout.js';
 // Botones de assets, badge de TV y modales de asset/perfil (compartidos con campeonatos.js).
 // Importar este módulo instala window.openAssetModal / window.openDynPerfilModal.
 import { tvBadge } from './race-assets.js';
-
-function composeCompetitionCards(content) {
-  content.querySelectorAll('.race-card--stage').forEach(card => {
-    const main = card.querySelector('.race-card__main'), meta = card.querySelector('.race-card__meta');
-    if (!main || !meta) return;
-    card.classList.add('race-card--composed');
-    const identity = document.createElement('div'); identity.className = 'race-card__identity';
-    card.prepend(identity); identity.append(main);
-    const sub = main.querySelector('.race-card__sub');
-    const route = sub?.querySelector('.race-card__route');
-    const metrics = [...(sub?.querySelectorAll('.race-card__km,.race-card__elev') || [])];
-    if (sub) {
-      sub.replaceChildren();
-      if (route) sub.append(route);
-      const values = document.createElement('span'); values.className = 'race-card__metrics';
-      metrics.forEach((node,index) => { if (index) values.append(' · '); values.append(node); });
-      sub.append(values);
-    }
-    const actions = document.createElement('div'); actions.className = 'race-card__actions';
-    main.querySelectorAll('a.badge,.badge--tv,.badge--livetext,.badge--notv,.badge--notv-es').forEach(node => actions.append(node));
-    if (actions.childNodes.length) meta.append(actions);
-    const profileNodes = card.querySelectorAll(':scope>.race-card__elevation,:scope>.race-card__ep-inds');
-    if (profileNodes.length) {
-      const profile = document.createElement('div'); profile.className = 'race-card__profile';
-      profileNodes.forEach(node => profile.append(node)); identity.after(profile);
-    }
-  });
-}
 
 function formatDateShort(dk) {
   if (!dk) return '';
@@ -73,26 +47,79 @@ function formatDateRange(startDk, endDk) {
   // Distinto año (rarísimo): "31 dic – 2 ene"
   return `${fmtDay(startD)} ${fmtMon(startD)} – ${fmtDay(endD)} ${fmtMon(endD)}`;
 }
-const _tvSvgC     = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
-const _timerSvgC  = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><line x1="10" y1="2" x2="14" y2="2"/><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 13"/></svg>';
-const _trophySvgC = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>';
+// Tarjeta de jornada: estructura común de components/race-card.js sin logo
+// (la cabecera ya identifica la carrera). El nombre es «Etapa · fecha»; en un
+// challenge, la etapa o la carrera de cada jornada.
+function buildCompetitionCard(rd, { race, title, flag, tooltipName }) {
+  const date = formatDateShort(rd.dateKey);
+  const name = `<span>${title ? `${title} <span class="race-card__sep">·</span> ${date}` : date}</span>`;
 
-function waitingResultsHtml() {
-  return renderWaitingResults(getLang());
-}
-function competitionScheduleHtml(rd, state, startTU, finishTU) {
-  const schedule = agendaMetaState(state, {
-    start: startTU?.display,
-    finish: finishTU?.display,
-    lang: getLang(),
-    isTimeTrial: rd.primaryType === 'itt' || rd.primaryType === 'ttt',
+  if (rd.isRestDay) {
+    const card = createRaceCard(race.colorHex, 'race-card--rest-day');
+    const city = rd.startLocation ? `<span class="race-card__sep">·</span><span class="race-card__route">${rdLocation(rd, 'startLocation')}</span>` : '';
+    card.innerHTML = raceCardHtml({ name: `<span>${date}</span>`, sub: `<span class="race-card__stage">${t('stage.restDay')}</span>${city}` });
+    return card;
+  }
+
+  const { km, elev } = formatStageMetrics(rd);
+  const startTU = formatTimeUser(rd.neutralStartTimeUtc);
+  const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
+  const state = todayRaceState(rd);
+  const showResults = state === 'results';
+  const waiting = state === 'waiting';
+  const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
+  const metaState = agendaMetaState(state, { start: startTU?.display, finish: finishTU?.display, lang: getLang(), isTimeTrial });
+  // Fila de badges bajo el nombre (paridad iOS): Cancelada → Tipo → TV →
+  // Orden de salida. Una jornada cancelada no tiene tipo ni emisión.
+  const tvHtml = (showResults || waiting || rd.isCancelledDay) ? ''
+    : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
+  const startOrderHtml = isTimeTrial && rd._assets?.some(a => a.url && a.type === 'startOrder') && !rd.isCancelledDay && !showResults && !waiting
+    ? startOrderBadgeHtml(startOrderUrl(rd)) : '';
+
+  const card = createRaceCard(race.colorHex);
+  card.dataset.dayId = rd.id;
+  card.innerHTML = raceCardHtml({
+    name,
+    sub: stageSubHtml({ route: stageRouteText(rd, rdLocation), km, elev }),
+    badges: `${rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.stageCancelledBadge')}</span>` : ''}${tvHtml}${startOrderHtml}`,
+    meta: showResults || rd.isCancelledDay ? '' : scheduleHtml(metaState, startTU, finishTU),
   });
-  if (schedule.kind === 'waiting') return waitingResultsHtml();
-  if (schedule.kind !== 'schedule') return '';
-  const tooltip = (schedule.time === 'finish' ? finishTU : startTU)?.tooltip;
-  const title = tooltip ? ` title="${getLang() === 'en' ? 'Madrid time' : 'Hora Madrid'} · ${esc(tooltip)}"` : '';
-  return `<div class="race-card__schedule${schedule.time === 'finish' ? ' race-card__schedule--finish' : ''}"${title}><span>${schedule.label}</span><strong>${schedule.value}</strong></div>`;
+  // Sin miniperfil, el tipo de etapa comunica el terreno; con él, solo CRI/CRE.
+  const hasProfile = appendProfile(card, rd);
+  if (!rd.isCancelledDay && rd.primaryType && (!hasProfile || isTimeTrial)) {
+    card.querySelector('.race-card__badges').insertAdjacentHTML('afterbegin',
+      `<span class="race-card__types--inline">${resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode)}</span>`);
+  }
+  if (showResults) {
+    appendResultsActions(card, rd, {
+      onResults: () => openResultsModal(rd, race),
+      onYoutube: ytId => openYoutubeTvModal(rd, race, ytId),
+    });
+  }
+  // La jornada cancelada SÍ abre su modal: conserva recorrido, distancia,
+  // tipo y descripción de la etapa que estaba trazada.
+  const tooltipSub = title ? `${title} · ${date}` : date;
+  activateStageCard(card, rd, {
+    clickable: stageIsClickable(rd, race.isNoClickable),
+    label: [tooltipName, title, date].filter(Boolean).join(' · '),
+    seoText: [tooltipName, title].filter(Boolean).join(' · '),
+    onModal: hasModalData(rd) ? () => openRaceDataModal(rd, race) : null,
+    tooltip: {
+      message: rd.isCancelledDay ? t('stage.stageCancelledTooltip') : noExtraInfoMessage(rd.dateKey),
+      name: tooltipName, flag, sub: tooltipSub,
+    },
+  });
+  return card;
 }
+
+// Las tarjetas se construyen como DOM (con sus listeners) y se insertan en el
+// hueco que deja el HTML de la página.
+function mountCompetitionCards(content, cards) {
+  content.querySelector('[data-stage-list]')?.append(...cards);
+}
+
+// Una jornada que pasa a «Esperando resultados» sin recargar la página pierde
+// el horario y la emisión.
 function watchCompetitionWaiting(content, days) {
   content._waitingCleanup?.();
   const byId = new Map(days.map(day => [day.id,day]));
@@ -101,8 +128,8 @@ function watchCompetitionWaiting(content, days) {
     content.querySelectorAll('[data-day-id]').forEach(card => {
       const day = byId.get(card.dataset.dayId), meta = card.querySelector('.race-card__meta-top');
       if (day && todayRaceState(day)==='waiting' && meta && !meta.querySelector('.badge--results,.race-card__schedule--waiting')) {
-        meta.innerHTML=waitingResultsHtml();
-        card.querySelector('.race-card__actions')?.remove();
+        meta.innerHTML=renderWaitingResults(getLang());
+        card.querySelectorAll('.race-card__badges :is(.badge--tv,.badge--livetext,.badge--notv,.badge--notv-es,.badge--pend,.badge--startorder)').forEach(node => node.remove());
       }
     });
   };
@@ -112,43 +139,17 @@ function watchCompetitionWaiting(content, days) {
   content._waitingCleanup=cleanup;
   window.addEventListener('pagehide',cleanup,{once:true});
 }
-// Cablea el badge "Resultados" con un listener DIRECTO (no delegado): el badge
-// vive dentro de una fila con onclick→jornada, así que necesita stopPropagation
-// propio. Antes el inline stopPropagation mataba también el handler delegado →
-// el botón no hacía nada. openResultsModal decide: in-house → va a /resultados/.
-// raceFor: o un objeto carrera fijo (vista de una carrera) o una función
-// (rd) => raceObj (vista de grupo, cada fila lleva su propia carrera).
-function _wireResultsBadges(container, rdMap, raceFor) {
-  container.querySelectorAll('.badge--results[data-results-rdid]').forEach(btn => {
-    if (btn.dataset.wired) return;
-    btn.dataset.wired = '1';
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const rd = rdMap[btn.dataset.resultsRdid];
-      if (!rd) return;
-      const raceObj = typeof raceFor === 'function' ? raceFor(rd) : raceFor;
-      openResultsModal(rd, raceObj);
-    });
+
+// El badge de TV de race-assets.js abre el reproductor integrado por delegación.
+function wireTvEmbeds(content, rdMap, raceFor) {
+  content.addEventListener('click', e => {
+    const embedBadge = e.target.closest('[data-tv-embed][data-tv-rd-id]');
+    if (!embedBadge) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rd = rdMap[embedBadge.dataset.tvRdId];
+    if (rd) openBroadcastTvModal(rd, raceFor(rd), embedBadge.href);
   });
-}
-function _resultsBadgesC(rd) {
-  const reviveBcast = (rd._broadcasts || [])
-    .filter(isReviveBroadcast)
-    .sort((a, b) => {
-      const aSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(a.url || '') ? 0 : 1;
-      const bSoc = /youtube\.com|youtu\.be|facebook\.com/i.test(b.url || '') ? 0 : 1;
-      if (aSoc !== bSoc) return aSoc - bSoc;
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    })[0] ?? null;
-  const reviveUrl = reviveBcast?.url;
-  const reviveYtId = reviveUrl && reviveBcast.embeddable !== false ? extractYouTubeId(reviveUrl) : null;
-  // El listener se cablea directamente sobre el botón tras el render (wireResultsBadges):
-  // stopPropagation ahí evita el onclick de fila (→ jornada) Y permite ir a resultados.
-  const resultsBadge = `<button type="button" class="badge badge--results badge--icon" data-results-rdid="${rd.id}" title="${t('stage.results')}" aria-label="${t('stage.results')}">${_trophySvgC}<span class="badge__label">${t('stage.results')}</span></button>`;
-  const reviveBadge = reviveUrl
-    ? `<a class="badge badge--tv badge--tv-link badge--revive badge--icon" href="${reviveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${t('tv.reviveRace')}" aria-label="${t('tv.reviveRace')}"${reviveYtId ? ` data-yt-id="${reviveYtId}" data-yt-rd-id="${rd.id}"` : ''}>${_tvSvgC}<span class="badge__label">${t('tv.reviveRace')}</span></a>`
-    : '';
-  return resultsBadge + reviveBadge;
 }
 
 // tvBadge vive en ./race-assets.js (importado arriba). Los botones de assets ya
@@ -179,7 +180,7 @@ async function init() {
       const qs   = new URLSearchParams();
       if (year) qs.set('year', year);
       if (cat) qs.set('cat', cat);
-      qs.set('vista', 'temporada');
+      writeCalendarParams(qs, getLang(), { view: 'temporada' });
       const _isEnBack = getLang() === 'en';
       backBtn.href = _isEnBack
         ? `${enBase()}/calendar/?${qs}`
@@ -196,7 +197,7 @@ async function init() {
         month = navState.month ?? new Date().getMonth();
         year  = navState.year  ?? new Date().getFullYear();
       }
-      const qs = new URLSearchParams({ vista: 'mes', mes: String(year) + '-' + String(month + 1).padStart(2, '0') });
+      const qs = writeCalendarParams(new URLSearchParams(), getLang(), { view: 'mes', month: String(year) + '-' + String(month + 1).padStart(2, '0') });
       const _isEnBackM = getLang() === 'en';
       backBtn.href = _isEnBackM
         ? `${enBase()}/calendar/?${qs}`
@@ -279,7 +280,6 @@ async function init() {
     annotateDoubleSectors(days);
 
     const flag        = countryFlag(race.countryCode);   // usado en tooltips de etapa (data-ph-flag)
-    const color       = race.colorHex || 'var(--accent)'; // usado por buildElevationSparkline
     const isStageRace = race.raceFormat !== 'one_day';
 
     // Calcular rango de fechas usando los race_days (excluir descansos)
@@ -338,127 +338,17 @@ async function init() {
         <div class="empty-state__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>
         <div class="empty-state__text">${t('stage.noStages')}</div></div>`;
     } else {
-      days.forEach((rd, idx) => {
-        const stage  = stageLabel(rd.stageNumber, rd._stageSuffix);
-        const date   = formatDateShort(rd.dateKey);
-
-        // Jornada de descanso
-        if (rd.isRestDay) {
-          const city = rd.startLocation ? `<span class="race-card__sep">·</span><span class="race-card__route">${rdLocation(rd, 'startLocation')}</span>` : '';
-          html += `<div class="race-card race-card--stage race-card--rest-day" style="--card-color:transparent;margin-bottom:0.5rem;opacity:0.6">
-            <div class="race-card__main">
-              <div class="race-card__name" style="font-size:0.9rem;font-style:italic">${date}</div>
-              <div class="race-card__sub">
-                <span style="font-style:italic">${t('stage.restDay')}</span>${city}
-              </div>
-            </div>
-          </div>`;
-          return;
-        }
-
-        const route  = rd.startLocation ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} › ${rdLocation(rd, 'finishLocation')}`) : '';
-        const _isEnC = getLang() === 'en';
-        const km     = rd.distanceKm ? `${_isEnC ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')} km` : '';
-        const _elevGainC = rd.elevationProfile?.elevationGain;
-        const elev   = _elevGainC != null ? `+${String(Math.round(_elevGainC / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEnC ? ',' : '.')} m` : '';
-        const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-        const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-
-        const typeBadges = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType) : '';
-        const routePart = route ? `<span class="race-card__route">${route}</span>` : '';
-        const kmPart    = km    ? `<span class="race-card__km">${km}</span>` : '';
-        const elevPart  = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
-        // route va en wrapper truncable; km va fijo; sep entre ambos solo si hay los dos
-        const routeWrap = routePart ? `<span class="race-card__route-wrap">${routePart}</span>` : '';
-        const sepRouteKm = (routePart && kmPart) ? `<span class="race-card__sep">·</span>` : '';
-        const sepKmElev  = (kmPart && elevPart) ? `<span class="race-card__sep">·</span>` : '';
-
-        const rdViewableProfile = !!(rd.elevationProfile && !rd.profileNotViewable
-          && Array.isArray(rd.elevationProfile.points) && rd.elevationProfile.points.length >= 2);
-        const rdHasAssets = rdViewableProfile || (rd._assets
-          ? rd._assets.some(a => (a.url || a.filePath) && ['startOrder','roadbook','profile','map','ports'].includes(a.type))
-          : (rd.hasAssets === true));
-        const rdClickable = !race.isNoClickable && rdHasAssets;
-        // La jornada cancelada SÍ abre su modal: conserva recorrido, distancia,
-        // tipo y descripción — describen la etapa que estaba trazada. Antes se
-        // quedaba muerta mientras sus hermanas sí abrían.
-        const rdHasModal  = !rdClickable && hasModalData(rd);
-        const state = todayRaceState(rd);
-        const showResultsC = state === 'results';
-        const hideNoIdsC = state === 'waiting';
-        // Elevation sparkline
-        const _isTimeTrial1 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-        const epSvgHtml1 = rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
-          ? buildElevationSparkline(rd.elevationProfile, rd._hasInhouse ? 1 : 0, rd.id, color, rd.profileSummits ?? [], rd.profileWaypoints ?? []) : null;
-
-        const _startOrderAsset1 = rd._assets ? rd._assets.find(a => a.url && a.type === 'startOrder') : null;
-        const _showStartOrder1 = !!_startOrderAsset1 && _isTimeTrial1 && !rd.isCancelledDay && !showResultsC && !hideNoIdsC;
-        const _startOrderBadgeHtml1 = _showStartOrder1 ? `<a class="badge badge--startorder" href="${startOrderUrl(rd)}" onclick="event.stopPropagation()">${_timerSvgC} ${t('assets.startOrder')}</a>` : '';
-        const todayStr1 = new Date().toISOString().slice(0, 10);
-        const phMsg1 = (!rdClickable && !rdHasModal) ? (rd.isCancelledDay ? t('stage.stageCancelledTooltip') : (rd.dateKey && todayStr1 < rd.dateKey) ? t('stage.noExtraInfoSoon') : t('stage.noExtraInfo')) : '';
-        // Fila unificada de badges bajo el nombre (paridad iOS):
-        // Cancelada → Tipo → TV → Orden salida. El horario va apilado a la derecha.
-        // Cancelada → sin badge de tipo (paridad con Hoy y con las apps).
-        const _showTypeBadge1 = !rd.isCancelledDay && (!epSvgHtml1 || _isTimeTrial1) && !!typeBadges;
-        // Cancelada → sin TV ni Live Texto: no se emitió (paridad con Hoy y apps).
-        const _tvBadgeHtml1 = (showResultsC || hideNoIdsC || rd.isCancelledDay) ? '' : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
-        const _badgeRow1 = `<div class="race-card__badges">`
-          + (rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.stageCancelledBadge')}</span>` : '')
-          + (_showTypeBadge1 ? `<span class="race-card__types--inline">${typeBadges}</span>` : '')
-          + _tvBadgeHtml1
-          + _startOrderBadgeHtml1
-          + `</div>`;
-        const _finishedC1 = showResultsC;
-        html += `<div data-day-id="${esc(rd.id)}" class="race-card race-card--stage${epSvgHtml1 ? ' race-card--elevation' : ''}${rdHasModal ? ' race-card--has-modal' : ''}${_finishedC1 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml1 ? color : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal ? 'cursor:pointer' : 'cursor:default'}"
-          ${rdClickable ? `onclick="location.href='${jornadaUrl(rd)}'"` : rdHasModal ? `data-rdid="${rd.id}"` : `data-ph-tooltip="${phMsg1}" data-ph-flag="${esc(flag)}" data-ph-name="${esc(getRaceName(race))}" data-ph-sub="${esc(stage ? stage + ' · ' + date : date)}"`}>
-          <div class="race-card__main">
-            <div class="race-card__name" style="font-size:0.9rem">${stage ? `${stage}<span class="race-card__sep">·</span>${date}` : date}</div>
-            <div class="race-card__sub">
-              ${routeWrap}${sepRouteKm}${kmPart}${sepKmElev}${elevPart}
-            </div>
-            ${_badgeRow1}
-          </div>
-          <div class="race-card__meta">
-            <div class="race-card__meta-top">
-              ${showResultsC
-                ? _resultsBadgesC(rd)
-                : rd.isCancelledDay ? '' : competitionScheduleHtml(rd, state, startTU, finishTU)}
-            </div>
-          </div>
-          ${epSvgHtml1 || ''}
-        </div>`;
-      });
+      html += `<div data-stage-list style="display:grid;gap:0.5rem"></div>`;
     }
     html += `</div>`;
     const rdMap = {};
     days.forEach(d => { rdMap[d.id] = d; });
 
     content.innerHTML = html;
-    composeCompetitionCards(content);
-    watchCompetitionWaiting(content, Object.values(rdMap));
-    _wireResultsBadges(content, rdMap, race);
-
-    content.addEventListener('click', e => {
-      const embedBadge = e.target.closest('[data-tv-embed][data-tv-rd-id]');
-      if (embedBadge) {
-        e.stopPropagation();
-        e.preventDefault();
-        const rd = rdMap[embedBadge.dataset.tvRdId];
-        if (rd) openBroadcastTvModal(rd, race, embedBadge.href);
-        return;
-      }
-      const ytBadge = e.target.closest('[data-yt-id][data-yt-rd-id]');
-      if (ytBadge) {
-        e.stopPropagation();
-        e.preventDefault();
-        const rd = rdMap[ytBadge.dataset.ytRdId];
-        if (rd) openYoutubeTvModal(rd, race, ytBadge.dataset.ytId);
-        return;
-      }
-      const el = e.target.closest('[data-rdid]');
-      if (!el) return;
-      openRaceDataModal(el.dataset.rdid, race);
-    });
+    const cardOptions = { race, flag, tooltipName: getRaceName(race) };
+    mountCompetitionCards(content, days.map(rd => buildCompetitionCard(rd, { ...cardOptions, title: stageLabel(rd.stageNumber, rd._stageSuffix) })));
+    watchCompetitionWaiting(content, days);
+    wireTvEmbeds(content, rdMap, () => race);
 
     updateSeoCompeticion(race, days);
 
@@ -482,7 +372,8 @@ function formatDayMonth(dateKey, includeMonth) {
 function updateSeoCompeticion(race, days) {
   const BASE_KW = 'calendario ciclismo, ciclismo donde echan, ciclismo por TV, ciclismo streaming, Danibici, Dani Sánchez, calendario ciclismo app, calendario ciclista, horarios carrera ciclismo';
 
-  const name  = race.name || '';
+  const isEn  = getLang() === 'en';
+  const name  = (isEn && race.nameEn) || race.name || '';
   const origName = race.originalName || '';
   const nameWithOrig = origName ? `${name} (${origName})` : name;
   const year  = race.year || new Date().getFullYear();
@@ -516,7 +407,16 @@ function updateSeoCompeticion(race, days) {
     : null;
 
   const title       = `${name} ${year} — ${t('seo.siteName')}`;
-  const description = isOneDay
+  // EN: paridad con race_description_en de tools/site/gen_og_pages.py.
+  const enStart = first ? (multiMonth ? seoDayMonth(first.dateKey, 'en') : String(Number(first.dateKey.slice(8, 10)))) : '';
+  const enEnd   = last ? seoLongDate(last.dateKey, 'en') : '';
+  const description = isEn
+    ? (isOneDay && enEnd
+        ? `${name} ${year} takes place on ${enEnd}. See the route and how to watch on TV and online streaming.`
+        : first && last
+          ? `${name} ${year} runs from ${enStart} to ${enEnd}. See the route, stages and how to watch on TV and online streaming.`
+          : `Route, stages and how to watch ${name} ${year} on TV and online streaming.`)
+    : isOneDay
     ? `${art.charAt(0).toUpperCase() + art.slice(1)} ${nameWithOrig} se disputa el ${fechaFin}. Consulta el recorrido y cómo ver por TV y online streaming.`
     : `${art.charAt(0).toUpperCase() + art.slice(1)} ${nameWithOrig} se disputa del ${fechaInicio} al ${fechaFin}. Consulta el recorrido, etapas y cómo ver por TV y online streaming.`;
   const keywords    = `${BASE_KW}, ${name}, ${name} ${year}${origName ? ', ' + origName : ''}${ciudadSalida ? ', ' + ciudadSalida : ''}${ciudadLlegada ? ', ' + ciudadLlegada : ''}`;
@@ -559,26 +459,16 @@ function updateSeoCompeticion(race, days) {
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.rel = 'canonical'; document.head.appendChild(canon); }
   canon.href = canonicalUrl;
-  ['es', 'x-default'].forEach(lang => {
-    let el = document.querySelector(`link[rel="alternate"][hreflang="${lang}"]`);
-    if (!el) { el = document.createElement('link'); el.rel = 'alternate'; el.hreflang = lang; document.head.appendChild(el); }
-    el.href = canonicalUrl;
-  });
-  if (getLang() !== 'en' && race.slugEn) {
-    const enUrl = `${CONFIG.webOrigin}/en/race/${encodeURIComponent(race.slugEn)}/`;
-    let enEl = document.querySelector('link[rel="alternate"][hreflang="en"]');
-    if (!enEl) { enEl = document.createElement('link'); enEl.rel = 'alternate'; enEl.hreflang = 'en'; document.head.appendChild(enEl); }
-    enEl.href = enUrl;
-  }
-  if (getLang() === 'en' && race.slug) {
-    // Un día → alternate ES a la jornada (espejo del canonical ES).
-    const esUrl = (isOneDay && oneDayRd && oneDayRd.slug)
-      ? `${CONFIG.webOrigin}/jornada/${encodeURIComponent(oneDayRd.slug)}/`
-      : `${CONFIG.webOrigin}/competicion/${encodeURIComponent(race.slug)}/`;
-    let esEl = document.querySelector('link[rel="alternate"][hreflang="es"]');
-    if (!esEl) { esEl = document.createElement('link'); esEl.rel = 'alternate'; esEl.hreflang = 'es'; document.head.appendChild(esEl); }
-    esEl.href = esUrl;
-  }
+  // Alternativas ES/EN. Un día → la pareja de la jornada (espejo del canonical).
+  const oneDayPair = isOneDay && oneDayRd && oneDayRd.slug;
+  const esAlt = oneDayPair
+    ? `${CONFIG.webOrigin}/jornada/${encodeURIComponent(oneDayRd.slug)}/`
+    : race.slug ? `${CONFIG.webOrigin}/competicion/${encodeURIComponent(race.slug)}/` : canonicalUrl;
+  const enSlug = oneDayPair ? oneDayRd.slugEn : race.slugEn;
+  const enAlt = enSlug
+    ? `${CONFIG.webOrigin}/en/${oneDayPair ? 'stage' : 'race'}/${encodeURIComponent(enSlug)}/`
+    : (getLang() === 'en' ? canonicalUrl : null);
+  setHreflangPair(esAlt, enAlt);
 
   // ── JSON-LD SportsEvent ──
   const origin = CONFIG.webOrigin;
@@ -632,7 +522,7 @@ function updateSeoCompeticion(race, days) {
 }
 
 function setJsonLdC(id, obj) {
-  // EN: conservar el JSON-LD en castellano del HTML estático (SEO en español).
+  // EN: conservar el JSON-LD inglés del HTML estático (este constructor es solo ES).
   if (getLang() === 'en') return;
   let el = document.getElementById(id);
   if (!obj) {
@@ -666,7 +556,7 @@ async function loadChallenge(slug, content, params) {
       const qs   = new URLSearchParams();
       if (year) qs.set('year', year);
       if (cat) qs.set('cat', cat);
-      qs.set('vista', 'temporada');
+      writeCalendarParams(qs, getLang(), { view: 'temporada' });
       const _isEnBackCg = getLang() === 'en';
       backBtn.href = _isEnBackCg
         ? `${enBase()}/calendar/?${qs}`
@@ -683,7 +573,7 @@ async function loadChallenge(slug, content, params) {
         month = navState.month ?? new Date().getMonth();
         year  = navState.year  ?? new Date().getFullYear();
       }
-      const qs = new URLSearchParams({ vista: 'mes', mes: String(year) + '-' + String(month + 1).padStart(2, '0') });
+      const qs = writeCalendarParams(new URLSearchParams(), getLang(), { view: 'mes', month: String(year) + '-' + String(month + 1).padStart(2, '0') });
       const _isEnBackCgM = getLang() === 'en';
       backBtn.href = _isEnBackCgM
         ? `${enBase()}/calendar/?${qs}`
@@ -702,8 +592,7 @@ async function loadChallenge(slug, content, params) {
     const cg = cgData[0];
     const color = cg.colorHex || 'var(--accent)';
     const flag  = countryFlag(cg.countryCode);
-    const nameImpliesFemale = n => /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i.test(n);
-    const isFemale = cg.gender === 'female' && !nameImpliesFemale(cg.name || '');
+    const isFemale = needsFemaleMark(cg);
 
     document.title = `${cg.name} — ${t('seo.siteName')}`;
 
@@ -774,86 +663,11 @@ async function loadChallenge(slug, content, params) {
       html += `<div class="empty-state" style="padding:3rem 0">
         <div class="empty-state__text">${t('stage.noRaces')}</div></div>`;
     } else {
-      allDays.forEach(rd => {
-        const stage  = stageLabel(rd.stageNumber, rd._stageSuffix);
-        const date   = formatDateShort(rd.dateKey);
-        const route  = rd.startLocation ? (!rd.finishLocation || rd.startLocation === rd.finishLocation ? rdLocation(rd, 'startLocation') : `${rdLocation(rd, 'startLocation')} › ${rdLocation(rd, 'finishLocation')}`) : '';
-        const _isEnC2 = getLang() === 'en';
-        const km     = rd.distanceKm ? `${_isEnC2 ? String(rd.distanceKm) : String(rd.distanceKm).replace('.', ',')} km` : '';
-        const _elevGainC2 = rd.elevationProfile?.elevationGain;
-        const elev   = _elevGainC2 != null ? `+${String(Math.round(_elevGainC2 / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEnC2 ? ',' : '.')} m` : '';
-        const startTU  = formatTimeUser(rd.neutralStartTimeUtc);
-        const finishTU = formatTimeUser(rd.estimatedFinishTimeUtc);
-        const cardName = stage || rd._raceName || '';
-        const typeBadges = rd.primaryType ? resolveTypeBadges(rd.primaryType, rd.secondaryType) : '';
-        const routePart = route ? `<span class="race-card__route">${route}</span>` : '';
-        const kmPart    = km    ? `<span class="race-card__km">${km}</span>` : '';
-        const elevPart  = elev  ? `<span class="race-card__elev">${elev}</span>` : '';
-        const routeWrap = routePart ? `<span class="race-card__route-wrap">${routePart}</span>` : '';
-        const sepRouteKm = (routePart && kmPart) ? `<span class="race-card__sep">·</span>` : '';
-        const sepKmElev  = (kmPart && elevPart) ? `<span class="race-card__sep">·</span>` : '';
-
-        const rdViewableProfile = !!(rd.elevationProfile && !rd.profileNotViewable
-          && Array.isArray(rd.elevationProfile.points) && rd.elevationProfile.points.length >= 2);
-        const rdHasAssets = rdViewableProfile || (rd._assets
-          ? rd._assets.some(a => (a.url || a.filePath) && ['startOrder','roadbook','profile','map','ports'].includes(a.type))
-          : (rd.hasAssets === true));
-        const rdClickable = !rd._raceIsNoClickable && rdHasAssets;
-        // La jornada cancelada SÍ abre su modal (ver comentario en el bloque de
-        // etapas): conserva recorrido, distancia, tipo y descripción.
-        const rdHasModal2 = !rdClickable && hasModalData(rd);
-        const state = todayRaceState(rd);
-        const showResultsC2 = state === 'results';
-        const waitingResultsC2 = state === 'waiting';
-
-        // Elevation sparkline
-        const _isTimeTrial2 = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-        const rdEpColor2 = rd._colorHex || 'var(--accent)';
-        const epSvgHtml2 = rd.elevationProfile && !rd.profileNotViewable && !rd.isCancelledDay
-          ? buildElevationSparkline(rd.elevationProfile, rd._hasInhouse ? 1 : 0, rd.id, rdEpColor2, rd.profileSummits ?? [], rd.profileWaypoints ?? []) : null;
-
-        const _startOrderAsset2 = rd._assets ? rd._assets.find(a => a.url && a.type === 'startOrder') : null;
-        const _showStartOrder2 = !!_startOrderAsset2 && _isTimeTrial2 && !rd.isCancelledDay && !showResultsC2 && !waitingResultsC2;
-        const _startOrderBadgeHtml2 = _showStartOrder2 ? `<a class="badge badge--startorder" href="${startOrderUrl(rd)}" onclick="event.stopPropagation()">${_timerSvgC} ${t('assets.startOrder')}</a>` : '';
-        const todayStr2 = new Date().toISOString().slice(0, 10);
-        const phMsg2 = (!rdClickable && !rdHasModal2) ? (rd.isCancelledDay ? t('stage.stageCancelledTooltip') : (rd.dateKey && todayStr2 < rd.dateKey) ? t('stage.noExtraInfoSoon') : t('stage.noExtraInfo')) : '';
-        // Fila unificada de badges bajo el nombre (paridad iOS):
-        // Cancelada → Tipo → TV → Orden salida. El horario va apilado a la derecha.
-        // Cancelada → sin badge de tipo (paridad con Hoy y con las apps).
-        const _showTypeBadge2 = !rd.isCancelledDay && (!epSvgHtml2 || _isTimeTrial2) && !!typeBadges;
-        // Cancelada → sin TV ni Live Texto: no se emitió (paridad con Hoy y apps).
-        const _tvBadgeHtml2 = (showResultsC2 || waitingResultsC2 || rd.isCancelledDay) ? '' : tvBadge(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd.id, rd._tvBlocked);
-        const _badgeRow2 = `<div class="race-card__badges">`
-          + (rd.isCancelledDay ? `<span class="badge badge--cancelled-day">${t('stage.stageCancelledBadge')}</span>` : '')
-          + (_showTypeBadge2 ? `<span class="race-card__types--inline">${typeBadges}</span>` : '')
-          + _tvBadgeHtml2
-          + _startOrderBadgeHtml2
-          + `</div>`;
-        html += `<div data-day-id="${esc(rd.id)}" class="race-card race-card--stage${epSvgHtml2 ? ' race-card--elevation' : ''}${rdHasModal2 ? ' race-card--has-modal' : ''}${showResultsC2 ? ' race-card--finished' : ''}" style="--card-color:${epSvgHtml2 ? rdEpColor2 : 'transparent'};margin-bottom:0.5rem;${rdClickable || rdHasModal2 ? 'cursor:pointer' : 'cursor:default'}"
-          ${rdClickable ? `onclick="location.href='${jornadaUrl(rd)}'"` : rdHasModal2 ? `data-rdid="${rd.id}"` : `data-ph-tooltip="${phMsg2}" data-ph-flag="${esc(flag)}" data-ph-name="${esc(rd._raceName || '')}" data-ph-sub="${esc(cardName ? cardName + ' · ' + date : date)}"`}>
-          <div class="race-card__main">
-            <div class="race-card__name" style="font-size:0.9rem">${cardName ? `${cardName}<span class="race-card__sep">·</span>${date}` : date}</div>
-            <div class="race-card__sub">
-              ${routeWrap}${sepRouteKm}${kmPart}${sepKmElev}${elevPart}
-            </div>
-            ${_badgeRow2}
-          </div>
-          <div class="race-card__meta">
-            <div class="race-card__meta-top">
-              ${showResultsC2
-                ? _resultsBadgesC(rd, rdClickable)
-                : rd.isCancelledDay ? '' : competitionScheduleHtml(rd, state, startTU, finishTU)}
-            </div>
-          </div>
-          ${epSvgHtml2 || ''}
-        </div>`;
-      });
+      html += `<div data-stage-list style="display:grid;gap:0.5rem"></div>`;
     }
 
     html += '</div>';
     content.innerHTML = html;
-    composeCompetitionCards(content);
-    watchCompetitionWaiting(content, allDays);
 
     const rdMap2 = {};
     allDays.forEach(d => { rdMap2[d.id] = d; });
@@ -863,31 +677,14 @@ async function loadChallenge(slug, content, params) {
       name: rd2._raceName || '', gender: rd2._raceGender,
       countryCode: rd2._raceCountryCode, hideFlag: rd2._raceHideFlag,
       slug: rd2._raceSlug, slugEn: rd2._raceSlugEn,
+      colorHex: rd2._colorHex, isNoClickable: rd2._raceIsNoClickable,
     });
-    _wireResultsBadges(content, rdMap2, _raceObjOf);
-    content.addEventListener('click', e => {
-      const embedBadge2 = e.target.closest('[data-tv-embed][data-tv-rd-id]');
-      if (embedBadge2) {
-        e.stopPropagation();
-        e.preventDefault();
-        const rd2 = rdMap2[embedBadge2.dataset.tvRdId];
-        if (rd2) openBroadcastTvModal(rd2, _raceObjOf(rd2), embedBadge2.href);
-        return;
-      }
-      const ytBadge2 = e.target.closest('[data-yt-id][data-yt-rd-id]');
-      if (ytBadge2) {
-        e.stopPropagation();
-        e.preventDefault();
-        const rd2 = rdMap2[ytBadge2.dataset.ytRdId];
-        if (rd2) openYoutubeTvModal(rd2, _raceObjOf(rd2), ytBadge2.dataset.ytId);
-        return;
-      }
-      const el = e.target.closest('[data-rdid]');
-      if (!el) return;
-      const rd2 = rdMap2[el.dataset.rdid];
-      const raceObj2 = rd2 ? { name: rd2._raceName || '', gender: rd2._raceGender, countryCode: rd2._raceCountryCode, hideFlag: rd2._raceHideFlag } : { name: '' };
-      openRaceDataModal(el.dataset.rdid, raceObj2);
-    });
+    mountCompetitionCards(content, allDays.map(rd => buildCompetitionCard(rd, {
+      race: _raceObjOf(rd), flag, tooltipName: rd._raceName || '',
+      title: stageLabel(rd.stageNumber, rd._stageSuffix) || rd._raceName || '',
+    })));
+    watchCompetitionWaiting(content, allDays);
+    wireTvEmbeds(content, rdMap2, _raceObjOf);
 
   } catch (err) {
     content.innerHTML = errorHTML(t('race.errorChallenge'));

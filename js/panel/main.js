@@ -4,8 +4,8 @@
 
 import {
   panelDayNavigationHtml, wirePanelDayNavigation,
-} from './catalog-ui.js?v=20260912cxcohesion';
-import { openCxRaceEditor } from './cx.js?v=20260927foldname';
+} from './catalog-ui.js';
+import { openCxRaceEditor } from './cx.js';
 import { supabase } from '../shared.js';
 import { madridDateKey } from '../services/timezone.js';
 import { panelState } from './state.js';
@@ -17,8 +17,6 @@ import { openEditor } from './jornada-editor.js';
 import { openRaceModal, setupModals } from './race-picker.js';
 import { setupRacesView } from './races-view.js';
 import { fetchTeams, openTeamEditor } from './teams.js';
-// Sin referencias desde otros módulos; se importa para conservar su carga.
-import './jersey-detector.js';
 
 // ── Guard de autenticación ────────────────────────────────────────
 // Antes de expulsar al login, conservar el deep-link (?edit=…, #analytics…)
@@ -52,7 +50,6 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => supabase.auth.signOut());
-document.getElementById('logoutBtnMobile')?.addEventListener('click', () => supabase.auth.signOut());
 
 // Activa una pestaña del editor de jornada cuando exista. El editor carga
 // la jornada por red, así que con un deep-link (?edit=…&tab=mas / ?perfil=…)

@@ -13,13 +13,6 @@ describe('ventanas de recogida por final estimado UCI',()=>{
     expect(decide(f,'2026-11-01T16:00:00Z')).toMatchObject({due:true,temporalState:'estimated_finished'});
     expect(f.manga.resultsStatus).toBe('pending');
   });
-  it('usa la duración de cada categoría y el formato agrupado verificado',()=>{
-    const expected={ME:60,WE:50,MU:50,WU:45,MJ:40,WJ:40};
-    for(const [category,minutes] of Object.entries(expected)){
-      const f=fixture(category);expect(Date.parse(decide(f,'2026-11-01T16:00:00Z').estimatedEndTimeUtc)-Date.parse(f.manga.startTimeUtc)).toBe(minutes*60000);
-    }
-    const f=fixture('WE');f.manga.durationFormat='WE_WJ';expect(decide(f,'2026-11-01T16:00:00Z').estimatedEndTimeUtc).toBe('2026-11-01T14:45:00.000Z');
-  });
   it('usa la fecha DataRide cuando falta salida, formato o versión y no inventa una llegada',()=>{
     for(const key of ['startTimeUtc','durationFormat','durationRuleVersion']){
       const f=fixture();f.manga[key]=null;

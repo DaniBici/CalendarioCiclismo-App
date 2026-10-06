@@ -1,4 +1,5 @@
-.claude/
+.claude/*
+!.claude/skills
 .mcp.json
 
 # macOS
@@ -156,6 +157,8 @@ docs/design/**/*.ttf
 docs/design/**/*.otf
 docs/design/**/*.pdf
 docs/design/**/*.zip
+docs/design/**/*.mp4
+docs/design/**/*.mov
 !docs/design/android-ic-notification-antes-despues.png
 !docs/design/cc-cx-icono-menu/preview.png
 !docs/design/cc-cx-icono-moixent/preview.png

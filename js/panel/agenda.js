@@ -2,7 +2,7 @@
 //  PANEL DE ADMINISTRACIÓN — Catálogo de carreras en memoria y agenda diaria (sidebar)
 // ─────────────────────────────────────────────────────────────────
 
-import { panelAgendaItemHtml } from './catalog-ui.js?v=20260912cxcohesion';
+import { panelAgendaItemHtml } from './catalog-ui.js';
 import { mountFeaturedEditor } from './race-presentation.js';
 import {
   supabase, countryFlag, stageLabel, esc, genderRank, grandTourRank, tsSeconds,
@@ -118,7 +118,7 @@ export async function loadSidebar() {
   const request = ++sidebarRequest, dateKey = panelState.currentDateKey;
   const list = document.getElementById('sidebarList');
   list._featuredMount = null;
-  list.innerHTML = '<div style="padding:1rem;font-size:0.8rem;color:var(--text-dim)">Cargando…</div>';
+  list.innerHTML = '<div class="u-p-100 u-fs-080 u-c-dim">Cargando…</div>';
 
   try {
     const days = await loadPanelAgendaDay(dateKey);
@@ -130,7 +130,7 @@ export async function loadSidebar() {
   } catch (err) {
     if (request !== sidebarRequest) return;
     console.error(err);
-    list.innerHTML = `<div style="padding:1rem;color:#e84747;font-size:0.8rem">Error al cargar</div>`;
+    list.innerHTML = `<div class="u-p-100 u-c-error u-fs-080">Error al cargar</div>`;
   }
 }
 
@@ -172,7 +172,7 @@ export async function loadPanelAgendaDay(dateKey) {
     return days;
 }
 
-export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace,onlyFirstStageDay=false,hideStageLabel=false,hideCompletenessGroups=false}) {
+export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace,onlyFirstStageDay=false,hideStageLabel=false}) {
     list.innerHTML = '';
 
     const visibleDays = onlyFirstStageDay
@@ -181,60 +181,27 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
           || firstDayRows.findIndex(candidate => candidate.raceId === rd.raceId) === index)
       : days;
 
-    if (visibleDays.length === 0) {
-      list.innerHTML = '';
-    } else {
+    visibleDays.forEach(rd => {
+      const item = document.createElement('div');
+      item.className = 'sidebar-item' + (onRaceDay === openEditor && rd.id === panelState.currentRaceDayId ? ' active' : '');
+      item.dataset.raceId = rd.raceId;
+      item.dataset.raceName = rd._race.name || 'Sin carrera';
 
-    const getSidebarGroup = (rd) => {
-      if (rd.editorialStatus !== 'published') return 'draft';
-      const incomplete = !rd.description?.trim() || !rd.hasAssets || rd._race.isNoClickable;
-      return incomplete ? 'incomplete' : 'published';
-    };
+      const cc    = effectiveCountryCode(rd, rd._race);
+      const flag  = countryFlag(cc);
+      const name  = rd._race.name || rd._race.abbrev || 'Sin carrera';
+      const stage = hideStageLabel ? '' : stageLabel(rd.stageNumber, rd._stageSuffix);
+      const catBadge  = categoryBadge(rd._race.uciCategory, rd._race.gender === 'female' && !nameImpliesFemale(rd._race.name || ''));
+      const statusBadge = rd.isRestDay
+        ? '<span class="badge badge--type-rest">Descanso</span>'
+        : rd.isCancelledDay
+          ? '<span class="badge badge--type-cancelled">Cancelada</span>'
+          : '';
 
-    const groups = [
-      { key: 'published',  label: 'Completas'     },
-      { key: 'incomplete', label: 'Simplificadas' },
-      { key: 'draft',      label: 'Borrador'      },
-    ];
-
-    const renderDays = (groupDays) => groupDays.forEach(rd => {
-        const item = document.createElement('div');
-        item.className = 'sidebar-item' + (onRaceDay === openEditor && rd.id === panelState.currentRaceDayId ? ' active' : '');
-        item.dataset.raceId = rd.raceId;
-        item.dataset.raceName = rd._race.name || 'Sin carrera';
-
-        const cc    = effectiveCountryCode(rd, rd._race);
-        const flag  = countryFlag(cc);
-        const name  = rd._race.name || rd._race.abbrev || 'Sin carrera';
-        const stage = hideStageLabel ? '' : stageLabel(rd.stageNumber, rd._stageSuffix);
-        const catBadge  = categoryBadge(rd._race.uciCategory, rd._race.gender === 'female' && !nameImpliesFemale(rd._race.name || ''));
-        const statusBadge = rd.isRestDay
-          ? '<span class="badge badge--type-rest">Descanso</span>'
-          : rd.isCancelledDay
-            ? '<span class="badge badge--type-cancelled">Cancelada</span>'
-            : '';
-
-        item.innerHTML = panelAgendaItemHtml({flagHtml:flag,name,detailHtml:esc(stage),badgesHtml:catBadge+(statusBadge ? ' '+statusBadge : '')});
-        item.addEventListener('click', () => onRaceDay(rd.id,rd.raceId));
-        list.appendChild(item);
-      });
-
-    if (hideCompletenessGroups) {
-      renderDays(visibleDays);
-    } else {
-      groups.forEach(({ key, label }) => {
-        const groupDays = visibleDays.filter(rd => getSidebarGroup(rd) === key);
-        if (groupDays.length === 0) return;
-
-        const header = document.createElement('div');
-        header.className = 'sidebar-group-label';
-        header.textContent = label;
-        list.appendChild(header);
-        renderDays(groupDays);
-      });
-    }
-
-    } // end if visibleDays.length > 0
+      item.innerHTML = panelAgendaItemHtml({flagHtml:flag,name,detailHtml:esc(stage),badgesHtml:catBadge+(statusBadge ? ' '+statusBadge : '')});
+      item.addEventListener('click', () => onRaceDay(rd.id,rd.raceId));
+      list.appendChild(item);
+    });
 
     // Carreras sin jornada asignada en este día
     const pending = getRaceSuggestionsForDate(dateKey,new Set(days.map(d=>d.raceId)))
@@ -263,8 +230,7 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
         list.appendChild(item);
       });
     } else if (list.innerHTML === '') {
-      list.innerHTML = `<div style="padding:1.5rem 1rem;text-align:center;
-        color:var(--text-muted);font-size:0.8rem">No hay jornadas para este día</div>`;
+      list.innerHTML = `<div class="panel-empty u-px-100">No hay jornadas para este día</div>`;
     }
 
 }

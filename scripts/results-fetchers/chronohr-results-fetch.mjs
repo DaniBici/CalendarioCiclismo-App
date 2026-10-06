@@ -10,6 +10,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const PUBLIC_BASE = 'https://chrono.hr/races';
 const RAW_BASE = 'https://chrono.hr/races-raw';
@@ -37,15 +38,6 @@ export function parseCode(value) {
     throw new Error('--code debe tener el formato YYYYMMDD_slug de chrono.hr');
   }
   return code;
-}
-
-export function fnv1a(value) {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index++) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
 }
 
 const negativeId = (value, modulo) => -((fnv1a(value) % modulo) + 1);

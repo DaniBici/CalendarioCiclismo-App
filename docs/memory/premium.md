@@ -26,7 +26,7 @@ Los productos Premium históricos se consultan solo para restauración y reconoc
 ## Estados
 
 - `isSubscribed`: membresía Amigo activa. No controla funciones.
-- `isLegacyPremiumActive`: Premium histórico todavía vigente. Impide ofrecer otra suscripción durante el periodo pagado.
+- `isLegacyPremiumActive` (Android) / `legacyPremiumEntitlementActive` (iOS): Premium histórico todavía vigente. Impide ofrecer otra suscripción durante el periodo pagado y excluye del aviso de uso posterior.
 - `isFounder`: existe una compra Premium histórica no revocada. Es permanente aunque expire.
 - `supporterIcon`: `default`, `founder` o `friend`. El icono Amigo solo está disponible con membresía activa; Fundador permanece disponible.
 - `contributionCount`: confirmación local para mostrar el agradecimiento por consumibles.
@@ -43,7 +43,8 @@ Los productos Premium históricos se consultan solo para restauración y reconoc
 ## Presentación
 
 - La pantalla de sostenimiento explica que la app es gratuita, abierta y sin anuncios.
-- La versión 4.3 usa el gate nuevo `support_intro_v4_3_done` para mostrar una vez el anuncio a todas las instalaciones. Una clave de audiencia fijada antes del primer paso distingue instalaciones nuevas de actualizaciones: las primeras explican el sostenimiento y la autoría, mientras que las actualizaciones explican la retirada de publicidad y Fundador.
+- La hoja de apoyo es `SupportSheet` (Android) y `SupportView` (iOS). `PremiumService.presentSupport()` la abre desde la presentación inicial (`SupportIntroOnboarding*`), la tarjeta de Ajustes y el aviso de uso posterior.
+- La versión 4.3 usa el gate `support_intro_v4_3_1_done` (misma clave en iOS y Android) para mostrar una vez el anuncio a todas las instalaciones. Una clave de audiencia fijada antes del primer paso distingue instalaciones nuevas de actualizaciones: las primeras explican el sostenimiento y la autoría, mientras que las actualizaciones explican la retirada de publicidad y Fundador.
 - El onboarding espera a la primera comprobación de compras antes de ofrecer Amigo; con Premium vigente o Amigo activo prioriza Continuar y no ofrece una alta duplicada.
 - Ajustes contiene un enlace breve a `/apoyar/` o `/en/support/`; la explicación extensa no se duplica dentro de la app.
 - Original, Fundador y Amigo se mantienen como composiciones por capas de Icon Composer; la selección siempre es expresa.

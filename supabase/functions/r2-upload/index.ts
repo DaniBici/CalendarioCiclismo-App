@@ -3,6 +3,7 @@
 //  Proxy de subida/borrado/listado de archivos en Cloudflare R2.
 //  Evita exponer credenciales R2 en el cliente y elimina problemas
 //  de CORS al hacer fetch directo al endpoint S3 de R2.
+//  Solo administradores (private.admin_users, vía RPC public.is_admin).
 //
 //  Variables de entorno necesarias (Supabase Dashboard → Settings → Edge Functions):
 //    R2_ENDPOINT   — https://<account>.r2.cloudflarestorage.com
@@ -78,17 +79,23 @@ async function signRequest(
   return `AWS4-HMAC-SHA256 Credential=${accessKey}/${credScope}, SignedHeaders=${sortedSignedHeaders}, Signature=${signature}`;
 }
 
-// ── Verify Supabase JWT ──────────────────────────────────────────
-async function verifyAuth(req: Request): Promise<boolean> {
+// ── Verify Supabase JWT + administración ────────────────────────
+// Una sesión válida no basta: el usuario debe figurar en
+// private.admin_users. public.is_admin() se consulta con el JWT del propio
+// usuario y por GET (el pre-request de PostgREST solo bloquea escrituras).
+// Cualquier error o respuesta distinta de true se trata como no admin.
+async function verifyAuth(req: Request): Promise<401 | 403 | null> {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return false;
+  if (!authHeader) return 401;
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
+    { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
   );
   const { data: { user } } = await supabase.auth.getUser();
-  return !!user;
+  if (!user) return 401;
+  const { data: isAdmin, error } = await supabase.rpc('is_admin', undefined, { get: true });
+  return !error && isAdmin === true ? null : 403;
 }
 
 function jsonRes(body: Record<string, unknown>, status: number) {
@@ -104,10 +111,10 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // Auth check
-  if (!(await verifyAuth(req))) {
-    return jsonRes({ error: 'No autorizado' }, 401);
-  }
+  // Auth check: cubre todas las acciones, incluida la firma de URL PUT.
+  const authStatus = await verifyAuth(req);
+  if (authStatus === 401) return jsonRes({ error: 'No autorizado' }, 401);
+  if (authStatus === 403) return jsonRes({ error: 'La operación requiere permisos de administración' }, 403);
 
   const R2_ENDPOINT  = Deno.env.get('R2_ENDPOINT')!;
   const R2_BUCKET    = Deno.env.get('R2_BUCKET')!;

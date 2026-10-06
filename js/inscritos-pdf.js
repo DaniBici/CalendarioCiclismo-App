@@ -5,7 +5,9 @@
 //               latino) para UTF-8; si falla, Helvetica sin diacríticos.
 //
 //  Estética: réplica en tema claro de la página /inscritos/ (cabecera de la
-//  web, cabecera de carrera y rejilla de equipos).
+//  web, cabecera de carrera y rejilla de equipos). La opción `identity` cambia
+//  nombre, logotipo, tipografías, colores y dominio para generar el mismo PDF
+//  con la imagen de otra web; sin ella, el PDF es el de Calendario Ciclismo.
 //  Maquetación: rejilla de 4 columnas por filas en orden de lectura. Cada fila
 //  toma la altura de su equipo más largo y, si no cabe, salta a una página
 //  nueva; no se descarta ningún equipo. Un equipo con más corredores de los
@@ -17,7 +19,7 @@ import { isNoTeamPlaceholderTeam } from './shared.js';
 import { flagIconUrl } from './flag-url.js';
 
 let jsPDFPromise = null;
-let fontsPromise = null;
+const fontsPromises = new Map();   // URL de los TTF → promesa con su base64
 
 const JSPDF_URLS = [
   'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
@@ -28,6 +30,51 @@ const JSPDF_URLS = [
 // Autoalojados: las URLs versionadas de fonts.gstatic.com caducan.
 const FONT_BASE = (typeof CONFIG !== 'undefined' && CONFIG.basePath) || '';
 const FONT_WEIGHTS = ['Regular', 'Medium', 'Bold'];
+const FONT_STYLES = ['normal', 'medium', 'bold'];
+
+// Identidad por defecto: la de Calendario Ciclismo. Otra web pasa la suya en
+// `identity` (mismas claves; `colors` se combina con estos).
+//   siteName   nombre en la cabecera de cada página y creador del documento
+//   logoUrl    imagen del logotipo de la cabecera; sin ella, los iconos de
+//              calendario y bicicleta de la cabecera web
+//   logoHeight alto del logotipo en mm
+//   fonts      { family, files: [regular, medium, bold] }: TTF (no WOFF2)
+//   nameFont   { family, file }: TTF opcional para el nombre de la cabecera
+//   colors     tokens del tema claro
+//   host       texto del enlace del pie; por defecto, el dominio de la página
+//   generatedDate  si la cabecera de la primera página lleva «Generado el …» (por
+//              defecto, sí); sin ella, el PDF no cambia de un día a otro
+//   headerText texto a la derecha de la cabecera de la web en todas las páginas;
+//              por defecto, la fecha en la primera y el nombre de la carrera en las demás
+//   raceHeader si va la cabecera de la carrera (logotipo, bandera, nombre,
+//              fechas y cifras) bajo la de la web; por defecto, sí
+//   pageNumbers si el pie lleva «Página n de m»; por defecto, sí
+const CC_IDENTITY = {
+  siteName: 'Calendario Ciclismo',
+  logoUrl: null,
+  logoHeight: 4.4,
+  fonts: { family: 'GoogleSans', files: FONT_WEIGHTS.map(w => `${FONT_BASE}/fonts/pdf/GoogleSans-${w}.ttf`) },
+  nameFont: null,
+  colors: {
+    text: '#1f1f1f',
+    textMuted: '#5f6368',
+    textDim: '#63686d',
+    accent: '#1a73e8',
+    border: '#d8dee8',
+    headerNeutral: '#e9edf3',   // --bg-card-hover
+    dorsalBg: '#eeeff2',        // --dorsal-bg-a
+    riderText: null,            // nombre del corredor; sin valor, el de text
+  },
+  host: null,
+  generatedDate: true,
+  headerText: null,
+  raceHeader: true,
+  pageNumbers: true,
+};
+
+function resolveIdentity(identity) {
+  return { ...CC_IDENTITY, ...identity, colors: { ...CC_IDENTITY.colors, ...identity?.colors } };
+}
 
 const IMAGE_TIMEOUT_MS = 5000;
 
@@ -63,43 +110,58 @@ async function fetchFontBase64(url) {
   return btoa(binary);
 }
 
-// Preload fonts into memory (cached, retries on failure)
-function preloadFonts() {
-  if (fontsPromise) return fontsPromise;
-  fontsPromise = Promise.all(
-    FONT_WEIGHTS.map(w => fetchFontBase64(`${FONT_BASE}/fonts/pdf/GoogleSans-${w}.ttf`)),
-  ).catch((err) => {
+// Preload fonts into memory (cached per URL list, retries on failure)
+function preloadFonts(files) {
+  const key = files.join('|');
+  if (fontsPromises.has(key)) return fontsPromises.get(key);
+  const promise = Promise.all(files.map(fetchFontBase64)).catch((err) => {
     console.warn('Font preload failed, will retry:', err);
-    fontsPromise = null;
+    fontsPromises.delete(key);
     return null;
   });
-  return fontsPromise;
+  fontsPromises.set(key, promise);
+  return promise;
 }
 
-// Registra Google Sans en el documento. Devuelve la familia a usar y el
-// estilo equivalente al peso 500 de la web ('medium' o 'bold' en Helvetica).
-async function registerFonts(doc) {
-  const fonts = await preloadFonts();
-  if (!fonts || fonts.some(f => !f)) return { family: 'helvetica', medium: 'bold' };
-  try {
-    const styles = ['normal', 'medium', 'bold'];
-    FONT_WEIGHTS.forEach((w, i) => {
-      doc.addFileToVFS(`GoogleSans-${w}.ttf`, fonts[i]);
-      doc.addFont(`GoogleSans-${w}.ttf`, 'GoogleSans', styles[i]);
-    });
-    return { family: 'GoogleSans', medium: 'medium' };
-  } catch {
-    return { family: 'helvetica', medium: 'bold' };
+// Registra las tipografías de la identidad en el documento. Devuelve la
+// familia a usar, el estilo equivalente al peso 500 de la web ('medium' o
+// 'bold' en Helvetica) y la familia del nombre de la cabecera.
+async function registerFonts(doc, identity) {
+  const { family, files } = identity.fonts;
+  const [fonts, nameFont] = await Promise.all([
+    preloadFonts(files),
+    identity.nameFont ? preloadFonts([identity.nameFont.file]) : null,
+  ]);
+  let result = { family: 'helvetica', medium: 'bold', nameFamily: null };
+  if (fonts && !fonts.some(f => !f)) {
+    try {
+      files.forEach((file, i) => {
+        doc.addFileToVFS(`${family}-${FONT_WEIGHTS[i]}.ttf`, fonts[i]);
+        doc.addFont(`${family}-${FONT_WEIGHTS[i]}.ttf`, family, FONT_STYLES[i]);
+      });
+      result = { family, medium: 'medium', nameFamily: null };
+    } catch { /* Helvetica */ }
   }
+  if (nameFont?.[0] && result.family !== 'helvetica') {
+    try {
+      const name = identity.nameFont.family;
+      doc.addFileToVFS(`${name}.ttf`, nameFont[0]);
+      doc.addFont(`${name}.ttf`, name, 'normal');
+      result.nameFamily = name;
+    } catch { /* el nombre va en la familia general */ }
+  }
+  return result;
 }
 
 /**
  * Preload jsPDF + fonts so click-time generation is instant.
  * Call on mouseenter / touchstart of the button.
  */
-export function preload() {
+export function preload(identity) {
+  const id = resolveIdentity(identity);
   loadJsPDF();
-  preloadFonts();
+  preloadFonts(id.fonts.files);
+  if (id.nameFont) preloadFonts([id.nameFont.file]);
 }
 
 // ── Imágenes ─────────────────────────────────────────────────────
@@ -208,15 +270,17 @@ export async function generateStartlistPDF(opts) {
     race, teams, ridersByTeam, heroLabel, heroSubline, totalTeams, totalRiders,
     teamColors = {}, riderOutMap = null, deliver = null,
   } = opts;
+  const identity = resolveIdentity(opts.identity);
 
   const JsPDF = await loadJsPDF();
   const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   // Carga en paralelo: fuentes, logotipo de la carrera y banderas.
   const allRiders = teams.flatMap(team => ridersByTeam[team.id] || []);
-  const [font, raceLogoImg, flags] = await Promise.all([
-    registerFonts(doc),
+  const [font, raceLogoImg, siteLogoImg, flags] = await Promise.all([
+    registerFonts(doc, identity),
     rasterize(race.logoUrl, 480),
+    rasterize(identity.logoUrl, 600),
     loadFlags([race.countryCode, ...allRiders.map(r => r.countryCode)]),
   ]);
   const fontFamily = font.family;
@@ -232,14 +296,9 @@ export async function generateStartlistPDF(opts) {
   const usableW = pageW - margin * 2;
   const contentBottom = pageH - 13;
 
-  // ── Tokens del tema claro de la web (css/app.css) ──
-  const text = '#1f1f1f';
-  const textMuted = '#5f6368';
-  const textDim = '#63686d';
-  const accent = '#1a73e8';
-  const border = '#d8dee8';
-  const headerNeutral = '#e9edf3';   // --bg-card-hover
-  const dorsalBg = '#eeeff2';        // --dorsal-bg-a
+  // ── Tokens del tema claro de la web (css/app.css, o los de la identidad) ──
+  const { text, textMuted, textDim, accent, border, headerNeutral, dorsalBg } = identity.colors;
+  const riderText = identity.colors.riderText || text;
 
   // ── Texto ──
   const raceName = (isEn && race.nameEn) ? race.nameEn : (race.name || i18nT('race.unknown'));
@@ -252,8 +311,8 @@ export async function generateStartlistPDF(opts) {
   const statsText = totalTeams > 0
     ? `${totalTeams} ${teamsWord} · ${totalRiders} ${ridersWord}`
     : `${totalRiders} ${ridersWord}`;
-  const siteName = 'Calendario Ciclismo';
-  const host = window.location.hostname;
+  const siteName = identity.siteName || '';
+  const host = identity.host || window.location.hostname;
   const pageUrl = opts.pageUrl || (window.location.origin + window.location.pathname);
   const generatedText = (isEn ? 'Generated on ' : 'Generado el ')
     + new Date().toLocaleDateString(isEn ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -286,12 +345,22 @@ export async function generateStartlistPDF(opts) {
   const siteHeaderH = 9;
   const drawSiteHeader = (rightText, rightStyle) => {
     const iconSize = 4.4;
-    const iconsW = drawSiteLogoIcons(doc, margin, margin, iconSize, accent);
-    doc.setFont(fontFamily, font.medium);
+    let iconsW;
+    if (siteLogoImg) {
+      // Logotipo de la identidad, centrado en la línea de los iconos.
+      const lh = identity.logoHeight;
+      const lw = siteLogoImg.width * lh / siteLogoImg.height;
+      doc.addImage(siteLogoImg.dataUrl, 'PNG', margin, margin + iconSize / 2 - lh / 2, lw, lh, 'site-logo');
+      iconsW = lw + (siteName ? 2.2 : 0);
+    } else {
+      iconsW = drawSiteLogoIcons(doc, margin, margin, iconSize, accent);
+    }
+    if (font.nameFamily) doc.setFont(font.nameFamily, 'normal');
+    else doc.setFont(fontFamily, font.medium);
     doc.setFontSize(12);
     doc.setTextColor(text);
-    doc.text(siteName, margin + iconsW, margin + iconSize * 0.84);
-    const nameEnd = margin + iconsW + doc.getTextWidth(siteName);
+    if (siteName) doc.text(enc(siteName), margin + iconsW, margin + iconSize * 0.84);
+    const nameEnd = margin + iconsW + (siteName ? doc.getTextWidth(enc(siteName)) : 0);
 
     doc.setFont(fontFamily, rightStyle);
     doc.setFontSize(7.5);
@@ -304,65 +373,68 @@ export async function generateStartlistPDF(opts) {
   };
 
   // ── Página 1: cabecera de la web + cabecera de la carrera ──
-  drawSiteHeader(generatedText, 'normal');
+  drawSiteHeader(identity.headerText ?? (identity.generatedDate ? generatedText : ''), 'normal');
   let y = margin + siteHeaderH + 5;
+  if (!identity.raceHeader) y = margin + siteHeaderH + 4;
+  else {
 
-  // Columna izquierda: logotipo de la carrera y bandera debajo (como la web).
-  const logoMaxH = 14;
-  const logoMaxW = 18;
-  let leftW = 0;
-  let leftH = 0;
-  if (raceLogoImg) {
-    const ratio = Math.min(logoMaxW / raceLogoImg.width, logoMaxH / raceLogoImg.height);
-    const lw = raceLogoImg.width * ratio;
-    const lh = raceLogoImg.height * ratio;
-    leftW = Math.max(lw, 6);
-    doc.addImage(raceLogoImg.dataUrl, 'PNG', margin + (leftW - lw) / 2, y, lw, lh, 'race-logo');
-    leftH = lh;
-  }
-  const flagW = raceLogoImg ? 5.6 : 8;
-  if (race.countryCode && flags.has(String(race.countryCode).toLowerCase())) {
-    const colW = Math.max(leftW, flagW);
-    const flagY = leftH ? y + leftH + 1.4 : y + 1;
-    drawFlag(race.countryCode, margin + (colW - flagW) / 2, flagY, flagW);
-    leftW = colW;
-    leftH = flagY - y + flagW * 0.75;
-  }
-  const textX = leftW ? margin + leftW + 4.5 : margin;
-  const textMaxW = pageW - margin - textX;
+    // Columna izquierda: logotipo de la carrera y bandera debajo (como la web).
+    const logoMaxH = 14;
+    const logoMaxW = 18;
+    let leftW = 0;
+    let leftH = 0;
+    if (raceLogoImg) {
+      const ratio = Math.min(logoMaxW / raceLogoImg.width, logoMaxH / raceLogoImg.height);
+      const lw = raceLogoImg.width * ratio;
+      const lh = raceLogoImg.height * ratio;
+      leftW = Math.max(lw, 6);
+      doc.addImage(raceLogoImg.dataUrl, 'PNG', margin + (leftW - lw) / 2, y, lw, lh, 'race-logo');
+      leftH = lh;
+    }
+    const flagW = raceLogoImg ? 5.6 : 8;
+    if (race.countryCode && flags.has(String(race.countryCode).toLowerCase())) {
+      const colW = Math.max(leftW, flagW);
+      const flagY = leftH ? y + leftH + 1.4 : y + 1;
+      drawFlag(race.countryCode, margin + (colW - flagW) / 2, flagY, flagW);
+      leftW = colW;
+      leftH = flagY - y + flagW * 0.75;
+    }
+    const textX = leftW ? margin + leftW + 4.5 : margin;
+    const textMaxW = pageW - margin - textX;
 
-  // Nombre de la carrera: reduce el cuerpo hasta que quepa (mínimo 14 pt).
-  doc.setFont(fontFamily, 'bold');
-  let nameSize = 22;
-  const nameText = enc(raceName);
-  doc.setFontSize(nameSize);
-  while (nameSize > 14 && doc.getTextWidth(nameText) > textMaxW) {
-    nameSize -= 0.5;
+    // Nombre de la carrera: reduce el cuerpo hasta que quepa (mínimo 14 pt).
+    doc.setFont(fontFamily, 'bold');
+    let nameSize = 22;
+    const nameText = enc(raceName);
     doc.setFontSize(nameSize);
+    while (nameSize > 14 && doc.getTextWidth(nameText) > textMaxW) {
+      nameSize -= 0.5;
+      doc.setFontSize(nameSize);
+    }
+    doc.setTextColor(text);
+    doc.text(fit(nameText, textMaxW), textX, y + nameSize * 0.3);
+
+    // Subtítulo: etiqueta en color de texto + detalle atenuado.
+    let lineY = y + nameSize * 0.3 + 6;
+    doc.setFont(fontFamily, 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(text);
+    const labelText = enc(label);
+    doc.text(labelText, textX, lineY);
+    if (detail) {
+      const labelW = doc.getTextWidth(labelText);
+      doc.setTextColor(textMuted);
+      doc.text(fit(enc(` · ${detail}`), textMaxW - labelW), textX + labelW, lineY);
+    }
+
+    lineY += 4.6;
+    doc.setFont(fontFamily, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(textDim);
+    doc.text(enc(statsText), textX, lineY);
+
+    y = Math.max(y + leftH, lineY + 1.5) + 4;
   }
-  doc.setTextColor(text);
-  doc.text(fit(nameText, textMaxW), textX, y + nameSize * 0.3);
-
-  // Subtítulo: etiqueta en color de texto + detalle atenuado.
-  let lineY = y + nameSize * 0.3 + 6;
-  doc.setFont(fontFamily, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(text);
-  const labelText = enc(label);
-  doc.text(labelText, textX, lineY);
-  if (detail) {
-    const labelW = doc.getTextWidth(labelText);
-    doc.setTextColor(textMuted);
-    doc.text(fit(enc(` · ${detail}`), textMaxW - labelW), textX + labelW, lineY);
-  }
-
-  lineY += 4.6;
-  doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(textDim);
-  doc.text(enc(statsText), textX, lineY);
-
-  y = Math.max(y + leftH, lineY + 1.5) + 4;
 
   if (race.startlistProvisional) {
     const noteLead = isEn ? 'Provisional Startlist' : 'Lista provisional';
@@ -458,14 +530,14 @@ export async function generateStartlistPDF(opts) {
     const last = enc((r.lastName || '').trim());
     doc.setFont(fontFamily, 'normal');
     doc.setFontSize(riderFont);
-    doc.setTextColor(text);
+    doc.setTextColor(riderText);
     let full = [first, last].filter(Boolean).join(' ');
     // Si no cabe, el nombre de pila pasa a inicial antes de recortar.
     if (first && doc.getTextWidth(full) > maxW) full = `${first[0]}. ${last}`;
     const shown = fit(full, maxW);
     doc.text(shown, x, baseY);
     if (out) {
-      doc.setDrawColor(text);
+      doc.setDrawColor(riderText);
       doc.setLineWidth(0.15);
       doc.line(x, baseY - 0.8, x + doc.getTextWidth(shown), baseY - 0.8);
     }
@@ -512,7 +584,7 @@ export async function generateStartlistPDF(opts) {
     const rowH = Math.max(...row.map(blockHeight));
     if (y + rowH > contentBottom) {
       doc.addPage();
-      drawSiteHeader(raceName, font.medium);
+      drawSiteHeader(identity.headerText ?? raceName, font.medium);
       y = contGridTop;
     }
     row.forEach((b, col) => drawBlock(b, margin + col * (colW + gapX), y, rowH));
@@ -528,8 +600,10 @@ export async function generateStartlistPDF(opts) {
     doc.setFontSize(7);
     doc.setTextColor(textDim);
     doc.textWithLink(host, margin, footerY, { url: pageUrl });
-    const pageText = isEn ? `Page ${p} of ${totalPages}` : `Página ${p} de ${totalPages}`;
-    doc.text(pageText, pageW - margin, footerY, { align: 'right' });
+    if (identity.pageNumbers) {
+      const pageText = isEn ? `Page ${p} of ${totalPages}` : `Página ${p} de ${totalPages}`;
+      doc.text(pageText, pageW - margin, footerY, { align: 'right' });
+    }
   }
 
   const safeName = (race.slug || race.name || 'inscritos').replace(/[^a-z0-9-]/gi, '-');

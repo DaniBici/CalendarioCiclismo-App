@@ -123,6 +123,7 @@ import { fileURLToPath } from 'url';
 import { hasPublishableResults } from './results-upsert.mjs';
 import { pendingHistoricalRaceIds } from './historical-identity-log.mjs';
 import { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES, MANUAL_OBSERVATION_PROVIDERS, isProgressiveResultSource } from './result-publication.mjs';
+import { databaseUrl } from '../db/env.mjs';
 export { LIVE_RESULT_SOURCES, COVERED_STAGE_REFRESH_SOURCES, MANUAL_RESULT_SOURCES };
 
 const args = process.argv.slice(2);
@@ -264,6 +265,9 @@ const MANEFFIC_FETCH = join(HERE, 'maneffic-results-fetch.mjs');
 const ISTANBUL_FETCH = join(HERE, 'istanbul-results-fetch.mjs');
 const BORNAN_FETCH = join(HERE, 'bornan-results-fetch.mjs');
 const ATRESULTS_FETCH = join(HERE, 'atresults-results-fetch.mjs');
+const MIKATIMING_FETCH = join(HERE, 'mikatiming-results-fetch.mjs');
+const FICR_FETCH = join(HERE, 'ficr-results-fetch.mjs');
+const LAPCLIP_FETCH = join(HERE, 'lapclip-results-fetch.mjs');
 const SOUTHBOHEMIA_FETCH = join(HERE, 'southbohemia-results-fetch.mjs');
 const UPSERT = join(HERE, 'results-upsert.mjs');
 
@@ -374,6 +378,18 @@ export function isFinalStageDump(targetStage, totalStages, needsFinal = false, i
   return Number(targetStage) === Number(totalStages);
 }
 
+// Etapas que lee el fetcher. La lectura completa de la última etapa recoge la
+// clasificación final de las fuentes que la publican aparte. ASO lee siempre la
+// etapa pedida. AT Results imprime la final en el dossier de la última etapa:
+// basta ese dossier, y un defecto de impresión en un dossier anterior ya cargado
+// (Le Tour de Langkawi 2026, montaña general de la etapa 2 sin el 9.º puesto)
+// no bloquea la etapa final.
+export function stageFetchArgs(kind, targetStage, isFinalStage, totalStages = null) {
+  if (kind === 'ASO') return targetStage == null ? [] : ['--stage', String(targetStage)];
+  if (kind === 'atresults' && isFinalStage && totalStages != null) return ['--stage', String(totalStages)];
+  return targetStage != null && !isFinalStage ? ['--stage', String(targetStage)] : [];
+}
+
 // Argumentos del filtro final de escritura. El fetcher puede devolver más de una
 // jornada (DataRide devuelve 3A y 3B al pedir --stage 3); el upsert es la frontera
 // que garantiza que solo se persista el sector cuya ventana seleccionó el timer.
@@ -451,7 +467,7 @@ function run(script, scriptArgs) {
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  const url = env.DATABASE_URL;
+  const url = databaseUrl(env);
   if (!url) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
   const identityPendingLog = env.HISTORICAL_IDENTITY_PENDING_LOG || null;
   if (HISTORICAL && !identityPendingLog) {
@@ -474,18 +490,28 @@ async function main() {
   const LIVE_STAGE_SUBSELECT = `(SELECT min(d."stageNumber") FROM race_days d
        WHERE d."raceId" = r.id AND d."dateKey" = to_char(now(), 'YYYY-MM-DD')
          AND d."stageNumber" IS NOT NULL)`;
+  // Fecha y horario de la jornada programada. mika:timing los usa para descartar
+  // la simulación previa a la carrera; en un día sin etapa la fecha es la de inicio.
+  const scheduledTimesSql = (dateSql) => `(SELECT jsonb_build_object('dateKey', x."dateKey",
+         'neutralStartUtc', x."neutralStartTimeUtc", 'startUtc', x."realStartTimeUtc", 'timezone', x.timezone)
+       FROM race_days x
+       WHERE x."raceId" = r.id AND x."isRestDay" = false AND x."dateKey" = COALESCE(${dateSql}, r."startDate")
+       ORDER BY x."neutralStartTimeUtc" ASC NULLS LAST, x.id ASC LIMIT 1)`;
 
   let targets;
   try {
     if (ONE_RACE) {
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 COALESCE((SELECT min(d2."dateKey") FROM race_days d2
                           WHERE d2."raceId" = r.id
                             AND d2."stageNumber" = COALESCE($2::int, ${LIVE_STAGE_SUBSELECT})),
                          r."startDate") AS "scheduledDate",
+                ${scheduledTimesSql(`(SELECT min(d2."dateKey") FROM race_days d2
+                          WHERE d2."raceId" = r.id
+                            AND d2."stageNumber" = COALESCE($2::int, ${LIVE_STAGE_SUBSELECT}))`)} AS "scheduledTimes",
                 $3::int AS "scheduledSectorIndex",
                 (
                   (
@@ -575,10 +601,12 @@ async function main() {
       )`;
       const { rows } = await client.query(
         `SELECT DISTINCT ON (l."raceId")
-                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+                l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 d."dateKey" AS "scheduledDate",
+                jsonb_build_object('dateKey', d."dateKey", 'neutralStartUtc', d."neutralStartTimeUtc",
+                  'startUtc', d."realStartTimeUtc", 'timezone', d.timezone) AS "scheduledTimes",
                 d.id AS "scheduleRaceDayId", d."stageNumber" AS "scheduledStage",
                 d."scheduledSectorIndex", (${IS_LAST_RACE_DAY}) AS "scheduledIsLastRaceDay",
                 ${MAIN_COVERED} AS "stageCovered",
@@ -698,13 +726,15 @@ async function main() {
                   : `(${todayPred}) OR (${backlogPred})`;   // all
 
       const { rows } = await client.query(
-        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
+        `SELECT l."raceId", l."competitionId", l."uciRaceId", l."source", l."tissotCode", l."tissotEventNumber", l."matsportCode", l."raceresultCode", l."stsCode", l."stsArticleUrl", l."stsSkipClaxPoints", l."domtelCode", l."livetimingCode", l."classificacoesCode", l."infocityCode", l."sportsoftCode", l."eqtimingCode", l."asoUrl", l."manual_timingCode", l."colombiaCode", l."chronoraceCode", l."timingCode", l."belgianCyclingCode", l."evodataCode", l."chronoHrCode", l."manefficCode", l."bornanCode", l."atresultsCode", l."mikatimingCode", l."ficrCode", l."lapclipCode", l."resultsFetchTopology" AS "fetchTopology", r.gender, r.year, r."raceFormat", r."resultsOnly",
                 (SELECT jsonb_object_agg(x."stageNumber"::text, x."dateKey") FROM race_days x
                   WHERE x."raceId" = r.id AND x."stageNumber" IS NOT NULL AND x."isRestDay" = false) AS "stageDates",
                 (SELECT count(*) FROM startlist_teams t WHERE t."raceId" = r.id) AS sl,
                 ${LIVE_STAGE_SUBSELECT} AS "liveStage",
                 (SELECT min(d."dateKey") FROM race_days d
                   WHERE d."raceId" = r.id AND d."stageNumber" = ${LIVE_STAGE_SUBSELECT}) AS "scheduledDate",
+                ${scheduledTimesSql(`(SELECT min(d."dateKey") FROM race_days d
+                  WHERE d."raceId" = r.id AND d."stageNumber" = ${LIVE_STAGE_SUBSELECT})`)} AS "scheduledTimes",
                 (SELECT max(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id) AS "totalStages",
                 (SELECT min(d."stageNumber") FROM race_days d WHERE d."raceId" = r.id AND d."isRestDay" = false) AS "minStage",
                 CASE WHEN ${HAS_TODAY} THEN 0 ELSE 1 END AS sort_live
@@ -768,6 +798,9 @@ async function main() {
         : t.source === 'maneffic' && t.manefficCode ? `maneffic:${t.manefficCode}`
         : t.source === 'bornan' && t.bornanCode ? `bornan:${t.bornanCode}`
         : t.source === 'atresults' && t.atresultsCode ? `atresults:${t.atresultsCode}`
+        : t.source === 'mikatiming' && t.mikatimingCode ? `mikatiming:${t.mikatimingCode}`
+        : t.source === 'ficr' && t.ficrCode ? `ficr:${t.ficrCode}`
+        : t.source === 'lapclip' && t.lapclipCode ? `lapclip:${t.lapclipCode}`
         : t.source === 'istanbul' ? `istanbul:${t.year}`
         : t.source === 'southbohemia' ? `southbohemia:${t.year}`
         // Híbridos UCI-preferentes: DataRide oficial seguido de los rellenos configurados.
@@ -812,11 +845,7 @@ async function main() {
       t.needsFinal,
       t.scheduledIsLastRaceDay,
     );
-    const fetchStageArgs = kind === 'ASO' && targetStage != null
-      ? ['--stage', String(targetStage)]
-      : targetStage != null && !isFinalStage
-        ? ['--stage', String(targetStage)]
-        : [];
+    const fetchStageArgs = stageFetchArgs(kind, targetStage, isFinalStage, t.totalStages);
     // CN (source='uci' con uciRaceId != 0, migración 110): volcar SOLO esa prueba del país.
     const uciRaceId = kind === 'uci' && t.source === 'uci' && t.uciRaceId ? t.uciRaceId : 0;
     let fc, srcLabel;
@@ -1015,6 +1044,39 @@ async function main() {
         ...(t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
         ...(t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
         ...fetchStageArgs]);
+    } else if (kind === 'mikatiming') {
+      // mika:timing carga una simulación con la startlist real antes de la
+      // carrera. El fetcher contrasta la llegada con la fecha y la salida de la
+      // jornada: una llegada futura no emite nada y una salida incoherente falla.
+      const times = t.scheduledTimes || {};
+      srcLabel = ` ← mikatiming:${t.mikatimingCode}`;
+      fc = await run(MIKATIMING_FETCH, ['--code', String(t.mikatimingCode), '--race-id', String(t.raceId),
+        '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(times.dateKey ? ['--date', String(times.dateKey)] : []),
+        ...(times.timezone ? ['--timezone', String(times.timezone)] : []),
+        ...(times.startUtc ? ['--start-utc', String(times.startUtc)] : []),
+        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : [])]);
+    } else if (kind === 'ficr') {
+      // FICR publica la llegada en JSON a medida que entran corredores y las
+      // generales de cada tappa. La fecha de la jornada valida la tappa leída.
+      srcLabel = ` ← ficr:${t.ficrCode}`;
+      fc = await run(FICR_FETCH, ['--code', String(t.ficrCode), '--race-id', String(t.raceId),
+        '--competition-id', String(t.competitionId), '--out', outDir, '--delay', DELAY,
+        ...(t.raceFormat === 'one_day' ? ['--one-day', ...(t.scheduledDate ? ['--date', String(t.scheduledDate)] : [])] : []),
+        ...(t.raceFormat !== 'one_day' && t.totalStages != null ? ['--total-stages', String(t.totalStages)] : []),
+        ...(t.raceFormat !== 'one_day' && t.stageDates ? ['--stage-dates', JSON.stringify(t.stageDates)] : []),
+        ...(t.raceFormat !== 'one_day' ? fetchStageArgs : [])]);
+    } else if (kind === 'lapclip') {
+      // LAPCLIP publica vueltas y tiempos de transpondedor en directo. El
+      // fetcher emite la llegada cuando el primero completa las vueltas del
+      // código y los abandonos pasado el margen desde la llegada estimada.
+      const times = t.scheduledTimes || {};
+      srcLabel = ` ← lapclip:${t.lapclipCode}`;
+      fc = await run(LAPCLIP_FETCH, ['--code', String(t.lapclipCode), '--race-id', String(t.raceId),
+        '--competition-id', String(t.competitionId), '--out', outDir,
+        ...(times.dateKey ? ['--date', String(times.dateKey)] : []),
+        ...(times.startUtc ? ['--start-utc', String(times.startUtc)] : []),
+        ...(times.neutralStartUtc ? ['--neutral-start-utc', String(times.neutralStartUtc)] : [])]);
     } else if (kind === 'istanbul' || kind === 'southbohemia') {
       // El organizador publica un dossier PDF por jornada en una página estable.
       // El fetcher redescubre los enlaces en cada pasada y valida año, etapa y
@@ -1157,6 +1219,9 @@ async function main() {
       : t.source === 'southbohemia' ? 'southbohemia'
       : t.source === 'bornan' && t.bornanCode ? 'bornan'
       : t.source === 'atresults' && t.atresultsCode ? 'atresults'
+      : t.source === 'mikatiming' && t.mikatimingCode ? 'mikatiming'
+      : t.source === 'ficr' && t.ficrCode ? 'ficr'
+      : t.source === 'lapclip' && t.lapclipCode ? 'lapclip'
       : 'uci';
     const kinds = [primaryKind];
     // HÍBRIDO UCI-preferente: source='uci' (oficial, completo) + domtelCode poblado

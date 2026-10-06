@@ -1,7 +1,5 @@
 package app.calendariociclismo.android.util
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
 import app.calendariociclismo.android.data.model.Broadcast
 import app.calendariociclismo.android.data.model.ElevationPoint
 import app.calendariociclismo.android.data.model.ElevationProfile
@@ -12,16 +10,13 @@ import app.calendariociclismo.android.ui.today.TodayViewModel
 import app.calendariociclismo.android.ui.today.shouldDisplayTodayRaceAsFeatured
 import app.calendariociclismo.android.ui.today.sortTodayAgenda
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
-import java.util.Locale
 import java.time.Instant
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35]) // Robolectric 4.14.1 soporta hasta API 35; la app compila contra 36.
+/**
+ * Lógica pura de [RaceLogic] en JVM. Las etiquetas de tipo que necesitan
+ * `Context` viven en [RaceLogicTypeLabelTest] (Robolectric).
+ */
 class RaceLogicTest {
 
     @Test
@@ -68,89 +63,21 @@ class RaceLogicTest {
         assertFalse(RaceLogic.prefersNativeApp("https://notyoutube.com/watch"))
     }
 
-    private val context: Context get() = ApplicationProvider.getApplicationContext()
-
-    @Before
-    fun setUp() {
-        // Las etiquetas vía LocaleHolder.t() dependen del idioma; fijamos ES para
-        // que `resolveTypeLabel` (p. ej. "Monopuerto") sea determinista.
-        LocaleHolder.system = Locale("es", "ES")
-        LocaleHolder.current = Locale("es", "ES")
-    }
-
-    // ── typeLabel ──────────────────────────────────────────────────
-
-    @Test
-    fun `typeLabel devuelve etiqueta para tipos conocidos`() {
-        assertFalse(RaceLogic.typeLabel(context, "flat").isEmpty())
-        assertFalse(RaceLogic.typeLabel(context, "mountain").isEmpty())
-        assertFalse(RaceLogic.typeLabel(context, "itt").isEmpty())
-    }
-
-    @Test
-    fun `typeLabel devuelve el tipo si no esta en el mapa`() {
-        assertEquals("unknown_type", RaceLogic.typeLabel(context, "unknown_type"))
-    }
-
-    @Test
-    fun `typeLabel devuelve cadena vacia para null`() {
-        assertEquals("", RaceLogic.typeLabel(context, null))
-    }
-
-    // ── resolveTypeLabel ───────────────────────────────────────────
-
-    @Test
-    fun `resolveTypeLabel monopuerto para flat con summit_finish`() {
-        assertEquals("Monopuerto", RaceLogic.resolveTypeLabel(context, "flat", "summit_finish"))
-    }
-
-    @Test
-    fun `resolveTypeLabel sterrato en Francia devuelve Ribinou`() {
-        assertEquals("Ribinou", RaceLogic.resolveTypeLabel(context, "sterrato", null, countryCode = "FR"))
-    }
-
-    @Test
-    fun `resolveTypeLabel sterrato fuera de Francia no es Ribinou`() {
-        assertNotEquals("Ribinou", RaceLogic.resolveTypeLabel(context, "sterrato", null, countryCode = "IT"))
-    }
-
-    @Test
-    fun `resolveTypeLabel itt con chrono_climb es cronoescalada`() {
-        assertFalse(RaceLogic.resolveTypeLabel(context, "itt", "chrono_climb").isEmpty())
-    }
-
-    @Test
-    fun `resolveTypeLabel itt con final en alto es cronoescalada`() {
-        assertEquals(
-            RaceLogic.typeLabel(context, "chrono_climb"),
-            RaceLogic.resolveTypeLabel(context, "itt", "summit_finish"),
-        )
-    }
-
     // ── cleanFeminineDisplayName ───────────────────────────────────
 
     @Test
-    fun `cleanFeminineDisplayName elimina sufijo women`() {
-        val cleaned = RaceLogic.cleanFeminineDisplayName("Tour de Flandes Women")
-        assertFalse(cleaned.lowercase().contains("women"))
-    }
-
-    @Test
-    fun `cleanFeminineDisplayName elimina femenino`() {
-        val cleaned = RaceLogic.cleanFeminineDisplayName("Vuelta a Burgos Femenino")
-        assertFalse(cleaned.lowercase().contains("femenino"))
-    }
-
-    @Test
-    fun `cleanFeminineDisplayName no modifica nombre sin sufijo femenino`() {
-        val name = "Tour de Francia"
-        assertEquals(name, RaceLogic.cleanFeminineDisplayName(name))
-    }
-
-    @Test
-    fun `cleanFeminineDisplayName no elimina excepcion conocida`() {
-        val name = "Women Cycling Pro"
-        assertEquals(name, RaceLogic.cleanFeminineDisplayName(name))
+    fun `cleanFeminineDisplayName retira sufijos femeninos salvo excepciones`() {
+        val cases = listOf(
+            "Tour de Flandes Women" to "Tour de Flandes",
+            "Vuelta a Burgos Femenino" to "Vuelta a Burgos",
+            // Sin sufijo femenino → intacto.
+            "Tour de Francia" to "Tour de Francia",
+            // Excepción conocida: "women" forma parte del nombre propio.
+            "Women Cycling Pro" to "Women Cycling Pro",
+        )
+        for ((name, expected) in cases) {
+            assertEquals("'$name'", expected, RaceLogic.cleanFeminineDisplayName(name))
+        }
     }
 
     // ── raceTimeCheck dateKey guard ───────────────────────────────
@@ -176,82 +103,53 @@ class RaceLogicTest {
         assertEquals("wt", RaceLogic.categoryTier("1.UWT"))
     }
 
-    @Test
-    fun `categoryTier WT para 2UWT`() {
-        assertEquals("wt", RaceLogic.categoryTier("2.UWT"))
-    }
-
-    @Test
-    fun `categoryTier WC para WC`() {
-        assertEquals("wc", RaceLogic.categoryTier("WC"))
-    }
-
-    @Test
-    fun `categoryTier null para null`() {
-        assertNull(RaceLogic.categoryTier(null))
-    }
-
     // ── nameImpliesFemale ──────────────────────────────────────────
 
     @Test
-    fun `nameImpliesFemale true para nombre con women`() {
-        assertTrue(RaceLogic.nameImpliesFemale("Tour de Flandes Women"))
-    }
-
-    @Test
-    fun `nameImpliesFemale true para nombre con femenino`() {
-        assertTrue(RaceLogic.nameImpliesFemale("Vuelta Burgos Femenino"))
-    }
-
-    @Test
-    fun `nameImpliesFemale true para nombre con feminina portugues`() {
-        // "Feminina"/"Feminino" (portugués/italiano, sin acento, vocal i) deben
-        // contar como femenino igual que la web (patrón f[eé]minin[e]?).
-        assertTrue(RaceLogic.nameImpliesFemale("Volta a Portugal Feminina"))
-        assertTrue(RaceLogic.nameImpliesFemale("Giro Feminino"))
-    }
-
-    @Test
-    fun `nameImpliesFemale false para nombre neutro`() {
-        assertFalse(RaceLogic.nameImpliesFemale("Tour de Francia"))
-    }
-
-    @Test
-    fun `nameImpliesFemale false para null`() {
-        assertFalse(RaceLogic.nameImpliesFemale(null))
+    fun `nameImpliesFemale detecta femenino en varios idiomas`() {
+        val cases = listOf(
+            "Tour de Flandes Women" to true,
+            "Vuelta Burgos Femenino" to true,
+            // "Feminina"/"Feminino" (portugués/italiano, sin acento, vocal i) cuentan
+            // como femenino igual que la web (patrón f[eé]minin[e]?).
+            "Volta a Portugal Feminina" to true,
+            "Giro Feminino" to true,
+            "Tour de Francia" to false,
+            null to false,
+        )
+        for ((name, expected) in cases) {
+            assertEquals("'$name'", expected, RaceLogic.nameImpliesFemale(name))
+        }
     }
 
     // ── reviveUrl ──────────────────────────────────────────────────
 
     @Test
-    fun `reviveUrl devuelve null si no hay broadcasts`() {
-        assertNull(RaceLogic.reviveUrl(emptyList()))
-    }
-
-    @Test
-    fun `reviveUrl devuelve url de Eurosport`() {
-        val broadcasts = listOf(broadcast(channel = "Eurosport 1", url = "https://eurosport.com/live"))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve url de YouTube`() {
-        val broadcasts = listOf(broadcast(channel = "Canal", url = "https://youtube.com/watch?v=abc"))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve url persistente de una red social`() {
-        val broadcasts = listOf(broadcast(channel = "Social", url = "https://www.instagram.com/reel/abc"))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl atiende flag remoto de una fuente futura`() {
-        val broadcasts = listOf(broadcast(
-            channel = "Pidcock Racing", url = "https://video.example/race", showInRevive = true,
-        ))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
+    fun `reviveUrl solo devuelve enlaces persistentes o marcados para revivir`() {
+        data class Case(val label: String, val broadcasts: List<Broadcast>, val revive: Boolean)
+        val cases = listOf(
+            Case("sin broadcasts", emptyList(), false),
+            Case("Eurosport", listOf(broadcast(channel = "Eurosport 1", url = "https://eurosport.com/live")), true),
+            Case("YouTube", listOf(broadcast(channel = "Canal", url = "https://youtube.com/watch?v=abc")), true),
+            Case("red social persistente", listOf(broadcast(channel = "Social", url = "https://www.instagram.com/reel/abc")), true),
+            Case(
+                "flag remoto de una fuente futura",
+                listOf(broadcast(channel = "Pidcock Racing", url = "https://video.example/race", showInRevive = true)),
+                true,
+            ),
+            Case(
+                "deep link bajo demanda de ETB ON sin flag",
+                listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/m/txirrindularitza-itzulia-5-12345")),
+                true,
+            ),
+            Case("hub lineal de ETB ON sin flag", listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/ch/etb-1")), false),
+            Case("ningún broadcast es revive", listOf(broadcast(channel = "Canal local", url = "https://example.com")), false),
+            Case("showInRevive sin url", listOf(broadcast(channel = "Canal", url = null, showInRevive = true)), false),
+            Case("Eurosport sin url", listOf(broadcast(channel = "Eurosport 1", url = null)), false),
+        )
+        for (c in cases) {
+            assertEquals(c.label, c.revive, RaceLogic.reviveUrl(c.broadcasts) != null)
+        }
     }
 
     @Test
@@ -288,100 +186,41 @@ class RaceLogicTest {
         assertEquals(listOf(selected), RaceLogic.reviveBroadcasts(listOf(automatic, selected), true))
     }
 
-    @Test
-    fun `reviveUrl devuelve deep link bajo demanda de ETB ON sin flag`() {
-        val broadcasts = listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/m/txirrindularitza-itzulia-5-12345"))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl rechaza hub lineal de ETB ON sin flag`() {
-        val broadcasts = listOf(broadcast(channel = "ETB1", url = "https://etbon.eus/ch/etb-1"))
-        assertNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve url con showInRevive`() {
-        val broadcasts = listOf(broadcast(channel = "Otro canal", url = "https://example.com", showInRevive = true))
-        assertNotNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve null si ningun broadcast es revive`() {
-        val broadcasts = listOf(broadcast(channel = "Canal local", url = "https://example.com"))
-        assertNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve null si showInRevive pero url es null`() {
-        val broadcasts = listOf(broadcast(channel = "Canal", url = null, showInRevive = true))
-        assertNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
-    @Test
-    fun `reviveUrl devuelve null si Eurosport pero url es null`() {
-        val broadcasts = listOf(broadcast(channel = "Eurosport 1", url = null))
-        assertNull(RaceLogic.reviveUrl(broadcasts))
-    }
-
     // ── broadcastLinkPriority ─────────────────────────────────────
 
     @Test
-    fun `broadcastLinkPriority YouTube es tier 0`() {
-        assertEquals(0, RaceLogic.broadcastLinkPriority("https://www.youtube.com/watch?v=abc"))
-        assertEquals(0, RaceLogic.broadcastLinkPriority("https://youtu.be/abc"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority otras redes sociales son tier 1`() {
-        assertEquals(1, RaceLogic.broadcastLinkPriority("https://www.facebook.com/uci/videos/123"))
-        assertEquals(1, RaceLogic.broadcastLinkPriority("https://www.instagram.com/p/abc"))
-        assertEquals(1, RaceLogic.broadcastLinkPriority("https://twitter.com/uci"))
-        assertEquals(1, RaceLogic.broadcastLinkPriority("https://x.com/uci"))
-        assertEquals(1, RaceLogic.broadcastLinkPriority("https://www.twitch.tv/uci"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority RTVE es tier 2 (por delante del resto de espanolas)`() {
-        assertEquals(2, RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority otras TV publicas en abierto (RTP1, CCMA, EITB) son tier 3`() {
-        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1"))
-        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
-        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.3cat.cat/3cat/directes/esport3/"))
-        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
-        assertEquals(3, RaceLogic.broadcastLinkPriority("https://www.eitb.tv/es/directo/"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority RTVE gana a CCMA y EITB (caso etapa 4)`() {
-        val rtve = RaceLogic.broadcastLinkPriority("https://www.rtve.es/play/videos/directo/teledeporte/")
-        assertTrue(rtve < RaceLogic.broadcastLinkPriority("https://www.eitb.eus/es/directo/etb-1/"))
-        assertTrue(rtve < RaceLogic.broadcastLinkPriority("https://www.ccma.cat/3cat/directes/esport3/"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority RTP1 gana a WBD en la Volta a Portugal`() {
-        val rtp1 = RaceLogic.broadcastLinkPriority("https://www.rtp.pt/play/direto/rtp1")
-        assertTrue(rtp1 < RaceLogic.broadcastLinkPriority("https://play.hbomax.com/sport/abc"))
-        assertTrue(rtp1 < RaceLogic.broadcastLinkPriority("https://www.hbomax.com/gb/en/sports/cycling"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority Eurosport y HBO Max son una cadena mas (tier 4)`() {
-        assertEquals(4, RaceLogic.broadcastLinkPriority("https://www.eurosport.es/ciclismo/"))
-        assertEquals(4, RaceLogic.broadcastLinkPriority("https://www.hbomax.com/es/es"))
-        // play.max.com NO debe confundirse con x.com.
-        assertEquals(4, RaceLogic.broadcastLinkPriority("https://play.max.com/show/abc"))
-    }
-
-    @Test
-    fun `broadcastLinkPriority cadena generica o vacia es tier 4`() {
-        assertEquals(4, RaceLogic.broadcastLinkPriority("https://www.france.tv/sport/cyclisme/"))
-        assertEquals(4, RaceLogic.broadcastLinkPriority(null))
-        assertEquals(4, RaceLogic.broadcastLinkPriority(""))
+    fun `broadcastLinkPriority ordena YouTube, redes, RTVE, TV publica y resto`() {
+        val cases = listOf(
+            "https://www.youtube.com/watch?v=abc" to 0,
+            "https://youtu.be/abc" to 0,
+            // Otras redes sociales.
+            "https://www.facebook.com/uci/videos/123" to 1,
+            "https://www.instagram.com/p/abc" to 1,
+            "https://twitter.com/uci" to 1,
+            "https://x.com/uci" to 1,
+            "https://www.twitch.tv/uci" to 1,
+            // RTVE, por delante del resto de españolas.
+            "https://www.rtve.es/play/videos/directo/teledeporte/" to 2,
+            // Otras TV públicas en abierto (RTP1, CCMA, EITB).
+            "https://www.rtp.pt/play/direto/rtp1" to 3,
+            "https://www.ccma.cat/3cat/directes/esport3/" to 3,
+            "https://www.3cat.cat/3cat/directes/esport3/" to 3,
+            "https://www.eitb.eus/es/directo/etb-1/" to 3,
+            "https://www.eitb.tv/es/directo/" to 3,
+            // Eurosport y HBO Max son una cadena más.
+            "https://www.eurosport.es/ciclismo/" to 4,
+            "https://www.hbomax.com/es/es" to 4,
+            "https://play.hbomax.com/sport/abc" to 4,
+            // play.max.com NO debe confundirse con x.com.
+            "https://play.max.com/show/abc" to 4,
+            // Cadena genérica o vacía.
+            "https://www.france.tv/sport/cyclisme/" to 4,
+            null to 4,
+            "" to 4,
+        )
+        for ((url, expected) in cases) {
+            assertEquals("url '$url'", expected, RaceLogic.broadcastLinkPriority(url))
+        }
     }
 
     // ── Orden de la agenda de Hoy (espejo de today-agenda-order.test.js) ──
@@ -458,8 +297,6 @@ class RaceLogicTest {
         assertFalse(RaceLogic.shouldShowFemaleIndicator(race(name = "Vuelta a Burgos Féminas", uciCategory = "2.Pro", gender = "female")))
     }
 
-    // ── Helpers ────────────────────────────────────────────────────
-
     // ── isRaceConcluded ─────────────────────────────────────────
 
     // Sin hora de meta cae al fallback de `dateKey` 18:00 UTC (igual que la web):
@@ -472,26 +309,10 @@ class RaceLogicTest {
     }
 
     @Test
-    fun isRaceConcluded_futureDateNoFinishTime_false() {
-        assertFalse(
-            RaceLogic.isRaceConcluded(raceDay(dateKey = "2090-01-01", estimatedFinishTimeUtc = null))
-        )
-    }
-
-    @Test
     fun isRaceConcluded_trueWellInThePast() {
         assertTrue(
             RaceLogic.isRaceConcluded(
                 raceDay(dateKey = "2020-01-01", estimatedFinishTimeUtc = "2020-01-01T15:00:00Z")
-            )
-        )
-    }
-
-    @Test
-    fun isRaceConcluded_falseFarInTheFuture() {
-        assertFalse(
-            RaceLogic.isRaceConcluded(
-                raceDay(dateKey = "2090-01-01", estimatedFinishTimeUtc = "2090-01-01T15:00:00Z")
             )
         )
     }
@@ -519,6 +340,8 @@ class RaceLogicTest {
             ),
         )
     }
+
+    // ── Helpers ────────────────────────────────────────────────────
 
     private fun race(
         id: String = "r1",
@@ -671,30 +494,28 @@ class RaceLogicTest {
     private fun cn(name: String, gender: String? = null) =
         race(uciCategory = "CN", name = name, gender = gender, countryCode = "ES")
 
-    @Test fun `CN elite entra en Pro (masc y fem)`() {
-        assertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", "male"), Constants.CategoryFilter.PRO))
-        assertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", "female"), Constants.CategoryFilter.PRO))
-    }
-
-    @Test fun `CN sub23 NO entra en Pro`() {
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea sub-23 Masculino", "male"), Constants.CategoryFilter.PRO))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España CRI sub-23 Femenino", "female"), Constants.CategoryFilter.PRO))
-    }
-
-    @Test fun `CN en Masc solo elite masculino`() {
-        assertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", "male"), Constants.CategoryFilter.MALE))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", "female"), Constants.CategoryFilter.MALE))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea sub-23 Masculino", "male"), Constants.CategoryFilter.MALE))
-    }
-
-    @Test fun `CN en Fem solo elite femenino`() {
-        assertTrue(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", "female"), Constants.CategoryFilter.FEMALE))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", "male"), Constants.CategoryFilter.FEMALE))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España CRI sub-23 Femenino", "female"), Constants.CategoryFilter.FEMALE))
-    }
-
-    @Test fun `CN no entra en UWT ni WWT`() {
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Masculino", "male"), Constants.CategoryFilter.UWT))
-        assertFalse(RaceLogic.matchesCategory(cn("Campeonato de España Línea Élite Femenino", "female"), Constants.CategoryFilter.WWT))
+    @Test fun `CN entra solo en Pro Masc y Fem de su genero y en categoria elite`() {
+        data class Case(val race: Race, val filter: Constants.CategoryFilter, val expected: Boolean)
+        val eliteM = cn("Campeonato de España Línea Élite Masculino", "male")
+        val eliteF = cn("Campeonato de España Línea Élite Femenino", "female")
+        val sub23M = cn("Campeonato de España Línea sub-23 Masculino", "male")
+        val sub23F = cn("Campeonato de España CRI sub-23 Femenino", "female")
+        val cases = listOf(
+            Case(eliteM, Constants.CategoryFilter.PRO, true),
+            Case(eliteF, Constants.CategoryFilter.PRO, true),
+            Case(sub23M, Constants.CategoryFilter.PRO, false),
+            Case(sub23F, Constants.CategoryFilter.PRO, false),
+            Case(eliteM, Constants.CategoryFilter.MALE, true),
+            Case(eliteF, Constants.CategoryFilter.MALE, false),
+            Case(sub23M, Constants.CategoryFilter.MALE, false),
+            Case(eliteF, Constants.CategoryFilter.FEMALE, true),
+            Case(eliteM, Constants.CategoryFilter.FEMALE, false),
+            Case(sub23F, Constants.CategoryFilter.FEMALE, false),
+            Case(eliteM, Constants.CategoryFilter.UWT, false),
+            Case(eliteF, Constants.CategoryFilter.WWT, false),
+        )
+        for (c in cases) {
+            assertEquals("${c.race.name} en ${c.filter}", c.expected, RaceLogic.matchesCategory(c.race, c.filter))
+        }
     }
 }

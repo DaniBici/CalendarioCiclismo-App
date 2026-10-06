@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Obtiene un manifiesto oficial para revisión/importación. I/O de BD solo MCP/panel.
+// Obtiene un manifiesto oficial para revisión/importación. No accede a la base:
+// se aplica con cx_import_calendar desde el panel o por la vía SQL de cc-nucleo.
 import {writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {collectUciCxCalendar} from '../../supabase/functions/_shared/cx-uci-calendar.mjs';

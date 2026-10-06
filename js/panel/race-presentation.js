@@ -10,7 +10,6 @@ function mountBefore(anchor, id) {
 function status(host, message) { host.querySelector('[role=status]').textContent = message; }
 
 export async function mountFeaturedEditor(client, anchor, dateKey) {
-  document.getElementById('featuredEditor')?.remove();
   const token = Symbol('featured');
   anchor._featuredMount = token;
   const items = [...anchor.querySelectorAll('.sidebar-item[data-race-id]')];

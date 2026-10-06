@@ -66,6 +66,7 @@
 import { spawn } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArgs = (n) => args.reduce((acc, a, i) => (a === `--${n}` && args[i + 1] != null ? [...acc, args[i + 1]] : acc), []);
@@ -123,9 +124,9 @@ function runBackfill(year) {
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  if (!DRY && !env.DATABASE_URL) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
-  // El backfill lee DATABASE_URL de su propio entorno; nos aseguramos de propagarlo.
-  if (env.DATABASE_URL) process.env.DATABASE_URL = env.DATABASE_URL;
+  if (!DRY && !databaseUrl(env)) { log('FATAL: falta DATABASE_URL (.env o entorno)'); process.exit(1); }
+  // El backfill lee la conexión de su propio entorno; nos aseguramos de propagarla.
+  for (const key of ['AGENT_DATABASE_URL', 'DATABASE_URL']) if (env[key]) process.env[key] = env[key];
 
   const years = yearsToSweep();
   const known = years.filter((y) => ROAD_SEASON[y]);

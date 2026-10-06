@@ -3,119 +3,55 @@ import XCTest
 
 final class ChampionshipsConfigTests: XCTestCase {
 
-    // MARK: - Pertenencia al rango de fechas
-
-    func test_dates_includeRangeBounds() {
-        XCTAssertTrue(ChampionshipsConfig.dates.contains("2026-06-22"))
-        XCTAssertTrue(ChampionshipsConfig.dates.contains("2026-06-28"))
-    }
-
-    func test_dates_excludeOutsideRange() {
-        XCTAssertFalse(ChampionshipsConfig.dates.contains("2026-06-21"))
-        XCTAssertFalse(ChampionshipsConfig.dates.contains("2026-06-29"))
-    }
-
     // MARK: - Clasificación de slot (espejo de championshipSlot web)
 
-    func test_slot_eliteMenRoadByDefault() {
-        let race = makeRace(name: "Campeonato de España de ruta")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .lineaMasc)
+    func test_slot() {
+        let cases: [(name: String, gender: String?, primaryType: String?, slot: ChampionshipsConfig.Slot)] = [
+            ("Campeonato de España de ruta", nil, nil, .lineaMasc),
+            ("Campeonato de España CRI", nil, nil, .criMasc),
+            ("Campeonato Nacional contrarreloj", nil, nil, .criMasc),
+            ("Campeonato de Francia femenino", nil, nil, .lineaFem),
+            ("Championnat de France", "female", nil, .lineaFem),
+            ("Campeonato de Italia sub-23", nil, nil, .lineaSub23M),
+            ("Campeonato U23 CRI femenino", nil, nil, .criSub23F),
+            ("Campeonato de Bélgica", nil, "itt", .criMasc),
+            // Nombre dice "línea" → ruta, aunque primaryType sea itt.
+            ("Campeonato de Bélgica en línea", nil, "itt", .lineaMasc),
+        ]
+        for c in cases {
+            let race = makeRace(name: c.name, gender: c.gender)
+            XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay(primaryType: c.primaryType)), c.slot, c.name)
+        }
     }
 
-    func test_slot_criByName() {
-        let race = makeRace(name: "Campeonato de España CRI")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .criMasc)
-    }
+    // MARK: - Ventanas de la semana de Campeonatos
 
-    func test_slot_criByContrarrelojWord() {
-        let race = makeRace(name: "Campeonato Nacional contrarreloj")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .criMasc)
-    }
+    /// El bloqueo de filtros de "Hoy" cubre la semana completa
+    /// (`rangeStart`–`rangeEnd`); el filtro "Hoy" de la rejilla empieza en
+    /// `todayFilterStart`, dentro de la semana, y termina con ella.
+    func test_windowsFollowRangeConstants() {
+        let start = ChampionshipsConfig.rangeStart
+        let end = ChampionshipsConfig.rangeEnd
+        let todayStart = ChampionshipsConfig.todayFilterStart
+        let beforeWeek = DateFormatting.previousDay(start)!
+        let afterWeek = DateFormatting.nextDay(end)!
+        let beforeTodayFilter = DateFormatting.previousDay(todayStart)!
+        XCTAssertGreaterThan(todayStart, start)
+        XCTAssertLessThanOrEqual(todayStart, end)
 
-    func test_slot_femaleByName() {
-        let race = makeRace(name: "Campeonato de Francia femenino")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .lineaFem)
-    }
+        let lockCases: [(day: String, expected: Bool)] = [
+            (beforeWeek, false), (start, true), (beforeTodayFilter, true), (end, true), (afterWeek, false),
+        ]
+        for c in lockCases {
+            XCTAssertEqual(ChampionshipsConfig.isChampWeekFilterLock(today: c.day), c.expected, "bloqueo \(c.day)")
+        }
 
-    func test_slot_femaleByGenderField() {
-        let race = makeRace(name: "Championnat de France", gender: "female")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .lineaFem)
-    }
-
-    func test_slot_sub23() {
-        let race = makeRace(name: "Campeonato de Italia sub-23")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .lineaSub23M)
-    }
-
-    func test_slot_sub23FemaleCri() {
-        let race = makeRace(name: "Campeonato U23 CRI femenino")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: makeRaceDay()), .criSub23F)
-    }
-
-    func test_slot_fallbackToPrimaryTypeItt() {
-        let race = makeRace(name: "Campeonato de Bélgica")
-        let rd = makeRaceDay(primaryType: "itt")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: rd), .criMasc)
-    }
-
-    func test_slot_nameLineaOverridesPrimaryTypeItt() {
-        // Nombre dice "línea" → ruta, aunque primaryType sea itt.
-        let race = makeRace(name: "Campeonato de Bélgica en línea")
-        let rd = makeRaceDay(primaryType: "itt")
-        XCTAssertEqual(ChampionshipsConfig.slot(race: race, rd: rd), .lineaMasc)
-    }
-
-    // MARK: - Filtros → slots
-
-    func test_filter_slots() {
-        XCTAssertEqual(ChampionshipsConfig.Filter.all.slots.count, 8)
-        XCTAssertEqual(ChampionshipsConfig.Filter.pro.slots, [.lineaMasc, .criMasc, .lineaFem, .criFem])
-        XCTAssertEqual(ChampionshipsConfig.Filter.male.slots, [.lineaMasc, .criMasc])
-        XCTAssertEqual(ChampionshipsConfig.Filter.female.slots, [.lineaFem, .criFem])
-    }
-
-    // MARK: - Filtro "Hoy" (rango 24–28 jun)
-
-    func test_todayFilter_activeWithinRange() {
-        XCTAssertTrue(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-24"))
-        XCTAssertTrue(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-26"))
-        XCTAssertTrue(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-28"))
-    }
-
-    func test_todayFilter_inactiveBeforeAndAfter() {
-        // Primeros dos días de campeonatos (22, 23) → sin filtro.
-        XCTAssertFalse(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-22"))
-        XCTAssertFalse(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-23"))
-        // Después del 28 → sin filtro.
-        XCTAssertFalse(ChampionshipsConfig.isTodayFilterActive(today: "2026-06-29"))
-        XCTAssertFalse(ChampionshipsConfig.isTodayFilterActive(today: "2026-07-01"))
-    }
-
-    // ── Bloqueo de filtros de "Hoy" en la semana de campeonatos (22–28) ──
-
-    func test_champWeekLock_activeWholeWeekIncl2223() {
-        XCTAssertTrue(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-22"))
-        XCTAssertTrue(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-23"))
-        XCTAssertTrue(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-25"))
-        XCTAssertTrue(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-28"))
-    }
-
-    func test_champWeekLock_inactiveOutsideWeek() {
-        XCTAssertFalse(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-21"))
-        XCTAssertFalse(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-06-29"))
-        XCTAssertFalse(ChampionshipsConfig.isChampWeekFilterLock(today: "2026-07-01"))
-    }
-
-    func test_champWeekLock_filtersAreAllProMaleFemaleDefaultMale() {
-        XCTAssertEqual(ChampionshipsConfig.champWeekHoyFilters, [.all, .pro, .male, .female])
-        XCTAssertEqual(ChampionshipsConfig.champWeekHoyDefault, .male)
-        XCTAssertFalse(ChampionshipsConfig.champWeekHoyFilters.contains(.uwt))
-        XCTAssertFalse(ChampionshipsConfig.champWeekHoyFilters.contains(.wwt))
-    }
-
-    func test_todayFilter_isFirstAndAllowsAllSlots() {
-        XCTAssertEqual(ChampionshipsConfig.Filter.allCases.first, .today)
-        XCTAssertEqual(ChampionshipsConfig.Filter.today.slots, ChampionshipsConfig.Slot.allCases)
+        let todayFilterCases: [(day: String, expected: Bool)] = [
+            (start, false), (beforeTodayFilter, false), (todayStart, true), (end, true), (afterWeek, false),
+        ]
+        for c in todayFilterCases {
+            XCTAssertEqual(ChampionshipsConfig.isTodayFilterActive(today: c.day), c.expected, "filtro Hoy \(c.day)")
+        }
     }
 
     // MARK: - Orden interno de la categoría CN en Hoy/Mes

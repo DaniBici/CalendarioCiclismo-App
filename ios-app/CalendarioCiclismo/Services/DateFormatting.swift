@@ -5,9 +5,8 @@ import Foundation
 /// Locale: cada formateador con etiquetas de calendario (días/meses) lee
 /// `LocaleService.shared.current.locale` en el momento de la llamada para
 /// que la app cambie de idioma sin reiniciar. Hay UNA excepción:
-/// `formatTimeMadrid` y `formatTimeLocal` solo emiten "HH:mm" — formato
-/// 24h numérico igual en cualquier idioma — y mantienen `es_ES` como
-/// optimización (no se necesita reactividad).
+/// `formatTimeLocal` solo emite "HH:mm" — formato 24h numérico igual en
+/// cualquier idioma — y mantiene `es_ES` (no se necesita reactividad).
 enum DateFormatting {
 
     // MARK: - Formateadores reutilizables
@@ -30,15 +29,6 @@ enum DateFormatting {
             : [.withInternetDateTime]
         return f
     }
-
-    /// Formateador de hora en zona Madrid (HH:mm). 24h numérico — locale fijo OK.
-    private static let madridTimeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        f.timeZone = TimeZone(identifier: "Europe/Madrid")
-        f.locale = Locale(identifier: "es_ES")
-        return f
-    }()
 
     /// Locale actual de la UI (español o inglés). Se resuelve en cada llamada
     /// leyendo directamente de UserDefaults — la fuente de verdad es la misma
@@ -204,16 +194,9 @@ enum DateFormatting {
 
     // MARK: - Hora
 
-    /// Formatea timestamp ISO a hora Madrid "HH:mm".
-    static func formatTimeMadrid(_ isoString: String) -> String? {
-        guard let date = parseISO(isoString) else { return nil }
-        return madridTimeFormatter.string(from: date)
-    }
-
     /// Formatea timestamp ISO a "HH:mm" en la zona horaria pasada como
     /// parámetro (por defecto, la del dispositivo). Pensado para el widget
-    /// "Hoy en el ciclismo", que renderiza para el usuario allá donde esté
-    /// — a diferencia de `formatTimeMadrid`, que fija Europa/Madrid.
+    /// "Hoy en el ciclismo", que renderiza para el usuario allá donde esté.
     ///
     /// Nota: se crea un `DateFormatter` por llamada porque el `TimeZone`
     /// puede variar entre invocaciones (viaje del usuario, pruebas). Si en

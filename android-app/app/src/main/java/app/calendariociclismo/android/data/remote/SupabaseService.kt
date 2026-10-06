@@ -68,7 +68,7 @@ class SupabaseService : CxRemote {
     private val cxAgendaColumns = "id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone," +
         "assets(type,url)," +
         "cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl)," +
-        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl),cx_broadcasts(*),cx_videos(*)"
+        "cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,startlistImportedAt,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl)"
 
     override suspend fun cxMonth(season: String, month: YearMonth): List<CxRace> =
         client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
@@ -82,7 +82,7 @@ class SupabaseService : CxRemote {
             order("id", Order.ASCENDING)
         }.decodeList()
 
-    suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = ids.distinct().chunked(100).flatMap { batch ->
+    override suspend fun cxRacesByIds(ids: List<String>): List<CxRace> = ids.distinct().chunked(100).flatMap { batch ->
         client.from("cx_races").select(columns = Columns.raw(cxAgendaColumns)) {
             filter { eq("editorialStatus", "published"); isIn("id", batch) }
         }.decodeList<CxRace>().filter { app.calendariociclismo.android.util.CyclocrossLogic.raceInSeason(it) }
@@ -208,6 +208,23 @@ class SupabaseService : CxRemote {
             if (page.size < 1000) return rows
             offset += 1000
         }
+    }
+
+    // General de la página de torneo: estados y filas por torneo y temporada,
+    // catálogo de equipos, puntuación configurada y carreras de sus rondas.
+    override suspend fun cxTournamentGeneral(tournamentId: String, seasonKey: String): CxTournamentGeneral = coroutineScope {
+        val filters = mapOf("tournamentId" to tournamentId, "seasonKey" to seasonKey)
+        val tournament = async {
+            client.from("cx_tournaments").select(columns = Columns.raw("id,name,nameEn,slug,seasonKey,colorHex,logoUrl,pointsScheme")) {
+                filter { eq("id", tournamentId) }
+            }.decodeList<CxTournament>().firstOrNull()
+        }
+        val states = async { cxRows<CxStandingState>("cx_standings_state", filters, "category") }
+        val standings = async { cxRows<CxStanding>("cx_tournament_standings", filters) }
+        val catalog = async { cxRows<CxTeam>("cx_teams", emptyMap()) }
+        val stateRows = states.await()
+        val races = cxRacesByIds(stateRows.flatMap { it.roundIds })
+        CxTournamentGeneral(tournament.await(), stateRows, standings.await(), catalog.await(), races)
     }
 
     override suspend fun cxDetail(id: String): CxDetail? = coroutineScope {
@@ -858,8 +875,10 @@ class SupabaseService : CxRemote {
 
     // ─────────── Challenge Groups ───────────
 
-    suspend fun challengeGroups(): List<ChallengeGroup> =
-        client.from("challenge_groups").select().decodeList()
+    suspend fun challengeGroups(year: Int): List<ChallengeGroup> =
+        client.from("challenge_groups").select {
+            filter { eq("year", year) }
+        }.decodeList()
 
     // ─────────── Push Notifications ───────────
 

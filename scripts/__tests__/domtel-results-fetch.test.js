@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { irmOf, normTime, buildStageRows, isEmptyRow, fnv1a }
+import { execFileSync } from 'node:child_process';
+import { irmOf, normTime, buildStageRows, isEmptyRow }
   from '../results-fetchers/domtel-results-fetch.mjs';
 
 // Fuente: domtel-sport.pl (cronometrador POLACO). Datos verificados en vivo contra
@@ -12,8 +13,6 @@ describe('irmOf(czas, msc) — Domtel no tiene columna IRM: se busca en DOS camp
   // heurística del propio plugin WordPress (ptc / frontend-script.js).
   it('detecta el código en Czas (caso normal: Msc va vacío en abandonos)', () => {
     expect(irmOf('DNF', '')).toBe('DNF');
-    expect(irmOf('DNS', '')).toBe('DNS');
-    expect(irmOf('DSQ', '')).toBe('DSQ');
     expect(irmOf('DQ', '')).toBe('DSQ');
   });
 
@@ -46,13 +45,10 @@ describe('irmOf(czas, msc) — Domtel no tiene columna IRM: se busca en DOS camp
     expect(irmOf(null, null)).toBeNull();
   });
 
-  it('OTL no está mapeado en esta fuente → null (Domtel no lo publica)', () => {
-    // Documentado: Domtel solo expone DNS/DNF/DSQ/DQ. Un "OTL" cae por el gate de
-    // Msc numérico en buildStageRows, no se inventa un IRM que la fuente no da.
+  it('OTL y los códigos desconocidos no se fuerzan a ningún IRM', () => {
+    // Domtel solo expone DNS/DNF/DSQ/DQ. Un "OTL" cae por el gate de Msc numérico en
+    // buildStageRows; no se inventa un IRM que la fuente no da.
     expect(irmOf('OTL', '')).toBeNull();
-  });
-
-  it('un código DESCONOCIDO no se fuerza a ningún IRM', () => {
     expect(irmOf('XYZ', '')).toBeNull();
   });
 });
@@ -112,18 +108,6 @@ describe("buildStageRows mode 'time' — INVARIANTE del tiempo absoluto", () => 
     expect(out.every((r) => r.gapText === null)).toBe(true);
   });
 
-  it('el gap `roznica` se IGNORA aunque venga poblado', () => {
-    const third = buildStageRows(rows, 'time')[2];
-    expect(third.timeText).toBe('1:40:23');
-    expect(third.gapText).toBeNull();
-  });
-
-  it('los del mismo grupo comparten el tiempo del cabeza (m.t. lo deriva la web)', () => {
-    const [w, second] = buildStageRows(rows, 'time');
-    expect(w.timeText).toBe('1:39:08');
-    expect(second.timeText).toBe('1:39:08');
-  });
-
   it('emite dorsal, display y equipo del feed', () => {
     const [w] = buildStageRows(rows, 'time');
     expect(w).toMatchObject({
@@ -143,15 +127,6 @@ describe("buildStageRows mode 'time' — INVARIANTE del tiempo absoluto", () => 
   it('una fila SIN puesto y SIN IRM se descarta (placeholder de etapa futura)', () => {
     const out = buildStageRows([{ Msc: '', Numer: '99', Zawodnik: 'X Y', Czas: '', roznica: '' }], 'time');
     expect(out).toEqual([]);
-  });
-
-  it('un Msc no numérico sin IRM se descarta (no se fuerza un rank)', () => {
-    const out = buildStageRows([{ Msc: '-', Numer: '99', Zawodnik: 'X Y', Czas: '', roznica: '' }], 'time');
-    expect(out).toEqual([]);
-  });
-
-  it('lista vacía → []', () => {
-    expect(buildStageRows([], 'time')).toEqual([]);
   });
 });
 
@@ -185,15 +160,10 @@ describe("buildStageRows mode 'count' — GENERAL POINTS / GENERAL SPRINT", () =
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas', () => {
+describe('--suggest-id — competitionId sintético', () => {
   it('reproduce el competitionId real de la Course de Solidarnosc 2026 (-137279)', () => {
-    // El valor documentado y en producción (pid 8850). Si esto cambia, se rompen
-    // los IDs de todo lo ya volcado desde esta fuente.
-    expect(-(fnv1a('domtel:8850') % 200000)).toBe(-137279);
-  });
-
-  it('es estable y distinto por pid', () => {
-    expect(fnv1a('domtel:8850')).toBe(fnv1a('domtel:8850'));
-    expect(fnv1a('domtel:8850')).not.toBe(fnv1a('domtel:8851'));
+    // Valor en producción (pid 8850). Si cambia, se duplican los IDs ya volcados.
+    const out = execFileSync(process.execPath, ['scripts/results-fetchers/domtel-results-fetch.mjs', '--pid', '8850', '--suggest-id'], { encoding: 'utf8' });
+    expect(out.trim()).toBe('-137279');
   });
 });

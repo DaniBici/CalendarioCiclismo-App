@@ -385,6 +385,8 @@ struct TodayView: View {
             goToChampionships()
         case .transfers:
             NotificationManager.shared.pendingDeepLink = .tab(2)
+        case .season(let year):
+            NotificationManager.shared.pendingDeepLink = .season(year)
         case .cxRace(let id):
             NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
         case .cxTournament:

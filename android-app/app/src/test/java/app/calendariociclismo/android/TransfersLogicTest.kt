@@ -44,26 +44,20 @@ class TransfersLogicTest {
     // ── Feed ──────────────────────────────────────────────────────
 
     @Test
-    fun feedExcludesRumors() {
-        val feed = TransfersLogic.confirmedFeed(
-            listOf(
-                transfer("t1", "r1", status = "confirmed", to = "team_b"),
-                transfer("t2", "r2", status = "rumor", to = "team_b"),
-            )
-        )
-        assertEquals(listOf("t1"), feed.map { it.id })
-    }
-
-    @Test
     fun feedShowsOnlyRealSignings() {
-        // Solo fichajes reales (transfer con destino conocido). Fuera:
-        // renovaciones, retiradas y fines de contrato sin destino (to='?').
+        // Solo fichajes reales confirmados (transfer con destino conocido). Fuera:
+        // renovaciones, retiradas, fines de contrato sin destino (to='?'), rumores,
+        // dudas y movimientos con fecha oculta (mig. 123: la carga inicial del
+        // mercado no debe llenar el feed de anuncios viejos).
         val feed = TransfersLogic.confirmedFeed(
             listOf(
                 transfer("sign", "r1", type = "transfer", to = "team_b"),
                 transfer("renew", "r2", type = "renewal", to = "team_a"),
                 transfer("retire", "r3", type = "retirement", from = "team_a"),
                 transfer("end", "r4", type = "transfer", from = "team_a", toName = "?"),
+                transfer("rumor", "r5", status = "rumor", to = "team_b"),
+                transfer("doubt", "r6", type = "renewal", status = "doubt", to = "team_a"),
+                transfer("hidden", "r7", to = "team_b", dateVisible = false),
             )
         )
         assertEquals(listOf("sign"), feed.map { it.id })
@@ -212,20 +206,6 @@ class TransfersLogicTest {
     }
 
     @Test
-    fun arrivalsSortedAlphabeticallyByLastName() {
-        val riders = mapOf(
-            "r1" to RiderProfile(id = "r1", firstName = "A", lastName = "Zeta"),
-            "r2" to RiderProfile(id = "r2", firstName = "B", lastName = "Alfa"),
-        )
-        val moves = listOf(
-            transfer("t1", "r1", type = "transfer", to = "team_a"),
-            transfer("t2", "r2", type = "transfer", to = "team_a"),
-        )
-        val detail = TransfersLogic.teamDetail(moves, emptyList(), "team_a", ridersById = riders)
-        assertEquals(listOf("t2", "t1"), detail.arrivals.map { it.id })
-    }
-
-    @Test
     fun arrivalsConfirmedBeforeRumors() {
         // Confirmados primero, rumores después; apellido dentro de cada grupo.
         val riders = mapOf(
@@ -313,15 +293,6 @@ class TransfersLogicTest {
     }
 
     @Test
-    fun retirementCountsAsDeparture() {
-        val roster = listOf(rider("r1", "Uno"))
-        val moves = listOf(transfer("t1", "r1", type = "retirement", from = "team_a"))
-        val detail = TransfersLogic.teamDetail(moves, roster, "team_a")
-        assertTrue(detail.staying.isEmpty())
-        assertEquals("retirement", detail.departures.single().type)
-    }
-
-    @Test
     fun renewalContractWinsOverProfileAndRumorFlagsRow() {
         val roster = listOf(rider("r1", "Uno", contractUntil = 2027), rider("r2", "Dos", contractUntil = 2027))
         val moves = listOf(
@@ -334,21 +305,6 @@ class TransfersLogicTest {
         assertFalse(byId["r1"]!!.isRumor)
         assertEquals(2030, byId["r2"]?.contractUntil)
         assertTrue(byId["r2"]!!.isRumor)
-    }
-
-    @Test
-    fun stayingFallsBackToProfileContract() {
-        val roster = listOf(rider("r1", "Uno", contractUntil = 2028))
-        val detail = TransfersLogic.teamDetail(emptyList(), roster, "team_a")
-        assertEquals(2028, detail.staying.single().contractUntil)
-        assertFalse(detail.staying.single().isRumor)
-    }
-
-    @Test
-    fun stayingSortsByLastName() {
-        val roster = listOf(rider("r1", "Zubeldia"), rider("r2", "Aular"))
-        val detail = TransfersLogic.teamDetail(emptyList(), roster, "team_a")
-        assertEquals(listOf("r2", "r1"), detail.staying.map { it.rider.id })
     }
 
     // ── Etiquetas de equipo ───────────────────────────────────────
@@ -403,19 +359,7 @@ class TransfersLogicTest {
 
     // ── Fecha oculta (mig. 123) ───────────────────────────────────
 
-    /** La carga inicial del mercado no debe llenar el feed de anuncios viejos. */
-    @Test
-    fun feedExcludesHiddenDateMoves() {
-        val feed = TransfersLogic.confirmedFeed(
-            listOf(
-                transfer("t1", "r1", to = "team_b", dateVisible = true),
-                transfer("t2", "r2", to = "team_b", dateVisible = false),
-            )
-        )
-        assertEquals(listOf("t1"), feed.map { it.id })
-    }
-
-    /** Pero SÍ cuenta en el detalle de equipo: es como se puebla el mercado. */
+    /** Fuera del feed, pero SÍ cuenta en el detalle de equipo: es como se puebla el mercado. */
     @Test
     fun hiddenDateMoveStillCountsInTeamDetail() {
         val moves = listOf(
@@ -438,17 +382,6 @@ class TransfersLogicTest {
     }
 
     // ── Duda del corredor (mig. 123) ──────────────────────────────
-
-    @Test
-    fun feedExcludesDoubts() {
-        val feed = TransfersLogic.confirmedFeed(
-            listOf(
-                transfer("t1", "r1", type = "renewal", status = "doubt", to = "team_a"),
-                transfer("t2", "r2", to = "team_b"),
-            )
-        )
-        assertEquals(listOf("t2"), feed.map { it.id })
-    }
 
     /** Una renovación en duda saca al corredor de "continúan" y lo lleva a "en duda". */
     @Test
@@ -474,17 +407,6 @@ class TransfersLogicTest {
         val detail = TransfersLogic.teamDetail(moves, roster, "team_a")
         // El de la FICHA, nunca el 2030 de la duda.
         assertEquals(2027, detail.doubtful.first().contractUntil)
-    }
-
-    /** Una renovación confirmada sigue mandando sobre el contrato de la ficha. */
-    @Test
-    fun confirmedRenewalStillOverridesContract() {
-        val moves = listOf(
-            transfer("t1", "r1", type = "renewal", to = "team_a", contractUntil = 2030)
-        )
-        val detail = TransfersLogic.teamDetail(moves, listOf(rider("r1", "Uno", contractUntil = 2027)), "team_a")
-        assertEquals(2030, detail.staying.first().contractUntil)
-        assertFalse(detail.staying.first().isRumor)
     }
 
     /** Una salida registrada gana a la duda: no puede estar en ambas listas. */

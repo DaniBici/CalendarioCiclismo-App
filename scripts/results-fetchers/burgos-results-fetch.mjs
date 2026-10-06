@@ -12,6 +12,7 @@ import { execFileSync } from 'child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i < 0 ? fallback : argv[i + 1]; };
@@ -26,7 +27,6 @@ const BASE = 'https://www.vueltaburgos.com';
 const UA = 'calendariociclismo.app results sync (+https://calendariociclismo.app)';
 const log = (message) => process.stderr.write(`${message}\n`);
 
-export function fnv1a(value) { let h = 0x811c9dc5; for (let i = 0; i < value.length; i++) { h ^= value.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 export const suggestCompetitionId = (year) => -(fnv1a(`burgos-pdf:${year}`) % 200000);
 const classIndex = { 'stage/stage': 1, 'gc/stage': 2, 'points/overall': 3, 'kom/overall': 4, 'youth/overall': 5, 'teams/overall': 6 };
 // La Vuelta ya tenía PDFs cargados manualmente: conservar la familia de IDs

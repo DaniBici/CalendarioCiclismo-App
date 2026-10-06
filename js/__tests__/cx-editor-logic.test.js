@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings} from '../cx/editor-logic.js';
+import {parseCxRows,cxLocalToUtc,cxDuration,cxSeconds,cxChipText,validateCxScheme,cxUrl,cxAssertMapImageUrl,cxSaveErrorMessage,cxYouTubeVideoId,cxYouTubeWatchUrl,cxPointValue,cxPoints,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
 
 describe('editor CX: unidades, datos desconocidos e importación',()=>{
   it('acepta solo vídeos identificables de YouTube y guarda su URL canónica',()=>{
@@ -64,5 +64,24 @@ describe('editor CX: unidades, datos desconocidos e importación',()=>{
   it('valida enlaces y contraste de chips',()=>{
     expect(()=>cxUrl('javascript:alert(1)')).toThrow();
     expect(cxChipText('#ffffff')).toBe('#000000');expect(cxChipText('#000000')).toBe('#ffffff');
+  });
+  it('acepta como mapa solo URL JPG o PNG, sin contar la consulta',()=>{
+    for(const url of [null,'https://example.org/map.png?v=2','https://example.org/map.JPEG'])expect(cxAssertMapImageUrl(url)).toBe(url);
+    for(const ext of ['pdf','webp'])expect(()=>cxAssertMapImageUrl(`https://example.org/map.${ext}?v=2`)).toThrow('El mapa debe ser JPG o PNG.');
+  });
+  it('traduce los conflictos de slug y conserva el resto de errores de guardado',()=>{
+    const duplicate=constraint=>new Error(`duplicate key value violates unique constraint "${constraint}"`);
+    expect(cxSaveErrorMessage(duplicate('cx_races_slugEn_key'))).toBe('El slug en inglés ya está en uso por otra carrera. Modificar «Slug (EN)».');
+    expect(cxSaveErrorMessage(duplicate('cx_races_slug_key'))).toBe('El slug ya está en uso por otra carrera. Modificar «Slug».');
+    expect(cxSaveErrorMessage(new Error('No se pudo guardar'))).toBe('No se pudo guardar');
+  });
+  it('reordena un ajuste manual de la general por total y exige puestos consecutivos',()=>{
+    const rows=[{rank:1,globalRiderId:'a',riderDisplay:'A',value:'8:08:15'},{rank:2,globalRiderId:'b',riderDisplay:'B',value:'8:07:00'},{rank:3,globalRiderId:'c',riderDisplay:'C',value:'8:07:00'}];
+    expect(cxManualStandingsRows(rows,'time',{sortByTotal:true}).map(row=>[row.rank,row.globalRiderId,row.timeSeconds])).toEqual([[1,'b','29220'],[2,'c','29220'],[3,'a','29295']]);
+    expect(()=>cxManualStandingsRows(rows.map(row=>({...row,rank:1})),'time')).toThrow('Los puestos');
+    expect(()=>cxManualStandingsRows([{...rows[0],value:''}],'time')).toThrow('total vacío');
+    const calculation=cxManualStandingsCalculation('ME','points',[{rank:2,globalRiderId:'a',riderDisplay:'A',value:'30'},{rank:1,globalRiderId:'b',riderDisplay:'B',value:'40'}],{roundIds:['r1']});
+    expect(calculation).toMatchObject({category:'ME',unit:'points',status:'ready',roundIds:['r1'],breakdown:[]});
+    expect(calculation.rows.map(row=>[row.rank,row.globalRiderId,row.points])).toEqual([[1,'b','40'],[2,'a','30']]);
   });
 });

@@ -3,6 +3,11 @@ export const UCI_CX_CALENDAR_URL = 'https://www.uci.org/discipline/cyclo-cross/2
 export const CX_CATEGORIES = ['ME', 'WE', 'MU', 'WU', 'MJ', 'WJ'];
 export const CX_CLASSES = ['CM', 'CDM', 'CC', 'C1', 'C2', 'CN', 'NAC'];
 const categoryNames = { 'Men Elite':'ME', 'Women Elite':'WE', 'Men Under 23':'MU', 'Women Under 23':'WU', 'Men Junior':'MJ', 'Women Junior':'WJ' };
+// La URL ya empieza por /ciclocross/: el slug no repite la disciplina (misma regla que js/cx/editor-logic.js).
+const slugWithoutDiscipline = slug => {
+  const clean = `-${slug}-`.replace(/-(?:(?:de|del|of)-)?(?:ciclo-?cros(?:s|se)?|cyclo-?cross|cx)(?=-)/g,'').replace(/^-(?:de|del)(?=-)/,'').replace(/^-|-$/g,'');
+  return /[a-z]/.test(clean) ? clean : slug;
+};
 const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export function cxSeason(seasonKey) {
@@ -85,7 +90,7 @@ export function normalizeUciCompetition(entry, props, seasonKey, countryCode) {
   const start = orderedDates[0], end = orderedDates.at(-1);
   const lastDate = new Date(Date.UTC(season.endYear,2,0)).toISOString().slice(0,10);
   if (!start || start < `${season.startYear}-08-01` || end > lastDate) throw new Error(`Fechas CX fuera de agosto–febrero: ${details.name}`);
-  const slugBase = details.name.normalize('NFD').replace(/ł/g,'l').replace(/Ł/g,'L').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'ciclocross';
+  const slugBase = slugWithoutDiscipline(details.name.normalize('NFD').replace(/ł/g,'l').replace(/Ł/g,'L').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')) || 'carrera';
   const website = details.website?.url;
   if (website && !/^https?:\/\//i.test(website)) throw new Error('Web del organizador con protocolo no admitido.');
   return { race:{

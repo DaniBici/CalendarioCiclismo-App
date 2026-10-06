@@ -25,6 +25,11 @@ class AppDatabaseMigrationTest {
     private val dateKey = "2026-09-06"
     private val realStart = "2026-09-06T11:15:00Z"
 
+    private companion object {
+        /** Versión de esquema de `@Database` en [AppDatabase]; subirla con cada migración. */
+        const val CURRENT_VERSION = 18
+    }
+
     @After
     fun tearDown() {
         context.deleteDatabase(databaseName)
@@ -40,7 +45,7 @@ class AppDatabaseMigrationTest {
             assertNull(cached!!.realStartTimeUtc)
             assertEquals(1234L, cached.cachedAt)
             assertEquals("2026-09-06T11:00:00Z", cached.neutralStartTimeUtc)
-            assertEquals(18, database.openHelper.writableDatabase.version)
+            assertEquals(CURRENT_VERSION, database.openHelper.writableDatabase.version)
             database.raceDaysDao().upsertAll(listOf(cached.copy(realStartTimeUtc = realStart)))
         }
 
@@ -57,7 +62,7 @@ class AppDatabaseMigrationTest {
             assertNotNull(cached)
             assertEquals(realStart, cached!!.realStartTimeUtc)
             assertEquals(1234L, cached.cachedAt)
-            assertEquals(18, database.openHelper.writableDatabase.version)
+            assertEquals(CURRENT_VERSION, database.openHelper.writableDatabase.version)
         }
 
         assertReopensWithRealStart("cached-day")
@@ -72,7 +77,7 @@ class AppDatabaseMigrationTest {
             database.cxCacheDao().saveDetail(CxDetailCacheEntity("cx-1", "prueba", "test", "{\"bonusSeconds\":null}", 5678L))
         }
         withDatabase { database ->
-            assertEquals(18, database.openHelper.writableDatabase.version)
+            assertEquals(CURRENT_VERSION, database.openHelper.writableDatabase.version)
             assertEquals("[]", database.cxCacheDao().month("2026-27:2027-01")!!.payload)
             assertEquals("cx-1", database.cxCacheDao().detailBySlug("test")!!.id)
             assertEquals(5678L, database.cxCacheDao().detail("cx-1")!!.cachedAt)
@@ -85,7 +90,7 @@ class AppDatabaseMigrationTest {
         withDatabase { database ->
             val day = RaceDay(id = "new-day", dateKey = dateKey, realStartTimeUtc = realStart)
             database.raceDaysDao().upsertAll(listOf(RaceDayEntity.from(day, cachedAt = 1234L)))
-            assertEquals(18, database.openHelper.writableDatabase.version)
+            assertEquals(CURRENT_VERSION, database.openHelper.writableDatabase.version)
         }
 
         assertReopensWithRealStart("new-day")

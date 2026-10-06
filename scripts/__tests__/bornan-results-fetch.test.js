@@ -5,12 +5,9 @@ import {
   findResultReport,
   parseCode,
   parsePdfText,
-  parseRow,
   parseUnitResults,
-  reportsIndexUrl,
   resultsUrl,
   suggestCompetitionId,
-  synthEventId,
 } from '../results-fetchers/bornan-results-fetch.mjs';
 import zlib from 'node:zlib';
 
@@ -80,8 +77,7 @@ describe('Bornan — resultados oficiales de los Juegos', () => {
 
   it('interpreta el código compuesto y deriva el identificador sintético', () => {
     expect(parseCode(CODE)).toMatchObject({ apiBase: 'https://back.results.santafe2026.org', champ: 'JSUD2026', disc: 'CRD', eventKey: 'W.TT----------------' });
-    expect(suggestCompetitionId(CODE)).toBeLessThan(0);
-    expect(synthEventId(CODE)).toBeLessThan(0);
+    expect(suggestCompetitionId(CODE)).toBe(-96749);   // ancla del ID guardado
     expect(() => parseCode('solo-una-parte')).toThrow('apiBase');
   });
 
@@ -100,12 +96,6 @@ describe('Bornan — resultados oficiales de los Juegos', () => {
     expect(() => parsePdfText(results, { expectedDate: '2026-09-16' })).toThrow('no de 2026-09-16');
     expect(() => parsePdfText(results, { expectedEventToken: 'CRDMTT----------------FNL-000100--' })).toThrow('unidad esperada');
     expect(() => parsePdfText(results.replace('5 / 3                    3', '5 / 3                    2'))).toThrow('declara 2');
-  });
-
-  it('descarta las líneas de parciales intermedias', () => {
-    expect(parseRow('                                                                                                 15:40.16 (1) 15:54.24 (2)')).toBeNull();
-    expect(parseRow('            5        117 SOTO Catalina                          CHI      16:23.79 (4) 32:49.02 (5) 48:53.46 (5)       48:53.46   +1:18.42            44.187'))
-      .toMatchObject({ rank: 5, bib: '117', timeText: '48:53', gapText: '+1:18' });
   });
 
   it('localiza el cuadro Results de la unidad y elige la revisión mayor', () => {
@@ -158,9 +148,5 @@ describe('Bornan — resultados oficiales de los Juegos', () => {
     expect(decodeJsonBuffer(zlib.gzipSync(Buffer.from(payload)))).toEqual({ Events: [] });
     expect(decodeJsonBuffer(mangled)).toEqual({ Events: [] });
     expect(decodeJsonBuffer(zlib.gzipSync(mangled))).toEqual({ Events: [] });
-  });
-
-  it('construye la URL del índice de informes', () => {
-    expect(reportsIndexUrl(parseCode(CODE))).toBe('https://back.results.santafe2026.org/s/JSUD2026/en/CRD/reports/all');
   });
 });

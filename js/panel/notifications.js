@@ -2,11 +2,11 @@
 //  PANEL DE ADMINISTRACIÓN — Notificaciones push
 // ─────────────────────────────────────────────────────────────────
 
-import { panelArea, fillCxRaceSelect } from './cx.js?v=20260927foldname';
+import { panelArea, fillCxRaceSelect } from './cx.js';
 import { supabase, countryFlag, stageLabel, esc } from '../shared.js';
 import {
   resolveCxPushTarget, cxPushSubscriberQuery, cxPushAudienceLabel,
-} from '../cx/push.js?v=20260912cxpush5';
+} from '../cx/push.js';
 import { confirmDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { MARKET_SEASON } from './constants.js';
@@ -356,7 +356,6 @@ export async function setupNotificationsView() {
   if (imageWrap && !imageWrap.querySelector('.field-upload-btn')) {
     const uploadBtn = document.createElement('label');
     uploadBtn.className = 'field-upload-btn';
-    uploadBtn.style.cssText = 'display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 0.75rem;background:var(--bg);border:1px dashed var(--border);border-radius:8px;cursor:pointer;font-size:0.78rem;color:var(--text-dim);flex-shrink:0';
     uploadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Subir`;
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -792,7 +791,7 @@ async function loadScheduledNotifications() {
       .limit(30);
     if (error) throw error;
     if (!data || data.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-dim);font-size:0.82rem;padding:0.5rem 0">No hay notificaciones programadas.</div>';
+      container.innerHTML = '<div class="u-c-dim u-fs-082 u-py-050 u-px-0">No hay notificaciones programadas.</div>';
       return;
     }
     container.innerHTML = data.map(n => {
@@ -805,53 +804,52 @@ async function loadScheduledNotifications() {
       const isPending    = n.status === 'pending';
       const isProcessing  = n.status === 'processing';
       const isFailed     = n.status === 'failed';
-      const isCancelled  = n.status === 'cancelled';
 
       const platformsText = pushPlatformsLabel(n.targetPlatforms);
       const platformsBadge = platformsText
-        ? `<span style="font-size:0.68rem;background:var(--border);color:var(--text-dim);padding:0.1rem 0.45rem;border-radius:20px;font-weight:500" title="Plataformas">${esc(platformsText)}</span>`
+        ? `<span class="push-badge push-badge--muted push-badge--platforms" title="Plataformas">${esc(platformsText)}</span>`
         : '';
 
       const statusBadge = isPending
-        ? `<span style="font-size:0.7rem;background:var(--accent);color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Pendiente</span>`
+        ? `<span class="push-badge push-badge--accent">Pendiente</span>`
         : isProcessing
-          ? `<span style="font-size:0.7rem;background:var(--accent);color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Enviando…</span>`
+          ? `<span class="push-badge push-badge--accent">Enviando…</span>`
         : isFailed
-          ? `<span style="font-size:0.7rem;background:#e55;color:#fff;padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Fallida</span>`
-          : `<span style="font-size:0.7rem;background:var(--border);color:var(--text-dim);padding:0.1rem 0.45rem;border-radius:20px;font-weight:600">Cancelada</span>`;
+          ? `<span class="push-badge push-badge--danger">Fallida</span>`
+          : `<span class="push-badge push-badge--muted">Cancelada</span>`;
 
       const sendNowBtn = isPending
-        ? `<button type="button" data-scheduled-action="send" data-id="${esc(n.id)}" style="font-size:0.72rem;padding:0.2rem 0.6rem;border:1px solid var(--accent);border-radius:6px;background:var(--accent);cursor:pointer;color:#fff;font-weight:600;white-space:nowrap">Enviar ahora</button>`
+        ? `<button type="button" data-scheduled-action="send" data-id="${esc(n.id)}" class="push-sched-btn push-sched-btn--send">Enviar ahora</button>`
         : '';
       const cancelBtn = isPending
-        ? `<button type="button" data-scheduled-action="cancel" data-id="${esc(n.id)}" style="font-size:0.72rem;padding:0.2rem 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;color:var(--text-dim);white-space:nowrap">Cancelar</button>`
+        ? `<button type="button" data-scheduled-action="cancel" data-id="${esc(n.id)}" class="push-sched-btn push-sched-btn--cancel">Cancelar</button>`
         : '';
 
       const errorNote = isFailed && n.errorMessage
-        ? `<div style="font-size:0.72rem;color:#e55;margin-top:0.2rem">${esc(n.errorMessage.slice(0, 120))}</div>`
+        ? `<div class="u-fs-072 u-c-danger u-mt-020">${esc(n.errorMessage.slice(0, 120))}</div>`
         : '';
 
-      return `<div style="padding:0.75rem 0;border-bottom:1px solid var(--border);display:flex;gap:0.75rem;align-items:flex-start">
-        ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;margin-top:0.1rem">` : ''}
+      return `<div class="push-history-row">
+        ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" class="push-history-img">` : ''}
         <div class="u-grow u-min0">
-          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.2rem">
-            <span style="font-weight:600;font-size:0.85rem">${esc(n.title)}</span>
+          <div class="u-row u-wrap u-mb-020">
+            <span class="u-fw-600 u-fs-085">${esc(n.title)}</span>
             ${statusBadge}
             ${platformsBadge}
           </div>
-          ${n.subtitle ? `<div class="u-fs-md u-c-muted">${esc(n.subtitle)}</div>` : ''}
-          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.2rem">${scheduledDate}${dlLabel}</div>
-          ${n.category === 'cyclocross' ? `<div class="u-fs-md u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
+          ${n.subtitle ? `<div class="u-fs-080 u-c-muted">${esc(n.subtitle)}</div>` : ''}
+          <div class="u-fs-072 u-c-dim u-mt-020">${scheduledDate}${dlLabel}</div>
+          ${n.category === 'cyclocross' ? `<div class="u-fs-080 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
           ${errorNote}
         </div>
-        <div style="display:flex;gap:0.4rem;flex-shrink:0">
+        <div class="u-flex u-gap-040 u-shrink-0">
           ${sendNowBtn}
           ${cancelBtn}
         </div>
       </div>`;
     }).join('');
   } catch (err) {
-    container.innerHTML = `<div style="color:#e55;font-size:0.82rem">${esc(err.message)}</div>`;
+    container.innerHTML = `<div class="u-c-danger u-fs-082">${esc(err.message)}</div>`;
   }
 }
 
@@ -951,7 +949,7 @@ async function loadPushHistory() {
       .limit(20);
     if (error) throw error;
     if (!data || data.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-dim);font-size:0.82rem;padding:0.5rem 0">No se han enviado notificaciones aún.</div>';
+      container.innerHTML = '<div class="u-c-dim u-fs-082 u-py-050 u-px-0">No se han enviado notificaciones aún.</div>';
       return;
     }
     container.innerHTML = data.map(n => {
@@ -962,20 +960,20 @@ async function loadPushHistory() {
       const dlLabel = n.deepLink ? ` → <span class="u-c-accent">${esc(deepLinkDisplayLabel(n.deepLink))}</span>` : '';
       const platformsText = pushPlatformsLabel(n.targetPlatforms);
       const platformsBadge = platformsText
-        ? `<span style="font-size:0.68rem;background:var(--border);color:var(--text-dim);padding:0.1rem 0.45rem;border-radius:20px;font-weight:500;margin-left:0.4rem" title="Plataformas">${esc(platformsText)}</span>`
+        ? `<span class="push-badge push-badge--muted push-badge--platforms u-ml-040" title="Plataformas">${esc(platformsText)}</span>`
         : '';
-      return `<div style="padding:0.75rem 0;border-bottom:1px solid var(--border);display:flex;gap:0.75rem;align-items:flex-start">
-        ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;margin-top:0.1rem">` : ''}
+      return `<div class="push-history-row">
+        ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" class="push-history-img">` : ''}
         <div class="u-grow u-min0">
-          <div style="font-weight:600;font-size:0.85rem">${esc(n.title)}${platformsBadge}</div>
-          ${n.subtitle ? `<div class="u-fs-md u-c-muted">${esc(n.subtitle)}</div>` : ''}
-          ${n.category === 'cyclocross' ? `<div class="u-fs-md u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
-          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.25rem">${date} · ${n.recipientCount} destinatarios${dlLabel}</div>
+          <div class="u-fw-600 u-fs-085">${esc(n.title)}${platformsBadge}</div>
+          ${n.subtitle ? `<div class="u-fs-080 u-c-muted">${esc(n.subtitle)}</div>` : ''}
+          ${n.category === 'cyclocross' ? `<div class="u-fs-080 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
+          <div class="u-fs-072 u-c-dim u-mt-025">${date} · ${n.recipientCount} destinatarios${dlLabel}</div>
         </div>
       </div>`;
     }).join('');
   } catch (err) {
-    container.innerHTML = `<div style="color:#e55;font-size:0.82rem">${esc(err.message)}</div>`;
+    container.innerHTML = `<div class="u-c-danger u-fs-082">${esc(err.message)}</div>`;
   }
 }
 

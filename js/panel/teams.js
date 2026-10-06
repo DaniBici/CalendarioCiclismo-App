@@ -2,16 +2,16 @@
 //  PANEL DE ADMINISTRACIÓN — Vista de equipos
 // ─────────────────────────────────────────────────────────────────
 
-import { panelTeamRowHtml, panelTeamCatalogHtml } from './editor-ui.js?v=20260912cxcohesion';
+import { panelTeamRowHtml, panelTeamCatalogHtml } from './editor-ui.js';
 import { supabase, countryFlag, esc } from '../shared.js';
 import {
   activeCatalogTeams, teamGenderLabel, teamListYearOptions, teamsForSeasonList,
-} from '../services/team-catalog.js?v=20260907144500';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+} from '../services/team-catalog.js';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import { genderToggleHtml } from '../components/gender-toggle.js';
-import { automaticTeamHeaderText } from '../team-appearance.js?v=20260905062000';
-import { loadCompleteStartlistCatalog } from '../startlist/import.js?v=20260912120000';
+import { automaticTeamHeaderText } from '../team-appearance.js';
+import { loadCompleteStartlistCatalog } from '../startlist/import.js';
 import { panelState } from './state.js';
 import { CURRENT_TEAM_SEASON, MARKET_SEASON } from './constants.js';
 import { showToast } from './helpers.js';
@@ -167,9 +167,9 @@ function renderTeamSpecialEditionsPanel(teamId) {
     const validity = edition.specialEditionRaceId
       ? 'Carrera concreta'
       : [edition.specialEditionValidFrom, edition.specialEditionValidTo].filter(Boolean).join(' → ') || 'Sin vigencia limitada';
-    return `<button type="button" class="btn btn--ghost" data-special-edition-id="${esc(edition.id)}" style="display:flex;align-items:center;gap:0.6rem;width:100%;padding:0.45rem 0.6rem;text-align:left">
-      <strong style="flex:1;font-size:0.8rem">${esc(edition.name)}</strong>
-      <span class="u-fs-xs u-c-dim">${esc(validity)}</span>
+    return `<button type="button" class="btn btn--ghost team-edition-row" data-special-edition-id="${esc(edition.id)}">
+      <strong class="u-grow u-fs-080">${esc(edition.name)}</strong>
+      <span class="u-fs-072 u-c-dim">${esc(validity)}</span>
       <span aria-hidden="true">›</span>
     </button>`;
   }).join('');
@@ -392,7 +392,6 @@ function refreshTeamPreview() {
 }
 
 function duplicateTeam() {
-  const t = readTeamFromForm();
   panelState._editingTeamId = null;
   panelState._editingTeamIsSeason = false;
   const drawerTitle = document.getElementById('ccDrawer1Title');
@@ -410,9 +409,9 @@ function duplicateTeam() {
 // propio — el drawer trae su ✕; sin span de título — va al header del drawer).
 function teamEditorBodyHtml() {
   return `
-    <button type="button" class="btn btn--ghost" id="specialEditorBackBtn" style="display:none;margin-bottom:0.75rem;padding:0.3rem 0.65rem;font-size:0.76rem">← Volver al equipo</button>
-    <div id="teamEditorKindTitle" style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.75rem">Equipo</div>
-    <div id="teamEditorKindDescription" class="u-fs-sm u-c-dim" style="margin-bottom:0.75rem">Identidad de la temporada seleccionada.</div>
+    <button type="button" class="btn btn--ghost team-editor-back" id="specialEditorBackBtn" style="display:none">← Volver al equipo</button>
+    <div id="teamEditorKindTitle" class="panel-subheading u-mb-075">Equipo</div>
+    <div id="teamEditorKindDescription" class="u-fs-075 u-c-dim u-mb-075">Identidad de la temporada seleccionada.</div>
     <div class="team-editor-layout">
       <div class="u-stack">
         <div class="field">
@@ -421,17 +420,17 @@ function teamEditorBodyHtml() {
         </div>
         <div class="field">
           <label>Alias (uno por línea) <span class="u-dim">— para matching</span></label>
-          <textarea id="te-aliases" rows="3" placeholder="Alias 1&#10;Alias 2" class="u-w-full" style="font-family:var(--font-body);font-size:0.82rem"></textarea>
+          <textarea id="te-aliases" rows="3" placeholder="Alias 1&#10;Alias 2" class="u-w-full team-aliases-input"></textarea>
         </div>
         <input type="checkbox" id="te-specialEdition" hidden>
-        <div id="te-parentTeam-row" class="field" style="display:none;margin-top:0.1rem">
+        <div id="te-parentTeam-row" class="field u-mt-010" style="display:none">
           <label>Equipo base <span class="u-dim">— al que pertenece esta edición especial</span></label>
           <select id="te-parentTeamId" class="u-w-full">
             <option value="">— Sin vincular —</option>
           </select>
         </div>
-        <div id="te-specialValidity-row" style="display:none;margin-top:0.1rem;padding:0.6rem 0.7rem;border:1px dashed var(--border);border-radius:6px;flex-direction:column;gap:0.6rem">
-          <div style="font-size:0.78rem;color:var(--text-dim)">
+        <div id="te-specialValidity-row" class="panel-dashed-box u-gap-060 u-mt-010" style="display:none">
+          <div class="u-fs-078 u-c-dim">
             Vigencia del maillot especial — usa <strong>un rango de fechas</strong> (denominación de tramo, p. ej. hasta abril)
             <strong>o</strong> una <strong>carrera concreta</strong> (maillot de una sola prueba). No ambos.
           </div>
@@ -447,7 +446,7 @@ function teamEditorBodyHtml() {
           </div>
           <div class="field">
             <label>O carrera concreta</label>
-            <input type="text" id="te-seRaceSearch" placeholder="Filtrar carreras…" autocomplete="off" class="u-w-full" style="margin-bottom:0.35rem">
+            <input type="text" id="te-seRaceSearch" placeholder="Filtrar carreras…" autocomplete="off" class="u-w-full u-mb-035">
             <select id="te-seRaceId" class="u-w-full">
               <option value="">— Ninguna —</option>
             </select>
@@ -456,7 +455,7 @@ function teamEditorBodyHtml() {
         <div class="field-row field-row--4">
           <div class="field">
             <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
-            <input type="text" id="te-uciCode" maxlength="3" class="u-w-full" style="text-transform:uppercase" autocapitalize="characters" autocomplete="off" spellcheck="false">
+            <input type="text" id="te-uciCode" maxlength="3" class="u-w-full u-upper" autocapitalize="characters" autocomplete="off" spellcheck="false">
           </div>
           <div class="field">
             <label>Categoría UCI</label>
@@ -490,7 +489,7 @@ function teamEditorBodyHtml() {
             <label>País <span class="u-dim">— ISO 2</span></label>
             <div class="u-row u-row--gap-sm">
               <span class="u-icon-box" id="te-countryFlag" title="Bandera"></span>
-              <input type="text" id="te-countryCode" placeholder="es" maxlength="2" autocapitalize="off" autocomplete="off" spellcheck="false" style="flex:1;text-transform:lowercase">
+              <input type="text" id="te-countryCode" placeholder="es" maxlength="2" autocapitalize="off" autocomplete="off" spellcheck="false" class="u-grow u-lower">
             </div>
           </div>
         </div>
@@ -541,55 +540,55 @@ function teamEditorBodyHtml() {
         </div><!-- /te-colors -->
       </div>
       <div class="team-editor-preview">
-        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)">Vista previa</div>
+        <div class="team-editor-preview__label">Vista previa</div>
         <div id="teamEditorColorsPreview" class="team-color-squares" aria-label="Tres colores cromáticos">
           <i></i><i></i><i></i>
         </div>
-        <div id="teamEditorHeaderPreview" style="width:100%;text-align:center;padding:0.5rem 0.6rem;border-radius:6px;font-family:var(--font-display);font-weight:700;font-size:0.82rem;letter-spacing:0.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cabecera</div>
+        <div id="teamEditorHeaderPreview" class="team-editor-preview__header">Cabecera</div>
       </div>
     </div>
-    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1rem">
+    <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveTeamBtn">Guardar</button>
       <button class="btn btn--ghost" id="duplicateTeamBtn" style="display:none">Duplicar</button>
-      <button class="btn btn--ghost" id="deleteTeamBtn" style="color:var(--red);display:none">Eliminar</button>
-      <button class="btn btn--ghost" id="seasonDiscontinueBtn" style="color:var(--red);display:none">No continúa</button>
-      <span class="u-fs-md u-c-dim" id="teamSaveStatus"></span>
+      <button class="btn btn--ghost u-c-red" id="deleteTeamBtn" style="display:none">Eliminar</button>
+      <button class="btn btn--ghost u-c-red" id="seasonDiscontinueBtn" style="display:none">No continúa</button>
+      <span class="u-fs-080 u-c-dim" id="teamSaveStatus"></span>
     </div>
-    <div id="teamSpecialEditionsPanel" style="display:none;flex-direction:column;gap:0.6rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
-        <div style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text)">Ediciones especiales</div>
+    <div id="teamSpecialEditionsPanel" class="team-editor-panel u-gap-060" style="display:none">
+      <div class="u-row u-gap-075 u-wrap">
+        <div class="panel-subheading u-c-text">Ediciones especiales</div>
         <div class="u-grow"></div>
-        <button type="button" class="btn btn--ghost" id="addSpecialEditionBtn" style="padding:0.3rem 0.7rem;font-size:0.76rem">+ Nueva edición</button>
+        <button type="button" class="btn btn--ghost u-py-030 u-px-070 u-fs-076" id="addSpecialEditionBtn">+ Nueva edición</button>
       </div>
       <div id="teamSpecialEditionsList" class="u-stack u-stack--xs"></div>
     </div>
-    <div id="teamRosterPanel" style="display:none;flex-direction:column;gap:0.75rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
-        <div style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text)">
+    <div id="teamRosterPanel" class="team-editor-panel" style="display:none">
+      <div class="u-row u-gap-075 u-wrap">
+        <div class="panel-subheading u-c-text">
           Plantilla <span id="teamRosterYear"></span>
         </div>
-        <span class="u-fs-sm u-c-dim" id="teamRosterCount"></span>
+        <span class="u-fs-075 u-c-dim" id="teamRosterCount"></span>
         <div class="u-grow"></div>
-        <button class="btn btn--primary" id="rosterNewRiderBtn" style="padding:0.3rem 0.7rem;font-size:0.76rem;white-space:nowrap">+ Nuevo corredor</button>
+        <button class="btn btn--primary u-py-030 u-px-070 u-fs-076 u-nowrap" id="rosterNewRiderBtn">+ Nuevo corredor</button>
       </div>
-      <div id="rosterAddBox" style="display:flex;flex-direction:column;gap:0.4rem;padding:0.6rem 0.7rem;border:1px dashed var(--border);border-radius:6px">
-        <div class="u-row" style="gap:0.5rem;flex-wrap:wrap">
-          <label style="font-size:0.76rem;color:var(--text-dim);white-space:nowrap">Añadir corredor existente:</label>
-          <input type="search" id="rosterAddSearch" placeholder="Buscar por nombre o apellido…" autocomplete="off" style="flex:1;min-width:160px;padding:0.35rem 0.6rem;font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+      <div id="rosterAddBox" class="panel-dashed-box u-gap-040">
+        <div class="u-row u-gap-050 u-wrap">
+          <label class="u-fs-076 u-c-dim u-nowrap">Añadir corredor existente:</label>
+          <input type="search" id="rosterAddSearch" placeholder="Buscar por nombre o apellido…" autocomplete="off" class="roster-add-search">
           ${genderToggleHtml({ idMale: 'rosterAddGenderMale', idFemale: 'rosterAddGenderFemale', wrapId: 'rosterAddGenderToggle', wrapStyle: 'display:none;gap:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:2px' })}
         </div>
-        <div id="rosterAddResults" style="display:none;flex-direction:column;gap:0.2rem;max-height:240px;overflow-y:auto"></div>
+        <div id="rosterAddResults" class="roster-add-results" style="display:none"></div>
       </div>
-      <div id="teamRosterList" style="display:flex;flex-direction:column;gap:0.3rem">
+      <div id="teamRosterList" class="u-flex u-col u-gap-030">
         <div class="u-fs-085 u-c-dim">Cargando…</div>
       </div>
     </div>
-    <div id="teamSeason27Panel" hidden style="display:none;flex-direction:column;gap:0.75rem;margin-top:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
-        <div style="font-family:var(--font-display);font-weight:600;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text)">
+    <div id="teamSeason27Panel" hidden class="team-editor-panel" style="display:none">
+      <div class="u-row u-gap-075 u-wrap">
+        <div class="panel-subheading u-c-text">
           Temporada <span id="teamSeasonYearLabel"></span>
         </div>
-        <span class="u-fs-sm u-c-dim">identidad anual independiente de la ficha matriz</span>
+        <span class="u-fs-075 u-c-dim">identidad anual independiente de la ficha matriz</span>
       </div>
       <div class="field-row field-row--2">
         <div class="field">
@@ -620,7 +619,7 @@ function teamEditorBodyHtml() {
       <div class="field-row field-row--3">
         <div class="field">
           <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
-          <input type="text" id="ts27-uciCode" maxlength="3" class="u-w-full" style="text-transform:uppercase">
+          <input type="text" id="ts27-uciCode" maxlength="3" class="u-w-full u-upper">
         </div>
         <div class="field">
           <label>Género</label>
@@ -635,17 +634,17 @@ function teamEditorBodyHtml() {
           <textarea id="ts27-aliases" rows="3" class="u-w-full"></textarea>
         </div>
       </div>
-      <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
+      <label class="panel-check-label u-gap-050 u-fs-085">
         <input type="checkbox" id="ts27-badgeVisible">
         <span>Colores publicados para esta temporada</span>
       </label>
-      <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
+      <label class="panel-check-label u-gap-050 u-fs-085">
         <input type="checkbox" id="ts27-continuityDoubt">
         <span>Continuidad en duda <span class="u-dim">— usado por el mercado de fichajes cuando corresponde</span></span>
       </label>
       <details id="ts27-colors-details">
-        <summary style="cursor:pointer;font-size:0.8rem;color:var(--text-muted)">🎨 Colores de temporada</summary>
-        <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:0.6rem">
+        <summary class="u-pointer u-fs-080 u-c-muted">🎨 Colores de temporada</summary>
+        <div class="team-colors-body">
           <div class="field-row">
             <div class="field">
               <label>Fondo de pestaña / barra de título</label>
@@ -694,10 +693,10 @@ function teamEditorBodyHtml() {
           </div>
         </div>
       </details>
-      <div class="u-row" style="gap:0.75rem;flex-wrap:wrap">
-        <button class="btn btn--primary" id="saveTeamSeason27Btn" style="padding:0.35rem 0.8rem;font-size:0.8rem">Guardar temporada</button>
-        <button class="btn btn--ghost" id="ts27DiscontinueBtn" title="Elimina únicamente la temporada del mercado y deja de listar el equipo allí" style="padding:0.35rem 0.8rem;font-size:0.8rem;color:var(--red);display:none">No continúa</button>
-        <span class="u-fs-md u-c-dim" id="ts27Status"></span>
+      <div class="u-row u-gap-075 u-wrap">
+        <button class="btn btn--primary u-py-035 u-px-080 u-fs-080" id="saveTeamSeason27Btn">Guardar temporada</button>
+        <button class="btn btn--ghost u-py-035 u-px-080 u-fs-080 u-c-red" id="ts27DiscontinueBtn" title="Elimina únicamente la temporada del mercado y deja de listar el equipo allí" style="display:none">No continúa</button>
+        <span class="u-fs-080 u-c-dim" id="ts27Status"></span>
       </div>
     </div>
   `;
@@ -855,24 +854,6 @@ export function closeTeamEditor() {
   panelState._editingTeamIsSeason = false;
   panelState._rosterTeamId = null;
   closeDrawer(1);
-}
-
-// Repinta SOLO los inputs de color del editor desde un objeto de colores, sin
-// tocar el resto del formulario ni hacer scroll. Se usa tras la detección de
-// colores (overlay del detector) para que el editor abierto detrás refleje los
-// nuevos valores sin esperar a un F5. No-op si el editor no está abierto o no
-// corresponde al equipo guardado.
-export function refreshTeamEditorColors(teamId, colors) {
-  if (panelState._editingTeamId !== teamId || !colors) return;
-  // El editor vive en el drawer: comprobamos que esté montado (inputs de color
-  // presentes) en vez del antiguo #teamEditor display.
-  if (!document.getElementById('te-headerBg-color')) return;
-  _teamColorsExplicitlySet = true;
-  setColorPair('headerBg',    colors.headerBg);
-  setColorPair('torsoCenter', colors.badgeTorsoCenter);
-  setColorPair('torsoSides',  colors.badgeTorsoSides);
-  setColorPair('shorts',      colors.badgeShorts);
-  refreshTeamPreview();
 }
 
 async function saveTeam() {

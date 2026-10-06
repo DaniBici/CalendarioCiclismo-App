@@ -26,13 +26,6 @@ Fuentes oficiales públicas verificadas el 2026-08-25:
 - Sporza: páginas estables por ID y texto editorial de hora/canal. Las altas empiezan
   revisadas; una emisión ya vinculada puede actualizarse automáticamente cuando la
   página declara de forma explícita la nueva hora y dos observaciones coinciden.
-- Caracol: la guía oficial de Gol Caracol y los artículos diarios de La Vuelta
-  publican etapa, fecha y hora colombiana para Caracol TV/HD2, Caracol Sports y
-  Ditu. El horario explícito diario prevalece sobre la guía. Ni la hora deportiva
-  ni las marcas temporales de un live se aceptan como inicio de emisión. Se
-  representa con una fila `Caracol / Ditu`; un relevo posterior a Caracol TV se
-  conserva como nota editorial. Retirada del VPS el 2026-09-25: solo se
-  ejecuta a mano con `--source=caracol`.
 - RTBF: el endpoint público de programación de La Une y Tipik publica hora con
   offset belga, etapa, duración, tipo/estado y enlace Auvio. Se representa con una
   sola fila `La Une / RTBF Auvio` o `Tipik / RTBF Auvio` en `BE`; los relevos se
@@ -74,15 +67,14 @@ en sombra hasta disponer de corroboración ETB ON para altas y diferencias de ho
 deportiva del calendario de la hora editorial de emisión y solo acepta esta
 última cuando la página oficial declara también el canal. EITB no escribe sin
 deep-link de ETB ON y Sporza guarda la ruta estable `~matchId` de la etapa.
-Caracol está retirada del VPS desde el 2026-09-25; en una ejecución manual
-gestiona la hora inicial y el paso posterior a la señal principal permanece como
-nota editorial manual.
+El colector de Caracol se retiró el 2026-09-29; las filas `Caracol / Ditu`
+existentes se editan a mano.
 RTBF consulta La Une y Tipik con paginación completa en una ventana -7/+8 días, descarta
 resúmenes cortos y reconoce los vídeos íntegros de Auvio como cierre Revive.
 Los enlaces `https://etbon.eus/m/...` se consideran `Revive` automáticamente en
 web, Android e iOS; los hubs `/ch/` no. HBO Max y las redes sociales con vídeo
 persistente también son Revive por tipo de enlace. `broadcasts.showInRevive=true`
-es la regla remota autoritativa para RTVE, Eurovision Sport y cualquier fuente
+es la regla remota autoritativa para RTVE y cualquier fuente
 presente o futura que no pueda inferirse por URL. El sincronizador acepta
 `reviveCapable=true` en una observación y lo materializa en `showInRevive` al
 crear o actualizar la emisión; nunca retira una marca Revive existente.

@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, esc, normalizeTeamName } from '../shared.js';
-import { activeCatalogTeams } from '../services/team-catalog.js?v=20260907144500';
+import { activeCatalogTeams } from '../services/team-catalog.js';
 import { alertDialog } from '../components/dialog.js';
 import {
   filterStartlistRiderCandidates, resultRiderDorsalText, resultRiderPickerInitialQuery,
@@ -31,16 +31,15 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
   const currentBib = String(tr.querySelector('.ru-bib')?.value || '').trim();
 
   const pop = document.createElement('div');
-  pop.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:360px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);box-sizing:border-box;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
+  pop.className = 'panel-popover ru-pick-popover';
   pop.innerHTML = `
-    ${currentId ? `<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Match actual: <code style="color:var(--text)">${esc(currentId)}</code></div>` : ''}
-    ${restrictToStartlist ? '<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem">Solo inscritas e inscritos de esta carrera.</div>' : ''}
-    <input type="search" class="ru-pick-input" placeholder="${restrictToStartlist ? 'Dorsal o nombre…' : 'Apellido, nombre u otherNames…'}"
-           style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;box-sizing:border-box;margin-bottom:0.4rem">
-    <div class="ru-pick-results" style="display:flex;flex-direction:column;gap:0.2rem;min-height:1.2rem"></div>
-    <div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;display:flex;justify-content:space-between;align-items:center">
-      ${currentId ? '<button data-action="unlink" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem;color:var(--text-dim)">Desligar</button>' : '<span></span>'}
-      <button data-action="close" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem">Cerrar</button>
+    ${currentId ? `<div class="u-fs-070 u-c-dim u-mb-035">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>` : ''}
+    ${restrictToStartlist ? '<div class="u-fs-070 u-c-dim u-mb-035">Solo inscritas e inscritos de esta carrera.</div>' : ''}
+    <input type="search" class="ru-pick-input" placeholder="${restrictToStartlist ? 'Dorsal o nombre…' : 'Apellido, nombre u otherNames…'}">
+    <div class="ru-pick-results"></div>
+    <div class="panel-popover-footer">
+      ${currentId ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-072 u-c-dim">Desligar</button>' : '<span></span>'}
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cerrar</button>
     </div>`;
   document.body.appendChild(pop);
   _ruMatchPickerEl = pop;
@@ -55,17 +54,17 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
       try {
         const data = filterStartlistRiderCandidates(startlistRiders, q);
         if (!data.length) {
-          results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin inscritos coincidentes.</div>';
+          results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin inscritos coincidentes.</div>';
           return;
         }
         results.innerHTML = data.map((rider, index) => {
           const isCurrent = (rider.globalRiderId && rider.globalRiderId === currentId)
             || (currentBib && String(rider.dorsal ?? '') === currentBib);
           return `
-            <div data-startlist-index="${index}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${isCurrent ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text);cursor:pointer">
-              <strong style="min-width:2.2rem;text-align:right">#${esc(resultRiderDorsalText(rider.dorsal))}</strong>
+            <div data-startlist-index="${index}" role="button" tabindex="0" class="ru-pick-row${isCurrent ? ' ru-pick-row--current' : ''}">
+              <strong class="u-minw-220 u-right">#${esc(resultRiderDorsalText(rider.dorsal))}</strong>
               ${_slRiderFlagPreview(rider.countryCode)}
-              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)}${rider.teamDisplay ? ` <span class="u-c-dim u-fs-070">· ${esc(rider.teamDisplay)}</span>` : ''}</span>
+              <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)}${rider.teamDisplay ? ` <span class="u-c-dim u-fs-070">· ${esc(rider.teamDisplay)}</span>` : ''}</span>
             </div>`;
         }).join('');
         results.querySelectorAll('[data-startlist-index]').forEach((el) => {
@@ -84,26 +83,26 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
         });
       } catch (error) {
         console.error('[resultados] Error mostrando candidatos de la startlist', error);
-        results.innerHTML = '<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">No se han podido mostrar los inscritos.</div>';
+        results.innerHTML = '<div class="u-c-red u-fs-072 u-p-030">No se han podido mostrar los inscritos.</div>';
       }
       return;
     }
-    if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Escribe al menos 2 letras.</div>'; return; }
-    results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Buscando…</div>';
+    if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>'; return; }
+    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
     const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
       .select('id,firstName,lastName,otherNames,nationality,verified,identityKey')
       .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
-    if (!matchingData.length) { results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>'; return; }
+    if (!matchingData.length) { results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>'; return; }
     results.innerHTML = matchingData.map(rd2 => `
-      <div data-pick="${esc(rd2.id)}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${rd2.id === currentId ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text);cursor:pointer">
+      <div data-pick="${esc(rd2.id)}" role="button" tabindex="0" class="ru-pick-row${rd2.id === currentId ? ' ru-pick-row--current' : ''}">
         ${_slRiderFlagPreview(rd2.nationality)}
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"><strong>${esc(rd2.lastName)}</strong>, ${esc(rd2.firstName)}${rd2.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd2.otherNames)})</span>` : ''}</span>
-        ${rd2.verified === false ? '<span title="Sin verificar" style="color:#f59e0b;font-size:0.65rem;font-weight:700;flex-shrink:0">?</span>' : ''}
+        <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd2.lastName)}</strong>, ${esc(rd2.firstName)}${rd2.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd2.otherNames)})</span>` : ''}</span>
+        ${rd2.verified === false ? '<span title="Sin verificar" class="sl-verify-mark u-c-warn">?</span>' : ''}
       </div>`).join('');
     results.querySelectorAll('[data-pick]').forEach(el => {
       el.addEventListener('click', () => {
@@ -164,15 +163,13 @@ export function _openTeamCombo(opts) {
   const sorted = [...teams].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   const overlay = document.createElement('div');
-  overlay.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+  overlay.className = 'tc-overlay';
   overlay.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;width:min(92vw,440px);display:flex;flex-direction:column;gap:0.7rem">
-      <div style="font-family:var(--font-display);font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.03em">${esc(title)}</div>
-      <input type="text" class="tc-search" placeholder="Buscar equipo…" autocomplete="off"
-        style="padding:0.45rem 0.55rem;font-size:0.85rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
-      <div class="tc-list" role="listbox" tabindex="-1"
-        style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:0.2rem;border:1px solid var(--border);border-radius:6px;padding:0.3rem;background:var(--bg)"></div>
-      <div style="display:flex;gap:0.5rem;justify-content:flex-end">
+    <div class="tc-dialog">
+      <div class="tc-title">${esc(title)}</div>
+      <input type="text" class="tc-search" placeholder="Buscar equipo…" autocomplete="off">
+      <div class="tc-list" role="listbox" tabindex="-1"></div>
+      <div class="u-flex u-gap-050 u-justify-end">
         <button class="btn btn--ghost tc-cancel">Cancelar</button>
       </div>
     </div>`;
@@ -194,18 +191,17 @@ export function _openTeamCombo(opts) {
     const selected = t.id === currentId;
     const isSug = t.id && t.id === suggestionId;
     const special = t.specialEdition
-      ? '<span style="font-size:0.66rem;color:var(--text-dim);white-space:nowrap;margin-left:auto">Ed. especial</span>' : '';
-    const sug = isSug ? '<span style="font-size:0.62rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-left:0.35rem">sugerido</span>' : '';
-    const border = isActive ? 'var(--accent)' : (selected ? '#22c55e' : 'var(--border)');
-    return `<div class="tc-item" data-idx="${idx}" data-id="${esc(t.id)}" role="option" aria-selected="${selected}"
-        style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.5rem;border:1px solid ${border};border-radius:5px;cursor:pointer;font-size:0.82rem;color:var(--text);${t._none ? 'font-style:italic;color:var(--text-dim)' : ''}">
-        <span style="${t._none ? '' : 'font-weight:600'}">${esc(t.name)}</span>${sug}${special}
+      ? '<span class="tc-special">Ed. especial</span>' : '';
+    const sug = isSug ? '<span class="tc-sug">sugerido</span>' : '';
+    const state = isActive ? ' tc-item--active' : (selected ? ' tc-item--selected' : '');
+    return `<div class="tc-item${state}${t._none ? ' tc-item--none' : ''}" data-idx="${idx}" data-id="${esc(t.id)}" role="option" aria-selected="${selected}">
+        <span${t._none ? '' : ' class="u-fw-600"'}>${esc(t.name)}</span>${sug}${special}
       </div>`;
   };
 
   const render = () => {
     if (filtered.length === 0) {
-      listEl.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin equipos que coincidan.</div>';
+      listEl.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin equipos que coincidan.</div>';
       return;
     }
     listEl.innerHTML = filtered.map((t, i) => rowHtml(t, i, i === active)).join('');

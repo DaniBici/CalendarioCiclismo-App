@@ -1,8 +1,19 @@
 package app.calendariociclismo.android.data.model
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 
 @Serializable
 data class CxTournament(
@@ -17,7 +28,53 @@ data class CxTournament(
 )
 
 @Serializable
-data class CxStandingState(val category: String, val status: String, val roundIds: List<String> = emptyList())
+data class CxStandingState(
+    val category: String,
+    val status: String,
+    val roundIds: List<String> = emptyList(),
+    /** Desglose por ronda de la general calculada; ausente en cachés antiguas. */
+    @Serializable(with = CxBreakdownListSerializer::class) val breakdown: List<CxBreakdownEntry> = emptyList(),
+)
+
+@Serializable
+data class CxBreakdownEntry(val globalRiderId: String, val eligible: Boolean? = null, val rounds: List<CxBreakdownRound> = emptyList())
+
+@Serializable
+data class CxBreakdownRound(
+    val raceId: String,
+    /** La base de datos lo publica como texto ("40") o como número. */
+    @Serializable(with = CxLenientNumberSerializer::class) val points: Double? = null,
+    val retained: Boolean? = null,
+    val missing: Boolean? = null,
+    val sourceRank: Int? = null,
+)
+
+/** Número tolerante: acepta número o texto JSON; lo no numérico queda en null. */
+object CxLenientNumberSerializer : KSerializer<Double?> {
+    override val descriptor: SerialDescriptor = JsonPrimitive.serializer().descriptor
+    override fun deserialize(decoder: Decoder): Double? {
+        val element = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeDouble()
+        return (element as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim()?.toDoubleOrNull()?.takeIf { it.isFinite() }
+    }
+    override fun serialize(encoder: Encoder, value: Double?) {
+        JsonPrimitive.serializer().serialize(encoder, if (value == null) JsonNull else JsonPrimitive(value))
+    }
+}
+
+/** Lista de desglose tolerante: un valor que no sea lista queda vacío y las
+ *  entradas mal formadas se descartan sin invalidar el estado. */
+object CxBreakdownListSerializer : KSerializer<List<CxBreakdownEntry>> {
+    private val list = ListSerializer(CxBreakdownEntry.serializer())
+    private val lenient = Json { ignoreUnknownKeys = true }
+    override val descriptor: SerialDescriptor = list.descriptor
+    override fun deserialize(decoder: Decoder): List<CxBreakdownEntry> {
+        val element = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return list.deserialize(decoder)
+        return (element as? JsonArray)?.mapNotNull { entry ->
+            runCatching { lenient.decodeFromJsonElement<CxBreakdownEntry>(entry) }.getOrNull()
+        } ?: emptyList()
+    }
+    override fun serialize(encoder: Encoder, value: List<CxBreakdownEntry>) = list.serialize(encoder, value)
+}
 
 /** Fila mínima para numerar las rondas de un torneo; espejo del select ligero web. */
 @Serializable
@@ -82,8 +139,6 @@ data class CxRace(
     val assets: List<CxAsset> = emptyList(),
     @SerialName("cx_tournaments") val tournament: CxTournament? = null,
     @SerialName("cx_race_categories") val categories: List<CxCategory> = emptyList(),
-    @SerialName("cx_broadcasts") val broadcasts: List<CxBroadcast> = emptyList(),
-    @SerialName("cx_videos") val videos: List<CxVideo> = emptyList(),
 )
 
 @Serializable
@@ -164,6 +219,7 @@ data class CxStanding(
     val isoCode2: String? = null,
     val points: Double? = null,
     val timeSeconds: Long? = null,
+    val globalRiderId: String? = null,
 )
 
 @Serializable
@@ -187,6 +243,7 @@ data class CxVideo(
     val raceId: String,
     val category: String? = null,
     val title: String,
+    val titleEn: String? = null,
     val url: String,
     val sortOrder: Int = 0,
 )
@@ -202,4 +259,14 @@ data class CxDetail(
     val standings: List<CxStanding> = emptyList(),
     val standingsState: List<CxStandingState> = emptyList(),
     val assets: List<CxAsset> = emptyList(),
+)
+
+/** Clasificaciones generales de un torneo y lo necesario para pintarlas:
+ *  catálogo de equipos y carreras de sus rondas (nombre y enlace de columna). */
+data class CxTournamentGeneral(
+    val tournament: CxTournament?,
+    val states: List<CxStandingState>,
+    val standings: List<CxStanding>,
+    val teams: List<CxTeam>,
+    val races: List<CxRace>,
 )

@@ -21,6 +21,19 @@ fun openExternalUrl(context: Context, url: String) {
     }
 }
 
+/**
+ * Apertura de emisiones y enlaces externos de las fichas (carretera y
+ * ciclocross): sin red avisa mediante `onOffline`; con red, app nativa
+ * (YouTube, HBO Max, X) o Custom Tabs.
+ */
+fun openExternalLink(context: Context, url: String, onOffline: () -> Unit) {
+    if (!NetworkMonitor.isOnline(context)) {
+        onOffline()
+        return
+    }
+    openExternalUrl(context, url)
+}
+
 private fun openInNativeApp(context: Context, uri: Uri): Boolean {
     val intent = Intent(Intent.ACTION_VIEW, uri).apply {
         addCategory(Intent.CATEGORY_BROWSABLE)

@@ -14,10 +14,15 @@ struct SeasonView: View {
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
     @State private var loadingOneDayRaceId: String?
     @State private var loadingStageRaceId: String?
-    /// Índice de la página (mes) visible en el TabView.
-    @State private var currentMonthIndex: Int = 0
+    /// Challenges desplegados (muestran sus pruebas bajo la fila del grupo).
+    @State private var expandedChallengeIds: Set<String> = []
+    /// Mes visible en el TabView (1-12; 0 = "Todos"). Selección por mes y no
+    /// por índice: al filtrar cambian las páginas disponibles y un índice
+    /// pasaría a señalar otro mes.
+    @State private var currentMonth: Int = 0
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     @State private var localeService = LocaleService.shared
+    @State private var notifications = NotificationManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,12 +43,12 @@ struct SeasonView: View {
             if !viewModel.racesByMonth.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(Array(viewModel.racesByMonth.enumerated()), id: \.element.month) { idx, group in
-                            let isSelected = currentMonthIndex == idx
+                        ForEach(viewModel.racesByMonth, id: \.month) { group in
+                            let isSelected = currentMonth == group.month
                             let label = group.month == 0 ? localeService.t("Todos", "All") : DateFormatting.shortMonthName(group.month)
                             Button {
                                 Haptics.play(.navigation)
-                                currentMonthIndex = idx
+                                currentMonth = group.month
                             } label: {
                                 Text(label)
                                     .font(.caption)
@@ -109,17 +114,17 @@ struct SeasonView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TabView(selection: $currentMonthIndex) {
-                    ForEach(Array(viewModel.racesByMonth.enumerated()), id: \.element.month) { idx, group in
+                TabView(selection: $currentMonth) {
+                    ForEach(viewModel.racesByMonth, id: \.month) { group in
                         monthPageView(
                             month: group.month,
                             races: group.races
                         )
-                        .tag(idx)
+                        .tag(group.month)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .onChange(of: currentMonthIndex) { _, _ in
+                .onChange(of: currentMonth) { _, _ in
                     Haptics.play(.navigation)
                 }
                 // El pager (y el scroll de cada página) llega hasta el borde
@@ -176,22 +181,33 @@ struct SeasonView: View {
             }
         }
         .onChange(of: viewModel.year) { _, _ in
-            currentMonthIndex = 0
+            currentMonth = 0
             Task { await viewModel.loadSeason() }
         }
+        .onChange(of: notifications.pendingSeasonYear) { _, _ in
+            applyPendingSeasonYear()
+        }
         .placeholderModal(item: $placeholderItem)
-        .task { await viewModel.loadSeason() }
+        .task {
+            // Apertura desde el cintillo con otro año: carga onChange(of: year).
+            if let year = notifications.pendingSeasonYear, year != viewModel.year {
+                applyPendingSeasonYear()
+                return
+            }
+            notifications.pendingSeasonYear = nil
+            await viewModel.loadSeason()
+        }
         .onChange(of: viewModel.isLoading) { _, newValue in
             if !newValue && !viewModel.racesByMonth.isEmpty {
                 AccessibilityAnnouncement.announce(LocaleService.t("Temporada \(viewModel.year) cargada", "Season \(viewModel.year) loaded"))
-                currentMonthIndex = bestMonthIndex()
+                currentMonth = bestMonth()
             }
         }
         .onChange(of: viewModel.activeFilter) { _, _ in
-            syncMonthIndex()
+            syncMonth()
         }
         .onChange(of: viewModel.activeCountry) { _, _ in
-            syncMonthIndex()
+            syncMonth()
         }
         .onChange(of: storedDefaultFilter) { _, newValue in
             if let filter = Constants.CategoryFilter(rawValue: newValue) {
@@ -273,32 +289,35 @@ struct SeasonView: View {
 
     // MARK: - Month page
 
-    /// Un elemento de la lista de Temporada: una carrera real o la fila sintética
-    /// de Campeonatos Nacionales (que colapsa todas las CN, como en la vista de
+    /// Un elemento de la lista de Temporada: una carrera real, un challenge
+    /// (sus pruebas en una fila, como la web) o la fila sintética de
+    /// Campeonatos Nacionales (que colapsa todas las CN, como en la vista de
     /// Mes y la web).
     private enum SeasonRow: Identifiable {
-        case race(Race)
+        case entry(SeasonEntry)
         case championships
         var id: String {
             switch self {
-            case .race(let r): return r.id
+            case .entry(let entry): return entry.id
             case .championships: return "__championships__"
             }
         }
     }
 
-    /// Intercala la fila de Campeonatos (si procede) entre las carreras de un mes,
-    /// ordenada por la fecha de inicio de la semana de Campeonatos. Solo se inserta
-    /// en el mes que contiene esa semana (junio).
+    /// Agrupa los challenges e intercala la fila de Campeonatos (si procede)
+    /// entre las carreras de un mes, ordenada por la fecha de inicio de la
+    /// semana de Campeonatos. Solo se inserta en el mes que contiene esa semana
+    /// (junio).
     private func rows(for races: [Race], month: Int) -> [SeasonRow] {
-        var items = races.map { SeasonRow.race($0) }
+        let entries = SeasonChallengeLogic.entries(races: races, groups: viewModel.challengeGroups)
+        var items = entries.map { SeasonRow.entry($0) }
         guard viewModel.hasChampionships, month == viewModel.championshipsMonth else {
             return items
         }
         let champDate = viewModel.championshipsSortDate
-        // Posición = primera carrera cuya fecha de inicio es posterior a la semana
+        // Posición = primera entrada cuya fecha de inicio es posterior a la semana
         // de Campeonatos (las carreras ya vienen ordenadas por startDate).
-        let insertAt = races.firstIndex { ($0.startDate ?? "") > champDate } ?? races.count
+        let insertAt = entries.firstIndex { ($0.startDate ?? "") > champDate } ?? entries.count
         items.insert(.championships, at: insertAt)
         return items
     }
@@ -419,21 +438,16 @@ struct SeasonView: View {
 
     /// Agrupa las carreras de la página "Todos" por mes calendario, ordenadas.
     private func allPageGroups(from races: [Race]) -> [(month: Int, races: [Race])] {
-        let grouped = Dictionary(grouping: races) { race -> Int in
-            guard let sd = race.startDate, let date = DateFormatting.date(from: sd) else { return 0 }
-            return Calendar.current.component(.month, from: date)
-        }
-        return grouped.keys.sorted().compactMap { m in
-            guard m > 0, let list = grouped[m] else { return nil }
-            return (month: m, races: list)
-        }
+        viewModel.groupedByMonth(races)
     }
 
     @ViewBuilder
     private func seasonRowView(_ row: SeasonRow) -> some View {
         switch row {
-        case .race(let race):
+        case .entry(.race(let race)):
             raceRowView(race: race)
+        case .entry(.challenge(let group, let races)):
+            challengeRowView(group: group, races: races)
         case .championships:
             NavigationLink(value: ChampionshipsRoute()) {
                 SeasonChampionshipsRow()
@@ -441,6 +455,56 @@ struct SeasonView: View {
             .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded { Haptics.play(.navigation) })
         }
+    }
+
+    // MARK: - Challenge row
+
+    /// Fila del challenge: al pulsarla despliega sus pruebas, cada una con su
+    /// navegación habitual.
+    @ViewBuilder
+    private func challengeRowView(group: ChallengeGroup, races: [Race]) -> some View {
+        let expanded = expandedChallengeIds.contains(group.id)
+        VStack(spacing: 6) {
+            Button {
+                Haptics.play(.selection)
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expanded { expandedChallengeIds.remove(group.id) } else { expandedChallengeIds.insert(group.id) }
+                }
+            } label: {
+                SeasonChallengeRow(
+                    group: group,
+                    races: races,
+                    displayName: challengeDisplayName(group),
+                    showFemale: showFemaleIndicator(for: group),
+                    expanded: expanded
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(group.name), \(races.count) \(localeService.t("carreras", "races"))")
+            .accessibilityValue(expanded ? localeService.t("Desplegado", "Expanded") : localeService.t("Plegado", "Collapsed"))
+            .accessibilityHint(localeService.t("Pulsa dos veces para ver sus carreras", "Double tap to show its races"))
+
+            if expanded {
+                ForEach(races) { race in
+                    raceRowView(race: race)
+                        .padding(.leading, 16)
+                }
+            }
+        }
+    }
+
+    private func challengeDisplayName(_ group: ChallengeGroup) -> String {
+        let filter = viewModel.activeFilter
+        if (filter == .wwt || filter == .female), group.gender == "female" {
+            return RaceLogic.cleanFeminineDisplayName(group.name)
+        }
+        return group.name
+    }
+
+    private func showFemaleIndicator(for group: ChallengeGroup) -> Bool {
+        let filter = viewModel.activeFilter
+        if filter == .wwt || filter == .female { return false }
+        return group.gender == "female" && !RaceLogic.nameImpliesFemale(group.name)
     }
 
     // MARK: - Race row
@@ -484,52 +548,49 @@ struct SeasonView: View {
         }
     }
 
-    // MARK: - Month index helpers
+    // MARK: - Month helpers
 
-    /// Índice del mes que debería mostrarse al cargar o cambiar de año.
+    /// Mes que debería mostrarse al cargar o cambiar de año (0 = "Todos").
     /// Regla: seleccionamos el mes en curso por defecto (no "Todos") siempre
     /// que esté presente. Si no lo está (fuera de año / colapsado por país
     /// con <5 carreras), caemos al primer mes real disponible; si tampoco
     /// hay meses reales, seleccionamos "Todos".
-    private func bestMonthIndex() -> Int {
+    private func bestMonth() -> Int {
         let months = viewModel.racesByMonth.map(\.month)
-        guard !months.isEmpty else { return 0 }
-
-        // Solo existe "Todos" (colapsado por país con <5 carreras).
-        if months == [0] { return 0 }
-
-        // Índice del primer mes real (después de "Todos").
-        let firstRealIdx = months.firstIndex(where: { $0 > 0 }) ?? 0
+        // Primer mes real (después de "Todos"); 0 si solo existe "Todos".
+        let firstReal = months.first(where: { $0 > 0 }) ?? 0
 
         guard viewModel.year == Calendar.current.component(.year, from: Date()) else {
-            return firstRealIdx
+            return firstReal
         }
 
         let current = Calendar.current.component(.month, from: Date())
-        if let idx = months.firstIndex(of: current) { return idx }
-        if let idx = months.firstIndex(where: { $0 > current && $0 > 0 }) { return idx }
-        return firstRealIdx
+        if months.contains(current) { return current }
+        return months.first(where: { $0 > current }) ?? firstReal
     }
 
-    /// Tras cambiar filtro o país: intenta mantener el mes actual; si ya no existe, salta al mejor.
-    /// Cuando el sistema colapsa a solo "Todos" (país con <5 carreras) saltamos
-    /// a "Todos" obligatoriamente. En el resto de casos, si el mes visible
-    /// sigue existiendo lo mantenemos — "Todos" (0) también cuenta como
-    /// existente y se respeta la elección del usuario.
-    private func syncMonthIndex() {
+    /// Temporada pedida por el cintillo. Un año distinto recarga vía
+    /// onChange(of: year) y se sitúa en su primer mes; el mismo año vuelve al
+    /// mes de referencia.
+    private func applyPendingSeasonYear() {
+        guard let year = notifications.pendingSeasonYear else { return }
+        notifications.pendingSeasonYear = nil
+        if viewModel.year != year {
+            viewModel.year = year
+        } else if !viewModel.racesByMonth.isEmpty {
+            currentMonth = bestMonth()
+        }
+    }
+
+    /// Tras cambiar filtro o país: mantiene el mes visible si sigue existiendo
+    /// ("Todos" incluido); si no, salta al mejor. Cuando el sistema colapsa a
+    /// solo "Todos" (país con <5 carreras) el mes visible desaparece y se
+    /// salta a "Todos". Sin carreras se conserva el mes para recuperarlo al
+    /// relajar el filtro.
+    private func syncMonth() {
         let months = viewModel.racesByMonth.map(\.month)
-        guard !months.isEmpty else {
-            currentMonthIndex = 0
-            return
-        }
-        let visibleMonth = currentMonthIndex < viewModel.racesByMonth.count
-            ? viewModel.racesByMonth[currentMonthIndex].month
-            : nil
-        if let m = visibleMonth, let newIdx = months.firstIndex(of: m) {
-            currentMonthIndex = newIdx
-            return
-        }
-        currentMonthIndex = bestMonthIndex()
+        guard !months.isEmpty, !months.contains(currentMonth) else { return }
+        currentMonth = bestMonth()
     }
 
     // MARK: - Display helpers
@@ -712,6 +773,70 @@ private struct SeasonRaceRow: View {
             .padding(.horizontal, 10)
         }
         .opacity(race.isCancelled ? 0.5 : 1)
+        .accessibilityElement(children: .ignore)
+    }
+}
+
+/// Fila de un challenge: mismo diseño que `SeasonRaceRow`, con las fechas
+/// de la primera a la última prueba y un chevron que gira al desplegar.
+private struct SeasonChallengeRow: View {
+    let group: ChallengeGroup
+    let races: [Race]
+    var displayName: String
+    var showFemale: Bool = false
+    var expanded: Bool = false
+
+    private var dateRange: String {
+        let start = races.compactMap(\.startDate).min()
+        let end = races.compactMap { $0.endDate ?? $0.startDate }.max()
+        return DateFormatting.formatDateRange(start: start, end: end)
+    }
+
+    var body: some View {
+        CCCard(
+            accent: group.colorHex.flatMap { $0.isEmpty ? nil : Color(hex: $0) } ?? .gray,
+            accentAlpha: 0.04,
+            cornerRadius: 14,
+            showShadow: false
+        ) {
+            HStack(spacing: 10) {
+                CountryFlag(countryCode: group.countryCode)
+
+                RaceLogo(group.logoUrl, size: 28)
+
+                HStack(spacing: 4) {
+                    Text(displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if showFemale {
+                        Text("♀")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.green)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    Text(dateRange)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    CategoryBadge(category: group.uciCategory ?? races.first?.uciCategory)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+        }
         .accessibilityElement(children: .ignore)
     }
 }

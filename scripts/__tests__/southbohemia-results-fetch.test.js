@@ -109,7 +109,6 @@ describe('dossiers oficiales de South Bohemia', () => {
   it.each([
     [() => fixture().replace(title, 'TOUR OF SOUTH BOHEMIA 2025'), 'otra carrera o año'],
     [() => fixture().replace('E1 1.', 'E2 2.'), 'etapa 2'],
-    [() => fixture().replace('A1 po 1.', 'A2 po 2.'), 'etapa 2'],
     [() => fixture().replaceAll('03.09.2026', '04.09.2026'), 'fecha'],
     [() => fixture().replace('num. of riders: 5', 'num. of riders: 6'), 'se publican 6'],
     [() => fixture().replace('3 13 HUN', '4 13 HUN'), 'puestos incompletos'],

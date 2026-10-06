@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
@@ -42,6 +44,7 @@ import app.calendariociclismo.android.data.model.CxRace
 import app.calendariociclismo.android.data.model.CxTournament
 import app.calendariociclismo.android.util.CyclocrossLogic
 import kotlinx.coroutines.CancellationException
+import app.calendariociclismo.android.ui.calendar.CalendarNavigation
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
@@ -61,6 +64,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TodayHighlightsBanner(navController: NavController, scope: String = "road") {
     val app = rememberApp()
+    val tapScope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<HighlightItem>>(emptyList()) }
 
     LaunchedEffect(scope) {
@@ -100,6 +104,16 @@ fun TodayHighlightsBanner(navController: NavController, scope: String = "road") 
                         navController.navigate(Routes.CHAMPIONSHIPS)
                     item.highlight.targetType == "transfers" ->
                         navController.navigate(Routes.TRANSFERS_HIGHLIGHT)
+                    // Calendario es pestaña: se fijan antes la subvista Temporada
+                    // y el año para que CalendarScreen abra ya en ellos.
+                    item.isSeason && item.highlight.seasonYear != null -> tapScope.launch {
+                        app.preferences.setCalendarSubview("season")
+                        CalendarNavigation.pendingSeasonYear.value = item.highlight.seasonYear
+                        navController.navigate(Routes.CALENDAR) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
             },
         )
@@ -125,6 +139,7 @@ internal data class HighlightItem(
     val accentHex: String? get() = race?.colorHex ?: cxRace?.colorHex ?: cxRace?.tournament?.colorHex ?: cxTournament?.colorHex
     val isChampionships: Boolean get() = highlight.targetType == "championships"
     val isTransfers: Boolean get() = highlight.targetType == "transfers"
+    val isSeason: Boolean get() = highlight.targetType == "season"
 
     fun title(isEn: Boolean): String {
         val custom = if (isEn) highlight.customTitleEn ?: highlight.customTitle else highlight.customTitle
@@ -134,6 +149,7 @@ internal data class HighlightItem(
         cxTournament?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         if (isChampionships) return LocaleHolder.t("Campeonatos Nacionales", "National Championships")
         if (isTransfers) return LocaleHolder.t("Mercado de Fichajes", "Transfer market")
+        if (isSeason) highlight.seasonYear?.let { return LocaleHolder.t("Calendario $it", "$it calendar") }
         return ""
     }
     fun detailFallback(isEn: Boolean, today: String, tomorrow: String): String {
@@ -194,9 +210,12 @@ private suspend fun loadHighlights(
         if (h.targetType == "cxRace") return@mapNotNull HighlightItem.forCx(h, h.cxRaceId?.let { cxById[it] })
         if (h.targetType == "cxTournament") return@mapNotNull HighlightItem.forCxTournament(h, h.cxTournamentId?.let { cxTournamentById[it] })
         val rd = h.raceDayId?.let { raceDaysById[it] }
-        // Campeonatos y Fichajes: destinos sin carrera (abren pantalla nativa).
+        // Campeonatos, Fichajes y Calendario: destinos sin carrera (abren pantalla nativa).
         if (h.targetType == "championships" || h.targetType == "transfers") {
             return@mapNotNull HighlightItem(highlight = h, race = null, raceDay = null)
+        }
+        if (h.targetType == "season") {
+            return@mapNotNull h.seasonYear?.let { HighlightItem(highlight = h, race = null, raceDay = null) }
         }
         val race = when {
             h.raceId != null     -> racesById[h.raceId]
@@ -415,6 +434,19 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasControls: Boolea
             ) {
                 Icon(
                     Icons.Filled.SyncAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        } else if (item.isSeason) {
+            // Mismo icono que la pestaña Calendario.
+            Box(
+                modifier = Modifier.size(34.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.CalendarMonth,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(26.dp),

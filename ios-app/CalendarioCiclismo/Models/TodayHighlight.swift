@@ -5,12 +5,13 @@ import Foundation
 struct TodayHighlight: Codable, Identifiable, Hashable {
     let id: String
     let position: Int
-    let targetType: String           // "raceDay" | "startlist" | "startOrder" | "custom" | "cxRace" | "cxTournament"
+    let targetType: String           // "raceDay" | "startlist" | "startOrder" | "custom" | "season" | "cxRace" | "cxTournament"
     var scope: String? = nil         // "road" | "cx". Ausente en documentos antiguos (equivale a "road").
     let raceId: String?
     let raceDayId: String?
     var cxRaceId: String? = nil
     var cxTournamentId: String? = nil
+    var seasonYear: Int? = nil       // Solo "season": temporada del calendario.
     let customTitle: String?
     let customTitleEn: String?
     let customDetail: String?
@@ -37,6 +38,7 @@ enum TodayHighlightTarget: Hashable {
     case startOrder(raceDayId: String)
     case championships
     case transfers
+    case season(year: Int)
     case cxRace(raceId: String)
     case cxTournament(tournamentId: String)
 
@@ -48,6 +50,7 @@ enum TodayHighlightTarget: Hashable {
         case "startOrder":   if let id = highlight.raceDayId { self = .startOrder(raceDayId: id); return }
         case "championships": self = .championships; return
         case "transfers":     self = .transfers; return
+        case "season":        if let year = highlight.seasonYear { self = .season(year: year); return }
         case "cxRace": if let id = highlight.cxRaceId, !id.isEmpty { self = .cxRace(raceId: id); return }
         case "cxTournament": if let id = highlight.cxTournamentId, !id.isEmpty { self = .cxTournament(tournamentId: id); return }
         default: break
@@ -79,6 +82,7 @@ struct TodayHighlightView: Identifiable {
     var target: TodayHighlightTarget? { TodayHighlightTarget(highlight: highlight) }
     var isChampionships: Bool { highlight.targetType == "championships" }
     var isTransfers: Bool { highlight.targetType == "transfers" }
+    var isSeason: Bool { highlight.targetType == "season" }
 
     @MainActor var title: String {
         if let t = highlight.localizedTitle, !t.isEmpty { return t }
@@ -87,6 +91,7 @@ struct TodayHighlightView: Identifiable {
         if let cxTournament { return CyclocrossPresentation.t(cxTournament.name, cxTournament.nameEn ?? cxTournament.name) }
         if isChampionships { return ChampionshipsConfig.title }
         if isTransfers { return LocaleService.t("Mercado de Fichajes", "Transfer market") }
+        if isSeason, let year = highlight.seasonYear { return LocaleService.t("Calendario \(year)", "\(year) calendar") }
         return ""
     }
 

@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import {
   applyPersistedResultSyncDayState,
@@ -7,12 +5,12 @@ import {
   findResultClassificationDuplicate,
   hasResultSyncDayOverride,
   isFinalStageRaceDay,
+  manualResultClassificationRow,
   nextResultRank,
   normalizeResultTimeInput,
   pairFinalClassifications,
   resultClassificationBelongsToDay,
   resultClassificationOfficialState,
-  resultRiderDorsalText,
   resultRiderPickerInitialQuery,
   resultSyncDefaultScope,
   resultSyncScopeOptionsVisible,
@@ -20,7 +18,7 @@ import {
   riderMatchesSearch,
   riderSearchLookupToken,
   shouldMirrorFinalClassification,
-  uniquePartialSurnameMatch,
+  startlistRosterCandidates,
   uniqueStartlistSurnameMatch,
 } from '../results/panel-logic.js';
 
@@ -84,28 +82,9 @@ describe('clasificaciones manuales por jornada y sector', () => {
     }
   });
 
-  it('el alta del panel crea dos sectores con identificadores distintos sin escribir en Supabase', async () => {
-    const source = readFileSync(new URL('../panel/results-editor.js', import.meta.url), 'utf8').replace(/^export /gm, '');
-    const createSource = source.slice(source.indexOf('function _ruFnv1a('), source.indexOf('async function _ruMirrorFinalClassification('));
-    const inserted = [];
-    const createClass = runInNewContext(`${createSource}\n_ruCreateClass`, {
-      findResultClassificationDuplicate,
-      UCI_CLASS_LABELS: { stage: 'Etapa' },
-      supabase: {
-        from(table) {
-          expect(table).toBe('race_uci_stages');
-          return {
-            insert(row) {
-              inserted.push(row);
-              return { select: () => ({ single: async () => ({ data: row, error: null }) }) };
-            },
-          };
-        },
-      },
-    });
-    const race = { raceFormat: 'stage_race' };
-    const a = await createClass(sectors[0], race, [], 'stage', false, sectors);
-    const b = await createClass(sectors[1], race, [a], 'stage', false, sectors);
+  it('el alta manual crea dos sectores con identificadores distintos y rechaza el duplicado', () => {
+    const a = manualResultClassificationRow(sectors[0], [], 'stage', false, sectors, 'Etapa');
+    const b = manualResultClassificationRow(sectors[1], [a], 'stage', false, sectors, 'Etapa');
     expect(a.raceDayId).toBe('1a');
     expect(b.raceDayId).toBe('1b');
     expect(a.stageNumber).toBe(b.stageNumber);
@@ -113,9 +92,8 @@ describe('clasificaciones manuales por jornada y sector', () => {
     expect(a.eventId).not.toBe(b.eventId);
     expect(a.eventId).toBeLessThan(0);
     expect(b.eventId).toBeLessThan(0);
-    await expect(createClass(sectors[1], race, [a, b], 'stage', false, sectors))
-      .rejects.toThrow('Ya existe una clasificación');
-    expect(inserted).toHaveLength(2);
+    expect(() => manualResultClassificationRow(sectors[1], [a, b], 'stage', false, sectors, 'Etapa'))
+      .toThrow('Ya existe una clasificación «Etapa»');
   });
 });
 
@@ -140,13 +118,6 @@ describe('programación automática de resultados', () => {
   it('solo ofrece elegir alcance en vueltas por etapas', () => {
     expect(resultSyncScopeOptionsVisible({ raceFormat: 'stage_race' })).toBe(true);
     expect(resultSyncScopeOptionsVisible({ raceFormat: 'one_day' })).toBe(false);
-  });
-
-  it('muestra la ventana siempre abierta y sin control de activación', () => {
-    const source = readFileSync(new URL('../panel/results.js', import.meta.url), 'utf8');
-    expect(source).toContain('Horario de volcado automático');
-    expect(source).not.toContain('<details class="ru-sync-policy"');
-    expect(source).not.toContain('id="ru-sync-enabled"');
   });
 
   it('incorpora al estado visible la ventana confirmada por Postgres', () => {
@@ -210,13 +181,14 @@ describe('pseudo-clasificación final automática', () => {
     expect(shouldMirrorFinalClassification({ classKind: 'points' }, false)).toBe(false);
   });
 
-  it('colapsa la cabecera de etapa y la pseudo-final en una sola fila del panel', () => {
+  it('colapsa la cabecera de etapa y la pseudo-final en una fila con el estado de la gemela', () => {
     const mine = [
       { id: 'stage', classKind: 'stage' },
       { id: 'points-stage', classKind: 'points', lockedAt: null },
     ];
     const finals = [
-      { id: 'points-final', eventId: -2, classKind: 'points', lockedAt: '2026-08-22T12:00:00Z' },
+      { id: 'points-final', eventId: -2, classKind: 'points', lockedAt: '2026-08-22T12:00:00Z',
+        officialAt: '2026-08-22T12:00:00Z', publicationStatus: 'official' },
       { id: 'kom-final', eventId: -3, classKind: 'kom' },
     ];
 
@@ -227,24 +199,10 @@ describe('pseudo-clasificación final automática', () => {
       _isFinalRaceDay: true,
       _finalTwinId: 'points-final',
       _finalTwinEventId: -2,
-    });
-    expect(paired.finals.map((stage) => stage.id)).toEqual(['kom-final']);
-  });
-
-  it('arrstra el estado de publicación de la gemela para el interruptor de oficialidad', () => {
-    const mine = [
-      { id: 'stage', classKind: 'stage' },
-      { id: 'points-stage', classKind: 'points', officialAt: null, publicationStatus: 'provisional' },
-    ];
-    const finals = [
-      { id: 'points-final', classKind: 'points', officialAt: '2026-08-22T12:00:00Z', publicationStatus: 'official' },
-    ];
-
-    const paired = pairFinalClassifications(mine, finals, true);
-    expect(paired.mine[1]).toMatchObject({
       _finalTwinOfficialAt: '2026-08-22T12:00:00Z',
       _finalTwinPublicationStatus: 'official',
     });
+    expect(paired.finals.map((stage) => stage.id)).toEqual(['kom-final']);
   });
 });
 
@@ -294,36 +252,19 @@ describe('autoasociación por apellido en resultados', () => {
     expect(uniqueStartlistSurnameMatch('van-aert', riders)?.dorsal).toBe(31);
   });
 
-  it('permite un apellido parcial cuando sigue siendo único en la plantilla', () => {
-    const roster = [
-      { id: 'kim-le-court', firstName: 'Kim', lastName: 'Le Court-Pienaar' },
-      { id: 'julie-martin', firstName: 'Julie', lastName: 'Martin' },
-    ];
-    expect(uniquePartialSurnameMatch('le', '', roster)?.id).toBe('kim-le-court');
-    expect(uniquePartialSurnameMatch('le court', '', roster)?.id).toBe('kim-le-court');
-    expect(uniquePartialSurnameMatch('le court-pienaar', '', roster)?.id).toBe('kim-le-court');
-  });
-
-  it('usa el nombre para desambiguar apellidos parciales repetidos', () => {
-    const roster = [
-      { id: 'kim-le-court', firstName: 'Kim', lastName: 'Le Court-Pienaar' },
-      { id: 'ann-le-roux', firstName: 'Ann', lastName: 'Le Roux' },
-    ];
-    expect(uniquePartialSurnameMatch('le', '', roster)).toBeNull();
-    expect(uniquePartialSurnameMatch('le', 'Kim', roster)?.id).toBe('kim-le-court');
-  });
-
-  it('asocia por nombre sin apellido y conserva la ambigüedad dentro del equipo', () => {
+  it('filtra la plantilla por apellido parcial y usa el nombre para desambiguar', () => {
     const roster = [
       { id: 'kim-le-court', firstName: 'Kim', lastName: 'Le Court-Pienaar' },
       { id: 'julie-martin', firstName: 'Julie', lastName: 'Martin' },
       { id: 'julie-le-roux', firstName: 'Julie', lastName: 'Le Roux' },
     ];
-    expect(uniquePartialSurnameMatch('', 'KIM', roster)?.id).toBe('kim-le-court');
-    expect(uniquePartialSurnameMatch('', 'Julie', roster)).toBeNull();
-    expect(uniquePartialSurnameMatch('Martin', 'Julie', roster)?.id).toBe('julie-martin');
-    expect(uniquePartialSurnameMatch('Le Court', 'Julie', roster)).toBeNull();
-    expect(uniquePartialSurnameMatch('', '', roster)).toBeNull();
+    const ids = (last, first) => startlistRosterCandidates(last, first, roster).map(rider => rider.id);
+    expect(ids('le court-pienaar', '')).toEqual(['kim-le-court']);
+    expect(ids('le', '')).toEqual(['kim-le-court', 'julie-le-roux']);
+    expect(ids('le', 'Kim')).toEqual(['kim-le-court']);
+    expect(ids('', 'Julie')).toEqual(['julie-martin', 'julie-le-roux']);
+    expect(ids('Le Court', 'Julie')).toEqual([]);
+    expect(ids('', '')).toEqual([]);
   });
 
   it('reconoce nombres completos aunque la fuente invierta el orden o pierda diacríticos', () => {
@@ -355,10 +296,6 @@ describe('autoasociación por apellido en resultados', () => {
     expect(resultRiderPickerInitialQuery('Tomáš Kopecký', false)).toBe('Kopecký');
   });
 
-  it('convierte el dorsal numérico a texto antes de renderizarlo', () => {
-    expect(resultRiderDorsalText(76)).toBe('76');
-    expect(resultRiderDorsalText(null)).toBe('—');
-  });
 });
 
 describe('puesto de una fila nueva de resultados', () => {

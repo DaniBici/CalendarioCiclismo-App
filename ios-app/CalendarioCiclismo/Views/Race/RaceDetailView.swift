@@ -241,9 +241,8 @@ struct RaceDetailView: View {
 // MARK: - RaceNotificationChip
 
 /// Chip de notificaciones por carrera. Visible a todos los usuarios:
-/// - Sin Premium → presenta paywall.
-/// - Premium + followAll → alert para cambiar a followRaces.
-/// - Premium + followRaces → toggle inmediato.
+/// - followAll → alert para cambiar a followRaces.
+/// - followRaces → toggle inmediato.
 private struct RaceNotificationChip: View {
     let raceId: String
 
@@ -284,7 +283,6 @@ private struct RaceNotificationChip: View {
     }
 
     private func handleTap() {
-        // Notificaciones enriquecidas liberadas al plan gratuito: sin paywall.
         Haptics.play(.selection)
         switch raceFollow.followMode {
         case .followAll:

@@ -2,7 +2,7 @@
    CALENDARIO CICLISMO — Panel de Administración
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('tokens.css?v=20260928tokens');
+@import url('tokens.css');
 
 :root {
   --bg-sidebar:    #202938;
@@ -16,6 +16,36 @@
   --topbar-height: 52px;
   --rail-width:    210px;
   --editor-content-width: 1120px;
+
+  /* Colores de estado del panel, iguales en ambos temas. Recogen los
+     literales que antes se repetían en los estilos en línea de js/panel. */
+  --panel-danger:     #e55;
+  --panel-error:      #e84747;
+  --panel-warn:       #f59e0b;
+  --panel-warn-bg:    rgba(245,158,11,0.15);
+  --panel-note-bg:    rgba(240,160,0,0.12);
+  --panel-ok:         #22c55e;
+  --panel-caution:    #c97a00;
+  --panel-pending:    #e0a400;
+  --panel-done:       #3a3;
+  --panel-flag:       #f90;
+  --panel-violet:     #8b5cf6;
+  --panel-violet-bg:  rgba(139,92,246,0.15);
+  --panel-blue:       #2563eb;
+  --panel-blue-bg:    rgba(59,130,246,0.14);
+  --panel-popover-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --panel-red:           #ef4444;
+  --panel-red-bg:        #ef444422;
+  --panel-red-border:    #ef444466;
+  --panel-warn-soft:     #f59e0b22;
+  --panel-warn-border:   #f59e0b66;
+  --panel-slate:         #94a3b8;
+  --panel-slate-bg:      #64748b22;
+  --panel-slate-border:  #64748b66;
+  --panel-scrim:         rgba(0,0,0,0.55);
+  --panel-delete:        #e53e3e;
+  --panel-delete-border: rgba(229,62,62,0.3);
+  --panel-subtle-bg:     rgba(0,0,0,0.04);
 }
 
 /* ── Tema claro ───────────────────────────────────────────────── */
@@ -285,17 +315,6 @@ a { color: inherit; text-decoration: none; }
 .panel-rail__scroll::-webkit-scrollbar { width: 4px; }
 .panel-rail__scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-.panel-rail__group-label {
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  padding: 0.75rem 0.65rem 0.3rem;
-}
-.panel-rail__group-label:first-child { padding-top: 0.25rem; }
-
 /* Item del rail (botón de navegación) */
 .rail-item {
   display: flex;
@@ -461,19 +480,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
 .sidebar__list::-webkit-scrollbar-track { background: transparent; }
 .sidebar__list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-.sidebar-group-label {
-  display: flex;
-  align-items: center;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  padding: 0.6rem 0.75rem 0.2rem;
-  margin-top: 0.25rem;
-}
-.sidebar-group-label:first-child { margin-top: 0; }
-
 .sidebar-item {
   width: 100%;
   text-align: left;
@@ -495,7 +501,10 @@ html.dark  .date-nav__input { color-scheme: dark; }
 
 .sidebar-item:hover    { background: var(--bg-card); }
 .sidebar-item.active   { background: var(--bg-card); border-color: var(--border); }
-.sidebar-item--feature-selectable { grid-template-columns:24px auto minmax(0,1fr); }
+/* La corona va en la última columna: bandera y nombre quedan en la misma
+   posición que en las agendas sin corona (ciclocross, dorsales). */
+.sidebar-item--feature-selectable { grid-template-columns:auto minmax(0,1fr) 24px; }
+.sidebar-item--feature-selectable > .sidebar-featured-crown { grid-column:3; grid-row:1; }
 .sidebar-featured-crown { display:grid; place-items:center; width:24px; height:28px; padding:0; border:0; background:transparent; color:var(--text-muted); cursor:pointer; opacity:0; transition:opacity .15s; }
 .sidebar-featured-crown svg { width:22px; height:22px; }
 .sidebar-featured-crown[aria-pressed=true] { color:var(--accent); opacity:1; }
@@ -541,60 +550,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
 .sidebar-item--pending:hover {
   opacity: 1;
 }
-
-/* ── Lista de filas estilo Agenda (reutilizable: Inscritos «Últimas listas») ── */
-.listcard {
-  width: 100%;
-  max-width: var(--content-max);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.listcard__list {
-  display: flex;
-  flex-direction: column;
-}
-
-.listrow {
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--radius);
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.6rem;
-  align-items: center;
-  border: 1px solid transparent;
-  transition: background var(--transition), border-color var(--transition);
-}
-.listrow:hover { background: var(--bg-card); border-color: var(--border); }
-
-.listrow__flag   { font-size: 1rem; line-height: 1; flex-shrink: 0; }
-.listrow__info   { min-width: 0; overflow: hidden; }
-.listrow__name   {
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.listrow__meta   {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-.listrow__badges { margin-top: 0.2rem; }
-
-.listrow__actions {
-  display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-.listrow__btn {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-}
-.listrow__btn--danger { color: var(--red); }
 
 /* ── Main editor area ─────────────────────────────────────────── */
 .editor-area {
@@ -889,16 +844,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
   transition: color var(--transition), background var(--transition);
 }
 .asset-row__remove:hover { color: #e84747; background: rgba(232,71,71,0.08); }
-.asset-row__link {
-  flex-shrink: 0;
-  color: var(--text-dim);
-  font-size: 0.9rem;
-  text-decoration: none;
-  padding: 0.3rem 0.45rem;
-  border-radius: var(--radius);
-  transition: color var(--transition), background var(--transition);
-}
-.asset-row__link:hover { color: var(--accent, #f90); background: rgba(255,153,0,0.08); }
 
 .assets-add__select {
   background: var(--bg-input);
@@ -982,7 +927,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 /* Puertos — en escritorio las cabeceras comparten exactamente la rejilla de
    sus campos. Con el antiguo flex, los huecos de los botones ⌖/✕ desplazaban
    "long. · %" y cada encabezado acababa sobre la columna equivocada. */
-@media (min-width: 641px) {
+@media (min-width: 601px) {
   .editor-section__body:has(#summitsList) .ann-row--header,
   #summitsList .ann-row {
     display: grid;
@@ -1002,12 +947,10 @@ html.dark  .date-nav__input { color-scheme: dark; }
   #summitsList .ann-row .ann-stats,
   #summitsList .ann-row .ann-detect-btn,
   #summitsList .ann-row .ann-del-btn { width: auto; }
-  #summitsList .ann-row .ann-detect-btn,
-  #summitsList .ann-row .ann-del-btn { padding-inline: 0; }
 }
 
 /* ── Summit rows — 2-row grid on mobile ──────────────────────── */
-@media (max-width: 640px) {
+@media (max-width: 600px) {
   /* Hide column headers: placeholders serve as labels in the grid layout */
   .editor-section__body:has(#summitsList) .ann-row--header,
   .editor-section__body:has(#waypointsList) .ann-row--header {
@@ -1090,42 +1033,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
 }
 
 /* ── Race selector modal ──────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-.modal {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  width: 100%;
-  max-width: 480px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-@media (max-width: 600px) {
-  .modal-overlay { padding: 0; align-items: flex-end; }
-  .modal { max-width: 100%; max-height: 92vh; border-radius: var(--radius) var(--radius) 0 0; }
-}
-.modal__header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.modal__title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1rem;
-}
 .modal__search {
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
@@ -1276,13 +1183,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
   gap: 1rem;
 }
 .races-header__row1 .panel-view-actions {flex-wrap:wrap}
-.races-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
 /* Toggle de subvista Carreras / Challenges (segmentado) */
 .races-subview-toggle {
   display: inline-flex;
@@ -1357,7 +1257,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
   :root { --rail-width: 56px; }
   .rail-item__label,
   .panel-rail__logo-text,
-  .panel-rail__group-label,
   .panel-rail__user { display: none; }
   .panel-rail__logo { justify-content: center; padding: 0.9rem 0; }
   .rail-item { justify-content: center; padding: 0.6rem 0; gap: 0; }
@@ -1378,7 +1277,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
   /* Vista Carreras */
   .races-header { padding: 0.75rem; }
   .races-header__row1 { gap: 0.5rem; }
-  .races-title { font-size: 0.95rem; }
   .races-subview-btn { font-size: 0.78rem; padding: 0.3rem 0.6rem; }
   .races-new-btn { font-size: 0.8rem; padding: 0.35rem 0.65rem; white-space: nowrap; }
   .races-header__row2 { flex-direction: column; align-items: stretch; gap: 0.5rem; }
@@ -1485,17 +1383,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
   border-radius: 3px;
   flex-shrink: 0;
 }
-
-.races-group-title {
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  margin: 1.25rem 0 0.5rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 1px solid var(--border);
-}
-.races-group-title:first-child { margin-top: 0; }
 
 /* ── Cuadrícula de categorías (Carreras / Equipos) ────────────── */
 .cat-grid {
@@ -1607,7 +1494,6 @@ html.dark  .date-nav__input { color-scheme: dark; }
 .panel-layout { position: relative; }
 
 #racesView,
-#challengesView,
 #analyticsView,
 #operationsView,
 #startlistsView,
@@ -1615,8 +1501,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 #teamsView,
 #highlightsView,
 #fichajesView,
-#notificationsView,
-#filesView {
+#notificationsView {
   position: absolute;
   top: 0;
   left: var(--rail-width); right: 0; bottom: 0;
@@ -1873,6 +1758,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 .ga-bar {
   position: absolute;
   left: 0;
+  width: var(--ga-size);
   top: 2px;
   bottom: 2px;
   background: var(--accent-dim);
@@ -1911,6 +1797,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 
 .ga-hour-fill {
   width: 100%;
+  height: var(--ga-size);
   position: relative;
   border-radius: 3px 3px 0 0;
   overflow: hidden;
@@ -1923,6 +1810,9 @@ html.dark  .date-nav__input { color-scheme: dark; }
   position: absolute;
   left: 0;
   right: 0;
+  bottom: var(--ga-offset);
+  height: var(--ga-size);
+  background: var(--ga-color);
 }
 
 .ga-hour-bar--peak .ga-hour-fill {
@@ -1953,6 +1843,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 }
 
 .ga-day-legend__swatch {
+  background: var(--ga-color);
   width: 0.7rem;
   height: 0.7rem;
   border-radius: 2px;
@@ -1986,6 +1877,7 @@ html.dark  .date-nav__input { color-scheme: dark; }
 }
 
 .ga-day-stack {
+  height: var(--ga-size);
   position: absolute;
   left: 0;
   right: 0;
@@ -2004,6 +1896,9 @@ html.dark  .date-nav__input { color-scheme: dark; }
   position: absolute;
   left: 0;
   right: 0;
+  bottom: var(--ga-offset);
+  height: var(--ga-size);
+  background: var(--ga-color);
 }
 
 .ga-day-label {
@@ -2030,7 +1925,11 @@ html.dark  .date-nav__input { color-scheme: dark; }
   display: flex;
   align-items: center;
   overflow: hidden;
+  width: var(--ga-size);
+  min-width: 0;
+  background: var(--ga-color);
 }
+.ga-stacked-segment--filled { min-width: 3px; }
 
 .ga-stacked-label {
   padding: 0 0.65rem;
@@ -2050,7 +1949,8 @@ html.dark  .date-nav__input { color-scheme: dark; }
 }
 
 .ga-platform-card {
-  border: 1px solid transparent;
+  background: var(--ga-color);
+  border: 1px solid var(--ga-color);
   border-radius: 8px;
   overflow: hidden;
   padding: 0.85rem 1rem;
@@ -2223,21 +2123,11 @@ html.dark .ga-platform-card[data-platform="android"] .ga-platform-card__lbl { co
   margin-top: 0.25rem;
 }
 
-/* ── Preview de tipo en el editor ───────────────────────────────── */
-#ed-type-preview {
-  min-height: 1.6rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  align-items: center;
-  margin-top: 0.25rem;
-}
-
 /* ════════════════════════════════════════════════════════════════════
    CAPA DE UTILIDADES (u-*)  ·  Rediseño rail+drawer, Fase 0.2
    ────────────────────────────────────────────────────────────────────
-   Aditiva: nada la referencia hasta la Fase 3 (migración de estilos
-   inline de app.html). Prefijo `u-` = utilidad de propósito único y
+   Aquí quedan las utilidades compuestas; las atómicas de un solo valor
+   van en el bloque final de la hoja. Prefijo `u-` = utilidad de propósito único y
    borrable, deliberadamente distinta de los hooks de componente BEM
    (block__element--modifier) para que el intent sea inequívoco.
 
@@ -2254,17 +2144,12 @@ html.dark .ga-platform-card[data-platform="android"] .ga-platform-card__lbl { co
 .u-row--gap-sm    { gap: 0.35rem; }   /* 7× display:flex;gap:0.35rem;align-items:center */
 .u-stack          { display: flex; flex-direction: column; gap: 0.75rem; } /* 5× */
 .u-between        { display: flex; align-items: center; justify-content: space-between; } /* 4× */
-.u-grow           { flex: 1; }        /* 7× flex:1 */
-.u-shrink-0       { flex-shrink: 0; }
-.u-min0           { min-width: 0; }   /* para flex items que deben poder encoger */
 .u-stack--xs      { gap: 0.25rem; }   /* modificador de .u-stack */
 .u-row--gap-xs    { gap: 0.2rem; }    /* modificador de .u-row */
-.u-gap-sm         { gap: 0.5rem; }    /* gap atómico (componer con flex) */
 /* caja de icono centrada (3×): inline-flex 1.6em */
 .u-icon-box       { display: inline-flex; align-items: center; justify-content: center; width: 1.6em; }
 
 /* — Sizing — */
-.u-w-full         { width: 100%; }    /* 19× width:100% */
 /* muestra de color cuadrada */
 .u-w-color {
   width: 40px;
@@ -2274,9 +2159,6 @@ html.dark .ga-platform-card[data-platform="android"] .ga-platform-card__lbl { co
   background: var(--bg);
   border-radius: 4px;
 }
-/* botón compacto "Abrir/Buscar ↗": font-size:0.7rem;
-   padding:0.2rem 0.5rem;white-space:nowrap */
-.u-btn-mini { font-size: 0.7rem; padding: 0.2rem 0.5rem; white-space: nowrap; }
 .u-w-time { width: 4.5rem; }   /* input de hora en anotaciones (5×) */
 /* botones pequeños recurrentes (padding+fs) */
 .u-btn-xs { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
@@ -2361,21 +2243,8 @@ input[type="color"].u-color-dot {
 /* — Texto — */
 .u-dim            { color: var(--text-dim); font-weight: 400; } /* 14× */
 .u-hint           { font-weight: 400; opacity: 0.6; }          /* 11× */
-.u-mono           { font-family: monospace; }
-.u-upper          { text-transform: uppercase; }
-.u-o60            { opacity: 0.6; }
 /* color exacto (--text-dim ≠ --text-muted; ver tokens) */
-.u-c-dim          { color: var(--text-dim); }
-.u-c-muted        { color: var(--text-muted); }
-.u-c-accent       { color: var(--accent); }
 /* tamaños de fuente atómicos (se componen con u-c-*) */
-.u-fs-068         { font-size: 0.68rem; }
-.u-fs-070         { font-size: 0.7rem; }
-.u-fs-xs          { font-size: 0.72rem; }
-.u-fs-sm          { font-size: 0.75rem; }
-.u-fs-md          { font-size: 0.8rem; }
-.u-fs-082         { font-size: 0.82rem; }
-.u-fs-085         { font-size: 0.85rem; }
 /* sub-label en bloque (3×): 0.78rem muted con margen inferior */
 .u-sublabel       { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.3rem; }
 /* hint "— explicación" tras un label (6×): peso 400, opacidad 0.55, 0.78rem */
@@ -2387,7 +2256,6 @@ input[type="color"].u-color-dot {
 /* nota de lista vacía: dim + padding + centrado (4×) */
 .u-empty-note     { color: var(--text-dim); padding: 1rem; text-align: center; }
 /* — Padding atómico — */
-.u-p-xs           { padding: 0.3rem; }
 /* micro-label de sección: 0.72rem uppercase dim (3×+) */
 .u-micro {
   font-size: 0.72rem;
@@ -2683,11 +2551,6 @@ input[type="color"].u-color-dot {
   .cc-drawer__body .field-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
   .team-editor-layout { grid-template-columns: minmax(0, 1fr); }
   .team-editor-preview { position: static; }
-  .sl-edit-rider > div:first-child { flex-wrap: wrap; row-gap: 0.5rem; }
-  .sl-edit-rider .sl-firstname,
-  .sl-edit-rider .sl-lastname { order: 1; flex-basis: calc(50% - 0.175rem); min-width: 0; }
-  .sl-edit-rider input { min-height: 36px; font-size: 1rem !important; }
-  .sl-edit-rider button { min-height: 36px; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2787,54 +2650,6 @@ input[type="color"].u-color-dot {
 }
 
 /* ── Estilos heredados de revisión de enlaces carrera↔competición ── */
-.u-fs-075 { font-size: 0.72rem; }
-
-.uci-group-label {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-  color: var(--text-dim);
-  margin: 0.25rem 0 0.5rem;
-}
-.uci-group-label .u-c-dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
-
-.uci-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.7rem 0.85rem;
-  margin-bottom: 0.6rem;
-  box-shadow: var(--card-shadow, 0 1px 2px rgba(0,0,0,0.04));
-}
-.uci-card--muted { opacity: 0.65; }
-.uci-card--dismissed { opacity: 0.4; }
-.uci-card--dismissed .uci-pair,
-.uci-card--dismissed .uci-card__foot { display: none; }
-
-.uci-card__head {
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.6rem;
-}
-.uci-card__head strong { color: var(--text); }
-.uci-comp-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
-.uci-comp-link:hover { text-decoration: underline; }
-
-.uci-pair { display: flex; gap: 0.6rem; }
-.uci-claim {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0.55rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-subtle, rgba(0,0,0,0.02));
-}
-.uci-claim--active { border-color: #3a3; background: rgba(60,170,60,0.08); }
-.uci-claim__title { font-weight: 600; font-size: 0.85rem; line-height: 1.3; word-break: break-word; }
-.uci-claim__action { margin-top: 0.5rem; display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 
 .uci-chip {
   display: inline-block;
@@ -2843,19 +2658,6 @@ input[type="color"].u-color-dot {
   border-radius: 999px;
   background: var(--bg-subtle, rgba(0,0,0,0.06));
   color: var(--text-dim);
-}
-.uci-chip--ok { background: rgba(60,170,60,0.15); color: #2a8a2a; }
-
-.uci-card__foot {
-  margin-top: 0.55rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 600px) {
-  .uci-pair { flex-direction: column; }
 }
 
 /* ── Pestaña "Resultados" del editor de jornada (clasificaciones UCI) ── */
@@ -3056,7 +2858,7 @@ input[type="color"].u-color-dot {
    pantalla. Se re-maqueta cada <tr> como grid de 2 líneas: arriba los campos
    de identificación (puesto/dorsal/corredor), abajo los de resultado
    (equipo/tiempo/IRM), con el asa de arrastre y el ✕ ocupando ambas. */
-@media (max-width: 640px) {
+@media (max-width: 600px) {
   .ru-edit-table thead { display: none; }
   .ru-edit-table, .ru-edit-table tbody, .ru-edit-table tr, .ru-edit-table td { display: block; }
   .ru-edit-table tr.ru-row {
@@ -3475,3 +3277,1291 @@ input[type="color"].u-color-dot {
 .panel-team-row {cursor:pointer}.panel-team-row__name {flex:1;font-size:.85rem;min-width:0}.panel-team-row__meta {font-size:.68rem;color:var(--text-dim);white-space:nowrap}.panel-team-row .btn {padding:.2rem .5rem;font-size:.72rem;flex-shrink:0}
 .panel-rider-row {cursor:pointer;width:100%}.panel-rider-row__flag {width:1.5em;text-align:center}.panel-rider-row__name {flex:1;min-width:0;font-size:.82rem}.panel-rider-row__team {display:block;font-size:.66rem;color:var(--text-dim)}.panel-catalog-count {font-size:.75rem;color:var(--text-dim);margin-bottom:.5rem}
 @media(max-width:600px){.panel-team-row {flex-wrap:wrap}.panel-team-row__name {flex-basis:65%}.panel-team-row__meta {white-space:normal}}
+
+/* ════════════════════════════════════════════════════════════════════
+   COMPONENTES MIGRADOS DE ESTILOS EN LÍNEA
+   ────────────────────────────────────────────────────────────────────
+   Combinaciones que js/panel escribía en style="…". Van al final de la
+   hoja para prevalecer, como el estilo en línea, sobre las reglas de
+   igual especificidad. Solo quedan en línea los valores calculados en
+   tiempo de ejecución (preferentemente como custom properties) y el
+   display:none inicial de los nodos que el JS alterna con .style.display.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* — Botones compactos — */
+.btn--mini    { padding: 0.2rem 0.5rem; font-size: 0.7rem; }
+.btn--icon-xs { padding: 0.2rem 0.4rem; font-size: 0.7rem; }
+.btn--xs      { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+.btn--tiny    { padding: 0.15rem 0.4rem; font-size: 0.65rem; }
+.btn--compact { padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+.btn--row     { padding: 0.25rem 0.7rem; font-size: 0.72rem; }
+/* Un .btn--ghost con color propio lo conserva en hover, como con el
+   estilo en línea (supera a .btn--ghost:hover:not(:disabled)). */
+.btn--ghost.u-c-red:hover:not(:disabled) { color: var(--red); }
+.btn--ghost.u-c-dim:hover:not(:disabled) { color: var(--text-dim); }
+.btn--ghost.u-c-accent:hover:not(:disabled) { color: var(--accent); }
+.btn--ghost.u-c-danger:hover:not(:disabled) { color: var(--panel-danger); }
+
+/* — Listas y formularios comunes — */
+/* Aviso de lista vacía en selectores */
+.panel-empty { padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.8rem; }
+/* Campo y selector sobre fondo de página dentro de un drawer */
+.panel-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+/* Botón con aspecto de enlace */
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  text-decoration: underline;
+}
+/* Casilla con texto en línea; el hueco va con u-gap-*. La etiqueta en el
+   selector iguala a `.field label` y, al ir después, prevalece. */
+label.panel-check-label { display: inline-flex; align-items: center; cursor: pointer; }
+/* Marcador de bandera vacía del mismo tamaño que el SVG */
+.flag-placeholder { display: inline-block; width: 1.2em; height: 0.9em; }
+/* Ventana emergente centrada (selectores de corredor y de equipo) */
+.panel-popover {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+  box-sizing: border-box;
+  overflow: auto;
+  z-index: 9999;
+  box-shadow: var(--panel-popover-shadow);
+}
+.panel-popover-footer {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* Pie de un drawer con acciones a la derecha (se compone con .u-row) */
+.panel-drawer-footer { justify-content: flex-end; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+/* Fila de guardado bajo un editor (se compone con .u-row) */
+.panel-save-row { gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+/* Pie de acciones de un formulario en drawer */
+.panel-form-actions {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* — Selector de carrera y alta de carrera (race-picker.js) — */
+/* Mayor especificidad que `.modal__search input` (móvil, 1rem): el
+   estilo en línea anterior mantenía 0.875rem en todas las anchuras. */
+.modal__search .race-search-input {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+.race-modal-footer { padding: 0.75rem 0 0; border-top: 1px solid var(--border); margin-top: 0.75rem; }
+.nr-check-row { gap: 0.6rem; padding: 0.25rem 0 0; }
+.nr-check-row--first { padding: 0.5rem 0 0.25rem; }
+.nr-flag-check { accent-color: var(--panel-flag); }
+.nr-flag-label { color: var(--panel-flag); }
+.nr-danger-check { accent-color: var(--panel-danger); }
+.nr-danger-label { color: var(--panel-danger); }
+
+/* — Editor de jornada: filas de anotación y emisiones (jornada-fields.js) — */
+.ann-row .ann-detect-btn { padding: 0.2rem 0.45rem; font-size: 0.7rem; flex-shrink: 0; }
+.ann-row .ann-del-btn    { padding: 0.2rem 0.5rem; font-size: 0.7rem; flex-shrink: 0; }
+.tv-entry-panel__actions { display: flex; gap: 0.25rem; align-items: center; }
+.tv-entry-panel__toggles {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.25rem;
+  flex-wrap: wrap;
+}
+.tv-entry-panel__toggles label { margin: 0; font-weight: normal; cursor: pointer; }
+
+/* — Inscritos: selector de corredor (startlist-picker.js) — */
+.sl-picker-popover { width: 400px; }
+.sl-picker-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.sl-picker-heading {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sl-picker-fields { display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
+.sl-picker-field {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
+  outline: none;
+}
+.sl-picker-field--last  { flex: 1.4; min-width: 6rem; font-weight: 700; }
+.sl-picker-field--first { flex: 1.2; min-width: 5rem; }
+.sl-picker-field--nat   { width: 2.8rem; text-transform: lowercase; text-align: center; }
+.sl-picker-field--wide  { width: 100%; box-sizing: border-box; font-size: 0.74rem; }
+.sl-picker-flag { font-size: 1.1rem; min-width: 1.4rem; text-align: center; }
+.sl-picker-input,
+.merge-picker-input,
+.ru-pick-input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 0.4rem;
+}
+.sl-picker-results,
+.merge-picker-results,
+.ru-pick-results { display: flex; flex-direction: column; gap: 0.2rem; min-height: 1.2rem; }
+/* Resultado de búsqueda; --current marca el match vigente */
+.sl-match-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+.sl-match-row--current { border-color: var(--panel-ok); }
+.sl-match-pick { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; cursor: pointer; }
+/* ✓ / ? de corredor verificado; el color lo pone u-c-ok / u-c-warn */
+.sl-verify-mark { font-size: 0.65rem; font-weight: 700; flex-shrink: 0; }
+/* Acciones mínimas de fila: fusionar (verde) y borrar (contorno) */
+.sl-mini-action { border-radius: 3px; cursor: pointer; flex-shrink: 0; }
+.sl-mini-action--merge  { background: var(--panel-ok); color: var(--btn-primary-text); border: none; }
+.sl-mini-action--delete { background: none; border: 1px solid var(--border); color: var(--red); }
+.sl-dup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.72rem;
+}
+
+/* — Inscritos: editor de equipos y corredores (startlist-picker.js, startlists.js) — */
+.sl-edit-team { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+.sl-edit-team-header {
+  background: var(--bg-card-hover);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.sl-team-name {
+  flex: 1;
+  min-width: 180px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.4rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sl-team-name:focus { border-color: var(--accent); }
+.sl-team-enrich-slot { display: flex; align-items: center; gap: 0.35rem; }
+/* El display (inline-flex/none) lo decide el JS según la lista provisional */
+.sl-confirmed-cell {
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sl-team-order-controls { gap: 0.25rem; align-items: center; }
+/* Color de equipo leído de la base de datos */
+.sl-team-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  background: var(--team-bg);
+  color: var(--team-fg);
+}
+.sl-edit-riders { padding: 0.35rem 0; }
+.sl-edit-team__footer { padding: 0.3rem 0.75rem 0.5rem; }
+.sl-edit-rider {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.75rem;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+.sl-edit-rider > div.sl-edit-rider__main { display: flex; align-items: center; gap: 0.35rem; flex: 1; min-width: 0; }
+.sl-dorsal {
+  width: 3.2rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 0.2rem 0.3rem;
+  text-align: right;
+  outline: none;
+}
+.sl-country {
+  width: 3rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.3rem;
+  text-align: center;
+  text-transform: lowercase;
+  outline: none;
+}
+.sl-rider-match-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+.sl-rider-match-btn.is-matched { color: var(--panel-ok); }
+.sl-remove-rider-btn { padding: 0.15rem 0.35rem; font-size: 0.65rem; color: var(--text-dim); flex-shrink: 0; }
+.btn--ghost.sl-remove-rider-btn:hover:not(:disabled) { color: var(--text-dim); }
+/* El display lo alterna el JS al proponer candidatos */
+.sl-rider-suggestion { width: 100%; padding: 0.1rem 0.75rem 0.3rem 4.2rem; }
+
+/* Móvil (drawer a pantalla completa): un corredor por fila y cabecera de
+   equipo en dos líneas. Los campos conservan 16px para que iOS no amplíe la
+   vista al enfocarlos; el código de país sustituye a la bandera. */
+@media (max-width: 768px) {
+  .sl-edit-team { margin-bottom: 0.5rem; }
+  .sl-edit-team-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.5rem;
+    padding: 0.4rem 0.5rem;
+  }
+  .sl-team-name { grid-column: 1; min-width: 0; font-size: 1rem; padding: 0.2rem 0.3rem; }
+  .sl-remove-team-btn { grid-column: 2; grid-row: 1; }
+  .sl-team-enrich-slot { grid-column: 1; min-width: 0; flex-wrap: wrap; }
+  .sl-team-enrich-slot:empty { display: none; }
+  .sl-team-order-controls { grid-column: 2; grid-row: 2; justify-self: end; }
+  .sl-confirmed-cell { grid-column: 1 / -1; }
+  .sl-edit-riders { padding: 0.2rem 0; }
+  .sl-edit-rider { padding: 0.1rem 0.4rem; }
+  .sl-edit-rider > div.sl-edit-rider__main { gap: 0.25rem; }
+  .sl-edit-rider input {
+    height: 32px;
+    min-width: 0;
+    padding: 0 0.3rem;
+    font-size: 1rem;
+  }
+  .sl-dorsal { flex: 0 0 2.6rem; width: 2.6rem; }
+  .sl-flag-preview { display: none; }
+  .sl-country { flex: 0 0 2.2rem; width: 2.2rem; }
+  .sl-edit-rider .sl-firstname { flex: 1 1 0; }
+  .sl-edit-rider .sl-lastname { flex: 1.3 1 0; }
+  .sl-rider-match-btn, .sl-remove-rider-btn { height: 32px; padding: 0; }
+  /* Ancho fijo: «✓ BD» y 🔗 ocupan lo mismo y las columnas quedan alineadas. */
+  .sl-rider-match-btn { flex: 0 0 2.6rem; }
+  .sl-remove-rider-btn { flex: 0 0 32px; }
+  .sl-rider-suggestion { padding: 0.1rem 0 0.3rem; }
+  .sl-edit-team__footer { padding: 0.2rem 0.4rem 0.4rem; }
+}
+
+/* — Estructura de las vistas (panel/app.html) — */
+/* Vista a pantalla completa; el display (flex/none) lo alterna navigation.js */
+.panel-view { flex: 1; overflow-y: auto; flex-direction: column; }
+/* Cuerpo de vista centrado al ancho de contenido */
+.panel-view-body {
+  padding: 1.25rem var(--page-gutter);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.panel-view-body--stack { display: flex; flex-direction: column; gap: 1rem; }
+.panel-view-note { max-width: var(--content-max); margin: 0.5rem auto 0; color: var(--text-dim); font-size: 0.78rem; }
+.panel-view-inline-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Búsquedas y selectores de la cabecera de vista */
+.panel-search {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+.panel-search--grow  { flex: 1; max-width: 360px; }
+.panel-search--year  { width: auto; min-width: 82px; padding: 0.4rem 0.55rem; }
+.panel-search--fixed { width: 200px; }
+/* Botón de cabecera de vista. Doble clase para prevalecer sobre
+   .panel-view-actions .btn y sus variantes móviles, como el estilo en línea. */
+.btn.btn--view   { padding: 0.4rem 0.8rem; font-size: 0.78rem; }
+.btn.btn--nowrap { white-space: nowrap; }
+.btn--ghost.u-c-warn:hover:not(:disabled) { color: var(--panel-warn); }
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+/* — Notificaciones push (panel/app.html) — */
+.push-area-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.push-platforms { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.85rem; }
+.push-platforms label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; cursor: pointer; }
+.push-debug { border: 1px dashed var(--border); border-radius: 8px; padding: 0.6rem 0.85rem; }
+.push-debug > summary { cursor: pointer; font-size: 0.82rem; color: var(--text-dim); font-weight: 500; }
+/* Selectores dentro de .field: superan a `.field select` (0.9rem, fuente de cuerpo) */
+.field .push-debug__token  { flex: 1; font-size: 0.82rem; font-family: monospace; }
+.field .push-debug__filter { width: auto; font-size: 0.78rem; padding: 0.25rem 1.8rem 0.25rem 0.55rem; }
+.field .push-deeplink-select { width: 100%; font-size: 0.82rem; }
+.field .push-schedule-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+.push-image-preview-img {
+  max-width: 200px;
+  max-height: 120px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+.push-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.push-preview__card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.875rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.push-preview__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.push-preview__img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; }
+
+/* — Mercado de fichajes (fichajes.js) — */
+/* Distintivo de color variable: --chip-bg es el color con alfa 0x26 */
+.market-chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--chip-bg);
+  color: var(--chip-color);
+  white-space: nowrap;
+}
+.market-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.market-team-row--doubt { border-color: var(--panel-violet); }
+/* Movimiento; el color del borde depende del estado (transferRowBorderColor) */
+.transfer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--row-border);
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+.tr-date { width: 4.2em; flex-shrink: 0; }
+/* Fecha tachada = no sale en el feed público (dateVisible=false) */
+.tr-date--hidden { text-decoration: line-through; opacity: 0.55; }
+.tr-chip {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.tr-chip--rumor     { background: var(--panel-warn-bg); color: var(--panel-warn); }
+.tr-chip--doubt     { background: var(--panel-violet-bg); color: var(--panel-violet); }
+.tr-chip--confirmed { background: var(--accent-dim); color: var(--accent); }
+.tr-chip--midseason { background: var(--panel-blue-bg); color: var(--panel-blue); }
+/* El display (flex/none) lo alterna el JS */
+.tr-rider-results {
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 0.25rem;
+}
+.tr-rider-selected {
+  padding: 0.5rem 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.25rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+.tr-rider-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.tr-from-associated { padding: 0.45rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; }
+/* Botón de situación; el estado activo lo pinta el JS con el color del estado */
+.tr-situation-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+}
+.tr-create-rider-btn,
+.btn--ghost.tr-create-rider-btn:hover:not(:disabled) {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.76rem;
+  color: var(--accent);
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+/* Casillas del formulario de movimiento, dentro de .field: superan a `.field label` */
+.field label.tr-check { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+.field label.tr-check--option { gap: 0.35rem; font-size: 0.78rem; }
+.field label.tr-check--flag   { font-size: 0.82rem; padding-top: 0.35rem; }
+.field label.tr-check--date   { font-size: 0.8rem; margin-top: 0.35rem; }
+/* Encabezado de grupo de campos; iguala y supera a `.field label` */
+label.panel-field-heading {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+/* — Editor de jornada (jornada-editor.js) — */
+.editor-loading { margin: 3rem auto; }
+/* Casillas de jornada dentro de .field: superan a `.field label` */
+.field label.editor-check { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; }
+.editor-check__box { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+.editor-check__box--danger { accent-color: var(--panel-danger); }
+.editor-race-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  flex: 1;
+}
+/* Slugs: el id supera a `.field input:not([type="checkbox"]):not([type="radio"])`
+   (0,3,1), como lo hacía el estilo en línea también en móvil. */
+#ed-slug,
+#ed-slug-en,
+#er-slug { flex: 1; }
+#ed-slug,
+#ed-slug-en,
+#er-slug,
+#er-slugEn { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: 0.01em; }
+.editor-hint { font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem; }
+.editor-hint--sm { font-size: 0.72rem; margin: 0.25rem 0 0; }
+.so-group-fields { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.editor-gpx-summary { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+.editor-actions { display: flex; align-items: center; gap: 0.6rem; }
+/* El display (flex/none) lo alterna el JS al subir o borrar el GPX */
+.editor-profile-hidden {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.editor-profile-hidden__box { width: 14px; height: 14px; cursor: pointer; accent-color: var(--red); }
+
+/* — Editor de equipo (teams.js) — */
+/* Subtítulo de sección en drawers: display, versalitas y 0.9rem */
+.panel-subheading {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Recuadro discontinuo para subformularios; el display lo alterna el JS */
+.panel-dashed-box {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+.team-edition-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+}
+.team-editor-back { margin-bottom: 0.75rem; padding: 0.3rem 0.65rem; font-size: 0.76rem; }
+/* Supera a `.field textarea` (0.9rem) como el estilo en línea */
+.field .team-aliases-input { font-family: var(--font-body); font-size: 0.82rem; }
+.team-editor-preview__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+/* Fondo y texto los pinta el JS con los colores del equipo */
+.team-editor-preview__header {
+  width: 100%;
+  text-align: center;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Paneles inferiores del editor; el display (flex/none) lo alterna el JS */
+.team-editor-panel {
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.roster-add-search {
+  flex: 1;
+  min-width: 160px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+}
+.roster-add-results { flex-direction: column; gap: 0.2rem; max-height: 240px; overflow-y: auto; }
+.team-colors-body { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.6rem; }
+
+/* — Fusión y duplicados de corredores (rider-merge.js) — */
+/* Anclada bajo el botón; left/top los calcula el JS */
+.merge-popover {
+  position: absolute;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  width: 420px;
+  max-height: 480px;
+  overflow: auto;
+  z-index: 9999;
+  box-shadow: var(--panel-popover-shadow);
+}
+.merge-picker-footer { margin-top: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.5rem; text-align: right; }
+.merge-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--text);
+  width: 100%;
+}
+.dup-cluster { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; background: var(--bg-card-hover); }
+/* Probabilidad de duplicado */
+.dup-score {
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.dup-score--distinct { background: var(--panel-slate-bg); color: var(--panel-slate); border-color: var(--panel-slate-border); }
+.dup-score--probable { background: var(--panel-red-bg); color: var(--panel-red); border-color: var(--panel-red-border); }
+.dup-score--possible { background: var(--panel-warn-soft); color: var(--panel-warn); border-color: var(--panel-warn-border); }
+.dup-score--doubtful { background: var(--bg-card-hover); color: var(--text-dim); border-color: var(--border); }
+/* El fondo lo destella el JS al guardar */
+.dup-rider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.dup-rider-fields { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.dup-input {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text);
+  outline: none;
+  min-width: 0;
+}
+.dup-input--last  { flex: 1.4; min-width: 8rem; font-weight: 700; }
+.dup-input--first { flex: 1.2; min-width: 6rem; }
+.dup-input--nat   { width: 3.2rem; flex-shrink: 0; text-transform: lowercase; text-align: center; }
+/* La opacidad la alterna el JS según haya cambios */
+.dup-save-btn {
+  background: var(--accent);
+  color: var(--btn-primary-text);
+  border: none;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dup-team-name {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.dup-race-list { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
+.dup-race-chip {
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.66rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* — Resultados: origen, ventana de volcado y selectores (results*.js) — */
+.ru-sync-box { margin-top: 0.55rem; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem; }
+.ru-pick-popover { width: 360px; }
+/* Candidato de corredor; --current marca el enlazado */
+.ru-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.78rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.ru-pick-row--current { border-color: var(--panel-ok); }
+/* Combo de equipo: capa modal propia */
+.tc-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--panel-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.tc-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem;
+  width: min(92vw, 440px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.tc-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tc-search {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+.tc-list {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem;
+  background: var(--bg);
+}
+/* Fila del combo: --active (teclado) prevalece sobre --selected */
+.tc-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.tc-item--selected { border-color: var(--panel-ok); }
+.tc-item--active { border-color: var(--accent); }
+.tc-item--none { font-style: italic; color: var(--text-dim); }
+.tc-special { font-size: 0.66rem; color: var(--text-dim); white-space: nowrap; margin-left: auto; }
+.tc-sug { font-size: 0.62rem; font-weight: 700; color: var(--accent); white-space: nowrap; margin-left: 0.35rem; }
+
+/* — Situación de plantilla y plantilla de equipo (team-situation.js, team-roster.js) — */
+.tse-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+/* Barra de guardado fija al pie del drawer (se compone con .u-row) */
+.tse-save-bar {
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-card);
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+/* Botón de estado; el activo toma el color del estado (--seg-color, --seg-bg con alfa 0x22) */
+.tse-seg-btn {
+  padding: 0.22rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.tse-seg-btn.is-active { border-color: var(--seg-color); background: var(--seg-bg); color: var(--seg-color); }
+.tse-rider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.tse-rider-main { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+.tse-extra-row { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; padding-left: 2.05rem; }
+.tse-change-box { display: flex; flex-direction: column; gap: 0.5rem; padding-left: 2.05rem; }
+.tse-check { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; }
+.tse-year,
+.tse-announced,
+.tse-newteam {
+  font-size: 0.78rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+}
+.tse-year { width: 8rem; padding: 0.25rem 0.45rem; }
+.tse-year:disabled { opacity: 0.5; }
+.tse-announced { padding: 0.22rem 0.4rem; }
+.tse-newteam { flex: 1; min-width: 11rem; padding: 0.25rem 0.4rem; }
+.tse-rumor-chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--panel-warn-bg);
+  color: var(--panel-warn);
+}
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.roster-row--error { border-color: var(--red); }
+.roster-add-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.roster-new-rider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+
+/* — Cintillo (highlights.js) — */
+.hl-target-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.hl-race-option {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+/* El display lo alterna el JS */
+.hl-race-results {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.25rem;
+  background: var(--bg);
+}
+.hl-race-selected {
+  padding: 0.5rem 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.25rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* Opacidad y sombra de arrastre las pone el JS */
+.hl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.hl-handle {
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  padding: 0.35rem 0.2rem;
+  margin: -0.35rem -0.1rem;
+  line-height: 1;
+}
+
+/* — Challenges (challenges.js) — */
+.challenge-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+}
+/* Sin fondo: el estilo en línea usaba var(--surface), que no está definida */
+.challenge-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+.cg-edit-btn,
+.cg-delete-btn {
+  border-radius: 6px;
+  background: none;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cg-edit-btn   { padding: 0.35rem 0.75rem; border: 1px solid var(--border); color: var(--text); }
+.cg-delete-btn { padding: 0.35rem 0.6rem; border: 1px solid var(--panel-delete-border); color: var(--panel-delete); }
+.cg-race-picker { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.5rem; align-items: start; }
+/* Por id: superan a `.field input:not(…)` y `.field select` como el estilo en línea */
+#cg-slug { font-family: monospace; }
+#cg-search-available {
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+#cg-available,
+#cg-selected {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 0.25rem;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* — Enlace con DataRide (uci-link.js) — */
+.uci-candidate { gap: 0.5rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.uci-link-head { padding: 0.3rem 0.5rem; background: var(--panel-subtle-bg); border-radius: 6px; margin-bottom: 0.5rem; }
+.uci-unlink-btn,
+.btn--ghost.uci-unlink-btn:hover:not(:disabled) { font-size: 0.68rem; padding: 0 0.5rem; margin-left: 0.4rem; color: var(--panel-danger); }
+.uci-collision {
+  padding: 0.35rem 0.5rem;
+  background: var(--panel-note-bg);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+/* — Notificaciones programadas e historial (notifications.js) — */
+.push-badge { font-size: 0.7rem; padding: 0.1rem 0.45rem; border-radius: 20px; font-weight: 600; }
+.push-badge--muted  { background: var(--border); color: var(--text-dim); }
+.push-badge--accent { background: var(--accent); color: var(--btn-primary-text); }
+.push-badge--danger { background: var(--panel-danger); color: var(--btn-primary-text); }
+.push-badge--platforms { font-size: 0.68rem; font-weight: 500; }
+.push-sched-btn {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.push-sched-btn--send   { border: 1px solid var(--accent); background: var(--accent); color: var(--btn-primary-text); font-weight: 600; }
+.push-sched-btn--cancel { border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); }
+.push-history-row {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.push-history-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+/* Botón «Subir» junto al campo de imagen; supera a `.field label` */
+.field label.field-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* — Ficha de corredor (riders.js) — */
+/* Por id y dentro de .field: superan a `.field input:not(…)` y `.field label` */
+#re-nationality { width: 4rem; text-transform: lowercase; }
+.field label.re-verified-label { margin: 0; cursor: pointer; }
+
+/* ── Utilidades atómicas u-* (ajustes de un solo valor) ──
+   Sufijo numérico = valor ×100 en rem (u-fs-072 → 0.72rem; u-py-030 → 0.3rem
+   arriba y abajo). Van al final para prevalecer sobre las reglas de
+   componente de igual especificidad, como hacían los estilos en línea. */
+.u-flex            { display: flex; }
+.u-block           { display: block; }
+.u-grid            { display: grid; }
+.u-col             { flex-direction: column; }
+.u-cols-2          { grid-template-columns: 1fr 1fr; }
+.u-wrap            { flex-wrap: wrap; }
+.u-items-center    { align-items: center; }
+.u-items-end       { align-items: end; }
+.u-items-start     { align-items: flex-start; }
+.u-self-center     { align-self: center; }
+.u-justify-between { justify-content: space-between; }
+.u-justify-end     { justify-content: flex-end; }
+.u-grow            { flex: 1; }
+.u-shrink-0        { flex-shrink: 0; }
+.u-span-all        { grid-column: 1/-1; }
+.u-gap-030         { gap: 0.3rem; }
+.u-gap-040         { gap: 0.4rem; }
+.u-gap-050         { gap: 0.5rem; }
+.u-gap-055         { gap: 0.55rem; }
+.u-gap-060         { gap: 0.6rem; }
+.u-gap-075         { gap: 0.75rem; }
+.u-gap-080         { gap: 0.8rem; }
+.u-gap-100         { gap: 1rem; }
+.u-gap-150         { gap: 1.5rem; }
+.u-w-35pc          { width: 35%; }
+.u-w-150em         { width: 1.5em; }
+.u-w-160           { width: 1.6rem; }
+.u-w-160em         { width: 1.6em; }
+.u-w-200           { width: 2rem; }
+.u-w-240           { width: 2.4rem; }
+.u-w-280           { width: 2.8rem; }
+.u-w-460           { width: 4.6rem; }
+.u-w-500           { width: 5rem; }
+.u-w-550em         { width: 5.5em; }
+.u-w-600           { width: 6rem; }
+.u-w-700           { width: 7rem; }
+.u-w-800           { width: 8rem; }
+.u-w-900           { width: 9rem; }
+.u-w-950           { width: 9.5rem; }
+.u-w-1100          { width: 11rem; }
+.u-w-1200          { width: 12rem; }
+.u-w-auto          { width: auto; }
+.u-w-full          { width: 100%; }
+.u-minw-140        { min-width: 1.4rem; }
+.u-minw-180        { min-width: 1.8rem; }
+.u-minw-220        { min-width: 2.2rem; }
+.u-minw-800        { min-width: 8rem; }
+.u-minw-900        { min-width: 9rem; }
+.u-minw-1000       { min-width: 10rem; }
+.u-minw-1200       { min-width: 12rem; }
+.u-maxw-120px      { max-width: 120px; }
+.u-maxw-full       { max-width: 100%; }
+.u-h-175           { height: 1.75rem; }
+.u-h-300           { height: 3rem; }
+.u-m0              { margin: 0; }
+.u-mb-015          { margin-bottom: 0.15rem; }
+.u-mb-020          { margin-bottom: 0.2rem; }
+.u-mb-025          { margin-bottom: 0.25rem; }
+.u-mb-030          { margin-bottom: 0.3rem; }
+.u-mb-035          { margin-bottom: 0.35rem; }
+.u-mb-040          { margin-bottom: 0.4rem; }
+.u-mb-050          { margin-bottom: 0.5rem; }
+.u-mb-060          { margin-bottom: 0.6rem; }
+.u-mb-075          { margin-bottom: 0.75rem; }
+.u-mb-100          { margin-bottom: 1rem; }
+.u-min0            { min-width: 0; }
+.u-ml-025          { margin-left: 0.25rem; }
+.u-ml-030          { margin-left: 0.3rem; }
+.u-ml-040          { margin-left: 0.4rem; }
+.u-ml-auto         { margin-left: auto; }
+.u-mono            { font-family: monospace; }
+.u-mr-030          { margin-right: 0.3rem; }
+.u-mr-030em        { margin-right: 0.3em; }
+.u-mt-010          { margin-top: 0.1rem; }
+.u-mt-015          { margin-top: 0.15rem; }
+.u-mt-020          { margin-top: 0.2rem; }
+.u-mt-025          { margin-top: 0.25rem; }
+.u-mt-030          { margin-top: 0.3rem; }
+.u-mt-035          { margin-top: 0.35rem; }
+.u-mt-040          { margin-top: 0.4rem; }
+.u-mt-045          { margin-top: 0.45rem; }
+.u-mt-050          { margin-top: 0.5rem; }
+.u-mt-060          { margin-top: 0.6rem; }
+.u-mt-065          { margin-top: 0.65rem; }
+.u-mt-070          { margin-top: 0.7rem; }
+.u-mt-075          { margin-top: 0.75rem; }
+.u-mt-080          { margin-top: 0.8rem; }
+.u-mt-100          { margin-top: 1rem; }
+.u-mt-110          { margin-top: 1.1rem; }
+.u-mt-n050         { margin-top: -0.5rem; }
+.u-p-030           { padding: 0.3rem; }
+.u-p-035           { padding: 0.35rem; }
+.u-p-100           { padding: 1rem; }
+.u-pl-0            { padding-left: 0; }
+.u-pl-160          { padding-left: 1.6rem; }
+.u-pointer         { cursor: pointer; }
+.u-pt-035          { padding-top: 0.35rem; }
+.u-pt-180          { padding-top: 1.8rem; }
+.u-px-0            { padding-left: 0; padding-right: 0; }
+.u-px-035          { padding-left: 0.35rem; padding-right: 0.35rem; }
+.u-px-040          { padding-left: 0.4rem; padding-right: 0.4rem; }
+.u-px-045          { padding-left: 0.45rem; padding-right: 0.45rem; }
+.u-px-050          { padding-left: 0.5rem; padding-right: 0.5rem; }
+.u-px-055          { padding-left: 0.55rem; padding-right: 0.55rem; }
+.u-px-060          { padding-left: 0.6rem; padding-right: 0.6rem; }
+.u-px-065          { padding-left: 0.65rem; padding-right: 0.65rem; }
+.u-px-070          { padding-left: 0.7rem; padding-right: 0.7rem; }
+.u-px-075          { padding-left: 0.75rem; padding-right: 0.75rem; }
+.u-px-080          { padding-left: 0.8rem; padding-right: 0.8rem; }
+.u-px-100          { padding-left: 1rem; padding-right: 1rem; }
+.u-py-0            { padding-top: 0; padding-bottom: 0; }
+.u-py-010          { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+.u-py-015          { padding-top: 0.15rem; padding-bottom: 0.15rem; }
+.u-py-020          { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+.u-py-025          { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.u-py-030          { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.u-py-035          { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.u-py-040          { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+.u-py-050          { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.u-py-055          { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+.u-py-100          { padding-top: 1rem; padding-bottom: 1rem; }
+.u-fs-062          { font-size: 0.62rem; }
+.u-fs-065          { font-size: 0.65rem; }
+.u-fs-066          { font-size: 0.66rem; }
+.u-fs-068          { font-size: 0.68rem; }
+.u-fs-070          { font-size: 0.7rem; }
+.u-fs-072          { font-size: 0.72rem; }
+.u-fs-074          { font-size: 0.74rem; }
+.u-fs-075          { font-size: 0.75rem; }
+.u-fs-076          { font-size: 0.76rem; }
+.u-fs-078          { font-size: 0.78rem; }
+.u-fs-080          { font-size: 0.8rem; }
+.u-fs-080em        { font-size: 0.8em; }
+.u-fs-082          { font-size: 0.82rem; }
+.u-fs-085          { font-size: 0.85rem; }
+.u-fs-090          { font-size: 0.9rem; }
+.u-fs-092          { font-size: 0.92rem; }
+.u-fs-095          { font-size: 0.95rem; }
+.u-fs-100          { font-size: 1rem; }
+.u-fs-110          { font-size: 1.1rem; }
+.u-fs-140          { font-size: 1.4rem; }
+.u-fw-400          { font-weight: 400; }
+.u-fw-500          { font-weight: 500; }
+.u-fw-600          { font-weight: 600; }
+.u-fw-700          { font-weight: 700; }
+.u-lh-100          { line-height: 1; }
+.u-lh-130          { line-height: 1.3; }
+.u-lh-135          { line-height: 1.35; }
+.u-c-accent        { color: var(--accent); }
+.u-c-caution       { color: var(--panel-caution); }
+.u-c-danger        { color: var(--panel-danger); }
+.u-c-dim           { color: var(--text-dim); }
+.u-c-done          { color: var(--panel-done); }
+.u-c-error         { color: var(--panel-error); }
+.u-c-muted         { color: var(--text-muted); }
+.u-c-ok            { color: var(--panel-ok); }
+.u-c-orange        { color: var(--orange); }
+.u-c-pending       { color: var(--panel-pending); }
+.u-c-red           { color: var(--red); }
+.u-c-text          { color: var(--text); }
+.u-c-warn          { color: var(--panel-warn); }
+.u-o55             { opacity: 0.55; }
+.u-o60             { opacity: 0.6; }
+.u-o65             { opacity: 0.65; }
+.u-o70             { opacity: 0.7; }
+.u-oy-auto         { overflow-y: auto; }
+.u-accent          { accent-color: var(--accent); }
+.u-center          { text-align: center; }
+.u-clip            { overflow: hidden; }
+.u-ellipsis        { text-overflow: ellipsis; }
+.u-help            { cursor: help; }
+.u-italic          { font-style: italic; }
+.u-lower           { text-transform: lowercase; }
+.u-nowrap          { white-space: nowrap; }
+.u-relative        { position: relative; }
+.u-right           { text-align: right; }
+.u-strike          { text-decoration: line-through; }
+.u-upper           { text-transform: uppercase; }

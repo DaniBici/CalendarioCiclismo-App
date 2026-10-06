@@ -9,6 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : fallback; };
@@ -25,15 +26,6 @@ export const RESULTS_SOURCE = 'timing.ee';
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const IRM = { DNF: 'DNF', DNS: 'DNS', DSQ: 'DSQ', DQ: 'DSQ', OTL: 'OTL', HD: 'OTL', ABD: 'DNF', AB: 'DNF' };
-
-export function fnv1a(value) {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
-}
 
 export function parseCode(value) {
   const code = clean(value);

@@ -14,13 +14,9 @@ describe('zonedTimeToTimestamp', () => {
     expect(madridTimeToTimestamp('2026-08-21', '00:30')).toBe('2026-08-20T22:30:00.000Z');
   });
 
-  it('admite otras zonas IANA y rechaza datos incompletos', () => {
-    expect(zonedTimeToTimestamp('2026-08-21', '15:45', 'UTC')).toBe('2026-08-21T15:45:00.000Z');
-    expect(zonedTimeToTimestamp('', '15:45', 'Europe/Madrid')).toBeNull();
-  });
-
-  it('calcula la salida real desde la fecha civil y la zona de la jornada', () => {
+  it('calcula la hora desde la fecha civil y la zona IANA de la jornada y rechaza datos incompletos', () => {
     expect(zonedTimeToTimestamp('2026-08-21', '15:45', 'Asia/Tokyo')).toBe('2026-08-21T06:45:00.000Z');
+    expect(zonedTimeToTimestamp('', '15:45', 'Europe/Madrid')).toBeNull();
   });
 
   it('usa la fecha civil española del instante de meta', () => {

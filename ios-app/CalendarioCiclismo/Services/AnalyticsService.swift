@@ -106,7 +106,7 @@ final class ContributionPromptService {
     func recordContentScreenView(_ screenName: String) {
         guard eligibleScreens.contains(screenName),
               !PremiumService.shared.isSubscribed,
-              !PremiumService.shared.isLegacyPremiumActive else { return }
+              !PremiumService.shared.legacyPremiumEntitlementActive else { return }
 
         let defaults = UserDefaults.standard
         if meaningfulScreens.contains(screenName) {

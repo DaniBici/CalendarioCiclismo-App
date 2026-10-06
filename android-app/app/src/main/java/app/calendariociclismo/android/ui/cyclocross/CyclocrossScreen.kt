@@ -57,6 +57,14 @@ import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.CxCategory
 import app.calendariociclismo.android.data.model.CxRace
 import app.calendariociclismo.android.data.model.CxRound
+import app.calendariociclismo.android.data.model.CxTournamentGeneral
+import app.calendariociclismo.android.ui.results.ResultsClassificationTab
+import app.calendariociclismo.android.ui.results.classificationSwipe
+import app.calendariociclismo.android.ui.results.rememberClassificationSwipeState
+import app.calendariociclismo.android.util.CxTournamentSection
+import app.calendariociclismo.android.util.UciResultsLogic
+import androidx.compose.foundation.lazy.LazyRow
+import kotlinx.coroutines.CancellationException
 import app.calendariociclismo.android.ui.components.CCActionButton
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -183,6 +191,23 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
         return
     }
     var savedMonth by rememberSaveable { mutableStateOf<String?>(null) }
+    // Clasificación general del torneo: la sección solo existe con generales
+    // publicadas; sin ellas la página queda como calendario sin selector.
+    val generalSeason = selectedSeason ?: season
+    var general by remember(tournamentId, generalSeason) { mutableStateOf<CxTournamentGeneral?>(null) }
+    var generalRefreshing by remember(tournamentId) { mutableStateOf(false) }
+    var tournamentSection by rememberSaveable(tournamentId) { mutableStateOf(CxTournamentSection.CALENDAR) }
+    var generalCategory by rememberSaveable(tournamentId) { mutableStateOf<String?>(null) }
+    suspend fun loadGeneral() {
+        val id = tournamentId ?: return
+        try { general = app.cxRepository.tournamentGeneral(id, generalSeason) }
+        catch (failure: Exception) { if (failure is CancellationException) throw failure }
+    }
+    LaunchedEffect(tournamentId, generalSeason) { loadGeneral() }
+    val generalCategories = general?.let { CxPresentation.tournamentGeneralCategories(it.standings, it.states) }.orEmpty()
+    val activeSection = if (generalCategories.isEmpty()) CxTournamentSection.CALENDAR else tournamentSection
+    val activeGeneralCategory = generalCategory?.takeIf { it in generalCategories } ?: "ME".takeIf { it in generalCategories } ?: generalCategories.firstOrNull()
+    val generalSwipe = rememberClassificationSwipeState()
     val locale = LocalConfiguration.current.locales[0]
     val clock = cxClock()
     val cxPinnedRaw by app.preferences.cxDefaultFilter.collectAsState(initial = null)
@@ -255,6 +280,21 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                     }
                 }
             }
+            // Secciones del torneo con el selector de la ficha de carrera.
+            if (generalCategories.isNotEmpty()) {
+                LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(CxTournamentSection.entries) { part ->
+                        ResultsClassificationTab(label = stringResource(when (part) {
+                            CxTournamentSection.CALENDAR -> R.string.cx_calendar
+                            CxTournamentSection.GENERAL -> R.string.cx_overall_standings
+                        }), selected = activeSection == part, onClick = { tournamentSection = part })
+                    }
+                }
+                if (activeSection == CxTournamentSection.GENERAL) Box(Modifier.padding(horizontal = 16.dp)) {
+                    ResultsStageSelector(stageKeys = generalCategories, activeKey = activeGeneralCategory, isEn = locale.language != "es",
+                        labelForKey = { it }, accessibilityLabelForKey = { cxCategoryName(it) }, onSelect = { generalCategory = it })
+                }
+            }
             // La agenda general conserva el selector de meses; la página de torneo
             // muestra todas sus pruebas juntas y prescinde de él. Las flechas solo
             // acompañan al selector cuando los siete meses no caben sin desplazarse.
@@ -316,6 +356,25 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                         onLongClick = { haptic(Haptics.Event.PrimaryAction); pendingDefault = option },
                     )
                 }
+            }
+            if (activeSection == CxTournamentSection.GENERAL) {
+                val data = general
+                PullToRefreshBox(
+                    isRefreshing = generalRefreshing,
+                    onRefresh = { scope.launch { generalRefreshing = true; try { loadGeneral() } finally { generalRefreshing = false } } },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    if (data != null) CxTournamentGeneralContent(
+                        general = data,
+                        category = activeGeneralCategory,
+                        categories = generalCategories,
+                        rounds = state.rounds,
+                        swipeState = generalSwipe,
+                        onCategory = { generalCategory = it },
+                        onOpenRace = { nav.navigate(Routes.cxRace(it.id)) },
+                    )
+                }
+                return@Column
             }
             if (state.busy && !state.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.error?.let { error ->
@@ -430,6 +489,38 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
     }
 }
 
+/** Clasificación general de la página de torneo: la tabla de la ficha de
+ *  carrera para la categoría elegida; deslizar cambia de categoría. */
+@Composable
+private fun CxTournamentGeneralContent(
+    general: CxTournamentGeneral,
+    category: String?,
+    categories: List<String>,
+    rounds: Map<String, CxRound>,
+    swipeState: app.calendariociclismo.android.ui.results.ClassificationSwipeState,
+    onCategory: (String) -> Unit,
+    onOpenRace: (CxRace) -> Unit,
+) {
+    val teamMatcher = remember(general.teams) { UciResultsLogic.TeamMatcher(general.teams.map { it.roadTeam }) }
+    val races = remember(general.races) { general.races.associateBy { it.id } }
+    val rows = general.standings.filter { it.category == category }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+        item(key = "general:${category.orEmpty()}") {
+            Box(Modifier.classificationSwipe(categories, category, swipeState, onCategory)) {
+                CxStandingsTable(
+                    rows = rows,
+                    state = general.states.firstOrNull { it.category == category },
+                    mode = CxPresentation.standingMode(general.tournament, category, rows),
+                    teamMatcher = teamMatcher,
+                    rounds = rounds,
+                    races = races,
+                    onOpenRace = onOpenRace,
+                )
+            }
+        }
+    }
+}
+
 /** Chip de filtro de la agenda CX, con la misma presentación que `CategoryChip`
  *  de Hoy en Carretera (cápsula y azul de marca al activar). */
 @OptIn(ExperimentalFoundationApi::class)
@@ -482,7 +573,7 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
     val badges = CxPresentation.usesCategoryBadges(race, categories, clock)
     CCCard(modifier = Modifier.fillMaxWidth(), accent = cxColor(CxPresentation.color(race)), accentAlpha = 0.04f, cornerRadius = 14, elevation = 0) {
         // Card entera clicable (patrón de Hoy): cualquier zona abre la ficha;
-        // los botones internos (categorías, torneo, TV) conservan su acción.
+        // los botones internos (categorías, torneo) conservan su acción.
         Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { if (openRace) open(null) else showPlaceholder = true }) {
             Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, title = {

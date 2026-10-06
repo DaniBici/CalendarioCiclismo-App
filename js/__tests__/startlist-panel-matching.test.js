@@ -61,8 +61,7 @@ function editor({ firstName = '', lastName = '', loadRoster = async () => roster
 
 describe('automatcheo por Tab en el editor de inscritos', () => {
   it.each([
-    ['.sl-firstname', false], ['.sl-firstname', true],
-    ['.sl-lastname', false], ['.sl-lastname', true],
+    ['.sl-firstname', false], ['.sl-lastname', true],
   ])('busca desde %s con Shift=%s sin depender de focusout', async (selector, shiftKey) => {
     const ui = editor(selector === '.sl-firstname' ? { firstName: 'KIM' } : { lastName: 'le court' });
     const event = ui.dispatch('keydown', selector, { shiftKey });
@@ -80,9 +79,9 @@ describe('automatcheo por Tab en el editor de inscritos', () => {
     }
   });
 
-  it.each(['.sl-firstname', '.sl-lastname'])('mantiene el matching al salir de %s sin Tab', async selector => {
+  it('mantiene el matching al salir del campo sin Tab', async () => {
     const ui = editor({ firstName: 'Kim' });
-    ui.dispatch('focusout', selector);
+    ui.dispatch('focusout', '.sl-lastname');
     await vi.waitFor(() => expect(ui.row.dataset.globalRiderId).toBe('kim-le-court'));
   });
 

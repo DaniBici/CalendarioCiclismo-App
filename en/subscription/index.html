@@ -6,30 +6,27 @@
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-itunes-app" content="app-id=6761902611">
-  <title>Suscríbete al calendario — Calendario Ciclismo</title>
-  <meta name="description" content="Suscríbete al calendario de ciclismo profesional en tu app de Calendario. Elige entre WorldTour, Pro, masculino, femenino o todas las categorías. Compatible con iPhone, iPad, Mac, Android y Google Calendar.">
+  <title>Subscribe to the calendar — Calendario Ciclismo</title>
+  <meta name="description" content="Subscribe to the professional cycling calendar in your calendar app. Choose WorldTour, Pro, men, women or all categories. Works with iPhone, iPad, Mac, Android and Google Calendar.">
   <link rel="canonical" href="https://calendariociclismo.app/en/subscription/">
   <link rel="alternate" hreflang="en" href="https://calendariociclismo.app/en/subscription/"/>
   <link rel="alternate" hreflang="es" href="https://calendariociclismo.app/suscripcion/"/>
   <link rel="alternate" hreflang="x-default" href="https://calendariociclismo.app/suscripcion/"/>
-  
-  
-  
   <link rel="alternate" type="application/atom+xml" title="Calendario Ciclismo — Próximas jornadas" href="/atom.xml">
   <link rel="preconnect" href="https://bcecwlkynpgovnzhbpah.supabase.co">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_GB">
-  <meta property="og:title" content="Suscríbete al calendario — Calendario Ciclismo">
-  <meta property="og:description" content="Añade a tu app de Calendario todas las carreras de ciclismo profesional. WorldTour, Pro, masculino, femenino o todas las categorías.">
+  <meta property="og:title" content="Subscribe to the calendar — Calendario Ciclismo">
+  <meta property="og:description" content="Add every professional cycling race to your calendar app. WorldTour, Pro, men, women or all categories.">
   <meta property="og:url" content="https://calendariociclismo.app/en/subscription/">
   <meta property="og:image" content="https://assets.calendariociclismo.app/og-default.png">
   <meta property="og:site_name" content="Calendario Ciclismo">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Suscríbete al calendario — Calendario Ciclismo">
-  <meta name="twitter:description" content="Añade a tu app de Calendario todas las carreras de ciclismo profesional.">
+  <meta name="twitter:title" content="Subscribe to the calendar — Calendario Ciclismo">
+  <meta name="twitter:description" content="Add every professional cycling race to your calendar app.">
   <meta name="twitter:image" content="https://assets.calendariociclismo.app/og-default.png">
   <script src="/js/theme.js"></script>
-  <link rel="stylesheet" href="/css/app.css?v=20260928hoy">
+  <link rel="stylesheet" href="/css/app.css">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -46,8 +43,7 @@
     .sus-howto__icon{flex-shrink:0;width:22px;height:22px;color:var(--accent);margin-top:.15rem}
     .sus-howto__body{flex:1;font-size:.88rem;line-height:1.55;color:var(--text-muted)}
     .sus-howto__body strong{color:var(--text);font-weight:600}
-    .sus-howto__body a{color:var(--accent);text-decoration:none}
-    .sus-howto__body a:hover{text-decoration:underline}
+    .sus-howto__body a{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px}
     .sus-feeds-title{font-family:var(--font-display);font-weight:700;font-size:1rem;text-transform:uppercase;letter-spacing:0.03em;margin:2rem 0 .75rem}
     .sus-feeds{display:grid;grid-template-columns:1fr;gap:.6rem;margin:0 0 2rem}
     .sus-feed{display:flex;align-items:center;gap:.3rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:border-color .15s}
@@ -72,7 +68,7 @@
 </head>
 <body>
   <header class="site-header" id="siteHeader"></header>
-<script type="module" src="/js/header.js?v=20260914cxmenu"></script>
+<script type="module" src="/js/header.js"></script>
 
   <main class="sus-main">
     <h1>Suscríbete al calendario</h1>
@@ -110,7 +106,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/privacy/">Privacy</a></p>
+    <p>&copy; 2026 Calendario Ciclismo &mdash; Created and edited by <a href="https://danisanchez.info" target="_blank" rel="noopener">Dani&nbsp;S&aacute;nchez</a> &mdash; <a href="/en/privacy/">Privacy</a></p>
   </footer>
 
   <script>
@@ -124,7 +120,7 @@
       { key: 'fem',   label: 'Femenino',    desc: 'Todas las pruebas femeninas hasta .1 y también .2 europeas' },
     ];
 
-    const year = new Date().getFullYear();
+    const year = new Date().getUTCFullYear();
 
     function feedUrl(key){
       return key === 'todo'

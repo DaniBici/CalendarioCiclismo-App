@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, esc } from '../shared.js';
-import { openDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import {
   genderToggleHtml, setGenderToggleActive, wireGenderToggle,
@@ -42,20 +42,19 @@ export async function openMergeRiderPicker() {
     .eq('globalRiderId', panelState._editingRiderId);
 
   const popover = document.createElement('div');
-  popover.style.cssText = 'position:absolute;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.75rem;width:420px;max-height:480px;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
+  popover.className = 'merge-popover';
   popover.innerHTML = `
-    <div style="font-size:0.8rem;color:var(--text);margin-bottom:0.6rem">
-      <div style="font-weight:700;margin-bottom:0.2rem">Fusionar corredor</div>
-      <div class="u-fs-xs u-c-dim">
-        Origen: <strong style="color:var(--text)">${esc(source.lastName)}, ${esc(source.firstName)}</strong> (${linkedCount || 0} startlist${linkedCount === 1 ? '' : 's'} linkada${linkedCount === 1 ? '' : 's'})
+    <div class="u-fs-080 u-c-text u-mb-060">
+      <div class="u-fw-700 u-mb-020">Fusionar corredor</div>
+      <div class="u-fs-072 u-c-dim">
+        Origen: <strong class="u-c-text">${esc(source.lastName)}, ${esc(source.firstName)}</strong> (${linkedCount || 0} startlist${linkedCount === 1 ? '' : 's'} linkada${linkedCount === 1 ? '' : 's'})
       </div>
-      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.15rem">Elige el corredor destino al que moverlas. El origen se eliminará.</div>
+      <div class="u-fs-072 u-c-dim u-mt-015">Elige el corredor destino al que moverlas. El origen se eliminará.</div>
     </div>
-    <input type="search" class="merge-picker-input" placeholder="Buscar destino por apellido, nombre u otherNames…"
-           style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;box-sizing:border-box;margin-bottom:0.4rem">
-    <div class="merge-picker-results" style="display:flex;flex-direction:column;gap:0.2rem;min-height:1.2rem"></div>
-    <div style="margin-top:0.6rem;border-top:1px solid var(--border);padding-top:0.5rem;text-align:right">
-      <button data-action="close" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem">Cancelar</button>
+    <input type="search" class="merge-picker-input" placeholder="Buscar destino por apellido, nombre u otherNames…">
+    <div class="merge-picker-results"></div>
+    <div class="merge-picker-footer">
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cancelar</button>
     </div>`;
 
   const anchor = document.getElementById('mergeRiderBtn');
@@ -77,10 +76,10 @@ export async function openMergeRiderPicker() {
     const q = input.value.trim();
     const myId = ++reqId;
     if (q.length < 2) {
-      results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Escribe al menos 2 letras.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>';
       return;
     }
-    results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Buscando…</div>';
+    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
     const safe = q.replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(table)
       .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source')
@@ -88,16 +87,16 @@ export async function openMergeRiderPicker() {
       .neq('id', panelState._editingRiderId)   // no permitir auto-merge
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     if (!data?.length) {
-      results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>';
       return;
     }
     results.innerHTML = data.map(rd => `
-      <button type="button" data-tid="${esc(rd.id)}" style="display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;cursor:pointer;text-align:left;font-size:0.78rem;color:var(--text);width:100%">
+      <button type="button" data-tid="${esc(rd.id)}" class="merge-picker-option">
         ${_slRiderFlagPreview(rd.nationality)}
         <span class="u-grow u-min0"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd.otherNames)})</span>` : ''}</span>
-        ${rd.verified === false ? '<span title="Sin verificar" style="color:#f59e0b;font-size:0.65rem;font-weight:700">?</span>' : '<span title="Verificado" style="color:#22c55e;font-size:0.65rem;font-weight:700">✓</span>'}
+        ${rd.verified === false ? '<span title="Sin verificar" class="u-c-warn u-fs-065 u-fw-700">?</span>' : '<span title="Verificado" class="u-c-ok u-fs-065 u-fw-700">✓</span>'}
       </button>`).join('');
     results.querySelectorAll('[data-tid]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -261,8 +260,8 @@ const _updateDupScanGenderToggle = () =>
 // sustituye). El ✕ lo da el drawer; el toggle masc/fem se cablea por apertura.
 function dupScanBodyHtml() {
   return `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
-      <div class="u-fs-md u-c-dim" id="dupScanSubtitle"></div>
+    <div class="u-between u-gap-100 u-mb-100 u-wrap">
+      <div class="u-fs-080 u-c-dim" id="dupScanSubtitle"></div>
       ${genderToggleHtml({ idMale: 'dupScanGenderMale', idFemale: 'dupScanGenderFemale', value: _dupScanGender, labels: { male: 'Masculino', female: 'Femenino' } })}
     </div>
     <div class="u-stack" id="dupScanContent"></div>`;
@@ -314,7 +313,7 @@ export async function openDuplicateScanner() {
     content.innerHTML = `<div class="u-empty-note">Cargando catálogo… ${riders.length} corredores leídos</div>`;
   }
   if (error) {
-    content.innerHTML = `<div style="color:var(--red);padding:1rem">Error: ${esc(error.message)}</div>`;
+    content.innerHTML = `<div class="u-c-red u-p-100">Error: ${esc(error.message)}</div>`;
     return;
   }
 
@@ -341,7 +340,7 @@ export async function openDuplicateScanner() {
   }
   clusters.sort((a, b) => b.score - a.score || b.riders.length - a.riders.length);
 
-  subtitle.innerHTML = `${clusters.length} grupos a revisar en ${riders.length} ${_dupScanGender === 'male' ? 'corredores' : 'corredoras'} · ordenados por probabilidad${skippedCount ? ` · <button id="dupClearSkipped" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:inherit;text-decoration:underline">${skippedCount} saltados (limpiar)</button>` : ''}.`;
+  subtitle.innerHTML = `${clusters.length} grupos a revisar en ${riders.length} ${_dupScanGender === 'male' ? 'corredores' : 'corredoras'} · ordenados por probabilidad${skippedCount ? ` · <button id="dupClearSkipped" class="link-button">${skippedCount} saltados (limpiar)</button>` : ''}.`;
   document.getElementById('dupClearSkipped')?.addEventListener('click', async () => {
     if (await confirmDialog(`¿Olvidar los ${skippedCount} grupos saltados y volver a mostrarlos?`)) {
       _clearDupSkipSet();
@@ -438,11 +437,11 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
   // Helper para listar las carreras de un rider de forma compacta.
   const racesChip = (riderId) => {
     const races = racesByRider.get(riderId) || [];
-    if (!races.length) return '<span style="font-size:0.68rem;color:var(--text-dim);font-style:italic">sin startlists</span>';
+    if (!races.length) return '<span class="u-fs-068 u-c-dim u-italic">sin startlists</span>';
     const fullList = races.map(r => `${r.name}${r.year ? ' ' + r.year : ''}`).join(' · ');
-    const visible = races.slice(0, 3).map(r => `<span style="background:var(--bg-card-hover);border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;font-size:0.66rem;color:var(--text-dim);white-space:nowrap">${esc(r.name || r.raceId)}${r.year ? ` <span style="opacity:0.7">${r.year}</span>` : ''}</span>`).join(' ');
-    const more = races.length > 3 ? ` <span style="font-size:0.66rem;color:var(--text-dim);cursor:help" title="${esc(fullList)}">+${races.length - 3} más</span>` : '';
-    return `<span style="display:inline-flex;flex-wrap:wrap;gap:0.2rem;align-items:center" title="${esc(fullList)}">${visible}${more}</span>`;
+    const visible = races.slice(0, 3).map(r => `<span class="dup-race-chip">${esc(r.name || r.raceId)}${r.year ? ` <span class="u-o70">${r.year}</span>` : ''}</span>`).join(' ');
+    const more = races.length > 3 ? ` <span class="u-fs-066 u-c-dim u-help" title="${esc(fullList)}">+${races.length - 3} más</span>` : '';
+    return `<span class="dup-race-list" title="${esc(fullList)}">${visible}${more}</span>`;
   };
 
   content.innerHTML = clusters.map((c, idx) => {
@@ -451,12 +450,12 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
     // distinct = comparten al menos una carrera → personas distintas con certeza.
     // Se avisa explícitamente para que el admin NO los fusione por error.
     const scoreBadge = c.distinct
-      ? '<span title="Comparten carrera → no pueden ser la misma persona" style="background:#64748b22;color:#94a3b8;border:1px solid #64748b66;border-radius:4px;padding:0.05rem 0.4rem;font-size:0.65rem;font-weight:700">⚠ DISTINTOS (misma carrera)</span>'
+      ? '<span title="Comparten carrera → no pueden ser la misma persona" class="dup-score dup-score--distinct">⚠ DISTINTOS (misma carrera)</span>'
       : c.score >= 7
-        ? '<span style="background:#ef444422;color:#ef4444;border:1px solid #ef444466;border-radius:4px;padding:0.05rem 0.4rem;font-size:0.65rem;font-weight:700">PROBABLE</span>'
+        ? '<span class="dup-score dup-score--probable">PROBABLE</span>'
         : c.score >= 4
-          ? '<span style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b66;border-radius:4px;padding:0.05rem 0.4rem;font-size:0.65rem;font-weight:700">POSIBLE</span>'
-          : '<span style="background:var(--bg-card-hover);color:var(--text-dim);border:1px solid var(--border);border-radius:4px;padding:0.05rem 0.4rem;font-size:0.65rem;font-weight:700">DUDOSO</span>';
+          ? '<span class="dup-score dup-score--possible">POSIBLE</span>'
+          : '<span class="dup-score dup-score--doubtful">DUDOSO</span>';
 
     const ridersHtml = c.riders.map(r => {
       const team = teamsMap[r.currentTeamId];
@@ -464,39 +463,38 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
       // Inputs editables: el admin puede afinar firstName/lastName/nationality
       // directamente en la fila antes (o sin) fusionar. Cada fila tiene un
       // botón "Guardar" que aplica los cambios SOLO a esa fila sin fusionar.
-      const inputStyle = 'background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:0.2rem 0.35rem;font-size:0.78rem;color:var(--text);outline:none;min-width:0';
       // Guardamos el estado original como data-attrs para detectar cambios.
       const origLast = r.lastName || '';
       const origFirst = r.firstName || '';
       const origNat = r.nationality || '';
-      return `<div data-rider-id="${esc(r.id)}" data-orig-last="${esc(origLast)}" data-orig-first="${esc(origFirst)}" data-orig-nat="${esc(origNat)}" style="display:flex;flex-direction:column;gap:0.25rem;padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:0.8rem">
-        <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
-          <input type="radio" name="dup-cluster-${idx}" value="${esc(r.id)}" ${checked} title="Marcar como canónico" style="margin:0;flex-shrink:0;cursor:pointer">
-          <span class="dup-flag-preview" style="min-width:1.4rem;text-align:center;flex-shrink:0">${_slRiderFlagPreview(r.nationality)}</span>
-          <input type="text" class="dup-lastname" value="${esc(origLast)}" placeholder="Apellidos" style="${inputStyle};flex:1.4;min-width:8rem;font-weight:700">
-          <input type="text" class="dup-firstname" value="${esc(origFirst)}" placeholder="Nombre" style="${inputStyle};flex:1.2;min-width:6rem">
-          <input type="text" class="dup-nationality" value="${esc(origNat)}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2" style="${inputStyle};width:3.2rem;flex-shrink:0;text-transform:lowercase;text-align:center">
-          <button data-dup-action="save-row" title="Guardar cambios de esta fila (sin fusionar)" disabled style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:0.2rem 0.5rem;font-size:0.7rem;cursor:pointer;flex-shrink:0;opacity:0.45">💾</button>
-          ${r.otherNames ? `<span style="color:var(--text-dim);font-size:0.7rem;flex-shrink:0" title="otherNames: ${esc(r.otherNames)}">+aliases</span>` : ''}
-          <span style="font-size:0.68rem;color:${r.verified ? '#22c55e' : '#f59e0b'};font-weight:700;flex-shrink:0">${r.verified ? '✓' : '?'}</span>
-          <span style="font-size:0.68rem;color:var(--text-dim);flex-shrink:0">${esc(r.source || '')}</span>
-          <span style="font-size:0.7rem;color:var(--text-dim);white-space:nowrap;max-width:12rem;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">${team ? esc(team.name) : '<em>sin equipo</em>'}</span>
-          <code style="font-size:0.62rem;color:var(--text-dim);flex-shrink:0">${esc(r.id)}</code>
+      return `<div data-rider-id="${esc(r.id)}" data-orig-last="${esc(origLast)}" data-orig-first="${esc(origFirst)}" data-orig-nat="${esc(origNat)}" class="dup-rider-row">
+        <div class="dup-rider-fields">
+          <input type="radio" name="dup-cluster-${idx}" value="${esc(r.id)}" ${checked} title="Marcar como canónico" class="u-m0 u-shrink-0 u-pointer">
+          <span class="dup-flag-preview u-minw-140 u-center u-shrink-0">${_slRiderFlagPreview(r.nationality)}</span>
+          <input type="text" class="dup-lastname dup-input dup-input--last" value="${esc(origLast)}" placeholder="Apellidos">
+          <input type="text" class="dup-firstname dup-input dup-input--first" value="${esc(origFirst)}" placeholder="Nombre">
+          <input type="text" class="dup-nationality dup-input dup-input--nat" value="${esc(origNat)}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2">
+          <button data-dup-action="save-row" title="Guardar cambios de esta fila (sin fusionar)" disabled class="dup-save-btn" style="opacity:0.45">💾</button>
+          ${r.otherNames ? `<span class="u-c-dim u-fs-070 u-shrink-0" title="otherNames: ${esc(r.otherNames)}">+aliases</span>` : ''}
+          <span class="u-fs-068 u-fw-700 u-shrink-0 ${r.verified ? 'u-c-ok' : 'u-c-warn'}">${r.verified ? '✓' : '?'}</span>
+          <span class="u-fs-068 u-c-dim u-shrink-0">${esc(r.source || '')}</span>
+          <span class="dup-team-name">${team ? esc(team.name) : '<em>sin equipo</em>'}</span>
+          <code class="u-fs-062 u-c-dim u-shrink-0">${esc(r.id)}</code>
         </div>
-        <div style="padding-left:1.6rem">${racesChip(r.id)}</div>
+        <div class="u-pl-160">${racesChip(r.id)}</div>
       </div>`;
     }).join('');
 
-    return `<div data-cluster-idx="${idx}" style="border:1px solid var(--border);border-radius:8px;padding:0.75rem;background:var(--bg-card-hover)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;flex-wrap:wrap">
+    return `<div data-cluster-idx="${idx}" class="dup-cluster">
+      <div class="u-row u-justify-between u-mb-050 u-wrap">
         <div class="u-row">
-          <strong style="font-size:0.85rem">${esc(headerName)}</strong>
-          <span class="u-fs-xs u-c-dim">${c.riders.length} candidatos</span>
+          <strong class="u-fs-085">${esc(headerName)}</strong>
+          <span class="u-fs-072 u-c-dim">${c.riders.length} candidatos</span>
           ${scoreBadge}
         </div>
-        <div style="display:flex;gap:0.4rem">
-          <button data-dup-action="merge" data-cluster-idx="${idx}" class="btn btn--primary" style="padding:0.3rem 0.7rem;font-size:0.72rem">Fusionar en el seleccionado</button>
-          <button data-dup-action="skip" data-cluster-idx="${idx}" class="btn btn--ghost" style="padding:0.3rem 0.7rem;font-size:0.72rem">Saltar</button>
+        <div class="u-flex u-gap-040">
+          <button data-dup-action="merge" data-cluster-idx="${idx}" class="btn btn--primary btn--compact">Fusionar en el seleccionado</button>
+          <button data-dup-action="skip" data-cluster-idx="${idx}" class="btn btn--ghost btn--compact">Saltar</button>
         </div>
       </div>
       <div class="u-stack u-stack--xs">${ridersHtml}</div>

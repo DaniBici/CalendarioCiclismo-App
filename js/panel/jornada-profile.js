@@ -12,9 +12,6 @@ import { showToast } from './helpers.js';
 const _GPX_THRESHOLD_M  = 3;
 const _GPX_TARGET_MIN   = 250;
 const _GPX_TARGET_MAX   = 350;
-const _GPX_MIN_PADDING  = 100;
-const _GPX_MAX_PADDING  = 300;
-const _GPX_RANGE_FACTOR = 0.1;
 
 function _gpxHaversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371, toRad = d => d * Math.PI / 180;
@@ -175,8 +172,7 @@ export async function _mapHandleUpload(file, rdId, statusEl, summaryEl, btnEl) {
     // Mostrar los botones "Quitar mapa" / "Ver mapa" si no estaban.
     if (!document.getElementById('ed-map-del')) {
       const delBtn = document.createElement('button');
-      delBtn.className = 'btn btn--ghost'; delBtn.id = 'ed-map-del';
-      delBtn.style.cssText = 'font-size:0.8rem;color:var(--red)';
+      delBtn.className = 'btn btn--ghost u-fs-080 u-c-red'; delBtn.id = 'ed-map-del';
       delBtn.textContent = 'Quitar mapa';
       btnEl.insertAdjacentElement('afterend', delBtn);
       _wireMapDelete(delBtn, rdId, summaryEl, btnEl);

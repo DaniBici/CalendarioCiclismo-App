@@ -7,7 +7,7 @@ import { teamHeaderColors } from './team-appearance.js';
 import { supabase, countryFlag, esc, setMeta, setMetaProperty, raceUrl,
          buildTeamBadgeSvg, raceName as getRaceName, enBase,
          seoLongDate, seoDayMonth, buildRaceHeader, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide,
-         isNoTeamPlaceholderTeam, setRaceRobots } from './shared.js';
+         isNoTeamPlaceholderTeam, setRaceRobots, setHreflangPair } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 import { generateStartlistPDF, preload as preloadPDF } from './inscritos-pdf.js';
 import { resolveStartlistRace, loadStartlistData, startlistHeroInfo, startlistPdfOptions } from './startlist/data.js';
@@ -25,16 +25,16 @@ function articuloNombre(name) {
   return masculinos.includes(firstWord) ? 'el' : 'la';
 }
 
-function buildFechaParentesis(race) {
+function buildFechaParentesis(race, lang) {
   const sd = race.startDate || '';
   const ed = race.endDate   || '';
   if (!sd) return race.year ? `(${race.year})` : '';
 
-  // Formato fijo en español (sin ICU) — esta fecha se embebe en title/description/og,
+  // Formato fijo por idioma (sin ICU) — esta fecha se embebe en title/description/og,
   // que Googlebot indexa; toLocaleDateString caería a inglés en su renderer. Ver shared.js.
-  const fmtFull = (dateKey) => seoLongDate(dateKey, 'es');
+  const fmtFull = (dateKey) => seoLongDate(dateKey, lang);
   const fmtDayMonth = (dateKey, includeMonth) =>
-    includeMonth ? seoDayMonth(dateKey, 'es') : String(dateKey.split('-').map(Number)[2]);
+    includeMonth ? seoDayMonth(dateKey, lang) : String(dateKey.split('-').map(Number)[2]);
 
   if (!ed || sd === ed) return `(${fmtFull(sd)})`;
 
@@ -116,7 +116,7 @@ async function init() {
   const artCap = art.charAt(0).toUpperCase() + art.slice(1);
 
   // Fechas entre paréntesis
-  const fechaParentesis = buildFechaParentesis(race);
+  const fechaParentesis = buildFechaParentesis(race, _isEn ? 'en' : 'es');
 
   const inscritosLabel = race.startlistProvisional
     ? t('startlist.provisional')
@@ -191,23 +191,10 @@ async function init() {
   let canonEl = document.querySelector('link[rel="canonical"]');
   if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl); }
   canonEl.href = canonicalUrl;
-  ['es', 'x-default'].forEach(lang => {
-    let el = document.querySelector(`link[rel="alternate"][hreflang="${lang}"]`);
-    if (!el) { el = document.createElement('link'); el.rel = 'alternate'; el.hreflang = lang; document.head.appendChild(el); }
-    el.href = canonicalUrl;
-  });
-  if (!_isEn && race.slugEn) {
-    const enUrl = `${origin}/en/startlist/${encodeURIComponent(race.slugEn)}/`;
-    let enEl = document.querySelector('link[rel="alternate"][hreflang="en"]');
-    if (!enEl) { enEl = document.createElement('link'); enEl.rel = 'alternate'; enEl.hreflang = 'en'; document.head.appendChild(enEl); }
-    enEl.href = enUrl;
-  }
-  if (_isEn && race.slug) {
-    const esUrl = `${origin}/inscritos/${encodeURIComponent(race.slug)}/`;
-    let esEl = document.querySelector('link[rel="alternate"][hreflang="es"]');
-    if (!esEl) { esEl = document.createElement('link'); esEl.rel = 'alternate'; esEl.hreflang = 'es'; document.head.appendChild(esEl); }
-    esEl.href = esUrl;
-  }
+  setHreflangPair(
+    race.slug ? `${origin}/inscritos/${encodeURIComponent(race.slug)}/` : canonicalUrl,
+    race.slugEn ? `${origin}/en/startlist/${encodeURIComponent(race.slugEn)}/` : (_isEn ? canonicalUrl : null),
+  );
 
   // JSON-LD BreadcrumbList
   const crumbItems = [
@@ -224,7 +211,7 @@ async function init() {
     '@type': 'BreadcrumbList',
     'itemListElement': crumbItems,
   };
-  // EN: conservar el JSON-LD en castellano del HTML estático (SEO en español).
+  // EN: conservar el JSON-LD inglés del HTML estático (este constructor es solo ES).
   if (getLang() !== 'en') {
     let ldBc = document.getElementById('jsonld-breadcrumbs');
     if (!ldBc) {

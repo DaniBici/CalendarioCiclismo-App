@@ -29,11 +29,6 @@ final class PremiumService {
     ]
     static let legacyProductIDs = [legacyMonthlyProductID, legacyYearlyProductID]
 
-    enum PaywallSource: String, Identifiable, CaseIterable {
-        case region, notifications, raceCards, raceNotifications, general
-        var id: String { rawValue }
-    }
-
     enum PremiumPlan: String, Identifiable, CaseIterable {
         case monthly, yearly
         var id: String { rawValue }
@@ -59,20 +54,17 @@ final class PremiumService {
     private static let previousSupporterIconKey = "supporter_icon_previous"
 
     private(set) var isSubscribed: Bool
-    /// Entitlement real de Premium antiguo todavía vigente. Se usa para impedir
-    /// una doble suscripción a Amigo, pero no para ocultar las aportaciones.
+    /// Entitlement real de Premium antiguo todavía vigente. Impide una doble
+    /// suscripción a Amigo y el aviso de apoyo tras el uso, pero no oculta las
+    /// aportaciones puntuales.
     private(set) var legacyPremiumEntitlementActive: Bool
-    /// Compatibilidad con la UI de Ajustes: desde 4.3.1 un Premium vigente ya no
-    /// debe ocupar en exclusiva la sección de apoyo. El usuario sigue siendo
-    /// Fundador y puede abrir aportaciones puntuales.
-    var isLegacyPremiumActive: Bool { false }
     private(set) var isFounder: Bool
     private(set) var contributionCount: Int
     private(set) var supporterIcon: SupporterIcon
     private(set) var hasRefreshedPurchaseState = false
 
     let featuresUnlocked = true
-    var pendingPaywallSource: PaywallSource?
+    var isSupportPresented = false
     private(set) var products: [Product] = []
     private(set) var isPurchasing = false
     private(set) var purchaseError: String?
@@ -107,23 +99,15 @@ final class PremiumService {
         }
     }
 
-    var friendProducts: [Product] {
-        products.filter { Self.friendProductIDs.contains($0.id) }
-    }
-
-    var contributionProducts: [Product] {
-        products.filter { Self.contributionProductIDs.contains($0.id) }
-    }
-
-    func presentPaywall(_ source: PaywallSource) {
+    func presentSupport() {
         Haptics.play(.primaryAction)
-        pendingPaywallSource = source
-        AnalyticsService.shared.logEvent("support_view", parameters: ["source": source.rawValue])
+        isSupportPresented = true
+        AnalyticsService.shared.logEvent("support_view")
         Task { await loadProducts() }
     }
 
-    func dismissPaywall() {
-        pendingPaywallSource = nil
+    func dismissSupport() {
+        isSupportPresented = false
         purchaseError = nil
     }
 
@@ -132,7 +116,6 @@ final class PremiumService {
         let id = plan == .yearly ? Self.yearlyProductID : Self.monthlyProductID
         AnalyticsService.shared.logEvent("support_subscribe_tap", parameters: [
             "plan": plan.rawValue,
-            "source": pendingPaywallSource?.rawValue ?? "unknown",
         ])
         #if DEBUG
         setFriendSubscribed(true)
@@ -354,6 +337,8 @@ final class PremiumService {
     #if DEBUG
     func _debugToggle() { setFriendSubscribed(!isSubscribed) }
     func _debugSetSubscribed(_ value: Bool) { setFriendSubscribed(value) }
+    /// Solo en memoria: no persiste ni reconoce Fundador.
+    func _debugSetLegacyPremiumActive(_ value: Bool) { legacyPremiumEntitlementActive = value }
     func _debugSetFounder(_ value: Bool) {
         isFounder = value
         UserDefaults.standard.set(value, forKey: Self.founderKey)

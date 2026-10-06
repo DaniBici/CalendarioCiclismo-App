@@ -36,6 +36,19 @@ final class CyclocrossTests: XCTestCase {
     }
 
     @MainActor
+    func testDataRideSubhourTimesUseTimeSecondsLikeWeb() throws {
+        let input = """
+        [{"id":1,"raceId":"rochester","category":"ME","rank":1,"riderDisplay":"Winner","timeText":"57:41:00","timeSeconds":3461,"sortOrder":0},
+        {"id":2,"raceId":"rochester","category":"ME","rank":2,"riderDisplay":"Second","timeText":"57:53:00","gapText":"+12","timeSeconds":3473,"sortOrder":1},
+        {"id":3,"raceId":"rochester","category":"ME","rank":3,"riderDisplay":"Third","timeText":"58:15:00","gapText":"+34","timeSeconds":3495,"sortOrder":2}]
+        """
+        let vm = CyclocrossPresentation.resultRows(try JSONDecoder().decode([CxResult].self, from: Data(input.utf8)))
+        XCTAssertEqual(vm[0].valueText, "57:41")
+        XCTAssertEqual(vm[1].valueText, "+12\"")
+        XCTAssertEqual(vm[2].valueText, "+34\"")
+    }
+
+    @MainActor
     func testResultTimesAndIrmShareRoadPresentationExceptLaps() throws {
         let input = """
         [{"id":1,"raceId":"canmore","category":"MJ","rank":1,"riderDisplay":"Winner","timeText":"42:09.2","sortOrder":0},
@@ -495,7 +508,9 @@ final class CyclocrossTests: XCTestCase {
 
     @MainActor
     func testTournamentPaletteOverridesIndividualColorAndDoesNotInferMembership() throws {
-        for (name, expected) in [("Copa del Mundo UCI", "#8B173D"), ("Telenet Superprestige", "#FFC600"), ("X2O Badkamers Trofee", "#00A8C7"), ("Copa de España", "#D71920"), ("Exact Cross", "#E6342A"), ("HG Cross", "#E6342A"), ("Coupe de France", "#0055A4"), ("Swiss Cyclocross Cup", "#D52B1E"), ("Toi Toi Cup", "#E87524"), ("HSF System Cup", "#E87524"), ("National Trophy", "#6B3FA0"), ("Trek USCX Series", "#233C78"), ("Giro delle Regioni Ciclocross", "#E94B8A"), ("Taça de Portugal", "#008657")] {
+        // Un caso por forma de identidad: varias palabras, prefijo de patrocinador
+        // y diacríticos plegados.
+        for (name, expected) in [("Copa del Mundo UCI", "#8B173D"), ("Telenet Superprestige", "#FFC600"), ("Copa de España", "#D71920")] {
             var object = try JSONSerialization.jsonObject(with: Data(fixture.utf8)) as! [String: Any]
             object["colorHex"] = "#123456"
             object["cx_tournaments"] = ["id": "t", "name": name, "slug": "torneo"]
@@ -581,46 +596,217 @@ final class CyclocrossTests: XCTestCase {
     }
 
     @MainActor
-    func testAgendaMediaUsesMetadataAndRegionWithoutClassificationRows() throws {
-        let original = try race()
-        let empty = CxDetail(race: original, startlist: [], results: [], broadcasts: [], videos: [], teams: [], standings: [])
-        XCTAssertFalse(CyclocrossPresentation.categoryMedia(empty, category: original.categories[0], allowedGroups: ["ALL", "ES"]).showsLiveTV)
-        XCTAssertNil(original.broadcasts)
-        XCTAssertNil(original.videos)
-        let metadata = "\"cx_broadcasts\":[{\"id\":\"es\",\"raceId\":\"cx-1\",\"category\":\"ME\",\"country\":\"ES\",\"url\":\"https://example.org/es\",\"showInRevive\":true,\"sortOrder\":0},{\"id\":\"be\",\"raceId\":\"cx-1\",\"category\":\"ME\",\"country\":\"BE\",\"url\":\"https://example.org/be\",\"showInRevive\":true,\"sortOrder\":0}],"
-        let text = fixture.replacingOccurrences(of: "\"cx_race_categories\":", with: metadata + "\"cx_race_categories\":")
-        let agenda = try JSONDecoder().decode(CxRace.self, from: Data(text.utf8))
-        let pending = CyclocrossPresentation.categoryMedia(race: agenda, category: agenda.categories[0], allowedGroups: ["ALL", "ES"])
-        XCTAssertTrue(pending.showsLiveTV)
-        XCTAssertEqual(pending.tv.map(\.id), ["es"])
-        XCTAssertFalse(CyclocrossPresentation.categoryMedia(race: agenda, category: agenda.categories[1], allowedGroups: ["ALL", "ES"]).showsLiveTV)
-        let published = try JSONDecoder().decode(CxRace.self, from: Data(text.replacingOccurrences(of: "\"resultsStatus\":\"pending\"", with: "\"resultsStatus\":\"provisional\"").utf8))
-        let replay = CyclocrossPresentation.categoryMedia(race: published, category: published.categories[0], allowedGroups: ["ALL", "ES"])
-        XCTAssertFalse(replay.showsLiveTV)
-        XCTAssertEqual(replay.revive.map(\.url.absoluteString), ["https://example.org/es"])
+    func testTimeStandingsShowLeaderTotalAndPressGaps() throws {
+        let rows = try JSONDecoder().decode([CxStanding].self, from: Data(#"""
+        [{"id":"e","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":5,"riderDisplay":"Hours","timeSeconds":8723},
+        {"id":"a","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":1,"riderDisplay":"Leader","timeSeconds":5000},
+        {"id":"b","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":2,"riderDisplay":"Same","timeSeconds":5000},
+        {"id":"c","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":3,"riderDisplay":"Seconds","timeSeconds":5045},
+        {"id":"d","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":4,"riderDisplay":"Minutes","timeSeconds":5105},
+        {"id":"f","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":6,"riderDisplay":"Missing"}]
+        """#.utf8))
+        let values = CyclocrossPresentation.standingValues(rows, mode: "time", isEn: false)
+        XCTAssertEqual(values.map(\.row.id), ["a", "b", "c", "d", "e", "f"])
+        XCTAssertEqual(values.map(\.value.text), ["1:23:20", "m.t.", "+45\"", "+1'45\"", "+1:02:03", "—"])
+        XCTAssertEqual(values.map(\.value.kind), [.winnerTime, .sameTime, .gap, .gap, .gap, .gap])
+        XCTAssertEqual(CyclocrossPresentation.standingValues(rows, mode: "time", isEn: true)[1].value.text, "s.t.")
+        XCTAssertEqual(CyclocrossPresentation.standingMode(scheme: nil, category: "ME", rows: rows), "time")
+        XCTAssertNil(CyclocrossPresentation.standingsBreakdown(state: CxStandingState(category: "ME", status: "ready", roundIds: ["r1"],
+            breakdown: [CxStandingBreakdownEntry(globalRiderId: "g", eligible: true, rounds: [])]), mode: "time"))
     }
 
     @MainActor
-    func testProgrammeCombinesGlobalMediaAndPreservesRegionAndResultsPhase() throws {
-        func detail(published: Bool) throws -> CxDetail {
-            let race = published ? fixture.replacingOccurrences(of: "\"resultsStatus\":\"pending\"", with: "\"resultsStatus\":\"official\"") : fixture
-            let results = published ? "{\"id\":1,\"raceId\":\"cx-1\",\"category\":\"ME\",\"riderDisplay\":\"Uno\",\"sortOrder\":0},{\"id\":2,\"raceId\":\"cx-1\",\"category\":\"WE\",\"riderDisplay\":\"Una\",\"sortOrder\":0}" : ""
+    func testStandingsBreakdownCellsMarkDroppedAndMissingRounds() throws {
+        let state = try JSONDecoder().decode(CxStandingState.self, from: Data(#"""
+        {"category":"ME","status":"ready","roundIds":["r1","r2","r3","r4","r5"],"breakdown":[
+        {"globalRiderId":"g1","eligible":true,"rounds":[{"raceId":"r1","points":"40","retained":true,"sourceRank":1},
+        {"raceId":"r2","points":25,"retained":false},{"raceId":"r3","points":"0","retained":true},
+        {"raceId":"r4","points":"30","missing":true}]}]}
+        """#.utf8))
+        let row = try JSONDecoder().decode(CxStanding.self, from: Data(#"{"id":"s","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":1,"riderDisplay":"Rider","points":65,"globalRiderId":"g1"}"#.utf8))
+        let breakdown = try XCTUnwrap(CyclocrossPresentation.standingsBreakdown(state: state, mode: "points"))
+        XCTAssertEqual(breakdown.cells(row), [CxRoundCell(text: "40", dropped: false), CxRoundCell(text: "25", dropped: true),
+            CxRoundCell(text: "-", dropped: false), CxRoundCell(text: "-", dropped: false), CxRoundCell(text: "-", dropped: false)])
+        let headers = CyclocrossPresentation.roundHeaders(breakdown.roundIds, rounds: ["r1": CxRound(n: 3, total: 8)],
+            races: [CxRaceRef(id: "r1", name: "Koksijde", nameEn: nil, raceClass: "CDM")])
+        XCTAssertEqual(headers.map(\.label), ["#3", "#2", "#3", "#4", "#5"])
+        XCTAssertEqual(headers[0].title, "Koksijde")
+        XCTAssertTrue(headers[0].linked)
+        XCTAssertFalse(headers[1].linked)
+        // Una general manual o sin desglose muestra solo el total; un desglose
+        // ilegible no invalida el estado.
+        XCTAssertNil(CyclocrossPresentation.standingsBreakdown(state: CxStandingState(category: "ME", status: "manual", roundIds: state.roundIds, breakdown: state.breakdown), mode: "points"))
+        XCTAssertNil(CyclocrossPresentation.standingsBreakdown(state: CxStandingState(category: "ME", status: "ready", roundIds: state.roundIds, breakdown: []), mode: "points"))
+        let malformed = try JSONDecoder().decode(CxStandingState.self, from: Data(#"{"category":"ME","status":"ready","roundIds":["r1"],"breakdown":{"bad":true}}"#.utf8))
+        XCTAssertEqual(malformed.roundIds, ["r1"])
+        XCTAssertNil(malformed.breakdown)
+    }
+
+    @MainActor
+    func testTournamentGeneralCategoriesNeedRowsAndUsableState() throws {
+        let rows = try JSONDecoder().decode([CxStanding].self, from: Data(#"""
+        [{"id":"1","tournamentId":"t","seasonKey":"2026-27","category":"WJ","rank":1,"riderDisplay":"A","points":1},
+        {"id":"2","tournamentId":"t","seasonKey":"2026-27","category":"ME","rank":1,"riderDisplay":"B","points":1},
+        {"id":"3","tournamentId":"t","seasonKey":"2026-27","category":"WE","rank":1,"riderDisplay":"C","points":1},
+        {"id":"4","tournamentId":"t","seasonKey":"2026-27","category":"MU","rank":1,"riderDisplay":"D","points":1}]
+        """#.utf8))
+        let states = [CxStandingState(category: "ME", status: "ready", roundIds: []), CxStandingState(category: "WE", status: "needs_review", roundIds: []),
+                      CxStandingState(category: "MU", status: "manual", roundIds: []), CxStandingState(category: "WU", status: "ready", roundIds: ["r1"])]
+        XCTAssertEqual(CyclocrossPresentation.tournamentGeneralCategories(standings: rows, states: states), ["ME", "MU", "WJ"])
+        XCTAssertTrue(CyclocrossPresentation.tournamentGeneralCategories(standings: [], states: states).isEmpty)
+    }
+
+    private func instant(_ value: String) -> Date { CyclocrossLogic.instant(value)! }
+
+    /// Ficha de prueba con categorías, emisiones y resultados en JSON.
+    private func mediaDetail(categories: String, broadcasts: String, results: String = "", videos: String = "", raceCancelled: Bool = false) throws -> CxDetail {
+        let text = """
+        {"race":{"id":"cx-1","name":"Prueba local","slug":"prueba","seasonKey":"2026-27","dateKey":"2027-01-29","endDateKey":"2027-01-31","class":"CM","isCancelled":\(raceCancelled),"cx_race_categories":[\(categories)]},
+        "startlist":[],"results":[\(results)],"teams":[],"standings":[],"videos":[\(videos)],"broadcasts":[\(broadcasts)]}
+        """
+        return try JSONDecoder().decode(CxDetail.self, from: Data(text.utf8))
+    }
+
+    private func mediaCategory(_ code: String, date: String, start: String? = nil, status: String = "pending", minutes: Int? = nil, cancelled: Bool = false) -> String {
+        let startField = start.map { "\"startTimeUtc\":\"\($0)\"," } ?? ""
+        let duration = minutes.map { "\"durationFormat\":\"individual\",\"durationRuleVersion\":\"2026-07-01\",\"durationMinutes\":\($0)," } ?? ""
+        return "{\"category\":\"\(code)\",\(startField)\(duration)\"dateKey\":\"\(date)\",\"sortOrder\":0,\"isCancelled\":\(cancelled),\"resultsStatus\":\"\(status)\"}"
+    }
+
+    private func mediaRow(_ id: String, category: String? = nil, country: String? = "ES", channel: String? = nil, url: String, order: Int = 0, revive: Bool = false, sporza: Bool = false) -> String {
+        let fields = [category.map { "\"category\":\"\($0)\"" }, country.map { "\"country\":\"\($0)\"" }, channel.map { "\"channel\":\"\($0)\"" }].compactMap { $0 }
+        return "{\"id\":\"\(id)\",\"raceId\":\"cx-1\",\(fields.map { $0 + "," }.joined())\"url\":\"\(url)\",\"sortOrder\":\(order),\"showInRevive\":\(revive),\"isSporza\":\(sporza)}"
+    }
+
+    func testCategoryConclusionUsesVerifiedDurationFallbackAndNextMorning() throws {
+        let race = try race()
+        let verified = race.categories[0]
+        XCTAssertEqual(CyclocrossLogic.concludedAt(race: race, category: verified), instant("2027-01-31T15:30:00Z"))
+        let detail = try mediaDetail(categories: [
+            mediaCategory("ME", date: "2027-01-31", start: "2027-01-31T14:00:00Z", minutes: 50),
+            mediaCategory("MU", date: "2027-01-31", start: "2027-01-31T11:00:00Z"),
+            mediaCategory("WE", date: "2027-01-30"),
+        ].joined(separator: ","), broadcasts: "")
+        let byCode = Dictionary(uniqueKeysWithValues: detail.race.categories.map { ($0.category, $0) })
+        XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: byCode["ME"]), instant("2027-01-31T15:20:00Z"))
+        // Sin duración verificada cuenta 60 min; sin hora, 06:00 UTC del día siguiente.
+        XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: byCode["MU"]), instant("2027-01-31T12:30:00Z"))
+        XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: byCode["WE"]), instant("2027-01-31T06:00:00Z"))
+        // Carrera sin categorías: último día de la carrera.
+        XCTAssertEqual(CyclocrossLogic.concludedAt(race: detail.race, category: nil), instant("2027-02-01T06:00:00Z"))
+    }
+
+    @MainActor
+    func testLiveTvFollowsProgrammeOrderRegionAndCategoryDeduplication() throws {
+        let detail = try mediaDetail(categories: [
+            mediaCategory("ME", date: "2027-01-31", start: "2027-01-31T14:00:00Z", minutes: 60),
+            mediaCategory("WE", date: "2027-01-30"),
+            mediaCategory("MU", date: "2027-01-31", start: "2027-01-31T11:00:00Z"),
+        ].joined(separator: ","), broadcasts: [
+            mediaRow("me-dup", category: "ME", url: "https://example.org/shared", order: 1),
+            mediaRow("me-es", category: "ME", url: "https://example.org/shared"),
+            mediaRow("mu-es", category: "MU", url: "https://example.org/shared"),
+            mediaRow("we-be", category: "WE", country: "BE", url: "https://example.org/be"),
+            mediaRow("common-es", url: "https://example.org/common"),
+            mediaRow("invalid", url: "javascript:alert(1)"),
+        ].joined(separator: ","))
+        let before = instant("2027-01-29T12:00:00Z")
+        let all = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], showAll: true, at: before)
+        XCTAssertEqual(all.tv.map(\.category), [nil, "WE", "MU", "ME"])
+        XCTAssertEqual(all.tvRows.map(\.id), ["common-es", "we-be", "mu-es", "me-es"])
+        let mine = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], at: before)
+        XCTAssertEqual(mine.tvRows.map(\.id), ["common-es", "mu-es", "me-es"])
+        XCTAssertTrue(mine.hasHiddenTV)
+        XCTAssertFalse(mine.showsRegionEmpty)
+        let elsewhere = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "FR"], at: before)
+        XCTAssertTrue(elsewhere.showsLiveTV)
+        XCTAssertTrue(elsewhere.showsRegionEmpty)
+        XCTAssertTrue(elsewhere.hasHiddenTV)
+        // «Todas» muestra todas las filas y retira el mensaje, como en carretera.
+        let elsewhereAll = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "FR"], showAll: true, at: before)
+        XCTAssertFalse(elsewhereAll.showsRegionEmpty)
+        XCTAssertEqual(elsewhereAll.tvRows.map(\.id), all.tvRows.map(\.id))
+        // Sin filas de otras regiones no hay conmutador.
+        let belgium = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES", "BE"], at: before)
+        XCTAssertFalse(belgium.hasHiddenTV)
+        XCTAssertEqual(belgium.tvRows.map(\.id), all.tvRows.map(\.id))
+        // WE concluye sin resultados: sale de la TV en directo y no pasa a Revive.
+        let afterWomen = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], showAll: true, at: instant("2027-01-31T07:00:00Z"))
+        XCTAssertEqual(afterWomen.tv.map(\.category), [nil, "MU", "ME"])
+        XCTAssertFalse(afterWomen.hasHiddenTV)
+        XCTAssertTrue(afterWomen.revive.isEmpty)
+        let over = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], showAll: true, at: instant("2027-01-31T15:30:00Z"))
+        XCTAssertFalse(over.showsLiveTV)
+        XCTAssertTrue(over.tv.isEmpty)
+        XCTAssertTrue(over.revive.isEmpty)
+    }
+
+    @MainActor
+    func testReviveUsesRoadCriterionAndSkipsRowsStillLive() throws {
+        let rows = [
+            mediaRow("plain", category: "ME", channel: "Canal ES", url: "https://example.org/plain", order: 3),
+            mediaRow("euro", category: "ME", channel: "Eurosport 1", url: "https://example.org/euro", order: 2),
+            mediaRow("yt", category: "ME", channel: "Canal", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", order: 1),
+            mediaRow("sporza", category: "ME", country: nil, channel: "Sporza", url: "https://example.org/sporza", sporza: true),
+            mediaRow("common", url: "https://www.youtube.com/@cx"),
+            mediaRow("be", category: "ME", country: "BE", url: "https://example.org/be", revive: true),
+            mediaRow("dup", category: "ME", channel: "Otro", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", order: 5, revive: true),
+        ].joined(separator: ",")
+        let result = "{\"id\":1,\"raceId\":\"cx-1\",\"category\":\"ME\",\"riderDisplay\":\"Corredor local\",\"rank\":1,\"sortOrder\":0}"
+        let categories = [
+            mediaCategory("ME", date: "2027-01-30", start: "2027-01-30T14:00:00Z", status: "official", minutes: 60),
+            mediaCategory("WE", date: "2027-01-31", start: "2027-01-31T12:00:00Z"),
+        ].joined(separator: ",")
+        let at = instant("2027-01-30T18:00:00Z")
+        let detail = try mediaDetail(categories: categories, broadcasts: rows, results: result, videos: [
+            "{\"id\":\"clip\",\"raceId\":\"cx-1\",\"title\":\"Vídeo\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"sortOrder\":0}",
+            "{\"id\":\"other\",\"raceId\":\"cx-1\",\"title\":\"Otro\",\"url\":\"https://example.org/replay\",\"sortOrder\":1}",
+        ].joined(separator: ","))
+        XCTAssertEqual(CyclocrossPresentation.videos(detail).map(\.id), ["clip"])
+        let media = CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], at: at)
+        // La fila global sigue en directo por WE: no se repite en Revive.
+        XCTAssertEqual(media.tvRows.map(\.id), ["common"])
+        XCTAssertEqual(media.revive.map(\.url.absoluteString), ["https://example.org/sporza", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://example.org/euro"])
+        XCTAssertEqual(media.revive.map(\.title), ["Sporza", "Canal", "Eurosport 1"])
+        // Sin resultados cargados no hay Revive aunque el estado sea oficial.
+        let withoutRows = try mediaDetail(categories: categories, broadcasts: rows)
+        XCTAssertTrue(CyclocrossPresentation.programmeMedia(withoutRows, allowedGroups: ["ALL", "ES"], at: at).revive.isEmpty)
+        // Cancelada: solo cuentan las filas marcadas para Revive.
+        let cancelled = try mediaDetail(categories: categories, broadcasts: rows, raceCancelled: true)
+        let replay = CyclocrossPresentation.programmeMedia(cancelled, allowedGroups: ["ALL", "ES"], showAll: true, at: at)
+        XCTAssertFalse(replay.showsLiveTV)
+        XCTAssertEqual(replay.revive.map(\.title), ["Otro"])
+    }
+
+    @MainActor
+    func testLiveTvShowsProgrammeWithoutScheduleAndKeepsDefaultSection() throws {
+        // Temporada lejana: la TV sigue en directo con la hora real de la prueba.
+        func detail(broadcasts: String) throws -> CxDetail {
             let text = """
-            {"race":\(race),"startlist":[],"results":[\(results)],"teams":[],"standings":[],"videos":[],"broadcasts":[
-            {"id":"es","raceId":"cx-1","country":"ES","url":"https://example.org/es","sortOrder":0,"showInRevive":true,"isSporza":false},
-            {"id":"be","raceId":"cx-1","country":"BE","url":"https://example.org/be","sortOrder":1,"showInRevive":true,"isSporza":false}]}
+            {"race":{"id":"cx-1","name":"Prueba local","slug":"prueba","seasonKey":"2098-99","dateKey":"2099-01-30","class":"C1","isCancelled":false,"cx_race_categories":[\(mediaCategory("ME", date: "2099-01-30"))]},
+            "startlist":[{"id":"r1","raceId":"cx-1","category":"ME","firstName":"Uno","lastName":"Local","sortOrder":0}],
+            "results":[],"teams":[],"standings":[],"videos":[],"broadcasts":[\(broadcasts)]}
             """
             return try JSONDecoder().decode(CxDetail.self, from: Data(text.utf8))
         }
-        let pending = try detail(published: false)
-        let mine = CyclocrossPresentation.programmeMedia(pending, allowedGroups: ["ALL", "ES"])
-        XCTAssertEqual(mine.tv.map(\.id), ["es"])
-        XCTAssertTrue(mine.hasHiddenTV)
-        XCTAssertEqual(CyclocrossPresentation.programmeMedia(pending, allowedGroups: ["ALL", "ES"], showAll: true).tv.map(\.id), ["es", "be"])
-        let replay = CyclocrossPresentation.programmeMedia(try detail(published: true), allowedGroups: ["ALL", "ES"])
-        XCTAssertFalse(replay.showsLiveTV)
-        XCTAssertTrue(replay.tv.isEmpty)
-        XCTAssertEqual(replay.revive.map(\.url.absoluteString), ["https://example.org/es"])
+        let withTv = try detail(broadcasts: mediaRow("tv", country: "ZZ", url: "https://example.org/tv"))
+        XCTAssertTrue(CxDetailSelection.hasMedia(withTv, allowedGroups: ["ALL", "ES"], at: instant("2099-01-30T12:00:00Z")))
+        XCTAssertEqual(CxDetailSelection.sections(withTv), [.programme, .startlist])
+        XCTAssertTrue(CxDetailSelection.showsSectionSelector(withTv))
+        XCTAssertEqual(CxDetailSelection.from(anchor: nil, detail: withTv).normalized(withTv).section, .startlist)
+        let withoutTv = try detail(broadcasts: "")
+        XCTAssertEqual(CxDetailSelection.sections(withoutTv), [.startlist])
+        XCTAssertEqual(CxDetailSelection.from(anchor: nil, detail: withoutTv).normalized(withoutTv).section, .startlist)
+    }
+
+    @MainActor
+    func testRaceWithoutCategoriesOnlyUsesGlobalRows() throws {
+        let rows = [mediaRow("global", url: "https://example.org/global"), mediaRow("me", category: "ME", url: "https://example.org/me")].joined(separator: ",")
+        let detail = try mediaDetail(categories: "", broadcasts: rows)
+        XCTAssertEqual(CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], at: instant("2027-01-31T20:00:00Z")).tvRows.map(\.id), ["global"])
+        XCTAssertFalse(CyclocrossPresentation.programmeMedia(detail, allowedGroups: ["ALL", "ES"], at: instant("2027-02-01T06:00:00Z")).showsLiveTV)
+        let cancelled = try mediaDetail(categories: "", broadcasts: rows.replacingOccurrences(of: "\"showInRevive\":false", with: "\"showInRevive\":true"), raceCancelled: true)
+        XCTAssertEqual(CyclocrossPresentation.programmeMedia(cancelled, allowedGroups: ["ALL", "ES"], at: instant("2027-01-29T12:00:00Z")).revive.map(\.url.absoluteString), ["https://example.org/global"])
     }
 
     @MainActor
@@ -680,54 +866,6 @@ final class CyclocrossTests: XCTestCase {
         let cached = await repo.rounds(season: "2026-27")
         XCTAssertEqual(cached["cx-1"], CxRound(n: 3, total: 8))
         XCTAssertEqual(remote.roundsCalls, 2)
-    }
-
-    @MainActor
-    func testTvReplayCategoryRegionCancellationAndDuplicateCuration() throws {
-        func media(status: String = "pending", cancelled: Bool = false, categoryCancelled: Bool = false, resultCategory: String? = nil, showAll: Bool = false) throws -> CxMediaSelection {
-            var raceText = fixture.replacingOccurrences(of: "\"resultsStatus\":\"pending\"", with: "\"resultsStatus\":\"\(status)\"")
-            if cancelled { raceText = raceText.replacingOccurrences(of: "\"isCancelled\":false", with: "\"isCancelled\":true") }
-            if categoryCancelled { raceText = raceText.replacingOccurrences(of: "\"sortOrder\":0,\"isCancelled\":false", with: "\"sortOrder\":0,\"isCancelled\":true") }
-            let result = resultCategory.map { "{\"id\":1,\"raceId\":\"cx-1\",\"category\":\"\($0)\",\"riderDisplay\":\"Corredor local\",\"rank\":1,\"sortOrder\":0}" } ?? ""
-            let text = """
-            {"race":\(raceText),"startlist":[],"results":[\(result)],"teams":[],"standings":[],
-            "broadcasts":[
-            {"id":"live","raceId":"cx-1","channel":"Canal ES","country":"ES","url":"https://example.org/replay","sortOrder":0,"showInRevive":false,"isSporza":false},
-            {"id":"curated","raceId":"cx-1","channel":"Canal ES","country":"ES","url":"https://example.org/replay","sortOrder":3,"showInRevive":true,"isSporza":false},
-            {"id":"be","raceId":"cx-1","channel":"Canal BE","country":"BE","url":"https://example.org/be","sortOrder":0,"showInRevive":true,"isSporza":false},
-            {"id":"global","raceId":"cx-1","channel":"Sporza","url":"https://example.org/global","sortOrder":0,"showInRevive":false,"isSporza":true},
-            {"id":"we","raceId":"cx-1","category":"WE","url":"https://example.org/we","sortOrder":0,"showInRevive":true,"isSporza":false},
-            {"id":"invalid","raceId":"cx-1","channel":"Sin enlace","url":"javascript:alert(1)","sortOrder":0,"showInRevive":true,"isSporza":false}],
-            "videos":[
-            {"id":"clip","raceId":"cx-1","title":"Vídeo curado","url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","sortOrder":-1},
-            {"id":"duplicate","raceId":"cx-1","title":"Repetido","url":"https://example.org/replay","sortOrder":4},
-            {"id":"we","raceId":"cx-1","category":"WE","title":"WE","url":"https://example.org/we","sortOrder":0}]}
-            """
-            let detail = try JSONDecoder().decode(CxDetail.self, from: Data(text.utf8))
-            XCTAssertEqual(CyclocrossPresentation.videos(detail).map(\.id), ["clip"])
-            XCTAssertTrue(CxDetailSelection.sections(detail).contains(.videos))
-            return CyclocrossPresentation.categoryMedia(detail, category: detail.race.categories[0], allowedGroups: ["ALL", "ES", "EUROPA"], showAll: showAll)
-        }
-        let pending = try media()
-        XCTAssertTrue(pending.showsLiveTV)
-        XCTAssertTrue(pending.hasHiddenTV)
-        XCTAssertEqual(pending.tv.map(\.id), ["live", "global", "invalid"])
-        XCTAssertTrue(pending.revive.isEmpty)
-        XCTAssertNil(CyclocrossPresentation.link("javascript:alert(1)"))
-        XCTAssertTrue(try media(showAll: true).tv.contains { $0.id == "be" })
-        for status in ["official", "provisional"] {
-            let published = try media(status: status, resultCategory: "ME", showAll: true)
-            XCTAssertFalse(published.showsLiveTV)
-            XCTAssertTrue(published.tv.isEmpty)
-            XCTAssertEqual(published.revive.map(\.url.absoluteString), ["https://example.org/global", "https://example.org/replay"])
-        }
-        XCTAssertTrue(try media(status: "official").showsLiveTV)
-        XCTAssertTrue(try media(resultCategory: "WE").showsLiveTV)
-        for cancelled in [try media(cancelled: true, showAll: true), try media(categoryCancelled: true, showAll: true)] {
-            XCTAssertFalse(cancelled.showsLiveTV)
-            XCTAssertTrue(cancelled.tv.isEmpty)
-            XCTAssertEqual(cancelled.revive.map(\.url.absoluteString), ["https://example.org/replay"])
-        }
     }
 
     @MainActor

@@ -46,6 +46,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
+import { databaseUrl } from '../db/env.mjs';
 
 // Todo lo que este script invoca o escribe va anclado a SU directorio, no al cwd:
 // con rutas relativas, ejecutarlo desde scripts/results-fetchers/ no encontraba
@@ -198,7 +199,7 @@ async function main() {
 
   // ── modo apply ──
   const env = { ...loadEnv(), ...process.env };
-  const url = env.DATABASE_URL;
+  const url = databaseUrl(env);
   if (!url) { log('FATAL: --apply necesita DATABASE_URL (en .env o entorno)'); process.exit(1); }
   const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });

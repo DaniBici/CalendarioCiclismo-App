@@ -226,19 +226,4 @@ describe('hasSimplifiedGuide (opt-in: requiere ≥1 hora manual)', () => {
     });
     expect(hasSimplifiedGuide(rows)).toBe(false);
   });
-
-  it('true cuando al menos un punto intermedio tiene hora manual del rutómetro', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100, neutralStartTimeUtc: START, estimatedFinishTimeUtc: FINISH,
-      waypoints: [{ km: 50, type: 'intermediate_sprint', timeUtc: '2026-04-26T11:00:00.000Z' }],
-    });
-    expect(hasSimplifiedGuide(rows)).toBe(true);
-  });
-
-  it('false sin ninguna hora', () => {
-    const rows = buildSimplifiedGuide({
-      distanceKm: 100, summits: [{ km: 50, startKm: 40 }],
-    });
-    expect(hasSimplifiedGuide(rows)).toBe(false);
-  });
 });

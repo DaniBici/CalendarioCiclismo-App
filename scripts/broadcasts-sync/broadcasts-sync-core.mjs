@@ -7,10 +7,7 @@ export const RTVE_SOURCE_URLS = [
 export const RTVE_VUELTA_SCHEDULE_URL = 'https://www.rtve.es/play/noticias/20260818/vuelta-ciclista-2026-hora-donde-ver-gratis-todas-etapas/17194425.shtml';
 export const RTVE_VUELTA_VIDEOS_URL = 'https://www.rtve.es/api/programas/144990/videos.json?page=1&size=50';
 export const RTVE_LIVES_URL = 'https://api.rtve.es/api/lives/peticiones.json?size=200';
-export const CARACOL_SOURCE_URL = 'https://www.noticiascaracol.com/golcaracol/ciclismo/vuelta-a-espana-2026-en-vivo-hora-y-donde-ver-por-tv-y-online-las-21-etapas-so35';
-export const CARACOL_VUELTA_INDEX_URL = 'https://www.noticiascaracol.com/golcaracol/vuelta-espana';
-export const CARACOL_BROADCAST_URL = 'https://www.noticiascaracol.com/golcaracol/deportes-en-vivo';
-export const PARSER_VERSION = '2026-09-28.3';
+export const PARSER_VERSION = '2026-10-05.1';
 
 const STAGE_RE = /\b(?:stage|etapa|[eé]tape|tappa)\s*(\d{1,2})(?:[a-z])?\b/i;
 const CYCLING_RE = /\b(ciclismo|ciclista|cycling|vuelta|giro|tour de france|tour femenino|clasica|clásica|mundial.*ruta|campeonato.*ruta)\b/i;
@@ -225,11 +222,6 @@ export function parseStageNumber(value) {
   return match ? Number(match[1]) : null;
 }
 
-function attr(tag, name) {
-  const match = tag.match(new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`, 'i'));
-  return decodeHtml(match?.[1] ?? match?.[2] ?? '');
-}
-
 function classText(body, className) {
   const match = body.match(new RegExp(`<[^>]+class="[^"]*\\b${className}\\b[^"]*"[^>]*>([\\s\\S]*?)<\\/[^>]+>`, 'i'));
   return stripHtml(match?.[1]);
@@ -250,29 +242,32 @@ export function isMontoneraEligible(title, subtitle) {
   ].some((pattern) => pattern.test(race));
 }
 
-export function parseHboCatalog(html) {
-  const metadata = new Map();
-  const montoneraKeys = new Set();
-  const metadataRe = /"hbomaxId":"([0-9a-f-]{36})"[\s\S]{0,10000}?"title":\{"short":"([^"]*)","full":"([^"]*)"\}[\s\S]{0,3000}?"scheduleDates":\{"startDate":"([^"]+)"/gi;
-  for (const match of html.matchAll(metadataRe)) {
-    if (Number.isFinite(Date.parse(match[4]))) {
-      metadata.set(match[1].toLowerCase(), {
-        title: decodeHtml(match[3]), subtitle: decodeHtml(match[2]),
-        startTimeUtc: new Date(match[4]).toISOString(),
-      });
-    }
-  }
+function hboCatalogEvents(html) {
+  const data = html.match(/<script\b[^>]*\bid="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)?.[1];
+  if (!data) return [];
   const events = [];
-  const anchorRe = /(<a\b[^>]*href="[^"]*\/sport\/\d{4}-\d{1,2}-\d{1,2}\/[0-9a-f-]{36}"[^>]*>)([\s\S]*?)<\/a>/gi;
-  for (const match of html.matchAll(anchorRe)) {
-    const href = attr(match[1], 'href');
-    const path = href.match(/\/sport\/(\d{4})-(\d{1,2})-(\d{1,2})\/([0-9a-f-]{36})/i);
-    if (!path) continue;
-    const sport = classText(match[2], 'event-sport');
-    const title = classText(match[2], 'event-full-title');
-    const subtitle = classText(match[2], 'event-short-title');
-    if (fold(sport) !== 'cycling') continue;
-    const details = metadata.get(path[4].toLowerCase()) || {};
+  const walk = (value) => {
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    if (!value || typeof value !== 'object') return;
+    if (value.__typename === 'Event' && value.hbomaxId) events.push(value);
+    else Object.values(value).forEach(walk);
+  };
+  walk(JSON.parse(data));
+  return events;
+}
+
+// El catálogo se sirve como página Next.js: los eventos viven en el JSON de
+// __NEXT_DATA__, no en el marcado. Las emisiones son los eventos `live`; los
+// `standalone-event` son grabaciones y solo sirven para detectar La Montonera.
+export function parseHboCatalog(html) {
+  const montoneraKeys = new Set();
+  const events = [];
+  for (const item of hboCatalogEvents(html)) {
+    const id = String(item.hbomaxId).toLowerCase();
+    const path = String(item.url || '').match(/\/sport\/(\d{4})-(\d{1,2})-(\d{1,2})\/([0-9a-f-]{36})$/i);
+    if (!path || path[4].toLowerCase() !== id || fold(item.sport) !== 'cycling') continue;
+    const title = stripHtml(item.title?.full);
+    const subtitle = stripHtml(item.title?.short);
     const dateKey = `${path[1]}-${path[2].padStart(2, '0')}-${path[3].padStart(2, '0')}`;
     const stageNumber = parseStageNumber(`${title} ${subtitle}`);
     const baseTitle = title.replace(/\s*\|\s*La Montonera\b.*$/i, '').trim();
@@ -281,16 +276,18 @@ export function parseHboCatalog(html) {
       if (isMontoneraEligible(baseTitle, subtitle)) montoneraKeys.add(montoneraKey);
       continue;
     }
+    if (item.eventStatus !== 'live') continue;
+    const startDate = item.scheduleDates?.startDate;
     events.push({
       source: 'hbo_max',
-      externalEventId: path[4].toLowerCase(),
+      externalEventId: id,
       dateKey,
-      title: details.title || title,
-      subtitle: details.subtitle || subtitle,
-      sourceUrl: `https://www.hbomax.com${href}`,
-      broadcastUrl: `https://play.hbomax.com/sport/${path[4].toLowerCase()}`,
+      title,
+      subtitle,
+      sourceUrl: `https://www.hbomax.com${item.url}`,
+      broadcastUrl: `https://play.hbomax.com/sport/${id}`,
       stageNumber,
-      startTimeUtc: details.startTimeUtc || null,
+      startTimeUtc: Number.isFinite(Date.parse(startDate)) ? new Date(startDate).toISOString() : null,
       montoneraKey,
     });
   }
@@ -322,136 +319,6 @@ export function parseSpanishDate(value) {
   const match = fold(value).match(/\b(\d{1,2}) de ([a-z]+) de (\d{4})\b/);
   const month = match && SPANISH_MONTHS.get(match[2]);
   return month ? `${match[3]}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}` : null;
-}
-
-function hour12To24(hour, minute, meridiem) {
-  let normalizedHour = Number(hour) % 12;
-  if (String(meridiem).toLowerCase() === 'p') normalizedHour += 12;
-  return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
-function jsonLdItems(html) {
-  const scripts = [...String(html || '').matchAll(
-    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
-  )];
-  return scripts.flatMap((match) => {
-    try {
-      const parsed = JSON.parse(match[1].trim());
-      const roots = Array.isArray(parsed) ? parsed : [parsed];
-      return roots.flatMap((item) => (
-        Array.isArray(item?.['@graph']) ? [item, ...item['@graph']] : [item]
-      ));
-    } catch { return []; }
-  });
-}
-
-export function caracolExternalEventId(dateKey, stageNumber) {
-  return contentHash(`la-vuelta|${dateKey}|${stageNumber}`).slice(0, 32);
-}
-
-function caracolEvent({ dateKey, stageNumber, sourceUrl, startTimeUtc, evidenceRank }) {
-  return {
-    source: 'caracol',
-    externalEventId: caracolExternalEventId(dateKey, stageNumber),
-    dateKey,
-    title: `La Vuelta a España Etapa ${stageNumber}`,
-    subtitle: 'Caracol Sports, Ditu y Caracol Televisión',
-    stageNumber,
-    sourceUrl,
-    broadcastUrl: CARACOL_BROADCAST_URL,
-    channel: 'Caracol / Ditu',
-    country: 'LATAM',
-    startTimeUtc,
-    insertSortOrder: 10,
-    evidenceRank,
-  };
-}
-
-function caracolDateKey(body, fallbackYear) {
-  const normalized = String(body || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-  const match = normalized.match(
-    /(?:dia|fecha)\s*:\s*(?:[a-z]+\s+)?(\d{1,2}) de ([a-z]+)(?: de (20\d{2}))?\b/,
-  );
-  const month = match && [...SPANISH_MONTHS]
-    .find(([name]) => match[2].startsWith(name))?.[1];
-  const year = Number(match?.[3] || fallbackYear);
-  return month && year
-    ? `${year}-${String(month).padStart(2, '0')}-${match[1].padStart(2, '0')}`
-    : null;
-}
-
-export function parseCaracolVueltaArticleUrls(html) {
-  const urls = new Set();
-  const anchorRe = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/gi;
-  for (const match of String(html || '').matchAll(anchorRe)) {
-    try {
-      const url = new URL(decodeHtml(match[1] || match[2]), CARACOL_VUELTA_INDEX_URL);
-      if (url.protocol !== 'https:' || !['noticiascaracol.com', 'www.noticiascaracol.com'].includes(url.hostname)) continue;
-      if (!/\/golcaracol\/ciclismo\/vuelta-a-espana-20\d{2}-en-vivo-[^?#]*hora-y-donde-ver[^?#]*etapa-\d{1,2}(?:-|$)/i.test(url.pathname)) continue;
-      url.hash = '';
-      url.search = '';
-      urls.add(url.href);
-    } catch {}
-  }
-  return [...urls].sort();
-}
-
-export function parseCaracolGuide(html) {
-  const articles = jsonLdItems(html)
-    .filter((item) => item?.['@type'] === 'NewsArticle' && /ETAPA\s+\d+/i.test(item.articleBody || ''));
-
-  const events = [];
-  for (const article of articles) {
-    const body = String(article.articleBody || '').replace(/\s+/g, ' ').trim();
-    const year = Number(String(article.datePublished || article.headline || '').match(/\b(20\d{2})\b/)?.[1]);
-    if (!year || !fold(`${article.headline || ''} ${body}`).includes('vuelta a espana')) continue;
-    const blocks = [...body.matchAll(/ETAPA\s+(\d{1,2})([\s\S]*?)(?=ETAPA\s+\d{1,2}|$)/gi)];
-    for (const block of blocks) {
-      const stageNumber = Number(block[1]);
-      const timeMatch = block[2].match(/Hora\s*:\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?/i);
-      const dateKey = caracolDateKey(block[2], year);
-      if (!dateKey || !timeMatch || !/Caracol Sports/i.test(block[2]) || !/Ditu/i.test(block[2])) continue;
-      const localStartTime = hour12To24(timeMatch[1], timeMatch[2], timeMatch[3]);
-      events.push(caracolEvent({
-        dateKey,
-        stageNumber,
-        sourceUrl: article.url || CARACOL_SOURCE_URL,
-        startTimeUtc: zonedTimeToUtc(dateKey, localStartTime, 'America/Bogota'),
-        evidenceRank: 1,
-      }));
-    }
-  }
-  return [...new Map(events.map((event) => [event.externalEventId, event])).values()]
-    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
-}
-
-export function parseCaracolDailyArticle(html, pageUrl = CARACOL_SOURCE_URL) {
-  const items = jsonLdItems(html);
-  const events = [];
-  for (const article of items) {
-    if (article?.['@type'] !== 'NewsArticle') continue;
-    const body = String(article.articleBody || '').replace(/\s+/g, ' ').trim();
-    const sourceText = `${article.headline || ''} ${body}`;
-    const stageNumber = parseStageNumber(sourceText);
-    const year = Number(String(article.datePublished || article.headline || '').match(/\b(20\d{2})\b/)?.[1]);
-    const timeMatch = body.match(
-      /Hora(?:\s+de\s+(?:inicio\s+de\s+)?(?:la\s+)?transmisi[oó]n)?\s*:\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?/i,
-    );
-    const dateKey = caracolDateKey(body, year);
-    if (!stageNumber || !dateKey || !timeMatch) continue;
-    if (!fold(sourceText).includes('vuelta a espana') || !/Caracol Sports/i.test(body) || !/Ditu/i.test(body)) continue;
-    const localStartTime = hour12To24(timeMatch[1], timeMatch[2], timeMatch[3]);
-    events.push(caracolEvent({
-      dateKey,
-      stageNumber,
-      sourceUrl: article.url || pageUrl,
-      startTimeUtc: zonedTimeToUtc(dateKey, localStartTime, 'America/Bogota'),
-      evidenceRank: 3,
-    }));
-  }
-
-  return [...new Map(events.map((event) => [event.externalEventId, event])).values()]
-    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
 }
 
 export function zonedTimeToUtc(dateKey, time, timeZone = 'Europe/Madrid') {
@@ -829,6 +696,12 @@ export function matchObservation(observation, raceDays) {
   if (observation.source === 'lequipe' || observation.source === 'rtbf') sourceText = frenchRaceForm(sourceText);
   if (observation.source === 'rai') sourceText = italianRaceForm(sourceText);
   if (observation.source === 'rai' || observation.source === 'rtbf') sourceText = implicitChampionshipForm(sourceText);
+  // HBO Max omite «Elite» en las contrarrelojes («Women | Šenčur (ITT, 22.1 km)»).
+  // Con disciplina declarada y sin categoría, la prueba es la élite; sin
+  // disciplina, el rótulo no identifica la prueba y no se completa.
+  if (observation.source === 'hbo_max' && /\b(?:itt|ttt|relay|road race)\b/.test(sourceText)) {
+    sourceText = implicitChampionshipForm(sourceText);
+  }
   if (observation.source === 'sporza') sourceText = sourceText.replace(/\bparijs\b/g, 'paris');
   const sourceLevel = raceLevel(sourceText);
   const canonicalSource = canonicalGenderWords(sourceText);

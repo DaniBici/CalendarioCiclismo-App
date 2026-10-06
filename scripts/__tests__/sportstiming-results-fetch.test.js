@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { irmOf, normAbsTime, normGap, clockSeconds, secondsGap, normalizeStageGaps, parseRows, parsePointsRows, parseTeamRows, hasFinalRanking, decodeEntities, stripTags, dateFromCat, fnv1a }
+import { execFileSync } from 'node:child_process';
+import { irmOf, normAbsTime, normGap, clockSeconds, secondsGap, normalizeStageGaps, parseRows, parsePointsRows, parseTeamRows, hasFinalRanking, decodeEntities, stripTags, dateFromCat }
   from '../results-fetchers/sportstiming-results-fetch.mjs';
 
 // Fuente: sportstiming.dk (cronometrador DANÉS). Sin API JSON: se lee el HTML
@@ -8,18 +9,10 @@ import { irmOf, normAbsTime, normGap, clockSeconds, secondsGap, normalizeStageGa
 // Contrato completo en scripts/results-fetchers/SPORTSTIMING-API.md.
 
 describe('irmOf — placement danés → IRM UCI', () => {
-  it('mapea los códigos de abandono', () => {
-    expect(irmOf('DNF')).toBe('DNF');
-    expect(irmOf('DNS')).toBe('DNS');
-    expect(irmOf('DSQ')).toBe('DSQ');
-    expect(irmOf('OTL')).toBe('OTL');
-  });
-
   it('mapea las variantes que también aparecen en estos feeds', () => {
     expect(irmOf('DQ')).toBe('DSQ');
     expect(irmOf('HD')).toBe('OTL');
-    expect(irmOf('AB')).toBe('DNF');
-    expect(irmOf('NP')).toBe('DNS');
+    expect(irmOf('dnf')).toBe('DNF');
   });
 
   it('un PUESTO numérico no es un IRM (el placement es la misma columna)', () => {
@@ -33,10 +26,6 @@ describe('irmOf — placement danés → IRM UCI', () => {
     expect(irmOf('-')).toBeNull();
     expect(irmOf('')).toBeNull();
     expect(irmOf(null)).toBeNull();
-  });
-
-  it('normaliza minúsculas', () => {
-    expect(irmOf('dnf')).toBe('DNF');
   });
 
   it('un código DESCONOCIDO se conserva en crudo, no se inventa un mapeo', () => {
@@ -82,13 +71,6 @@ describe('normGap — Efter#1 → gapText', () => {
     expect(normGap('+00')).toBe('+0');
     expect(normGap('+0')).toBe('+0');
     expect(normGap('+27')).toBe('+27');
-  });
-
-  it('mismo gap, mismo texto que livetiming (la otra fuente que ya colapsaba)', () => {
-    // Dos fuentes escribiendo el mismo gap distinto es una discrepancia que aflora
-    // en la tabla de resultados según quién cronometre la carrera.
-    expect(normGap('+0:12')).toBe('+12');
-    expect(normGap('+1:02')).toBe('+1:02');
   });
 
   it('lo que no es un gap → null', () => {
@@ -295,19 +277,12 @@ describe('dateFromCat — dateKey deducida del catLabel', () => {
   });
 });
 
-describe('fnv1a — IDs sintéticos deterministas', () => {
+describe('--suggest-id — competitionId sintético', () => {
   it('reproduce el competitionId real de la Copenhagen Sprint fem 2026 (-101501)', () => {
-    // El valor que está en race_uci_links.competitionId en producción. El code es
-    // "{eventId}|{catLabel}" → la masculina del mismo evento tiene otro id.
-    expect(-(fnv1a('sportstiming:18776|Elite Women (13. June)') % 200000)).toBe(-101501);
-  });
-
-  it('cada carrera del MISMO evento tiene su propio id (el cat entra en el salt)', () => {
-    // Un evento agrupa masculina y femenina: si el salt no incluyera el catLabel,
-    // ambas compartirían competitionId y se pisarían al volcar.
-    const w = fnv1a('sportstiming:18776|Elite Women (13. June)');
-    const m = fnv1a('sportstiming:18776|Elite Men (14. June)');
-    expect(w).not.toBe(m);
-    expect(w).toBe(fnv1a('sportstiming:18776|Elite Women (13. June)'));
+    // Valor en producción. El code es "{eventId}|{catLabel}": la masculina del mismo
+    // evento tiene otro id. Si cambia, se duplican los IDs ya volcados.
+    const out = execFileSync(process.execPath, ['scripts/results-fetchers/sportstiming-results-fetch.mjs',
+      '--event', '18776', '--cat', 'Elite Women (13. June)', '--suggest-id'], { encoding: 'utf8' });
+    expect(out.trim()).toBe('-101501');
   });
 });

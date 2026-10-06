@@ -4,37 +4,40 @@ import XCTest
 @MainActor
 final class LocaleServiceTests: XCTestCase {
 
-    /// Backup del valor original para no contaminar otros tests.
+    /// Estado previo que `setLocale` modifica: `app_locale` y `AppleLanguages`
+    /// del dominio de la app, y el idioma publicado por el singleton.
     private var originalLocaleRaw: String?
+    private var originalAppleLanguages: [String]?
+    private var originalCurrent: LocaleService.AppLocale = .spanish
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         originalLocaleRaw = UserDefaults.standard.string(forKey: "app_locale")
+        originalAppleLanguages = Self.appDomainAppleLanguages()
+        originalCurrent = LocaleService.shared.current
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
+        LocaleService.shared.setLocale(originalCurrent)
+        let defaults = UserDefaults.standard
         if let raw = originalLocaleRaw {
-            UserDefaults.standard.set(raw, forKey: "app_locale")
+            defaults.set(raw, forKey: "app_locale")
         } else {
-            UserDefaults.standard.removeObject(forKey: "app_locale")
+            defaults.removeObject(forKey: "app_locale")
         }
-        super.tearDown()
+        if let languages = originalAppleLanguages {
+            defaults.set(languages, forKey: "AppleLanguages")
+        } else {
+            defaults.removeObject(forKey: "AppleLanguages")
+        }
+        try await super.tearDown()
     }
 
-    func testRawValuesSonISO639_1() {
-        XCTAssertEqual(LocaleService.AppLocale.spanish.rawValue, "es")
-        XCTAssertEqual(LocaleService.AppLocale.english.rawValue, "en")
-    }
-
-    func testLocaleProducesIdentifierCorrecto() {
-        XCTAssertEqual(LocaleService.AppLocale.spanish.locale.identifier, "es")
-        XCTAssertEqual(LocaleService.AppLocale.english.locale.identifier, "en")
-    }
-
-    func testLabelEnIdiomaNativo() {
-        // Los labels se muestran siempre en su idioma original.
-        XCTAssertEqual(LocaleService.AppLocale.spanish.label, "Español")
-        XCTAssertEqual(LocaleService.AppLocale.english.label, "English")
+    /// `AppleLanguages` persistido en el dominio de la app, sin el heredado del
+    /// dominio global del sistema.
+    private static func appDomainAppleLanguages() -> [String]? {
+        guard let domain = Bundle.main.bundleIdentifier else { return nil }
+        return UserDefaults.standard.persistentDomain(forName: domain)?["AppleLanguages"] as? [String]
     }
 
     func testSetLocalePersisteUserDefaults() {

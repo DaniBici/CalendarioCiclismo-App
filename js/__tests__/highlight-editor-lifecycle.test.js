@@ -34,18 +34,20 @@ function harness({fills=[],writes=[],confirmations=[],days=[]}={}) {
       select:()=>({eq:()=>({single:async()=>({data:{raceId:'road-a'}})})}),
     })},
   };
-  const api=runInNewContext(`${state}\n${code}\n({open:openHighlightEditor,close:closeHighlightEditor,save:saveHighlight,remove:deleteHighlight,select:_selectHighlightRace});`,context);
+  const api=runInNewContext(`${state}\n${code}\n({open:openHighlightEditor,close:()=>_highlightEditor?.drawer.close(),save:saveHighlight,remove:deleteHighlight,select:_selectHighlightRace});`,context);
   const setType=type=>radios.forEach(r=>{r.checked=r.value===type;});
   return {...api,context,logs,rows,handles,node:id=>nodes.get(id),setType,isOpen:()=>!!current};
 }
 const cx={id:'old-highlight',targetType:'cxRace',cxRaceId:'cx-a',customTitle:'Título CX',customTitleEn:'CX title',customDetail:'Detalle',position:3};
 
 describe('consultas y escrituras del editor común de Cintillo',()=>{
-  it('descarta el error de una consulta CX al cerrar y abrir otro destacado',async()=>{
+  it('descarta el error de una consulta CX al cerrar, con o sin otro destacado abierto',async()=>{
     const old=deferred(),h=harness({fills:[old]});const opening=h.open(cx);h.close();await h.open({...cx,id:'new-highlight'});
     h.node('highlightSaveStatus').textContent='Borrador vigente';h.node('hl-customTitle').value='Título nuevo';
     old.reject(Error('Consulta retirada'));await opening;
     expect(h.node('highlightSaveStatus').textContent).toBe('Borrador vigente');expect(h.node('hl-customTitle').value).toBe('Título nuevo');expect(h.isOpen()).toBe(true);
+    const pending=deferred(),alone=harness({fills:[pending]});const closing=alone.open(cx);alone.close();
+    pending.reject(Error('Consulta tardía'));await expect(closing).resolves.toBeUndefined();expect(alone.isOpen()).toBe(false);
   });
   it('no borra la carrera y jornada del segundo editor al completar la consulta CX anterior',async()=>{
     const old=deferred(),h=harness({fills:[old]});const opening=h.open(cx);await h.open({id:'new-highlight',targetType:'race',raceId:'road-b'});
@@ -67,36 +69,28 @@ describe('consultas y escrituras del editor común de Cintillo',()=>{
     await h.save();expect(h.logs[0]).toMatchObject({kind:'update',id:'old-highlight',payload:{targetType:'cxRace',cxRaceId:'cx-a',raceId:null,raceDayId:null,customTitle:'Título CX',customTitleEn:'CX title',customDetail:'Detalle'}});
     expect(h.isOpen()).toBe(false);
   });
-  it('bloquea doble guardado y conserva un ID en el reintento tras perder la respuesta de un alta',async()=>{
+  it('bloquea doble guardado y conserva el ID en el reintento de un alta o una edición fallidas',async()=>{
     const lost=deferred(),h=harness({writes:[lost]});await h.open(null);h.setType('cxRace');h.node('hl-cx-race-id').value='cx-a';h.node('hl-customTitle').value='Alta CX';
     const saving=h.save();expect(h.node('saveHighlightBtn').disabled).toBe(true);await h.save();expect(h.logs).toHaveLength(1);
     lost.reject(Error('Respuesta perdida'));await saving;
     expect(h.node('saveHighlightBtn').disabled).toBe(false);expect(h.node('hl-customTitle').value).toBe('Alta CX');
     await h.save();expect(h.logs).toHaveLength(2);expect(h.logs[0].id).toBe(h.logs[1].id);expect(h.rows.size).toBe(1);
+    const failing=deferred(),edit=harness({writes:[failing]});await edit.open(cx);edit.node('hl-customDetail').value='Nuevo detalle';
+    const editing=edit.save();failing.reject(Error('Escritura fallida'));await editing;
+    expect(edit.node('highlightSaveStatus').textContent).toBe('Error: Escritura fallida');expect(edit.node('hl-customDetail').value).toBe('Nuevo detalle');
+    await edit.save();expect(edit.logs.map(row=>row.id)).toEqual(['old-highlight','old-highlight']);
   });
-  it('un guardado anterior termina sin cerrar ni modificar el nuevo borrador',async()=>{
+  it('un guardado o una confirmación de borrado anteriores no afectan al nuevo borrador',async()=>{
     const old=deferred(),h=harness({writes:[old]});await h.open(cx);const saving=h.save();h.close();await h.open({...cx,id:'new-highlight'});
     h.node('hl-customTitle').value='Borrador nuevo';old.resolve();await saving;
     expect(h.node('hl-customTitle').value).toBe('Borrador nuevo');expect(h.isOpen()).toBe(true);expect(h.context.showToast).not.toHaveBeenCalled();
     expect(h.logs[0].id).toBe('old-highlight');
-  });
-  it('una confirmación antigua no elimina el destacado que se abre después',async()=>{
-    const old=deferred(),h=harness({confirmations:[old]});await h.open(cx);const removing=h.remove();h.close();await h.open({...cx,id:'new-highlight'});
-    old.resolve(true);await removing;expect(h.logs).toHaveLength(0);expect(h.isOpen()).toBe(true);
+    const confirmation=deferred(),r=harness({confirmations:[confirmation]});await r.open(cx);const removing=r.remove();r.close();await r.open({...cx,id:'new-highlight'});
+    confirmation.resolve(true);await removing;expect(r.logs).toHaveLength(0);expect(r.isOpen()).toBe(true);
   });
   it('cancelar eliminación conserva el formulario y confirmar elimina su propio ID',async()=>{
     const cancel=deferred(),h=harness({confirmations:[cancel]});await h.open(cx);const removing=h.remove();cancel.resolve(false);await removing;
     expect(h.logs).toHaveLength(0);expect(h.isOpen()).toBe(true);await h.remove();expect(h.logs[0]).toMatchObject({kind:'delete',id:'old-highlight'});expect(h.isOpen()).toBe(false);
-  });
-  it('cerrar sin sustituto descarta una consulta fallida sin acceder a controles retirados',async()=>{
-    const pending=deferred(),h=harness({fills:[pending]});const opening=h.open(cx);h.close();
-    pending.reject(Error('Consulta tardía'));await expect(opening).resolves.toBeUndefined();expect(h.isOpen()).toBe(false);
-  });
-  it('un error de edición conserva el payload y permite guardar de nuevo en el mismo destacado',async()=>{
-    const failing=deferred(),h=harness({writes:[failing]});await h.open(cx);h.node('hl-customDetail').value='Nuevo detalle';
-    const saving=h.save();failing.reject(Error('Escritura fallida'));await saving;
-    expect(h.node('highlightSaveStatus').textContent).toBe('Error: Escritura fallida');expect(h.node('hl-customDetail').value).toBe('Nuevo detalle');
-    await h.save();expect(h.logs.map(row=>row.id)).toEqual(['old-highlight','old-highlight']);expect(h.rows.get('old-highlight').customDetail).toBe('Nuevo detalle');
   });
   it('una selección CX vacía no envía escritura ni pierde los campos',async()=>{
     const h=harness();await h.open(cx);h.node('hl-cx-race-id').value='';await h.save();

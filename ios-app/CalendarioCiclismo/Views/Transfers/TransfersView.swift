@@ -9,6 +9,35 @@ struct TransfersTeamRoute: Hashable, Identifiable {
 
 private enum TransfersFeed { case signings, renewals }
 
+/// Filtro de las pulsaciones que abren un equipo del Mercado. Al bloquear la
+/// pantalla con un dedo sobre la lista, iOS puede completar la pulsación de la
+/// fila en vez de cancelarla, y al desbloquear aparecía un equipo abierto. La
+/// acción se aplica tras un instante y solo si la app sigue activa y no acaba
+/// de volver a primer plano.
+@MainActor
+enum ForegroundTap {
+    private static let activationGrace: TimeInterval = 0.5
+    private static var activatedAt = Date.distantPast
+
+    static func sceneBecameActive() {
+        activatedAt = Date()
+    }
+
+    static func perform(_ action: @escaping @MainActor @Sendable () -> Void) {
+        guard isAccepting else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard isAccepting else { return }
+            action()
+        }
+    }
+
+    private static var isAccepting: Bool {
+        UIApplication.shared.applicationState == .active
+            && Date().timeIntervalSince(activatedAt) > activationGrace
+    }
+}
+
 /// Pestaña "Fichajes" (apps 4.0) — mercado de la temporada 2027, espejo de
 /// /fichajes/ web (`js/fichajes.js`) y de `TransfersScreen` (Android): feed
 /// cronológico inverso de CONFIRMACIONES + botones de división (WT·PT·WWT·PRW)
@@ -93,6 +122,13 @@ struct TransfersView: View {
         teamRoute = TransfersTeamRoute(teamId: teamId)
     }
 
+    private func openTeam(_ teamId: String) {
+        ForegroundTap.perform {
+            Haptics.play(.navigation)
+            teamRoute = TransfersTeamRoute(teamId: teamId)
+        }
+    }
+
     private func load() async {
         if data == nil { isLoading = true }
         do {
@@ -172,8 +208,7 @@ struct TransfersView: View {
                                         .padding(.top, 8)
                                     ForEach(group.moves) { move in
                                         TransferFeedRowView(transfer: move, data: data) { teamId in
-                                            Haptics.play(.navigation)
-                                            teamRoute = TransfersTeamRoute(teamId: teamId)
+                                            openTeam(teamId)
                                         }
                                     }
                                 }
@@ -240,8 +275,7 @@ struct TransfersView: View {
                         .padding(.top, 8)
                     ForEach(group.moves) { move in
                         TransferFeedRowView(transfer: move, data: data) { teamId in
-                            Haptics.play(.navigation)
-                            teamRoute = TransfersTeamRoute(teamId: teamId)
+                            openTeam(teamId)
                         }
                     }
                 }
@@ -307,8 +341,7 @@ struct TransfersView: View {
 
     private func teamTile(_ season: TeamSeason, prev: [String: TeamSeason]) -> some View {
         Button {
-            Haptics.play(.navigation)
-            teamRoute = TransfersTeamRoute(teamId: season.teamId)
+            openTeam(season.teamId)
         } label: {
             let appearance = TransfersLogic.badgeSeason(for: season, prev: prev)
             let background = appearance?.headerBg.map(Color.init(hex:)) ?? AppTheme.cardBackground

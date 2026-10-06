@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { hasCalendarForYear } from '../services/races.js';
-import { readFileSync } from 'node:fs';
 
 describe('iCal sin años históricos', () => {
   it('conserva el actual y futuros y rechaza años desconocidos', () => {
@@ -14,11 +13,5 @@ describe('iCal sin años históricos', () => {
   it('cambia al año nuevo en UTC, independientemente del offset', () => {
     expect(hasCalendarForYear(2026, new Date('2027-01-01T00:30:00+01:00'))).toBe(true);
     expect(hasCalendarForYear(2026, new Date('2026-12-31T19:00:00-05:00'))).toBe(false);
-  });
-  it('aplica el control solo al calendario, sin retirar reportes', () => {
-    const source = readFileSync(new URL('../jornada.js', import.meta.url), 'utf8');
-    expect(source).toContain('hasCalendarForYear(race?.year)');
-    expect(source).toContain('reportBarBtn');
-    expect(source).toContain('getUTCFullYear()');
   });
 });

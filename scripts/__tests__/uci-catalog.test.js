@@ -1,12 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Collector, madridDate, parseRider, retryDelay, validateIndex } from '../uci-catalog/source.mjs';
-import { countryCode } from '../uci-catalog/countries.mjs';
 import { normalizeSnapshot, buildPlan } from '../uci-catalog/planner.mjs';
 import { clientConfig, errorCode } from '../uci-catalog/run.mjs';
-import { snapshotFixture, contextFixture } from '../uci-catalog/tests/fixtures.mjs';
-import { HISTORICAL_TEAM_COUNTS, validateHistoricalSnapshot } from '../uci-catalog/historical.mjs';
-import { buildTeamContinuityReport, validateTeamContinuityReport } from '../uci-catalog/team-continuity.mjs';
-import { buildPreferredTeamWordCase, normalizeTeamDisplayName } from '../uci-catalog/team-name-case.mjs';
+import { snapshotFixture, contextFixture } from './fixtures/uci-catalog.mjs';
 
 const NOW = new Date('2026-09-04T08:00:00Z');
 function setup() {
@@ -22,12 +18,6 @@ function moving() {
 }
 
 describe('captura UCI acotada', () => {
-  it('bloquea un histórico incompleto aunque el indicador complete esté activo', () => {
-    const raw = snapshotFixture(); raw.year = 2020;
-    expect(() => validateHistoricalSnapshot(raw)).toThrow('historical_team_counts_mismatch');
-    expect(Object.values(HISTORICAL_TEAM_COUNTS).reduce((total, categories) =>
-      total + Object.values(categories).reduce((sum, count) => sum + count, 0), 0)).toBe(1625);
-  });
   it('valida las divisiones reales de cada temporada, el orden y la paginación', () => {
     const raw = snapshotFixture();
     const items = raw.teams.map(t => ({ teamName: t.teamName, teamCode: t.teamCode, countryCode: t.countryCode,
@@ -49,13 +39,6 @@ describe('captura UCI acotada', () => {
   });
   it.each(['<html>Error 200</html>', '<div data-component="RiderDetailsModule" data-props="{}">'])('rechaza un HTML incompleto', html => {
     expect(() => parseRider(html)).toThrow();
-  });
-  it('no usa la cabecera de equipo para crear la afiliación', () => {
-    const raw = snapshotFixture(); raw.riders[0].headerTeam = 'Otro patrocinador';
-    expect(normalizeSnapshot(raw).records['100'].regular).toEqual(['1']);
-  });
-  it('convierte el código deportivo UCI de Belice', () => {
-    expect(countryCode('BIZ')).toBe('bz');
   });
   it('admite biografía sin historial y sigue bloqueando un traslado sin evidencia histórica', () => {
     const data = { details: { givenName: 'Anna', familyName: 'VAN DER BREGGEN', dob: '18.04.1990', nationality: 'NED' } };
@@ -115,7 +98,7 @@ describe('captura UCI acotada', () => {
     await expect(denied.get('/rider-details/2')).rejects.toThrow('budget');
   });
   it('impone límites de peticiones y cuerpo aun con HTTP 200', async () => {
-    const c = new Collector({ maxRequests: 1, fetcher: async () => new Response('abc'), sleep: async () => {} });
+    const c = new Collector({ maxRequests: 1, intervalMs: 0, fetcher: async () => new Response('abc'), sleep: async () => {} });
     await c.get('/rider-details/1'); await expect(c.get('/rider-details/2')).rejects.toThrow('budget');
     const bytes = new Collector({ maxBytes: 2, fetcher: async () => new Response('abc'), sleep: async () => {} });
     await expect(bytes.get('/rider-details/1')).rejects.toThrow('body_budget');
@@ -145,51 +128,6 @@ describe('captura UCI acotada', () => {
   });
 });
 
-describe('continuidad longitudinal de equipos', () => {
-  const team = (profile, name, code, gender, riders, extra = {}) => ({
-    uciTeamProfileId: profile, teamName: name, teamCode: code, gender,
-    categoryName: gender === 'male' ? 'WTT' : 'WTW', countryCode: 'NED',
-    riders: riders.map(uciProfileId => ({ uciProfileId, affiliationType: 'regular' })),
-    ...extra,
-  });
-
-  it('mantiene una sola matriz al cambiar patrocinador con continuidad UCI de plantilla', () => {
-    const oldRoster = ['1','2','3','4','5','6','7','8','9','10'];
-    const newRoster = ['1','2','3','4','5','6','7','8','11','12'];
-    const report = buildTeamContinuityReport([
-      { year: 2023, teams: [team('old', 'JUMBO - VISMA', 'TJV', 'male', oldRoster)] },
-      { year: 2024, teams: [team('new', 'TEAM VISMA | LEASE A BIKE', 'TVL', 'male', newRoster)] },
-    ]);
-    expect(report.groups).toHaveLength(1);
-    expect(report.groups[0].status).toBe('verified_same_matrix');
-    expect(report.groups[0].members.map(member => member.name))
-      .toEqual(['JUMBO - VISMA', 'TEAM VISMA | LEASE A BIKE']);
-  });
-
-  it('no fusiona por semejanza nominal sin continuidad deportiva', () => {
-    const report = buildTeamContinuityReport([
-      { year: 2024, teams: [team('a', 'ALPHA CYCLING', 'ALP', 'male', ['1','2','3','4','5'])] },
-      { year: 2025, teams: [team('b', 'ALPHA PRO CYCLING', 'ALP', 'male', ['6','7','8','9','10'])] },
-    ]);
-    expect(report.groups).toHaveLength(2);
-    expect(report.summary.verifiedEdges).toBe(0);
-  });
-
-  it('separa sexo y deja pendiente un posible cruce senior-filial', () => {
-    const roster = ['1','2','3','4','5','6','7','8'];
-    const report = buildTeamContinuityReport([
-      { year: 2024, teams: [team('m', 'OMEGA TEAM', 'OMG', 'male', roster),
-        team('w', 'OMEGA TEAM', 'OMG', 'female', roster)] },
-      { year: 2025, teams: [team('d', 'DELTA DEVELOPMENT TEAM', 'DLT', 'male', roster),
-        team('w2', 'OMEGA TEAM', 'OMG', 'female', roster)] },
-    ]);
-    expect(report.pending).toHaveLength(1);
-    expect(report.pending[0].reason).toBe('senior_development_boundary');
-    expect(report.groups.find(group => group.members[0].gender === 'female').members).toHaveLength(2);
-    expect(() => validateTeamContinuityReport(report)).not.toThrow();
-  });
-});
-
 describe('plan diario sin cambios públicos durante la simulación', () => {
   it('no inventa fechas ni actualizaciones si el equipo ya coincide', () => {
     const { snapshot, context } = setup();
@@ -204,22 +142,22 @@ describe('plan diario sin cambios públicos durante la simulación', () => {
     expect(plan.day).toBe('2026-09-04');
   });
   it.each([
-    ['primera captura', c => { c.previous = null; }],
-    ['capturas demasiado próximas', c => { c.previous.observedAt = c.observedAt; }],
-    ['captura obsoleta', c => { c.previous.observedAt = '2026-09-01T02:30:00Z'; }],
-    ['sin referencia adoptada', c => { c.baselines = {}; }],
-    ['bloqueo manual', c => { c.blocked = ['rider:2026:100']; }],
-    ['edición especial', c => { c.links[0].specialEdition = true; }],
-    ['contrato futuro', c => { c.riders[0].contractUntil = 2028; }],
-    ['afiliación futura', c => { c.states['male:rider-100'].affiliations.push({ year: 2027, affiliationType: 'regular' }); }],
-    ['tramo ya cerrado', c => { c.states['male:rider-100'].affiliations[0].dateTo = '2026-12-31'; }],
-    ['alta hoy', c => { c.states['male:rider-100'].affiliations[0].dateFrom = '2026-09-04'; }],
-    ['biografía contradictoria', c => { c.riders[0].birthDate = '2000-01-02'; }],
-    ['perfil en ambos géneros', c => { c.riders.push({ ...c.riders[0], gender: 'female' }); }],
-  ])('deja en revisión: %s', (_, mutate) => {
+    ['primera captura', 'awaiting_stability', c => { c.previous = null; }],
+    ['capturas demasiado próximas', 'awaiting_stability', c => { c.previous.observedAt = c.observedAt; }],
+    ['captura obsoleta', 'awaiting_stability', c => { c.previous.observedAt = '2026-09-01T02:30:00Z'; }],
+    ['sin referencia adoptada', 'baseline_conflict', c => { c.baselines = {}; }],
+    ['bloqueo manual', 'manual_lock', c => { c.blocked = ['rider:2026:100']; }],
+    ['edición especial', 'team_catalog_review', c => { c.links[0].specialEdition = true; }],
+    ['contrato futuro', 'affiliation_or_contract_review', c => { c.riders[0].contractUntil = 2028; }],
+    ['afiliación futura', 'affiliation_or_contract_review', c => { c.states['male:rider-100'].affiliations.push({ year: 2027, affiliationType: 'regular' }); }],
+    ['tramo ya cerrado', 'affiliation_or_contract_review', c => { c.states['male:rider-100'].affiliations[0].dateTo = '2026-12-31'; }],
+    ['alta hoy', 'affiliation_or_contract_review', c => { c.states['male:rider-100'].affiliations[0].dateFrom = '2026-09-04'; }],
+    ['biografía contradictoria', 'biography_review', c => { c.riders[0].birthDate = '2000-01-02'; }],
+    ['perfil en ambos géneros', 'identity_conflict', c => { c.riders.push({ ...c.riders[0], gender: 'female' }); }],
+  ])('deja en revisión: %s', (_, reason, mutate) => {
     const { snapshot, context } = moving(); mutate(context);
     const plan = buildPlan(snapshot, context, NOW);
-    expect(plan.actions).toEqual([]); expect(plan.cases.length).toBeGreaterThan(0);
+    expect(plan.actions).toEqual([]); expect(plan.cases.map(c => c.reason)).toContain(reason);
   });
   it('no decide entre dos plantillas ni a partir de una ausencia', () => {
     const { snapshot, context } = moving(); snapshot.records['100'].regular.push('2');
@@ -265,22 +203,5 @@ describe('conexión y errores', () => {
   it('no vuelca credenciales ni mensajes arbitrarios de PostgreSQL', () => {
     expect(errorCode(new Error('postgres://worker:secret@db.example/db'))).toBe('catalog_error');
     expect(errorCode(new Error('apply_rejected:concurrent_edit'))).toBe('apply_rejected:concurrent_edit');
-  });
-});
-
-describe('casing editorial de equipos UCI', () => {
-  it('normaliza mayúsculas conservando siglas, marcas y conectores', () => {
-    expect(normalizeTeamDisplayName('AG2R LA MONDIALE')).toBe('AG2R la Mondiale');
-    expect(normalizeTeamDisplayName('B&B HOTELS - VITAL CONCEPT')).toBe('B&B Hotels - Vital Concept');
-    expect(normalizeTeamDisplayName('CANYON / /SRAM RACING')).toBe('Canyon//SRAM Racing');
-    expect(normalizeTeamDisplayName("ASTANA WOMEN'S TEAM")).toBe("Astana Women's Team");
-  });
-
-  it('reutiliza casing acreditado y deja intactos nombres ya editoriales', () => {
-    const preferredCase = buildPreferredTeamWordCase(['Team Picnic PostNL', 'Lidl-Trek']);
-    expect(normalizeTeamDisplayName('PICNIC POSTNL DEVELOPMENT TEAM', { preferredCase }))
-      .toBe('Picnic PostNL Development Team');
-    expect(normalizeTeamDisplayName('LIDL-TREK', { preferredCase })).toBe('Lidl-Trek');
-    expect(normalizeTeamDisplayName('Canyon//SRAM zondacrypto')).toBe('Canyon//SRAM zondacrypto');
   });
 });

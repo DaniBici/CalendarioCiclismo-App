@@ -4,6 +4,14 @@ Los paquetes `.icon` contienen las composiciones por capas de Original,
 Fundador y Amigo. Los SVG no incorporan fondo, sombra, desenfoque ni degradado;
 el fondo se define en el documento de Icon Composer.
 
+Las capas `01-calendar.svg` y `02-cyclist.svg` son contornos rellenos: el trazo
+redondeado de 2.3 unidades del glifo (`favicon.svg`) convertido y unido en un
+único `path`. Sin trazos, el grosor visible no depende del cálculo de límites
+del renderizador y ningún lado queda recortado. Se regeneran en los paquetes
+`.icon` y en las carpetas `AppIconFounder/` y `AppIconFriend/` con
+`python3 ios-app/IconComposer/outline-layers.py` (requiere `skia-pathops`); la
+geometría y los colores viven en ese script.
+
 | Icono | Fondo | Capas |
 | --- | --- | --- |
 | Original | `#1A73E8`, opaco | calendario y ciclista en `#FFFFFF` |

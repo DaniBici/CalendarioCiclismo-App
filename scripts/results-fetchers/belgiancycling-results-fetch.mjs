@@ -14,6 +14,8 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { normalizeUciLicense } from './uci-license.mjs';
+import { countryCode } from '../uci-catalog/countries.mjs';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const index = argv.indexOf(name); return index < 0 ? fallback : argv[index + 1]; };
@@ -26,23 +28,6 @@ const FIXTURE = arg('--fixture');
 const BASE = 'https://uitslagen.kbwb-rlvb.com/uitslagen';
 const log = (message) => process.stderr.write(`${message}\n`);
 
-const ISO2 = {
-  ARG: 'ar', AUS: 'au', AUT: 'at', BEL: 'be', BRA: 'br', CAN: 'ca', CHI: 'cl', COL: 'co',
-  CRO: 'hr', CYP: 'cy', CZE: 'cz', DEN: 'dk', ECU: 'ec', ERI: 'er', ESP: 'es', EST: 'ee',
-  FIN: 'fi', FRA: 'fr', GBR: 'gb', GER: 'de', GRE: 'gr', HUN: 'hu', IRL: 'ie', ISR: 'il',
-  ITA: 'it', JPN: 'jp', KAZ: 'kz', LAT: 'lv', LTU: 'lt', LUX: 'lu', NED: 'nl', NOR: 'no',
-  NZL: 'nz', POL: 'pl', POR: 'pt', ROU: 'ro', RSA: 'za', SLO: 'si', SRB: 'rs', SUI: 'ch',
-  SVK: 'sk', SWE: 'se', UKR: 'ua', URU: 'uy', USA: 'us', VEN: 've',
-};
-
-export function fnv1a(value) {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
-}
 export const suggestCompetitionId = (code) => -(fnv1a(`belgiancycling:${parseCode(code)}`) % 200000);
 export const synthRaceId = (code) => -(Math.abs(suggestCompetitionId(code)) * 100 + 1);
 export const synthEventId = (code) => -(Math.abs(suggestCompetitionId(code)) * 10000 + 1);
@@ -63,9 +48,14 @@ const compactUciId = (value) => normalizeUciLicense(value);
 const placeholderPattern = /Info nog niet beschikbaar|Les informations pas encore disponible|Information not yet available/i;
 export const isPlaceholder = (text) => placeholderPattern.test(String(text || ''));
 
+// La federación omite el cero inicial en los días y meses de una cifra
+// (`4/10/2026`).
+export const BELGIAN_DATE = /\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/;
+export const dateKeyOf = (match) => `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+
 function normalizedDate(text) {
-  const match = String(text).match(/\b(\d{2})\/(\d{2})\/(20\d{2})\b/);
-  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+  const match = String(text).match(BELGIAN_DATE);
+  return match ? dateKeyOf(match) : null;
 }
 
 function normalizeTime(value) {
@@ -88,10 +78,13 @@ function timeToGap(value) {
 
 // `pdftotext -layout` puede pegar el IOC al UCI ID (SWE100...) cuando la
 // columna queda estrecha. El UCI ID es el ancla estable para recuperar la fila.
-const rowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*((?:\d{3}\s*){3}\d{2})\s+(.+?)\s{2,}([A-Z0-9]{2,4})\s{2,}(.+?)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
-// Los clubes amateurs se imprimen sin código UCI: una sola columna de equipo
-// (Kampioenschap van Vlaanderen 2026, 5 clasificados y 2 DNF de AARCO).
-const clubRowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*((?:\d{3}\s*){3}\d{2})\s+(.+?)\s{2,}(\S+)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
+// La federación imprime a veces UCI ID truncados (`10 110 241 28`, Binche-Chimay-
+// Binche 2026): el bloque admite grupos incompletos y el ID no válido queda nulo.
+const rowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*(\d{1,3}(?:\s*\d{3}){1,3}\s*\d{2})\s+(.+?)\s{2,}([A-Z0-9]{2,4})\s{2,}(.+?)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
+// Los clubes y equipos sin código UCI se imprimen con una sola columna de
+// equipo, de una palabra (AARCO, Kampioenschap van Vlaanderen 2026) o de varias
+// separadas por un espacio (CYCLINGTEAM VAN EYCK/ BELCO, Binche Dames 2026).
+const clubRowPattern = /^\s*(?:(\d+)\s+)?(\d+)\s+([A-Z*\-]{3})\s*(\d{1,3}(?:\s*\d{3}){1,3}\s*\d{2})\s+(.+?)\s{2,}(\S+(?: \S+)*)(?:\s{2,}(\d+:\d{2}:\d{2}))?\s*$/;
 
 export function parseResultRow(line, irm = null) {
   const match = String(line).match(rowPattern);
@@ -113,7 +106,7 @@ export function parseResultRow(line, irm = null) {
     teamName: clean(teamName),
     teamCode,
     uciId: compactUciId(uciId),
-    isoCode2: ISO2[ioc] ?? null,
+    isoCode2: countryCode(ioc),
     points: null,
     irm,
   };

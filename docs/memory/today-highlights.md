@@ -3,7 +3,8 @@
 Carrusel editorial mostrado encima del selector de días en la vista Hoy
 (web + iOS + Android). Editable desde panel admin. Cada entrada apunta a
 **uno** de los destinos elegibles: jornada, competición, dorsales, orden de
-salida, entrada personalizada (web) o, en Ciclocross, prueba o torneo.
+salida, calendario de una temporada, entrada personalizada (web) o, en
+Ciclocross, prueba o torneo.
 
 El cintillo de la sección **Ciclocross es independiente** del de carretera: la
 columna `scope` (`road`/`cx`) separa ambas fuentes editoriales. La vista Hoy y
@@ -21,11 +22,12 @@ Sustituye la lógica automática previa (WorldTour 15d) del cintillo web.
 | `id`             | text  | PK (uuid generado)                                        |
 | `position`       | int   | Orden en el carrusel (drag&drop desde panel)              |
 | `scope`          | text  | `road` (defecto) \| `cx`. Sección del cintillo            |
-| `targetType`     | text  | `raceDay` \| `race` \| `startlist` \| `startOrder` \| `custom` \| `championships` \| `transfers` \| `cxRace` \| `cxTournament` (CHECK) |
+| `targetType`     | text  | `raceDay` \| `race` \| `startlist` \| `startOrder` \| `custom` \| `championships` \| `transfers` \| `season` \| `cxRace` \| `cxTournament` (CHECK) |
 | `raceId`         | text? | FK → `races`. Obligatorio si `targetType` es `race` o `startlist` |
 | `raceDayId`      | text? | FK → `race_days`. Obligatorio para `raceDay`/`startOrder` |
 | `cxRaceId`       | text? | FK → `cx_races`. Obligatorio para `cxRace` (solo `scope='cx'`) |
 | `cxTournamentId` | text? | FK → `cx_tournaments`. Obligatorio para `cxTournament` (solo `scope='cx'`) |
+| `seasonYear`     | smallint? | Obligatorio para `season` y nulo en el resto (≥ 2026; migración `20260930051425`) |
 | `customTitle`    | text? | Override ES                                               |
 | `customTitleEn`  | text? | Override EN                                               |
 | `customDetail`   | text? | Subtítulo opcional ES                                     |
@@ -83,6 +85,7 @@ que un admin añade entradas desde el panel.
 | `custom`      | **solo web** — `customUrl`/`customUrlEn` + `customTitle`/`customLogo`. Las apps lo descartan (sin carrera). |
 | `cxRace`      | **solo `scope='cx'`** — prueba CX: web `cxRaceUrl(race)`; iOS/Android abren la ficha de la prueba. |
 | `cxTournament` | **solo `scope='cx'`** — torneo CX: web `cxTournamentUrl(tournament)` (`/ciclocross/torneos/<slug>/`, `/en/cyclocross/series/<slug>/`); apps reutilizan el deep link de serie por slug. |
+| `season`      | calendario de `seasonYear` — web: `/calendario/?vista=temporada&mes=AAAA-01` (EN `/en/calendar/?view=season&month=AAAA-01`; sin mes si es el año en curso) / iOS: deep link interno `.season(año)` → pestaña Calendario en Temporada (`NotificationManager.pendingSeasonYear`) / Android: `CalendarNavigation.pendingSeasonYear` + subvista `season` → `Routes.CALENDAR`. Apps desde 5.0.11; las anteriores lo descartan. |
 | `championships` | **solo apps** (Modo Campeonatos) — iOS: `ChampionshipsView()` / Android: `Routes.CHAMPIONSHIPS`. Sin carrera ni URL: destino fijo por config; `customTitle`/`customDetail` opcionales (si faltan, las apps usan `ChampionshipsConfig`). **La web lo IGNORA** (`js/cintillo.js` lo filtra antes de resolver/render/hash): para web se crea un slide `custom` con logo/URL propios apuntando a Campeonatos. Espejo de `custom` (solo web). `customLogo` queda inerte (las apps pintan su globo nativo). Migración `072_today_highlights_championships.sql`. El CHECK de `targetType` sigue admitiendo `championships` (lo necesitan las apps). |
 
 ## Panel admin
@@ -95,6 +98,7 @@ Tab "Cintillo" en `panel/app.html` + `js/panel/highlights.js::setupHighlightsVie
 - Radio para elegir destino, limitado a los destinos del área: carretera no
   ofrece CX y Ciclocross solo ofrece prueba (`cxRace`) o torneo (`cxTournament`).
 - Selector de carrera CX y selector de torneo CX según el destino.
+- Selector de temporada para `season` (actual y siguiente; por defecto, la siguiente).
 - Validación visual: warning si se elige `startlist` y la carrera no tiene startlist
   importada, o `startOrder` y la jornada no tiene orden de salida importado.
 - Drag&drop para reordenar las filas existentes (persiste `position` en DB).

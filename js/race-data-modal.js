@@ -3,11 +3,11 @@
 //  Usado desde mes.js y temporada.js
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, trapFocus, femaleMark } from './shared.js';
+import { supabase, formatTimeUser, countryFlag, effectiveCountryCode, TYPE_LABELS, esc, stageLabel, raceName as getRaceName, rdLocation, filterBroadcastsByRegion, enBase, extractYouTubeId, startOrderUrl, startFinishLabels, trapFocus, femaleMark, needsFemaleMark } from './shared.js';
 import { getBroadcastEmbed } from './broadcast-embed.js';
 import { t, getLang } from './i18n.js';
 import { buildInhouseResultsMatcher } from './services/races.js';
-import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js?v=20260923revive-results';
+import { hasReviveBroadcastsForDay, reviveBroadcastsForDay, shouldShowBroadcastNote } from './broadcast-priority.js';
 import { hasRenderableElevationProfile } from './stage/profile-availability.js';
 
 const STAGE_COLORS = {
@@ -231,9 +231,7 @@ export async function openRaceDataModal(rdOrId, raceObj) {
 
   // Cabecera inicial (nombre ya disponible antes del fetch)
   const _raceDisplayName = getRaceName(raceObj);
-  const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i
-    .test(_raceDisplayName || '');
-  const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
+  const isFemale = needsFemaleMark({ gender: raceObj.gender, name: _raceDisplayName, uciCategory: raceObj.uciCategory });
   const flag = raceObj.hideFlag ? '' : countryFlag(raceObj.countryCode);
   headerEl.innerHTML =
     `${flag}<span class="rd-modal__race-name">${esc(_raceDisplayName || '')}${isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : ''}</span>`;
@@ -407,9 +405,7 @@ export async function openBroadcastTvModal(rdOrId, raceObj, broadcastUrl, embedd
   overlay.querySelector('.rd-modal').classList.add('rd-modal--tv');
 
   const _displayName = getRaceName(raceObj);
-  const nameImpliesFemale = /femenino|femenina|féminas|femeninos|f[eé]minin[e]?|femmes|women|ladies|donne|dames|elite women/i
-    .test(_displayName || '');
-  const isFemale = raceObj.gender === 'female' && !nameImpliesFemale;
+  const isFemale = needsFemaleMark({ gender: raceObj.gender, name: _displayName, uciCategory: raceObj.uciCategory });
   const femSpan = isFemale ? femaleMark({ style: 'font-size:0.7em;opacity:0.65' }) : '';
   const flag = raceObj.hideFlag ? '' : countryFlag(raceObj.countryCode);
   headerEl.innerHTML = `${flag}<span class="rd-modal__race-name">${esc(_displayName || '')}${femSpan}</span>`;

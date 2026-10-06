@@ -18,7 +18,6 @@ private enum CalendarSelection: Identifiable, Hashable {
 struct CalendarTabView: View {
     @AppStorage("calendar_subview") private var sub: String = "month"
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var localeService = LocaleService.shared
     @State private var selection: CalendarSelection?
 
     var body: some View {
@@ -32,7 +31,6 @@ struct CalendarTabView: View {
                 compactCalendar
             }
         }
-        .navigationTitle(localeService.t("Calendario", "Calendar"))
         .navigationBarTitleDisplayMode(.inline)
         .background(AppTheme.background.ignoresSafeArea())
         .navigationDestination(for: RaceDay.self) { raceDay in

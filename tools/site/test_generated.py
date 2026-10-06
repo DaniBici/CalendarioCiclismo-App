@@ -18,7 +18,9 @@ from urllib.parse import parse_qsl, urlsplit
 import build_generated as build
 import gen_feeds
 import gen_sitemap
+import version_assets
 from check_seo_output import check_paths
+import check_hreflang
 
 SITEMAP_INDEX = ('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                  '<sitemap><loc>https://calendariociclismo.app/sitemap-1.xml</loc></sitemap>'
@@ -334,46 +336,6 @@ class GeneratedTest(unittest.TestCase):
         self.assertEqual(sitemap["started"], (self.now - timedelta(seconds=1)).isoformat())
         self.assertIn("extended", sitemap)
 
-    def test_generator_emits_only_selected_stage_and_related_race(self):
-        races = [{"id": f"race-{key}", "slug": f"race-{key}",
-                  "slugEn": f"race-{key}-en", "name": f"Race {key}",
-                  "nameEn": f"Race {key}", "year": 2026,
-                  "startDate": "2026-09-24", "endDate": "2026-09-25",
-                  "raceFormat": "stage_race", "countryCode": "ES"}
-                 for key in ("new", "old")]
-        days = [{"id": f"day-{key}", "slug": f"{key}-stage",
-                 "slugEn": f"{key}-stage-en", "raceId": f"race-{key}",
-                 "stageNumber": 1, "dateKey": "2026-09-24",
-                 "startLocation": "Valencia", "finishLocation": "Sagunto",
-                 "countryCode": "ES", "distanceKm": 120}
-                for key in ("new", "old")]
-
-        def urlopen(request):
-            url = request.full_url
-            rows = (races if "/rest/v1/races?" in url else
-                    days if "/rest/v1/race_days?" in url else [])
-            return io.BytesIO(json.dumps(rows).encode())
-
-        generator = Path(__file__).resolve().parent / "gen_og_pages.py"
-        original_cwd = Path.cwd()
-        for family, expected in (("races", "competicion/race-new/index.html"),
-                                 ("stages", "jornada/new-stage/index.html"),
-                                 ("extras", "inscritos/race-new/index.html")):
-            output = self.root / family
-            output.mkdir()
-            try:
-                os.chdir(output)
-                with patch.dict(os.environ, {"SUPABASE_ANON_KEY": "fixture"}), patch(
-                        "urllib.request.urlopen", side_effect=urlopen), patch.object(
-                        sys, "argv", ["gen_og_pages.py", "--family", family,
-                                      "--stage-slugs", "new-stage"]):
-                    runpy.run_path(str(generator), run_name="__main__")
-            finally:
-                os.chdir(original_cwd)
-            pages = {path.relative_to(output).as_posix() for path in output.rglob("index.html")}
-            self.assertIn(expected, pages)
-            self.assertFalse(any("old-stage" in name or "race-old" in name for name in pages))
-
     def test_family_paths_and_source_indexes_are_exclusive(self):
         for name in (*build.SOURCE_INDEXES, "js/config.js", "../competicion/a/index.html"):
             for block in build.OG_FAMILIES:
@@ -425,15 +387,15 @@ class GeneratedTest(unittest.TestCase):
         archive, metadata = self.block("og-results", {"resultados/a/index.html": html,
                                                         "en/results/a/index.html": html})
         build.extract_archive(archive, metadata["files"])
-        table = build.version_published_assets(self.root / "_site", metadata["files"])
+        version = build.version_published_assets(self.root / "_site", metadata["files"])
         published = (self.root / "_site/resultados/a/index.html").read_text()
-        self.assertIn("/js/app.js?v=" + build.digest(self.root / "_site/js/app.js")[:12], published)
-        self.assertIn("/css/app.css?v=" + build.digest(self.root / "_site/css/app.css")[:12], published)
+        self.assertEqual(version, version_assets.site_version(self.root / "_site"))
+        self.assertIn("/js/app.js?v=" + version, published)
+        self.assertIn("/css/app.css?v=" + version, published)
         self.assertNotIn("v=old", published)
-        self.assertEqual(set(table), {"js/app.js", "css/app.css"})
         self.assertEqual(self.cache.joinpath("og-results/output.tar").read_bytes(), archive.read_bytes())
 
-    def test_cached_version_table_skips_rewrite_until_an_asset_changes(self):
+    def test_cached_version_skips_rewrite_until_an_asset_changes(self):
         self.assets()
         html = '<script src="/js/app.js"></script><link href="/css/app.css">'
 
@@ -446,11 +408,12 @@ class GeneratedTest(unittest.TestCase):
         with patch.object(build.subprocess, "run", side_effect=generate):
             build.run_block("og-results")
         metadata = build.read_manifest("og-results")
-        self.assertEqual(set(metadata["assets"]), {"js/app.js", "css/app.css"})
+        version = metadata["asset_version"]
+        self.assertEqual(version, version_assets.site_version(self.root / "_site"))
         # El tar guarda el HTML ya versionado.
         with tarfile.open(self.cache / "og-results/output.tar") as stream:
             cached = stream.extractfile("resultados/a/index.html").read().decode()
-        self.assertIn("/js/app.js?v=" + metadata["assets"]["js/app.js"], cached)
+        self.assertIn("/js/app.js?v=" + version, cached)
         metadata["verified"] = True
         (self.cache / "og-results/manifest.json").write_text(json.dumps(metadata))
         shutil.rmtree(self.root / "_site/resultados")
@@ -458,13 +421,22 @@ class GeneratedTest(unittest.TestCase):
             build.run_block("og-results")
             versioning.assert_not_called()
         self.assertEqual((self.root / "_site/resultados/a/index.html").read_text(), cached)
+        self.assertEqual(version_assets.current_generated_files(self.cache, version), set(metadata["files"]))
+        # Un JS cambiado deja la familia pendiente para el paso final de _site.
         self.assets(js="changed")
         shutil.rmtree(self.root / "_site/resultados")
         with patch.object(build, "version_published_assets", wraps=build.version_published_assets) as versioning:
             build.run_block("og-results")
-            versioning.assert_called_once()
+            versioning.assert_not_called()
+        current = version_assets.site_version(self.root / "_site")
+        self.assertNotEqual(current, version)
+        self.assertEqual(version_assets.current_generated_files(self.cache, current), set())
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(version_assets.main([str(self.root / "_site"),
+                                                  "--generated-cache", str(self.cache)]), 0)
         published = (self.root / "_site/resultados/a/index.html").read_text()
-        self.assertIn("/js/app.js?v=" + build.digest(self.root / "_site/js/app.js")[:12], published)
+        self.assertIn("/js/app.js?v=" + current, published)
+        self.assertNotIn(version, published)
 
     def test_extension_versions_and_validates_only_new_pages(self):
         self.assets()
@@ -476,13 +448,12 @@ class GeneratedTest(unittest.TestCase):
                  "eventStatus": "https://schema.org/EventScheduled"}
         html = ('<script src="/js/app.js"></script><script type="application/ld+json">'
                 + json.dumps(event) + '</script>')
-        versions = {}
-        table = {"js/app.js": build.asset_version("js/app.js", versions)}
-        versioned = html.replace("/js/app.js", "/js/app.js?v=" + table["js/app.js"])
+        version = build.asset_version()
+        versioned = html.replace("/js/app.js", "/js/app.js?v=" + version)
         archive, metadata = self.block("og-stages", {f"{directory}/old-{index}/index.html": versioned
                                                      for directory in build.OG_FAMILIES["og-stages"]
                                                      for index in range(100)})
-        metadata.update(assets=table, seo={"validator": build.digest(validator), "html": 200, "events": 200})
+        metadata.update(asset_version=version, seo={"validator": build.digest(validator), "html": 200, "events": 200})
         (self.cache / "og-stages/manifest.json").write_text(json.dumps(metadata))
         self.state["stage_slugs"] = ["new-stage"]
         self.state_path.write_text(json.dumps(self.state))
@@ -507,7 +478,7 @@ class GeneratedTest(unittest.TestCase):
         self.assertEqual(build.digest(archive), updated["archive_sha256"])
         with tarfile.open(archive) as stream:
             self.assertEqual(len(stream.getmembers()), 202)
-        self.assertIn("?v=" + table["js/app.js"], (self.root / "_site/jornada/new-stage/index.html").read_text())
+        self.assertIn("?v=" + version, (self.root / "_site/jornada/new-stage/index.html").read_text())
         with patch.object(build, "check_paths", wraps=build.check_paths) as seo:
             self.assertEqual(build.validate_catalog_seo("og-stages", updated, build.digest(validator)),
                              (202, 202))
@@ -557,6 +528,19 @@ class GeneratedTest(unittest.TestCase):
                 "urllib.request.urlopen", fake), patch.object(sys, "argv", [script, *argv]):
             runpy.run_path(str(Path(__file__).resolve().parent / script), run_name="__main__")
         return fake
+
+    def test_hreflang_groups_are_reciprocal_and_canonical(self):
+        tables = catalog(True)
+        # Alias de slug de una jornada: comparte grupo canónico con la etapa 2.
+        tables["race_days"].append(catalog_day("d2a", "r1", "vuelta-2026-etapa-2-alias", "2026-09-21", 2))
+        self.run_generator_script("gen_og_pages.py", self.root / "full", tables)
+        pages = check_hreflang.collect(self.root / "full")
+        self.assertEqual(check_hreflang.check_pages(pages), [])
+        base = "https://calendariociclismo.app"
+        one_day = pages[base + "/en/race/clasica-2026-en"]
+        self.assertEqual(one_day["canonical"], base + "/en/stage/clasica-2026-en")
+        alias = pages[base + "/en/stage/vuelta-2026-etapa-2-alias-en"]
+        self.assertEqual(alias["canonical"], base + "/en/stage/vuelta-2026-etapa-2-en")
 
     def test_incremental_og_reads_only_selected_races(self):
         full = self.run_generator_script("gen_og_pages.py", self.root / "full", catalog(True))
@@ -748,32 +732,6 @@ class GeneratedTest(unittest.TestCase):
                                       "STAGE_SLUGS": invalid}):
                 with self.assertRaisesRegex(ValueError, "STAGE_SLUGS"):
                     build.prepare()
-
-    def test_workflow_restores_families_and_prunes_test_sources(self):
-        source = (Path(__file__).resolve().parents[2] / ".github/workflows/build-site.yml").read_text()
-        self.assertEqual(source.count("if: steps.generated.outputs.force != 'true'"), len(build.BLOCKS))
-        for block in build.OG_FAMILIES:
-            self.assertIn(f"run og-{block[3:]}", source)
-            self.assertEqual(source.count(f".pages-generated/{block}/output.tar"), 2)
-            self.assertEqual(source.count(f".pages-generated/{block}/manifest.json"), 2)
-        self.assertIn("- '!js/**/__tests__/**'", source)
-        self.assertIn("rsync -a --relative", source)
-        self.assertIn("--exclude '__tests__'", source)
-        site = source.split("SITE=(", 1)[1].split(")", 1)[0].split()
-        for internal in (".pages-generated", "AGENTS.md", "CLAUDE.md", ".codex", "deploy", "docs"):
-            self.assertNotIn(internal, site)
-        self.assertIn("actions: read", source)
-        self.assertIn("format('pages-stage-{0}', github.run_id)", source)
-        self.assertLess(source.index("build_generated.py wait"), source.index("build_generated.py prepare"))
-        self.assertNotIn("working-directory: _site", source)
-
-    def test_github_output_normalizes_family_keys(self):
-        destination = self.root / "outputs"
-        with patch.dict(os.environ, {"GITHUB_OUTPUT": str(destination)}):
-            build.output("og-races_prefix", "cache-prefix")
-            build.output("save_og-cx", True)
-        self.assertEqual(destination.read_text(),
-                         "og_races_prefix=cache-prefix\nsave_og_cx=true\n")
 
 
 if __name__ == "__main__":

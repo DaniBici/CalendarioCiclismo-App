@@ -1,4 +1,4 @@
-import { buildElevationProfileSVG, guideMarkerSVG } from './elevation-profile.js?v=20260908a';
+import { buildElevationProfileSVG, guideMarkerSVG } from './elevation-profile.js';
 import { buildSimplifiedGuide, hasSimplifiedGuide } from '../simplified-guide.js';
 import { hasRenderableElevationProfile } from './profile-availability.js';
 import { profileProgress } from '../services/race-presentation.js';
@@ -50,7 +50,8 @@ export function mountStageProfile(host, { day, race, assets = [], points = false
     readout.textContent = `${fmt(selectedKm)} km · ${Math.round(hoverData.interpolateAlt(selectedKm))} m`;
     graphic.setAttribute('aria-valuenow', selectedKm.toFixed(1));
     graphic.setAttribute('aria-valuetext', readout.textContent);
-    host.querySelectorAll('[data-point-km]').forEach(button => button.setAttribute('aria-pressed', String(Math.abs(Number(button.dataset.pointKm)-selectedKm) < .01)));
+    // El punto se marca a ±1 km de la posición señalada en el perfil.
+    host.querySelectorAll('[data-point-km]').forEach(button => button.setAttribute('aria-pressed', String(Math.abs(Number(button.dataset.pointKm)-selectedKm) <= 1)));
   };
   const sizePoints = () => {
     const panel = host.querySelector('.stage-key-panel');

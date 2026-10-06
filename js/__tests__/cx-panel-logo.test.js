@@ -7,7 +7,7 @@ const panel=readFileSync(new URL('../panel/cx.js',import.meta.url),'utf8');
 const source=panel.slice(panel.indexOf('const logoField='),panel.indexOf('\nconst input='));
 const getSource=panel.slice(panel.indexOf('const dataOf='),panel.indexOf('\nconst categoryOptions='));
 const uploadSource=readFileSync(new URL('../panel/uploads.js',import.meta.url),'utf8');
-const attachInlineUpload=uploadSource.slice(uploadSource.indexOf('function attachInlineUpload('),uploadSource.indexOf('\nasync function handleUpload('));
+const attachInlineUpload=uploadSource.slice(uploadSource.indexOf('function attachInlineUpload('));
 
 function logoForm() {
   const nodes=[],events=new Map();
@@ -25,15 +25,6 @@ function logoForm() {
 }
 
 describe('URL y subida del logo en el editor CX',()=>{
-  it('genera una entrada URL identificada para pegar un logo externo',()=>{
-    const html=runInNewContext(`${source}\nlogoField('https://other.example/logo.png');`,{
-      crypto:{randomUUID:()=> 'test'},esc:value=>value,
-    });
-    expect(html).toContain('URL del logo</label>');
-    expect(html).toContain('name="logoUrl" type="url" value="https://other.example/logo.png"');
-    expect(html).not.toMatch(/readonly|disabled|type="file"/);
-  });
-
   it('conserva la URL pegada y su vista previa sin subir un archivo',()=>{
     const {form,input,nodes}=logoForm();
     const cxLogoImage=vi.fn(()=>null),inlineUpload=vi.fn();

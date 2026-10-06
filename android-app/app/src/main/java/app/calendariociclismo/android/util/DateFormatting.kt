@@ -33,7 +33,6 @@ object DateFormatting {
 
     private val LOCALE_ES = Locale("es", "ES")
     private val LOCALE_EN = Locale("en", "US")
-    private val MADRID_ZONE: ZoneId = ZoneId.of("Europe/Madrid")
 
     private val DATE_KEY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
 
@@ -210,13 +209,6 @@ object DateFormatting {
         } catch (_: DateTimeParseException) {
             null
         }
-    }
-
-    /** Timestamp ISO → hora Madrid "HH:mm". 24h numérico — locale fijo OK. */
-    fun formatTimeMadrid(isoString: String): String? {
-        val instant = parseIso(isoString) ?: return null
-        val fmt = DateTimeFormatter.ofPattern("HH:mm", LOCALE_ES).withZone(MADRID_ZONE)
-        return fmt.format(instant)
     }
 
     /** Timestamp ISO → hora local del dispositivo "HH:mm". Usar siempre en el widget. */

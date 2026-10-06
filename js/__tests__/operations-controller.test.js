@@ -23,18 +23,16 @@ function harness({reads=[],writes=[],confirmations=[]}={}) {
 }
 
 describe('operaciones compartidas de carretera y CX',()=>{
-  it('una lectura antigua no sustituye la cola y revisión de una lectura más reciente',async()=>{
+  it('una lectura o un error antiguos no sustituyen la lectura más reciente',async()=>{
     const old=deferred(),fresh=deferred(),h=harness({reads:[old,fresh]});const first=h.refresh(),second=h.refresh();
     fresh.resolve({data:snapshot('fresh-revision',{cx_results:{pending:1}})});await second;
     old.resolve({data:snapshot('old-revision')});await first;
     expect(h.node('operationsJobs').innerHTML).toContain('fresh-revis');expect(h.node('operationsJobs').innerHTML).not.toContain('old-revision');
     expect(h.button('cx_results').disabled).toBe(true);
-  });
-  it('un error anterior no borra el monitor recuperado ni reactiva una lectura vigente',async()=>{
-    const old=deferred(),fresh=deferred(),h=harness({reads:[old,fresh]});const first=h.refresh(),second=h.refresh();
-    old.reject(Error('Fallo retirado'));await first;expect(h.node('operationsRefreshBtn').disabled).toBe(true);
-    fresh.resolve({data:snapshot('recovered')});await second;
-    expect(h.node('operationsJobs').innerHTML).toContain('recovered');expect(h.node('operationsUpdated').textContent).not.toContain('No se pudo');
+    const failed=deferred(),recovered=deferred(),r=harness({reads:[failed,recovered]});const early=r.refresh(),late=r.refresh();
+    failed.reject(Error('Fallo retirado'));await early;expect(r.node('operationsRefreshBtn').disabled).toBe(true);
+    recovered.resolve({data:snapshot('recovered')});await late;
+    expect(r.node('operationsJobs').innerHTML).toContain('recovered');expect(r.node('operationsUpdated').textContent).not.toContain('No se pudo');
   });
   it('doble pulsación y redibujado durante una consulta CX encolan una sola petición',async()=>{
     const confirmation=deferred(),write=deferred(),h=harness({confirmations:[confirmation],writes:[write]});h.render(snapshot('initial'));

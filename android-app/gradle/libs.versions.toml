@@ -68,7 +68,6 @@ maplibre = "11.8.1"
 
 # Testing
 junit = "4.13.2"
-androidxJunit = "1.2.1"
 turbine = "1.1.0"
 # Robolectric — Context real con recursos en tests JVM (sin emulador).
 robolectric = "4.14.1"
@@ -145,14 +144,12 @@ play-review = { group = "com.google.android.play", name = "review", version.ref 
 
 # Testing
 junit            = { group = "junit", name = "junit", version.ref = "junit" }
-androidx-junit   = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 turbine          = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 robolectric      = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 
 # MapLibre GL Native (mapa del recorrido).
 maplibre-android-sdk = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
-androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [plugins]

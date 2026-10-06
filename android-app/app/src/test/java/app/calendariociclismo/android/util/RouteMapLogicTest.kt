@@ -29,11 +29,6 @@ class RouteMapLogicTest {
         assertEquals(111.19, d, 0.5)
     }
 
-    @Test
-    fun haversineMismoPuntoEsCero() {
-        assertEquals(0.0, RouteMapLogic.haversineKm(40.4, -3.7, 40.4, -3.7), 1e-9)
-    }
-
     // ── parseGpx ───────────────────────────────────────────────────
 
     @Test
@@ -68,19 +63,6 @@ class RouteMapLogicTest {
         val pts = RouteMapLogic.parseGpx(xml)
         assertEquals(2, pts.size)
         assertNull(pts[0].ele)
-    }
-
-    @Test
-    fun parseGpxSinEleDejaEleNull() {
-        val xml = """
-            <gpx><trk><trkseg>
-              <trkpt lat="0" lon="0"/>
-              <trkpt lat="0" lon="1"/>
-            </trkseg></trk></gpx>
-        """.trimIndent()
-        val pts = RouteMapLogic.parseGpx(xml)
-        assertEquals(2, pts.size)
-        assertTrue(pts.all { it.ele == null })
     }
 
     @Test

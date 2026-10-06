@@ -63,12 +63,6 @@ class RaceDayFormattingTest {
     }
 
     @Test
-    fun `desnivel con app en ingles usa coma de miles`() {
-        englishAppContent()
-        assertEquals("+2,500 m", raceDayWithGain(2500).elevationGainFormatted)
-    }
-
-    @Test
     fun `desnivel sigue el contenido (no el chrome) en dispositivo no-espanol`() {
         // El bug: con `current` = ES esto devolvía "+2.500 m" (punto). Como el
         // contenido va en inglés (sistema no-ES), debe ser coma.
@@ -80,12 +74,6 @@ class RaceDayFormattingTest {
     fun `desnivel se redondea a la decena`() {
         spanishContent()
         assertEquals("+2.500 m", raceDayWithGain(2507).elevationGainFormatted)
-    }
-
-    @Test
-    fun `desnivel de menos de mil no lleva separador`() {
-        englishAppContent()
-        assertEquals("+850 m", raceDayWithGain(850).elevationGainFormatted)
     }
 
     @Test

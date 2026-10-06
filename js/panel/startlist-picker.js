@@ -39,55 +39,54 @@ export async function _slOpenRiderMatchPicker(riderEl) {
   const currentId   = riderEl.dataset.globalRiderId || null;
 
   const popover = document.createElement('div');
-  popover.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.6rem;width:400px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);box-sizing:border-box;overflow:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)';
+  popover.className = 'panel-popover sl-picker-popover';
   popover.innerHTML = `
     ${currentId ? `
-      <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem">Match actual: <code style="color:var(--text)">${esc(currentId)}</code></div>
-      <div class="sl-picker-edit-current" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.5rem;margin-bottom:0.5rem">
-        <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.04em">Editar este rider en BD</div>
-        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center">
-          <input type="text" class="sl-edit-last" placeholder="Apellidos" style="flex:1.4;min-width:6rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none;font-weight:700">
-          <input type="text" class="sl-edit-first" placeholder="Nombre" style="flex:1.2;min-width:5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none">
-          <input type="text" class="sl-edit-nat" placeholder="es" maxlength="5" style="width:2.8rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none;text-transform:lowercase;text-align:center">
-          <span class="sl-edit-flag" style="font-size:1.1rem;min-width:1.4rem;text-align:center"></span>
+      <div class="u-fs-070 u-c-dim u-mb-030">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>
+      <div class="sl-picker-edit-current sl-picker-box">
+        <div class="sl-picker-heading">Editar este rider en BD</div>
+        <div class="sl-picker-fields">
+          <input type="text" class="sl-edit-last sl-picker-field sl-picker-field--last" placeholder="Apellidos">
+          <input type="text" class="sl-edit-first sl-picker-field sl-picker-field--first" placeholder="Nombre">
+          <input type="text" class="sl-edit-nat sl-picker-field sl-picker-field--nat" placeholder="es" maxlength="5">
+          <span class="sl-edit-flag sl-picker-flag"></span>
         </div>
-        <input type="text" class="sl-edit-other" placeholder="otherNames (aliases separados por coma)" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-top:0.3rem">
-        <input type="date" class="sl-edit-birth" title="Fecha de nacimiento" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-top:0.3rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.4rem;gap:0.3rem">
-          <button data-action="delete-current" type="button" class="btn btn--ghost" style="padding:0.25rem 0.5rem;font-size:0.7rem;color:var(--red)" title="Eliminar este rider de la BD (desliga primero las startlists afectadas)">Eliminar de BD</button>
-          <button data-action="save-current" type="button" class="btn btn--primary" disabled style="padding:0.25rem 0.55rem;font-size:0.7rem;opacity:0.45">Guardar</button>
+        <input type="text" class="sl-edit-other sl-picker-field sl-picker-field--wide u-mt-030" placeholder="otherNames (aliases separados por coma)">
+        <input type="date" class="sl-edit-birth sl-picker-field sl-picker-field--wide u-mt-030" title="Fecha de nacimiento">
+        <div class="u-between u-mt-040 u-gap-030">
+          <button data-action="delete-current" type="button" class="btn btn--ghost btn--xs u-c-red" title="Eliminar este rider de la BD (desliga primero las startlists afectadas)">Eliminar de BD</button>
+          <button data-action="save-current" type="button" class="btn btn--primary u-py-025 u-px-055 u-fs-070" disabled style="opacity:0.45">Guardar</button>
         </div>
-        <div class="sl-picker-dups" style="margin-top:0.5rem;display:none">
-          <div style="font-size:0.66rem;color:var(--text-dim);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.04em">Posibles duplicados en BD</div>
+        <div class="sl-picker-dups u-mt-050" style="display:none">
+          <div class="sl-picker-heading u-fs-066 u-mb-025">Posibles duplicados en BD</div>
           <div class="sl-picker-dups-list u-stack u-stack--xs"></div>
         </div>
       </div>
     ` : `
-      <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:0.4rem">Sin match en BD.</div>
-      <div class="sl-picker-create-new" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.5rem;margin-bottom:0.5rem">
-        <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.04em">Crear nuevo rider en BD</div>
-        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;margin-bottom:0.3rem">
-          <input type="text" class="sl-new-last" placeholder="Apellidos" style="flex:1.4;min-width:6rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none;font-weight:700">
-          <input type="text" class="sl-new-first" placeholder="Nombre" style="flex:1.2;min-width:5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none">
-          <input type="text" class="sl-new-nat" placeholder="es" maxlength="5" style="width:2.8rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;padding:0.2rem 0.35rem;outline:none;text-transform:lowercase;text-align:center">
-          <span class="sl-new-flag" style="font-size:1.1rem;min-width:1.4rem;text-align:center"></span>
+      <div class="u-fs-072 u-c-dim u-mb-040">Sin match en BD.</div>
+      <div class="sl-picker-create-new sl-picker-box">
+        <div class="sl-picker-heading">Crear nuevo rider en BD</div>
+        <div class="sl-picker-fields u-mb-030">
+          <input type="text" class="sl-new-last sl-picker-field sl-picker-field--last" placeholder="Apellidos">
+          <input type="text" class="sl-new-first sl-picker-field sl-picker-field--first" placeholder="Nombre">
+          <input type="text" class="sl-new-nat sl-picker-field sl-picker-field--nat" placeholder="es" maxlength="5">
+          <span class="sl-new-flag sl-picker-flag"></span>
         </div>
-        <input type="text" class="sl-new-other" placeholder="otherNames (opcional): aliases separados por coma" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-bottom:0.3rem">
-        <input type="date" class="sl-new-birth" title="Fecha de nacimiento verificada (obligatoria)" style="width:100%;box-sizing:border-box;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.74rem;padding:0.2rem 0.35rem;outline:none;margin-bottom:0.4rem">
-        <div style="display:flex;justify-content:flex-end">
-          <button data-action="create-new" type="button" class="btn btn--primary" style="padding:0.25rem 0.6rem;font-size:0.72rem">Preparar alta</button>
+        <input type="text" class="sl-new-other sl-picker-field sl-picker-field--wide u-mb-030" placeholder="otherNames (opcional): aliases separados por coma">
+        <input type="date" class="sl-new-birth sl-picker-field sl-picker-field--wide u-mb-040" title="Fecha de nacimiento verificada (obligatoria)">
+        <div class="u-flex u-justify-end">
+          <button data-action="create-new" type="button" class="btn btn--primary u-py-025 u-px-060 u-fs-072">Preparar alta</button>
         </div>
       </div>
     `}
-    <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.04em">${currentId ? 'O buscar otro' : 'O buscar match existente'}</div>
-    <input type="search" class="sl-picker-input" placeholder="Apellido, nombre u otherNames…"
-           style="width:100%;padding:0.4rem 0.6rem;font-size:0.82rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;box-sizing:border-box;margin-bottom:0.4rem">
-    <div class="sl-picker-results" style="display:flex;flex-direction:column;gap:0.2rem;min-height:1.2rem"></div>
-    <div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;display:flex;justify-content:space-between;align-items:center">
+    <div class="sl-picker-heading u-mb-025">${currentId ? 'O buscar otro' : 'O buscar match existente'}</div>
+    <input type="search" class="sl-picker-input" placeholder="Apellido, nombre u otherNames…">
+    <div class="sl-picker-results"></div>
+    <div class="panel-popover-footer">
       ${currentId
-        ? '<button data-action="unlink" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem;color:var(--text-dim)">Desligar (sin borrar)</button>'
+        ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-072 u-c-dim">Desligar (sin borrar)</button>'
         : '<span></span>'}
-      <button data-action="close" type="button" class="btn btn--ghost" style="padding:0.3rem 0.6rem;font-size:0.72rem">Cerrar</button>
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cerrar</button>
     </div>`;
 
   document.body.appendChild(popover);
@@ -101,31 +100,31 @@ export async function _slOpenRiderMatchPicker(riderEl) {
     const q = input.value.trim();
     const myId = ++reqId;
     if (q.length < 2) {
-      results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Escribe al menos 2 letras.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>';
       return;
     }
-    results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Buscando…</div>';
+    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
     const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
       .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source,identityKey')
       .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div style="color:var(--red);font-size:0.72rem;padding:0.3rem">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
     if (!matchingData.length) {
-      results.innerHTML = '<div class="u-c-dim u-fs-xs u-p-xs">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>';
       return;
     }
     results.innerHTML = matchingData.map(rd => `
-      <div data-rid="${esc(rd.id)}" style="display:flex;align-items:center;gap:0.35rem;padding:0.3rem 0.4rem;background:var(--bg);border:1px solid ${rd.id === currentId ? '#22c55e' : 'var(--border)'};border-radius:5px;font-size:0.78rem;color:var(--text)">
-        <div data-pick="${esc(rd.id)}" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.4rem;flex:1;min-width:0;cursor:pointer">
+      <div data-rid="${esc(rd.id)}" class="sl-match-row${rd.id === currentId ? ' sl-match-row--current' : ''}">
+        <div data-pick="${esc(rd.id)}" role="button" tabindex="0" class="sl-match-pick">
           ${_slRiderFlagPreview(rd.nationality)}
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd.otherNames)})</span>` : ''}</span>
-          ${rd.verified === false ? '<span title="Sin verificar" style="color:#f59e0b;font-size:0.65rem;font-weight:700;flex-shrink:0">?</span>' : ''}
+          <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd.otherNames)})</span>` : ''}</span>
+          ${rd.verified === false ? '<span title="Sin verificar" class="sl-verify-mark u-c-warn">?</span>' : ''}
         </div>
-        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" style="background:#22c55e;color:#fff;border:none;border-radius:3px;padding:0.15rem 0.35rem;font-size:0.65rem;cursor:pointer;flex-shrink:0">🔀</button>` : ''}
-        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" style="background:none;border:1px solid var(--border);color:var(--red);border-radius:3px;padding:0.1rem 0.35rem;font-size:0.7rem;cursor:pointer;flex-shrink:0">🗑</button>
+        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-035 u-fs-065">🔀</button>` : ''}
+        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" class="sl-mini-action sl-mini-action--delete u-py-010 u-px-035 u-fs-070">🗑</button>
       </div>`).join('');
     // Click sobre la zona de info → selección como match.
     results.querySelectorAll('[data-pick]').forEach(btn => {
@@ -334,13 +333,13 @@ export async function _slOpenRiderMatchPicker(riderEl) {
       if (!dups.length) { wrap.style.display = 'none'; return; }
       wrap.style.display = '';
       list.innerHTML = dups.map(d => `
-        <div data-dup-id="${esc(d.id)}" style="display:flex;align-items:center;gap:0.35rem;padding:0.3rem 0.4rem;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;font-size:0.72rem">
+        <div data-dup-id="${esc(d.id)}" class="sl-dup-row">
           ${_slRiderFlagPreview(d.nationality)}
-          <span class="u-grow u-min0 u-truncate"><strong>${esc(d.lastName)}</strong>, ${esc(d.firstName)}${d.otherNames ? ` <span style="color:var(--text-dim);font-size:0.65rem">(${esc(d.otherNames)})</span>` : ''}</span>
-          <span style="color:${d.verified ? '#22c55e' : '#f59e0b'};font-size:0.65rem;font-weight:700;flex-shrink:0">${d.verified ? '✓' : '?'}</span>
-          <span style="color:var(--text-dim);font-size:0.62rem;flex-shrink:0">${esc(d.source || '')}</span>
-          <button data-dup-action="merge-into-current" title="Mover sus startlists al rider actual y eliminarlo" type="button" style="background:#22c55e;color:#fff;border:none;border-radius:3px;padding:0.15rem 0.4rem;font-size:0.65rem;cursor:pointer;flex-shrink:0">Fusionar</button>
-          <button data-dup-action="delete-dup" title="Eliminar este rider de BD (desliga sus startlists, no las reapunta)" type="button" style="background:none;border:1px solid var(--border);border-radius:3px;padding:0.15rem 0.4rem;font-size:0.65rem;cursor:pointer;color:var(--red);flex-shrink:0">Borrar</button>
+          <span class="u-grow u-min0 u-truncate"><strong>${esc(d.lastName)}</strong>, ${esc(d.firstName)}${d.otherNames ? ` <span class="u-c-dim u-fs-065">(${esc(d.otherNames)})</span>` : ''}</span>
+          <span class="sl-verify-mark ${d.verified ? 'u-c-ok' : 'u-c-warn'}">${d.verified ? '✓' : '?'}</span>
+          <span class="u-c-dim u-fs-062 u-shrink-0">${esc(d.source || '')}</span>
+          <button data-dup-action="merge-into-current" title="Mover sus startlists al rider actual y eliminarlo" type="button" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-040 u-fs-065">Fusionar</button>
+          <button data-dup-action="delete-dup" title="Eliminar este rider de BD (desliga sus startlists, no las reapunta)" type="button" class="sl-mini-action sl-mini-action--delete u-py-015 u-px-040 u-fs-065">Borrar</button>
         </div>`).join('');
 
       list.querySelectorAll('[data-dup-action="merge-into-current"]').forEach(btn => {
@@ -422,45 +421,44 @@ export async function _slOpenRiderMatchPicker(riderEl) {
 }
 
 export function _slRiderFlagPreview(code) {
-  return code ? countryFlag(code) : '<span style="display:inline-block;width:1.2em;height:0.9em"></span>';
+  return code ? countryFlag(code) : '<span class="flag-placeholder"></span>';
 }
 
 export function _slTeamRowHtml({ teamName = '', teamId = null, isConfirmed = false, riders = [] } = {}) {
   const ridersHtml = riders.map(r => {
     const rowKey = r.rowKey || r.id || crypto.randomUUID();
     return `
-      <div class="sl-edit-rider" data-row-key="${esc(rowKey)}" data-startlist-rider-id="${esc(r.id || '')}" data-global-rider-id="${esc(r.globalRiderId || '')}" data-birth-date="${esc(r.birthDate || '')}" data-other-names="${esc(r.otherNames || '')}" data-uci-profile-id="${esc(r.uciProfileId || '')}" data-source-url="${esc(r.sourceUrl || '')}" data-rejected-candidate-ids="${esc(JSON.stringify(r.rejectedCandidateIds || []))}" style="display:flex;align-items:center;gap:0.35rem;padding:0.15rem 0.75rem;font-size:0.82rem;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:0.35rem;flex:1;min-width:0">
-          <input type="number" class="sl-dorsal" value="${Number(r.dorsal) > 0 ? r.dorsal : ''}" placeholder="—" style="width:3.2rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.78rem;padding:0.2rem 0.3rem;text-align:right;outline:none" min="1">
+      <div class="sl-edit-rider" data-row-key="${esc(rowKey)}" data-startlist-rider-id="${esc(r.id || '')}" data-global-rider-id="${esc(r.globalRiderId || '')}" data-birth-date="${esc(r.birthDate || '')}" data-other-names="${esc(r.otherNames || '')}" data-uci-profile-id="${esc(r.uciProfileId || '')}" data-source-url="${esc(r.sourceUrl || '')}" data-rejected-candidate-ids="${esc(JSON.stringify(r.rejectedCandidateIds || []))}">
+        <div class="sl-edit-rider__main">
+          <input type="number" class="sl-dorsal" value="${Number(r.dorsal) > 0 ? r.dorsal : ''}" placeholder="—" min="1">
           <span class="sl-flag-preview u-icon-box">${_slRiderFlagPreview(r.countryCode)}</span>
-          <input type="text" class="sl-country" value="${esc(r.countryCode || '')}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)" style="width:3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:0.72rem;padding:0.2rem 0.3rem;text-align:center;text-transform:lowercase;outline:none">
+          <input type="text" class="sl-country" value="${esc(r.countryCode || '')}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2 (2 letras)">
           <input type="text" class="sl-firstname u-input-sm" value="${esc(r.firstName || '')}" placeholder="Nombre">
           <input type="text" class="sl-lastname u-input-sm" value="${esc(r.lastName || '')}" placeholder="Apellido">
-          <button type="button" class="sl-rider-match-btn" data-action="picker"
-                  title="${r.globalRiderId ? 'Match en BD: ' + esc((r.firstName||'') + ' ' + (r.lastName||'')) + '. Click para cambiar/desligar.' : 'Buscar o forzar un match en la BD de corredores'}"
-                  style="background:none;border:1px solid var(--border);border-radius:4px;padding:0.05rem 0.4rem;font-size:0.7rem;font-weight:700;cursor:pointer;flex-shrink:0;color:${r.globalRiderId ? '#22c55e' : 'var(--text-dim)'}">${r.globalRiderId ? '✓ BD' : '🔗'}</button>
-          <button type="button" class="btn btn--ghost sl-remove-rider-btn" style="padding:0.15rem 0.35rem;font-size:0.65rem;color:var(--text-dim);flex-shrink:0">✕</button>
+          <button type="button" class="sl-rider-match-btn${r.globalRiderId ? ' is-matched' : ''}" data-action="picker"
+                  title="${r.globalRiderId ? 'Match en BD: ' + esc((r.firstName||'') + ' ' + (r.lastName||'')) + '. Click para cambiar/desligar.' : 'Buscar o forzar un match en la BD de corredores'}">${r.globalRiderId ? '✓ BD' : '🔗'}</button>
+          <button type="button" class="btn btn--ghost sl-remove-rider-btn">✕</button>
         </div>
-        <div class="sl-rider-suggestion" style="display:none;width:100%;padding:0.1rem 0.75rem 0.3rem 4.2rem"></div>
+        <div class="sl-rider-suggestion" style="display:none"></div>
       </div>`;
   }).join('');
-  return `<div class="sl-edit-team" data-team-id="${teamId ? esc(teamId) : ''}" style="border:1px solid var(--border);border-radius:8px;margin-bottom:0.75rem;overflow:hidden">
-      <div class="sl-edit-team-header" style="background:var(--bg-card-hover);padding:0.5rem 0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-        <input type="text" class="sl-team-name" value="${esc(teamName)}" placeholder="Nombre del equipo" style="flex:1;min-width:180px;background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text);font-family:var(--font-display);font-weight:700;font-size:0.82rem;padding:0.25rem 0.4rem;outline:none;transition:border-color 0.15s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='transparent'">
-        <span class="sl-team-enrich-slot" style="display:flex;align-items:center;gap:0.35rem"></span>
-        <label class="sl-confirmed-cell" style="${panelState._editingRaceProvisional ? 'display:inline-flex' : 'display:none'};align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-dim);cursor:pointer;white-space:nowrap">
+  return `<div class="sl-edit-team" data-team-id="${teamId ? esc(teamId) : ''}">
+      <div class="sl-edit-team-header">
+        <input type="text" class="sl-team-name" value="${esc(teamName)}" placeholder="Nombre del equipo">
+        <span class="sl-team-enrich-slot"></span>
+        <label class="sl-confirmed-cell" style="display:${panelState._editingRaceProvisional ? 'inline-flex' : 'none'}">
           <input type="checkbox" class="sl-is-confirmed" ${isConfirmed ? 'checked' : ''}>
           Confirmado
         </label>
-        <span class="sl-team-order-controls" style="display:none;gap:0.25rem;align-items:center">
-          <button type="button" class="btn btn--ghost sl-team-up-btn" style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Subir selección" aria-label="Subir selección">↑</button>
-          <button type="button" class="btn btn--ghost sl-team-down-btn" style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Bajar selección" aria-label="Bajar selección">↓</button>
+        <span class="sl-team-order-controls" style="display:none">
+          <button type="button" class="btn btn--ghost sl-team-up-btn btn--icon-xs" title="Subir selección" aria-label="Subir selección">↑</button>
+          <button type="button" class="btn btn--ghost sl-team-down-btn btn--icon-xs" title="Bajar selección" aria-label="Bajar selección">↓</button>
         </span>
-        <button type="button" class="btn btn--ghost sl-remove-team-btn" style="padding:0.2rem 0.5rem;font-size:0.7rem;color:var(--red)">Eliminar equipo</button>
+        <button type="button" class="btn btn--ghost sl-remove-team-btn btn--mini u-c-red">Eliminar equipo</button>
       </div>
-      <div class="sl-edit-riders" style="padding:0.35rem 0">${ridersHtml}</div>
-      <div style="padding:0.3rem 0.75rem 0.5rem">
-        <button class="btn btn--ghost" style="padding:0.2rem 0.5rem;font-size:0.7rem" onclick="addRiderRow(this)">+ Corredor</button>
+      <div class="sl-edit-riders">${ridersHtml}</div>
+      <div class="sl-edit-team__footer">
+        <button class="btn btn--ghost btn--mini" onclick="addRiderRow(this)">+ Corredor</button>
       </div>
     </div>`;
 }
@@ -470,17 +468,17 @@ export function _slUpdateRowEnrichUI(rowEl) {
   const rawName = rowEl.querySelector('.sl-team-name')?.value || '';
   // Las listas se guardan siempre con las identidades completas.
   if (isNoTeamPlaceholderTeam({ teamId: rowEl.dataset.teamId || null, teamName: rawName })) {
-    slot.innerHTML = `<span class="u-fs-xs u-c-dim">${esc(rawName)} · sin identidad de equipo</span>`;
+    slot.innerHTML = `<span class="u-fs-072 u-c-dim">${esc(rawName)} · sin identidad de equipo</span>`;
     return;
   }
   const teamId = rowEl.dataset.teamId || '';
   const team = teamId ? (panelState._teamsCache || []).find(t => t.id === teamId) : null;
   if (team) {
     slot.innerHTML = `
-      <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.45rem;border-radius:4px;font-size:0.7rem;font-family:var(--font-display);letter-spacing:0.03em;background:${esc(team.headerBg)};color:${esc(team.headerText)}">
+      <span class="sl-team-badge" style="--team-bg:${esc(team.headerBg)};--team-fg:${esc(team.headerText)}">
         ${esc(team.name)}
       </span>
-      <button class="btn btn--ghost sl-change-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Cambiar</button>`;
+      <button class="btn btn--ghost sl-change-team btn--tiny" type="button">Cambiar</button>`;
   } else {
     if (!rawName.trim()) { slot.replaceChildren(); return; }
     const matches = panelState._slTeamMatchIndex.get(normalizeTeamName(rawName)) || [];
@@ -488,8 +486,8 @@ export function _slUpdateRowEnrichUI(rowEl) {
       ? 'Varios equipos coinciden. Selecciona el correcto.'
       : 'Equipo no encontrado. Hay que crearlo.');
     slot.innerHTML = `
-      <span role="status" style="font-size:0.7rem;color:var(--orange)">${esc(warning)}</span>
-      ${matches.length > 1 ? '' : '<button class="btn btn--ghost sl-create-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Crear equipo</button>'}
-      <button class="btn btn--ghost sl-assign-team" type="button" style="padding:0.15rem 0.4rem;font-size:0.65rem">Seleccionar existente</button>`;
+      <span role="status" class="u-fs-070 u-c-orange">${esc(warning)}</span>
+      ${matches.length > 1 ? '' : '<button class="btn btn--ghost sl-create-team btn--tiny" type="button">Crear equipo</button>'}
+      <button class="btn btn--ghost sl-assign-team btn--tiny" type="button">Seleccionar existente</button>`;
   }
 }

@@ -61,8 +61,7 @@ const komHtml = `
 describe('CH:RO:NO — HTML oficial', () => {
   it('valida el código y deriva un competitionId sintético estable', () => {
     expect(parseCode(code)).toBe(code);
-    expect(suggestCompetitionId(code)).toBeLessThan(0);
-    expect(suggestCompetitionId(code)).toBe(suggestCompetitionId(code));
+    expect(suggestCompetitionId(code)).toBe(-13852);   // ancla del ID guardado
     expect(() => parseCode('tour_de_serbie')).toThrow('YYYYMMDD_slug');
   });
 

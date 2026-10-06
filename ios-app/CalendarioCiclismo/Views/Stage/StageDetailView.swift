@@ -68,6 +68,29 @@ enum OfflineAccessAlert: Identifiable {
     }
 }
 
+extension View {
+    /// Modal de `OfflineAccessAlert`, compartido por carretera y ciclocross.
+    func offlineAccessAlert(_ alert: Binding<OfflineAccessAlert?>) -> some View {
+        self.alert(item: alert) { alert in
+            if alert.offersEnableOfflineCTA {
+                return Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    primaryButton: .default(Text(LocaleService.t("Activar modo sin conexión", "Enable offline mode"))) {
+                        Task { await OfflineManager.shared.enable() }
+                    },
+                    secondaryButton: .cancel(Text(LocaleService.t("Cerrar", "Close")))
+                )
+            }
+            return Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text(LocaleService.t("Cerrar", "Close")))
+            )
+        }
+    }
+}
+
 /// Identidad y fecha compartidas por las jornadas de carretera y ciclocross.
 struct RaceDayHeading: View {
     let name: String?
@@ -304,23 +327,7 @@ struct StageDetailView: View {
         }
         .safariSheet(url: $safariURL)
         .quickLookSheet(url: $quickLookURL)
-        .alert(item: $offlineAlert) { alert in
-            if alert.offersEnableOfflineCTA {
-                return Alert(
-                    title: Text(alert.title),
-                    message: Text(alert.message),
-                    primaryButton: .default(Text(LocaleService.t("Activar modo sin conexión", "Enable offline mode"))) {
-                        Task { await offline.enable() }
-                    },
-                    secondaryButton: .cancel(Text(LocaleService.t("Cerrar", "Close")))
-                )
-            }
-            return Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text(LocaleService.t("Cerrar", "Close")))
-            )
-        }
+        .offlineAccessAlert($offlineAlert)
 
         .task { await viewModel.load(raceDayId: raceDayId) }
         .onChange(of: viewModel.raceDay) { _, newRaceDay in
@@ -1181,11 +1188,7 @@ struct StageDetailView: View {
     /// preferida (X, YouTube, HBO Max…) intenta su enlace universal. Si la app
     /// correspondiente no está instalada, permanece en el navegador interno.
     private func tapExternal(url: URL) {
-        if !network.isOnline {
-            offlineAlert = .externalLinkOffline
-            return
-        }
-        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
+        ExternalLinkOpener.open(url, safariURL: $safariURL, offlineAlert: $offlineAlert)
     }
 
     /// Tap en el chip "Perfil" cuando la jornada tiene perfil SVG web. Con red,
@@ -1215,11 +1218,7 @@ struct StageDetailView: View {
     /// Abre una retransmisión en su app nativa cuando está instalada; si el
     /// enlace universal no tiene receptor, usa `SFSafariViewController` in-app.
     private func tapBroadcast(url: URL) {
-        if !network.isOnline {
-            offlineAlert = .externalLinkOffline
-            return
-        }
-        NativeAppLinkOpener.openIfInstalled(url) { safariURL = url }
+        ExternalLinkOpener.open(url, safariURL: $safariURL, offlineAlert: $offlineAlert)
     }
 
     private func assetIcon(for type: String?) -> String {
@@ -1686,9 +1685,8 @@ struct ActionStripTile: View {
 
 // MARK: - StageNotificationChip
 
-/// Chip de notificaciones por jornada. Visible a todos los usuarios:
-/// - Sin Premium → presenta paywall.
-/// - Premium → toggle inmediato (sin cambio de modo, las jornadas son independientes).
+/// Chip de notificaciones por jornada. Visible a todos los usuarios: toggle
+/// inmediato (sin cambio de modo, las jornadas son independientes).
 private struct StageNotificationChip: View {
     let raceDayId: String
 
@@ -1712,7 +1710,6 @@ private struct StageNotificationChip: View {
     }
 
     private func handleTap() {
-        // Notificaciones enriquecidas liberadas al plan gratuito: sin paywall.
         Haptics.play(.selection)
         raceFollow.setFollowingStage(raceDayId, following: !isFollowing)
     }

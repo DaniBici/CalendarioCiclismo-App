@@ -2,7 +2,7 @@
 //  PANEL DE ADMINISTRACIÓN — Pestaña Resultados del editor de jornada
 // ─────────────────────────────────────────────────────────────────
 
-import { panelClassificationRowHtml } from './editor-ui.js?v=20260912cxcohesion';
+import { panelClassificationRowHtml } from './editor-ui.js';
 import { supabase, esc } from '../shared.js';
 import { sectorSuffixMap } from '../services/races.js';
 import { confirmDialog, alertDialog } from '../components/dialog.js';
@@ -16,7 +16,7 @@ import {
 import { formatDateTime, formatTimeHHMM, showToast } from './helpers.js';
 import { buildResolvedRiderMapForRace } from './start-order.js';
 import {
-  _deleteUciLink, _loadUciReport, _UCI_SEASON, _uciCandidateRow, _writeUciLink,
+  _deleteUciLink, _UCI_SEASON, _writeUciLink,
 } from './uci-link.js';
 import { _ruNewClass, openUciClassEditor } from './results-editor.js';
 
@@ -25,8 +25,8 @@ import { _ruNewClass, openUciClassEditor } from './results-editor.js';
 //
 //  Dos piezas:
 //   (1) Origen UCI: el enlace carrera↔competitionId (race_uci_links), editable
-//       desde aquí con la MISMA auto-detección del editor de carrera (lee el
-//       match-report estático vía _loadUciReport y escribe con _writeUciLink).
+//       desde aquí a mano (escribe con _writeUciLink; la auto-detección vive
+//       en el editor de carrera).
 //   (2) Las clasificaciones de ESTA jornada (race_uci_stages keepForWeb con
 //       raceDayId = jornada; en la última etapa/carreras de un día, también las
 //       finales con raceDayId NULL), cada una editable en un drawer nivel 2.
@@ -67,6 +67,9 @@ const UCI_SOURCE_LABELS = {
   istanbul: 'Tour of Istanbul',
   southbohemia: 'Tour of South Bohemia',
   atresults: 'AT Results Service',
+  mikatiming: 'mika:timing',
+  ficr: 'FICR',
+  lapclip: 'LAPCLIP (Matrix Sports)',
 };
 
 // La cabecera del panel debe llevar a quien realmente cronometra la carrera, no
@@ -94,6 +97,9 @@ const UCI_SOURCE_URLS = {
   istanbul: 'https://tourofistanbul.com.tr/results/',
   southbohemia: 'https://www.okolojiznichcech.cz/vysledky.html',
   atresults: 'https://atresults.wixsite.com/attiming/results',
+  mikatiming: 'https://www.mikatiming.com/',
+  ficr: 'https://ciclismo.ficr.it/',
+  lapclip: 'https://matrix-sports.jp/lap/',
 };
 
 function _ruSourceLink(source) {
@@ -194,19 +200,23 @@ export async function setupUciResultsSection(rd, race) {
     _ruRenderSection(body, rd, race, linkRes.data || null, stages, daysRes.data || []);
   } catch (err) {
     console.error(err);
-    body.innerHTML = `<div style="color:#e55;font-size:0.8rem">Error al cargar los resultados UCI: ${esc(err.message || String(err))}</div>`;
+    body.innerHTML = `<div class="u-c-danger u-fs-080">Error al cargar los resultados UCI: ${esc(err.message || String(err))}</div>`;
   }
 }
 
 // Cabecera de fuente: el enlace se decide a mano en DataRide; no hay matcher.
 function _ruOriginHtml(rd, race, link, stageResults = []) {
   if (!link) {
+    // Un placeholder manual sin fuente publica clasificaciones sin crear enlace.
+    const state = stageResults.length
+      ? 'los resultados cargados son provisionales; la fuente que se enlace los sustituirá.'
+      : 'sin enlace no hay resultados in-house.';
     return `<div class="ru-origin">
       <div class="ru-origin__state">Esta carrera <strong>no tiene fuente enlazada</strong> —
-        sin enlace no hay resultados in-house.</div>
-      <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-        <a class="btn btn--ghost" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener" style="font-size:0.72rem;padding:0.3rem 0.7rem">Últimos resultados de DataRide ↗</a>
-        <button type="button" class="btn btn--primary ru-manual-link" style="font-size:0.72rem;padding:0.3rem 0.7rem">Enlazar fuente</button>
+        ${state}</div>
+      <div class="u-row u-mt-045 u-wrap">
+        <a class="btn btn--ghost btn--compact" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
+        <button type="button" class="btn btn--primary ru-manual-link btn--compact">Enlazar fuente</button>
       </div>
     </div>`;
   }
@@ -216,7 +226,7 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   // Las fuentes de cronometrador sin fetcher necesitan el aviso para evitar que el
   // cron parezca activo. En PDF el volcado manual ya queda explícito en el origen.
   const manualWarn = UCI_MANUAL_SOURCES.has(src) && src !== 'pdf'
-    ? `<div class="ru-origin__warn" style="color:#e0a400;font-size:0.72rem;margin-top:0.3rem">
+    ? `<div class="ru-origin__warn u-c-pending u-fs-072 u-mt-030">
         ⚠ Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
         Sus resultados se mantienen manualmente; no se puede programar un volcado automático para esta fuente.
       </div>`
@@ -224,10 +234,10 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   const isOneDay = race?.raceFormat === 'one_day';
   const canDumpStage = !UCI_MANUAL_SOURCES.has(src) && rd.stageNumber != null;
   const dumpButton = isOneDay
-    ? `<button type="button" class="btn btn--primary ru-run-cron" style="font-size:0.72rem;padding:0.3rem 0.7rem"
+    ? `<button type="button" class="btn btn--primary ru-run-cron btn--compact"
         title="Re-vuelca esta carrera, respetando las clasificaciones bloqueadas manualmente.">▶ Volcar esta carrera</button>`
     : (canDumpStage
-        ? `<button type="button" class="btn btn--primary ru-run-cron-stage" style="font-size:0.72rem;padding:0.3rem 0.7rem"
+        ? `<button type="button" class="btn btn--primary ru-run-cron-stage btn--compact"
             title="Vuelca SOLO esta etapa: re-escribe únicamente su clasificación, sin re-volcar las demás etapas de la carrera. Respeta las clasificaciones bloqueadas.">▶ Volcar esta etapa</button>`
         : '');
   return `<div class="ru-origin">
@@ -236,10 +246,10 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
       ${lastDumpAt ? `<span class="u-c-dim"> · último volcado ${formatDateTime(lastDumpAt)}</span>` : ''}
     </div>
     ${manualWarn}
-    ${link.syncError ? `<div style="color:#e55;font-size:0.72rem;margin-top:0.25rem">${esc(link.syncError)}</div>` : ''}
-    <div class="u-row" style="gap:0.5rem;margin-top:0.45rem;flex-wrap:wrap">
-      <button type="button" class="btn btn--ghost ru-manual-link" style="font-size:0.72rem;padding:0.3rem 0.7rem">Cambiar enlace</button>
-      <button type="button" class="btn btn--ghost ru-unlink" style="font-size:0.72rem;padding:0.3rem 0.7rem;color:#e55">Desenlazar</button>
+    ${link.syncError ? `<div class="u-c-danger u-fs-072 u-mt-025">${esc(link.syncError)}</div>` : ''}
+    <div class="u-row u-mt-045 u-wrap">
+      <button type="button" class="btn btn--ghost ru-manual-link btn--compact">Cambiar enlace</button>
+      <button type="button" class="btn btn--ghost ru-unlink btn--compact u-c-danger">Desenlazar</button>
       ${dumpButton}
     </div>
   </div>`;
@@ -279,8 +289,8 @@ function _ruClassRowHtml(st) {
   return panelClassificationRowHtml({label:_ruClassLabel(st),title:st.eventName,rowCount:st.rowCount,leader:st._leaderName||st.winnerName,locked,chipsHtml:'',actionsHtml:`
     ${officialSwitch}
     ${lockSwitch}
-    <button type="button" class="btn btn--ghost ru-edit" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem">Editar</button>
-    <button type="button" class="btn btn--ghost ru-delete" data-id="${esc(st.id)}" style="font-size:0.72rem;padding:0.25rem 0.7rem;color:#e55" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>`});
+    <button type="button" class="btn btn--ghost ru-edit btn--row" data-id="${esc(st.id)}">Editar</button>
+    <button type="button" class="btn btn--ghost ru-delete btn--row u-c-danger" data-id="${esc(st.id)}" aria-label="Borrar ${esc(_ruClassLabel(st))}">Borrar</button>`});
 }
 
 function _ruSyncPolicyHtml(rd, race, link) {
@@ -310,19 +320,19 @@ function _ruSyncPolicyHtml(rd, race, link) {
   }
   const stageLabel = rd.stageNumber == null ? 'esta carrera' : `esta etapa (${rd.stageNumber === 0 ? 'prólogo' : 'etapa ' + rd.stageNumber})`;
   const scopeOptions = resultSyncScopeOptionsVisible(race)
-    ? `<div class="u-row" style="gap:0.6rem;flex-wrap:wrap">
+    ? `<div class="u-row u-gap-060 u-wrap">
         <label><input type="radio" name="ru-sync-scope" value="race" ${defaultScope === 'race' ? 'checked' : ''}> Toda la carrera</label>
         <label><input type="radio" name="ru-sync-scope" value="day" ${defaultScope === 'day' ? 'checked' : ''}> Solo ${esc(stageLabel)}</label>
       </div>`
     : '';
-  return `<div class="ru-sync-policy" style="margin-top:0.65rem">
-    <div style="font-size:0.76rem;color:var(--text-muted)">Horario de volcado automático</div>
-    <div style="margin-top:0.55rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem">
+  return `<div class="ru-sync-policy u-mt-065">
+    <div class="u-fs-076 u-c-muted">Horario de volcado automático</div>
+    <div class="ru-sync-box">
       ${scopeOptions}
-      <div class="u-row" style="gap:0.55rem;flex-wrap:wrap;${scopeOptions ? 'margin-top:0.5rem;' : ''}align-items:end">
-        <label> <span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" style="width:7rem"></label>
-        <label> <span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" style="width:7rem"></label>
-        <button type="button" class="btn btn--primary ru-sync-save" style="font-size:0.72rem;padding:0.3rem 0.7rem">Guardar ventana</button>
+      <div class="u-row u-gap-055 u-wrap u-items-end${scopeOptions ? ' u-mt-050' : ''}">
+        <label> <span class="u-c-dim">Apertura (España)</span><input id="ru-sync-start-time" type="time" value="${esc(startTime)}" class="u-w-700"></label>
+        <label> <span class="u-c-dim">Cierre (España)</span><input id="ru-sync-stop-time" type="time" value="${esc(stopTime)}" class="u-w-700"></label>
+        <button type="button" class="btn btn--primary ru-sync-save btn--compact">Guardar ventana</button>
       </div>
     </div>
   </div>`;
@@ -430,7 +440,7 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // `updatedAt` vive en cada clasificación: no usar `link.lastSyncedAt`, que
   // pertenece a la carrera completa y puede corresponder a otra etapa.
   let html = _ruOriginHtml(rd, race, link, [...visibleMine, ...finals]);
-  html += `<div id="ruDetectPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>`;
+  html += `<div id="ruDetectPanel" class="u-mt-050 u-fs-080" style="display:none"></div>`;
   html += _ruSyncPolicyHtml(rd, race, link);
 
   // Las clasificaciones ya volcadas se muestran SIEMPRE (aunque la carrera se haya
@@ -451,8 +461,8 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // Crear una clasificación A MANO (pruebas sin fuente automática, o un tipo que el
   // cron no trajo). La fila se inserta SIN bloquear → placeholder que la fuente
   // oficial PISA si llega (mismo modelo que el volcado PDF). Ver _ruCreateClass.
-  html += `<div class="u-row" style="margin-top:0.7rem;gap:0.5rem;flex-wrap:wrap">
-    <button type="button" class="btn btn--ghost ru-new" style="font-size:0.74rem;padding:0.3rem 0.7rem"
+  html += `<div class="u-row u-mt-070 u-gap-050 u-wrap">
+    <button type="button" class="btn btn--ghost ru-new u-fs-074 u-py-030 u-px-070"
       title="Crea una clasificación vacía para teclear sus resultados a mano. Se crea como placeholder: si luego la UCI/PDF publica esa misma clasificación, su volcado la sustituye.">＋ Nueva clasificación</button>
   </div>`;
 
@@ -491,92 +501,17 @@ function _ruOpenManualLink(rd, race) {
   const panel = document.getElementById('ruDetectPanel');
   if (!panel) return;
   panel.style.display = 'block';
-  panel.innerHTML = `<div class="u-row" style="gap:0.5rem;align-items:center;flex-wrap:wrap">
-    <input type="number" id="ruManualComp" placeholder="competitionId" min="1" style="width:9.5rem">
-    <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" style="width:11rem"
+  panel.innerHTML = `<div class="u-row u-gap-050 u-items-center u-wrap">
+    <input type="number" id="ruManualComp" placeholder="competitionId" min="1" class="u-w-950">
+    <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" class="u-w-1100"
       title="Solo para Campeonatos Nacionales: race.Id de DataRide de la prueba dentro de la competición. Vacío = competición entera.">
-    <button type="button" class="btn btn--primary ru-manual-save" style="font-size:0.7rem;padding:0 0.6rem">Guardar enlace</button>
+    <button type="button" class="btn btn--primary ru-manual-save u-fs-070 u-py-0 u-px-060">Guardar enlace</button>
   </div>`;
   panel.querySelector('.ru-manual-save').addEventListener('click', () => {
     const comp = parseInt(document.getElementById('ruManualComp').value, 10);
     if (!comp) { alertDialog('Introduce un competitionId numérico.', { title: 'Falta el ID' }); return; }
     const event = parseInt(document.getElementById('ruManualUciRaceId').value, 10) || 0;
     _ruSaveLink(rd, race, comp, event);
-  });
-}
-
-// Compatibilidad temporal con enlaces profundos antiguos: ya no propone candidatos.
-async function _ruOpenDetect(rd, race) {
-  _ruOpenManualLink(rd, race);
-  return;
-  const panel = document.getElementById('ruDetectPanel');
-  if (!panel) return;
-  panel.style.display = 'block';
-  panel.innerHTML = '<span style="color:var(--text-muted)">Cargando candidatos UCI…</span>';
-
-  let rec = null, reportFailed = false;
-  try {
-    const { index } = await _loadUciReport();
-    rec = index.get(rd.raceId) || null;
-  } catch (err) {
-    reportFailed = true;
-  }
-
-  const manualRow = `
-    <div class="u-row" style="gap:0.5rem;margin-top:0.5rem;align-items:center;flex-wrap:wrap">
-      <input type="number" id="ruManualComp" placeholder="competitionId" min="1" style="width:9.5rem">
-      <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" style="width:11rem"
-             title="Solo para Campeonatos Nacionales: race.Id de DataRide de la prueba dentro de la competición. Vacío = competición entera.">
-      <button type="button" class="btn btn--primary ru-manual-save" style="font-size:0.7rem;padding:0 0.6rem">Enlazar el ID del campo</button>
-    </div>`;
-
-  let bodyHtml = '';
-  if (reportFailed) {
-    bodyHtml = `<span style="color:#e55">No se pudo cargar el reporte de matching.</span>
-      <div style="color:var(--text-muted);margin-top:0.3rem">Introduce el <strong>competitionId</strong> a mano.</div>`;
-  } else if (!rec) {
-    bodyHtml = `<div style="color:var(--text-muted)">Esta carrera no está en el reporte de matching
-      (futura aún sin publicar en la UCI, o sin equivalente). Introduce el <strong>competitionId</strong>
-      a mano si lo conoces.</div>`;
-  } else if (rec.cnMatch && rec.cnMatch.uciRaceId) {
-    // Campeonato Nacional: el matcher resolvió la PRUEBA concreta dentro del competitionId
-    // del campeonato (por edad/género/tipo). Se enlaza a esa prueba (uciRaceId), no a la
-    // competición entera → ya no hay "colisión": cada ficha CN apunta a su prueba.
-    bodyHtml = `<div style="margin-bottom:0.3rem">Prueba propuesta dentro del Campeonato:</div>`
-      + _uciCandidateRow(rd.raceId, {
-          competitionId: rec.cnMatch.competitionId,
-          uciRaceId: rec.cnMatch.uciRaceId,
-          uciName: rec.cnMatch.uciRaceName,
-          uciClass: 'CN', classMatch: true,
-        }, { recommended: true });
-  } else if (rec.bucket === 'unique' && rec.match) {
-    bodyHtml = `<div style="margin-bottom:0.3rem">Candidato propuesto:</div>`
-      + _uciCandidateRow(rd.raceId, rec.match, { recommended: true });
-  } else if (rec.bucket === 'ambiguous' && Array.isArray(rec.candidates) && rec.candidates.length) {
-    if (rec.collision && Array.isArray(rec.collision.rivals) && rec.collision.rivals.length) {
-      const rivals = rec.collision.rivals.map(rv =>
-        `«${esc(rv.name || '')}» <span style="color:var(--text-muted)">(${esc(rv.class || '')}/${esc(rv.gender || '')})</span>`).join(', ');
-      bodyHtml += `<div style="padding:0.35rem 0.5rem;background:rgba(240,160,0,0.12);border-radius:6px;margin-bottom:0.5rem;line-height:1.4">
-          ⚠️ <strong>Colisión</strong>: la UCI publica una sola competición (#${rec.collision.competitionId}) para este par.
-          Comparte candidato con: ${rivals}.
-        </div>`;
-    }
-    bodyHtml += `<div style="margin-bottom:0.3rem">${rec.candidates.length} candidato(s) — elige:</div>`
-      + rec.candidates.map(c => _uciCandidateRow(rd.raceId, c)).join('');
-  } else {
-    bodyHtml = `<div style="color:var(--text-muted)">Sin candidatos en el reporte. Introduce el <strong>competitionId</strong> a mano.</div>`;
-  }
-
-  panel.innerHTML = bodyHtml + manualRow;
-
-  panel.querySelectorAll('.u-uci-pick').forEach(btn =>
-    btn.addEventListener('click', () => _ruSaveLink(rd, race, parseInt(btn.dataset.comp, 10), parseInt(btn.dataset.uciraceid || '0', 10))));
-  panel.querySelector('.ru-manual-save')?.addEventListener('click', () => {
-    const v = parseInt(document.getElementById('ruManualComp')?.value, 10);
-    if (!v) { alertDialog('Introduce un competitionId numérico en el campo.', { title: 'Falta el ID' }); return; }
-    // uciRaceId opcional para enlace manual de una prueba CN (vacío = competición entera).
-    const ev = parseInt(document.getElementById('ruManualUciRaceId')?.value, 10) || 0;
-    _ruSaveLink(rd, race, v, ev);
   });
 }
 

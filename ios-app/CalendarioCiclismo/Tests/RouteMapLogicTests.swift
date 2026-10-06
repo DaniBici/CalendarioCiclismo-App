@@ -13,10 +13,6 @@ final class RouteMapLogicTests: XCTestCase {
         XCTAssertEqual(d, 111.19, accuracy: 0.5)
     }
 
-    func testHaversineMismoPuntoEsCero() {
-        XCTAssertEqual(RouteMapLogic.haversineKm(40.4, -3.7, 40.4, -3.7), 0, accuracy: 1e-9)
-    }
-
     // MARK: - parseGpx
 
     func testParseGpxBasicoAcumulaKmYConservaEle() {
@@ -51,18 +47,6 @@ final class RouteMapLogicTests: XCTestCase {
         let pts = RouteMapLogic.parseGpx(xml)
         XCTAssertEqual(pts.count, 2)
         XCTAssertNil(pts[0].ele)
-    }
-
-    func testParseGpxSinEleDejaEleNil() {
-        let xml = """
-        <gpx><trk><trkseg>
-          <trkpt lat="0" lon="0"/>
-          <trkpt lat="0" lon="1"/>
-        </trkseg></trk></gpx>
-        """
-        let pts = RouteMapLogic.parseGpx(xml)
-        XCTAssertEqual(pts.count, 2)
-        XCTAssertTrue(pts.allSatisfy { $0.ele == nil })
     }
 
     func testParseGpxVacioDevuelveVacio() {

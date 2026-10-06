@@ -2,11 +2,10 @@
 
 import { fileURLToPath } from 'node:url';
 import {
-  CARACOL_SOURCE_URL, CARACOL_VUELTA_INDEX_URL, HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
+  HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
   RTVE_LIVES_URL, RTVE_VUELTA_SCHEDULE_URL, RTVE_VUELTA_VIDEOS_URL,
   contentHash, dateKeyInZone, fold,
   desiredBroadcasts, matchObservation, newBroadcastRow, normalizedObservation, parseHboCatalog,
-  parseCaracolDailyArticle, parseCaracolGuide, parseCaracolVueltaArticleUrls,
   parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveRaceHintMatch,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveVueltaExternalEventId,
 } from './broadcasts-sync-core.mjs';
@@ -33,7 +32,6 @@ export { collectLequipe } from './lequipe.mjs';
 
 const ROLLBACK_ID = process.argv.find((arg) => arg.startsWith('--rollback='))?.split('=')[1] || null;
 const SOURCE_ARG = process.argv.find((arg) => arg.startsWith('--source='))?.split('=')[1] || 'all';
-// Caracol queda fuera de la pasada por defecto: solo se ejecuta con --source=caracol.
 export const SOURCES = SOURCE_ARG === 'all'
   ? new Set(['hbo_max', 'rtve', 'eitb', 'sporza', 'rtbf', 'rai', 'lequipe'])
   : new Set(SOURCE_ARG.split(','));
@@ -134,71 +132,6 @@ export async function collectRtve(fetcher = fetchHtml, now = new Date()) {
     })
     .map(normalizedObservation);
   invariant(observations.length > 0, 'RTVE no devolvió emisiones de ciclismo en la ventana -1/+8 días');
-  return observations;
-}
-
-// Jornadas de La Vuelta masculina en la ventana; el nombre de la carrera varía por edición.
-export async function loadVueltaDateKeys(client, minDateKey, maxDateKey) {
-  const { rows } = await client.query(
-    `SELECT DISTINCT d."dateKey"
-       FROM public.race_days d JOIN public.races r ON r.id = d."raceId"
-      WHERE r.gender = 'male'
-        AND r.name ~* '^la vuelta( ciclista a españa)?$'
-        AND d."dateKey" BETWEEN $1 AND $2
-        AND d."editorialStatus" = 'published'
-        AND NOT COALESCE(d."isRestDay", false)
-        AND NOT COALESCE(d."isCancelledDay", false)
-      ORDER BY d."dateKey"`,
-    [minDateKey, maxDateKey],
-  );
-  return rows.map((row) => row.dateKey);
-}
-
-// Caracol solo cubre La Vuelta. `options.raceDateKeys(min, max)` devuelve las
-// jornadas del calendario en la ventana: sin ninguna, el vacío es un diagnóstico
-// y no se consulta la fuente. Con La Vuelta en la ventana, un error HTTP de la
-// guía o de la portada, o la ausencia de emisiones utilizables, es un fallo.
-export async function collectCaracol(fetcher = fetchHtml, now = new Date(), options = {}) {
-  const today = dateKeyInZone(now, 'America/Bogota');
-  const minDate = new Date(`${today}T00:00:00Z`); minDate.setUTCDate(minDate.getUTCDate() - 1);
-  const maxDate = new Date(`${today}T00:00:00Z`); maxDate.setUTCDate(maxDate.getUTCDate() + 8);
-  const minKey = minDate.toISOString().slice(0, 10);
-  const maxKey = maxDate.toISOString().slice(0, 10);
-  if (options.raceDateKeys && !(await options.raceDateKeys(minKey, maxKey)).length) {
-    options.diagnostics?.push({
-      source: 'caracol', action: 'outside_race_window', sourceUrl: CARACOL_SOURCE_URL,
-      detail: `La Vuelta no tiene jornadas entre ${minKey} y ${maxKey}`,
-    });
-    return [];
-  }
-  const [guideHtml, indexHtml] = await Promise.all([
-    fetcher(CARACOL_SOURCE_URL),
-    fetcher(CARACOL_VUELTA_INDEX_URL),
-  ]);
-  const events = parseCaracolGuide(guideHtml);
-  const articleUrls = parseCaracolVueltaArticleUrls(indexHtml);
-  const articleResults = await Promise.allSettled(articleUrls.map((url) => fetcher(url)));
-  articleResults.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      events.push(...parseCaracolDailyArticle(result.value, articleUrls[index]));
-    }
-  });
-
-  const bestByStage = new Map();
-  for (const event of events) {
-    const current = bestByStage.get(event.externalEventId);
-    if (!current || (event.evidenceRank || 0) > (current.evidenceRank || 0)) {
-      bestByStage.set(event.externalEventId, event);
-    }
-  }
-  const observations = [...bestByStage.values()]
-    .filter((event) => {
-      const date = new Date(`${event.dateKey}T00:00:00Z`);
-      return date >= minDate && date <= maxDate;
-    })
-    .map(normalizedObservation)
-    .sort((a, b) => a.startTimeUtc.localeCompare(b.startTimeUtc));
-  invariant(observations.length > 0, 'Caracol no devolvió emisiones utilizables en la ventana -1/+8 días');
   return observations;
 }
 
@@ -430,11 +363,6 @@ function isOfficialObservation(observation) {
       return (sourceHost === 'www.eitb.eus' || sourceHost === 'etbon.eus')
         && isEtbonMediaUrl(observation.broadcastUrl);
     }
-    if (observation.source === 'caracol') {
-      const sourceOfficial = sourceHost === 'www.noticiascaracol.com' || sourceHost === 'noticiascaracol.com';
-      const broadcastOfficial = broadcastHost === 'www.noticiascaracol.com' || broadcastHost === 'noticiascaracol.com';
-      return sourceOfficial && broadcastOfficial;
-    }
     if (observation.source === 'rai') {
       return !!raiUrl(observation.sourceUrl, '/') && !!raiUrl(observation.broadcastUrl,
         ['live', 'delayed', 'scheduled'].includes(observation.mediaKind) ? '/dirette/' : '/video/');
@@ -471,19 +399,6 @@ export function adoptionCandidate(observation, desired, dayRows) {
     const rows = dayRows.filter((row) => {
       if (row.country !== 'ES' || !canonical.has(row.channel)) return false;
       try { return new URL(row.url).hostname.endsWith('.rtve.es'); } catch { return false; }
-    });
-    if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
-    if (rows.length === 0) return { status: 'none', rows: [] };
-    return rows.length === 1 ? { status: 'adoptable', rows } : { status: 'conflict', rows };
-  }
-  if (observation.source === 'caracol') {
-    const canonical = new Set(['Caracol', 'Caracol TV', 'Caracol / Ditu', 'Caracol Sports / Ditu']);
-    const rows = dayRows.filter((row) => {
-      if (row.country !== 'LATAM' || !canonical.has(row.channel)) return false;
-      try {
-        const host = new URL(row.url).hostname;
-        return host === 'www.noticiascaracol.com' || host === 'noticiascaracol.com';
-      } catch { return false; }
     });
     if (rows.some((row) => row.automationLocked === true)) return { status: 'manual_lock', rows };
     if (rows.length === 0) return { status: 'none', rows: [] };
@@ -642,7 +557,7 @@ export function mergeManagedBroadcast(current, desired, source, now = new Date()
   }
   if (source === 'rtbf') next.note = withRtbfTransitionNote(current.note, desired.note);
   if (source === 'eitb') next.note = withLinearTransitionNote(current.note, desired.note);
-  if (source === 'sporza' || source === 'caracol' || source === 'lequipe') next.note = current.note || null;
+  if (source === 'sporza' || source === 'lequipe') next.note = current.note || null;
   return next;
 }
 
@@ -1021,19 +936,6 @@ export async function run({ client = null, collectors = {} } = {}) {
         : collectSporza(new Date(), { diagnostics })));
     }
     catch (error) { failures.push({ source: 'sporza', sourceUrl: SPORZA_SCHEDULE_BASE_URL, error }); }
-  }
-  if (SOURCES.has('caracol')) {
-    try {
-      observations.push(...await (collectors.caracol
-        ? collectors.caracol()
-        : collectCaracol(fetchHtml, new Date(), {
-          diagnostics,
-          raceDateKeys: (min, max) => (client
-            ? loadVueltaDateKeys(client, min, max)
-            : withClient((db) => loadVueltaDateKeys(db, min, max))),
-        })));
-    }
-    catch (error) { failures.push({ source: 'caracol', sourceUrl: CARACOL_SOURCE_URL, error }); }
   }
   if (SOURCES.has('rtbf')) {
     try { observations.push(...await (collectors.rtbf || collectRtbf)()); }

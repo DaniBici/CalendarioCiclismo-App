@@ -191,12 +191,16 @@ object RaceLogic {
         return domains.any { host == it || host.endsWith(".$it") }
     }
 
-    fun isReviveBroadcast(broadcast: Broadcast): Boolean {
-        val url = broadcast.url?.takeIf { it.isNotEmpty() } ?: return false
-        if (broadcast.showInRevive) return true
-        val channel = (broadcast.channel ?: "").lowercase()
-        return channel.contains("eurosport") || channel.contains("hbo max") ||
-            isSocialReplay(url) || isEtbOnDemand(url)
+    fun isReviveBroadcast(broadcast: Broadcast): Boolean =
+        isReviveBroadcast(broadcast.channel, broadcast.url, broadcast.showInRevive)
+
+    /** Criterio Revive por canal, URL y marca editorial; lo comparte ciclocross. */
+    fun isReviveBroadcast(channel: String?, url: String?, showInRevive: Boolean): Boolean {
+        val link = url?.takeIf { it.isNotEmpty() } ?: return false
+        if (showInRevive) return true
+        val name = (channel ?: "").lowercase()
+        return name.contains("eurosport") || name.contains("hbo max") ||
+            isSocialReplay(link) || isEtbOnDemand(link)
     }
 
     fun shouldShowBroadcastNote(hasResults: Boolean, isRevive: Boolean, showInRevive: Boolean): Boolean =

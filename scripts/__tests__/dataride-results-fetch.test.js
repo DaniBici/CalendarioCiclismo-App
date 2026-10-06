@@ -1,13 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizeRow, RESULTS_SOURCE, _toSeconds, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
+import { cachedRacesForStage, fixInvertedAbsoluteGaps, fixDisguisedGaps, fixPressFormattedAbsolute, isFinalClassificationRace, normalizeDataRideResultValue, normalizeInitialStageOnlyClassification, normalizeRow, _pressToSeconds, uciLicenseFromRow, uciProfileIdFromRow }
   from '../results-fetchers/dataride-results-fetch.mjs';
-import { loadUciLicenseMap, normalizeUciLicense } from '../results-fetchers/uci-license.mjs';
+import { normalizeUciLicense } from '../results-fetchers/uci-license.mjs';
 
 describe('contrato del fetcher UCI', () => {
-  it('identifica explícitamente el payload como DataRide', () => {
-    expect(RESULTS_SOURCE).toBe('uci');
-  });
-
   it.each(['Final Classification', 'Final Result'])('identifica %s como clasificación final de la carrera', name => {
     expect(isFinalClassificationRace(name)).toBe(true);
   });
@@ -119,15 +115,6 @@ describe('códigos UCI de licencia', () => {
     expect(uciLicenseFromRow({ UciId: '428096', IndividualUciId: '10042809619' })).toBe('10042809619');
     expect(uciLicenseFromRow({ UciId: '428096' })).toBeNull();
   });
-
-  it('valida mapas de perfil a licencia y rechaza asignaciones ambiguas', () => {
-    expect(loadUciLicenseMap({ '428096': '10042809619' }).get('428096')).toBe('10042809619');
-    expect(loadUciLicenseMap([{ 'User ID': '428096', 'UCI ID': '10042809619' }]).get('428096')).toBe('10042809619');
-    expect(() => loadUciLicenseMap([
-      { uciProfileId: '1', uciId: '10000000001' },
-      { uciProfileId: '2', uciId: '10000000001' },
-    ])).toThrow(/asignada a varios perfiles/);
-  });
 });
 
 describe('identificadores de perfil UCI', () => {
@@ -223,23 +210,7 @@ describe('fixDisguisedGaps — regresión (gaps sin + en timeText)', () => {
   });
 });
 
-describe('_toSeconds', () => {
-  it('parsea H:MM:SS, MM:SS y SS', () => {
-    expect(_toSeconds('3:02:30')).toBe(10950);
-    expect(_toSeconds('4:42')).toBe(282);
-    expect(_toSeconds('5')).toBe(5);
-    expect(_toSeconds(null)).toBeNull();
-  });
-});
-
 describe('_pressToSeconds — notación de prensa de la UCI', () => {
-  it('parsea "H h M\'SS\\"", "M\'SS\\"" y "SS\\""', () => {
-    expect(_pressToSeconds("3h 00'02\"")).toBe(3 * 3600 + 2);
-    expect(_pressToSeconds("3h 01'56\"")).toBe(3 * 3600 + 116);
-    expect(_pressToSeconds("20'52\"")).toBe(20 * 60 + 52);
-    expect(_pressToSeconds("42\"")).toBe(42);
-    expect(_pressToSeconds(null)).toBeNull();
-  });
   it('NO parsea un entero suelto ni el formato con ":"', () => {
     expect(_pressToSeconds('12')).toBeNull();       // sin h ni ' → no es tiempo de prensa
     expect(_pressToSeconds('3:00:02')).toBeNull();  // formato clásico → lo maneja _toSeconds

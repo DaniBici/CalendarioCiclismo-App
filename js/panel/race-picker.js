@@ -2,9 +2,9 @@
 //  PANEL DE ADMINISTRACIÓN — Selección de carrera para una jornada y alta de carrera nueva
 // ─────────────────────────────────────────────────────────────────
 
-import { attachCountryAutocomplete } from '../country-select.js?v=20260917cxflags';
+import { attachCountryAutocomplete } from '../country-select.js';
 import { supabase, countryFlag } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
 import { attachInlineUpload } from './uploads.js';
@@ -21,8 +21,7 @@ import { renderRacesView } from './races-view.js';
 function raceModalBodyHtml() {
   return `
     <div class="modal__search">
-      <input type="text" id="raceSearch" placeholder="Buscar carrera…"
-             style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.875rem;padding:0.5rem 0.75rem;outline:none">
+      <input type="text" id="raceSearch" placeholder="Buscar carrera…" class="race-search-input">
     </div>
     <div class="modal__list" id="raceList">
       <div id="raceSuggestionsSection" style="display:none">
@@ -34,7 +33,7 @@ function raceModalBodyHtml() {
       </div>
       <div id="raceListGeneral"></div>
     </div>
-    <div style="padding:0.75rem 0 0;border-top:1px solid var(--border);margin-top:0.75rem">
+    <div class="race-modal-footer">
       <button class="btn btn--ghost btn--full" id="newRaceBtn">+ Crear carrera nueva</button>
     </div>`;
 }
@@ -128,7 +127,7 @@ function renderRaceModal(query) {
 
     generalEl.innerHTML = '';
     if (rest.length === 0 && suggested.length === 0) {
-      generalEl.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.8rem">Sin carreras</div>`;
+      generalEl.innerHTML = `<div class="panel-empty">Sin carreras</div>`;
     } else {
       sorted(rest).forEach(r => generalEl.appendChild(buildRaceOption(r, false)));
     }
@@ -142,7 +141,7 @@ function renderRaceModal(query) {
 
     generalEl.innerHTML = '';
     if (filtered.length === 0) {
-      generalEl.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.8rem">Sin resultados</div>`;
+      generalEl.innerHTML = `<div class="panel-empty">Sin resultados</div>`;
     } else {
       sorted(filtered).forEach(r => generalEl.appendChild(buildRaceOption(r, suggestedIds.has(r.id))));
     }
@@ -154,11 +153,6 @@ function formatDateLabel(dateKey) {
   const [y, m, d] = dateKey.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
-}
-
-function renderRaceList(races) {
-  // Alias de compatibilidad — redirige al nuevo sistema
-  renderRaceModal('');
 }
 
 function selectRace(race) {
@@ -284,19 +278,19 @@ function newRaceBodyHtml() {
       <label>Logo (URL, opcional)</label>
       <div class="field-upload-wrap" id="nr-logo-wrap"><input type="url" id="nr-logo" placeholder="https://…/logo.png"></div>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.5rem 0 0.25rem">
+    <div class="u-row nr-check-row nr-check-row--first">
       <input class="u-checkbox" type="checkbox" id="nr-hideFlag">
       <span class="u-collapse-header" onclick="document.getElementById('nr-hideFlag').click()">Ocultar bandera</span>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.25rem 0 0">
+    <div class="u-row nr-check-row">
       <input class="u-checkbox" type="checkbox" id="nr-isGrandTour">
       <span class="u-collapse-header" onclick="document.getElementById('nr-isGrandTour').click()">Gran Vuelta</span>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.25rem 0 0">
-      <input type="checkbox" id="nr-isNoClickable" style="width:15px;height:15px;accent-color:#f90;cursor:pointer;flex-shrink:0;position:relative;z-index:1">
-      <span onclick="document.getElementById('nr-isNoClickable').click()" style="font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#f90;cursor:pointer;user-select:none">No clicable</span>
+    <div class="u-row nr-check-row">
+      <input type="checkbox" id="nr-isNoClickable" class="u-checkbox nr-flag-check">
+      <span onclick="document.getElementById('nr-isNoClickable').click()" class="u-collapse-header nr-flag-label">No clicable</span>
     </div>
-    <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:flex-end">
+    <div class="panel-form-actions">
       <button class="btn btn--primary" id="newRaceSaveBtn">Crear carrera</button>
     </div>
   `;
@@ -480,7 +474,7 @@ async function saveNewRace() {
       selectRace(newRace);
     }
   } catch (err) {
-    errDiv.textContent = 'Error al guardar la carrera.';
+    errDiv.textContent = err?.code === '23514' ? err.message : 'Error al guardar la carrera.';
     errDiv.style.display = 'block';
   }
 }

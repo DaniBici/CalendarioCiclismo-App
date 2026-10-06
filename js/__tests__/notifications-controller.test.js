@@ -39,22 +39,19 @@ function harness({fills=[],counts=[],confirmations=[],responses=[],area='road'}=
 }
 
 describe('destinos CX del formulario común de Notificaciones',()=>{
-  it('borra la carrera anterior al limpiar y bloquea un destino CX mientras carga',async()=>{
+  it('limpiar borra la carrera y retira la consulta pendiente; un destino CX en carga queda bloqueado',async()=>{
     const read=deferred(),h=harness({fills:[read]});await h.setup();h.node('push-deepLinkCxRace').value='cx-a';h.clear();await h.select('cxRace');
     expect(h.node('push-deepLinkCxRace').value).toBe('');expect(h.node('push-deepLinkCxRace').disabled).toBe(true);
     expect(()=>h.target()).toThrow();h.node('push-title').value='Borrador';await h.send();expect(h.context.fetch).not.toHaveBeenCalled();
     read.resolve(['cx-a']);await settle();
+    const later=deferred(),pending=harness({fills:[later]});await pending.setup();await pending.select('cxRace');pending.clear();pending.node('push-title').value='Borrador posterior';
+    later.reject(Error('Lectura anterior'));await settle();expect(pending.node('push-deepLinkCxRace').value).toBe('');expect(pending.context.showToast).not.toHaveBeenCalled();
+    expect(pending.node('push-title').value).toBe('Borrador posterior');expect(pending.target()).toMatchObject({category:'general'});
   });
   it('una carga antigua no sustituye la selección CX vigente',async()=>{
     const old=deferred(),fresh=deferred(),h=harness({fills:[old,fresh]});await h.setup();await h.select('cxRace');await h.select('tab');await h.select('cxRace');
     fresh.resolve(['cx-b']);await settle();h.node('push-deepLinkCxRace').value='cx-b';await h.node('push-deepLinkCxRace').dispatch('change');
     old.resolve(['cx-a']);await settle();expect(h.node('push-deepLinkCxRace').value).toBe('cx-b');expect(h.target()).toMatchObject({category:'cyclocross',cxRaceId:'cx-b',deepLink:'cxRace/cx-b'});
-  });
-  it('descarta un error de catálogo anterior y permite recuperar el catálogo vigente',async()=>{
-    const old=deferred(),h=harness({fills:[old]});await h.setup();await h.select('cxRace');await h.select('tab');
-    h.node('push-deepLinkTab').value='cyclocross';old.reject(Error('Consulta retirada'));await settle();
-    expect(h.context.showToast).not.toHaveBeenCalled();expect(h.target()).toMatchObject({category:'cyclocross',deepLink:'cyclocross'});
-    await h.select('cxRace');await settle();expect(h.node('push-deepLinkCxRace').disabled).toBe(false);
   });
   it('doble pulsación durante el recuento y confirmación no duplica la petición',async()=>{
     const count=deferred(),confirmation=deferred(),h=harness({counts:[count],confirmations:[confirmation]});await h.setup();
@@ -69,33 +66,28 @@ describe('destinos CX del formulario común de Notificaciones',()=>{
     const h=harness();await h.setup();h.node('push-title').value='Conservar';await h.select('cxRace');await settle();h.node('push-deepLinkCxRace').value='cx-a';await h.send();
     expect(h.context.fetch).not.toHaveBeenCalled();expect(h.node('push-title').value).toBe('Conservar');expect(h.node('push-deepLinkCxRace').value).toBe('cx-a');expect(h.node('sendPushBtn').disabled).toBe(false);
   });
-  it('un catálogo fallido impide usar el destino anterior y permite reintento',async()=>{
+  it('un catálogo fallido impide usar el destino anterior, descarta errores antiguos y permite reintento',async()=>{
     const failing=deferred(),h=harness({fills:[failing]});await h.setup();h.node('push-deepLinkCxRace').value='cx-a';await h.select('cxRace');
     failing.reject(Error('Catálogo no disponible'));await settle();expect(()=>h.target()).toThrow();expect(h.node('push-title').disabled).toBe(false);
     await h.select('tab');await h.select('cxRace');await settle();expect(h.node('push-deepLinkCxRace').disabled).toBe(false);
+    const previous=deferred(),stale=harness({fills:[previous]});await stale.setup();await stale.select('cxRace');await stale.select('tab');
+    stale.node('push-deepLinkTab').value='cyclocross';previous.reject(Error('Consulta retirada'));await settle();
+    expect(stale.context.showToast).not.toHaveBeenCalled();expect(stale.target()).toMatchObject({category:'cyclocross',deepLink:'cyclocross'});
+    await stale.select('cxRace');await settle();expect(stale.node('push-deepLinkCxRace').disabled).toBe(false);
+    const retried=deferred(),retry=harness({fills:[retried]});await retry.setup();retry.node('push-title').value='Título conservado';await retry.select('cxRace');
+    retried.reject(Error('Catálogo no disponible'));await settle();expect(retry.node('push-cx-retry').style.display).toBe('');
+    await retry.node('push-cx-retry').dispatch('click');await settle();expect(retry.node('push-title').value).toBe('Título conservado');
+    expect(retry.node('push-deepLinkCxRace').value).toBe('');expect(retry.node('push-cx-retry').style.display).toBe('none');
   });
-  it('un fallo de envío conserva los campos y permite reintentar el mismo destino',async()=>{
+  it('un fallo de envío o de recuento conserva los campos, presenta el error y libera los controles',async()=>{
     const confirmation=deferred(),failed=deferred(),h=harness({confirmations:[confirmation],responses:[failed]});await h.setup();
     h.node('push-title').value='Reintentar';await h.select('cxRace');await settle();h.node('push-deepLinkCxRace').value='cx-a';
     const sending=h.send();await settle();confirmation.resolve(true);failed.resolve({ok:false,json:async()=>({error:'Fallo local'})});await sending;
     expect(h.node('push-title').value).toBe('Reintentar');expect(h.node('push-deepLinkCxRace').value).toBe('cx-a');expect(h.node('sendPushBtn').disabled).toBe(false);
     expect(h.node('pushSendError').textContent).toBe('Fallo local');
-  });
-  it('Reintentar recupera el catálogo sin perder el título ni reutilizar el destino anterior',async()=>{
-    const failing=deferred(),h=harness({fills:[failing]});await h.setup();h.node('push-title').value='Título conservado';await h.select('cxRace');
-    failing.reject(Error('Catálogo no disponible'));await settle();expect(h.node('push-cx-retry').style.display).toBe('');
-    await h.node('push-cx-retry').dispatch('click');await settle();expect(h.node('push-title').value).toBe('Título conservado');
-    expect(h.node('push-deepLinkCxRace').value).toBe('');expect(h.node('push-cx-retry').style.display).toBe('none');
-  });
-  it('limpiar el formulario retira una consulta pendiente sin modificar el borrador siguiente',async()=>{
-    const read=deferred(),h=harness({fills:[read]});await h.setup();await h.select('cxRace');h.clear();h.node('push-title').value='Borrador posterior';
-    read.reject(Error('Lectura anterior'));await settle();expect(h.node('push-deepLinkCxRace').value).toBe('');expect(h.context.showToast).not.toHaveBeenCalled();
-    expect(h.node('push-title').value).toBe('Borrador posterior');expect(h.target()).toMatchObject({category:'general'});
-  });
-  it('un recuento rechazado presenta el error y libera los controles sin enviar',async()=>{
-    const count=deferred(),h=harness({counts:[count]});await h.setup();h.node('push-title').value='Conservar tras error';
-    const sending=h.send();count.reject(Error('Recuento no disponible'));await sending;expect(h.context.fetch).not.toHaveBeenCalled();
-    expect(h.node('pushSendError').textContent).toBe('Recuento no disponible');expect(h.node('push-title').value).toBe('Conservar tras error');expect(h.node('sendPushBtn').disabled).toBe(false);
+    const rejected=deferred(),counting=harness({counts:[rejected]});await counting.setup();counting.node('push-title').value='Conservar tras error';
+    const pending=counting.send();rejected.reject(Error('Recuento no disponible'));await pending;expect(counting.context.fetch).not.toHaveBeenCalled();
+    expect(counting.node('pushSendError').textContent).toBe('Recuento no disponible');expect(counting.node('push-title').value).toBe('Conservar tras error');expect(counting.node('sendPushBtn').disabled).toBe(false);
   });
   it('programar conserva el mismo destino CX y evita duplicar la petición durante la confirmación',async()=>{
     const confirmation=deferred(),h=harness({confirmations:[confirmation]});await h.setup();await h.select('cxRace');await settle();

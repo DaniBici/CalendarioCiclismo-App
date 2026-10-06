@@ -23,6 +23,84 @@ export function findResultClassificationDuplicate(stages, rd, { kind, scope, isF
     && (isFinal || resultClassificationBelongsToDay(stage, rd, raceDays)));
 }
 
+// ── Alta manual de clasificaciones del panel ─────────────────────────────
+// El id es `ru_<eventId>` y el eventId es SINTÉTICO NEGATIVO determinista (misma
+// convención que los fetchers PDF/Matsport/…: fnv1a(salt+clave)%200000). Negativo
+// → jamás choca con los eventId positivos de DataRide; el offset por slot+clase lo
+// hace único entre clasificaciones de la misma jornada. Se crea SIN bloquear:
+// es un placeholder que la fuente oficial PISA si llega (decisión Dani 2026-06-27;
+// el upsert purga las gemelas sintéticas por raceId+raceDayId+classKind+scope).
+function manualClassificationHash(str) {
+  let h = 0x811c9dc5;
+  for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+  return h;
+}
+// Índice por (classKind, isFinal) para separar el eventId de tipos distintos de la
+// misma jornada. stage→0, gc→1, points→2, kom→3, youth→4, teams→5; +50 si es final.
+const MANUAL_CLASSIFICATION_INDEX = { stage: 0, gc: 1, points: 2, kom: 3, youth: 4, teams: 5 };
+function manualClassificationScope(kind, isFinal) {
+  // Espejo de cómo el cron mapea scope (cosmético: la web agrupa por stageNumber +
+  // classKind, NO usa scope). stage/gc → 'stage'; secundarias overall → 'overall'.
+  if (kind === 'stage' || kind === 'gc') return 'stage';
+  return isFinal ? 'stage' : 'overall';
+}
+
+// Devuelve la fila de race_uci_stages de una clasificación tecleada en el panel.
+// Lanza si ya existe la misma clasificación lógica para la jornada.
+export function manualResultClassificationRow(rd, stages, kind, isFinal, raceDays = [], classLabel = kind) {
+  // Una "final" no cuelga de etapa (stageNumber null, raceDayId null, como el cron).
+  // Si no, cuelga de ESTA jornada.
+  const stageNumber = isFinal ? null : (rd.stageNumber ?? null);
+  const raceDayId = isFinal ? null : rd.id;
+  const scope = manualClassificationScope(kind, isFinal);
+
+  // Guard contra el error más típico: ya existe esa misma clasificación lógica
+  // (raceId ya está fijo por la lista) para esta jornada/scope. Mejor avisar que dejar
+  // que reviente el UNIQUE del eventId/id con un error críptico.
+  const dup = findResultClassificationDuplicate(stages, rd, { kind, scope, isFinal }, raceDays);
+  if (dup) {
+    const lbl = classLabel + (isFinal ? ' (final)' : '');
+    throw new Error(`Ya existe una clasificación «${lbl}» para esta jornada. Edítala desde la lista en vez de crear otra.`);
+  }
+
+  const base = manualClassificationHash(`manual:${rd.raceId}`) % 200000;
+  const slot = (stageNumber == null ? 99 : stageNumber);     // 99 = bloque final
+  const idx = (MANUAL_CLASSIFICATION_INDEX[kind] ?? 9) + (isFinal ? 50 : 0);
+  let eventId = -((base * 10000 + slot * 100 + idx) & 0x7fffffff);
+
+  // Garantizar unicidad de eventId frente a lo ya presente (improbable choque, pero
+  // dos "finales" de tipos distintos comparten slot 99 → el idx las separa; si aun
+  // así colisiona con algo, desplazar).
+  const used = new Set(stages.map(s => Number(s.eventId)));
+  while (used.has(eventId)) eventId -= 1;
+
+  const id = `ru_${eventId}`;
+  const row = {
+    id,
+    raceId: rd.raceId,
+    raceDayId,
+    competitionId: eventId,   // sintético: sin DataRide, competitionId = eventId
+    uciRaceId: eventId,       // NOT NULL en schema; sintético
+    eventId,
+    classKind: kind,
+    scope,
+    eventName: null,
+    isTeamEvent: kind === 'teams',
+    stageNumber,
+    isFinalClassification: isFinal,
+    stageDate: rd.dateKey || null,
+    raceType: rd.primaryType === 'itt' ? 'ITT' : (rd.primaryType === 'ttt' ? 'TTT' : null),
+    rowCount: 0,
+    // keepForWeb es una columna GENERADA (migración 092): true cuando classKind ∈
+    // {stage,gc,points,kom,youth,teams} Y (classKind ∈ {stage,gc} O scope='overall'
+    // O isFinalClassification). manualClassificationScope garantiza scope='overall' en las
+    // secundarias no-finales → siempre sale true. NO se inserta a mano.
+    // lockedAt: null → placeholder; la fuente oficial puede pisarla hasta que se
+    // edite/guarde (que la bloquea) o se use el candado de la lista.
+  };
+  return row;
+}
+
 export function isFinalStageRaceDay(rd, race, raceDays = []) {
   if (race?.raceFormat !== 'stage_race' || rd?.isRestDay || rd?.isCancelledDay
       || rd?.stageNumber == null) return false;
@@ -200,11 +278,6 @@ export function startlistRosterCandidates(lastNameQuery, firstNameQuery = '', ri
   return riders.filter(rider =>
     (!last || riderMatchesSearch({ lastName: rider?.lastName }, last))
     && (!first || riderMatchesSearch({ firstName: rider?.firstName }, first)));
-}
-
-export function uniquePartialSurnameMatch(lastNameQuery, firstNameQuery = '', riders = []) {
-  const matches = startlistRosterCandidates(lastNameQuery, firstNameQuery, riders);
-  return matches.length === 1 ? matches[0] : null;
 }
 
 // Candidatos del selector manual cuando la carrera tiene startlist. No amplía

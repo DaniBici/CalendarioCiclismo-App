@@ -91,7 +91,7 @@ describe('SportSoft Timing', () => {
     const rows = rowsFromCompetitionHtml(page);
     const points = classificationFromPage('477', 1, rows, { classKind: 'points', scope: 'overall', eventName: 'Points', rankKey: 'Sprint_Pos', pointsKey: 'Sprint_Points' });
     expect(points.rows[0]).toMatchObject({ rank: 1, points: 25, timeText: null, gapText: null });
-    expect(suggestCompetitionId('477')).toBeLessThan(0);
+    expect(suggestCompetitionId('477')).toBe(-93505);   // ancla del ID guardado
     expect(synthRaceId('477', 1)).not.toBe(synthRaceId('477', 2));
   });
 

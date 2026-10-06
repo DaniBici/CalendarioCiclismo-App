@@ -7,6 +7,7 @@ import {
   openAutomationClient,
   startAutomationRun,
 } from '../automation-monitor.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 const CRON = fileURLToPath(new URL('./results-cron.mjs', import.meta.url));
 const LIVE_LINKER = fileURLToPath(new URL('./dataride-live-linker.mjs', import.meta.url));
@@ -17,9 +18,8 @@ const BORNAN_STARTLISTS_SYNC = fileURLToPath(new URL('./bornan-startlists-sync.m
 // descubrimiento de DataRide es una observación más lenta: una consulta cada
 // cinco minutos basta para detectar una competición que acaba de publicarse y
 // evita repetir el barrido de competiciones en cada tick sin estado persistente.
-export function shouldPollLiveLinks(date = new Date(), intervalMinutes = 5) {
-  return Number.isInteger(intervalMinutes) && intervalMinutes > 0
-    && date.getUTCMinutes() % intervalMinutes === 0;
+export function shouldPollLiveLinks(date = new Date()) {
+  return date.getUTCMinutes() % 5 === 0;
 }
 
 export function argsForManualRequest(request) {
@@ -96,9 +96,9 @@ async function main() {
     const {runCxResultsRuntime}=await import('./cx-results-cron.mjs');
     await runCxResultsRuntime({dryRun:options.dryRun});return;
   }
-  if (!process.env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
 
-  const client = await openAutomationClient(process.env.DATABASE_URL);
+  const client = await openAutomationClient(databaseUrl());
   let runId = null;
   const steps = [];
   try {

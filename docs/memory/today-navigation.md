@@ -79,6 +79,7 @@ Re-descarga sin togglear `isLoading`. Éxito → háptico `.success`.
 - Píldora "Todos" siempre primera (`month = 0` como sentinel).
 - Por defecto: mes en curso (año actual) o primer mes real disponible (otros años).
 - **Colapso automático:** país activo + carreras filtradas < 5 → solo "Todos". Sin país → nunca colapsar.
+- **Challenges** (`challenge_groups`): sus pruebas visibles (al menos dos) forman una sola fila en el mes de la primera prueba. Web enlaza a `/competicion.html?challenge=<slug>`; las apps (5.0.11) despliegan las pruebas bajo la fila (`SeasonChallengeLogic` en iOS y Android).
 
 | Plataforma | ViewModel | Vista |
 |---|---|---|

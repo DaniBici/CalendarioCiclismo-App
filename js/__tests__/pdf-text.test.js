@@ -24,26 +24,20 @@ describe('extracción de texto PDF del panel',()=>{
     expect(f.task.destroy).toHaveBeenCalledOnce();
   });
 
-  it('libera también la tarea de un PDF inválido y conserva su error de lectura',async()=>{
+  it('libera la tarea y conserva el error de un PDF inválido o de una página ilegible',async()=>{
     const f=fixture([]),error=new Error('PDF inválido');f.task.promise=Promise.reject(error);
     await expect(extractPdfText(file,f.load)).rejects.toBe(error);
     expect(f.task.destroy).toHaveBeenCalledOnce();
+    const page=fixture([{}]),pageError=new Error('Página ilegible');
+    page.document.getPage=async()=>({getTextContent:async()=>{throw pageError;}});
+    await expect(extractPdfText(file,page.load)).rejects.toBe(pageError);
+    expect(page.task.destroy).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    ['InvalidPDFException','El PDF no es válido o está dañado.'],
-    ['PasswordException','El PDF está protegido con contraseña.']
-  ])('presenta el error %s en castellano sin omitir la liberación',async(name,message)=>{
-    const f=fixture([]),error=new Error('Mensaje interno PDF.js');error.name=name;
+  it('presenta en castellano los errores conocidos de PDF.js sin omitir la liberación',async()=>{
+    const f=fixture([]),error=new Error('Mensaje interno PDF.js');error.name='PasswordException';
     f.task.promise=Promise.reject(error);
-    await expect(extractPdfText(file,f.load)).rejects.toThrow(message);
-    expect(f.task.destroy).toHaveBeenCalledOnce();
-  });
-
-  it('libera la tarea si una página falla al extraer texto',async()=>{
-    const f=fixture([{}]),error=new Error('Página ilegible');
-    f.document.getPage=async()=>({getTextContent:async()=>{throw error;}});
-    await expect(extractPdfText(file,f.load)).rejects.toBe(error);
+    await expect(extractPdfText(file,f.load)).rejects.toThrow('El PDF está protegido con contraseña.');
     expect(f.task.destroy).toHaveBeenCalledOnce();
   });
 

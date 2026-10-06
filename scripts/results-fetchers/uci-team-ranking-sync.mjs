@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { fileURLToPath } from 'node:url';
+import { databaseUrl } from '../db/env.mjs';
 
 /**
  * Sincroniza la instantánea vigente del ránking UCI de equipos.
@@ -428,11 +429,11 @@ async function main() {
     return;
   }
 
-  invariant(process.env.DATABASE_URL, 'Falta DATABASE_URL (usa --fetch-only para validar solo DataRide)');
+  invariant(databaseUrl(), 'Falta DATABASE_URL (usa --fetch-only para validar solo DataRide)');
   const { Client } = await import('pg');
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('localhost')
+    connectionString: databaseUrl(),
+    ssl: databaseUrl().includes('localhost')
       ? undefined
       : { rejectUnauthorized: false },
   });

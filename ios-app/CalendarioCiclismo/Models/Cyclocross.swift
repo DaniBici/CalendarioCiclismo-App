@@ -25,6 +25,85 @@ struct CxStandingState: Codable, Sendable {
     let category: String
     let status: String
     let roundIds: [String]
+    /// Desglose por ronda de la general calculada; nil si falta o no se
+    /// puede decodificar (no invalida el estado).
+    var breakdown: [CxStandingBreakdownEntry]? = nil
+}
+
+extension CxStandingState {
+    enum CodingKeys: String, CodingKey { case category, status, roundIds, breakdown }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        category = try values.decode(String.self, forKey: .category)
+        status = try values.decode(String.self, forKey: .status)
+        roundIds = try values.decode([String].self, forKey: .roundIds)
+        breakdown = (try? values.decodeIfPresent([CxStandingBreakdownEntry].self, forKey: .breakdown)) ?? nil
+    }
+}
+
+/// Fila del desglose de una general por puntos: aportación de cada ronda.
+struct CxStandingBreakdownEntry: Codable, Sendable {
+    let globalRiderId: String
+    let eligible: Bool?
+    let rounds: [CxStandingRound]
+}
+
+struct CxStandingRound: Codable, Sendable {
+    let raceId: String
+    /// Puntos de la ronda; el motor los publica como decimal en texto ("40").
+    let points: Double?
+    let retained: Bool?
+    let missing: Bool?
+    let sourceRank: Int?
+
+    enum CodingKeys: String, CodingKey { case raceId, points, retained, missing, sourceRank }
+
+    init(raceId: String, points: Double?, retained: Bool? = nil, missing: Bool? = nil, sourceRank: Int? = nil) {
+        self.raceId = raceId
+        self.points = points
+        self.retained = retained
+        self.missing = missing
+        self.sourceRank = sourceRank
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        raceId = try values.decode(String.self, forKey: .raceId)
+        if let number = try? values.decodeIfPresent(Double.self, forKey: .points) {
+            points = number
+        } else if let text = try? values.decodeIfPresent(String.self, forKey: .points) {
+            points = Double(text.trimmingCharacters(in: .whitespaces))
+        } else {
+            points = nil
+        }
+        retained = try? values.decodeIfPresent(Bool.self, forKey: .retained)
+        missing = try? values.decodeIfPresent(Bool.self, forKey: .missing)
+        sourceRank = try? values.decodeIfPresent(Int.self, forKey: .sourceRank)
+    }
+}
+
+/// Carrera de un torneo reducida a lo que necesitan las columnas de ronda de
+/// la general: enlace a la ficha y nombre accesible.
+struct CxRaceRef: Codable, Sendable, Identifiable {
+    let id: String
+    let name: String
+    let nameEn: String?
+    let raceClass: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, nameEn
+        case raceClass = "class"
+    }
+}
+
+/// Generales publicadas de un torneo para su página de serie.
+struct CxTournamentStandings: Sendable {
+    let pointsScheme: CxPointsScheme?
+    let states: [CxStandingState]
+    let standings: [CxStanding]
+    let teams: [CxTeam]
+    let races: [CxRaceRef]
 }
 
 /// Fila mínima para numerar las rondas de un torneo; espejo del select ligero web.
@@ -100,8 +179,6 @@ struct CxRace: Codable, Sendable, Identifiable {
     let assets: [CxAsset]?
     let tournament: CxTournament?
     let categories: [CxCategory]
-    let broadcasts: [CxBroadcast]?
-    let videos: [CxVideo]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, nameEn, abbrev, slug, slugEn, seasonKey, dateKey, endDateKey
@@ -109,8 +186,6 @@ struct CxRace: Codable, Sendable, Identifiable {
         case countryCode, venue, tournamentId, colorHex, logoUrl, websiteUrl, timezone, isCancelled
         case assets
         case tournament = "cx_tournaments"
-        case broadcasts = "cx_broadcasts"
-        case videos = "cx_videos"
         case categories = "cx_race_categories"
     }
 }
@@ -191,6 +266,9 @@ struct CxStanding: Codable, Sendable, Identifiable {
     let isoCode2: String?
     let points: Double?
     let timeSeconds: Int64?
+    /// Identidad del corredor para casar la fila con el desglose por ronda.
+    var globalRiderId: String? = nil
+    var sortOrder: Int? = nil
 }
 
 struct CxBroadcast: Codable, Sendable, Identifiable {
@@ -234,6 +312,7 @@ struct CxVideo: Codable, Sendable, Identifiable {
     let raceId: String
     let category: String?
     let title: String
+    let titleEn: String?
     let url: String
     let sortOrder: Int
 }
@@ -248,4 +327,6 @@ struct CxDetail: Codable, Sendable {
     let standings: [CxStanding]
     var standingsState: [CxStandingState]? = nil
     var assets: [CxAsset]? = nil
+    /// Carreras publicadas del torneo: cabeceras de las columnas de ronda.
+    var tournamentRaces: [CxRaceRef]? = nil
 }

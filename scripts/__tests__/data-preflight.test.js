@@ -151,6 +151,44 @@ describe('preflight de resultados', () => {
     expect(errorCodes(report)).toEqual(expect.arrayContaining(['INVALID_POINTS_ROW', 'NON_MONOTONIC_POINTS']));
   });
 
+  it('admite puntos sin valor solo con allowPointless', () => {
+    const normalized = normalizeResultsDocument({
+      raceId: 'eval-pointless',
+      stages: [{
+        stageNumber: 1,
+        classifications: [{
+          eventId: -1001, classKind: 'kom', scope: 'overall', eventName: 'Mountain Classification',
+          isTeamEvent: false, expectedRowCount: 2,
+          rows: [{ bib: 11, position: 1 }, { bib: 12, position: 2 }],
+        }],
+      }],
+    });
+
+    expect(errorCodes(validateResultsDocument(normalized))).toContain('INVALID_POINTS_ROW');
+    const report = validateResultsDocument(normalized, { allowPointless: true });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.map((w) => w.code)).toEqual(['POINTLESS_ROWS']);
+  });
+
+  it('admite equipos sin diferencias solo con allowGaplessTeams', () => {
+    const normalized = normalizeResultsDocument({
+      raceId: 'eval-gapless-teams',
+      stages: [{
+        stageNumber: 1,
+        classifications: [{
+          eventId: -1002, classKind: 'teams', scope: 'overall', eventName: 'Teams Classification',
+          isTeamEvent: true, expectedRowCount: 2,
+          rows: [{ teamName: 'Equipo Uno', position: 1, value: '6:24:29' }, { teamName: 'Equipo Dos', position: 2 }],
+        }],
+      }],
+    });
+
+    expect(errorCodes(validateResultsDocument(normalized))).toContain('INVALID_GAP');
+    const report = validateResultsDocument(normalized, { allowGaplessTeams: true });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.map((w) => w.code)).toEqual(['GAPLESS_TEAM_ROWS']);
+  });
+
   it('valida clasificaciones de equipos y conserva el ganador por teamName', () => {
     const normalized = normalizeResultsDocument({
       raceId: 'eval-teams',
@@ -380,5 +418,36 @@ describe('preflight de resultados', () => {
     expect(teamResult.params[6]).toBe('Equipo fuente');
     expect(teamResult.params[7]).toBe('team-source');
     expect(teamStage.params[13]).toBe('Equipo fuente');
+  });
+});
+
+// REGRESIÓN (2026-09-27): la general final manual se guardaba con points/kom/teams
+// en 'overall' y la oficial de UCI (scope 'stage') no la sustituía: quedaban
+// duplicadas (Mentougou, Poyang y Langkawi).
+describe('general final manual', () => {
+  const clasificacion = (classKind, eventId, rows) => ({
+    eventId, classKind, scope: 'overall', eventName: classKind, isTeamEvent: classKind === 'teams',
+    rowCount: rows.length, expectedRowCount: rows.length, rows,
+  });
+  const documento = {
+    raceId: 'R1',
+    competitionId: -999,
+    stages: [
+      { stageNumber: 3, isFinalClassification: false,
+        classifications: [clasificacion('points', -9990302, [{ rank: 1, bib: 1, value: '20 pts' }])] },
+      { stageNumber: null, isFinalClassification: true,
+        classifications: [
+          clasificacion('points', -9999952, [{ rank: 1, bib: 1, value: '20 pts' }]),
+          clasificacion('teams', -9999955, [{ rank: 1, teamName: 'Equipo', value: '10:00:00' }]),
+        ] },
+    ],
+  };
+
+  it('normaliza las finales a scope stage, conserva overall en las etapas y las valida', () => {
+    const normalizado = normalizeResultsDocument(documento);
+    expect(normalizado.stages[0].classifications[0].scope).toBe('overall');
+    expect(normalizado.stages[1].classifications.map((cl) => cl.scope)).toEqual(['stage', 'stage']);
+    const report = validateResultsDocument(normalizado, { expectedRaceId: 'R1' });
+    expect(report.errors.filter((e) => e.code === 'INVALID_CLASSIFICATION')).toEqual([]);
   });
 });

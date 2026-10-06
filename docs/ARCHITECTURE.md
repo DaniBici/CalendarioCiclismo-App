@@ -139,7 +139,9 @@ calendario-ciclismo/
 │   ├── stage/                                    Módulos de jornada y perfil (elevación, puertos, digitalizador)
 │   ├── startlist/                                Módulos de inscritos (datos, importación, contrato de fuente)
 │   └── panel/                                    Panel editorial (entrada: main.js)
-├── css/app.css                                   Estilos globales
+├── css/app.css                                   Estilos públicos comunes (índice y puntos de corte en su cabecera)
+├── css/resultados.css                            Resultados, ciclocross y orden de salida (tras app.css)
+├── css/calendario.css                            Calendario: Temporada y Mes (tras app.css)
 ├── supabase/
 │   ├── migrations/                               SQL migrations (numeradas)
 │   └── functions/                                Edge Functions (TypeScript/Deno)
@@ -179,6 +181,7 @@ calendario-ciclismo/
 | R2 API keys | Supabase Edge Function `r2-upload` | Supabase Dashboard → Edge Functions → Secrets |
 | `DATABASE_URL` del rol `cc_results_worker` | Watcher de resultados del VPS | `/etc/calendario-ciclismo/results.env` (`0640`, fuera del repo) + copia de recuperación privada |
 | `BROADCASTS_DATABASE_URL` del rol `cc_broadcasts_login` | Sincronizador de emisiones del VPS | `/etc/calendario-ciclismo/broadcasts.env` (`0600`, fuera del repo) |
+| `aviso_cc_webs_ccm_cce` (secreto compartido) | Aviso de cambio a las webs de la Clàssica y del club (`private.change_notice_tick`) | Supabase Vault de CC + secreto de la edge function `aviso-cc` de `webs-ccm-cce` |
 
 ## Decisiones de arquitectura
 
@@ -204,8 +207,7 @@ calendario-ciclismo/
   rendimiento de scroll.
 - Consecuencias: cada cambio de presentación o de lógica se implementa en las
   dos plataformas y llega a los usuarios mediante release. La paridad funcional
-  es un requisito de cada cambio. Detalles en `docs/memory/ios-conventions.md` y
-  `docs/memory/android-architecture.md`.
+  es un requisito de cada cambio. Detalles en `docs/memory/apps.md`.
 
 ### Assets: R2 detrás del proxy nginx del VPS
 
@@ -231,3 +233,14 @@ calendario-ciclismo/
   de seguridad el miércoles.
 - **Emisiones oficiales**: servicio aislado con escrituras protegidas; toda
   acción queda auditada.
+
+### Aviso de cambio a webs externas
+
+- Las webs que reproducen datos de CC en un build estático
+  (`classicacampdemorvedre.com`, `clubciclistaestivella.com`) reciben un POST
+  desde la base de CC cuando cambia una carrera vigilada: disparadores por
+  sentencia marcan una cola en `private` y `pg_cron` la envía agrupada con
+  `pg_net`.
+- Motivo: esas webs solo publican con actualizaciones y no consultan CC fuera
+  del build.
+- Diseño, contrato y operación: `docs/runbooks/aviso-cambio-webs-externas.md`.

@@ -192,10 +192,9 @@ export function summitRowHTML(s = {}) {
     <input type="time" class="ann-time" value="${esc(s.timeUtc ? formatTimeHHMM(s.timeUtc) : '')}"
            title="Hora de paso por la CIMA (rutómetro). Vacío = se estima.">
     <button type="button" class="btn btn--ghost ann-detect-btn"
-            style="padding:0.2rem 0.45rem;font-size:0.7rem;flex-shrink:0"
             title="Detectar inicio del puerto a partir del km de la cima">⌖</button>
     <span class="ann-stats"></span>
-    <button type="button" class="btn btn--danger ann-del-btn" style="padding:0.2rem 0.5rem;font-size:0.7rem;flex-shrink:0">✕</button>
+    <button type="button" class="btn btn--danger ann-del-btn">✕</button>
   </div>`;
 }
 
@@ -218,7 +217,7 @@ export function waypointRowHTML(w = {}) {
     <select class="ann-type u-shrink-0">${typeOpts}</select>
     <input type="time" class="ann-time" value="${esc(w.timeUtc ? formatTimeHHMM(w.timeUtc) : '')}"
            title="Hora de paso (rutómetro). Vacío = se estima.">
-    <button type="button" class="btn btn--danger ann-del-btn" style="padding:0.2rem 0.5rem;font-size:0.7rem;flex-shrink:0">✕</button>
+    <button type="button" class="btn btn--danger ann-del-btn">✕</button>
   </div>`;
 }
 
@@ -226,13 +225,10 @@ export function broadcastHTML(b, i) {
   return `<div class="tv-entry-panel" data-bid="${b.id || ''}">
     <div class="tv-entry-panel__header">
       <span class="tv-entry-panel__label">Emisión ${i + 1}</span>
-      <div style="display:flex;gap:0.25rem;align-items:center">
-        <button class="btn btn--ghost move-broadcast-up-btn"
-                style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Subir">↑</button>
-        <button class="btn btn--ghost move-broadcast-down-btn"
-                style="padding:0.2rem 0.4rem;font-size:0.7rem" title="Bajar">↓</button>
-        <button class="btn btn--danger remove-broadcast-btn"
-                style="padding:0.2rem 0.5rem;font-size:0.7rem">✕ Eliminar</button>
+      <div class="tv-entry-panel__actions">
+        <button class="btn btn--ghost move-broadcast-up-btn btn--icon-xs" title="Subir">↑</button>
+        <button class="btn btn--ghost move-broadcast-down-btn btn--icon-xs" title="Bajar">↓</button>
+        <button class="btn btn--danger remove-broadcast-btn btn--mini">✕ Eliminar</button>
       </div>
     </div>
     <div class="field">
@@ -247,7 +243,7 @@ export function broadcastHTML(b, i) {
       <div class="field">
         <label>URL (opcional)</label>
         <input type="url" class="bc-url" value="${b.url || ''}" placeholder="https://…">
-        ${b.embeddable === false ? `<div class="field-hint" style="color:#c97a00;font-size:0.75rem;margin-top:0.25rem">⚠ Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
+        ${b.embeddable === false ? `<div class="field-hint u-c-caution u-fs-075 u-mt-025">⚠ Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
       </div>
     </div>
     <div class="field-row field-row--2">
@@ -283,14 +279,14 @@ export function broadcastHTML(b, i) {
         </select>
       </div>
     </div>
-    <div class="field" style="display:flex;align-items:center;gap:1rem;padding-top:0.25rem;flex-wrap:wrap">
-      <span style="display:flex;align-items:center;gap:0.5rem">
+    <div class="field tv-entry-panel__toggles">
+      <span class="u-row">
         <input type="checkbox" class="bc-show-in-revive" id="bc-revive-${b.id || i}"${b.showInRevive ? ' checked' : ''}>
-        <label for="bc-revive-${b.id || i}" style="margin:0;font-weight:normal;cursor:pointer">Mostrar en "Revive"</label>
+        <label for="bc-revive-${b.id || i}">Mostrar en "Revive"</label>
       </span>
-      <span style="display:flex;align-items:center;gap:0.5rem">
+      <span class="u-row">
         <input type="checkbox" class="bc-automation-locked" id="bc-automation-locked-${b.id || i}"${b.automationLocked ? ' checked' : ''}>
-        <label for="bc-automation-locked-${b.id || i}" style="margin:0;font-weight:normal;cursor:pointer" title="Impide que el sincronizador del VPS modifique esta emisión">Bloquear automatización</label>
+        <label for="bc-automation-locked-${b.id || i}" title="Impide que el sincronizador del VPS modifique esta emisión">Bloquear automatización</label>
       </span>
     </div>
   </div>`;

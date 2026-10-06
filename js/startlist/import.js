@@ -1,5 +1,5 @@
-import { normalizeStartlistSource } from './source.mjs?v=20260912120000';
-export { normalizeStartlistSource, normalizePersonName } from './source.mjs?v=20260912120000';
+import { normalizeStartlistSource } from './source.mjs';
+export { normalizeStartlistSource, normalizePersonName } from './source.mjs';
 const clean = value => value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
 
 // PostgREST limita cada respuesta a 1.000 filas. La primera página obtiene el
@@ -83,12 +83,4 @@ export function selectUpcomingStartlistRaces(races, today, query = '', limit = 2
     .sort((a, b) => clean(a.startDate).localeCompare(clean(b.startDate))
       || clean(a.name).localeCompare(clean(b.name), 'es'))
     .slice(0, limit);
-}
-
-// La RPC puede informar más de un candidato si una clave directa y un alias
-// curado apuntan a fichas distintas. Solo un único id permite el enlace.
-export function uniqueExistingRiderMatchId(match) {
-  return Number(match?.match_count) === 1 && clean(match?.matched_id)
-    ? clean(match.matched_id)
-    : null;
 }

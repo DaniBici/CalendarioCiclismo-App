@@ -9,6 +9,7 @@ import app.calendariociclismo.android.BuildConfig
 import app.calendariociclismo.android.data.analytics.AnalyticsService
 import app.calendariociclismo.android.data.prefs.AppPreferences
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -29,10 +30,6 @@ class PremiumService(
     private val analytics: AnalyticsService,
     private val scope: CoroutineScope,
 ) {
-    enum class PaywallSource {
-        REGION, NOTIFICATIONS, RACE_CARDS, RACE_NOTIFICATIONS, GENERAL,
-    }
-
     enum class PremiumPlan(val basePlanId: String) {
         MONTHLY(BillingManager.BASE_PLAN_MONTHLY),
         YEARLY(BillingManager.BASE_PLAN_YEARLY),
@@ -104,8 +101,8 @@ class PremiumService(
 
     val featuresUnlocked = true
 
-    private val _pendingPaywallSource = kotlinx.coroutines.flow.MutableStateFlow<PaywallSource?>(null)
-    val pendingPaywallSource: StateFlow<PaywallSource?> = _pendingPaywallSource
+    private val _supportVisible = MutableStateFlow(false)
+    val supportVisible: StateFlow<Boolean> = _supportVisible
 
     val plans = billing.plans
     val contributions = billing.contributions
@@ -125,15 +122,13 @@ class PremiumService(
         }
     }
 
-    fun presentPaywall(source: PaywallSource) {
-        _pendingPaywallSource.value = source
-        analytics.logEvent("support_view", Bundle().apply {
-            putString("source", source.name.lowercase())
-        })
+    fun presentSupport() {
+        _supportVisible.value = true
+        analytics.logEvent("support_view", null)
     }
 
-    fun dismissPaywall() {
-        _pendingPaywallSource.value = null
+    fun dismissSupport() {
+        _supportVisible.value = false
         billing.clearPurchaseError()
     }
 
@@ -141,7 +136,6 @@ class PremiumService(
         if (isLegacyPremiumActive.value) return
         analytics.logEvent("support_subscribe_tap", Bundle().apply {
             putString("plan", plan.name.lowercase())
-            putString("source", _pendingPaywallSource.value?.name?.lowercase() ?: "unknown")
         })
         if (BuildConfig.DEBUG || BuildConfig.PREMIUM_TEST_BUILD) {
             scope.launch { preferences.setFriendSubscribed(true) }
@@ -226,15 +220,5 @@ class PremiumService(
 
     fun clearPurchaseError() {
         billing.clearPurchaseError()
-    }
-
-    fun debugSetSubscribed(value: Boolean) {
-        if (!BuildConfig.DEBUG) return
-        scope.launch { preferences.setFriendSubscribed(value) }
-    }
-
-    fun debugSetFounder(value: Boolean) {
-        if (!BuildConfig.DEBUG) return
-        scope.launch { preferences.setFounderRecognized(value) }
     }
 }

@@ -4,7 +4,7 @@
 
 import { flagIconUrl } from './flag-url.js';
 
-export const COUNTRY_LIST = [
+const COUNTRY_LIST = [
   // Regionales (comunidades autónomas de España)
   { code: 'es-an', name: 'Andalucía' },
   { code: 'es-ar', name: 'Aragón' },

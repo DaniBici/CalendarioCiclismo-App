@@ -3,7 +3,6 @@ package app.calendariociclismo.android.util
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceUciStage
-import app.calendariociclismo.android.data.model.UciRank1Row
 import app.calendariociclismo.android.util.ResultsFeedLogic.Kind
 import org.junit.Assert.*
 import org.junit.Test
@@ -265,26 +264,6 @@ class ResultsFeedLogicTest {
     }
 
     @Test
-    fun `winnerRiderIds descarta abandonos y deduplica`() {
-        val map = ResultsFeedLogic.winnerRiderIdsByStageRef(
-            listOf(
-                UciRank1Row("s1", "rider-a"),
-                UciRank1Row("s1", "rider-a"),          // duplicado
-                UciRank1Row("s2", "rider-dns", irm = "DNS"),  // rank 1 espurio
-                UciRank1Row("s-df", "rider-df", irm = "DF"),
-                UciRank1Row("s-nr", "rider-nr", irm = "NR"),
-                UciRank1Row("s3", "rider-b"),
-                UciRank1Row("s3", "rider-c"),          // CRE variante A
-            )
-        )
-        assertEquals(listOf("rider-a"), map["s1"])
-        assertNull(map["s2"])
-        assertNull(map["s-df"])
-        assertNull(map["s-nr"])
-        assertEquals(listOf("rider-b", "rider-c"), map["s3"])
-    }
-
-    @Test
     fun `isCreEntry detecta variante A (varios rank 1) y B (jornada ttt)`() {
         val r = race("dauphine")
         val cre = ResultsFeedLogic.FeedEntry(
@@ -331,17 +310,6 @@ class ResultsFeedLogicTest {
         )
         assertEquals(1, entries.size)
         assertEquals(Kind.INHOUSE, entries[0].kind)
-    }
-
-    @Test
-    fun `sin clasificacion propia no hay entrada`() {
-        val sinFuentes = race("gyeongnam")
-        val rdG = rd("rdG", "gyeongnam", "2026-06-11", sn = 3)
-            .copy(estimatedFinishTimeUtc = "2020-01-01T15:00:00Z")
-        val entries = ResultsFeedLogic.buildEntries(
-            emptyList(), listOf(rdG), listOf(sinFuentes), "2026-06-01", "2026-06-30",
-        )
-        assertTrue(entries.isEmpty())
     }
 
     // ── Orden global ─────────────────────────────────────────────────

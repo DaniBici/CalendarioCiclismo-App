@@ -21,6 +21,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const index = argv.indexOf(name); return index < 0 ? fallback : argv[index + 1]; };
@@ -58,15 +59,6 @@ export function parseCode(value) {
   const [apiBase, champ, disc, eventKey] = parts;
   if (!/^https:\/\//.test(apiBase)) throw new Error('apiBase debe ser una URL https');
   return { apiBase: apiBase.replace(/\/+$/, ''), champ, disc, eventKey };
-}
-
-export function fnv1a(value) {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
 }
 
 export const suggestCompetitionId = (code) => {

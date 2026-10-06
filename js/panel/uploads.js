@@ -63,15 +63,6 @@ export async function r2PutTechnicalGuide(filename, file, contentType) {
   return putRes;
 }
 
-async function r2ListObjects() {
-  const auth = await getAuthHeaders();
-  const res = await fetch(R2_UPLOAD_FN, {
-    headers: auth,
-  });
-  const data = await res.json();
-  return data.files || [];
-}
-
 // ── Claves canónicas de assets de jornada ────────────────────────
 // No usar el nombre que trae el archivo ni una marca temporal: ambos hacen que
 // una misma carrera termine con rutas imposibles de descubrir. La edición vive
@@ -115,9 +106,25 @@ function nextCanonicalStageAssetKey(context, currentUrl = '') {
 // ─────────────────────────────────────────────────────────────────
 //  UPLOAD INLINE — para logos y roadbooks desde el editor
 // ─────────────────────────────────────────────────────────────────
+// Perfiles: solo JPG o PNG (trigger guard_profile_image_format en assets).
+const UPLOAD_TYPES = {
+  profile: ['image/jpeg', 'image/png'],
+  logo:    ['image/jpeg', 'image/png', 'image/webp'],
+};
+const DEFAULT_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const UPLOAD_TYPE_LABELS = { 'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WebP', 'application/pdf': 'PDF' };
+
+function uploadTypes(tipo) {
+  return UPLOAD_TYPES[tipo] || DEFAULT_UPLOAD_TYPES;
+}
+
 async function inlineUpload(file, targetInput, tipo) {
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-  if (!allowed.includes(file.type)) { showToast('Formato no permitido. Solo JPG, PNG, WebP o PDF.'); return; }
+  const allowed = uploadTypes(tipo);
+  if (!allowed.includes(file.type)) {
+    const labels = allowed.map(type => UPLOAD_TYPE_LABELS[type]);
+    showToast(`Formato no permitido. Solo ${labels.slice(0, -1).join(', ')} o ${labels.at(-1)}.`);
+    return;
+  }
   const maxBytes = tipo === 'technicalGuide' ? 150 * 1024 * 1024 : 10 * 1024 * 1024;
   if (file.size > maxBytes) { showToast(`El archivo supera los ${tipo === 'technicalGuide' ? '150' : '10'} MB.`); return; }
 
@@ -288,7 +295,10 @@ export function attachInlineUpload(input, tipo) {
   // Crear input file oculto y botón visible
   const fileIn = document.createElement('input');
   fileIn.type   = 'file';
-  fileIn.accept = tipo === 'logo' ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,application/pdf';
+  // Mismos formatos que UPLOAD_TYPES; la función se evalúa aislada en pruebas.
+  fileIn.accept = tipo === 'profile' ? 'image/jpeg,image/png'
+    : tipo === 'logo' ? 'image/jpeg,image/png,image/webp'
+      : 'image/jpeg,image/png,image/webp,application/pdf';
   fileIn.style.display = 'none';
   fileIn.addEventListener('change', () => { if (fileIn.files[0]) inlineUpload(fileIn.files[0], input, tipo); fileIn.value = ''; });
 
@@ -305,66 +315,4 @@ export function attachInlineUpload(input, tipo) {
   input.style.flex = '1';
   input.after(btn);
   input.after(fileIn);
-}
-
-async function handleUpload(file) {
-  const allowed  = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-  const errDiv   = document.getElementById('uploadError');
-  const progress = document.getElementById('uploadProgress');
-  const result   = document.getElementById('uploadResult');
-
-  errDiv.style.display   = 'none';
-  result.style.display   = 'none';
-  progress.style.display = 'none';
-
-  if (!allowed.includes(file.type)) {
-    errDiv.textContent   = 'Formato no permitido. Solo JPG, PNG, WebP o PDF.';
-    errDiv.style.display = 'block';
-    return;
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    errDiv.textContent   = 'El archivo supera los 10 MB.';
-    errDiv.style.display = 'block';
-    return;
-  }
-
-  const uploadBlob = file;
-  const uploadExt  = file.name.split('.').pop().toLowerCase();
-  const uploadMime = file.type;
-
-  const slug     = file.name.replace(/\.[^.]+$/, '').replace(/\s+/g, '-');
-  const ts       = Date.now();
-  const filename = `${ts}-${slug}.${uploadExt}`;
-  const publicUrl = `${R2_PUBLIC_BASE}/${filename}`;
-
-  progress.style.display = 'flex';
-  document.getElementById('uploadProgressBar').style.width = '0%';
-  document.getElementById('uploadProgressLabel').textContent = 'Subiendo…';
-
-  try {
-    const fileBuffer = await uploadBlob.arrayBuffer();
-
-    document.getElementById('uploadProgressBar').style.width = '50%';
-    document.getElementById('uploadProgressLabel').textContent = 'Subiendo… 50%';
-
-    const res = await r2PutObject(filename, fileBuffer, uploadMime);
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`R2 ${res.status}: ${txt.slice(0, 120)}`);
-    }
-
-    document.getElementById('uploadProgressBar').style.width = '100%';
-    document.getElementById('uploadProgressLabel').textContent = 'Subido ✓';
-    setTimeout(() => { progress.style.display = 'none'; }, 800);
-
-    document.getElementById('uploadResultUrl').value = publicUrl;
-    result.style.display = 'flex';
-    document.getElementById('fileInput').value  = '';
-
-  } catch (err) {
-    progress.style.display  = 'none';
-    errDiv.textContent       = 'Error al subir: ' + err.message;
-    errDiv.style.display     = 'block';
-  }
 }

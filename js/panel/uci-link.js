@@ -33,7 +33,7 @@ let _uciReportPromise = null;   // cache de la promesa de carga (se carga una ve
 let _uciReportIndex   = null;   // Map raceId → rec del reporte
 
 // Carga el match-report una vez y lo indexa por raceId (our.id).
-export function _loadUciReport() {
+function _loadUciReport() {
   if (_uciReportPromise) return _uciReportPromise;
   _uciReportPromise = supabase.storage.from(UCI_REPORT_BUCKET).download(UCI_REPORT_OBJECT)
     .then(async ({ data, error }) => {
@@ -88,9 +88,9 @@ export async function openUciLinkPanel() {
   const panel  = document.getElementById('er-uciPanel');
   if (!raceId || !panel) return;
   panel.style.display = 'block';
-  panel.innerHTML = `<div class="u-row" style="gap:0.5rem;align-items:center;flex-wrap:wrap">
-    <a class="btn btn--ghost" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener" style="font-size:0.7rem;padding:0 0.6rem">Últimos resultados de DataRide ↗</a>
-    <button type="button" class="btn btn--primary u-uci-save-manual" style="font-size:0.7rem;padding:0 0.6rem">Guardar el ID del campo</button>
+  panel.innerHTML = `<div class="u-row u-gap-050 u-items-center u-wrap">
+    <a class="btn btn--ghost u-fs-070 u-py-0 u-px-060" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
+    <button type="button" class="btn btn--primary u-uci-save-manual u-fs-070 u-py-0 u-px-060">Guardar el ID del campo</button>
   </div>`;
   _wireUciPanel(raceId);
   return;
@@ -100,8 +100,8 @@ export async function openUciLinkPanel() {
     const { index } = await _loadUciReport();
     rec = index.get(raceId) || null;
   } catch (err) {
-    panel.innerHTML = `<span style="color:#e55">No se pudo cargar el reporte de matching (${esc(err.message)}).</span>`
-      + '<div style="color:var(--text-muted);margin-top:0.3rem">Puedes introducir el <strong>competitionId</strong> a mano y pulsar Guardar abajo.</div>'
+    panel.innerHTML = `<span class="u-c-danger">No se pudo cargar el reporte de matching (${esc(err.message)}).</span>`
+      + '<div class="u-c-muted u-mt-030">Puedes introducir el <strong>competitionId</strong> a mano y pulsar Guardar abajo.</div>'
       + _uciManualSaveRow(raceId);
     _wireUciPanel(raceId);
     return;
@@ -112,20 +112,19 @@ export async function openUciLinkPanel() {
 
 // HTML de una fila/candidato (botón Enlazar + metadatos). uciRaceId (CN) opcional: si viene,
 // el enlace es a una PRUEBA dentro del campeonato y el botón lo arrastra en data-uciraceid.
-export function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
+function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
   const cls = c.uciClass != null ? esc(String(c.uciClass)) : '—';
   const sim = c.nameSim != null ? `sim ${c.nameSim}` : '';
-  const tick = c.classMatch ? '<span style="color:#3a3" title="clase coincide">✓ clase</span>' : '<span style="color:var(--text-muted)">≠ clase</span>';
+  const tick = c.classMatch ? '<span class="u-c-done" title="clase coincide">✓ clase</span>' : '<span class="u-c-muted">≠ clase</span>';
   const isEvent = c.uciRaceId != null && c.uciRaceId !== 0;
   const label = isEvent ? `Enlazar prueba #${c.competitionId}` : `Enlazar #${c.competitionId}`;
   const evMeta = isEvent ? ` · <span title="race.Id de DataRide de la prueba">prueba ${esc(String(c.uciRaceId))}</span>` : '';
   return `
-    <div class="u-row" style="gap:0.5rem;align-items:center;padding:0.35rem 0;border-bottom:1px solid var(--border)">
-      <button type="button" class="btn btn--ghost u-uci-pick" data-comp="${c.competitionId}"${isEvent ? ` data-uciraceid="${esc(String(c.uciRaceId))}"` : ''}
-              style="font-size:0.7rem;padding:0 0.55rem;white-space:nowrap">${esc(label)}</button>
-      <div class="u-grow" style="line-height:1.35">
-        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span style="color:#3a3;font-size:0.7rem">★ propuesto</span>' : ''}</div>
-        <div style="color:var(--text-muted);font-size:0.72rem">${tick} · ${cls}${sim ? ' · ' + sim : ''}${evMeta}</div>
+    <div class="u-row uci-candidate">
+      <button type="button" class="btn btn--ghost u-uci-pick u-fs-070 u-py-0 u-px-055 u-nowrap" data-comp="${c.competitionId}"${isEvent ? ` data-uciraceid="${esc(String(c.uciRaceId))}"` : ''}>${esc(label)}</button>
+      <div class="u-grow u-lh-135">
+        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span class="u-c-done u-fs-070">★ propuesto</span>' : ''}</div>
+        <div class="u-c-muted u-fs-072">${tick} · ${cls}${sim ? ' · ' + sim : ''}${evMeta}</div>
       </div>
     </div>`;
 }
@@ -133,9 +132,9 @@ export function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
 // Fila para guardar el competitionId tecleado a mano.
 function _uciManualSaveRow(raceId) {
   return `
-    <div class="u-row" style="gap:0.5rem;margin-top:0.5rem;align-items:center">
-      <button type="button" class="btn btn--primary u-uci-save-manual" style="font-size:0.7rem;padding:0 0.6rem">Guardar el valor del campo</button>
-      <span style="color:var(--text-muted);font-size:0.72rem">usa el número del campo de arriba</span>
+    <div class="u-row u-gap-050 u-mt-050 u-items-center">
+      <button type="button" class="btn btn--primary u-uci-save-manual u-fs-070 u-py-0 u-px-060">Guardar el valor del campo</button>
+      <span class="u-c-muted u-fs-072">usa el número del campo de arriba</span>
     </div>`;
 }
 
@@ -147,21 +146,21 @@ function _renderUciPanel(raceId, rec) {
 
   let head = '';
   if (linked && linkVal) {
-    head = `<div style="padding:0.3rem 0.5rem;background:var(--bg-subtle,rgba(0,0,0,0.04));border-radius:6px;margin-bottom:0.5rem">
-        Enlazada a <strong>#${esc(linkVal)}</strong> ${auto ? '<span style="color:var(--text-muted);font-size:0.72rem">(auto)</span>' : '<span style="color:var(--text-muted);font-size:0.72rem">(manual)</span>'}
-        <button type="button" class="btn btn--ghost u-uci-unlink" style="font-size:0.68rem;padding:0 0.5rem;margin-left:0.4rem;color:#e55">Desenlazar</button>
+    head = `<div class="uci-link-head">
+        Enlazada a <strong>#${esc(linkVal)}</strong> ${auto ? '<span class="u-c-muted u-fs-072">(auto)</span>' : '<span class="u-c-muted u-fs-072">(manual)</span>'}
+        <button type="button" class="btn btn--ghost u-uci-unlink uci-unlink-btn">Desenlazar</button>
       </div>`;
   }
 
   if (!rec) {
-    return head + `<div style="color:var(--text-muted)">Esta carrera no está en el reporte de matching
+    return head + `<div class="u-c-muted">Esta carrera no está en el reporte de matching
       (futura aún sin publicar en la UCI, o sin equivalente). Introduce el <strong>competitionId</strong>
       a mano si lo conoces.</div>` + _uciManualSaveRow(raceId);
   }
 
   // Contexto de NUESTRA carrera (lo que el matcher vio).
   const o = rec.our || {};
-  const ourLine = `<div style="color:var(--text-muted);font-size:0.72rem;margin-bottom:0.4rem">
+  const ourLine = `<div class="u-c-muted u-fs-072 u-mb-040">
       Nuestra: «${esc(o.name || '')}» · ${esc(o.class || '')} · ${esc(o.gender || '')} · ${esc((o.country || '').toUpperCase())} · ${esc((o.dates || []).filter(Boolean).join(' → '))}
     </div>`;
 
@@ -170,7 +169,7 @@ function _renderUciPanel(raceId, rec) {
   if (rec.cnMatch && rec.cnMatch.uciRaceId) {
     // Campeonato Nacional: la UCI publica el campeonato entero bajo un competitionId; el
     // matcher resolvió la PRUEBA concreta (por edad/género/tipo). Se enlaza a esa prueba.
-    body = `<div style="margin-bottom:0.3rem">Prueba propuesta dentro del Campeonato:</div>`
+    body = `<div class="u-mb-030">Prueba propuesta dentro del Campeonato:</div>`
       + _uciCandidateRow(raceId, {
           competitionId: rec.cnMatch.competitionId,
           uciRaceId: rec.cnMatch.uciRaceId,
@@ -178,24 +177,24 @@ function _renderUciPanel(raceId, rec) {
           uciClass: 'CN', classMatch: true,
         }, { recommended: true });
   } else if (rec.bucket === 'unique' && rec.match) {
-    body = `<div style="margin-bottom:0.3rem">Candidato propuesto:</div>`
+    body = `<div class="u-mb-030">Candidato propuesto:</div>`
       + _uciCandidateRow(raceId, rec.match, { recommended: true });
   } else if (rec.bucket === 'ambiguous' && Array.isArray(rec.candidates) && rec.candidates.length) {
     // Aviso de colisión masc/fem: la UCI publica UNA competición para el par;
     // la rival comparte competitionId y el constraint impedirá enlazar las dos.
     if (rec.collision && Array.isArray(rec.collision.rivals) && rec.collision.rivals.length) {
       const rivals = rec.collision.rivals.map(rv =>
-        `«${esc(rv.name || '')}» <span style="color:var(--text-muted)">(${esc(rv.class || '')}/${esc(rv.gender || '')})</span>`).join(', ');
-      body += `<div style="padding:0.35rem 0.5rem;background:rgba(240,160,0,0.12);border-radius:6px;margin-bottom:0.5rem;line-height:1.4">
+        `«${esc(rv.name || '')}» <span class="u-c-muted">(${esc(rv.class || '')}/${esc(rv.gender || '')})</span>`).join(', ');
+      body += `<div class="uci-collision">
           ⚠️ <strong>Colisión</strong>: la UCI publica una sola competición (#${rec.collision.competitionId}) para este par.
           Comparte candidato con: ${rivals}.<br>
-          <span style="color:var(--text-muted);font-size:0.72rem">Solo UNA de las dos puede enlazar a #${rec.collision.competitionId}. La otra se queda sin enlace UCI (o enlaza otra competición si existe).</span>
+          <span class="u-c-muted u-fs-072">Solo UNA de las dos puede enlazar a #${rec.collision.competitionId}. La otra se queda sin enlace UCI (o enlaza otra competición si existe).</span>
         </div>`;
     }
-    body += `<div style="margin-bottom:0.3rem">${rec.candidates.length} candidato(s) — elige:</div>`
+    body += `<div class="u-mb-030">${rec.candidates.length} candidato(s) — elige:</div>`
       + rec.candidates.map(c => _uciCandidateRow(raceId, c)).join('');
   } else {
-    body = `<div style="color:var(--text-muted)">Sin candidatos en el reporte. Introduce el <strong>competitionId</strong> a mano.</div>`;
+    body = `<div class="u-c-muted">Sin candidatos en el reporte. Introduce el <strong>competitionId</strong> a mano.</div>`;
   }
 
   return head + ourLine + body + _uciManualSaveRow(raceId);

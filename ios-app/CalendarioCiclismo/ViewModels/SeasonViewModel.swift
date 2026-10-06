@@ -6,6 +6,8 @@ import Foundation
 final class SeasonViewModel {
     var year: Int = Calendar.current.component(.year, from: Date())
     var races: [Race] = []
+    /// Challenges del año (`challenge_groups`): sus pruebas se agrupan en una fila.
+    var challengeGroups: [ChallengeGroup] = []
     var isLoading = false
     var error: String?
     var activeFilter: Constants.CategoryFilter = .all
@@ -119,18 +121,21 @@ final class SeasonViewModel {
 
         let allEntry = (month: 0, races: filtered)
         if shouldCollapseToAll { return [allEntry] }
+        return [allEntry] + groupedByMonth(filtered)
+    }
 
-        let grouped = Dictionary(grouping: filtered) { race -> Int in
-            guard let sd = race.startDate, let date = DateFormatting.date(from: sd) else { return 0 }
+    /// Carreras por mes (1-12), ordenados. Las pruebas de un challenge van al
+    /// mes de la primera, donde se muestra su fila.
+    func groupedByMonth(_ races: [Race]) -> [(month: Int, races: [Race])] {
+        let groupingDates = SeasonChallengeLogic.groupingStartDates(races: races, groups: challengeGroups)
+        let grouped = Dictionary(grouping: races) { race -> Int in
+            guard let sd = groupingDates[race.id] ?? race.startDate, let date = DateFormatting.date(from: sd) else { return 0 }
             return Calendar.current.component(.month, from: date)
         }
-
-        let monthly: [(month: Int, races: [Race])] = grouped.keys.sorted().compactMap { month in
+        return grouped.keys.sorted().compactMap { month in
             guard month > 0, let races = grouped[month] else { return nil }
             return (month: month, races: races)
         }
-
-        return [allEntry] + monthly
     }
 
     func loadSeason() async {
@@ -140,13 +145,18 @@ final class SeasonViewModel {
 
         // Limpiar datos de la temporada anterior para no mostrar datos obsoletos
         races = []
+        challengeGroups = []
         isFromCache = false
         cacheAgeLabel = nil
 
         let cache = CacheManager.shared
         let cacheKey = CacheManager.seasonKey(year)
+        let challengesKey = CacheManager.seasonChallengesKey(year)
 
         // 1. Cargar desde caché primero
+        if let cachedChallenges: [ChallengeGroup] = await cache.load([ChallengeGroup].self, forKey: challengesKey) {
+            challengeGroups = cachedChallenges
+        }
         if let cached: [Race] = await cache.load([Race].self, forKey: cacheKey) {
             races = cached
             isFromCache = true
@@ -156,6 +166,11 @@ final class SeasonViewModel {
 
         // 2. Intentar actualizar desde red
         do {
+            // Sin challenges la temporada se muestra igual, con las pruebas sueltas.
+            if let groups = try? await SupabaseService.shared.challengeGroups(year: year) {
+                challengeGroups = groups
+                await cache.save(groups, forKey: challengesKey)
+            }
             races = try await SupabaseService.shared.racesByYear(year)
             isFromCache = false
             cacheAgeLabel = nil

@@ -2,19 +2,19 @@
 //  PANEL DE ADMINISTRACIÓN — Vista de corredores
 // ─────────────────────────────────────────────────────────────────
 
-import { panelRiderRowHtml } from './editor-ui.js?v=20260912cxcohesion';
+import { panelRiderRowHtml } from './editor-ui.js';
 import { supabase, esc } from '../shared.js';
 import { isSelectionTeam } from '../services/team-roster.js';
-import { activeCatalogTeams } from '../services/team-catalog.js?v=20260907144500';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { activeCatalogTeams } from '../services/team-catalog.js';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import {
   genderToggleHtml, setGenderToggleActive, wireGenderToggle,
 } from '../components/gender-toggle.js';
 import {
   isValidRiderSlug, homonymIdentityKey, planRenameIdentityKeyClash,
-} from '../rider-rename-logic.js?v=20260915rename1';
-import { riderTeamOptionLabel } from '../services/transfer-rider.js?v=20260908a';
+} from '../rider-rename-logic.js';
+import { riderTeamOptionLabel } from '../services/transfer-rider.js';
 import { riderMatchesSearch, riderSearchLookupToken } from '../results/panel-logic.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
@@ -107,7 +107,7 @@ async function searchRidersForEditing(query) {
   } catch (err) {
     if (requestId !== _ridersSearchRequest) return;
     console.error('[searchRidersForEditing]', err);
-    results.innerHTML = `<div style="color:var(--red);font-size:0.85rem">Error: ${esc(err.message || String(err))}</div>`;
+    results.innerHTML = `<div class="u-c-red u-fs-085">Error: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -120,20 +120,20 @@ let _riderEditorLevel = 2;           // 1 = alta directa; 2 = sobre equipo/movim
 // Cerrar propio ni título — los aporta el drawer; el cierre del backdrop también).
 function riderEditorBodyHtml() {
   return `
-    <div class="field" id="re-gender-row" style="display:none;margin-bottom:0.75rem">
+    <div class="field u-mb-075" id="re-gender-row" style="display:none">
       <label>Sexo</label>
       ${genderToggleHtml({ idMale: 're-gender-male', idFemale: 're-gender-female', labels: { male: 'Masculino', female: 'Femenino' } })}
-      <span class="u-fs-sm u-c-dim" style="display:block;margin-top:0.25rem">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
+      <span class="u-fs-075 u-c-dim u-block u-mt-025">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
     </div>
-    <div class="field" id="re-slug-row" style="display:none;margin-bottom:0.75rem">
+    <div class="field u-mb-075" id="re-slug-row" style="display:none">
       <label>Identificador/slug</label>
-      <div class="u-row" style="gap:0.4rem">
-        <input type="text" id="re-slug" readonly spellcheck="false" autocomplete="off" style="flex:1">
+      <div class="u-row u-gap-040">
+        <input type="text" id="re-slug" readonly spellcheck="false" autocomplete="off" class="u-grow">
         <button type="button" class="btn btn--ghost" id="re-slug-edit">Editar slug</button>
       </div>
-      <span id="re-slug-hint" class="u-fs-sm u-c-dim" style="display:block;margin-top:0.25rem">Cambiar el slug re-vincula startlists, resultados, afiliaciones, transferencias, alias y orden de salida mediante una RPC transaccional. Solo minúsculas, dígitos y guiones.</span>
+      <span id="re-slug-hint" class="u-fs-075 u-c-dim u-block u-mt-025">Cambiar el slug re-vincula startlists, resultados, afiliaciones, transferencias, alias y orden de salida mediante una RPC transaccional. Solo minúsculas, dígitos y guiones.</span>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+    <div class="u-grid u-cols-2 u-gap-075">
       <div class="field">
         <label>Nombre</label>
         <input type="text" id="re-firstName" placeholder="Tadej" class="u-w-full">
@@ -142,18 +142,18 @@ function riderEditorBodyHtml() {
         <label>Apellido(s)</label>
         <input type="text" id="re-lastName" placeholder="Pogačar" class="u-w-full">
       </div>
-      <div class="field" style="grid-column:1/-1">
+      <div class="field u-span-all">
         <label>Otros nombres <span class="u-dim">— separados por coma, para matching alternativo</span></label>
         <input type="text" id="re-otherNames" placeholder="Cano, Zapater, OConnor" class="u-w-full">
-        <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.25rem">
+        <div class="u-fs-072 u-c-dim u-mt-025">
           Usa este campo para segundos apellidos (ej: "Cano" si el corredor se llama Rodríguez Cano), variantes ortográficas o abreviaturas que puedan aparecer en startlists importadas.
         </div>
       </div>
       <div class="field">
         <label>Nacionalidad</label>
-        <div class="u-row" style="gap:0.4rem">
-          <input type="text" id="re-nationality" placeholder="es" maxlength="5" style="width:4rem;text-transform:lowercase" autocomplete="off">
-          <span id="re-nationality-flag" style="font-size:1.4rem;min-width:1.8rem;text-align:center"></span>
+        <div class="u-row u-gap-040">
+          <input type="text" id="re-nationality" placeholder="es" maxlength="5" autocomplete="off">
+          <span id="re-nationality-flag" class="u-fs-140 u-minw-180 u-center"></span>
         </div>
       </div>
       <div class="field">
@@ -170,17 +170,17 @@ function riderEditorBodyHtml() {
         <label>Contrato hasta <span class="u-dim">— año, vacío = desconocido</span></label>
         <input type="number" id="re-contractUntil" min="2020" max="2040" placeholder="2027" class="u-w-full">
       </div>
-      <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:0.5rem">
-        <input type="checkbox" id="re-verified" style="width:auto;margin:0">
-        <label for="re-verified" style="margin:0;cursor:pointer">Verificado <span class="u-dim">— marca cuando los datos del corredor estén revisados y completos</span></label>
-        <span id="re-source-info" style="margin-left:auto;font-size:0.72rem;color:var(--text-dim)"></span>
+      <div class="field u-row u-span-all">
+        <input type="checkbox" id="re-verified" class="u-w-auto u-m0">
+        <label for="re-verified" class="re-verified-label">Verificado <span class="u-dim">— marca cuando los datos del corredor estén revisados y completos</span></label>
+        <span id="re-source-info" class="u-ml-auto u-fs-072 u-c-dim"></span>
       </div>
     </div>
-    <div class="u-row" style="gap:0.75rem;flex-wrap:wrap;margin-top:1rem">
+    <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveRiderBtn">Guardar</button>
-      <button class="btn btn--ghost" id="mergeRiderBtn" title="Fusionar este corredor con otro: las startlists del actual pasan al elegido y este se elimina." style="color:#f59e0b;display:none">Fusionar con otro…</button>
-      <button class="btn btn--ghost" id="deleteRiderBtn" style="color:var(--red);display:none">Eliminar</button>
-      <span class="u-fs-md u-c-dim" id="riderSaveStatus"></span>
+      <button class="btn btn--ghost u-c-warn" id="mergeRiderBtn" title="Fusionar este corredor con otro: las startlists del actual pasan al elegido y este se elimina." style="display:none">Fusionar con otro…</button>
+      <button class="btn btn--ghost u-c-red" id="deleteRiderBtn" style="display:none">Eliminar</button>
+      <span class="u-fs-080 u-c-dim" id="riderSaveStatus"></span>
     </div>
   `;
 }

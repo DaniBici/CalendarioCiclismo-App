@@ -113,17 +113,6 @@ enum UciResultsLogic {
 
     // ── Tiempos / gaps (port de resultados.js L44–72) ──────────────────────
 
-    /// "H:MM:SS" | "MM:SS" | "SS" → segundos (o nil si no parsea).
-    static func timeToSeconds(_ txt: String?) -> Int? {
-        guard let txt, !txt.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        var acc = 0
-        for part in txt.trimmingCharacters(in: .whitespaces).split(separator: ":", omittingEmptySubsequences: false) {
-            guard let n = Int(part) else { return nil }
-            acc = acc * 60 + n
-        }
-        return acc
-    }
-
     /// segundos → gap con la convención de la prensa ciclista:
     ///   <1min → +SS"   ·   <1h → +M'SS"   ·   ≥1h → +H:MM:SS
     static func secondsToGap(_ sec: Int?) -> String? {
@@ -159,7 +148,7 @@ enum UciResultsLogic {
         return t
     }
 
-    /// segundos → tiempo absoluto "H:MM:SS" (inverso de timeToSeconds; sin '+').
+    /// segundos → tiempo absoluto "H:MM:SS" (sin '+').
     static func secondsToTimeText(_ sec: Int?) -> String {
         guard let sec, sec >= 0 else { return "" }
         let h = sec / 3600
@@ -784,12 +773,16 @@ enum UciResultsLogic {
             let fromRider = fromSl == nil ? r.globalRiderId.flatMap { byRider[$0] } : nil
             let resolved = fromSl ?? fromRider
             // Pestaña Equipos: la fila ES un equipo (riderDisplay = nombre crudo de
-            // la fuente, sin dorsal) → se casa por NOMBRE contra los equipos
-            // canónicos de la startlist para chapa + nombre del catálogo (espejo
-            // de la web). Sin casar → el crudo de la fuente, sin chapa.
-            let matchedTeam = isTeams ? findMatchingTeam(r.riderDisplay, teams: raceTeams) : nil
+            // la fuente, sin dorsal). Espejo de la web: primero su `teamId` (equipo
+            // de la startlist o, si no figura en ella, el resuelto por id); sin
+            // teamId, se casa por NOMBRE contra los equipos canónicos de la
+            // startlist. Sin casar → el crudo de la fuente, sin chapa.
+            let matchedTeam: Team? = isTeams
+                ? (r.teamId.flatMap { id in raceTeams.first(where: { $0.id == id }) ?? byTeamOverride[id] }
+                    ?? findMatchingTeam(r.riderDisplay, teams: raceTeams))
+                : nil
             // Override manual de equipo (panel): gana a dorsal/globalRiderId. No
-            // aplica en la pestaña Equipos (la fila ES un equipo, casado por nombre).
+            // aplica en la pestaña Equipos (la fila ES un equipo, resuelto arriba).
             let overrideTeam = isTeams ? nil : r.teamId.flatMap { byTeamOverride[$0] }
             // Nombre: startlist (curado) → ficha por globalRiderId (orden natural) →
             // riderDisplay (fallback de la fuente). La ficha gana al riderDisplay para

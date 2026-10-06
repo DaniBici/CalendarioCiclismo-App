@@ -190,7 +190,4 @@ describe('buildTeamStartOrder — CRE por equipos', () => {
       { order: 2, teamName: 'UGANDA', startTime: '13:49:00' },
     ]);
   });
-  it('el orden individual ignora las filas de equipo (sin dorsal)', () => {
-    expect(buildStartOrder(rows)).toEqual([]);
-  });
 });

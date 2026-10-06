@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => {
@@ -434,12 +435,12 @@ async function processLinkedRace(race) {
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  if (!env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl(env)) throw new Error('Falta DATABASE_URL');
 
   const { Client } = await import('pg');
   const client = new Client({
-    connectionString: env.DATABASE_URL,
-    ssl: env.DATABASE_URL.includes('localhost') ? undefined : { rejectUnauthorized: false },
+    connectionString: databaseUrl(env),
+    ssl: databaseUrl(env).includes('localhost') ? undefined : { rejectUnauthorized: false },
   });
   await client.connect();
 

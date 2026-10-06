@@ -120,7 +120,7 @@ import app.calendariociclismo.android.util.NetworkMonitor
 import app.calendariociclismo.android.util.GuideRow
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.RegionDetector
-import app.calendariociclismo.android.util.openExternalUrl
+import app.calendariociclismo.android.util.openExternalLink
 import app.calendariociclismo.android.util.SimplifiedGuide
 import app.calendariociclismo.android.util.rememberHaptics
 import kotlinx.coroutines.Dispatchers
@@ -594,7 +594,7 @@ private val OfflineAccessAlert.offersEnableOfflineCTA: Boolean
     }
 
 @Composable
-private fun OfflineAccessDialog(
+internal fun OfflineAccessDialog(
     alert: OfflineAccessAlert,
     onDismiss: () -> Unit,
     onEnableOffline: () -> Unit,
@@ -735,13 +735,7 @@ private fun openExternal(
     context: Context,
     url: String,
     showAlert: (OfflineAccessAlert) -> Unit,
-) {
-    if (!NetworkMonitor.isOnline(context)) {
-        showAlert(OfflineAccessAlert.ExternalLinkOffline)
-        return
-    }
-    openExternalUrl(context, url)
-}
+) = openExternalLink(context, url) { showAlert(OfflineAccessAlert.ExternalLinkOffline) }
 
 // ACTION_INSERT para que el evento entre al calendario primario sin permisos
 // y sin la latencia/visibilidad oculta del flujo `?cid=` (que suscribe el .ics).
@@ -1376,7 +1370,6 @@ private fun StageNotificationChip(
         icon = icon,
         label = label,
         onClick = {
-                // Notificaciones enriquecidas liberadas al plan gratuito: sin paywall.
                 haptic(Haptics.Event.Selection)
                 scope.launch {
                     val current = app.preferences.snapshotFollowedStageIds().toMutableSet()

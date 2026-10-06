@@ -5,6 +5,18 @@ struct CxDestination: Hashable {
     var anchor: String? = nil
 }
 
+/// Secciones de la página de torneo, con el selector de la ficha de carrera.
+enum CxTournamentSection: String, CaseIterable, Identifiable {
+    case calendar, general
+    var id: String { rawValue }
+    @MainActor var title: String {
+        switch self {
+        case .calendar: CyclocrossPresentation.t("Calendario", "Calendar")
+        case .general: CyclocrossPresentation.t("Clasificación general", "Overall standings")
+        }
+    }
+}
+
 struct CyclocrossView: View {
     let tournament: CxTournament?
     let selectedSeason: String?
@@ -40,6 +52,12 @@ struct CyclocrossView: View {
 
     /// Torneo formado solo por carreras ocultas en el idioma activo.
     @State private var tournamentHidden = false
+    /// Generales publicadas del torneo: sin ellas la página no muestra
+    /// secciones y queda en el calendario.
+    @State private var standings: CxTournamentStandings?
+    @State private var standingsMatcher = UciResultsLogic.TeamMatcher(teams: [])
+    @State private var section = CxTournamentSection.calendar
+    @State private var generalCategory = ""
 
     var body: some View {
         Group {
@@ -53,6 +71,26 @@ struct CyclocrossView: View {
             guard let id = tournament?.id else { return }
             tournamentHidden = !(await CyclocrossRepository.shared.tournamentIsVisible(id))
         }
+        .task(id: tournament?.id) { await loadStandings() }
+    }
+
+    private var standingsSeason: String { tournament?.seasonKey ?? selectedSeason ?? model.season }
+    private var generalCategories: [String] {
+        guard let standings else { return [] }
+        return CyclocrossPresentation.tournamentGeneralCategories(standings: standings.standings, states: standings.states)
+    }
+    private var showsGeneral: Bool { section == .general && !generalCategories.isEmpty }
+
+    /// Carga las generales; un fallo conserva lo ya publicado (o ninguna
+    /// sección si aún no había).
+    private func loadStandings() async {
+        guard let id = tournament?.id else { return }
+        guard let value = try? await CyclocrossRepository.shared.tournamentStandings(tournamentId: id, season: standingsSeason) else { return }
+        standingsMatcher = UciResultsLogic.TeamMatcher(teams: value.teams.map(\.roadTeam))
+        standings = value
+        let codes = generalCategories
+        if codes.isEmpty { section = .calendar }
+        if !codes.contains(generalCategory) { generalCategory = codes.contains("ME") ? "ME" : codes.first ?? "" }
     }
 
     private var agenda: some View {
@@ -81,23 +119,28 @@ struct CyclocrossView: View {
                         }
                         .padding().background(AppTheme.cardBackground)
                     }
+                    if !generalCategories.isEmpty { tournamentSectionControls }
                     // La agenda general conserva el selector de meses; la página de
                     // torneo muestra todas sus pruebas juntas y prescinde de él.
                     if tournament == nil { monthControls }
                     if tournament == nil { filterBar }
-                    if model.busy && !model.isRefreshing { ProgressView().accessibilityLabel(CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross")) }
-                    if let error = model.error {
-                        VStack {
-                            Text(error).foregroundStyle(.red)
-                            Button(CyclocrossPresentation.t("Reintentar", "Retry")) { Task { await model.retry() } }.buttonStyle(.bordered)
-                        }.padding(.horizontal)
-                    }
-                    // Torneo: pantalla de carga completa (sin perfil inferior,
-                    // como las transiciones de Hoy) hasta la primera tanda.
-                    if tournament != nil, model.busy, !model.isRefreshing, model.rows.isEmpty {
-                        LoadingView(message: CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross"), branded: true, showProfile: false)
+                    if showsGeneral, let standings {
+                        tournamentGeneral(standings)
                     } else {
-                        agendaList(proxy: proxy)
+                        if model.busy && !model.isRefreshing { ProgressView().accessibilityLabel(CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross")) }
+                        if let error = model.error {
+                            VStack {
+                                Text(error).foregroundStyle(.red)
+                                Button(CyclocrossPresentation.t("Reintentar", "Retry")) { Task { await model.retry() } }.buttonStyle(.bordered)
+                            }.padding(.horizontal)
+                        }
+                        // Torneo: pantalla de carga completa (sin perfil inferior,
+                        // como las transiciones de Hoy) hasta la primera tanda.
+                        if tournament != nil, model.busy, !model.isRefreshing, model.rows.isEmpty {
+                            LoadingView(message: CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross"), branded: true, showProfile: false)
+                        } else {
+                            agendaList(proxy: proxy)
+                        }
                     }
                 }
             }
@@ -167,6 +210,7 @@ struct CyclocrossView: View {
         case .startOrder(let id): highlightedStartOrderDayId = IdentifiableID(id: id)
         case .championships: championshipsRoute = ChampionshipsRoute()
         case .transfers: NotificationManager.shared.pendingDeepLink = .tab(2)
+        case .season(let year): NotificationManager.shared.pendingDeepLink = .season(year)
         case .cxRace(let id): NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
         case .cxTournament: break
         }
@@ -275,6 +319,45 @@ struct CyclocrossView: View {
                     animateNavigation(forward: h < 0) { await model.selectMonth(target) }
                 }
         )
+    }
+    /// Selector de secciones y, en la general, de categorías: los mismos
+    /// controles que la ficha de carrera.
+    private var tournamentSectionControls: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(CxTournamentSection.allCases) { item in
+                        ResultsClassificationTab(label: item.title, selected: section == item, tint: nil) { section = item }
+                    }
+                }
+            }
+            if section == .general {
+                ResultsStageSelector(stageKeys: generalCategories, activeKey: generalCategory,
+                    onSelect: { generalCategory = $0 }, labelForKey: { $0 },
+                    accessibilityLabelForKey: { CyclocrossPresentation.category($0) })
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal)
+        .background(AppTheme.background)
+    }
+    private func tournamentGeneral(_ data: CxTournamentStandings) -> some View {
+        let rows = data.standings.filter { $0.category == generalCategory }
+        let state = data.states.first { $0.category == generalCategory }
+        let mode = CyclocrossPresentation.standingMode(scheme: data.pointsScheme, category: generalCategory, rows: rows)
+        return ScrollView {
+            // Con columnas de ronda, el gesto horizontal desplaza la tabla y no
+            // cambia de categoría.
+            CxStandingsTable(rows: rows, state: state, mode: mode, matcher: standingsMatcher, rounds: model.rounds, races: data.races)
+                .contentShape(Rectangle())
+                .classificationSwipe(options: CxStandingsTable.hasRounds(state: state, mode: mode) ? [] : generalCategories, current: generalCategory) { generalCategory = $0 }
+                .padding(.horizontal)
+                .padding(.bottom)
+        }
+        .refreshable {
+            await loadStandings()
+            Haptics.play(.success)
+        }
     }
     private var roundTotal: Int {
         guard let tournament else { return 0 }

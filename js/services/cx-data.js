@@ -1,5 +1,5 @@
 // Clientes inyectados: se comparte entre panel, web y pruebas sin cargar Auth.
-import {cxSeasonMonths,cxDateInSeason,cxSeasonBounds} from '../cx/season.js?v=20260912cxmonths7';
+import {cxSeasonMonths,cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
 export const CX_AGENDA_SELECT='id,name,nameEn,abbrev,slug,slugEn,seasonKey,dateKey,endDateKey,class,countryCode,venue,tournamentId,colorHex,logoUrl,isCancelled,timezone,assets(type,url),cx_tournaments(id,name,nameEn,slug,colorHex,logoUrl),cx_race_categories(category,startTimeUtc,dateKey,sortOrder,isCancelled,resultsStatus,winnerName,durationFormat,durationRuleVersion,durationMinutes,durationRuleSourceUrl,startlistImportedAt)';
 
 // Clases ocultas en inglés: la categoría nacional española (y los futuros
@@ -134,7 +134,7 @@ export async function cxSeasonRounds(client,seasonKey) {
 }
 
 export async function cxTournamentMetadata(client,id,{bySlug=false}={}) {
-  const tournament=await cxQuery(client.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,logoUrl').eq(bySlug?'slug':'id',id).maybeSingle());
+  const tournament=await cxQuery(client.from('cx_tournaments').select('id,name,nameEn,slug,seasonKey,logoUrl,pointsScheme').eq(bySlug?'slug':'id',id).maybeSingle());
   if(!tournament)return null;
   return {...tournament,countryCode:null};
 }

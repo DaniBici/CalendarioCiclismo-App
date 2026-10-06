@@ -28,7 +28,9 @@ createServer(async (req, res) => {
       if (shell) { fsPath = join(ROOT, shell); entry = await stat(fsPath).catch(() => null); }
     }
     if (!entry) { res.writeHead(404).end('not found'); return; }
-    res.writeHead(200, { 'content-type': TYPES[extname(fsPath)] || 'application/octet-stream' });
+    // Las fuentes no llevan ?v= (la versión se aplica en el build): sin caché,
+    // cada recarga pide los módulos actuales.
+    res.writeHead(200, { 'content-type': TYPES[extname(fsPath)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     let body = await readFile(fsPath);
     if (extname(fsPath) === '.html') {
       // Las páginas de producción generan rutas absolutas. La previsualización

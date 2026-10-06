@@ -2,7 +2,9 @@ export const LIVE_RESULT_SOURCES = Object.freeze([
   'tissot', 'matsport', 'raceresult', 'sts', 'livetiming', 'sportsoft',
   'timing.ee', 'evodata', 'infocity', 'ASO', 'manual_timing', 'chronohr', 'maneffic',
 ]);
-export const COVERED_STAGE_REFRESH_SOURCES = Object.freeze([...LIVE_RESULT_SOURCES, 'domtel']);
+// Fuentes post-meta cuya clasificación se completa a medida que llegan corredores:
+// se releen dentro de la ventana aunque ya publiquen ganador.
+export const COVERED_STAGE_REFRESH_SOURCES = Object.freeze([...LIVE_RESULT_SOURCES, 'domtel', 'mikatiming', 'ficr', 'lapclip']);
 // Fuentes de volcado manual: el cron no las selecciona nunca y su upsert del
 // enlace no debe sobrescribir un enlace automático existente.
 export const MANUAL_RESULT_SOURCES = Object.freeze(['pdf', 'sportstiming']);

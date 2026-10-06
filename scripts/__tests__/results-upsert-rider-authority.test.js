@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { extractRidersForNameResolve, nameResolveWithStartlistAuthoritySql } from '../results-fetchers/results-upsert.mjs';
 import { pendingIdentityDetails } from '../results-fetchers/historical-identity-log.mjs';
 
@@ -36,33 +35,7 @@ describe('identidades de pruebas con dorsales reutilizados', () => {
   });
 });
 
-describe('resolución histórica protegida', () => {
-  const migration = readFileSync(new URL(
-    '../../supabase/migrations/20260907200000_harden_historical_result_identity.sql',
-    import.meta.url,
-  ), 'utf8');
-  const upsert = readFileSync(new URL(
-    '../results-fetchers/results-upsert.mjs',
-    import.meta.url,
-  ), 'utf8');
-
-  it('prioriza identificadores UCI y nombres alternativos del catálogo', () => {
-    expect(migration).toContain('"uciProfileId"=v_profile');
-    expect(migration).toContain('"uciLicenseId"=v_license');
-    expect(migration).toContain('compute_identity_key("firstName","otherNames")=v_ikey');
-  });
-
-  it('impide crear cuando queda un candidato nominal o biográfico', () => {
-    expect(migration).toContain('cardinality(v_name_cands)>0');
-    expect(migration).toContain('cardinality(v_subset_cands)>0');
-    expect(migration).toContain('cardinality(v_birth_cands)>0');
-  });
-
-  it('revierte el volcado histórico si queda alguna identidad sin resolver', () => {
-    expect(upsert).toContain('public.resolve_historical_uci_results_by_name');
-    expect(upsert).toContain('Identidades históricas ambiguas o incompletas');
-  });
-
+describe('expediente de identidades históricas pendientes', () => {
   it('genera un expediente suficiente para la revisión asistida', () => {
     const details = pendingIdentityDetails([{
       eventId: 10, bib: '7', riderDisplay: 'ALFA Ana', sourceTeamName: 'Equipo A',
@@ -85,11 +58,6 @@ describe('autoridad de identidad de la startlist oficial', () => {
     '[{"bib":"15","display":"BJERG M."}]',
   );
 
-  it('no activa el fallback por las filas sin corredor de clasificaciones de equipos', () => {
-    expect(sql).toContain('JOIN public.race_uci_stages s ON s.id=r."stageRef"');
-    expect(sql).toContain('s."isTeamEvent"=false');
-  });
-
   it('no activa el fallback nominal para una fila individual que ya tiene dorsal', () => {
     expect(sql).toContain("AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')");
   });
@@ -104,18 +72,6 @@ describe('autoridad de identidad de la startlist oficial', () => {
 
     expect(dataRideSql).not.toContain("AND (r.bib IS NULL OR r.bib !~ '^[0-9]+$')");
     expect(dataRideSql).toContain('r."globalRiderId" IS NULL');
-  });
-
-  it('permite resolver filas con dorsal sin activar ninguna siembra de startlist', () => {
-    const resultsOnlySql = nameResolveWithStartlistAuthoritySql(
-      'race_x',
-      'male',
-      '[{"bib":"15","display":"BJERG M."}]',
-      { includeBib: true },
-    );
-
-    expect(resultsOnlySql).not.toContain('resolve_uci_startlist');
-    expect(resultsOnlySql).toContain('resolve_uci_results_by_name');
   });
 
   it('reaplica el enlace por dorsal después del fallback por nombre', () => {

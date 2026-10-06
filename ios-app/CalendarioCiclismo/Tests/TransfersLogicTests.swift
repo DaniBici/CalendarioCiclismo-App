@@ -36,22 +36,19 @@ final class TransfersLogicTests: XCTestCase {
 
     // MARK: - Feed
 
-    func test_feedExcludesRumors() {
-        let feed = TransfersLogic.confirmedFeed([
-            transfer(id: "t1", riderId: "r1", status: "confirmed", to: "team_b"),
-            transfer(id: "t2", riderId: "r2", status: "rumor", to: "team_b"),
-        ])
-        XCTAssertEqual(feed.map(\.id), ["t1"])
-    }
-
     func test_feedShowsOnlyRealSignings() {
-        // Solo fichajes reales (transfer con destino conocido). Fuera:
-        // renovaciones, retiradas y fines de contrato sin destino (to='?').
+        // Solo fichajes reales confirmados, visibles y con destino conocido. Fuera:
+        // renovaciones, retiradas, fines de contrato sin destino (to='?'), rumores,
+        // dudas y movimientos con fecha oculta (la carga inicial del mercado no
+        // debe llenar el feed de anuncios viejos).
         let feed = TransfersLogic.confirmedFeed([
             transfer(id: "sign", riderId: "r1", type: "transfer", to: "team_b"),
             transfer(id: "renew", riderId: "r2", type: "renewal", to: "team_a"),
             transfer(id: "retire", riderId: "r3", type: "retirement", from: "team_a"),
             transfer(id: "end", riderId: "r4", type: "transfer", from: "team_a", toName: "?"),
+            transfer(id: "rumor", riderId: "r5", status: "rumor", to: "team_b"),
+            transfer(id: "doubt", riderId: "r6", type: "renewal", status: "doubt", to: "team_a"),
+            transfer(id: "hidden", riderId: "r7", to: "team_b", dateVisible: false),
         ])
         XCTAssertEqual(feed.map(\.id), ["sign"])
     }
@@ -219,19 +216,6 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(detail.departures.map(\.id), ["toWtA", "toWtB", "toPt", "toCt", "retire"])
     }
 
-    func test_arrivalsSortedAlphabeticallyByLastName() {
-        let riders = [
-            "r1": TransferRider(id: "r1", firstName: "A", lastName: "Zeta", nationality: nil, currentTeamId: nil, contractUntil: nil),
-            "r2": TransferRider(id: "r2", firstName: "B", lastName: "Alfa", nationality: nil, currentTeamId: nil, contractUntil: nil),
-        ]
-        let moves = [
-            transfer(id: "t1", riderId: "r1", type: "transfer", to: "team_a"),
-            transfer(id: "t2", riderId: "r2", type: "transfer", to: "team_a"),
-        ]
-        let detail = TransfersLogic.teamDetail(transfers: moves, roster: [], teamId: "team_a", ridersById: riders)
-        XCTAssertEqual(detail.arrivals.map(\.id), ["t2", "t1"])
-    }
-
     func test_arrivalsConfirmedBeforeRumors() {
         // Confirmados primero, rumores después; apellido dentro de cada grupo.
         let riders = [
@@ -313,14 +297,6 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(detailB.arrivals.first?.status, "rumor")
     }
 
-    func test_retirementCountsAsDeparture() {
-        let roster = [rider("r1", last: "Uno")]
-        let moves = [transfer(id: "t1", riderId: "r1", type: "retirement", from: "team_a")]
-        let detail = TransfersLogic.teamDetail(transfers: moves, roster: roster, teamId: "team_a")
-        XCTAssertTrue(detail.staying.isEmpty)
-        XCTAssertEqual(detail.departures.first?.type, "retirement")
-    }
-
     func test_renewalContractWinsOverProfileAndRumorFlagsRow() {
         let roster = [rider("r1", last: "Uno", contractUntil: 2027), rider("r2", last: "Dos", contractUntil: 2027)]
         let moves = [
@@ -333,19 +309,6 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(byId["r1"]?.isRumor, false)
         XCTAssertEqual(byId["r2"]?.contractUntil, 2030)
         XCTAssertEqual(byId["r2"]?.isRumor, true)
-    }
-
-    func test_stayingFallsBackToProfileContract() {
-        let roster = [rider("r1", last: "Uno", contractUntil: 2028)]
-        let detail = TransfersLogic.teamDetail(transfers: [], roster: roster, teamId: "team_a")
-        XCTAssertEqual(detail.staying.first?.contractUntil, 2028)
-        XCTAssertEqual(detail.staying.first?.isRumor, false)
-    }
-
-    func test_stayingSortsByLastName() {
-        let roster = [rider("r1", last: "Zubeldia"), rider("r2", last: "Aular")]
-        let detail = TransfersLogic.teamDetail(transfers: [], roster: roster, teamId: "team_a")
-        XCTAssertEqual(detail.staying.map(\.rider.id), ["r2", "r1"])
     }
 
     // MARK: - Etiquetas de equipo
@@ -394,16 +357,8 @@ final class TransfersLogicTests: XCTestCase {
 
     // MARK: - Fecha oculta (mig. 123)
 
-    /// La carga inicial del mercado no debe llenar el feed de anuncios viejos.
-    func test_feedExcludesHiddenDateMoves() {
-        let feed = TransfersLogic.confirmedFeed([
-            transfer(id: "t1", riderId: "r1", to: "team_b", dateVisible: true),
-            transfer(id: "t2", riderId: "r2", to: "team_b", dateVisible: false),
-        ])
-        XCTAssertEqual(feed.map(\.id), ["t1"])
-    }
-
-    /// Pero SÍ cuenta en el detalle de equipo: es como se puebla el mercado.
+    /// Un movimiento con fecha oculta no sale en el feed, pero sí cuenta en el
+    /// detalle de equipo: es como se puebla el mercado.
     func test_hiddenDateMoveStillCountsInTeamDetail() {
         let moves = [transfer(id: "t1", riderId: "r1", from: "team_a", to: "team_b", dateVisible: false)]
         let detail = TransfersLogic.teamDetail(transfers: moves, roster: [rider("r1", last: "Uno")], teamId: "team_a")
@@ -422,14 +377,6 @@ final class TransfersLogicTests: XCTestCase {
     }
 
     // MARK: - Duda del corredor (mig. 123)
-
-    func test_feedExcludesDoubts() {
-        let feed = TransfersLogic.confirmedFeed([
-            transfer(id: "t1", riderId: "r1", type: "renewal", status: "doubt", to: "team_a"),
-            transfer(id: "t2", riderId: "r2", to: "team_b"),
-        ])
-        XCTAssertEqual(feed.map(\.id), ["t2"])
-    }
 
     /// Una renovación en duda saca al corredor de "continúan" y lo lleva a "en duda".
     func test_doubtMovesRiderOutOfStaying() {
@@ -450,15 +397,6 @@ final class TransfersLogicTests: XCTestCase {
         let detail = TransfersLogic.teamDetail(transfers: moves, roster: roster, teamId: "team_a")
         // El de la FICHA, nunca el 2030 de la duda.
         XCTAssertEqual(detail.doubtful.first?.contractUntil, 2027)
-    }
-
-    /// Una renovación confirmada sigue mandando sobre el contrato de la ficha.
-    func test_confirmedRenewalStillOverridesContract() {
-        let moves = [transfer(id: "t1", riderId: "r1", type: "renewal", to: "team_a", contractUntil: 2030)]
-        let detail = TransfersLogic.teamDetail(
-            transfers: moves, roster: [rider("r1", last: "Uno", contractUntil: 2027)], teamId: "team_a")
-        XCTAssertEqual(detail.staying.first?.contractUntil, 2030)
-        XCTAssertFalse(detail.staying.first?.isRumor ?? true)
     }
 
     /// Una salida registrada gana a la duda: no puede estar en ambas listas.

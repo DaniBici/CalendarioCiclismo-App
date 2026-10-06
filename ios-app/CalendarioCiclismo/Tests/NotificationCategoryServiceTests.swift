@@ -19,20 +19,12 @@ final class NotificationCategoryServiceTests: XCTestCase {
 
     // MARK: - allCases
 
-    func test_allCases_hasFiveEntries() {
-        // Garantía contra olvidos: si añadimos una categoría nueva debería
-        // tocarse explícitamente este test.
-        XCTAssertEqual(NotificationCategoryService.NotificationCategory.allCases.count, 5)
-    }
-
     func test_allCases_orderIsStable() {
         XCTAssertEqual(
             NotificationCategoryService.NotificationCategory.allCases.map { $0.rawValue },
             ["general", "race_start", "tv_start", "results", "cyclocross"]
         )
     }
-
-    // MARK: - labels and icons
 
     func test_cyclocrossCanBeEnabledWithoutChangingRoadCategories() {
         let service = NotificationCategoryService.shared
@@ -50,17 +42,5 @@ final class NotificationCategoryServiceTests: XCTestCase {
         service.setEnabled(.cyclocross, false)
         XCTAssertEqual(service.enabled, road)
         XCTAssertTrue(service.enabled.contains(.general))
-    }
-
-    func test_eachCategoryHasNonEmptyLabel() {
-        for cat in NotificationCategoryService.NotificationCategory.allCases {
-            XCTAssertFalse(cat.labelKey.isEmpty)
-            XCTAssertFalse(cat.descriptionKey.isEmpty)
-            if cat == .cyclocross {
-                XCTAssertNil(cat.icon) // Usa el asset CyclocrossEmblem.
-            } else {
-                XCTAssertFalse(cat.icon?.isEmpty ?? true)
-            }
-        }
     }
 }

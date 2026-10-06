@@ -233,6 +233,7 @@ actor CacheManager {
     static func monthDaysKey(year: Int, month: Int) -> String { "monthdays_\(year)-\(String(format: "%02d", month))" }
     /// Clave para la temporada completa.
     static func seasonKey(_ year: Int) -> String { "season_\(year)" }
+    static func seasonChallengesKey(_ year: Int) -> String { "season_challenges_\(year)" }
 
     // MARK: - Interno
 

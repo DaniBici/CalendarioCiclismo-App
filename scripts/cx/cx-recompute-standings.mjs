@@ -2,6 +2,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { recomputeCxStandings } from '../../js/cx/standings.js';
+import { databaseUrl } from '../db/env.mjs';
 
 export async function computeAndPublish(client, tournamentId, category, { dryRun = false } = {}) {
   const { rows: [{ snapshot }] } = await client.query('SELECT public.cx_standings_snapshot($1,$2) AS snapshot', [tournamentId, category]);
@@ -64,9 +65,9 @@ async function main() {
     if (args.queue && (args.tournament || args.category || args['dry-run'])) throw new Error('--queue no admite destino ni dry-run');
     const limit = Number(args.limit || 20);
     if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('--limit inválido');
-    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL requerido por el runtime del worker');
+    if (!databaseUrl()) throw new Error('DATABASE_URL requerido por el runtime del worker');
     const { default: pg } = await import('pg');
-    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    const client = new pg.Client({ connectionString: databaseUrl() });
     await client.connect();
     try {
       output = args.queue ? await processStandingsQueue(client, { limit })

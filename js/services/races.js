@@ -34,18 +34,6 @@ export function annotateDoubleSectors(days) {
   });
 }
 
-/**
- * Decide si el miniperfil debe conservarse completo después de la meta cuando
- * todavía no hay clasificaciones propias.
- *
- * Una fuente automática pendiente mantiene el horario visible, pero no debe
- * dejar la tarjeta sin miniperfil al superar la hora estimada de llegada.
- */
-export function shouldShowCompletedNoResultsProfile(rd, hasInhouseResults, isPastFinish) {
-  if (hasInhouseResults || !rd || rd.isRestDay || rd.isCancelledDay) return false;
-  return isPastFinish === true;
-}
-
 // ── Resultados: disponibilidad por jornada ─────────────────────────
 /**
  * Construye el detector de jornadas con resultados propios.

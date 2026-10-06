@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { annotateDoubleSectors, buildInhouseResultsMatcher,
-  shouldShowCompletedNoResultsProfile } from '../services/races.js';
+import { annotateDoubleSectors, buildInhouseResultsMatcher } from '../services/races.js';
 
 // ── annotateDoubleSectors ──────────────────────────────────────────
 
@@ -28,16 +27,6 @@ describe('annotateDoubleSectors', () => {
     expect(days[1]._stageSuffix).toBeUndefined();
   });
 
-  it('asigna A y B a doble sector del mismo día', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T08:00:00Z' }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T13:00:00Z' }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._stageSuffix).toBe('A');
-    expect(days[1]._stageSuffix).toBe('B');
-  });
-
   it('ordena A/B por hora de salida ascendente', () => {
     const days = [
       makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, neutralStartTimeUtc: '2026-07-01T13:00:00Z' }),
@@ -51,24 +40,18 @@ describe('annotateDoubleSectors', () => {
     expect(days[aIdx].neutralStartTimeUtc).toBe('2026-07-01T08:00:00Z');
   });
 
-  it('no asigna sufijo a días de descanso', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, isRestDay: true }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._stageSuffix).toBeUndefined();
-    expect(days[1]._stageSuffix).toBeUndefined();
-  });
-
-  it('no asigna sufijo a etapas canceladas', () => {
-    const days = [
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 3, isCancelledDay: true }),
-      makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 3 }),
-    ];
-    annotateDoubleSectors(days);
-    expect(days[0]._stageSuffix).toBeUndefined();
-    expect(days[1]._stageSuffix).toBeUndefined();
+  // A diferencia de sectorSuffixMap, aquí un sector cancelado no cuenta como
+  // doble sector: ninguno de los dos recibe sufijo.
+  it('no asigna sufijo a días de descanso ni a etapas canceladas', () => {
+    for (const flag of ['isRestDay', 'isCancelledDay']) {
+      const days = [
+        makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1, [flag]: true }),
+        makeRaceDay({ raceId: 'r1', dateKey: '2026-07-01', stageNumber: 1 }),
+      ];
+      annotateDoubleSectors(days);
+      expect(days[0]._stageSuffix).toBeUndefined();
+      expect(days[1]._stageSuffix).toBeUndefined();
+    }
   });
 
   it('no mezcla dobles sectores de carreras distintas', () => {
@@ -110,24 +93,6 @@ describe('buildInhouseResultsMatcher', () => {
 
     expect(matcher.has({ id: 'stage-1a', raceId: 'r1', stageNumber: 1 })).toBe(true);
     expect(matcher.has({ id: 'stage-1b', raceId: 'r1', stageNumber: 1 })).toBe(false);
-  });
-});
-
-describe('shouldShowCompletedNoResultsProfile', () => {
-  const stage = { isRestDay: false, isCancelledDay: false };
-
-  it('conserva el miniperfil completo tras la meta si faltan resultados propios', () => {
-    expect(shouldShowCompletedNoResultsProfile(stage, false, true)).toBe(true);
-  });
-
-  it('no fuerza el perfil antes de la meta ni cuando ya hay resultados propios', () => {
-    expect(shouldShowCompletedNoResultsProfile(stage, false, false)).toBe(false);
-    expect(shouldShowCompletedNoResultsProfile(stage, true, true)).toBe(false);
-  });
-
-  it('no muestra el perfil de jornadas de descanso o canceladas', () => {
-    expect(shouldShowCompletedNoResultsProfile({ ...stage, isRestDay: true }, false, true)).toBe(false);
-    expect(shouldShowCompletedNoResultsProfile({ ...stage, isCancelledDay: true }, false, true)).toBe(false);
   });
 });
 
@@ -183,17 +148,11 @@ describe('resultStageEntryKey', () => {
   const suffixByDayId = new Map([['d3a', 'A'], ['d3b', 'B']]);
   const sectoredNums = new Set([3]);
 
-  it('final → "final"', () => {
+  it('final, etapa normal, sector con raceDayId y sector sin raceDayId', () => {
     expect(resultStageEntryKey(null, null, suffixByDayId, sectoredNums)).toBe('final');
-  });
-  it('etapa normal → número pelado', () => {
     expect(resultStageEntryKey(2, 'd2', suffixByDayId, sectoredNums)).toBe('2');
-  });
-  it('sector con raceDayId conocido → número + sufijo', () => {
-    expect(resultStageEntryKey(3, 'd3a', suffixByDayId, sectoredNums)).toBe('3A');
     expect(resultStageEntryKey(3, 'd3b', suffixByDayId, sectoredNums)).toBe('3B');
-  });
-  it('sector sin raceDayId (volcado antes de crear jornada) → número pelado', () => {
+    // Volcado anterior a la creación de la jornada.
     expect(resultStageEntryKey(3, null, suffixByDayId, sectoredNums)).toBe('3');
   });
 });

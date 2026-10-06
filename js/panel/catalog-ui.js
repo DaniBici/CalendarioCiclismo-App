@@ -47,7 +47,7 @@ export function panelCatalogModel(rows,{categoryOf,categoryOrder,search='',count
 }
 
 export function panelRaceListItemHtml({flagHtml='',name,isCancelled=false,metadataHtml='',category=''}) {
-  return `<span class="race-list-item__flag">${flagHtml}</span><div class="race-list-item__main"><div class="race-list-item__name" ${isCancelled?'style="text-decoration:line-through"':''}>${escapeHtml(name)}${isCancelled?' <span class="badge badge--type-cancelled">Cancelada</span>':''}</div><div class="race-list-item__sub">${metadataHtml}</div></div><span class="race-list-item__cat">${escapeHtml(category||'—')}</span>`;
+  return `<span class="race-list-item__flag">${flagHtml}</span><div class="race-list-item__main"><div class="race-list-item__name${isCancelled?' u-strike':''}">${escapeHtml(name)}${isCancelled?' <span class="badge badge--type-cancelled">Cancelada</span>':''}</div><div class="race-list-item__sub">${metadataHtml}</div></div><span class="race-list-item__cat">${escapeHtml(category||'—')}</span>`;
 }
 
 export function panelAgendaItemHtml({flagHtml='',name,detailHtml='',badgesHtml=''}) {

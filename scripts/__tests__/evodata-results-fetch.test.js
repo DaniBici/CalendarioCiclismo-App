@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildStage, eventsListUrl, fetchCompetition, mapGeneralRows, mapTimingRows, parseCode,
-  raceTypeFor, stageNumberFor, suggestCompetitionId,
+  buildStage, eventsListUrl, fetchCompetition, jornadasOf, mapGeneralRows, mapRelayRows, mapStartListIrm, mapTimingRows,
+  parseCode, pendingRelayTeams, raceTypeFor, relayRacesOf, stageNumberFor, suggestCompetitionId,
 } from '../results-fetchers/evodata-results-fetch.mjs';
 
 describe('EvoData CIS — resultados públicos', () => {
@@ -37,7 +37,7 @@ describe('EvoData CIS — resultados públicos', () => {
     expect(parseCode('107849')).toBe('107849');
     expect(() => parseCode('tour-avenir')).toThrow('eventId padre numérico');
     expect(eventsListUrl('107849')).toBe('https://cis.evodata.it/eventsList/107849');
-    expect(suggestCompetitionId('107849')).toBeLessThan(0);
+    expect(suggestCompetitionId('107849')).toBe(-129258);   // ancla del ID guardado
   });
 
   it('mapea gaps asignados en línea y diferencias cronometradas en contrarreloj', () => {
@@ -148,5 +148,138 @@ describe('EvoData CIS — resultados públicos', () => {
       { oneDay: true });
     expect(stages[0].raceType).toBeNull();
     expect(stages[0].classifications[0].rows[1]).toMatchObject({ gapText: '+09' });
+  });
+
+  it('completa los abandonos de una carrera de un día con la lista de salida', () => {
+    const startList = [
+      { bib: '4', status: 0 }, { bib: '33', status: 0 }, { bib: '1', status: 1 },
+      { bib: '78', status: 3 }, { bib: '42', status: 9 }, { bib: '50', status: 7 }, { bib: '33', status: 1 },
+    ];
+    const timing = { status: 'OK', tot: 2, times: [
+      { position: 1, bib: '4', order: 15_397_613, gap: '0' },
+      { position: 2, bib: '33', order: 15_397_613, gap: '-' },
+    ] };
+    const subEvent = { eventId: 108115, order: 1, eventType: 1, name: 'Men Elite Road Race', date: '2026-10-04' };
+    const [stage] = buildStage('108115', subEvent, { races: [{ raceTypeId: 12 }], timing, startList }, { oneDay: true });
+    const classification = stage.classifications[0];
+    expect(classification.rows.map(({ bib, rank, irm }) => [bib, rank, irm])).toEqual([
+      ['4', 1, null], ['33', 2, null], ['1', null, 'DNF'], ['78', null, 'DNS'], ['42', null, 'OTL'],
+    ]);
+    expect(classification).toMatchObject({ rowCount: 5, expectedRowCount: 5 });
+
+    const stageRace = buildStage('103006', { ...subEvent, order: 2 }, { races: [{ raceTypeId: 12 }], timing, startList }, { totalStages: 4 });
+    expect(stageRace[0].classifications[0].rows).toHaveLength(2);
+    expect(mapStartListIrm(null)).toEqual([]);
+  });
+
+  it('deriva DNF y DNS de las banderas de salida cuando el estado no está codificado', () => {
+    const startList = [
+      { bib: '4', status: 0, started: true, starting: true, finished: true },
+      { bib: '16', status: 0, started: true, starting: false, finished: false },
+      { bib: '91', status: 0, started: false, starting: true, finished: false },
+      { bib: '52', status: 0, started: false, starting: false, finished: false },
+      { bib: '60', status: 0, started: true, starting: true, finished: true },
+    ];
+    const timing = { status: 'OK', tot: 1, times: [
+      { position: 1, bib: '4', order: 14_008_973, gap: '0', createdAt: '2026-10-05T14:29:32.153Z' },
+    ] };
+    const subEvent = { eventId: 102151, order: 0, eventType: -1, name: 'COPPA BERNOCCHI', date: '2026-10-05' };
+    const build = (now) => buildStage('102151', subEvent, { races: [{ raceTypeId: 12 }], timing, startList },
+      { oneDay: true, now: Date.parse(now) })[0].classifications[0].rows.map(({ bib, irm }) => [bib, irm]);
+    // Con la llegada abierta, quien no ha llegado puede seguir en carrera.
+    expect(build('2026-10-05T14:40:00Z')).toEqual([['4', null]]);
+    expect(build('2026-10-05T15:00:00Z')).toEqual([['4', null], ['16', 'DNF'], ['91', 'DNS']]);
+    // Sin salidas registradas no se distingue DNS de DNF.
+    expect(mapStartListIrm(startList.map((rider) => ({ ...rider, started: false })), [], { arrivalClosed: true })).toEqual([]);
+  });
+
+  it('trata un evento autónomo UEC como su única jornada', () => {
+    const event = { eventId: 107119, parentEventId: 0, eventType: -1, name: 'UEC ITT', date: '2026-06-12T00:00:00.000Z', subEvents: [] };
+    expect(jornadasOf(event, '107119')).toEqual([
+      { eventId: 107119, order: 1, eventType: -1, name: 'UEC ITT', date: '2026-06-12T00:00:00.000Z' },
+    ]);
+    expect(jornadasOf({ ...event, parentEventId: 107000 }, '107119')).toEqual([]);
+    expect(jornadasOf({ ...event, eventId: 107120 }, '107119')).toEqual([]);
+    expect(jornadasOf(null, '107119')).toEqual([]);
+  });
+
+  describe('relevo mixto UEC', () => {
+    const races = [
+      { eventId: 108117, raceId: 100000001, name: 'Elite Mixed Relay', distance: 44, raceTypeId: 13 },
+      { eventId: 108117, raceId: 100000002, name: 'Singoli M', distance: 0, raceTypeId: 0 },
+      { eventId: 108117, raceId: 100000003, name: 'Singoli F', distance: 0, raceTypeId: 0 },
+    ];
+    const rider = (bib, teamName) => ({ bib: String(bib), teamName, firstName: 'X', lastName: 'Y' });
+    const men = [rider(1, 'Italy'), rider(2, 'Italy'), rider(3, 'Italy'), rider(11, 'France'), rider(12, 'France'), rider(13, 'France')];
+    const women = [rider(4, 'Italy'), rider(5, 'Italy'), rider(6, 'Italy'), rider(14, 'France'), rider(15, 'France'), rider(16, 'France')];
+    const teams = [
+      { position: 2, bib: '2', teamName: 'France', lastName: 'France', order: 3_100_400, gap: '8000' },
+      { position: 1, bib: '1', teamName: 'Italy', lastName: 'Italy', order: 3_092_900, gap: '0' },
+    ];
+
+    it('reconoce el concurso de selecciones y los concursos individuales', () => {
+      expect(relayRacesOf(races)).toMatchObject({ timed: { raceId: 100000001 }, members: [{ raceId: 100000002 }, { raceId: 100000003 }] });
+      expect(relayRacesOf(races.slice(0, 1))).toBeNull();
+      expect(relayRacesOf([...races, { raceId: 100000004, name: 'Open', distance: 44, raceTypeId: 12 }])).toBeNull();
+    });
+
+    it('expande cada selección con el tiempo del equipo en su primer dorsal', () => {
+      const rows = mapRelayRows(teams, [...men, ...women]);
+      expect(rows).toHaveLength(12);
+      expect(rows.slice(0, 6).map((row) => [row.bib, row.rank, row.timeText])).toEqual([
+        ['1', 1, '51:32'], ['2', null, null], ['3', null, null], ['4', null, null], ['5', null, null], ['6', null, null],
+      ]);
+      expect(rows[6]).toMatchObject({ bib: '11', rank: 2, timeText: '51:40', resultValue: '51:40', gapText: null, teamName: 'France' });
+      expect(() => mapRelayRows(teams, men.slice(0, 3))).toThrow('sin corredores para la selección France');
+    });
+
+    it('usa los tiempos individuales cuando los concursos individuales los publican', () => {
+      const individual = [
+        { position: 1, bib: '1', order: 1_530_000 }, { position: 2, bib: '2', order: 1_531_000 },
+        { position: 1, bib: '5', order: 3_092_900 }, { position: 2, bib: '4', order: 3_095_000 },
+      ];
+      const rows = mapRelayRows(teams, [...men, ...women], individual).slice(0, 6);
+      expect(rows.map((row) => [row.bib, row.rank, row.timeText])).toEqual([
+        ['5', 1, '51:32'], ['1', null, '25:30'], ['2', null, '25:31'], ['3', null, null], ['4', null, '51:35'], ['6', null, null],
+      ]);
+    });
+
+    const teamStart = (bib, name, extra = {}) => ({ bib: String(bib), teamName: name, lastName: name, status: 0, started: true, finished: true, starting: true, ...extra });
+    const startTeams = [teamStart(1, 'Italy'), teamStart(2, 'France')];
+
+    it('mantiene el relevo pendiente mientras alguna selección siga en carrera', () => {
+      expect(pendingRelayTeams(startTeams, teams)).toEqual([]);
+      expect(pendingRelayTeams([...startTeams, teamStart(3, 'Poland', { finished: false })], teams)).toEqual(['Poland']);
+      expect(pendingRelayTeams([...startTeams, teamStart(3, 'Poland', { status: 1, finished: false })], teams)).toEqual([]);
+      expect(pendingRelayTeams([...startTeams, teamStart(3, 'Poland', { starting: false })], teams)).toEqual([]);
+      expect(pendingRelayTeams(null, teams)).toBeNull();
+      const payload = { timing: { tot: 2, times: teams }, relayMembers: [...men, ...women], relayTimes: [] };
+      const subEvent = { eventId: 108117, date: '2026-10-06T00:00:00.000Z' };
+      expect(buildStage('108117', subEvent, { ...payload, relayTeams: [...startTeams, teamStart(3, 'Poland', { finished: false })] })).toEqual([]);
+      expect(buildStage('108117', subEvent, { ...payload, relayTeams: null })).toEqual([]);
+      expect(buildStage('108117', subEvent, { ...payload, relayTeams: startTeams })).toHaveLength(1);
+    });
+
+    it('publica el relevo como clasificación final CRE de un día', async () => {
+      vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+        const body = JSON.parse(options.body);
+        let data;
+        if (url.endsWith('/apptoken')) data = { status: 'OK', token: 'test' };
+        else if (url.includes('/getEventById/')) data = { eventId: 108117, parentEventId: 0, eventType: -1, date: '2026-10-06T00:00:00.000Z', subEvents: [] };
+        else if (url.includes('/getRacesByEventId/')) data = races;
+        else if (url.includes('/getJerseysByEventId/')) data = [];
+        else if (url.includes('/getStartList')) data = { status: 'OK', startList: body.raceId === 100000001 ? startTeams : body.raceId === 100000002 ? men : women };
+        else if (url.includes('/getResults/')) data = body.raceId === 100000001
+          ? { status: 'OK', tot: 2, times: teams }
+          : { status: 'KO', msg: 'No times found', tot: 0 };
+        else throw new Error(`Petición inesperada: ${url}`);
+        return { ok: true, json: async () => data };
+      }));
+      const [stage, ...rest] = await fetchCompetition('108117', { delay: 0, oneDay: true });
+      expect(rest).toEqual([]);
+      expect(stage).toMatchObject({ stageNumber: null, isFinalClassification: true, raceType: 'TTT', dateKey: '2026-10-06' });
+      expect(stage.classifications).toHaveLength(1);
+      expect(stage.classifications[0]).toMatchObject({ classKind: 'gc', scope: 'stage', isTeamEvent: false, rowCount: 12, expectedRowCount: 12 });
+    });
   });
 });

@@ -86,8 +86,7 @@ describe('InfoCity — respuesta JavaScript', () => {
   it('valida el código estable del proveedor', () => {
     expect(parseCode('21:21:141')).toEqual({ race: 21, test: 21, firstCed: 141 });
     expect(() => parseCode('21:141')).toThrow('race:test:ced-etapa-1');
-    expect(suggestCompetitionId('21:21:141')).toBeLessThan(0);
-    expect(synthRaceId('21:21:141', 2)).toBeLessThan(0);
+    expect(suggestCompetitionId('21:21:141')).toBe(-182706);   // ancla del ID guardado
     expect(synthRaceId('21:21:141', 2)).not.toBe(synthRaceId('21:21:141', 3));
   });
 

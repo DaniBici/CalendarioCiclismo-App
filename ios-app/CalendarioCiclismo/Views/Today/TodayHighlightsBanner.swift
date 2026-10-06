@@ -218,6 +218,14 @@ struct TodayHighlightsBanner: View {
                     .padding(6)
                     .foregroundStyle(currentAccentColor ?? Color.accentColor)
                     .frame(width: logoSide, height: logoSide)
+            } else if item.isSeason {
+                // Mismo icono que la pestaña Calendario.
+                Image(systemName: "calendar")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(6)
+                    .foregroundStyle(currentAccentColor ?? Color.accentColor)
+                    .frame(width: logoSide, height: logoSide)
             } else if item.cxRace != nil || item.cxTournament != nil {
                 RaceLogo(item.logoUrl, size: logoSide)
             } else if let logoUrl = item.logoUrl, let url = URL(string: logoUrl) {
@@ -281,6 +289,9 @@ struct TodayHighlightsBanner: View {
         // mismo canal que los deep links en vez de empujar al stack de Hoy.
         case .transfers:
             NotificationManager.shared.pendingDeepLink = .tab(2)
+        // Calendario también es pestaña propia: abre Temporada en el año indicado.
+        case .season(let year):
+            NotificationManager.shared.pendingDeepLink = .season(year)
         case .cxRace(let id):
             NotificationManager.shared.pendingDeepLink = .cxRace(id, anchor: nil)
         case .cxTournament:

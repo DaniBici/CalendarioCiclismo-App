@@ -360,7 +360,6 @@ private fun RaceDocumentationChips(
             )
         }
         if (showNotifications) {
-            // Notificaciones enriquecidas liberadas al plan gratuito: sin paywall.
             // Mismo estilo que AssetChip / StageNotificationChip (no AssistChip de
             // Material3, que rompía la paridad visual con los chips contiguos).
             RaceNotificationChip(

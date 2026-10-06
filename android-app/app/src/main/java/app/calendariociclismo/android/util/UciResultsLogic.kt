@@ -115,13 +115,6 @@ object UciResultsLogic {
 
     // ── Tiempos / gaps (port de resultados.js L44–72) ──────────────────────
 
-    /** "H:MM:SS" | "MM:SS" | "SS" → segundos (o null si no parsea). */
-    fun timeToSeconds(txt: String?): Int? {
-        if (txt.isNullOrBlank()) return null
-        val parts = txt.trim().split(":").map { it.toIntOrNull() ?: return null }
-        return parts.fold(0) { acc, n -> acc * 60 + n }
-    }
-
     /**
      * segundos → gap con la convención de la prensa ciclista:
      *   <1min → +SS"   ·   <1h → +M'SS"   ·   ≥1h → +H:MM:SS
@@ -164,7 +157,7 @@ object UciResultsLogic {
         return if (sec != null) secondsToGap(sec) else t
     }
 
-    /** segundos → tiempo absoluto "H:MM:SS" (inverso de timeToSeconds; sin '+'). */
+    /** segundos → tiempo absoluto "H:MM:SS" (inverso de tttToSeconds; sin '+'). */
     fun secondsToTimeText(sec: Int?): String {
         if (sec == null || sec < 0) return ""
         val h = sec / 3600
@@ -762,12 +755,16 @@ object UciResultsLogic {
             val fromRider = if (fromSl == null) r.globalRiderId?.let { byRider[it] } else null
             val resolved = fromSl ?: fromRider
             // Pestaña Equipos: la fila ES un equipo (riderDisplay = nombre crudo de
-            // la fuente, sin dorsal) → se casa por NOMBRE contra los equipos
-            // canónicos de la startlist para chapa + nombre del catálogo (espejo
-            // de la web). Sin casar → el crudo de la fuente, sin chapa.
-            val matchedTeam = if (isTeams) findMatchingTeam(r.riderDisplay, raceTeams) else null
+            // la fuente, sin dorsal). Espejo de la web: primero su `teamId` (equipo
+            // de la startlist o, si no figura en ella, el resuelto por id); sin
+            // teamId, se casa por NOMBRE contra los equipos canónicos de la
+            // startlist. Sin casar → el crudo de la fuente, sin chapa.
+            val matchedTeam = if (isTeams) {
+                r.teamId?.let { id -> raceTeams.firstOrNull { it.id == id } ?: byTeamOverride[id] }
+                    ?: findMatchingTeam(r.riderDisplay, raceTeams)
+            } else null
             // Override manual de equipo (panel): gana a dorsal/globalRiderId. No
-            // aplica en la pestaña Equipos (la fila ES un equipo, casado por nombre).
+            // aplica en la pestaña Equipos (la fila ES un equipo, resuelto arriba).
             val overrideTeam = if (isTeams) null else r.teamId?.let { byTeamOverride[it] }
             // Nombre: startlist (curado) → ficha por globalRiderId (orden natural) →
             // riderDisplay (fallback de la fuente). La ficha gana al riderDisplay para

@@ -13,6 +13,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : fallback; };
@@ -26,7 +27,6 @@ const ONE_DAY = has('--one-day');
 const FINAL_CLASSIFICATION = has('--final');
 const FINAL_STAGE_KEY = 99;
 
-export function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 export const suggestCompetitionId = (url) => -(fnv1a(`aso:${url}`) % 200000);
 const CLASS_IDX = { 'stage/stage': 0, 'gc/stage': 1, 'points/overall': 2, 'kom/overall': 3, 'youth/overall': 4, 'teams/overall': 5 };
 export const synthEventId = (url, stage, kind, scope) => -((-suggestCompetitionId(url)) * 10000 + stage * 100 + (CLASS_IDX[`${kind}/${scope}`] ?? 99));

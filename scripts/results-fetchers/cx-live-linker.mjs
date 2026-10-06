@@ -16,6 +16,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { createCxDataRideClient } from './cx-dataride-results.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (name, fallback = null) => {
@@ -103,10 +104,10 @@ async function insertLink(client, race, competition, seasonId) {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
   const { Client } = await import('pg');
-  const client = new Client({ connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('localhost') ? undefined : { rejectUnauthorized: false } });
+  const client = new Client({ connectionString: databaseUrl(),
+    ssl: databaseUrl().includes('localhost') ? undefined : { rejectUnauthorized: false } });
   await client.connect();
   const dataRide = createCxDataRideClient();
   const summary = { dryRun: DRY_RUN, candidates: 0, linked: [], skipped: [] };

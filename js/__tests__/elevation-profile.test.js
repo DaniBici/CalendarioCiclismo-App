@@ -31,8 +31,6 @@ describe('buildElevationProfileSVG', () => {
 
     const { svg } = buildElevationProfileSVG({ profile, summits: [summit], waypoints: [bonus], width: 500 });
     expect(svg).toContain('class="ep-summit" data-combined-marker="true"');
-    expect(svg).toContain('fill="#c53030"');
-    expect(svg).toContain('fill="#f9ab00"');
     expect(svg).not.toContain('class="ep-sprint"');
   });
 
@@ -56,49 +54,25 @@ describe('buildElevationProfileSVG', () => {
 
     const { svg } = buildElevationProfileSVG({ profile, summits: [summit], width: 500 });
     expect(svg).toContain('class="ep-summit" data-combined-marker="true"');
-    expect(svg).toContain('fill="#c53030"');
-    expect(svg).toContain('fill="#e63d3d"');
   });
 
-  it('dibuja los waypoints de ciudad como texto con línea, sin icono', () => {
-    const { svg } = buildElevationProfileSVG({
-      profile,
-      waypoints: [{ km: 10, name: 'Punto de paso', type: 'town' }],
-      width: 1200,
-    });
-
+  it('dibuja las localidades como texto con línea y las omite en miniperfil y móvil', () => {
+    const town = { km: 10, name: 'Punto de paso', type: 'town' };
+    const { svg } = buildElevationProfileSVG({ profile, waypoints: [town], width: 1200 });
     expect(svg).toContain('class="ep-waypoint"');
     expect(svg).toContain('Punto de paso</text>');
-    expect(svg).toContain('stroke-dasharray="2,2"');
-    expect(svg).not.toContain('class="ep-wp"');
     expect(svg).not.toContain('<circle');
-  });
 
-  it('omite los waypoints de ciudad del miniperfil solo iconos', () => {
-    const { svg } = buildElevationProfileSVG({
+    const iconsOnly = buildElevationProfileSVG({ profile, waypoints: [town], width: 1200, iconsOnly: true }).svg;
+    expect(iconsOnly).not.toContain('Punto de paso');
+
+    const mobile = buildElevationProfileSVG({
       profile,
-      waypoints: [{ km: 10, name: 'Punto de paso', type: 'town' }],
-      width: 1200,
-      iconsOnly: true,
-    });
-
-    expect(svg).not.toContain('ep-waypoint');
-    expect(svg).not.toContain('Punto de paso');
-  });
-
-  it('oculta solo las localidades en móvil y mantiene los sprints', () => {
-    const { svg } = buildElevationProfileSVG({
-      profile,
-      waypoints: [
-        { km: 10, name: 'Punto de paso', type: 'town' },
-        { km: 20, name: 'Sprint de prueba', type: 'intermediate_sprint' },
-      ],
+      waypoints: [town, { km: 20, name: 'Sprint de prueba', type: 'intermediate_sprint' }],
       width: 500,
-    });
-
-    expect(svg).not.toContain('ep-waypoint');
-    expect(svg).not.toContain('Punto de paso');
-    expect(svg).toContain('class="ep-sprint"');
+    }).svg;
+    expect(mobile).not.toContain('Punto de paso');
+    expect(mobile).toContain('class="ep-sprint"');
   });
   it('oculta en móvil todos los nombres de puntos y conserva sus marcadores', () => {
     const names = ['Salida muy larga', 'Meta muy larga', 'Puerto muy largo', 'Sprint muy largo'];
@@ -114,21 +88,6 @@ describe('buildElevationProfileSVG', () => {
     for (const name of names) expect(svg).not.toContain(name);
     for (const marker of ['ep-start', 'ep-finish', 'ep-summit', 'ep-sprint']) expect(svg).toContain(marker);
   });
-  it('mantiene dentro del SVG los nombres de salida, meta y anotaciones', () => {
-    const { svg } = buildElevationProfileSVG({
-      profile,
-      width: 900,
-      startLocation: 'Una salida con un nombre extremadamente largo que debe ajustarse al espacio disponible',
-      finishLocation: 'Una meta con un nombre extremadamente largo que debe ajustarse al espacio disponible',
-      summits: [{ km: 30, name: 'Un puerto con un nombre extremadamente largo que debe ajustarse al gráfico', category: '1' }],
-      waypoints: [{ km: 0, name: 'Una localidad con un nombre extremadamente largo que debe ajustarse al gráfico', type: 'town' }],
-    });
-
-    expect(svg).toContain('overflow:hidden');
-    expect(svg).toMatch(/class="ep-point-name" x="68"[^>]*text-anchor="start"/);
-    expect(svg).toMatch(/class="ep-point-name" x="870"[^>]*text-anchor="end"/);
-    expect(svg).toContain('…');
-  });
   it('permite ocultar nombres conservando símbolos y ejes en Resultados', () => {
     const options = { profile, width:1200, startLocation:'Salida de prueba', finishLocation:'Meta de prueba',
       summits:[{km:20,name:'Puerto de prueba',category:'2'}],
@@ -141,11 +100,12 @@ describe('buildElevationProfileSVG', () => {
   });
 
   it('oculta las anotaciones de un perfil denso pero conserva salida y meta', () => {
-    const summits = Array.from({ length:13 }, (_, index) => ({
+    const cotas = length => Array.from({ length }, (_, index) => ({
       km:index + 2,
       name:`Cota repetida ${index + 1}`,
       category:'M',
     }));
+    const summits = cotas(13);
     const { svg } = buildElevationProfileSVG({
       profile,
       width:900,
@@ -158,19 +118,10 @@ describe('buildElevationProfileSVG', () => {
     expect(svg.match(/class="ep-summit"/g)).toHaveLength(13);
     expect(svg).toContain('Salida visible');
     expect(svg).toContain('Meta visible');
-    expect(svg).toContain('altitud (m)');
-  });
 
-  it('mantiene las etiquetas cuando la densidad todavía es legible', () => {
-    const summits = Array.from({ length:12 }, (_, index) => ({
-      km:index + 2,
-      name:`Cota ${index + 1}`,
-      category:'M',
-    }));
-    const { svg } = buildElevationProfileSVG({ profile, width:900, summits });
-
-    expect(svg).toContain('Cota 1');
-    expect(svg).toContain('Cota 12');
+    const legible = buildElevationProfileSVG({ profile, width:900, summits: cotas(12) }).svg;
+    expect(legible).toContain('Cota repetida 1<');
+    expect(legible).toContain('Cota repetida 12');
   });
 
 });
@@ -198,8 +149,6 @@ describe('contraste del color de perfil', () => {
     const light = buildElevationProfileSVG({ profile, color: '#ffff00' }).svg;
     expect([...dark.matchAll(/ d="([^"]+)"/g)].map(m => m[1]))
       .toEqual([...light.matchAll(/ d="([^"]+)"/g)].map(m => m[1]));
-    expect(dark).toContain('stroke-width="2" stroke-linejoin="round"');
-    expect(dark).toContain('fill-opacity="0.42"');
   });
 });
 

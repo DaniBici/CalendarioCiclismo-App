@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -71,7 +72,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
+import app.calendariociclismo.android.data.model.ChallengeGroup
 import app.calendariociclismo.android.data.model.Race
+import app.calendariociclismo.android.ui.calendar.CalendarNavigation
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -86,6 +89,8 @@ import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.SeasonChallengeLogic
+import app.calendariociclismo.android.util.SeasonEntry
 import app.calendariociclismo.android.util.rememberHaptics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.res.painterResource
@@ -114,7 +119,8 @@ fun SeasonScreen(
     val haptic = rememberHaptics()
     val scope = rememberCoroutineScope()
     val allRaces by app.repository.observeAllRaces().collectAsState(initial = emptyList())
-    var year by remember { mutableStateOf(LocalDate.now().year) }
+    // El cintillo puede pedir una temporada concreta (CalendarNavigation).
+    var year by remember { mutableStateOf(CalendarNavigation.pendingSeasonYear.value ?: LocalDate.now().year) }
     var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var country by remember { mutableStateOf<String?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
@@ -125,6 +131,13 @@ fun SeasonScreen(
     // Observar el filtro por defecto de forma reactiva (se actualiza cuando otra sección lo cambia)
     val defaultFilterPref by app.preferences.defaultFilter.collectAsState(initial = Constants.CategoryFilter.ALL)
     LaunchedEffect(defaultFilterPref) { category = defaultFilterPref }
+
+    // Challenges del año: sus pruebas se agrupan en una fila. Sin ellos (sin
+    // red) la temporada se muestra igual, con las pruebas sueltas.
+    var challengeGroups by remember { mutableStateOf<List<ChallengeGroup>>(emptyList()) }
+    LaunchedEffect(year) {
+        challengeGroups = runCatching { app.supabaseService.challengeGroups(year) }.getOrElse { emptyList() }
+    }
 
     LaunchedEffect(year) {
         runCatching { app.repository.refreshRacesYear(year) }
@@ -176,7 +189,7 @@ fun SeasonScreen(
     // a aparecer todos los meses automáticamente.
     val shouldCollapseToAll = country != null && filtered.isNotEmpty() &&
         filtered.size < COLLAPSE_COUNTRY_THRESHOLD
-    val byMonth = remember(filtered, shouldCollapseToAll) {
+    val byMonth = remember(filtered, shouldCollapseToAll, challengeGroups) {
         if (filtered.isEmpty()) {
             sortedMapOf<Int, List<Race>>()
         } else {
@@ -184,12 +197,7 @@ fun SeasonScreen(
             if (shouldCollapseToAll) {
                 sortedMapOf<Int, List<Race>>().apply { putAll(all) }
             } else {
-                val monthly = filtered
-                    .groupBy { race ->
-                        race.startDate?.let { DateFormatting.parseLocalDate(it)?.monthValue } ?: 0
-                    }
-                    .filterKeys { it > 0 }
-                (all + monthly).toSortedMap()
+                (all + groupByMonth(filtered, challengeGroups)).toSortedMap()
             }
         }
     }
@@ -257,6 +265,20 @@ fun SeasonScreen(
     // Rastrea si ya se ejecutó el salto inicial al mes actual (para no repetirlo en cambios de filtro)
     var initialScrollDone by remember { mutableStateOf(false) }
 
+    // Temporada pedida por el cintillo: otro año se recarga y se sitúa en su
+    // primer mes; el mismo año vuelve al mes de referencia.
+    val pendingSeasonYear by CalendarNavigation.pendingSeasonYear.collectAsState()
+    LaunchedEffect(pendingSeasonYear) {
+        val target = pendingSeasonYear ?: return@LaunchedEffect
+        CalendarNavigation.pendingSeasonYear.value = null
+        if (target != year) {
+            year = target
+            initialScrollDone = false
+        } else if (months.isNotEmpty()) {
+            pagerState.scrollToPage(bestPageIndex())
+        }
+    }
+
     // Haptic al deslizar entre páginas (drop(1) evita el disparo en la composición inicial)
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }
@@ -264,9 +286,15 @@ fun SeasonScreen(
             .collect { haptic(Haptics.Event.Navigation) }
     }
 
+    // Meses de la última sincronización: al cambiar un filtro, la página actual
+    // del pager todavía es un índice de esta lista, no de la nueva.
+    var syncedMonths by remember { mutableStateOf<List<Int>>(emptyList()) }
+
     // Al cargar por primera vez: saltar al mes actual/mejor. En cambios de filtro: mantener mes visible.
     LaunchedEffect(months) {
         if (months.isEmpty()) return@LaunchedEffect
+        val previousMonths = syncedMonths
+        syncedMonths = months
         if (!initialScrollDone) {
             initialScrollDone = true
             val targetIdx = bestPageIndex()
@@ -274,14 +302,11 @@ fun SeasonScreen(
                 pagerState.scrollToPage(targetIdx)
             }
         } else {
-            val visibleMonth = months.getOrNull(pagerState.currentPage)
-            val targetIdx = if (visibleMonth != null && visibleMonth in months) {
-                months.indexOf(visibleMonth)
-            } else {
-                bestPageIndex()
-            }
+            val visibleMonth = previousMonths.getOrNull(pagerState.currentPage)
+            val targetIdx = visibleMonth?.let { months.indexOf(it) }?.takeIf { it >= 0 }
+                ?: bestPageIndex()
             if (targetIdx != pagerState.currentPage) {
-                pagerState.animateScrollToPage(targetIdx)
+                pagerState.scrollToPage(targetIdx)
             }
         }
     }
@@ -468,6 +493,7 @@ fun SeasonScreen(
                             year = year,
                             month = month,
                             races = races,
+                            challengeGroups = challengeGroups,
                             activeFilter = category,
                             showChampionships = hasChampionships,
                             championshipsMonth = championshipsMonth,
@@ -562,6 +588,7 @@ private fun MonthPage(
     year: Int,
     month: Int,
     races: List<Race>,
+    challengeGroups: List<ChallengeGroup>,
     activeFilter: Constants.CategoryFilter,
     showChampionships: Boolean,
     championshipsMonth: Int,
@@ -573,19 +600,16 @@ private fun MonthPage(
     // Para la página "Todos" (month = 0), agrupamos las carreras por mes real
     // y pintamos una cabecera por grupo. Para una página de mes concreto,
     // renderizamos una sola cabecera y sus carreras.
-    val groups: List<Pair<Int, List<Race>>> = remember(month, races) {
-        if (month == 0) {
-            races
-                .groupBy { race ->
-                    race.startDate?.let { DateFormatting.parseLocalDate(it)?.monthValue } ?: 0
-                }
-                .filterKeys { it > 0 }
-                .toSortedMap()
-                .map { (m, list) -> m to list }
+    val groups: List<Pair<Int, List<SeasonEntry>>> = remember(month, races, challengeGroups) {
+        val byMonth = if (month == 0) {
+            groupByMonth(races, challengeGroups).toSortedMap().map { (m, list) -> m to list }
         } else {
             listOf(month to races)
         }
+        byMonth.map { (m, list) -> m to SeasonChallengeLogic.entries(list, challengeGroups) }
     }
+    // Challenges desplegados (muestran sus pruebas bajo la fila del grupo).
+    var expandedChallengeIds by remember { mutableStateOf(emptySet<String>()) }
 
     LazyColumn(
         state = listState,
@@ -596,7 +620,7 @@ private fun MonthPage(
         contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        groups.forEach { (groupMonth, groupRaces) ->
+        groups.forEach { (groupMonth, groupEntries) ->
             item(key = "header-$groupMonth") {
                 Text(
                     text = DateFormatting.formatMonthYear(year, groupMonth),
@@ -612,28 +636,58 @@ private fun MonthPage(
             // las carreras que empiezan antes (las carreras vienen ordenadas por
             // startDate). Mismo lugar que las CN colapsadas tendrían.
             val champIndex = if (showChampionships && groupMonth == championshipsMonth) {
-                groupRaces.indexOfFirst {
+                groupEntries.indexOfFirst {
                     (it.startDate ?: "") > ChampionshipsConfig.RANGE_START
-                }.let { if (it < 0) groupRaces.size else it }
+                }.let { if (it < 0) groupEntries.size else it }
             } else {
                 -1
             }
-            groupRaces.forEachIndexed { index, race ->
+            groupEntries.forEachIndexed { index, entry ->
                 if (index == champIndex) {
                     item(key = "championships-$groupMonth") {
                         SeasonChampionshipsRow(onClick = onChampionshipsClick)
                     }
                 }
-                item(key = race.id) {
-                    SeasonRaceRow(
-                        race = race,
-                        activeFilter = activeFilter,
-                        onClick = { onRaceClick(race) },
-                    )
+                when (entry) {
+                    is SeasonEntry.Single -> item(key = entry.key) {
+                        SeasonRaceRow(
+                            race = entry.race,
+                            activeFilter = activeFilter,
+                            onClick = { onRaceClick(entry.race) },
+                        )
+                    }
+                    is SeasonEntry.Challenge -> {
+                        val expanded = entry.group.id in expandedChallengeIds
+                        item(key = entry.key) {
+                            SeasonChallengeRow(
+                                entry = entry,
+                                activeFilter = activeFilter,
+                                expanded = expanded,
+                                onClick = {
+                                    expandedChallengeIds = if (expanded) expandedChallengeIds - entry.group.id
+                                        else expandedChallengeIds + entry.group.id
+                                },
+                            )
+                        }
+                        // Pruebas del challenge desplegado, cada una con su navegación.
+                        if (expanded) {
+                            entry.races.forEach { race ->
+                                item(key = "${entry.key}-${race.id}") {
+                                    Box(Modifier.padding(start = 16.dp)) {
+                                        SeasonRaceRow(
+                                            race = race,
+                                            activeFilter = activeFilter,
+                                            onClick = { onRaceClick(race) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // Campeonatos al final del grupo (todas las carreras empiezan antes).
-            if (champIndex == groupRaces.size) {
+            if (champIndex == groupEntries.size) {
                 item(key = "championships-$groupMonth") {
                     SeasonChampionshipsRow(onClick = onChampionshipsClick)
                 }
@@ -807,6 +861,111 @@ private fun MonthChip(label: String, isSelected: Boolean = false, onClick: () ->
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
+}
+
+/**
+ * Carreras por mes (1-12). Las pruebas de un challenge van al mes de la
+ * primera, donde se muestra su fila.
+ */
+private fun groupByMonth(races: List<Race>, challengeGroups: List<ChallengeGroup>): Map<Int, List<Race>> {
+    val groupingDates = SeasonChallengeLogic.groupingStartDates(races, challengeGroups)
+    return races
+        .groupBy { race ->
+            (groupingDates[race.id] ?: race.startDate)?.let { DateFormatting.parseLocalDate(it)?.monthValue } ?: 0
+        }
+        .filterKeys { it > 0 }
+}
+
+/**
+ * Fila de un challenge: mismo diseño que [SeasonRaceRow], con las fechas de la
+ * primera a la última prueba y un chevron que gira al desplegar.
+ */
+@Composable
+private fun SeasonChallengeRow(
+    entry: SeasonEntry.Challenge,
+    activeFilter: Constants.CategoryFilter,
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    val group = entry.group
+    val haptic = rememberHaptics()
+    val femaleFilter = activeFilter == Constants.CategoryFilter.WWT ||
+        activeFilter == Constants.CategoryFilter.FEMALE
+    val isFemale = group.gender == "female"
+    val displayName = if (femaleFilter && isFemale) RaceLogic.cleanFeminineDisplayName(group.name) else group.name
+    val showFemale = !femaleFilter && isFemale && !RaceLogic.nameImpliesFemale(group.name)
+    val range = DateFormatting.formatDateRange(
+        entry.races.mapNotNull { it.startDate }.minOrNull(),
+        entry.races.mapNotNull { it.endDate ?: it.startDate }.maxOrNull(),
+    )
+    val stateLabel = stringResource(if (expanded) R.string.season_challenge_expanded else R.string.season_challenge_collapsed)
+
+    CCCard(
+        accent = colorFromHex(group.colorHex, fallback = Color.Gray),
+        accentAlpha = 0.04f,
+        cornerRadius = 14,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { stateDescription = stateLabel }
+                .clickable(role = Role.Button) {
+                    haptic(Haptics.Event.Selection)
+                    onClick()
+                }
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            CountryFlag(countryCode = group.countryCode)
+            RaceLogo(url = group.logoUrl, size = 28.dp)
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = displayName,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (showFemale) {
+                    val femaleCd = stringResource(R.string.season_female_indicator_cd)
+                    Text(
+                        text = "♀",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.semantics { contentDescription = femaleCd },
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (range.isNotEmpty()) {
+                    Text(
+                        text = range,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+                CategoryBadge(category = group.uciCategory ?: entry.races.firstOrNull()?.uciCategory)
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.rotate(if (expanded) 90f else 0f),
+            )
+        }
+    }
 }
 
 @Composable

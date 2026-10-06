@@ -4,7 +4,7 @@
 
 import { readDayTimingChanges } from './race-presentation.js';
 import { supabase, extractYouTubeId, checkYouTubeEmbeddable } from '../shared.js';
-import { closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { closeDrawer } from '../components/drawer.js';
 import { confirmDialog, alertDialog, promptDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { setRaceDaySaveInFlight, showToast, toTimestamp, validateSlug } from './helpers.js';
@@ -21,7 +21,6 @@ export async function saveRaceDay(status) {
   const area    = document.getElementById('editorArea');
   const rdId    = area.dataset.rdId;
   const raceId  = area.dataset.raceId;
-  const feedback = document.getElementById('editorFeedback');
 
   const dateKey = document.getElementById('ed-date').value;
 
@@ -183,6 +182,10 @@ export async function saveRaceDay(status) {
   // No depender de que el navegador haya emitido `input` al pulsar Enter.
   const descriptionMarkdown = markdownFromEditor('ed-description-wysiwyg', 'ed-description');
 
+  // Meta NULL = salida y llegada en la misma localidad.
+  const startLocation = document.getElementById('ed-start').value.trim();
+  const finishInput = document.getElementById('ed-finish').value.trim();
+  const finishLocation = finishInput && finishInput !== startLocation ? finishInput : null;
   const data = {
     raceId,
     dateKey,
@@ -191,10 +194,10 @@ export async function saveRaceDay(status) {
     isRestDay:            document.getElementById('ed-isRestDay')?.checked || false,
     isCancelledDay:       document.getElementById('ed-isCancelledDay')?.checked || false,
     stageNumber:          document.getElementById('ed-isRestDay')?.checked ? null : (document.getElementById('ed-stage').value !== '' ? parseInt(document.getElementById('ed-stage').value) : null),
-    startLocation:        document.getElementById('ed-start').value.trim(),
-    finishLocation:       document.getElementById('ed-finish').value.trim(),
+    startLocation,
+    finishLocation,
     startLocationEn:      document.getElementById('ed-start-en')?.value.trim() || null,
-    finishLocationEn:     document.getElementById('ed-finish-en')?.value.trim() || null,
+    finishLocationEn:     finishLocation ? document.getElementById('ed-finish-en')?.value.trim() || null : null,
     slugEn:               document.getElementById('ed-slug-en')?.value.trim() || null,
     countryCode:          document.getElementById('ed-country').value.trim() || null,
     distanceKm:           _distanceKm,
@@ -476,7 +479,7 @@ export async function duplicateRaceDay() {
     editorialStatus: 'draft', updatedAt: new Date().toISOString() };
   const newId = crypto.randomUUID();
 
-  const { data: newRef, error: newRefErr } = await supabase
+  const { error: newRefErr } = await supabase
     .from('race_days')
     .insert({ ...data, id: newId })
     .select()

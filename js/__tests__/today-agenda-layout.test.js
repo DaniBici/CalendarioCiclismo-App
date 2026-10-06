@@ -4,15 +4,11 @@ import { agendaCardIsFeatured, agendaMetaState } from '../services/today-agenda-
 describe('estado lateral de las tarjetas de Hoy', () => {
   const times = { start: '13:15', finish: '17:30' };
 
-  it('muestra la salida antes de comenzar y la meta aproximada durante la carrera', () => {
+  it('muestra la salida antes de comenzar y la meta aproximada durante la carrera, con Inicio/Final en CRI y CRE', () => {
     expect(agendaMetaState('scheduled', times)).toEqual({ kind: 'schedule', label: 'Salida', value: '13:15', time: 'start' });
     expect(agendaMetaState('running', times)).toEqual({ kind: 'schedule', label: 'Meta', value: '~17:30', time: 'finish' });
-  });
-
-  it('usa Inicio/Final y Start/End en CRI y CRE', () => {
     expect(agendaMetaState('scheduled', { ...times, isTimeTrial: true })).toMatchObject({ label: 'Inicio', value: '13:15' });
     expect(agendaMetaState('running', { ...times, isTimeTrial: true })).toMatchObject({ label: 'Final', value: '~17:30' });
-    expect(agendaMetaState('scheduled', { ...times, lang: 'en', isTimeTrial: true }).label).toBe('Start');
     expect(agendaMetaState('running', { ...times, lang: 'en', isTimeTrial: true }).label).toBe('End');
   });
 

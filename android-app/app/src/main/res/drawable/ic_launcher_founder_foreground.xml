@@ -9,7 +9,7 @@
         android:scaleY="0.8"
         android:pivotX="50"
         android:pivotY="50">
-        <path android:fillColor="#00000000" android:strokeColor="#F6A623" android:strokeWidth="2.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M18.5,38 L39.5,38 Q42.5,38 42.5,41 L42.5,62 Q42.5,65 39.5,65 L18.5,65 Q15.5,65 15.5,62 L15.5,41 Q15.5,38 18.5,38 Z" />
+        <path android:fillColor="#00000000" android:strokeColor="#F6A623" android:strokeWidth="2.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M18.5,38 L39.5,38 A3,3 0 0 1 42.5,41 L42.5,62 A3,3 0 0 1 39.5,65 L18.5,65 A3,3 0 0 1 15.5,62 L15.5,41 A3,3 0 0 1 18.5,38 Z" />
         <path android:strokeColor="#F6A623" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M23,35 L23,41" />
         <path android:strokeColor="#F6A623" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M35,35 L35,41" />
         <path android:strokeColor="#F6A623" android:strokeWidth="2.3" android:strokeLineCap="round" android:pathData="M15.5,47 L42.5,47" />

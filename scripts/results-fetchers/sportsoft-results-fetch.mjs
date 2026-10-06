@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { execFileSync } from 'child_process';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (n, d = null) => { const i = argv.indexOf(n); return i < 0 ? d : argv[i + 1]; };
@@ -14,7 +15,6 @@ const TOTAL_STAGES = arg('--total-stages') == null ? null : Number(arg('--total-
 const FIXTURE = arg('--fixture'), BASE = 'https://vysledky.sportsoft.cz/index.php', LIVE_BASE = 'https://live.sportsoft.cz';
 const log = (m) => process.stderr.write(`${m}\n`);
 
-export function fnv1a(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 export const suggestCompetitionId = (code) => -(fnv1a(`sportsoft:${code}`) % 200000);
 export const synthRaceId = (code, stage) => -(Math.abs(suggestCompetitionId(code)) * 100 + stage);
 const CLASS_IDX = { 'stage/stage': 0, 'gc/stage': 1, 'points/overall': 2, 'kom/overall': 3, 'youth/overall': 4, 'teams/overall': 5 };

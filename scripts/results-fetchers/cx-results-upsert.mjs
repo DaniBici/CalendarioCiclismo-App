@@ -5,6 +5,7 @@ import { cxDateInSeason } from '../../js/cx/season.js';
 import { cxDataRideSeconds, cxNaturalRiderDisplay, splitCxDisplayName } from './cx-dataride-results.mjs';
 
 import {resolveCxResultIdentity} from '../../js/cx/result-identity.js';
+import { databaseUrl, withClient } from '../db/env.mjs';
 export {resolveCxResultIdentity} from '../../js/cx/result-identity.js';
 
 const CATEGORIES = ['ME', 'WE', 'MU', 'WU', 'MJ', 'WJ'];
@@ -176,9 +177,12 @@ async function main() {
   let context; let client;
   try {
     if (args.context) context = JSON.parse(await readFile(args.context, 'utf8'));
-    if (args.apply || !context) {
-      if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL requerido por el runtime; el agente usa --context obtenido por MCP');
-      const { default: pg } = await import('pg'); client = new pg.Client({ connectionString: process.env.DATABASE_URL }); await client.connect();
+    // Sin --context ni --apply, el agente lee el contexto con el .env del checkout
+    // principal (solo SELECT); el SQL emitido se revisa y se ejecuta aparte.
+    if (!context && !args.apply) context = await withClient(db => loadCxResultsContext(db, args['race-id']));
+    if (args.apply) {
+      if (!databaseUrl()) throw new Error('DATABASE_URL requerido por el runtime del VPS');
+      const { default: pg } = await import('pg'); client = new pg.Client({ connectionString: databaseUrl() }); await client.connect();
       context ??= await loadCxResultsContext(client, args['race-id']);
     }
     if (context.race?.id !== args['race-id']) throw new Error('El contexto pertenece a otra carrera CX');

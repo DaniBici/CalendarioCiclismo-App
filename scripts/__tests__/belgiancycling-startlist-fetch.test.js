@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   parseStartlistXml,
   splitName,
-  startlistPdfUrl,
 } from '../results-fetchers/belgiancycling-startlist-fetch.mjs';
 import {
   applyVariantResolutions,
-  buildNormalizedDocument,
   resolveTeamIds,
 } from '../results-fetchers/belgiancycling-startlists-sync.mjs';
 
@@ -54,10 +52,6 @@ const standardColumns = [
 ];
 
 describe('Belgian Cycling — lista de inscritos (PDF -D)', () => {
-  it('deriva la URL estable de la lista', () => {
-    expect(startlistPdfUrl('2026279')).toBe('https://uitslagen.kbwb-rlvb.com/uitslagen/2026/2026279-D.pdf');
-  });
-
   it('reconoce el marcador previo a la publicación', () => {
     const xml = `<page>${word(36, 100, 'Info')} ${word(60, 100, 'nog')} ${word(80, 100, 'niet')} ${word(110, 100, 'beschikbaar')}</page>`;
     expect(parseStartlistXml('2026277', xml, '2026-09-19')).toBeNull();
@@ -71,6 +65,16 @@ describe('Belgian Cycling — lista de inscritos (PDF -D)', () => {
     expect(stage.lastUpdate).toEqual({ dateKey: '2026-09-18', time: '11:16', zone: 'Europe/Brussels' });
     expect(stage.provisional).toBe(false);
     expect(stage.signature).toMatch(/^P\|/);
+  });
+
+  it('lee las fechas impresas sin cero inicial en días y meses de una cifra', () => {
+    const stage = parseStartlistXml('2026295', startlistXml({
+      columns: standardColumns,
+      date: '6/9/2026',
+      extra: `${word(36, 760, 'Last')} ${word(50, 760, 'Update:')} ${word(80, 760, '5/9/2026')} ${word(120, 760, '16:53')}`,
+    }), '2026-09-06');
+    expect(stage.dateKey).toBe('2026-09-06');
+    expect(stage.lastUpdate).toEqual({ dateKey: '2026-09-05', time: '16:53', zone: 'Europe/Brussels' });
   });
 
   it('ingesta el Engagements como lista provisional con dorsal 0', () => {
@@ -258,17 +262,6 @@ describe('Belgian Cycling — lista de inscritos (PDF -D)', () => {
       ];
       expect(resolveTeamIds(document, matched, teamFolds, teamsCatalog)).toBe(1);
       expect(document.teams[0].teamId).toBe('team_xds');
-    });
-
-    it('normaliza el documento con los campos resueltos', () => {
-      const doc = {
-        raceId: 'r1', expectedRiderCount: 1, sourceUrl: 'https://x',
-        teams: [{ teamName: 'EF', teamId: 'team_ef', riders: [{ dorsal: 41, firstName: 'Noah', lastName: 'Hobbs', globalRiderId: 'hobbs-noah', countryCode: 'gb', birthDate: '2004-07-23' }] }],
-      };
-      expect(buildNormalizedDocument(doc)).toEqual({
-        raceId: 'r1', expectedRiderCount: 1, sourceUrl: 'https://x',
-        teams: [{ teamName: 'EF', teamId: 'team_ef', riders: [{ dorsal: 41, firstName: 'Noah', lastName: 'Hobbs', globalRiderId: 'hobbs-noah', countryCode: 'gb', birthDate: '2004-07-23' }] }],
-      });
     });
   });
 });

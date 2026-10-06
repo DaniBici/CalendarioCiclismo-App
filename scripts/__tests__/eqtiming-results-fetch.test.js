@@ -7,7 +7,7 @@ describe('EQ Timing — API pública', () => {
     expect(() => parseCode('arctic-2026')).toThrow('eventId numérico');
     expect(eventEndpoint('83198')).toBe('https://live.eqtiming.com/api/Event/83198');
     expect(resultEndpoint('83198', 338349)).toContain('/Result/Total/83198/338349?count=999&station=0');
-    expect(suggestCompetitionId('83198')).toBeLessThan(0);
+    expect(suggestCompetitionId('83198')).toBe(-40470);   // ancla del ID guardado
   });
   it('normaliza filas JSON, tiempos y abandonos', () => {
     const [winner, second, dnf] = rowsFromResult({ Items: [

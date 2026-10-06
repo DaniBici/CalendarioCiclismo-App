@@ -21,13 +21,19 @@ function personCase(name) {
   return cap.split(' ').map((word, index) => PARTICLES.has(word.toLowerCase()) && index > 0 ? word.toLowerCase() : word).join(' ');
 }
 
+// Un campo con mayúsculas y minúsculas mixtas ya trae grafía editorial
+// («de Diego», ficha CX normalizada) y se conserva; solo un campo en mayúsculas
+// sostenidas o en minúsculas se normaliza.
+const mixedCase = text => /\p{Lu}/u.test(text) && /\p{Ll}/u.test(text);
+const displayCase = text => mixedCase(text) ? text : personCase(text);
+
 // La presentación CX sigue la convención común del sitio: nombre y después
 // apellido. Los campos separados son la fuente preferente; el display original
 // de DataRide solo se conserva como fallback cuando no se puede partir.
 export function cxNaturalRiderDisplay(firstName, lastName, fallback = null) {
   const first = clean(firstName);
   const last = clean(lastName);
-  return first && last ? `${personCase(first.toLowerCase())} ${personCase(last.toLowerCase())}` : clean(fallback) || null;
+  return first && last ? `${displayCase(first)} ${displayCase(last)}` : clean(fallback) || null;
 }
 
 // DataRide CX publica el DisplayName como «APELLIDO... Nombre...»: los tokens

@@ -82,6 +82,8 @@
     <string name="season_country_pill_default">País</string>
     <string name="season_country_all">Todos los países</string>
     <string name="season_empty_no_races">No hay carreras con estos filtros</string>
+    <string name="season_challenge_expanded">Desplegado</string>
+    <string name="season_challenge_collapsed">Plegado</string>
     <string name="season_female_indicator_cd">Categoría femenina</string>
 
     <!-- Search screen -->
@@ -295,53 +297,25 @@
     <!-- Onboarding: modo sin conexión -->
 
     <!-- Anuncio 4.3: retirada de publicidad y apoyo voluntario -->
-    <string name="onboarding_premium_title">Gratis y sin anuncios para todos</string>
-    <string name="onboarding_premium_body">La publicidad desaparece de forma definitiva. Todas las funciones siguen siendo gratuitas y quien quiera podrá sostener voluntariamente el proyecto.</string>
-    <string name="onboarding_premium_body_new_installation">Apoya los costes de mantenimiento de este proyecto, hecho por puro amor al ciclismo. Todas las funciones son gratuitas.</string>
-    <string name="onboarding_premium_benefit_open">Código abierto y cuentas públicas</string>
-    <string name="onboarding_premium_benefit_founder">Quien tuvo Premium recibe el icono Fundador</string>
-    <string name="onboarding_premium_benefit_experience">Hecho por un profesional con dos décadas de experiencia en ciclismo</string>
-    <string name="onboarding_premium_explain">Conoce el cambio</string>
-    <string name="onboarding_premium_manage">Gestionar suscripción</string>
-    <string name="onboarding_premium_cta_try">Ver formas de apoyar</string>
-    <string name="onboarding_premium_cta_free">Continuar</string>
+    <string name="onboarding_support_title">Gratis y sin anuncios para todos</string>
+    <string name="onboarding_support_body">La publicidad desaparece de forma definitiva. Todas las funciones siguen siendo gratuitas y quien quiera podrá sostener voluntariamente el proyecto.</string>
+    <string name="onboarding_support_body_new_installation">Apoya los costes de mantenimiento de este proyecto, hecho por puro amor al ciclismo. Todas las funciones son gratuitas.</string>
+    <string name="onboarding_support_benefit_open">Código abierto y cuentas públicas</string>
+    <string name="onboarding_support_benefit_founder">Quien tuvo Premium recibe el icono Fundador</string>
+    <string name="onboarding_support_benefit_experience">Hecho por un profesional con dos décadas de experiencia en ciclismo</string>
+    <string name="onboarding_support_explain">Conoce el cambio</string>
+    <string name="onboarding_support_manage">Gestionar suscripción</string>
+    <string name="onboarding_support_cta_try">Ver formas de apoyar</string>
+    <string name="onboarding_support_cta_free">Continuar</string>
 
-    <!-- Paywall "sin anuncios" -->
-    <string name="paywall_title">Sin anuncios. Gratis para todos.</string>
-    <string name="paywall_subtitle">Apoya Calendario Ciclismo, un proyecto Open Source e independiente. Tu suscripción ayuda a mantener los servidores, los datos, las notificaciones y el desarrollo para que sus contenidos sigan siendo gratuitos.</string>
-    <string name="paywall_benefit_no_ads">Sin anuncios en ninguna pantalla</string>
-    <string name="paywall_benefit_clean">Una experiencia más limpia y rápida</string>
-    <string name="paywall_benefit_support">Ayuda a sostener un proyecto Open Source e independiente</string>
-    <string name="contribution_transparency_title">Un proyecto sostenido por su comunidad</string>
-    <string name="contribution_transparency_body">Código abierto, sin intereses comerciales y con las cuentas publicadas.</string>
+    <!-- Aviso de apoyo tras el uso -->
     <string name="contribution_prompt_title">¿Te está sirviendo Calendario Ciclismo?</string>
     <string name="contribution_prompt_body">Es un proyecto Open Source, independiente, gratuito y sin anuncios. Si te resulta útil, puedes ayudar a sostener sus servidores y mantenimiento.</string>
     <string name="contribution_prompt_open">Ver formas de apoyar</string>
     <string name="contribution_prompt_later">Ahora no</string>
-    <string name="paywall_nonprofit_note">Todas las funciones son gratuitas. Amigo y las aportaciones puntuales ayudan voluntariamente a cubrir servidores, herramientas y mantenimiento.</string>
-    <string name="paywall_period_yearly">al año</string>
-    <string name="paywall_period_monthly">al mes</string>
-    <string name="paywall_badge_best_value">MEJOR OFERTA</string>
-    <string name="paywall_cancel_anytime">Cancela cuando quieras</string>
-    <string name="paywall_cta_try">Hacerme Amigo</string>
-    <!-- %1$s = precio ya formateado por Billing (p. ej. "17,99 €/año") -->
-    <string name="paywall_after_price">Después %1$s. Cancela cuando quieras.</string>
-    <string name="paywall_price_per_year">%1$s/año</string>
-    <string name="paywall_price_per_month">%1$s/mes</string>
-    <!-- %1$s = equivalente mensual, %2$d = % de ahorro -->
-    <string name="paywall_monthly_equiv_savings">%1$s/mes · ahorra un %2$d%%</string>
-    <string name="paywall_monthly_equiv">%1$s/mes</string>
-    <string name="paywall_restore">Restaurar compras</string>
-    <string name="paywall_restore_none">No encontramos compras previas en esta cuenta de Google.</string>
-    <string name="paywall_legal_renewal">La suscripción se renueva automáticamente al precio indicado. Puedes cancelarla en Play Store → Pagos y suscripciones al menos 24 h antes del final del periodo.</string>
-    <string name="paywall_alert_ok">Aceptar</string>
 
     <!-- Ajustes: sostenimiento voluntario -->
     <string name="settings_adfree_header">Apoyar Calendario Ciclismo</string>
-    <string name="settings_adfree_cta_title">Hazte Amigo de Calendario Ciclismo</string>
-    <string name="settings_adfree_cta_body">Una aportación voluntaria para mantener un proyecto abierto y gratuito.</string>
-    <string name="settings_adfree_active_title">Amigo activo</string>
-    <string name="settings_adfree_active_body">Gracias por ayudar a mantener el proyecto en marcha.</string>
     <string name="settings_adfree_manage">Gestionar suscripción</string>
     <string name="settings_adfree_redeem">Canjear código</string>
     <string name="settings_adfree_nonprofit_note">Todas las funciones son gratuitas. Las aportaciones ayudan a cubrir servidores, herramientas y mantenimiento.</string>
@@ -610,17 +584,21 @@
     <string name="cx_unfollow">Dejar de seguir carrera CX</string>
     <string name="cx_not_found">Carrera no disponible</string>
     <string name="cx_no_general">No hay general publicada</string>
+    <string name="cx_calendar">Calendario</string>
+    <string name="cx_overall_standings">Clasificación general</string>
+    <string name="cx_more_rounds">Más rondas</string>
+    <string name="cx_dropped_result">Resultado descartado</string>
     <string name="cx_points">Puntos</string>
     <string name="cx_time">Tiempo</string>
     <string name="cx_no_categories">No hay categorías publicadas</string>
     <string name="cx_device_time">Hora del dispositivo</string>
     <string name="cx_no_startlist">No hay inscritos publicados</string>
     <string name="cx_no_results">Resultados pendientes de publicación</string>
-    <string name="cx_tv">TV / streaming</string>
-    <string name="cx_tv_region">Ver emisiones de mi región</string>
-    <string name="cx_tv_all">Ver todas las emisiones</string>
-    <string name="cx_no_tv">No hay emisiones para esta selección</string>
-    <string name="cx_revive">Revive</string>
+    <string name="cx_tv">TV y streaming</string>
+    <string name="cx_tv_region">Mi región</string>
+    <string name="cx_tv_all">Todas</string>
+    <string name="cx_no_tv">No hay TV en tu región</string>
+    <string name="cx_revive">Revive la carrera</string>
     <string name="cx_scheme_pending">Esquema pendiente</string>
     <!-- Widget «Carreras de hoy» (5.0.9) -->
     <string name="widget_today_title">Carreras de hoy</string>

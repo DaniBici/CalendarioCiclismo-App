@@ -59,11 +59,6 @@ export function setRaceDaySaveInFlight(inFlight) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
-function formatTimeLocal(ts) {
-  if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-}
 
 export function formatDateTime(ts) {
   if (!ts) return '';
@@ -95,10 +90,4 @@ export function formatTimeHHMM(ts) {
   if (!ts) return '';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-}
-
-function formatTimeHHMMInZone(ts, timeZone) {
-  if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone });
 }

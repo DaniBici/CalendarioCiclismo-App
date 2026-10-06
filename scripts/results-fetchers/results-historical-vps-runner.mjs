@@ -7,6 +7,7 @@ import {
   openAutomationClient,
   startAutomationRun,
 } from '../automation-monitor.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 const CRON = fileURLToPath(new URL('./results-cron.mjs', import.meta.url));
 
@@ -25,9 +26,9 @@ function runHistoricalCron() {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) throw new Error('Falta DATABASE_URL');
+  if (!databaseUrl()) throw new Error('Falta DATABASE_URL');
 
-  const client = await openAutomationClient(process.env.DATABASE_URL);
+  const client = await openAutomationClient(databaseUrl());
   let runId = null;
   const steps = [];
   try {

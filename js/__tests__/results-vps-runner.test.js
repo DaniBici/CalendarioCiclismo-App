@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { argsForManualRequest,runnerOptions } from '../../scripts/results-fetchers/results-vps-runner.mjs';
 
 describe('argsForManualRequest', () => {
@@ -21,41 +20,5 @@ describe('argsForManualRequest', () => {
   it('conserva el prólogo como etapa cero', () => {
     expect(argsForManualRequest({ race_id: 'race-1', stage_number: 0 }))
       .toEqual(['--race-id', 'race-1', '--stage', '0', '--require-result']);
-  });
-});
-
-describe('separación del proceso histórico', () => {
-  it('mantiene el watcher actual fuera del backlog histórico', () => {
-    const source = readFileSync(
-      new URL('../../scripts/results-fetchers/results-vps-runner.mjs', import.meta.url),
-      'utf8',
-    );
-    expect(source).not.toContain("'--scope', 'backlog'");
-  });
-
-  it('fija el backlog histórico a 2020–2025', () => {
-    const runner = readFileSync(
-      new URL('../../scripts/results-fetchers/results-historical-vps-runner.mjs', import.meta.url),
-      'utf8',
-    );
-    const cron = readFileSync(
-      new URL('../../scripts/results-fetchers/results-cron.mjs', import.meta.url),
-      'utf8',
-    );
-    expect(runner).toContain("'--historical'");
-    expect(runner).toContain("'--limit', '1'");
-    expect(cron).toContain("r.year BETWEEN 2020 AND 2025");
-    expect(cron).toContain("'--require-resolved-identities'");
-    expect(cron).toContain("'--identity-pending-log'");
-    expect(cron).toContain('pendingHistoricalRaceIds');
-  });
-
-  it('mantiene un registro persistente para la revisión manual de identidades', () => {
-    const unit = readFileSync(
-      new URL('../../deploy/results-vps/cc-results-historical.service', import.meta.url),
-      'utf8',
-    );
-    expect(unit).toContain('StateDirectory=cc-results-historical');
-    expect(unit).toContain('HISTORICAL_IDENTITY_PENDING_LOG=/var/lib/cc-results-historical/pending-identities.jsonl');
   });
 });

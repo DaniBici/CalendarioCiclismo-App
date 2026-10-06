@@ -433,8 +433,10 @@ struct TransfersTeamView: View {
                 // pública de corredor). `contentShape` hace tocable todo el
                 // ancho, incluidos los huecos entre elementos.
                 Button {
-                    Haptics.play(.navigation)
-                    linkedTeamRoute = TransfersTeamRoute(teamId: linkTeamId)
+                    ForegroundTap.perform {
+                        Haptics.play(.navigation)
+                        linkedTeamRoute = TransfersTeamRoute(teamId: linkTeamId)
+                    }
                 } label: {
                     row.contentShape(Rectangle())
                 }

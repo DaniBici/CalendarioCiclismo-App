@@ -1,5 +1,5 @@
-import {cxDateInSeason,cxSeasonBounds} from './season.js?v=20260912cxmonths7';
-import {shiftPanelDay} from '../panel/catalog-ui.js?v=20260912cxpaneldays';
+import {cxDateInSeason,cxSeasonBounds} from './season.js';
+import {shiftPanelDay} from '../panel/catalog-ui.js';
 
 export function cxPanelAgendaDate(dateKey,direction=0) {
   shiftPanelDay(dateKey,0);

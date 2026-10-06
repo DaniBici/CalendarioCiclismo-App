@@ -213,12 +213,33 @@ rechazar accidentalmente un PDF de otra edición. La carrera tiene dos etapas,
 por lo que no se usa `--one-day`. Si la página ya enlaza el PDF solicitado pero
 ninguno de sus cuadros puede interpretarse, el proceso termina con error en vez de
 presentarlo al watcher como una fuente todavía vacía.
+La fecha de edición se lee en la primera página con texto (Word exporta a veces
+una hoja inicial en blanco): `Fecha : dd/mm/aa`,
+`02.SEPT.2026` o la portada de Word en letra (`12 DE AGOSTO DE 2026`), con o
+sin día de la semana (`LUNES 5 DE OCTUBRE DE 2026`). Si ese día contradice la
+fecha, la portada se descarta y rige el `Fecha :` de la página siguiente. Los
+retiros y fueras de control que solo publica el boletín del jurado de comisarios
+(`RETIROS DORSAL 83`, `CORREDORES FUERA DEL LIMITE …: 65 – 84`) se emiten como
+DNF y OTL de la llegada. Una etapa
+cuyo encabezado anuncia C.R.I., contrarreloj o cronoescalada, o cuya tabla trae
+`T.Inter`, se emite con `raceType='ITT'`. Las diferencias se derivan del tiempo
+final cuando la fila lo publica; la columna de diferencia solo se usa sin tiempo.
 
 `evodata-results-fetch.mjs` consume la API JSON pública de EvoData CIS. El
 `eventId` padre descubre las jornadas y cada una publica llegada, general,
-puntos, montaña, jóvenes y equipos. El token público de aplicación solo vive en
-memoria. El cron lo activa con `race_uci_links.source='evodata'` y
-`evodataCode=<eventId padre>`.
+puntos, montaña, jóvenes y equipos. Un evento autónomo, sin padre ni
+`subEvents` (campeonatos UEC), es su propia y única jornada. El token público
+de aplicación solo vive en memoria. El cron lo activa con
+`race_uci_links.source='evodata'` y `evodataCode=<eventId padre o autónomo>`.
+En una carrera de un día, los abandonos se leen del `status` de la lista de
+salida (1 DNF, 3 DNS, 9 OTL), ausentes de la llegada. Con `status` 0, tras 20
+minutos sin nuevas llegadas: `started` sin `finished` = DNF; `started=false`
+con `starting` no falso = DNS, si el concurso registra alguna salida. Un dorsal
+retirado de la lista de EvoData no se recupera.
+El relevo mixto UEC (concurso de selecciones con `raceTypeId` 13 y concursos
+«Singoli» con los corredores) se publica como el de Tissot: `gc` final con
+`raceType='TTT'`, primer dorsal de cada selección con puesto y tiempo absoluto
+y compañeros sin puesto, con su tiempo individual si EvoData lo publica.
 
 `manual_timing-results-fetch.mjs` consume el JSON live público de
 `timing.example.invalid`. El cron lo activa cada minuto con
@@ -283,3 +304,29 @@ Valida proveedor, etapa, edición y fecha; extrae llegada con IRM y recuento del
 jurado, general, puntos, montaña y equipos. La general y los equipos cortan al
 reaparecer un puesto 1 aunque falte el encabezado del cuadro siguiente. El cron
 lo activa con `race_uci_links.source='atresults'` y `atresultsCode=<carpeta>/<prefijo>`.
+
+`mikatiming-results-fetch.mjs` lee el listado HTML de un evento de mika:timing
+(`<host>/<edición>/?pid=list&event=<evento>`, 100 filas por página) y la ficha
+del ganador. Emite la clasificación de un día con dorsal, puesto y tiempo.
+Valida que el evento figure en el selector de la edición y descarta la
+simulación previa a la carrera contrastando la hora de llegada con la fecha y
+la salida programadas de la jornada. El cron lo activa con
+`race_uci_links.source='mikatiming'` y `mikatimingCode=<host>/<edición>/<evento>`,
+y lo relee dentro de la ventana mientras llegan corredores.
+
+`ficr-results-fetch.mjs` lee la API JSON de FICR (`apiciclismo.ficr.it/CIC`)
+de una carrera `<año>/<equipo>/<carrera>`: llegada de cada tappa con dorsal,
+tiempo y estados de fuera de carrera, y en vueltas las generales de tiempo,
+puntos, montaña y equipos. Asigna etapa por fecha (prólogo 0) y sector a las
+tappe de una misma fecha, y valida la fecha contra la jornada (en un día
+admite la fecha de alta de FICR hasta 3 días antes). El cron lo
+activa con `race_uci_links.source='ficr'` y `ficrCode=<año>/<equipo>/<carrera>`,
+y lo relee dentro de la ventana mientras llegan corredores.
+
+`lapclip-results-fetch.mjs` lee el listado de vueltas por transpondedor de
+LAPCLIP (Matrix Sports, `matrix-sports.jp/lap`) de una categoría
+`<evento>/<categoría>/<vueltas>`. Emite la llegada de un día en circuito cuando
+el primero completa las vueltas, con regla de grupo de un segundo, y los DNF y
+DNS pasado el margen de cierre. Valida la fecha del título de la categoría
+contra la jornada. El cron lo activa con `race_uci_links.source='lapclip'` y
+`lapclipCode=<evento>/<categoría>/<vueltas>`, y lo relee dentro de la ventana.

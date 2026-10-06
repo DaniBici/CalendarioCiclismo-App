@@ -2,7 +2,7 @@
 // que no existen en flag-icons se sirven autoalojadas desde /flags/; el resto
 // sale del CDN de flag-icons. Módulo sin dependencias para poder probarlo.
 
-export const LOCAL_FLAG_CODES = new Set([
+const LOCAL_FLAG_CODES = new Set([
   'es-an', 'es-ar', 'es-as', 'es-cb', 'es-ce', 'es-cl', 'es-cm', 'es-cn',
   'es-ex', 'es-ib', 'es-mc', 'es-md', 'es-ml', 'es-nc', 'es-ri', 'es-vc',
 ]);

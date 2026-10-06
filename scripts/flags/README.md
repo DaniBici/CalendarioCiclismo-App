@@ -68,13 +68,13 @@ ls ios-app/Shared/Flags.xcassets/Flags/ | sed 's/\.imageset$//' \
   | grep -v Contents.json | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))" \
   > /tmp/flag-audit/names.json
 mkdir -p /tmp/flag-audit/ios
-cd ios-app && xcodebuild -project CalendarioCiclismo.xcodeproj -scheme CalendarioCiclismo \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:CalendarioCiclismoTests/FlagRenderAuditTests test && cd ..
+cd ios-app && xcodebuild -project CalendarioCiclismo.xcodeproj -scheme FlagRenderAudit \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test && cd ..
 DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib \
   /tmp/flag-audit/venv/bin/python scripts/flags/verify-flags-render.py gate2
 ```
 
-El test `FlagRenderAuditTests` solo corre si existe `/tmp/flag-audit/names.json`
-(en CI se salta solo). Vuelca el render CoreSVG de cada bandera a
+El test `FlagRenderAuditTests` (`ios-app/Tools/FlagRenderAudit/`, target y
+esquema `FlagRenderAudit`, fuera de la suite de pruebas) solo corre si existe
+`/tmp/flag-audit/names.json`. Vuelca el render CoreSVG de cada bandera a
 `/tmp/flag-audit/ios/<code>.png` a 480×360.

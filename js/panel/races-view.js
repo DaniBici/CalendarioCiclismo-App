@@ -4,11 +4,11 @@
 
 import {
   panelCatalogHeaderHtml, panelCatalogModel, panelRaceListItemHtml, renderPanelCatalog,
-} from './catalog-ui.js?v=20260912cxcohesion';
-import { attachCountryAutocomplete } from '../country-select.js?v=20260917cxflags';
+} from './catalog-ui.js';
+import { attachCountryAutocomplete } from '../country-select.js';
 import { mountClassificationEditor } from './race-presentation.js';
 import { supabase, countryFlag, esc } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import { confirmDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { showToast, toSlug, validateSlug } from './helpers.js';
@@ -117,23 +117,21 @@ function raceEditorBodyHtml() {
       <label class="u-row u-row--gap-sm">Slug
         <span class="u-field-hint">— URL amigable (solo a-z, 0-9 y guiones)</span>
       </label>
-      <div class="u-row" style="gap:0.5rem">
+      <div class="u-row u-gap-050">
         <input type="text" id="er-slug" placeholder="tour-de-france-2025" maxlength="80"
-               style="flex:1;font-family:var(--font-display);font-size:0.85rem;letter-spacing:0.01em"
                autocomplete="off" spellcheck="false">
-        <button type="button" id="er-slug-suggest" class="btn btn--ghost u-fs-xs u-btn-sm"
+        <button type="button" id="er-slug-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
                >Auto</button>
       </div>
-      <div id="er-slug-error" style="color:#e55;font-size:0.75rem;margin-top:0.25rem;display:none"></div>
+      <div id="er-slug-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
     </div>
     <div class="field">
       <label class="u-row u-row--gap-sm">Slug EN
         <span class="u-field-hint">— URL en inglés (solo a-z, 0-9 y guiones)</span>
       </label>
       <input type="text" id="er-slugEn" placeholder="tour-of-flanders-2025" maxlength="80"
-             style="font-family:var(--font-display);font-size:0.85rem;letter-spacing:0.01em"
              autocomplete="off" spellcheck="false">
-      <div id="er-slugEn-error" style="color:#e55;font-size:0.75rem;margin-top:0.25rem;display:none"></div>
+      <div id="er-slugEn-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
     </div>
     <div class="field-row field-row--2">
       <div class="field">
@@ -201,34 +199,34 @@ function raceEditorBodyHtml() {
     </div>
     <div class="field">
       <label>DataRide (competitionId)</label>
-      <div class="u-row" style="gap:0.4rem">
+      <div class="u-row u-gap-040">
         <input class="u-grow" type="number" id="er-uciCompetitionId" placeholder="—" min="1">
-        <button type="button" class="btn btn--ghost" style="font-size:0.7rem;padding:0 0.6rem;white-space:nowrap" id="er-uciLinkBtn">Enlazar con UCI</button>
+        <button type="button" class="btn btn--ghost u-fs-070 u-py-0 u-px-060 u-nowrap" id="er-uciLinkBtn">Enlazar con UCI</button>
       </div>
-      <div id="er-uciPanel" style="display:none;margin-top:0.5rem;font-size:0.8rem"></div>
+      <div id="er-uciPanel" class="u-mt-050 u-fs-080" style="display:none"></div>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.5rem 0 0.25rem">
+    <div class="u-row nr-check-row nr-check-row--first">
       <input class="u-checkbox" type="checkbox" id="er-hideFlag">
       <span class="u-collapse-header" onclick="document.getElementById('er-hideFlag').click()">Ocultar bandera</span>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.25rem 0 0">
+    <div class="u-row nr-check-row">
       <input class="u-checkbox" type="checkbox" id="er-isGrandTour">
       <span class="u-collapse-header" onclick="document.getElementById('er-isGrandTour').click()">Gran Vuelta</span>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.25rem 0 0">
-      <input type="checkbox" id="er-isCancelled" style="width:15px;height:15px;accent-color:#e55;cursor:pointer;flex-shrink:0;position:relative;z-index:1">
-      <span onclick="document.getElementById('er-isCancelled').click()" style="font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#e55;cursor:pointer;user-select:none">Cancelada</span>
+    <div class="u-row nr-check-row">
+      <input type="checkbox" id="er-isCancelled" class="u-checkbox nr-danger-check">
+      <span onclick="document.getElementById('er-isCancelled').click()" class="u-collapse-header nr-danger-label">Cancelada</span>
     </div>
-    <div class="u-row" style="gap:0.6rem;padding:0.25rem 0 0">
-      <input type="checkbox" id="er-isNoClickable" style="width:15px;height:15px;accent-color:#f90;cursor:pointer;flex-shrink:0;position:relative;z-index:1">
-      <span onclick="document.getElementById('er-isNoClickable').click()" style="font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#f90;cursor:pointer;user-select:none">No clicable</span>
+    <div class="u-row nr-check-row">
+      <input type="checkbox" id="er-isNoClickable" class="u-checkbox nr-flag-check">
+      <span onclick="document.getElementById('er-isNoClickable').click()" class="u-collapse-header nr-flag-label">No clicable</span>
     </div>
-    <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap">
-      <div class="u-row" style="gap:0.5rem">
+    <div class="panel-form-actions u-justify-between u-items-center u-wrap">
+      <div class="u-row u-gap-050">
         <button class="btn btn--danger" id="er-deleteBtn">Borrar carrera</button>
-        <button class="btn btn--ghost" id="er-editStartlistBtn" style="font-size:0.75rem">Editar dorsales</button>
+        <button class="btn btn--ghost u-fs-075" id="er-editStartlistBtn">Editar dorsales</button>
       </div>
-      <div class="u-row" style="gap:0.5rem">
+      <div class="u-row u-gap-050">
         <button class="btn btn--ghost" id="er-duplicateBtn">Crear edición</button>
         <button class="btn btn--primary" id="editRaceSaveBtn">Guardar cambios</button>
       </div>
@@ -448,7 +446,8 @@ async function saveEditRace() {
     closeEditRaceModal();
     renderRacesView();
   } catch (err) {
-    errDiv.textContent = 'Error al guardar.';
+    // 23514: validación de la base (p. ej. logo fuera de assets.calendariociclismo.app).
+    errDiv.textContent = err?.code === '23514' ? err.message : 'Error al guardar.';
     errDiv.style.display = 'block';
   }
 }

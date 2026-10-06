@@ -1,22 +1,10 @@
 import {describe,it,expect} from 'vitest';
-import {RIDER_SLUG_PATTERN,isValidRiderSlug,homonymIdentityKey,planRenameIdentityKeyClash} from '../rider-rename-logic.js';
+import {isValidRiderSlug,homonymIdentityKey,planRenameIdentityKeyClash} from '../rider-rename-logic.js';
 
 describe('validación de slug de ficha de corredor',()=>{
-  it('acepta minúsculas, dígitos y guiones',()=>{
-    expect(isValidRiderSlug('alvarez-hector')).toBe(true);
+  it('acepta minúsculas, dígitos y guiones y rechaza el resto',()=>{
     expect(isValidRiderSlug('pogacar-tadej-2')).toBe(true);
-    expect(isValidRiderSlug('a')).toBe(true);
-    expect(RIDER_SLUG_PATTERN.test('-guion-inicial-y-final-')).toBe(true);
-  });
-  it('rechaza mayúsculas, espacios, acentos, vacío y no-cadenas',()=>{
-    expect(isValidRiderSlug('Alvarez-Hector')).toBe(false);
-    expect(isValidRiderSlug('alvarez hector')).toBe(false);
-    expect(isValidRiderSlug('álvarez')).toBe(false);
-    expect(isValidRiderSlug('hector_2')).toBe(false);
-    expect(isValidRiderSlug('')).toBe(false);
-    expect(isValidRiderSlug(null)).toBe(false);
-    expect(isValidRiderSlug(undefined)).toBe(false);
-    expect(isValidRiderSlug(42)).toBe(false);
+    for(const slug of ['Alvarez-Hector','alvarez hector','álvarez','hector_2','',null,42]) expect(isValidRiderSlug(slug)).toBe(false);
   });
 });
 

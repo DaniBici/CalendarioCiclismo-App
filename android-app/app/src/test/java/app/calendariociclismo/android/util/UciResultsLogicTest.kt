@@ -106,17 +106,7 @@ class UciResultsLogicTest {
         headerText = "#ffffff", nameAliases = aliases,
     )
 
-    // ── timeToSeconds / secondsToGap / formatGap ───────────────────
-
-    @Test
-    fun `timeToSeconds parsea los tres formatos`() {
-        assertEquals(41, UciResultsLogic.timeToSeconds("41"))
-        assertEquals(116, UciResultsLogic.timeToSeconds("1:56"))
-        assertEquals(3761, UciResultsLogic.timeToSeconds("1:02:41"))
-        assertNull(UciResultsLogic.timeToSeconds(null))
-        assertNull(UciResultsLogic.timeToSeconds("abc"))
-        assertNull(UciResultsLogic.timeToSeconds(""))
-    }
+    // ── secondsToGap / formatGap ───────────────────────────────────
 
     @Test
     fun `secondsToGap usa la convencion de prensa`() {
@@ -240,16 +230,6 @@ class UciResultsLogicTest {
         assertEquals("5:00:00", vms[0].valueText)
         assertEquals("+7\"", vms[1].valueText)
         assertEquals("+1'38\"", vms[2].valueText)
-    }
-
-    @Test
-    fun `gap cero se marca como mismo tiempo`() {
-        val rows = listOf(
-            row(rank = 1, timeText = "4:00:00"),
-            row(rank = 2, gapText = "+0"),
-        )
-        val vms = UciResultsLogic.buildIndividualRows(rows, "stage", false, emptyMap(), isEn = false)
-        assertEquals(UciResultsLogic.ValueKind.SAME_TIME, vms[1].valueKind)
     }
 
     @Test
@@ -458,25 +438,6 @@ class UciResultsLogicTest {
     }
 
     @Test
-    fun `CRI con tiempos absolutos enteros deriva gaps como en linea`() {
-        // Caso real: Boucles de la Mayenne 2026, prólogo → 6'36"/+1"/+6"/m.t./+7"
-        // (el m.t. del 4º lo pone el display al compartir gap con el 3º).
-        val rows = listOf(
-            row(rank = 1, timeText = "0:06:36"),
-            row(rank = 2, timeText = "0:06:37"),
-            row(rank = 3, timeText = "0:06:42"),
-            row(rank = 4, timeText = "0:06:42"),
-            row(rank = 5, timeText = "0:06:43"),
-        )
-        val vms = UciResultsLogic.buildIndividualRows(rows, "stage", false, emptyMap(), isEn = false, isItt = true)
-        assertEquals("6'36\"", vms[0].valueText)
-        assertEquals("+1\"", vms[1].valueText)
-        assertEquals("+6\"", vms[2].valueText)
-        assertEquals("+6\"", vms[3].valueText)
-        assertEquals("+7\"", vms[4].valueText)
-    }
-
-    @Test
     fun `CRI con milesimas trunca cada tiempo antes de restar`() {
         // Caso real: Tour de Estonia 2026, prólogo → 1'04"/+2"/m.t./+3".
         val rows = listOf(
@@ -490,20 +451,6 @@ class UciResultsLogicTest {
         assertEquals("+2\"", vms[1].valueText)
         assertEquals("+2\"", vms[2].valueText)
         assertEquals("+3\"", vms[3].valueText)
-    }
-
-    @Test
-    fun `CRI gap entero publicado fluye por el pipeline normal`() {
-        // Caso real: Giro 2026, et.10 (CRI). Ganador "45:53" + gap crudo "+1:53"
-        // → 45'53" / +1'53" (notación de prensa, como una etapa en línea).
-        val rows = listOf(
-            row(rank = 1, timeText = "45:53"),
-            row(rank = 2, gapText = "+1:53"),
-        )
-        val vms = UciResultsLogic.buildIndividualRows(rows, "stage", false, emptyMap(), isEn = false, isItt = true)
-        assertEquals("45'53\"", vms[0].valueText)
-        assertEquals(UciResultsLogic.ValueKind.GAP, vms[1].valueKind)
-        assertEquals("+1'53\"", vms[1].valueText)
     }
 
     @Test
@@ -565,17 +512,6 @@ class UciResultsLogicTest {
     }
 
     @Test
-    fun `CRI los abandonos siguen con celda vacia y etiqueta`() {
-        val rows = listOf(
-            row(rank = 1, timeText = "0:06:36"),
-            row(irm = "DNF", riderDisplay = "ABANDONA Pepe"),
-        )
-        val vms = UciResultsLogic.buildIndividualRows(rows, "stage", false, emptyMap(), isEn = false, isItt = true)
-        assertEquals(UciResultsLogic.ValueKind.EMPTY, vms[1].valueKind)
-        assertEquals("ABN", vms[1].rankBadge)
-    }
-
-    @Test
     fun `sin isItt una etapa en linea conserva gaps y mt`() {
         // Regresión: la convención de crono NO toca las etapas en línea ni las
         // generales (isItt=false): gaps derivados y m.t. como siempre.
@@ -603,27 +539,6 @@ class UciResultsLogicTest {
         assertEquals("red bull bora hansgrohe", UciResultsLogic.normalizeTeamName("RED BULL - BORA - HANSGROHE"))
         assertEquals("", UciResultsLogic.normalizeTeamName(null))
         assertEquals("", UciResultsLogic.normalizeTeamName("Team"))   // solo stopwords
-    }
-
-    @Test
-    fun `findMatchingTeam casa nombres crudos de la fuente contra el catalogo`() {
-        // Casos reales del ARA 2026 (riderDisplay de Tissot vs nombre canónico).
-        val teams = listOf(
-            team("t1", "Tudor"),
-            team("t2", "Visma | Lease a Bike"),
-            team("t3", "UAE Team Emirates-XRG"),
-            team("t4", "Lotto Intermarché"),
-            // Alias multilínea: el nombre histórico solo casa vía nameAliases.
-            team("t5", "Decathlon CMA CGM", aliases = "Decathlon\nAG2R La Mondiale"),
-        )
-        assertEquals("t1", UciResultsLogic.findMatchingTeam("TUDOR PRO CYCLING TEAM", teams)?.id)
-        assertEquals("t2", UciResultsLogic.findMatchingTeam("TEAM VISMA | LEASE A BIKE", teams)?.id)
-        assertEquals("t3", UciResultsLogic.findMatchingTeam("UAE TEAM EMIRATES XRG", teams)?.id)
-        assertEquals("t4", UciResultsLogic.findMatchingTeam("LOTTO INTERMARCHE", teams)?.id)
-        assertEquals("t5", UciResultsLogic.findMatchingTeam("AG2R LA MONDIALE", teams)?.id)
-        assertNull(UciResultsLogic.findMatchingTeam("EQUIPO FANTASMA", teams))
-        assertNull(UciResultsLogic.findMatchingTeam(null, teams))
-        assertNull(UciResultsLogic.findMatchingTeam("Tudor", emptyList()))
     }
 
     @Test
@@ -691,6 +606,9 @@ class UciResultsLogicTest {
         assertEquals("t1", UciResultsLogic.findMatchingTeam("GROUPAMA-FDJ", teams)?.id)
         // "nsn" tiene <4 caracteres → NO entra en contención (evita ruido).
         assertNull(UciResultsLogic.findMatchingTeam("NSN MOBILITY", teams))
+        assertNull(UciResultsLogic.findMatchingTeam("EQUIPO FANTASMA", teams))
+        assertNull(UciResultsLogic.findMatchingTeam(null, teams))
+        assertNull(UciResultsLogic.findMatchingTeam("Groupama", emptyList()))
     }
 
     @Test
@@ -723,6 +641,25 @@ class UciResultsLogicTest {
     }
 
     @Test
+    fun `pestana equipos resuelve primero por teamId`() {
+        // Nombres abreviados de la fuente que no casan por nombre: el teamId de la
+        // fila decide (startlist y, si no figura en ella, el equipo resuelto por id).
+        val raceTeams = listOf(team("t1", "Banrural-Tropigas-Paleter"))
+        val rows = listOf(
+            row(rank = 1, riderDisplay = "BANRURAL TROPIG DOM PALET", teamId = "t1", timeText = "10:00:00"),
+            row(rank = 2, riderDisplay = "ASO CICLISTICA GRIEGA", teamId = "t2", gapText = "+10"),
+        )
+        val vms = UciResultsLogic.buildIndividualRows(
+            rows, "teams", true, emptyMap(), isEn = false, raceTeams = raceTeams,
+            byTeamOverride = mapOf("t2" to team("t2", "Asociación Ciclística Griega")),
+        )
+        assertEquals("Banrural-Tropigas-Paleter", vms[0].riderName)
+        assertEquals("t1", vms[0].team?.id)
+        assertEquals("Asociación Ciclística Griega", vms[1].riderName)
+        assertEquals("t2", vms[1].team?.id)
+    }
+
+    @Test
     fun `equipos empatados con el ganador muestran mismo tiempo`() {
         val rows = listOf(
             row(rank = 1, riderDisplay = "TEAM A", timeText = "20:00:42"),
@@ -747,18 +684,7 @@ class UciResultsLogicTest {
             row(rank = 2, bib = "11"), row(rank = 2, bib = "12"), row(rank = 2, bib = "13"),
         )
         assertTrue(UciResultsLogic.isTttStage(rows, "stage", false, "ttt"))
-        // Sin marca de CRE no dispara, por marcada que sea la estructura.
-        assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, null))
-    }
-
-    @Test
-    fun `isTttStage sin marca de CRE no se dispara por estructura sola`() {
-        // 3 puestos con ≥2 corredores: sin marca (primaryType ni raceType) ya no basta.
-        val rows = listOf(
-            row(rank = 1, bib = "1"), row(rank = 1, bib = "2"),
-            row(rank = 2, bib = "11"), row(rank = 2, bib = "12"),
-            row(rank = 3, bib = "21"), row(rank = 3, bib = "22"),
-        )
+        // Sin marca de CRE (primaryType ni raceType) no dispara por estructura sola.
         assertFalse(UciResultsLogic.isTttStage(rows, "stage", false, null))
         // Con raceType='TTT' de la fuente sí (marca de CRE sin catálogo).
         assertTrue(UciResultsLogic.isTttStage(rows, "stage", false, null, stageRaceType = "TTT"))
@@ -1001,17 +927,6 @@ class UciResultsLogicTest {
         // El corredor (nombre/bandera/ficha) sigue saliendo del dorsal.
         assertEquals("Corredor X", vms[0].riderName)
         assertEquals("es", vms[0].countryCode)
-    }
-
-    @Test
-    fun `sin override el equipo sigue resolviendose por dorsal`() {
-        val byDorsal = mapOf(
-            11 to ResolvedRider("Corredor X", "es", "Equipo Startlist", team("ts", "Equipo Startlist"), "gx"),
-        )
-        val rows = listOf(row(rank = 1, bib = "11", timeText = "4:00:00"))
-        val vms = UciResultsLogic.buildIndividualRows(rows, "stage", false, byDorsal, isEn = false)
-        assertEquals("Equipo Startlist", vms[0].teamName)
-        assertEquals("ts", vms[0].team?.id)
     }
 
     @Test

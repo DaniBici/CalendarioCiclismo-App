@@ -80,7 +80,6 @@ import app.calendariociclismo.android.calendar.CalendarSubscription.description
 import app.calendariociclismo.android.calendar.CalendarSubscription.label
 import app.calendariociclismo.android.BuildConfig
 import app.calendariociclismo.android.data.premium.PremiumService
-import app.calendariociclismo.android.ui.premium.PaywallSheet
 import app.calendariociclismo.android.data.prefs.LocalePreference
 import app.calendariociclismo.android.data.prefs.NotificationCategoryPreference
 import app.calendariociclismo.android.data.prefs.RaceFollowMode
@@ -163,7 +162,7 @@ fun SettingsScreen(navController: NavController) {
                         supporterIcon = supporterIcon,
                         onSubscribe = {
                             haptic(Haptics.Event.Selection)
-                            app.premium.presentPaywall(PremiumService.PaywallSource.GENERAL)
+                            app.premium.presentSupport()
                         },
                         onManage = { app.premium.cancelSubscription() },
                         onRedeem = {
@@ -345,7 +344,6 @@ fun SettingsScreen(navController: NavController) {
                         NotificationCategorySelector(
                             enabled = notificationCategories,
                             onToggle = { category, value ->
-                                // Categorías enriquecidas liberadas al plan gratuito: sin paywall.
                                 if (category == NotificationCategoryPreference.GENERAL) return@NotificationCategorySelector
                                 haptic(Haptics.Event.Toggle)
                                 val updated = if (value) {

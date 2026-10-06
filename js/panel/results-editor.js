@@ -3,9 +3,9 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, stageLabel, esc } from '../shared.js';
-import { openDrawer, closeDrawer } from '../components/drawer.js?v=20260912cxsavecontext';
+import { openDrawer, closeDrawer } from '../components/drawer.js';
 import {
-  findResultClassificationDuplicate, nextResultRank, normalizeResultTimeInput,
+  manualResultClassificationRow, nextResultRank, normalizeResultTimeInput,
   shouldMirrorFinalClassification, uniqueStartlistSurnameMatch,
 } from '../results/panel-logic.js';
 import { panelState } from './state.js';
@@ -19,27 +19,7 @@ import { fetchTeams } from './teams.js';
 // Para pruebas sin fuente automática (CN, carreras pequeñas) o para añadir un
 // tipo que el cron no trajo. El único punto del sistema que da de alta filas en
 // race_uci_stages es el upsert del cron; esto replica esa alta desde el panel.
-//
-// El id es `ru_<eventId>` y el eventId es SINTÉTICO NEGATIVO determinista (misma
-// convención que los fetchers PDF/Matsport/…: fnv1a(salt+clave)%200000). Negativo
-// → jamás choca con los eventId positivos de DataRide; el offset por slot+clase lo
-// hace único entre clasificaciones de la misma jornada. Se crea SIN bloquear:
-// es un placeholder que la fuente oficial PISA si llega (decisión Dani 2026-06-27;
-// el upsert purga las gemelas sintéticas por raceId+raceDayId+classKind+scope).
-function _ruFnv1a(str) {
-  let h = 0x811c9dc5;
-  for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
-  return h;
-}
-// Índice por (classKind, isFinal) para separar el eventId de tipos distintos de la
-// misma jornada. stage→0, gc→1, points→2, kom→3, youth→4, teams→5; +50 si es final.
-const _RU_CLASS_IDX = { stage: 0, gc: 1, points: 2, kom: 3, youth: 4, teams: 5 };
-function _ruScopeFor(kind, isFinal) {
-  // Espejo de cómo el cron mapea scope (cosmético: la web agrupa por stageNumber +
-  // classKind, NO usa scope). stage/gc → 'stage'; secundarias overall → 'overall'.
-  if (kind === 'stage' || kind === 'gc') return 'stage';
-  return isFinal ? 'stage' : 'overall';
-}
+// La fila se construye en manualResultClassificationRow (results/panel-logic.js).
 
 // Diálogo: elegir tipo de clasificación (+ "es la final/de la prueba") y crear.
 export async function _ruNewClass(rd, race, stages, finalStageDay = false, raceDays = []) {
@@ -61,14 +41,14 @@ export async function _ruNewClass(rd, race, stages, finalStageDay = false, raceD
           su volcado la sustituye. Guardar no cambia el candado; si quieres impedir que el cron
           la toque, usa «Bloquear» en la lista.
         </div>
-        <label class="u-block" style="margin:0.8rem 0 0.3rem;font-size:0.8rem">Tipo de clasificación</label>
+        <label class="u-mt-080 u-mb-030 u-fs-080">Tipo de clasificación</label>
         <select id="ruNewKind" class="input u-input-block">${opts}</select>
-        <label class="u-row" style="gap:0.5rem;margin-top:0.8rem;font-size:0.85rem;cursor:pointer">
+        <label class="u-row u-mt-080 u-fs-085 u-pointer">
           <input type="checkbox" id="ruNewFinal"${isOneDay ? ' checked' : ''}>
           <span>Es la clasificación <strong>final / de la prueba</strong>
             ${isOneDay ? '' : '(general definitiva del último día; no cuelga de una etapa)'}</span>
         </label>
-        <div class="u-row" style="gap:0.5rem;margin-top:1.1rem;justify-content:flex-end">
+        <div class="u-row u-mt-110 u-justify-end">
           <button type="button" class="btn btn--ghost ru-new-cancel">Cancelar</button>
           <button type="button" class="btn btn--primary ru-new-create">Crear y editar</button>
         </div>`;
@@ -95,57 +75,8 @@ export async function _ruNewClass(rd, race, stages, finalStageDay = false, raceD
 
 // Inserta la fila en race_uci_stages y devuelve el objeto stage para editarla.
 async function _ruCreateClass(rd, race, stages, kind, isFinal, raceDays = []) {
-  const isOneDay = race?.raceFormat === 'one_day';
-  // Una "final" no cuelga de etapa (stageNumber null, raceDayId null, como el cron).
-  // Si no, cuelga de ESTA jornada.
-  const stageNumber = isFinal ? null : (rd.stageNumber ?? null);
-  const raceDayId = isFinal ? null : rd.id;
-  const scope = _ruScopeFor(kind, isFinal);
-
-  // Guard contra el error más típico: ya existe esa misma clasificación lógica
-  // (raceId ya está fijo por la lista) para esta jornada/scope. Mejor avisar que dejar
-  // que reviente el UNIQUE del eventId/id con un error críptico.
-  const dup = findResultClassificationDuplicate(stages, rd, { kind, scope, isFinal }, raceDays);
-  if (dup) {
-    const lbl = (UCI_CLASS_LABELS[kind] || kind) + (isFinal ? ' (final)' : '');
-    throw new Error(`Ya existe una clasificación «${lbl}» para esta jornada. Edítala desde la lista en vez de crear otra.`);
-  }
-
-  const base = _ruFnv1a(`manual:${rd.raceId}`) % 200000;
-  const slot = (stageNumber == null ? 99 : stageNumber);     // 99 = bloque final
-  const idx = (_RU_CLASS_IDX[kind] ?? 9) + (isFinal ? 50 : 0);
-  let eventId = -((base * 10000 + slot * 100 + idx) & 0x7fffffff);
-
-  // Garantizar unicidad de eventId frente a lo ya presente (improbable choque, pero
-  // dos "finales" de tipos distintos comparten slot 99 → el idx las separa; si aun
-  // así colisiona con algo, desplazar).
-  const used = new Set(stages.map(s => Number(s.eventId)));
-  while (used.has(eventId)) eventId -= 1;
-
-  const id = `ru_${eventId}`;
-  const row = {
-    id,
-    raceId: rd.raceId,
-    raceDayId,
-    competitionId: eventId,   // sintético: sin DataRide, competitionId = eventId
-    uciRaceId: eventId,       // NOT NULL en schema; sintético
-    eventId,
-    classKind: kind,
-    scope,
-    eventName: null,
-    isTeamEvent: kind === 'teams',
-    stageNumber,
-    isFinalClassification: isFinal,
-    stageDate: rd.dateKey || null,
-    raceType: rd.primaryType === 'itt' ? 'ITT' : (rd.primaryType === 'ttt' ? 'TTT' : null),
-    rowCount: 0,
-    // keepForWeb es una columna GENERADA (migración 092): true cuando classKind ∈
-    // {stage,gc,points,kom,youth,teams} Y (classKind ∈ {stage,gc} O scope='overall'
-    // O isFinalClassification). _ruScopeFor garantiza scope='overall' en las
-    // secundarias no-finales → siempre sale true. NO se inserta a mano.
-    // lockedAt: null → placeholder; la fuente oficial puede pisarla hasta que se
-    // edite/guarde (que la bloquea) o se use el candado de la lista.
-  };
+  const row = manualResultClassificationRow(rd, stages, kind, isFinal, raceDays,
+    UCI_CLASS_LABELS[kind] || kind);
   const { data, error } = await supabase.from('race_uci_stages').insert(row).select().single();
   if (error) throw error;
   return data;
@@ -206,7 +137,7 @@ export async function openUciClassEditor(st, rd, race) {
     level: 2,
     wide: true,
     render: (body) => {
-      body.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:1rem">Cargando clasificación…</div>';
+      body.innerHTML = '<div class="u-c-muted u-fs-085 u-p-100">Cargando clasificación…</div>';
     },
   });
 
@@ -222,7 +153,7 @@ export async function openUciClassEditor(st, rd, race) {
     riderMap = map || {};
   } catch (err) {
     console.error(err);
-    h.body.innerHTML = `<div style="color:#e55;padding:1rem;font-size:0.85rem">Error al cargar: ${esc(err.message || String(err))}</div>`;
+    h.body.innerHTML = `<div class="u-c-danger u-p-100 u-fs-085">Error al cargar: ${esc(err.message || String(err))}</div>`;
     return;
   }
 
@@ -294,29 +225,29 @@ export async function openUciClassEditor(st, rd, race) {
   };
 
   h.body.innerHTML = `
-    <div class="u-row" style="gap:0.5rem;flex-wrap:wrap;margin:0.6rem 0">
-      <button type="button" class="btn btn--ghost" id="ruAddRow" style="font-size:0.75rem">＋ Añadir fila</button>
-      <button type="button" class="btn btn--ghost" id="ruSortRank" style="font-size:0.75rem"
+    <div class="u-row u-wrap u-mt-060 u-mb-060">
+      <button type="button" class="btn btn--ghost u-fs-075" id="ruAddRow">＋ Añadir fila</button>
+      <button type="button" class="btn btn--ghost u-fs-075" id="ruSortRank"
               title="Reordena las filas por la columna # (sin puesto → al final, en su orden actual)">Ordenar por puesto</button>
-      <span style="flex:1"></span>
-      <button type="button" class="btn btn--primary ru-save" style="font-size:0.78rem">Guardar</button>
+      <span class="u-grow"></span>
+      <button type="button" class="btn btn--primary ru-save u-fs-078">Guardar</button>
     </div>
     <table class="ru-edit-table">
       <thead><tr>
-        <th style="width:1.6rem"></th>
+        <th class="u-w-160"></th>
         <th class="ru-th-rank" title="Puesto (vacío = no clasificado)">#</th>
-        <th style="width:2.8rem" title="Dorsal — casa el corredor por la startlist al teclearlo">Dor.</th>
+        <th class="u-w-280" title="Dorsal — casa el corredor por la startlist al teclearlo">Dor.</th>
         <th>${isTeamsClass ? 'Equipo' : 'Corredor'}</th>
-        <th style="width:9rem" title="Equipo (override manual; gana a la resolución por dorsal)">Equipo</th>
+        <th class="u-w-900" title="Equipo (override manual; gana a la resolución por dorsal)">Equipo</th>
         ${isPtsClass
-          ? '<th style="width:5rem" title="Puntos">Pts</th>'
-          : '<th style="width:7rem" title="Tiempo del ganador, o gap del resto empezando por +">Tiempo / Gap</th>'}
-        <th style="width:4.6rem" title="DNF/DNS/OTL/DSQ/DF/NR">IRM</th>
-        <th style="width:2.4rem"></th>
+          ? '<th class="u-w-500" title="Puntos">Pts</th>'
+          : '<th class="u-w-700" title="Tiempo del ganador, o gap del resto empezando por +">Tiempo / Gap</th>'}
+        <th class="u-w-460" title="DNF/DNS/OTL/DSQ/DF/NR">IRM</th>
+        <th class="u-w-240"></th>
       </tr></thead>
       <tbody id="ruRows">${rows.map(rowHtml).join('')}</tbody>
     </table>
-    <div class="u-row" style="gap:0.5rem;margin-top:0.8rem;justify-content:flex-end">
+    <div class="u-row u-mt-080 u-justify-end">
       <button type="button" class="btn btn--ghost ru-cancel">Cancelar</button>
       <button type="button" class="btn btn--primary ru-save">Guardar</button>
     </div>`;

@@ -6,6 +6,7 @@ import { applyCxResults, loadCxResultsContext, prepareCxResults } from './cx-res
 import { cxSyncDecision } from './cx-sync-window.mjs';
 import { processStandingsQueue } from '../cx/cx-recompute-standings.mjs';
 import { finishAutomationRun, openAutomationClient, recordAutomationSourceRun, startAutomationRun } from '../automation-monitor.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 export async function loadCxSyncCandidates(client) {
   const {rows}=await client.query(`/* cx_sync_candidates */ SELECT to_jsonb(r) AS race,to_jsonb(l) AS link,
@@ -152,8 +153,8 @@ export async function runCxPipeline(client,{now=new Date(),dryRun=false,limit=2,
   }finally{await client.query("SELECT pg_advisory_unlock(hashtext('cc-cx-results'))");}
 }
 export async function runCxResultsRuntime({dryRun=false}={}) {
-  if(!process.env.DATABASE_URL)throw new Error('Falta DATABASE_URL del runtime CX');
-  const client=await openAutomationClient(process.env.DATABASE_URL);
+  if(!databaseUrl())throw new Error('Falta DATABASE_URL del runtime CX');
+  const client=await openAutomationClient(databaseUrl());
   try{const value=await runCxPipeline(client,{dryRun});process.stdout.write(JSON.stringify(value)+'\n');if(value.status==='error')process.exitCode=1;return value;}
   finally{await client.end();}
 }

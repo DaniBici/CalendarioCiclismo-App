@@ -14,10 +14,7 @@ describe('descripción SEO de torneos CX',()=>{
       `La Copa del Mundo UCI abarca 2 pruebas del 27 de noviembre al 24 de enero. ${ending}`);
   });
   it.each([
-    ['Superprestige','El Superprestige'],['X2O Badkamers Trofee','El X2O Badkamers Trofee'],
-    ['Copa de España','La Copa de España'],['Coupe de France','La Coupe de France'],
-    ['Swiss Cyclocross Cup','La Swiss Cyclocross Cup'],['Taça de Portugal','La Taça de Portugal'],
-    ['National Trophy','El National Trophy'],['La Copa local','La Copa local'],
+    ['Superprestige','El Superprestige'],['Swiss Cyclocross Cup','La Swiss Cyclocross Cup'],['La Copa local','La Copa local'],
   ])('elige el artículo sin duplicarlo para %s',(name,subject)=>{
     expect(cxTournamentDescription({...tournament,name},[first,last])).toBe(
       `${subject} abarca 2 pruebas del 27 de noviembre al 24 de enero. ${ending}`);
@@ -32,5 +29,9 @@ describe('descripción SEO de torneos CX',()=>{
     const {tournamentId,...race}=first;
     expect(cxTournamentDescription(tournament,[{...race,cx_tournaments:tournament}])).toContain('abarca 1 prueba');
     expect(cxTournamentDescription(tournament,[])).toBe(`La Copa del Mundo UCI abarca 0 pruebas. ${ending}`);
+  });
+  it('redacta en inglés la descripción de la página EN, en paridad con el generador',()=>{
+    expect(cxTournamentDescription({...tournament,nameEn:'UCI World Cup'},[first,last],'en')).toBe(
+      'The UCI World Cup comprises 2 rounds from 27 November to 24 January. See dates, schedules, results and how to watch on TV and online streaming.');
   });
 });

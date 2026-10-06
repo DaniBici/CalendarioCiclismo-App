@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var navigationPath = NavigationPath()
     @State private var cxNavigationPath = NavigationPath()
+    @State private var calendarNavigationPath = NavigationPath()
     @State private var deepLinkRevision = 0
     @State private var transfersTeamId: String?
     @State private var manager = NotificationManager.shared
@@ -103,7 +104,7 @@ struct ContentView: View {
             .accessibilityIdentifier(AccessibilityID.tabCyclocross)
 
             Tab(localeService.t("Calendario", "Calendar"), systemImage: "calendar", value: 4) {
-                NavigationStack {
+                NavigationStack(path: $calendarNavigationPath) {
                     CalendarTabView()
                 }
             }
@@ -130,10 +131,10 @@ struct ContentView: View {
             handleDeepLink(link)
         }
         .sheet(isPresented: Binding(
-            get: { premium.pendingPaywallSource != nil },
-            set: { if !$0 { premium.dismissPaywall() } }
+            get: { premium.isSupportPresented },
+            set: { if !$0 { premium.dismissSupport() } }
         )) {
-            PaywallView(source: premium.pendingPaywallSource ?? .general)
+            SupportView()
             .environment(\.locale, localeService.current.locale)
         }
         .alert(
@@ -145,7 +146,7 @@ struct ContentView: View {
         ) {
             Button(localeService.t("Ver formas de apoyar", "View support options")) {
                 contributionPrompt.openSupport()
-                premium.presentPaywall(.general)
+                premium.presentSupport()
             }
             Button(localeService.t("Ahora no", "Not now"), role: .cancel) {
                 contributionPrompt.deferPrompt()
@@ -245,6 +246,13 @@ struct ContentView: View {
                     season: tournament.seasonKey ?? current.season,
                     name: name, nameEn: tournament.nameEn, logoUrl: tournament.logoUrl))
             }
+        case .season(let year):
+            // La subvista y el año se fijan antes de mostrar la pestaña para
+            // que Calendario abra ya en Temporada.
+            calendarNavigationPath = NavigationPath()
+            UserDefaults.standard.set("season", forKey: "calendar_subview")
+            manager.pendingSeasonYear = year
+            selectedTab = 4
         case .team(let teamId):
             navigationPath = NavigationPath()
             selectedTab = 2

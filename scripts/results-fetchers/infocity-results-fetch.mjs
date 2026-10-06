@@ -11,6 +11,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : fallback; };
@@ -23,12 +24,6 @@ const TOTAL_STAGES = arg('--total-stages') == null ? null : Number(arg('--total-
 const FIXTURE = arg('--fixture');
 const BASE = 'https://tdp.infocity.pl/updatefields.asp';
 const log = (s) => process.stderr.write(`${s}\n`);
-
-export function fnv1a(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h >>> 0;
-}
 
 export const suggestCompetitionId = (code) => -(fnv1a(`infocity:${code}`) % 200000);
 export const synthRaceId = (code, stage) => -(Math.abs(suggestCompetitionId(code)) * 100 + stage);

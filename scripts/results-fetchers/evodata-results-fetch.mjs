@@ -8,6 +8,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnv1aCodeUnits as fnv1a } from './pdf-results-ids.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = null) => { const index = argv.indexOf(name); return index >= 0 ? argv[index + 1] : fallback; };
@@ -25,6 +26,15 @@ export const RESULTS_SOURCE = 'evodata';
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const IRM = { DNF: 'DNF', DNS: 'DNS', DSQ: 'DSQ', DQ: 'DSQ', OTL: 'OTL', HD: 'OTL', ABD: 'DNF' };
+// Estado de la lista de salida. La llegada solo publica a los clasificados; los
+// abandonos constan aquí. Códigos contrastados con el contador del proveedor
+// (getRaceCounts) en los Europeos de Liubliana 2026; el resto no se interpreta.
+const START_LIST_IRM = { 1: 'DNF', 3: 'DNS', 9: 'OTL' };
+// Sin estado codificado (status 0), las banderas started/finished de la lista
+// separan abandonos y no salidas (Giro di Campania y Coppa Bernocchi 2026). Un
+// corredor en carrera tampoco tiene llegada: solo se derivan cuando la llegada
+// lleva este tiempo sin nuevas filas.
+const ARRIVAL_QUIET_MS = 20 * 60_000;
 const TEAM_NAME_OVERRIDES = new Map([
   ['CENTRE MONDIAL DU CYCLISME', 'WCC Team'],
   ['UAE TEAM EMIRATES ADNOC', 'UAE Team Emirates Gen-Z'],
@@ -40,15 +50,6 @@ export function parseCode(value) {
   const code = clean(value);
   if (!/^[1-9][0-9]*$/.test(code)) throw new Error('--code debe ser el eventId padre numérico de EvoData');
   return code;
-}
-
-export function fnv1a(value) {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
 }
 
 const negativeId = (seed, modulo = 2_000_000_000) => -(fnv1a(seed) % modulo || 1);
@@ -137,6 +138,29 @@ export function mapTimingRows(sourceRows, { timeTrial = false } = {}) {
   return rows;
 }
 
+const lastArrivalAt = (times) => Math.max(-Infinity,
+  ...(Array.isArray(times) ? times : []).map((row) => Date.parse(row?.createdAt)).filter(Number.isFinite));
+
+export function mapStartListIrm(startList, presentRows = [], { arrivalClosed = false } = {}) {
+  const list = Array.isArray(startList) ? startList : [];
+  // Un concurso sin ninguna salida registrada no distingue DNS de DNF.
+  const startsRecorded = list.some((rider) => rider?.started === true);
+  const present = new Set(presentRows.map((row) => row.bib).filter(Boolean));
+  const rows = [];
+  for (const rider of list) {
+    const bib = bibOf(rider);
+    let irm = START_LIST_IRM[Number(rider?.status)];
+    if (!irm && arrivalClosed && Number(rider?.status) === 0 && rider?.finished === false) {
+      if (rider.started === true) irm = 'DNF';
+      else if (startsRecorded && rider.started === false && rider.starting !== false) irm = 'DNS';
+    }
+    if (!bib || !irm || present.has(bib)) continue;
+    present.add(bib);
+    rows.push({ rank: null, rankText: irm, bib, resultValue: null, timeText: null, gapText: null, points: null, irm });
+  }
+  return rows;
+}
+
 const GENERAL_TYPES = {
   1: { classKind: 'gc', scope: 'stage', eventName: 'General Classification', timed: true },
   2: { classKind: 'points', scope: 'overall', eventName: 'Points Classification', points: true },
@@ -185,6 +209,96 @@ export function raceTypeFor(subEvent, races = []) {
   return 'IRR';
 }
 
+// Relevo mixto UEC: un concurso cronometrado por selecciones (raceTypeId 13,
+// dorsal y nombre de la selección) y concursos «Singoli» sin distancia con los
+// corredores de cada selección. Cualquier otra combinación no es un relevo.
+export function relayRacesOf(races = []) {
+  const list = Array.isArray(races) ? races : [];
+  const timed = list.filter((race) => Number(race?.raceTypeId) === 13 && Number(race?.distance) > 0);
+  const members = list.filter((race) => /^singoli\b/i.test(clean(race?.name)) && !(Number(race?.distance) > 0));
+  if (timed.length !== 1 || !members.length || timed.length + members.length !== list.length) return null;
+  return { timed: timed[0], members };
+}
+
+const relayKeyOf = (row) => clean(row?.teamName || row?.lastName).toUpperCase();
+
+// Patrón de CRE de la web (variante B de la UCI): la primera fila de cada
+// selección lleva puesto y tiempo absoluto del equipo (sin gapText) y los
+// compañeros van detrás sin puesto. Si los concursos individuales publican
+// tiempos, cada compañero lleva el suyo en timeText, como en las CRE del Tour;
+// encabeza el bloque el corredor cuyo tiempo coincide con el del equipo.
+export function mapRelayRows(sourceRows, memberRows, individualRows = []) {
+  const membersByTeam = new Map();
+  for (const rider of Array.isArray(memberRows) ? memberRows : []) {
+    const bib = bibOf(rider);
+    const key = relayKeyOf(rider);
+    if (!bib || !key) continue;
+    if (!membersByTeam.has(key)) membersByTeam.set(key, new Set());
+    membersByTeam.get(key).add(bib);
+  }
+  const individualTime = new Map();
+  for (const row of Array.isArray(individualRows) ? individualRows : []) {
+    const timeText = rankOf(row) && bibOf(row) ? millisToTime(row.order) : null;
+    if (timeText) individualTime.set(bibOf(row), timeText);
+  }
+  const source = Array.isArray(sourceRows) ? sourceRows : [];
+  const ranked = source.filter((row) => rankOf(row) && bibOf(row)).sort((a, b) => rankOf(a) - rankOf(b));
+  const unranked = source.filter((row) => !rankOf(row) && bibOf(row) && IRM[clean(row.positionText).toUpperCase()]);
+  const rows = [];
+  for (const row of [...ranked, ...unranked]) {
+    const rank = rankOf(row);
+    const irm = rank ? null : IRM[clean(row.positionText).toUpperCase()];
+    const timeText = rank ? millisToTime(row.order) : null;
+    if (rank && !timeText) throw new Error(`EvoData: relevo sin tiempo para la selección ${clean(row.teamName) || bibOf(row)}`);
+    const teamName = teamNameOf(row.teamName || row.lastName);
+    const bibs = [...(membersByTeam.get(relayKeyOf(row)) || [])].sort((a, b) => Number(a) - Number(b));
+    if (!bibs.length) throw new Error(`EvoData: relevo sin corredores para la selección ${teamName || bibOf(row)}`);
+    const lead = (timeText && bibs.find((bib) => individualTime.get(bib) === timeText)) || bibs[0];
+    rows.push({ rank, rankText: irm || String(rank), bib: lead, teamName, resultValue: timeText, timeText, gapText: null, points: null, irm });
+    for (const bib of bibs) {
+      if (bib === lead) continue;
+      rows.push({ rank: null, rankText: null, bib, teamName, resultValue: null,
+        timeText: individualTime.get(bib) || null, gapText: null, points: null, irm: null });
+    }
+  }
+  return rows;
+}
+
+// Selecciones de la lista de salida del concurso cronometrado que siguen en
+// carrera: sin llegada ni estado IRM. Sin lista no se puede acreditar que la
+// clasificación esté completa (Europeos de Liubliana 2026: cinco llegadas con
+// Italia aún en carrera).
+export function pendingRelayTeams(teamStartList, sourceRows = []) {
+  if (!Array.isArray(teamStartList) || !teamStartList.length) return null;
+  const arrived = new Set((Array.isArray(sourceRows) ? sourceRows : [])
+    .filter((row) => bibOf(row) && (rankOf(row) || IRM[clean(row.positionText).toUpperCase()]))
+    .map(bibOf));
+  return teamStartList
+    .filter((team) => bibOf(team) && team.starting !== false && !START_LIST_IRM[Number(team.status)])
+    .filter((team) => !arrived.has(bibOf(team)))
+    .map((team) => teamNameOf(team.teamName || team.lastName) || bibOf(team));
+}
+
+function buildRelayStage(code, subEvent, payload) {
+  const pending = pendingRelayTeams(payload.relayTeams, payload.timing?.times);
+  if (pending == null || pending.length) return [];
+  const rows = mapRelayRows(payload.timing?.times, payload.relayMembers, payload.relayTimes);
+  if (!rows.some((row) => row.rank === 1)) return [];
+  const teamCount = rows.filter((row) => row.rankText != null).length;
+  return [{
+    uciRaceId: synthRaceId(code, subEvent.eventId), stageNumber: null,
+    stageName: 'Final Classification', isFinalClassification: true, raceType: 'TTT',
+    dateKey: clean(subEvent.date).slice(0, 10) || null, sourcePdfUrl: eventsListUrl(code),
+    classifications: [{
+      eventId: synthEventId(code, subEvent.eventId, 'stage', 'stage'),
+      classKind: 'gc', scope: 'stage', eventName: 'General Classification', isTeamEvent: false,
+      rowCount: rows.length,
+      ...(Number(payload.timing?.tot) === teamCount ? { expectedRowCount: rows.length } : {}),
+      rows,
+    }],
+  }];
+}
+
 function buildClassification(code, eventId, jersey, response, final = false) {
   const spec = GENERAL_TYPES[Number(jersey?.type)];
   if (!spec || response?.status !== 'OK') return null;
@@ -202,20 +316,26 @@ function buildClassification(code, eventId, jersey, response, final = false) {
   };
 }
 
-export function buildStage(code, subEvent, payload, { totalStages = null, oneDay = false } = {}) {
+export function buildStage(code, subEvent, payload, { totalStages = null, oneDay = false, now = Date.now() } = {}) {
+  if (payload.relayMembers) return buildRelayStage(code, subEvent, payload);
   const sourceStageNumber = stageNumberFor(subEvent);
   const stageNumber = oneDay ? null : sourceStageNumber;
   const sourceRaceType = raceTypeFor(subEvent, payload.races);
   const raceType = oneDay ? null : sourceRaceType;
-  const stageRows = mapTimingRows(payload.timing?.times, { timeTrial: sourceRaceType === 'ITT' });
-  if (!stageRows.some((row) => row.rank === 1)) return [];
+  const timingRows = mapTimingRows(payload.timing?.times, { timeTrial: sourceRaceType === 'ITT' });
+  if (!timingRows.some((row) => row.rank === 1)) return [];
+  // Solo en la carrera de un día: en las vueltas, EvoData ha omitido de la
+  // llegada a corredores que siguieron en carrera (Tour del Porvenir 2026, E4).
+  const lastArrival = lastArrivalAt(payload.timing?.times);
+  const arrivalClosed = Number.isFinite(lastArrival) && now - lastArrival >= ARRIVAL_QUIET_MS;
+  const stageRows = oneDay ? [...timingRows, ...mapStartListIrm(payload.startList, timingRows, { arrivalClosed })] : timingRows;
 
   const stageClassification = {
     eventId: synthEventId(code, subEvent.eventId, 'stage', 'stage'),
     classKind: oneDay ? 'gc' : 'stage', scope: 'stage',
     eventName: oneDay ? 'General Classification' : 'Stage Classification', isTeamEvent: false,
     rowCount: stageRows.length,
-    ...(Number(payload.timing?.tot) === stageRows.length && stageRows.length > 0 ? { expectedRowCount: stageRows.length } : {}),
+    ...(Number(payload.timing?.tot) === timingRows.length && timingRows.length > 0 ? { expectedRowCount: stageRows.length } : {}),
     rows: stageRows,
   };
   const generalClassifications = (oneDay ? [] : (payload.jerseys || []))
@@ -261,7 +381,48 @@ async function getAppToken() {
   return response.token;
 }
 
-async function fetchStagePayload(eventId, token) {
+async function fetchStartList(eventId, raceId, token) {
+  try {
+    const response = await apiPost('/api/registrations/getStartList', {
+      eventId, raceId, gender: 'all', category: 'all', nationality: 'ALL', pageSize: 1000, pageIndex: 0,
+    }, token);
+    return response?.status === 'OK' && Array.isArray(response.startList) ? response.startList : null;
+  } catch {
+    return null;
+  }
+}
+
+const validRaceId = (race, eventId) => {
+  const raceId = Number(race?.raceId);
+  if (!Number.isSafeInteger(raceId) || raceId <= 0 || Number(race?.eventId) !== Number(eventId)) {
+    throw new Error(`EvoData: concurso inválido para la jornada ${eventId}`);
+  }
+  return raceId;
+};
+
+const fetchTiming = (eventId, raceId, token) => apiPost('/api/timing/results/getResults/', {
+  eventId, raceId, splitNumber: -1, gender: 'all', category: 'all',
+  nationality: 'ALL', pageSize: 1000, pageIndex: 0, getBonus: false,
+}, token);
+
+async function fetchRelayPayload(eventId, races, relay, token) {
+  const raceId = validRaceId(relay.timed, eventId);
+  const memberRaceIds = relay.members.map((race) => validRaceId(race, eventId));
+  const [timing, relayTeams, memberLists, individual] = await Promise.all([
+    fetchTiming(eventId, raceId, token),
+    fetchStartList(eventId, raceId, token),
+    Promise.all(memberRaceIds.map((memberRaceId) => fetchStartList(eventId, memberRaceId, token))),
+    // Los tiempos individuales son opcionales: su fallo no bloquea el relevo.
+    Promise.all(memberRaceIds.map((memberRaceId) => fetchTiming(eventId, memberRaceId, token).catch(() => null))),
+  ]);
+  if (memberLists.some((list) => !list?.length)) throw new Error(`EvoData: relevo ${eventId} sin corredores en los concursos individuales`);
+  return {
+    races, jerseys: [], timing, generals: {}, startList: null, relayTeams, relayMembers: memberLists.flat(),
+    relayTimes: individual.flatMap((response) => (response?.status === 'OK' && Array.isArray(response.times) ? response.times : [])),
+  };
+}
+
+async function fetchStagePayload(eventId, token, { withStartList = false } = {}) {
   const [races, jerseys] = await Promise.all([
     apiPost('/api/races/getRacesByEventId/', { eventId }, token),
     apiPost('/api/jerseys/getJerseysByEventId/', { eventId }, token),
@@ -269,38 +430,45 @@ async function fetchStagePayload(eventId, token) {
   if (!Array.isArray(races)) throw new Error(`EvoData: respuesta de carreras inválida para la jornada ${eventId}`);
   // El raceId pertenece a cada jornada y no coincide necesariamente con el de
   // la primera etapa. No inferirlo a partir del número ni elegir entre concursos.
-  if (races.length > 1) throw new Error(`EvoData: varios concursos en la jornada ${eventId}`);
-  if (!races.length) return { races, jerseys: [], timing: null, generals: {} };
-  const raceId = Number(races[0].raceId);
-  if (!Number.isSafeInteger(raceId) || raceId <= 0 || Number(races[0].eventId) !== Number(eventId)) {
-    throw new Error(`EvoData: concurso inválido para la jornada ${eventId}`);
+  if (races.length > 1) {
+    const relay = relayRacesOf(races);
+    if (!relay) throw new Error(`EvoData: varios concursos en la jornada ${eventId}`);
+    return fetchRelayPayload(eventId, races, relay, token);
   }
+  if (!races.length) return { races, jerseys: [], timing: null, generals: {}, startList: null };
+  const raceId = validRaceId(races[0], eventId);
   const generalJerseys = (Array.isArray(jerseys) ? jerseys : []).filter((jersey) => GENERAL_TYPES[Number(jersey.type)]);
-  const [timing, ...responses] = await Promise.all([
-    apiPost('/api/timing/results/getResults/', {
-      eventId, raceId, splitNumber: -1, gender: 'all', category: 'all',
-      nationality: 'ALL', pageSize: 1000, pageIndex: 0, getBonus: false,
-    }, token),
+  const [timing, startList, ...responses] = await Promise.all([
+    fetchTiming(eventId, raceId, token),
+    withStartList ? fetchStartList(eventId, raceId, token) : null,
     ...generalJerseys.map((jersey) =>
       apiPost('/api/generalclassification/getGeneralClassification/', {
         eventId, jerseyId: jersey.jerseyId, status: 0, pageIndex: 0, pageSize: 1000,
       }, token)),
   ]);
   const generals = Object.fromEntries(generalJerseys.map((jersey, index) => [String(jersey.jerseyId), responses[index]]));
-  return { races: Array.isArray(races) ? races : [], jerseys: Array.isArray(jerseys) ? jerseys : [], timing, generals };
+  return { races: Array.isArray(races) ? races : [], jerseys: Array.isArray(jerseys) ? jerseys : [], timing, generals, startList };
+}
+
+// Los campeonatos UEC publican cada prueba como evento autónomo, sin padre ni
+// subEvents: el propio evento es la única jornada.
+export function jornadasOf(event, code) {
+  if (Array.isArray(event?.subEvents) && event.subEvents.length) return event.subEvents;
+  if (Number(event?.eventId) !== Number(code) || Number(event?.parentEventId) > 0) return [];
+  return [{ eventId: Number(event.eventId), order: 1, eventType: event.eventType, name: event.name, date: event.date }];
 }
 
 export async function fetchCompetition(code, { onlyStage = null, totalStages = null, delay = 300, oneDay = false, fixture = null } = {}) {
   const parsedCode = parseCode(code);
   const token = fixture ? null : await getAppToken();
   const parentEvent = fixture?.parentEvent || await apiPost('/api/events/getEventById/', { eventId: Number(parsedCode) }, token);
-  const subEvents = (parentEvent?.subEvents || [])
+  const subEvents = jornadasOf(parentEvent, parsedCode)
     .map((subEvent, index) => ({ ...subEvent, _stageNumber: stageNumberFor(subEvent, index) }))
     .filter((subEvent) => onlyStage == null || subEvent._stageNumber === Number(onlyStage))
     .sort((a, b) => a._stageNumber - b._stageNumber);
   const stages = [];
   for (const subEvent of subEvents) {
-    const payload = fixture?.byEventId?.[String(subEvent.eventId)] || await fetchStagePayload(subEvent.eventId, token);
+    const payload = fixture?.byEventId?.[String(subEvent.eventId)] || await fetchStagePayload(subEvent.eventId, token, { withStartList: oneDay });
     stages.push(...buildStage(parsedCode, subEvent, payload, { totalStages, oneDay }));
     if (!fixture && delay > 0) await sleep(delay);
   }

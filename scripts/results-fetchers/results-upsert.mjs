@@ -11,7 +11,8 @@
  *
  * QUÉ HACE
  *   Dado el JSON de una competición (salida del fetcher) + el raceId NUESTRO de esa carrera:
- *     1. UPSERT race_uci_links   — el puente carrera↔competición (1 fila).
+ *     1. UPSERT race_uci_links   — el puente carrera↔competición (1 fila). Un placeholder
+ *        manual sin fuente declarada no lo crea ni lo modifica.
  *     2. UPSERT race_uci_stages  — 1 fila por (etapa × clasificación). Mapea cada etapa fuente a
  *        NUESTRA race_days por (raceId, stageNumber, sectorIndex) [resuelto en SQL,
  *        sin hardcodear ids].
@@ -66,9 +67,10 @@
  *               Default 0 = competición entera (todo lo no-CN).
  *   --season    seasonId UCI (default 464 = 2026). Solo metadato del link.
  *   --source    fuente del fetcher (uci, tissot, colombia, etc.): fija race_uci_links.source
- *               (090). Sin el flag usa la fuente declarada en el JSON; los contratos
- *               manuales o sintéticos sin fuente se tratan como 'pdf'. 'pdf' → el cron
- *               salta la carrera (su competitionId es sintético negativo, sin fetcher).
+ *               (090). Sin el flag usa la fuente declarada en el JSON. Un contrato manual
+ *               o sintético sin fuente es un placeholder: no crea ni modifica el enlace.
+ *               'pdf' (carga definitiva) → el cron salta la carrera (su competitionId es
+ *               sintético negativo, sin fetcher).
  *   --gender    'male'|'female' (de races.gender). Habilita el enlace por NOMBRE + creación de
  *               fichas (Fase 6) para las filas que el dorsal no resolvió. Sin esto, solo dorsal.
  *   --seed-startlist  (Fase 6) Siembra startlist_teams/riders desde el volcado UCI (nombre bonito +
@@ -81,9 +83,16 @@
  *               mantienen sus gates actuales si no se especifica el contrato.
  *   --startlist ruta.json  Contrasta dorsales en el preflight integrado.
  *   --preflight-report ruta.json  Informe compacto; no requiere archivo normalizado intermedio.
- *   --empty-means-ditto / --allow-nonmonotonic-gaps / --allow-bibless: excepciones verificadas en fuente.
+ *   --empty-means-ditto / --allow-nonmonotonic-gaps / --allow-bibless / --allow-pointless /
+ *               --allow-gapless-teams: excepciones verificadas en fuente.
  *   --apply     Aplica a Postgres (DATABASE_URL del .env). Sin esto → modo SQL.
  *   --emit-sql  Ruta de salida del SQL (default <in dir>/upsert.sql). '-' = stdout. (Modo SQL.)
+ *   --no-delete (solo modo SQL) Variante para el conector MCP, que retiene toda consulta
+ *               con borrado: sin BEGIN/COMMIT ni DELETE. Reutiliza la gemela sintética
+ *               no bloqueada en vez de purgarla, actualiza las filas guardadas por dorsal
+ *               (o puesto, sin dorsal) e inserta las ausentes. Aborta, sin aplicar nada,
+ *               si la carga exigiría borrar (dos gemelas, gemela bloqueada o filas
+ *               guardadas que el contrato no trae).
  *   --status    syncStatus a fijar en el link (default 'ok').
  *   --identity-pending-log  Registro JSONL persistente de carreras históricas abortadas
  *               por identidades pendientes. Obligatorio desde el cron histórico.
@@ -124,6 +133,7 @@ import {
   pendingHistoricalRaceIds,
   pendingIdentityDetails,
 } from './historical-identity-log.mjs';
+import { databaseUrl } from '../db/env.mjs';
 
 const args = process.argv.slice(2);
 const getArg = (n, d = null) => { const i = args.indexOf(`--${n}`); return i !== -1 ? args[i + 1] : d; };
@@ -141,27 +151,33 @@ const STATUS = getArg('status') || 'ok';
 // 'uci'|'tissot'|'pdf'|'matsport'|'sportstiming'|'manual_timing'|'raceresult'|'sts'|
 // 'domtel'|'livetiming'|'classificacoes'|'infocity'|'burgos'|'timing.ee'|'istanbul': fija
 // race_uci_links.source en el upsert del link. Sin el flag se consulta data.source;
-// un documento manual/sintético sin fuente usa 'pdf'. 'pdf' = volcado manual desde
-// PDF (skill cc-resultados-pdf) → el cron salta la carrera. 'sportstiming' = volcado
+// un documento manual/sintético sin fuente es un placeholder y no toca el enlace.
+// 'pdf' = carga manual definitiva desde PDF (skill cc-resultados-pdf) → el cron
+// salta la carrera. 'sportstiming' = volcado
 // local. 'manual_timing' = JSON live automático. 'raceresult' = API JSON pública de my.raceresult.com
 // (raceresult-results-fetch.mjs), AUTOMÁTICA en el cron (migración 108). 'sts' = .clax
 // XML público de stsport.fr/Wiclax (sts-results-fetch.mjs), AUTOMÁTICA (migración 109).
 const SOURCE = getArg('source');
-const CLASSIFICACOES_CODE = getArg('classificacoes-code');
-const INFOCITY_CODE = getArg('infocity-code');
-const SPORTSOFT_CODE = getArg('sportsoft-code');
-const EQTIMING_CODE = getArg('eqtiming-code');
-const ASO_URL = getArg('aso-url');
-const COLOMBIA_CODE = getArg('colombia-code');
-const TIMING_CODE = getArg('timing-code');
-const EVODATA_CODE = getArg('evodata-code');
-const CHRONOHR_CODE = getArg('chronohr-code');
-const TISSOT_CODE = getArg('tissot-code');
-const MATSPORT_CODE = getArg('matsport-code');
-const DOMTEL_CODE = getArg('domtel-code');
-const LIVETIMING_CODE = getArg('livetiming-code');
-if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults'].includes(SOURCE)) {
-  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults (recibido "${SOURCE}")`); process.exit(1);
+// Fuentes cuyo enlace exige un código propio en race_uci_links: el flag manda y,
+// sin él, se toma la columna homónima del JSON del fetcher. `label` conserva el
+// nombre de fuente del mensaje de error cuando difiere de `source`.
+const LINK_CODE_SOURCES = [
+  { source: 'classificacoes', column: 'classificacoesCode', flag: 'classificacoes-code' },
+  { source: 'infocity', column: 'infocityCode', flag: 'infocity-code' },
+  { source: 'sportsoft', column: 'sportsoftCode', flag: 'sportsoft-code' },
+  { source: 'eqtiming', column: 'eqtimingCode', flag: 'eqtiming-code' },
+  { source: 'ASO', column: 'asoUrl', flag: 'aso-url' },
+  { source: 'colombia', column: 'colombiaCode', flag: 'colombia-code' },
+  { source: 'timing.ee', column: 'timingCode', flag: 'timing-code' },
+  { source: 'evodata', column: 'evodataCode', flag: 'evodata-code' },
+  { source: 'chronohr', column: 'chronoHrCode', flag: 'chronohr-code' },
+  { source: 'tissot', column: 'tissotCode', flag: 'tissot-code' },
+  { source: 'matsport', column: 'matsportCode', flag: 'matsport-code', label: 'matsort' },
+  { source: 'domtel', column: 'domtelCode', flag: 'domtel-code' },
+  { source: 'livetiming', column: 'livetimingCode', flag: 'livetiming-code' },
+].map((entry) => ({ ...entry, flagValue: getArg(entry.flag) }));
+if (SOURCE && !['uci', 'tissot', 'pdf', 'matsport', 'sportstiming', 'manual_timing', 'raceresult', 'sts', 'domtel', 'livetiming', 'classificacoes', 'infocity', 'sportsoft', 'eqtiming', 'ASO', 'colombia', 'burgos', 'chronorace', 'timing.ee', 'belgiancycling', 'evodata', 'chronohr', 'istanbul', 'southbohemia', 'atresults', 'mikatiming', 'ficr', 'lapclip'].includes(SOURCE)) {
+  log(`FATAL: --source debe ser uci|tissot|pdf|matsport|sportstiming|manual_timing|raceresult|sts|domtel|livetiming|classificacoes|infocity|sportsoft|eqtiming|ASO|colombia|burgos|chronorace|timing.ee|belgiancycling|evodata|chronohr|istanbul|southbohemia|atresults|mikatiming|ficr|lapclip (recibido "${SOURCE}")`); process.exit(1);
 }
 const GENDER = getArg('gender'); // 'male'|'female': habilita el enlace por NOMBRE (Fase 6) para carreras sin startlist
 const SEED_STARTLIST = hasFlag('seed-startlist'); // Fase 6: sembrar startlist_teams/riders desde el volcado UCI (solo carreras sin startlist curada)
@@ -191,6 +207,7 @@ const IRM_OVERRIDES = new Map(args.reduce((acc, a, i) => {
   return acc;
 }, []));
 const APPLY = hasFlag('apply');
+const NO_DELETE = hasFlag('no-delete');
 // ── No re-volcar clasificaciones ya presentes (optimización del cron del día) ──
 // Una clasificación de la UCI ya volcada (mismo eventId, rowCount>0) es completa y
 // definitiva: re-volcarla cada 30 min re-procesa toda la historia de la carrera sin
@@ -469,7 +486,7 @@ export function extractRidersForNameResolve(data, acceptedEventIds = null, { inc
 // insert) → así el oficial (positivo) REEMPLAZA al cronometrador (negativo) de forma
 // permanente y Domtel no re-duplica lo que DataRide ya publicó (híbrido UCI-preferente).
 // Solo afecta a entrantes negativas: un volcado oficial (positivo) nunca se bloquea.
-function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLogicalKeys = null, filters = null, sourceOverride = null) {
+function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLogicalKeys = null, filters = null, sourceOverride = null, { noDelete = NO_DELETE } = {}) {
   // sourceOverride: solo para pruebas (el --source del CLI es un argumento de
   // proceso; al importar el módulo argv está vacío). El statement del enlace y
   // su guard anti-secuestro se deciden con la fuente efectiva.
@@ -478,7 +495,16 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   const classifications = (data.stages || []).flatMap((stage) => stage.classifications || []);
   const isManual = getArg('input-contract') === 'manual' || competitionId < 0
     || (classifications.length > 0 && classifications.every((cl) => n(cl.eventId) < 0));
-  const SOURCE_EFF = declaredSource || (isManual ? 'pdf' : null);
+  // Placeholder: contrato manual o sintético sin fuente declarada. No crea ni
+  // modifica race_uci_links. Un enlace 'pdf' sacaría la carrera del enlazador
+  // live de DataRide (solo considera carreras sin enlace) y de toda selección del
+  // cron (MANUAL_RESULT_SOURCES), y la fuente oficial no llegaría a sustituir el
+  // placeholder (Giro dell'Emilia femenino, 2026-10-03). Un enlace automático
+  // existente tampoco se toca (Vuelta al Ecuador, 2026-09-12). Las clasificaciones
+  // se publican igual y la fuente que se enlace después purga sus gemelas
+  // sintéticas.
+  const isPlaceholder = !declaredSource && isManual;
+  const SOURCE_EFF = declaredSource || null;
   if (SOURCE_EFF === 'uci' && !(competitionId > 0)) {
     throw new Error('La fuente uci requiere un competitionId positivo de DataRide; el identificador sintético pertenece a los resultados manuales.');
   }
@@ -532,67 +558,23 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   if (SOURCE_EFF === 'raceresult' && !raceresultCode) {
     throw new Error('--source raceresult requiere raceresultEvent en el JSON del fetcher');
   }
-  const classificacoesCode = SOURCE_EFF === 'classificacoes'
-    ? (CLASSIFICACOES_CODE || data.classificacoesCode) : null;
-  if (SOURCE_EFF === 'classificacoes' && !classificacoesCode) {
-    throw new Error('--source classificacoes requiere --classificacoes-code o classificacoesCode en el JSON');
+  // tissot, matsport, domtel y livetiming tienen además CHECK NOT NULL en su
+  // código. Desde que el upsert propaga la fuente declarada por el captador
+  // (data.source), el INSERT propone esa fuente y Postgres evalúa el CHECK de la
+  // fila ANTES de resolver el ON CONFLICT: sin el código, el volcado entero
+  // revierte. El captador no siempre lo publica en el JSON, así que el cron lo
+  // pasa por flag desde la propia fila del enlace.
+  const linkCodes = Object.fromEntries(LINK_CODE_SOURCES.map(({ column }) => [column, null]));
+  const linkCodeSource = LINK_CODE_SOURCES.find(({ source }) => source === SOURCE_EFF);
+  if (linkCodeSource) {
+    const { source, column, flag, flagValue, label = source } = linkCodeSource;
+    linkCodes[column] = flagValue || data[column];
+    if (!linkCodes[column]) {
+      throw new Error(`--source ${label} requiere --${flag} o ${column} en el JSON`);
+    }
   }
-  const infocityCode = SOURCE_EFF === 'infocity' ? (INFOCITY_CODE || data.infocityCode) : null;
-  if (SOURCE_EFF === 'infocity' && !infocityCode) {
-    throw new Error('--source infocity requiere --infocity-code o infocityCode en el JSON');
-  }
-  const sportsoftCode = SOURCE_EFF === 'sportsoft' ? (SPORTSOFT_CODE || data.sportsoftCode) : null;
-  if (SOURCE_EFF === 'sportsoft' && !sportsoftCode) {
-    throw new Error('--source sportsoft requiere --sportsoft-code o sportsoftCode en el JSON');
-  }
-  const eqtimingCode = SOURCE_EFF === 'eqtiming' ? (EQTIMING_CODE || data.eqtimingCode) : null;
-  if (SOURCE_EFF === 'eqtiming' && !eqtimingCode) {
-    throw new Error('--source eqtiming requiere --eqtiming-code o eqtimingCode en el JSON');
-  }
-  const asoUrl = SOURCE_EFF === 'ASO' ? (ASO_URL || data.asoUrl) : null;
-  if (SOURCE_EFF === 'ASO' && !asoUrl) {
-    throw new Error('--source ASO requiere --aso-url o asoUrl en el JSON');
-  }
-  const colombiaCode = SOURCE_EFF === 'colombia' ? (COLOMBIA_CODE || data.colombiaCode) : null;
-  if (SOURCE_EFF === 'colombia' && !colombiaCode) {
-    throw new Error('--source colombia requiere --colombia-code o colombiaCode en el JSON');
-  }
-  const timingCode = SOURCE_EFF === 'timing.ee' ? (TIMING_CODE || data.timingCode) : null;
-  if (SOURCE_EFF === 'timing.ee' && !timingCode) {
-    throw new Error('--source timing.ee requiere --timing-code o timingCode en el JSON');
-  }
-  const evodataCode = SOURCE_EFF === 'evodata' ? (EVODATA_CODE || data.evodataCode) : null;
-  if (SOURCE_EFF === 'evodata' && !evodataCode) {
-    throw new Error('--source evodata requiere --evodata-code o evodataCode en el JSON');
-  }
-  const chronoHrCode = SOURCE_EFF === 'chronohr' ? (CHRONOHR_CODE || data.chronoHrCode) : null;
-  if (SOURCE_EFF === 'chronohr' && !chronoHrCode) {
-    throw new Error('--source chronohr requiere --chronohr-code o chronoHrCode en el JSON');
-  }
-  // Fuentes cuyo código de enlace tiene CHECK NOT NULL en race_uci_links. Desde
-  // que el upsert propaga la fuente declarada por el captador (data.source), el
-  // INSERT propone source='tissot|matsport|domtel|livetiming' y Postgres evalúa
-  // el CHECK de esa fila ANTES de resolver el ON CONFLICT: sin el código, el
-  // volcado entero revierte. El captador no siempre lo publica en el JSON, así
-  // que el cron lo pasa por flag desde la propia fila del enlace.
-  const tissotCode = SOURCE_EFF === 'tissot' ? (TISSOT_CODE || data.tissotCode) : null;
-  if (SOURCE_EFF === 'tissot' && !tissotCode) {
-    throw new Error('--source tissot requiere --tissot-code o tissotCode en el JSON');
-  }
-  const matsortCode = SOURCE_EFF === 'matsport' ? (MATSPORT_CODE || data.matsportCode) : null;
-  if (SOURCE_EFF === 'matsport' && !matsortCode) {
-    throw new Error('--source matsort requiere --matsport-code o matsportCode en el JSON');
-  }
-  const domtelCode = SOURCE_EFF === 'domtel' ? (DOMTEL_CODE || data.domtelCode) : null;
-  if (SOURCE_EFF === 'domtel' && !domtelCode) {
-    throw new Error('--source domtel requiere --domtel-code o domtelCode en el JSON');
-  }
-  const livetimingCode = SOURCE_EFF === 'livetiming' ? (LIVETIMING_CODE || data.livetimingCode) : null;
-  if (SOURCE_EFF === 'livetiming' && !livetimingCode) {
-    throw new Error('--source livetiming requiere --livetiming-code o livetimingCode en el JSON');
-  }
-  // Guard anti-secuestro: un volcado manual ('pdf'/'sportstiming') sobre una
-  // carrera ya enlazada a una fuente automática NO toca el enlace (ni source,
+  // Guard anti-secuestro: una carga manual definitiva ('pdf'/'sportstiming') sobre
+  // una carrera ya enlazada a una fuente automática NO toca el enlace (ni source,
   // ni competitionId, ni syncStatus, ni lastSyncedAt). Sin esto, meter
   // resultados a mano reescribía el enlace UCI a source='pdf' con
   // competitionId sintético y 'ok' → el cron excluye la carrera para siempre
@@ -603,7 +585,7 @@ function buildPlan(data, skipEventIds = null, presentEventIds = null, officialLo
   const linkConflictGuard = MANUAL_RESULT_SOURCES.includes(SOURCE_EFF)
     ? `\n  WHERE race_uci_links."source" IN ('pdf', 'sportstiming')`
     : '';
-  const linkStatement = SOURCE_EFF ? {
+  const linkStatement = isPlaceholder ? null : SOURCE_EFF ? {
     // race_uci_links es también editable desde el panel (programación automática).
     // Diferir este upsert hasta justo antes del COMMIT evita mantener bloqueada la
     // fila durante todo el reemplazo y la resolución de miles de resultados.
@@ -631,7 +613,13 @@ ON CONFLICT ("raceId") DO UPDATE SET
   "timingCode"=COALESCE(EXCLUDED."timingCode", race_uci_links."timingCode"),
   "evodataCode"=COALESCE(EXCLUDED."evodataCode", race_uci_links."evodataCode"),
   "chronoHrCode"=COALESCE(EXCLUDED."chronoHrCode", race_uci_links."chronoHrCode")${linkConflictGuard}`,
-    params: [RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE_EFF, UCI_RACE_ID, stsCode, classificacoesCode, infocityCode, sportsoftCode, eqtimingCode, asoUrl, colombiaCode, timingCode, evodataCode, chronoHrCode, raceresultCode, tissotCode, matsortCode, domtelCode, livetimingCode],
+    params: [
+      RACE_ID, competitionId, disciplineId, SEASON, STATUS, SOURCE_EFF, UCI_RACE_ID, stsCode,
+      linkCodes.classificacoesCode, linkCodes.infocityCode, linkCodes.sportsoftCode,
+      linkCodes.eqtimingCode, linkCodes.asoUrl, linkCodes.colombiaCode, linkCodes.timingCode,
+      linkCodes.evodataCode, linkCodes.chronoHrCode, raceresultCode, linkCodes.tissotCode,
+      linkCodes.matsportCode, linkCodes.domtelCode, linkCodes.livetimingCode,
+    ],
   } : {
     deferUntilCommit: true,
     note: `puente carrera↔competición${UCI_RACE_ID ? ` (uciRaceId=${UCI_RACE_ID})` : ''}`,
@@ -703,6 +691,7 @@ ON CONFLICT ("raceId") DO UPDATE SET
         log(`  ⚠ clasificación omitida: etapa ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} (falta rank=1 válido sin IRM)`);
         continue;
       }
+      const rowKeys = noDelete ? noDeleteRowKeys(rows, `${s(cl.scope)}/${s(cl.classKind)} · event ${eventId}`) : null;
       nStages++;
       acceptedEventIds.add(eventId);
       // ¿Es una clasificación REALMENTE nueva (su eventId no estaba en la BD)?
@@ -738,7 +727,7 @@ ON CONFLICT ("raceId") DO UPDATE SET
       // el nombre de la fuente duplicaría identidad fuera de la startlist.
       const winnerHasIndividualBib = !cl.isTeamEvent && /^[1-9]\d*$/.test(s(winner?.bib) || '');
       const winnerName = winnerHasIndividualBib && !preserveUciIdentity ? null : s(cl.winnerName);
-      plan.push({
+      if (!noDelete) plan.push({
         note: null,
         text: `DELETE FROM public.race_uci_stages
 WHERE "raceId"=$1 AND "eventId" <> $2 AND "eventId" < 0
@@ -786,12 +775,86 @@ WHERE "raceId"=$1 AND "eventId" <> $2 AND "eventId" < 0
        AND ${insertLockRaceDayCondition}
        AND g."lockedAt" IS NOT NULL)`
         : '';
+      const headerParams = [
+        stageRef, RACE_ID, competitionId, uciRaceId, eventId, s(cl.classKind), s(cl.scope),
+        s(cl.eventName), !!cl.isTeamEvent, isFinal, stageNumber, dateKey, raceType,
+        winnerName, n(cl.rowCount), sourcePdfUrl,
+        // $17 = sectorIndex (doble sector). SOLO se añade cuando el SQL lo
+        // referencia: con stageNumber null (Final Classification) raceDayExpr es
+        // 'NULL' y stageDateExpr es '$12', así que ninguna expresión usa $17 y
+        // pasarlo igualmente hace que Postgres rechace el bind entero
+        // ("supplies 17 parameters, but prepared statement requires 16") y aborte
+        // el --apply. Afectaba a todo volcado con pseudo-etapa final; --emit-sql
+        // no lo notaba porque serializa a literales.
+        ...(stageNumber == null ? [] : [sectorIndex]),
+      ];
+
+      // Carga sin borrado (--no-delete): la gemela sintética no se purga. Si hay
+      // una sola y no está bloqueada, se reutiliza su cabecera (id y eventId) y
+      // las filas se reconcilian sobre ella; cualquier otro caso aborta antes de
+      // escribir. «Destino» = la cabecera propia (eventId entrante) o, si no
+      // existe, la gemela reutilizada.
+      let targetSql = null;
+      if (noDelete) {
+        const twinCondition = `g."raceId"=$2 AND g."eventId" <> $5 AND g."eventId" < 0
+  AND g."stageNumber" IS NOT DISTINCT FROM $11 AND g."classKind"=$6 AND g.scope=$7
+  AND ${insertLockRaceDayCondition}`;
+        const ownExists = 'EXISTS (SELECT 1 FROM public.race_uci_stages o WHERE o."eventId"=$5)';
+        const target = `SELECT id, "eventId", "lockedAt" FROM public.race_uci_stages WHERE "eventId"=$5
+UNION ALL
+SELECT g.id, g."eventId", g."lockedAt" FROM public.race_uci_stages g
+WHERE ${twinCondition} AND NOT ${ownExists}`;
+        targetSql = toSQL({ text: target, params: headerParams });
+        plan.push({
+          note: `comprobación previa sin borrado · event ${eventId}`,
+          text: `DO $guard$
+DECLARE twins int; locked int; own boolean; extra int;
+BEGIN
+  SELECT count(*), count(*) FILTER (WHERE g."lockedAt" IS NOT NULL) INTO twins, locked
+  FROM public.race_uci_stages g WHERE ${twinCondition};
+  own := ${ownExists};
+  IF twins > 1 THEN
+    RAISE EXCEPTION 'Carga sin borrado detenida (eventId %): % gemelas sintéticas de la clasificación', $5, twins;
+  END IF;
+  IF locked > 0 THEN
+    RAISE EXCEPTION 'Carga sin borrado detenida (eventId %): la gemela sintética está bloqueada', $5;
+  END IF;
+  IF twins > 0 AND own THEN
+    RAISE EXCEPTION 'Carga sin borrado detenida (eventId %): coexisten la clasificación y una gemela sintética', $5;
+  END IF;
+  WITH ${storedRowMatchCtes(target, 'SELECT * FROM unnest($18::text[], $19::text[]) AS c(k, kr)')}
+  SELECT count(*) INTO extra FROM g
+  WHERE g.k IS NULL OR g.id NOT IN (SELECT id FROM m)
+     OR g.k IN (SELECT k FROM g GROUP BY k HAVING count(*) > 1);
+  IF extra > 0 THEN
+    RAISE EXCEPTION 'Carga sin borrado detenida (eventId %): % filas guardadas sin correspondencia única en el contrato', $5, extra;
+  END IF;
+END
+$guard$`,
+          params: [...headerParams.slice(0, 16), stageNumber == null ? null : sectorIndex, rowKeys.keys, rowKeys.fallbacks],
+        });
+        plan.push({
+          note: 'reutilizar la gemela sintética no bloqueada',
+          text: `UPDATE public.race_uci_stages g SET
+  "competitionId"=$3, "uciRaceId"=$4, "eventName"=$8, "isTeamEvent"=$9,
+  "isFinalClassification"=$10, "stageDate"=${stageDateExpr}, "raceType"=$13,
+  "winnerName"=$14, "rowCount"=$15, "sourcePdfUrl"=$16
+WHERE ${twinCondition} AND g."lockedAt" IS NULL AND NOT ${ownExists}`,
+          params: headerParams,
+        });
+      }
+      const headerInsertGuard = noDelete
+        ? `\nWHERE NOT EXISTS (SELECT 1 FROM public.race_uci_stages g
+     WHERE g."raceId"=$2 AND g."eventId" <> $5 AND g."eventId" < 0
+       AND g."stageNumber" IS NOT DISTINCT FROM $11 AND g."classKind"=$6 AND g.scope=$7
+       AND ${insertLockRaceDayCondition})`
+        : insertLockGuard;
       plan.push({
         note: `stage ${stageNumber == null ? 'FINAL' : stageNumber} · ${cl.scope}/${cl.classKind} · event ${eventId} · ${cl.rowCount} filas`,
         text: `INSERT INTO public.race_uci_stages
   (id,"raceId","raceDayId","competitionId","uciRaceId","eventId","classKind",scope,"eventName",
    "isTeamEvent","stageNumber","isFinalClassification","stageDate","raceType","winnerName","rowCount","sourcePdfUrl")
-SELECT $1,$2,${raceDayExpr},$3,$4,$5,$6,$7,$8,$9,$11,$10,${stageDateExpr},$13,$14,$15,$16${insertLockGuard}
+SELECT $1,$2,${raceDayExpr},$3,$4,$5,$6,$7,$8,$9,$11,$10,${stageDateExpr},$13,$14,$15,$16${headerInsertGuard}
 ON CONFLICT ("eventId") DO UPDATE SET
   "raceId"=EXCLUDED."raceId", "raceDayId"=EXCLUDED."raceDayId",
   "competitionId"=EXCLUDED."competitionId", "uciRaceId"=EXCLUDED."uciRaceId",
@@ -801,25 +864,13 @@ ON CONFLICT ("eventId") DO UPDATE SET
   "raceType"=EXCLUDED."raceType", "winnerName"=EXCLUDED."winnerName", "rowCount"=EXCLUDED."rowCount",
   "sourcePdfUrl"=EXCLUDED."sourcePdfUrl"
 WHERE race_uci_stages."lockedAt" IS NULL`,
-        params: [
-          stageRef, RACE_ID, competitionId, uciRaceId, eventId, s(cl.classKind), s(cl.scope),
-          s(cl.eventName), !!cl.isTeamEvent, isFinal, stageNumber, dateKey, raceType,
-          winnerName, n(cl.rowCount), sourcePdfUrl,
-          // $17 = sectorIndex (doble sector). SOLO se añade cuando el SQL lo
-          // referencia: con stageNumber null (Final Classification) raceDayExpr es
-          // 'NULL' y stageDateExpr es '$12', así que ninguna expresión usa $17 y
-          // pasarlo igualmente hace que Postgres rechace el bind entero
-          // ("supplies 17 parameters, but prepared statement requires 16") y aborte
-          // el --apply. Afectaba a todo volcado con pseudo-etapa final; --emit-sql
-          // no lo notaba porque serializa a literales.
-          ...(stageNumber == null ? [] : [sectorIndex]),
-        ],
+        params: headerParams,
       });
 
       // Reemplazo de las filas de esta clasificación (idempotente). Una clasificación
       // BLOQUEADA desde el panel (lockedAt NOT NULL, migración 087) no se toca.
       const notLocked = `NOT EXISTS (SELECT 1 FROM public.race_uci_stages s WHERE s.id=$1 AND s."lockedAt" IS NOT NULL)`;
-      plan.push({
+      if (!noDelete) plan.push({
         note: null,
         text: `DELETE FROM public.race_uci_results WHERE "stageRef"=$1 AND ${notLocked}`,
         params: [stageRef],
@@ -848,6 +899,7 @@ WHERE race_uci_stages."lockedAt" IS NULL`,
         plan.push({
           note: null,
           resultRow: true,
+          ...(noDelete ? { targetSql, rowKey: rowKeys.keys[i], rowFallbackKey: rowKeys.fallbacks[i] } : {}),
           text: `INSERT INTO public.race_uci_results
   ("stageRef","raceId","eventId",rank,"rankText",bib,"riderDisplay",
    "globalRiderId","teamId","resultValue","timeText","gapText",points,irm,"sortOrder",
@@ -866,7 +918,9 @@ WHERE ${notLocked}
       plan.push({
         note: 'Estado de publicación y métricas de la clasificación',
         deferUntilCommit: true,
-        text: 'SELECT public.record_result_observation($1,$2::jsonb)',
+        text: noDelete
+          ? `SELECT public.record_result_observation(x.id,$2::jsonb) FROM (${targetSql}) x`
+          : 'SELECT public.record_result_observation($1,$2::jsonb)',
         params: [stageRef, JSON.stringify(resultObservation(data, st, cl, SOURCE))],
       });
     }
@@ -874,7 +928,8 @@ WHERE ${notLocked}
 
   // Si el feed solo trae clasificaciones parciales, tampoco se actualiza el
   // enlace: así no queda una falsa sincronización sin resultados válidos.
-  if (nStages > 0) plan.unshift(linkStatement);
+  if (nStages > 0 && linkStatement) plan.unshift(linkStatement);
+  if (nStages > 0 && isPlaceholder) log('  ↳ placeholder sin fuente declarada: race_uci_links no se crea ni se modifica');
   if (isProgressiveResultSource(data.source || SOURCE)) {
     const scopes = stages.filter(st => shouldIncludeStage(n(st.stageNumber),!!st.isFinalClassification,onlyStage,includeFinal,Math.max(0,n(st.sectorIndex)||0),onlySectorIndex))
       .map(st => ({stageNumber:n(st.stageNumber),sectorIndex:Math.max(0,n(st.sectorIndex)||0)}));
@@ -892,6 +947,7 @@ function lit(v) {
   if (v == null) return 'NULL';
   if (typeof v === 'number') return String(v);
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  if (Array.isArray(v)) return arrayLiteral(v);
   return `'${String(v).replace(/'/g, "''")}'`;
 }
 
@@ -935,29 +991,110 @@ function arrayLiteral(values) {
   });
   return lit(`{${items.join(',')}}`);
 }
-export function compactResultRowsSql(statements) {
+// Columnas de los params de cada fila (orden de RESULT_ROW_TYPES).
+const RESULT_ROW_COLUMNS = ['stageRef', 'raceId', 'eventId', 'rank', 'rankText', 'bib', 'riderDisplay',
+  'teamId', 'resultValue', 'timeText', 'gapText', 'points', 'irm', 'sortOrder',
+  'sourceTeamName', 'sourceTeamCode', 'sourceUciProfileId', 'sourceUciLicense'];
+function resultRowValues(statements, types = RESULT_ROW_TYPES) {
   const stageRef = statements[0].params[0];
   if (statements.some((st) => !st.resultRow || st.params[0] !== stageRef)) {
     throw new Error('compactResultRowsSql requiere filas de una sola clasificación');
   }
   const arrays = [];
-  const values = RESULT_ROW_TYPES.map((type, i) => {
+  const values = types.map((type, i) => {
     const column = statements.map((st) => st.params[i]);
     if (column.every((value) => value === column[0])) return `${lit(column[0])}::${type}`;
     arrays.push(`${arrayLiteral(column)}::${type}[]`);
     return `u.c${arrays.length}`;
   });
-  values.splice(7, 0, 'NULL');
   const alias = arrays.map((_, i) => `c${i + 1}`).join(',');
+  const from = arrays.length ? `unnest(${arrays.join(',')}) AS u(${alias})` : `generate_series(1, ${statements.length})`;
+  return { stageRef, values, from };
+}
+export function compactResultRowsSql(statements) {
+  const { stageRef, values, from } = resultRowValues(statements);
+  values.splice(7, 0, 'NULL');
   const notLocked = `NOT EXISTS (SELECT 1 FROM public.race_uci_stages s WHERE s.id=${lit(stageRef)} AND s."lockedAt" IS NOT NULL)`;
   return `INSERT INTO public.race_uci_results
   ("stageRef","raceId","eventId",rank,"rankText",bib,"riderDisplay",
    "globalRiderId","teamId","resultValue","timeText","gapText",points,irm,"sortOrder",
    "sourceTeamName","sourceTeamCode","sourceUciProfileId","sourceUciLicense")
 SELECT ${values.join(',')}
-FROM ${arrays.length ? `unnest(${arrays.join(',')}) AS u(${alias})` : `generate_series(1, ${statements.length})`}
+FROM ${from}
 WHERE ${notLocked}
   AND EXISTS (SELECT 1 FROM public.race_uci_stages h WHERE h.id=${lit(stageRef)})`;
+}
+
+// Carga sin borrado (--no-delete). Cada fila se identifica por su dorsal y, sin
+// dorsal (clasificaciones por equipos, documentos sin dorsal), por su puesto.
+// resultRowKeySql aplica la misma regla a las filas guardadas.
+const resultRowKey = (bib, rank) => (bib != null ? `b:${bib}` : rank != null ? `r:${rank}` : null);
+const resultRowKeySql = (alias) =>
+  `CASE WHEN NULLIF(${alias}.bib,'') IS NOT NULL THEN 'b:'||${alias}.bib WHEN ${alias}.rank IS NOT NULL THEN 'r:'||${alias}.rank END`;
+
+// Claves de las filas del contrato. Una fila sin dorsal ni puesto, o dos filas con
+// la misma clave, no se pueden reconciliar sin borrar: se rechaza al generar.
+// fallbacks: clave de puesto de cada fila con dorsal que ocupa ese puesto en
+// exclusiva; permite completar una fila guardada sin dorsal (ganador tecleado
+// en el panel) en lugar de abortar.
+export function noDeleteRowKeys(rows, label = '') {
+  const keys = rows.map((r) => resultRowKey(s(r.bib), n(r.rank)));
+  const seen = new Set();
+  keys.forEach((key, i) => {
+    if (key == null) throw new Error(`--no-delete: la fila ${i + 1} de ${label} no tiene dorsal ni puesto; requiere la carga con borrado`);
+    if (seen.has(key)) throw new Error(`--no-delete: ${label} repite ${key.startsWith('b:') ? 'el dorsal' : 'el puesto sin dorsal'} ${key.slice(2)}; requiere la carga con borrado`);
+    seen.add(key);
+  });
+  const rankCount = new Map();
+  for (const r of rows) if (n(r.rank) != null) rankCount.set(n(r.rank), (rankCount.get(n(r.rank)) || 0) + 1);
+  const fallbacks = rows.map((r) => (s(r.bib) != null && rankCount.get(n(r.rank)) === 1 ? `r:${n(r.rank)}` : null));
+  return { keys, fallbacks };
+}
+
+// Emparejamiento de las filas guardadas de la cabecera destino (g) con las del
+// contrato (c: clave k y respaldo kr). Una guardada casa por su clave; sin
+// dorsal, también por el puesto de una fila del contrato cuyo dorsal no está
+// guardado. m = pares (fila guardada, clave del contrato). La comprobación
+// previa y la reconciliación usan la misma regla.
+function storedRowMatchCtes(targetSql, contractSql) {
+  return `g AS (SELECT r.id, ${resultRowKeySql('r')} AS k FROM public.race_uci_results r
+    JOIN (${targetSql}) x ON x.id = r."stageRef" WHERE x."lockedAt" IS NULL),
+  c AS (${contractSql}),
+  m AS (SELECT g.id, c.k FROM g JOIN c ON g.k = c.k
+    UNION ALL
+    SELECT g.id, c.k FROM g JOIN c ON g.k = c.kr WHERE NOT EXISTS (SELECT 1 FROM g o WHERE o.k = c.k))`;
+}
+
+// Filas de una clasificación sin borrado: UPDATE de las guardadas emparejadas e
+// INSERT de las demás, sobre la cabecera destino (propia o gemela reutilizada),
+// sin tocar una bloqueada. La identidad enlazada se conserva si la fila sigue
+// siendo el mismo corredor o equipo; si no, queda a NULL como en un reemplazo y
+// la resuelven resolve_uci_results y el enlace de equipos.
+function reconcileResultRowsSql(statements, targetSql) {
+  const keyed = statements.map((st) => ({ ...st, params: [...st.params, st.rowKey, st.rowFallbackKey] }));
+  const { values, from } = resultRowValues(keyed, [...RESULT_ROW_TYPES, 'text', 'text']);
+  const names = [...RESULT_ROW_COLUMNS, 'k', 'kr'];
+  const columns = RESULT_ROW_COLUMNS.filter((c) => c !== 'stageRef' && c !== 'eventId');
+  const source = names
+    .map((c, i) => (c === 'stageRef' || c === 'eventId' ? null : `${values[i]} AS "${c}"`)).filter(Boolean).join(',');
+  const same = `r.bib IS NOT DISTINCT FROM v.bib AND (NULLIF(v.bib,'') IS NOT NULL
+      OR (r."riderDisplay" IS NOT DISTINCT FROM v."riderDisplay" AND r."sourceTeamName" IS NOT DISTINCT FROM v."sourceTeamName"))`;
+  const updated = columns.filter((c) => c !== 'raceId' && c !== 'teamId').map((c) => `"${c}"=v."${c}"`).join(', ');
+  return `WITH t AS (SELECT id, "eventId" FROM (${targetSql}) x WHERE x."lockedAt" IS NULL),
+  v AS (SELECT ${source} FROM ${from}),
+  ${storedRowMatchCtes(targetSql, 'SELECT k, kr FROM v')},
+  actualizadas AS (
+    UPDATE public.race_uci_results r SET "eventId"=t."eventId", ${updated},
+      "globalRiderId"=CASE WHEN ${same} THEN r."globalRiderId" END,
+      "teamId"=CASE WHEN ${same} THEN COALESCE(v."teamId", r."teamId") ELSE v."teamId" END
+    FROM m JOIN v ON v.k = m.k, t
+    WHERE r.id = m.id
+  )
+INSERT INTO public.race_uci_results
+  ("stageRef","eventId","globalRiderId",${columns.map((c) => `"${c}"`).join(',')})
+SELECT t.id, t."eventId", NULL, ${columns.map((c) => `v."${c}"`).join(', ')}
+FROM t, v
+WHERE NOT EXISTS (SELECT 1 FROM m WHERE m.k = v.k)`;
 }
 
 // Las clasificaciones por equipos no llevan dorsal y, por tanto, no pueden pasar
@@ -982,6 +1119,11 @@ WHERE ${notLocked}
 // nombre exacto y por nombre crudo se ordena antes que el recorte de sufijo. La
 // startlist de la carrera entra como candidata por su propio `teamName`, que es la
 // forma publicada en el alta y ya está enlazada a su `teamId`.
+//
+// Si ningún nombre casa (PDFs que recortan o abrevian: "MEGASUPER WILD PROTEING"),
+// se recurre a los dorsales: el mismo `sourceTeamName` en las filas individuales
+// de la carrera enlaza con su equipo de startlist cuando todos esos dorsales
+// pertenecen a un único equipo. El enlace por nombre conserva la prioridad.
 function linkTeamResultRowsSql(raceId) {
   return `WITH src AS (
   SELECT r.id,
@@ -1009,23 +1151,43 @@ function linkTeamResultRowsSql(raceId) {
   )) AS alias(name)
   WHERE st."raceId" = ${lit(raceId)}
     AND btrim(alias.name) <> ''
+), bib_cand AS (
+  SELECT public.fold_team_name(btrim(r."sourceTeamName")) AS core,
+         min(st."teamId") AS "teamId"
+  FROM public.race_uci_results r
+  JOIN public.race_uci_stages s ON s.id = r."stageRef"
+  JOIN public.startlist_riders sr ON sr."raceId" = r."raceId" AND sr.dorsal::text = r.bib
+  JOIN public.startlist_teams st ON st.id = sr."teamId"
+  WHERE r."raceId" = ${lit(raceId)}
+    AND s."classKind" <> 'teams'
+    AND btrim(COALESCE(r."sourceTeamName", '')) <> ''
+    AND st."teamId" IS NOT NULL
+  GROUP BY 1
+  HAVING count(DISTINCT st."teamId") = 1
 ), matches AS (
-  SELECT src.id, cand."teamId",
+  SELECT id, "teamId",
          row_number() OVER (
-           PARTITION BY src.id
-           ORDER BY core_hit DESC, exact_hit DESC, cand."sortOrder", cand.st_id
+           PARTITION BY id
+           ORDER BY by_bib, core_hit DESC, exact_hit DESC, "sortOrder", st_id
          ) AS rn
-  FROM src
-  JOIN LATERAL (
-    SELECT c."teamId", c."sortOrder", c.st_id,
-           (c.core = src.core) AS core_hit,
-           (c.core = src.core OR c.core = src.core_raw) AS exact_hit
-    FROM cand c
-    WHERE c.core = src.core
-       OR c.core = src.core_raw
-       OR regexp_replace(c.core, '(cyclingteam|team)$', '')
-          = regexp_replace(src.core, '(cyclingteam|team)$', '')
-  ) cand ON TRUE
+  FROM (
+    SELECT src.id, cand."teamId", false AS by_bib, cand.core_hit, cand.exact_hit, cand."sortOrder", cand.st_id
+    FROM src
+    JOIN LATERAL (
+      SELECT c."teamId", c."sortOrder", c.st_id,
+             (c.core = src.core) AS core_hit,
+             (c.core = src.core OR c.core = src.core_raw) AS exact_hit
+      FROM cand c
+      WHERE c.core = src.core
+         OR c.core = src.core_raw
+         OR regexp_replace(c.core, '(cyclingteam|team)$', '')
+            = regexp_replace(src.core, '(cyclingteam|team)$', '')
+    ) cand ON TRUE
+    UNION ALL
+    SELECT src.id, b."teamId", true, false, false, NULL, NULL
+    FROM src
+    JOIN bib_cand b ON b.core <> '' AND b.core IN (src.core, src.core_raw)
+  ) hits
 )
 UPDATE public.race_uci_results r
 SET "teamId" = m."teamId"
@@ -1061,6 +1223,7 @@ async function main() {
       startlist: startlistPath ? JSON.parse(readFileSync(startlistPath, 'utf8')) : null,
       emptyMeansDitto: hasFlag('empty-means-ditto'),
       allowNonMonotonicGaps: hasFlag('allow-nonmonotonic-gaps'), allowBibless: hasFlag('allow-bibless'),
+      allowPointless: hasFlag('allow-pointless'), allowGaplessTeams: hasFlag('allow-gapless-teams'),
     });
     const reportPath = getArg('preflight-report');
     if (reportPath) writeFileSync(reportPath, JSON.stringify(prepared.report, null, 2) + '\n');
@@ -1068,6 +1231,7 @@ async function main() {
     data = prepared.document;
   }
 
+  if (NO_DELETE && APPLY) { log('FATAL: --no-delete solo se admite en modo SQL (sin --apply)'); process.exit(1); }
   if (!APPLY) {
     const { plan, competitionId, nStages, nResults, nRejected, acceptedEventIds } = buildPlan(data);
     // ── modo SQL ──
@@ -1077,8 +1241,9 @@ async function main() {
       `-- Generado por results-upsert.mjs desde ${IN}`,
       `-- fetchedAt del fetcher: ${data.fetchedAt || '?'}`,
       '-- Idempotente: re-aplicar re-sincroniza al estado actual de la UCI.',
+      ...(NO_DELETE ? ['-- Carga sin borrado ni control de transacción: una sola consulta atómica.'] : []),
       '-- ════════════════════════════════════════════════════════════════',
-      'BEGIN;',
+      ...(NO_DELETE ? [] : ['BEGIN;']),
       '',
     ];
     const immediate = plan.filter((statement) => !statement.deferUntilCommit);
@@ -1087,7 +1252,8 @@ async function main() {
       if (st.resultRow) {
         let end = i + 1;
         while (end < immediate.length && immediate[end].resultRow && immediate[end].params[0] === st.params[0]) end++;
-        out.push(compactResultRowsSql(immediate.slice(i, end)) + ';');
+        const group = immediate.slice(i, end);
+        out.push((NO_DELETE ? reconcileResultRowsSql(group, st.targetSql) : compactResultRowsSql(group)) + ';');
         i = end - 1;
         continue;
       }
@@ -1124,9 +1290,13 @@ async function main() {
       if (st.note) out.push('', `-- ${st.note}`);
       out.push(toSQL(st) + ';');
     }
-    out.push('', 'COMMIT;', '', `-- Resumen: ${nStages} clasificaciones, ${nResults} filas.`);
+    if (!NO_DELETE) out.push('', 'COMMIT;');
+    out.push('', `-- Resumen: ${nStages} clasificaciones, ${nResults} filas.`);
     if (nRejected) out.push(`-- Omitidas por no tener rank=1 válido sin IRM: ${nRejected}.`);
     const sql = out.join('\n');
+    // El conector MCP retiene cualquier consulta que contenga la palabra, también
+    // en comentarios o valores (p. ej. la ruta de --in).
+    if (NO_DELETE && /delete/i.test(sql)) throw new Error('--no-delete: el SQL generado contiene «delete» (revisar la ruta de --in o los valores del contrato)');
     if (OUT_SQL === '-') process.stdout.write(sql + '\n');
     else { mkdirSync(dirname(OUT_SQL), { recursive: true }); writeFileSync(OUT_SQL, sql); log(`✅ ${nStages} clasificaciones, ${nResults} filas → ${OUT_SQL}`); }
     return;
@@ -1134,7 +1304,7 @@ async function main() {
 
   // ── modo apply ──
   const env = { ...loadEnv(), ...process.env };
-  const url = env.DATABASE_URL;
+  const url = databaseUrl(env);
   if (!url) { log('FATAL: --apply necesita DATABASE_URL (en .env o entorno)'); process.exit(1); }
   const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });

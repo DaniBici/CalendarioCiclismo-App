@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxCategoryMedia,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches} from '../cx/presentation.js';
+import {cxCategories,cxMonthDays,cxColor,cxStandingTotal,cxRankSort,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxSeason,cxSeasonMonths,cxTime,cxRaceMedia,cxCategoryConcludedAt,cxProgrammeOrder,cxCategoryCardState,cxUsesCategoryBadges,cxClassificationSelection,cxLegacyGeneralFragment,cxTournamentPageUrl,cxTournamentPage,cxTournamentGeneralCategories,cxStandingValueCells,cxStandingsBreakdown,cxResultCategories,cxGeneralCategories,cxRoundLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxHasClassifications,cxLapsLost,cxResultCell,cxResultCells,cxResultRank,cxAgendaFilterMatches} from '../cx/presentation.js';
 import {cxMonth,cxNextDate,cxAllRows,cxTournamentRounds,cxSeasonRounds} from '../services/cx-data.js';
 import {cxDateInSeason,cxSeasonBounds} from '../cx/season.js';
 
@@ -15,7 +15,7 @@ describe('agenda y clasificación pública CX',()=>{
     expect(cxRacePageUrl(world,'en','results','general')).toBe('/en/cyclocross/worlds/results/#general');
     expect(cxRacePageLocation('/en/cyclocross/worlds/startlist/')).toEqual({page:'startlist',slug:'worlds'});
     expect(cxRacePageLocation('/ciclocross/mundial/resultados/')).toEqual({page:'results',slug:'mundial'});
-    for(const view of ['programme','tv','videos']) {
+    for(const view of ['programme','tv','videos','general']) {
       expect(cxRacePageUrl(world,'es',view,'WE')).toBe(`/ciclocross/mundial/?view=${view}#WE`);
       expect(cxRacePageLocation('/ciclocross/mundial/',`?view=${view}`)).toEqual({page:view,slug:'mundial'});
       expect(cxRacePageLocation('/en/cyclocross/worlds/',`?view=${view}`)).toEqual({page:view,slug:'worlds'});
@@ -23,13 +23,33 @@ describe('agenda y clasificación pública CX',()=>{
     expect(cxRacePageLocation('/ciclocross/mundial/resultados/','?view=programme').page).toBe('results');
     expect(cxRacePageLocation('/ciclocross/mundial/','?view=unknown').page).toBe('race');
   });
-  it('selecciona una clasificación por fragmento sin inventar mangas de la general',()=>{
-    expect(cxClassificationSelection('WE',['ME','WE'],['ME','WU'])).toEqual({section:'results',category:'WE',fragment:'WE'});
-    expect(cxClassificationSelection('general-WU',['ME','WE'],['ME','WU'])).toEqual({section:'general',category:'WU',fragment:'general-WU'});
-    expect(cxClassificationSelection('WU',['ME','WE'],['ME','WU']).category).toBe('ME');
-    expect(cxClassificationSelection('general',['ME','WE'],['ME','WU']).category).toBe('ME');
-    expect(cxClassificationSelection('general-WJ',['ME','WE'],['ME','WU']).category).toBe('ME');
-    expect(cxClassificationSelection('general',[],[]).category).toBeNull();
+  it('selecciona una clasificación por fragmento y reconoce los enlaces antiguos de la general',()=>{
+    expect(cxClassificationSelection('WE',['ME','WE'])).toEqual({category:'WE',fragment:'WE'});
+    expect(cxClassificationSelection('WU',['ME','WE']).category).toBe('ME');
+    expect(cxClassificationSelection('WU',['WE','WU']).category).toBe('WU');
+    expect(cxClassificationSelection('',[]).category).toBeNull();
+    expect(cxLegacyGeneralFragment('general-WU')).toBe('WU');
+    expect(cxLegacyGeneralFragment('general')).toBe('');
+    expect(cxLegacyGeneralFragment('WU')).toBeNull();
+    const series={slug:'x2o-trofee-2026-27'};
+    expect(cxTournamentPageUrl(series,'es','general','MU')).toBe('/ciclocross/torneos/x2o-trofee-2026-27/?view=general#MU');
+    expect(cxTournamentPageUrl(series,'en')).toBe('/en/cyclocross/series/x2o-trofee-2026-27/');
+    expect(cxTournamentPage('?view=general')).toBe('general');
+    expect(cxTournamentPage('')).toBe('calendar');
+  });
+  it('presenta la general por tiempo con diferencias y la de puntos con desglose y descartes',()=>{
+    const time=[{rank:2,timeSeconds:'29295'},{rank:1,timeSeconds:'29190'},{rank:3,timeSeconds:'29190'}];
+    const cells=cxStandingValueCells(time,'time');
+    expect(time.map(row=>cells.get(row).text)).toEqual(["+1'45\"",'8:06:30','m.t.']);
+    const state={status:'ready',roundIds:['r1','r2','r3'],breakdown:[{globalRiderId:'a',rounds:[
+      {raceId:'r1',points:'40',retained:true},{raceId:'r2',points:'17',retained:false},{raceId:'r3',points:'0',missing:true}]}]};
+    const breakdown=cxStandingsBreakdown(state,'points');
+    expect(breakdown.cells({globalRiderId:'a'})).toEqual([{text:'40',dropped:false},{text:'17',dropped:true},{text:'-',dropped:false}]);
+    expect(breakdown.cells({globalRiderId:'b'}).map(cell=>cell.text)).toEqual(['-','-','-']);
+    expect(cxStandingsBreakdown({...state,status:'manual'},'points')).toBeNull();
+    expect(cxStandingsBreakdown(state,'time')).toBeNull();
+    expect(cxStandingsBreakdown({...state,breakdown:[]},'points')).toBeNull();
+    expect(cxTournamentGeneralCategories([{category:'WE'},{category:'ME'}],[{category:'WE',status:'needs_review'}])).toEqual(['ME']);
   });
   it('ordena por clase y primera manga del día y muestra cabeceras sin programa',()=>{
     const early={name:'Antes',slug:'antes',class:'C2',dateKey:'2027-01-30',cx_race_categories:[{category:'ME',startTimeUtc:'2027-01-30T10:00:00Z'}]};
@@ -89,7 +109,6 @@ describe('agenda y clasificación pública CX',()=>{
     expect(cxGeneralCategories(race,standings,rows,prior.map(s=>({...s,status:'needs_review',roundIds:['current']})))).toEqual([]);
     expect(cxGeneralCategories(race,standings,rows)).toEqual([]);
     expect(cxGeneralCategories(race,standings,[])).toEqual(['ME','WU']);
-    expect(cxClassificationSelection('ME',[],['WU'])).toEqual({section:'general',category:'WU',fragment:'general-WU'});
   });
   it('mantiene el horario hasta meta y separa espera de resultados publicados en cada categoría',()=>{
     const race={class:'CM'};
@@ -198,25 +217,58 @@ describe('agenda y clasificación pública CX',()=>{
     expect(cxDateInSeason('2026-27','2027-03-01')).toBe(false);
     for(let month=3;month<=7;month++) expect(cxMonthDays([{...world,dateKey:`2027-0${month}-01`,cx_race_categories:[]}],`2027-0${month}`)).toEqual([]);
   });
+  const race={dateKey:'2026-10-11',cx_race_categories:[]};
+  const me={category:'ME',startTimeUtc:'2026-10-11T13:00:00Z',resultsStatus:'official'};
+  const we={category:'WE',startTimeUtc:'2026-10-11T11:45:00Z'};
+  const before=new Date('2026-10-11T10:00:00Z');
   it('separa vídeos editoriales de Revive y conserva regiones',()=>{
-    const global={url:'https://example.org',channel:'Canal',country:'ALL',showInRevive:true};
-    const media=cxCategoryMedia([global,{...global,category:'ME'},{...global,country:'BE'},
-      {...global,url:'https://other.example.org',category:'WE'},{...global,url:'javascript:alert(1)'}],
-      [{url:'https://www.youtube.com/watch?v=abcdefghijk',category:'ME'}],'ME',{hasResults:true});
+    const global={id:'g',url:'https://example.org',channel:'Canal',country:'ALL',showInRevive:true};
+    const rows=[global,{...global,id:'me',category:'ME'},{...global,id:'be',country:'BE'},
+      {...global,id:'we',url:'https://other.example.org',category:'WE'},{...global,id:'bad',url:'javascript:alert(1)'}];
+    const media=cxRaceMedia(race,[me],rows,[{url:'https://www.youtube.com/watch?v=abcdefghijk',category:'ME'}],
+      {results:[{category:'ME'}],at:before});
     expect(media.tv).toEqual([]);
     expect(media.revive.map(row=>row.url)).toEqual(['https://example.org/']);
     expect(media.videos.map(row=>row.url)).toEqual(['https://www.youtube.com/watch?v=abcdefghijk']);
   });
-  it('no convierte emisiones futuras en vídeos y limita las repeticiones por región y resultado',()=>{
-    const broadcasts=[
-      {url:'https://example.org/we',category:'WE',country:'EUROPA',showInRevive:true},
-      {url:'https://example.org/me',category:'ME',country:'ALL',isSporza:true},
+  it('retira el directo al concluir la categoría y exige resultados o cancelación para Revive',()=>{
+    const rows=[{id:'we',url:'https://example.org/we',category:'WE',showInRevive:true}];
+    expect(cxRaceMedia(race,[we],rows,[],{at:before}).tv).toHaveLength(1);
+    // 50 min reglamentarios desconocidos → 60 + 30 tras la salida.
+    expect(cxCategoryConcludedAt(race,we).toISOString()).toBe('2026-10-11T13:15:00.000Z');
+    expect(cxCategoryConcludedAt(race,{...we,durationFormat:'individual',durationRuleVersion:'2026-07-01'}).toISOString()).toBe('2026-10-11T13:05:00.000Z');
+    expect(cxCategoryConcludedAt(race,{category:'MJ'}).toISOString()).toBe('2026-10-12T06:00:00.000Z');
+    const later=cxRaceMedia(race,[we],rows,[],{at:new Date('2026-10-11T13:15:00Z')});
+    expect(later.tv).toEqual([]);
+    expect(later.revive).toEqual([]);
+    expect(cxRaceMedia({...race,isCancelled:true},[we],rows,[],{at:before}).revive).toHaveLength(1);
+  });
+  it('aplica el criterio de Revive de carretera y Sporza, salvo en categorías canceladas',()=>{
+    const rows=[
+      {id:'eu',url:'https://play.hbomax.com/sport/1',channel:'Eurosport (HBO Max)',category:'ME',sortOrder:0},
+      {id:'yt',url:'https://www.youtube.com/watch?v=abcdefghijk',channel:'Canal',category:'ME',sortOrder:1},
+      {id:'sp',url:'https://sporza.be/live',channel:'Sporza',isSporza:true,category:'ME',sortOrder:2},
+      {id:'tv',url:'https://tv.example/live',channel:'TV',category:'ME',sortOrder:3},
     ];
-    expect(cxCategoryMedia(broadcasts,[],'WE').revive).toEqual([]);
-    expect(cxCategoryMedia(broadcasts,[],'ME',{hasResults:true}).revive).toHaveLength(1);
-    expect(cxCategoryMedia(broadcasts,[],'WE',{hasResults:true,visibleBroadcasts:[]}).revive).toEqual([]);
-    expect(cxCategoryMedia(broadcasts,[],'ME',{cancelled:true}).revive).toEqual([]);
-    expect(cxCategoryMedia(broadcasts,[],'WE',{cancelled:true}).revive).toHaveLength(1);
+    expect(cxRaceMedia(race,[me],rows,[],{results:[{category:'ME'}],at:before}).revive.map(row=>row.id)).toEqual(['eu','yt','sp']);
+    expect(cxRaceMedia(race,[{...me,isCancelled:true}],rows,[],{at:before}).revive).toEqual([]);
+    expect(cxRaceMedia(race,[me],rows,[],{results:[{category:'ME'}],visibleBroadcasts:[],at:before}).revive).toEqual([]);
+  });
+  it('no repite en Revive una emisión global que sigue en directo y no colapsa la misma URL entre categorías',()=>{
+    const rows=[
+      {id:'g',url:'https://example.org/all',channel:'Canal',showInRevive:true},
+      {id:'me',url:'https://example.org/cx',channel:'Canal',category:'ME'},
+      {id:'we',url:'https://example.org/cx',channel:'Canal',category:'WE'},
+    ];
+    const media=cxRaceMedia(race,[me,we],rows,[],{results:[{category:'ME'}],at:before});
+    expect(media.tv.map(row=>row.id)).toEqual(['g','we']);
+    expect(media.revive).toEqual([]);
+    expect(cxRaceMedia(race,[{...me,resultsStatus:'pending'},we],rows,[],{at:before}).tv.map(row=>row.id)).toEqual(['g','me','we']);
+  });
+  it('ordena las categorías en directo como el programa',()=>{
+    expect(cxProgrammeOrder(race,[me,we,{category:'MJ'}]).map(c=>c.category)).toEqual(['WE','ME','MJ']);
+    const media=cxRaceMedia(race,[{...me,resultsStatus:'pending'},we],[],[],{at:before});
+    expect(media.liveCategories.map(c=>c.category)).toEqual(['WE','ME']);
   });
 });
 

@@ -3,7 +3,6 @@ package app.calendariociclismo.android.util
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.data.model.RaceUciStage
-import app.calendariociclismo.android.data.model.UciRank1Row
 
 /**
  * Lógica pura del feed "Últimos resultados" — port literal de
@@ -274,23 +273,6 @@ object ResultsFeedLogic {
     }
 
     // ── Helpers puros de la resolución de ganadores ────────────────────────
-
-    /**
-     * rank 1 de cada clasificación → globalRiderIds DISTINTOS (en orden de
-     * llegada), descartando los irm de abandono (un DNS con rank 1 es espurio).
-     * Una clasificación con filas rank 1 pero sin ningún globalRiderId queda con
-     * lista vacía (= no se puede resolver → se conserva el winnerName crudo).
-     */
-    fun winnerRiderIdsByStageRef(rows: List<UciRank1Row>): Map<String, List<String>> {
-        val byRef = LinkedHashMap<String, MutableList<String>>()
-        for (row in rows) {
-            if (UciResultsLogic.isNonWinnerIrm(row.irm)) continue
-            val list = byRef.getOrPut(row.stageRef) { mutableListOf() }
-            val id = row.globalRiderId ?: continue
-            if (id !in list) list.add(id)
-        }
-        return byRef
-    }
 
     /**
      * ¿El ganador de esta entrada es un EQUIPO (CRE)? Señales (espejo web): la

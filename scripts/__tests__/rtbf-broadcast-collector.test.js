@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  RTBF_SCHEDULE_BASE_URL, parseRtbfSchedules, rtbfPageInfo, rtbfScheduleUrl,
+  parseRtbfSchedules, rtbfPageInfo,
 } from '../broadcasts-sync/rtbf.mjs';
 
 const fixture = readFileSync(fileURLToPath(new URL(
@@ -36,17 +36,10 @@ describe('colector aislado de emisiones RTBF', () => {
     });
   });
 
-  it('construye la consulta pública por canal sin credenciales', () => {
-    const url = new URL(rtbfScheduleUrl(33, '2026-08-20T00:00:00.000Z', '2026-09-04T23:59:59.999Z'));
-    expect(`${url.origin}${url.pathname}`).toBe(RTBF_SCHEDULE_BASE_URL);
-    expect(url.searchParams.get('channelIds')).toBe('33');
-    expect(url.searchParams.get('_page')).toBe('1');
-    expect(url.searchParams.get('platform')).toBe('WEB');
-  });
-
   it('valida la envoltura y limita la paginación declarada por RTBF', () => {
-    expect(rtbfPageInfo(JSON.stringify({ status: 200, meta: { page: { last: 2 } }, data: [] })))
-      .toEqual({ last: 2 });
+    const page = (last) => JSON.stringify({ status: 200, meta: { page: { last } }, data: [] });
+    expect(rtbfPageInfo(page(2))).toEqual({ last: 2 });
+    expect(rtbfPageInfo(page(25))).toEqual({ last: 10 });
     expect(() => rtbfPageInfo('{}')).toThrow(/respuesta de programación no utilizable/);
   });
 });

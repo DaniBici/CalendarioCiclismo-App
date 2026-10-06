@@ -47,35 +47,39 @@ PAGES = [
     ("privacidad.html",         "en/privacy"),
     ("404.html",                "en/404"),
     ("suscripcion/index.html",  "en/subscription"),
-    ("betaandroid.html",        "en/beta"),
 ]
 
 # ── Mapeo de hrefs internos ES → EN ──────────────────────────────
+# Los destinos llevan el prefijo /en/: la web EN se sirve bajo /en/ del
+# dominio principal y las rutas limpias sin prefijo devuelven 404.
 HREF_MAP = {
-    "/ciclocross/":           "/cyclocross/",
-    "/ciclocross.html":       "/cyclocross/",
-    "/index.html":            "/",
-    "index.html":             "/",
-    "/calendario/":           "/calendar/",
-    "/calendario.html":       "/calendar/",
-    "/mes.html":              "/month/",
-    "mes.html":               "/month/",
-    "/temporada.html":        "/season/",
-    "temporada.html":         "/season/",
-    "/about/":                "/about/",
-    "/about.html":            "/about/",
-    "/abierto/":              "/open/",
-    "/abierto.html":          "/open/",
-    "/privacidad.html":       "/privacy/",
-    "privacidad.html":        "/privacy/",
-    "/betaandroid.html":      "/beta/",
-    "betaandroid.html":       "/beta/",
-    "/suscripcion/":          "/subscription/",
-    "suscripcion/":           "/subscription/",
-    "/competicion/":          "/race/",
-    "/jornada/":              "/stage/",
-    "/inscritos/":            "/startlist/",
-    "/perfil/":               "/profile/",
+    "/":                      "/en/",
+    "/ciclocross/":           "/en/cyclocross/",
+    "/ciclocross.html":       "/en/cyclocross/",
+    "/index.html":            "/en/",
+    "index.html":             "/en/",
+    "/calendario/":           "/en/calendar/",
+    "/calendario.html":       "/en/calendar/",
+    "/mes.html":              "/en/month/",
+    "mes.html":               "/en/month/",
+    "/temporada.html":        "/en/season/",
+    "temporada.html":         "/en/season/",
+    "/about/":                "/en/about/",
+    "/about.html":            "/en/about/",
+    "/abierto/":              "/en/open/",
+    "/abierto.html":          "/en/open/",
+    "/privacidad.html":       "/en/privacy/",
+    "privacidad.html":        "/en/privacy/",
+    "/apps/":                 "/en/apps/",
+    "/apoyar/":               "/en/support/",
+    "/betaandroid.html":      "/en/apps/",
+    "betaandroid.html":       "/en/apps/",
+    "/suscripcion/":          "/en/subscription/",
+    "suscripcion/":           "/en/subscription/",
+    "/competicion/":          "/en/race/",
+    "/jornada/":              "/en/stage/",
+    "/inscritos/":            "/en/startlist/",
+    "/perfil/":               "/en/profile/",
 }
 
 # ── Bloques <main> EN para páginas con contenido largo ───────────
@@ -147,23 +151,6 @@ MAIN_BLOCKS_EN = {
     <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:2rem;margin-bottom:0.75rem">12. Changes and contact</h2>
     <p style="font-size:0.95rem;line-height:1.8;margin-bottom:1.25rem">We will update this policy when the service, its providers or the law changes. The date above identifies the current version. For any question, write to <a href="mailto:hola@danisanchez.info" style="color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">hola@danisanchez.info</a>.</p>
   </main>""",
-
-    "betaandroid.html": """  <main class="beta-page">
-    <div class="beta-page__icon" style="color:var(--accent);opacity:0.85">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor" width="64" height="64" aria-hidden="true"><path d="M420.55 301.93a24 24 0 1 1 24-24 24 24 0 0 1-24 24m-265.1 0a24 24 0 1 1 24-24 24 24 0 0 1-24 24m273.7-144.48 47.94-83a10 10 0 1 0-17.27-10l-48.54 84.07a301.25 301.25 0 0 0-246.56 0L116.18 64.45a10 10 0 1 0-17.27 10l47.94 83C64.53 202.22 8.24 285.55 0 384h576c-8.24-98.45-64.54-181.78-146.85-226.55"/></svg>
-    </div>
-    <h1 class="beta-page__title">Android on Google Play</h1>
-    <p class="beta-page__sub">
-      The Calendario Ciclismo app is now publicly available on Google Play.<br>
-      Download it for free and enjoy the professional cycling calendar with schedules, TV, routes and notifications.
-    </p>
-
-    <a href="https://play.google.com/store/apps/details?id=app.calendariociclismo.android" target="_blank" rel="noopener" class="beta-form__submit" style="display:inline-block;text-decoration:none;margin-bottom:2rem">Download on Google Play</a>
-
-    <p class="beta-note" style="margin-top:2rem">
-      We'd like to thank the nearly 200 people who took part in the beta. Your help was essential in getting us here.
-    </p>
-  </main>""",
 }
 
 def apply_translations(html: str) -> str:
@@ -205,22 +192,104 @@ def apply_translations(html: str) -> str:
 
     return html
 
-def patch_seo_meta(html: str) -> str:
-    """Conserva el SEO castellano del HTML maestro.
+# ── Cabecera SEO EN por página ───────────────────────────────────
+# Las páginas /en/ llevan cabecera en inglés y conservan el robots del maestro
+# (decisión de Dani, 2026-09-30). og:title/twitter:title toman `title` y
+# og:description toma `description` si no se indican; twitter:description toma
+# og:description.
+# `jsonld` son sustituciones literales dentro del JSON-LD del maestro.
+HOME_DESC_EN = "All professional cycling races with schedule, route, profile and how to watch on TV and streaming."
+PAGE_SEO_EN = {
+    "index.html": {
+        "title": "Pro Cycling Races Today: Schedule, TV and Streaming — Calendario Ciclismo App",
+        "description": HOME_DESC_EN,
+        "keywords": "cycling calendar, cycling on TV, cycling streaming, Tour de France, Giro d'Italia, "
+                    "Vuelta a España, Paris-Roubaix, Tour of Flanders, Calendario Ciclismo, Dani Sánchez",
+        "jsonld": [("Todas las carreras ciclistas profesionales, con horario, recorrido, perfil y cómo ver por TV y online streaming.",
+                    HOME_DESC_EN)],
+    },
+    "ciclocross.html": {
+        "description": "UCI cyclocross calendar 2026-27: schedules by category, startlists, results and standings "
+                       "of the World Cup, Superprestige, X2O and Copa de España.",
+    },
+    "privacidad.html": {
+        "title": "Privacy Policy &mdash; Calendario Ciclismo App",
+        "description": "Privacy policy of Calendario Ciclismo: processing of personal data, user rights and use of cookies.",
+        "twitter_description": "Privacy policy of Calendario Ciclismo: processing of personal data and user rights.",
+        "keywords": "privacy policy, privacy, data protection, GDPR, calendario ciclismo",
+    },
+    "404.html": {
+        "title": "Page not found — Calendario Ciclismo App",
+    },
+    "suscripcion/index.html": {
+        "title": "Subscribe to the calendar — Calendario Ciclismo",
+        "description": "Subscribe to the professional cycling calendar in your calendar app. Choose WorldTour, Pro, "
+                       "men, women or all categories. Works with iPhone, iPad, Mac, Android and Google Calendar.",
+        "og_description": "Add every professional cycling race to your calendar app. WorldTour, Pro, men, women or all categories.",
+        "twitter_description": "Add every professional cycling race to your calendar app.",
+    },
+}
+def _set_meta(html: str, attr: str, name: str, value: str) -> str:
+    return re.sub(rf'(<meta {attr}="{re.escape(name)}"[^>]*?\bcontent=")[^"]*(")',
+                  lambda m: f"{m.group(1)}{value}{m.group(2)}", html)
 
-    Decisión de producto: las URL /en/ traducen la interfaz, pero title,
-    description, OG, Twitter y JSON-LD se sirven en castellano. Nunca usar el
-    diccionario EN para reescribir estos campos: el artifact de Pages se
-    regenera en cada despliegue y esa sustitución reintroduciría SEO inglés.
-    """
+def patch_seo_meta(html: str, src_rel: str) -> str:
+    """Cabecera SEO en inglés para la página EN."""
+    seo = PAGE_SEO_EN.get(src_rel, {})
+    title = seo.get("title")
+    description = seo.get("description")
+    og_description = seo.get("og_description") or description
+    if title:
+        html = re.sub(r"<title([^>]*)>[^<]*</title>", lambda m: f"<title{m.group(1)}>{title}</title>", html, count=1)
+    for attr, name, value in (
+        ("name", "description", description),
+        ("name", "keywords", seo.get("keywords")),
+        ("property", "og:title", seo.get("og_title") or title),
+        ("property", "og:description", og_description),
+        ("name", "twitter:title", seo.get("twitter_title") or title),
+        ("name", "twitter:description", seo.get("twitter_description") or og_description),
+    ):
+        if value:
+            html = _set_meta(html, attr, name, value)
+    for old, new in seo.get("jsonld", []):
+        html = html.replace(old, new)
     return html
 
-# ── Sustituciones de texto JS inline por página ──────────────────
-PAGE_JS_EN = {
-    "betaandroid.html": [
-        (">Privacidad<", ">Privacy<"),
-    ],
+# ── Texto pre-renderizado EN (bloque .static-prerender) ──────────
+# Sustituye el contenido del primer bloque .static-prerender del maestro.
+PRERENDER_EN = {
+    "index.html": """
+      <h1>Calendario Ciclismo: every professional race with TV and streaming</h1>
+      <p>Calendario Ciclismo is the complete guide to men's and women's professional cycling. Each day lists the races under way with start and finish times, route, stage profile, startlist and every TV channel and streaming platform where they can be followed live, with specific coverage for Spain.</p>
+      <p>It covers the three Grand Tours (Tour de France, Giro d'Italia and Vuelta a España), the five Monuments (Milan-San Remo, Tour of Flanders, Paris-Roubaix, Liège-Bastogne-Liège and Il Lombardia), every UCI WorldTour and UCI Women's WorldTour event, the UCI ProSeries and the classics of the continental calendar, as well as national, world and European championships.</p>
+      <h2>Main sections</h2>
+      <ul>
+        <li><a href="/en/">Today</a>: today's races with schedules and where to watch them.</li>
+        <li><a href="/en/calendar/?view=month">Monthly calendar</a>: every race of the month.</li>
+        <li><a href="/en/calendar/?view=season">Season calendar</a>: every race of the year, filterable by category and country.</li>
+        <li><a href="/en/subscription/">Calendar subscription</a>: iCal feeds for Apple, Google and Outlook.</li>
+        <li><a href="/en/about/">About</a>: the project, created and edited by Dani Sánchez.</li>
+      </ul>
+      <h2>Major professional cycling events</h2>
+      <ul>
+        <li>Tour de France, Giro d'Italia, Vuelta a España.</li>
+        <li>Tour de France Femmes, Giro d'Italia Women, La Vuelta Femenina.</li>
+        <li>Monuments: Milan-San Remo, Tour of Flanders, Paris-Roubaix, Liège-Bastogne-Liège, Il Lombardia.</li>
+        <li>Strade Bianche, Amstel Gold Race, La Flèche Wallonne, Gent-Wevelgem, E3 Saxo Classic, Paris-Roubaix Femmes.</li>
+        <li>Paris-Nice, Tirreno-Adriatico, Itzulia Basque Country, Critérium du Dauphiné, Volta a Catalunya.</li>
+        <li>UCI Road World and European Championships, road race and time trial.</li>
+      </ul>""",
 }
+
+def patch_prerender(html: str, src_rel: str) -> str:
+    en = PRERENDER_EN.get(src_rel)
+    if not en:
+        return html
+    return re.sub(r'(<div class="static-prerender[^"]*">).*?(\n    </div>)',
+                  lambda m: m.group(1) + en + m.group(2), html, count=1, flags=re.DOTALL)
+
+# ── Sustituciones de texto JS inline por página ──────────────────
+PAGE_JS_EN = {}
 
 def patch_js_strings(html: str, src_rel: str) -> str:
     """Sustituye strings JS hardcodeados en el HTML de páginas específicas."""
@@ -260,7 +329,7 @@ def patch_canonical(html: str, en_path: str) -> str:
         html,
     )
     # Reemplazar hreflang existentes (con o sin / de cierre)
-    html = re.sub(r'<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*/?>', '', html)
+    html = re.sub(r'(?:\n[ \t]*)?<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*/?>', '', html)
 
     # Insertar hreflangs correctos justo tras la canonical
     hreflangs = (
@@ -278,6 +347,22 @@ def patch_canonical(html: str, en_path: str) -> str:
 
     return html
 
+CALENDAR_VIEW_EN = {"mes": "month", "temporada": "season"}
+
+def en_query(en_href: str, query: str) -> str:
+    """Traduce la query de /en/calendar/: ?vista=mes|temporada&mes=AAAA-MM
+    pasa a ?view=month|season&month=AAAA-MM (js/calendario-query.js)."""
+    if en_href != "/en/calendar/":
+        return query
+    def param(m):
+        key, value = m.group(2), m.group(3)
+        if key == "vista":
+            key, value = "view", CALENDAR_VIEW_EN.get(value, value)
+        elif key == "mes":
+            key = "month"
+        return f"{m.group(1)}{key}={value}"
+    return re.sub(r"([?&]|&amp;)(vista|mes)=([^&#]*)", param, query)
+
 def patch_hrefs(html: str) -> str:
     """Reescribe hrefs internos de ES a EN y ajusta textos de navegación."""
     for es_href, en_href in HREF_MAP.items():
@@ -286,20 +371,19 @@ def patch_hrefs(html: str) -> str:
         # Variante con query (?vista=…, ?date=…): /calendario/?vista=mes
         html = re.sub(
             rf'href="{re.escape(es_href)}(\?[^"]*)"',
-            rf'href="{en_href}\1"',
+            lambda m: f'href="{en_href}{en_query(en_href, m.group(1))}"',
             html,
         )
         html = re.sub(
             rf"href='{re.escape(es_href)}(\?[^']*)'",
-            rf"href='{en_href}\1'",
+            lambda m: f"href='{en_href}{en_query(en_href, m.group(1))}'",
             html,
         )
     # Textos hardcodeados del footer y nav que no tienen data-i18n.
     # La marca "Calendario Ciclismo" NO se traduce: las apps usan ese mismo
     # nombre en su locale EN (values-en/strings.xml app_name), así que la web
     # EN servida en /en/ lo mantiene por coherencia.
-    html = html.replace('href="/privacy/">Privacidad<', 'href="/privacy/">Privacy<')
-    # El JSON-LD es SEO: se conserva en castellano como el resto del <head>.
+    html = html.replace('href="/en/privacy/">Privacidad<', 'href="/en/privacy/">Privacy<')
     html = html.replace('Ideado y editado por', 'Created and edited by')
     html = html.replace("aria-label=\"Menú\"", 'aria-label="Menu"')
     html = html.replace('aria-label="Ordenar carreras"', 'aria-label="Sort races"')
@@ -338,8 +422,9 @@ def build_page(src_rel: str, out_dir: str) -> None:
     html = src.read_text(encoding="utf-8")
     html = patch_lang(html)
     html = patch_locale(html)
-    html = patch_seo_meta(html)
+    html = patch_seo_meta(html, src_rel)
     html = patch_main_block(html, src_rel)
+    html = patch_prerender(html, src_rel)
     html = patch_js_strings(html, src_rel)
     html = apply_translations(html)
     html = patch_hrefs(html)
