@@ -89,8 +89,8 @@ export async function openUciLinkPanel() {
   if (!raceId || !panel) return;
   panel.style.display = 'block';
   panel.innerHTML = `<div class="u-row u-gap-050 u-items-center u-wrap">
-    <a class="btn btn--ghost u-fs-070 u-py-0 u-px-060" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
-    <button type="button" class="btn btn--primary u-uci-save-manual u-fs-070 u-py-0 u-px-060">Guardar el ID del campo</button>
+    <a class="btn btn--ghost u-fs-1 u-py-0 u-px-060" href="https://dataride.uci.ch/iframe/Results/10/" target="_blank" rel="noopener">Últimos resultados de DataRide ↗</a>
+    <button type="button" class="btn btn--primary u-uci-save-manual u-fs-1 u-py-0 u-px-060">Guardar el ID del campo</button>
   </div>`;
   _wireUciPanel(raceId);
   return;
@@ -121,10 +121,10 @@ function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
   const evMeta = isEvent ? ` · <span title="race.Id de DataRide de la prueba">prueba ${esc(String(c.uciRaceId))}</span>` : '';
   return `
     <div class="u-row uci-candidate">
-      <button type="button" class="btn btn--ghost u-uci-pick u-fs-070 u-py-0 u-px-055 u-nowrap" data-comp="${c.competitionId}"${isEvent ? ` data-uciraceid="${esc(String(c.uciRaceId))}"` : ''}>${esc(label)}</button>
+      <button type="button" class="btn btn--ghost u-uci-pick u-fs-1 u-py-0 u-px-055 u-nowrap" data-comp="${c.competitionId}"${isEvent ? ` data-uciraceid="${esc(String(c.uciRaceId))}"` : ''}>${esc(label)}</button>
       <div class="u-grow u-lh-135">
-        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span class="u-c-done u-fs-070">★ propuesto</span>' : ''}</div>
-        <div class="u-c-muted u-fs-072">${tick} · ${cls}${sim ? ' · ' + sim : ''}${evMeta}</div>
+        <div><strong>${esc(c.uciName || '(sin nombre)')}</strong>${recommended ? ' <span class="u-c-done u-fs-1">★ propuesto</span>' : ''}</div>
+        <div class="u-c-muted u-fs-1">${tick} · ${cls}${sim ? ' · ' + sim : ''}${evMeta}</div>
       </div>
     </div>`;
 }
@@ -133,8 +133,8 @@ function _uciCandidateRow(raceId, c, { recommended = false } = {}) {
 function _uciManualSaveRow(raceId) {
   return `
     <div class="u-row u-gap-050 u-mt-050 u-items-center">
-      <button type="button" class="btn btn--primary u-uci-save-manual u-fs-070 u-py-0 u-px-060">Guardar el valor del campo</button>
-      <span class="u-c-muted u-fs-072">usa el número del campo de arriba</span>
+      <button type="button" class="btn btn--primary u-uci-save-manual u-fs-1 u-py-0 u-px-060">Guardar el valor del campo</button>
+      <span class="u-c-muted u-fs-1">usa el número del campo de arriba</span>
     </div>`;
 }
 
@@ -147,7 +147,7 @@ function _renderUciPanel(raceId, rec) {
   let head = '';
   if (linked && linkVal) {
     head = `<div class="uci-link-head">
-        Enlazada a <strong>#${esc(linkVal)}</strong> ${auto ? '<span class="u-c-muted u-fs-072">(auto)</span>' : '<span class="u-c-muted u-fs-072">(manual)</span>'}
+        Enlazada a <strong>#${esc(linkVal)}</strong> ${auto ? '<span class="u-c-muted u-fs-1">(auto)</span>' : '<span class="u-c-muted u-fs-1">(manual)</span>'}
         <button type="button" class="btn btn--ghost u-uci-unlink uci-unlink-btn">Desenlazar</button>
       </div>`;
   }
@@ -160,7 +160,7 @@ function _renderUciPanel(raceId, rec) {
 
   // Contexto de NUESTRA carrera (lo que el matcher vio).
   const o = rec.our || {};
-  const ourLine = `<div class="u-c-muted u-fs-072 u-mb-040">
+  const ourLine = `<div class="u-c-muted u-fs-1 u-mb-040">
       Nuestra: «${esc(o.name || '')}» · ${esc(o.class || '')} · ${esc(o.gender || '')} · ${esc((o.country || '').toUpperCase())} · ${esc((o.dates || []).filter(Boolean).join(' → '))}
     </div>`;
 
@@ -188,7 +188,7 @@ function _renderUciPanel(raceId, rec) {
       body += `<div class="uci-collision">
           ⚠️ <strong>Colisión</strong>: la UCI publica una sola competición (#${rec.collision.competitionId}) para este par.
           Comparte candidato con: ${rivals}.<br>
-          <span class="u-c-muted u-fs-072">Solo UNA de las dos puede enlazar a #${rec.collision.competitionId}. La otra se queda sin enlace UCI (o enlaza otra competición si existe).</span>
+          <span class="u-c-muted u-fs-1">Solo UNA de las dos puede enlazar a #${rec.collision.competitionId}. La otra se queda sin enlace UCI (o enlaza otra competición si existe).</span>
         </div>`;
     }
     body += `<div class="u-mb-030">${rec.candidates.length} candidato(s) — elige:</div>`

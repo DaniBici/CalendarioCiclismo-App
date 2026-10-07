@@ -34,7 +34,6 @@
   width: var(--page-width);
   margin-inline: auto;
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
 }
 .res-stages[hidden] { display: none; }
 .res-stages__inner {
@@ -66,16 +65,17 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
   font-weight: 700;
   color: var(--text-muted);
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
   border-radius: var(--radius-pill);
   text-decoration: none;
   transition: color var(--transition), background var(--transition);
 }
-.res-stage-btn:hover { color: var(--text); background: var(--accent-dim); }
-.res-stage-btn--active { color: #fff; background: var(--accent); }
+/* Etapas y categorías: mismo aspecto que los filtros de Hoy. */
+.res-stage-btn:hover { color: var(--text); background: var(--bg-card-hover); }
+.res-stage-btn--active, .res-stage-btn--active:hover { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
 
 /* Pestañas de clasificación y filtro por equipo. El carril exterior pinta el
    fondo a sangre (la fila interior está acotada y centrada); queda fijo bajo la
@@ -113,32 +113,28 @@
   scrollbar-width: none;
 }
 .res-tabs__inner::-webkit-scrollbar { display: none; }
-/* Separador vertical entre las pestañas y el filtro de equipo. */
-.res-tabs__sep {
-  flex: 0 0 auto;
-  align-self: stretch;
-  width: 1px;
-  margin: 0.2rem 0;
-  background: var(--border);
-}
-.res-tabs__sep[hidden] { display: none; }
 .res-tabs__filter { flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+/* Carreras de un día: sin pestañas, el estado ocupa el lado izquierdo de la
+   fila del filtro. */
+.res-tabs__scroll:not(:has(.res-tab)) { display: none; }
+.res-tabs__status { flex: 1 1 auto; min-width: 0; font-size: var(--fs-2); color: var(--text-muted); }
+.res-tabs__status:empty { display: none; }
 .res-tab {
   position: relative;
   padding: 12px 10px;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-body);
-  font-size: 0.78rem;
+  font-size: var(--fs-2);
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   transition: color var(--transition), background var(--transition);
 }
-.res-tab:hover { color: var(--text); background: var(--accent-dim); }
+.res-tab:hover { color: var(--text); background: var(--hover-bg); }
 /* Color de la clasificación (maillot) como filete superior. */
 .res-tab[style*="--class-color"]::before {
   content: '';
@@ -150,10 +146,10 @@
   background: var(--class-color);
   box-shadow: 0 0 0 1px var(--border);
 }
+/* Activa como el menú principal: texto y subrayado de acento, sin fondo. */
 .res-tab--active {
-  background: var(--bg-card-hover);
   color: var(--text);
-  border-bottom-color: var(--text-muted);
+  border-bottom: 2px solid var(--accent-text);
   font-weight: 700;
 }
 /* Filtro por equipo: mismo desplegable que .agenda-sort-select. */
@@ -161,19 +157,20 @@
   min-height: 36px;
   max-width: 100%;
   padding: 7px 30px 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font: 600 0.85rem var(--font-body);
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  font: 600 var(--fs-3) var(--font-body);
   color: var(--text);
   text-overflow: ellipsis;
-  background-color: var(--bg-card-hover);
+  background-color: var(--bg-card);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.65rem center;
   cursor: pointer;
   appearance: none;
 }
-.res-teamfilter__select:hover { border-color: var(--accent); }
+.res-teamfilter__select:hover { color: var(--accent-text); }
 
 /* Avisos de la clasificación. Etapa cancelada: la pestaña «Etapa» no tiene
    tabla; mismo lenguaje que el aviso de la jornada. */
@@ -186,14 +183,13 @@
   padding: 0.55rem 0.9rem;
   width: fit-content;
   background: rgba(229,85,85,0.1);
-  border: 1px solid rgba(229,85,85,0.3);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--red);
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 /* Generales arrastradas de la etapa anterior (la cancelada no las movió). */
 .res-carried-note {
@@ -203,23 +199,30 @@
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius);
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: var(--fs-2);
   line-height: 1.35;
 }
 .res-carried-note svg { flex-shrink: 0; color: var(--text-dim); }
-.res-publication { margin: 10px 0; font-size: 0.82rem; color: var(--text-muted); }
+.res-publication { margin: 10px 0; font-size: var(--fs-2); color: var(--text-muted); }
 .res-publication-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
 }
-.res-publication-line strong { color: var(--text); font-size: 0.95rem; }
+.res-publication-line strong { color: var(--text); font-size: var(--fs-4); }
 .res-status-icon { vertical-align: -3px; flex: none; margin-right: 6px; }
-.res-refreshing { display: inline-flex; align-items: center; gap: 6px; }
+/* Actualización en curso: solo el indicador giratorio, con relleno. */
+.res-refreshing {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px;
+  background: var(--accent-dim);
+  color: var(--accent-text);
+}
 .res-refreshing .res-status-icon {
   margin-right: 0;
   transform-origin: center;
@@ -233,7 +236,6 @@
   color: var(--accent-text);
   padding: 9px 12px;
 }
-.res-update-note.res-refreshing { width: fit-content; max-width: 100%; }
 .res-update-note button { margin-left: 10px; }
 
 /* Tabla de resultados: sin ancestro con desplazamiento propio, para que el
@@ -249,6 +251,7 @@
   min-width: 18rem;
   background: #252e3b;
   color: #f4f6fa;
+  box-shadow: var(--card-shadow);
   font-variant-numeric: tabular-nums;
   --text: #f4f6fa;
   --text-muted: #c4cbd5;
@@ -283,19 +286,19 @@ html.light .res-table thead .so-th { background: #fff; }
   font-family: var(--font-display);
   font-weight: 700;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
 }
 .res-td--rider { font-weight: 500; }
 .res-rider-main { display: inline; }
 .res-rider-name { font-weight: 600; }
 /* El equipo va en su propia columna en escritorio: el subtítulo se oculta. */
 .res-rider-team { display: none; font-weight: 400; color: var(--text-muted); }
-.res-td--team { font-size: 0.82rem; color: var(--text-muted); }
+.res-td--team { font-size: var(--fs-2); color: var(--text-muted); }
 .res-td--uci {
   text-align: right;
   white-space: nowrap;
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -303,7 +306,7 @@ html.light .res-table thead .so-th { background: #fff; }
   text-align: right;
   white-space: nowrap;
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
 }
 .res-table .res-time { font-weight: 700; color: var(--accent-text); letter-spacing: 0.02em; }
 .res-table .res-gap { color: var(--text-muted); }
@@ -336,25 +339,25 @@ html.light .res-table thead .so-th { background: #fff; }
 .res-ttt-team-name { min-width: 0; }
 .res-ttt-caret {
   flex: 0 0 auto;
-  font-size: 0.7rem;
+  font-size: var(--fs-1);
   color: var(--text-muted);
   transition: transform 0.18s ease;
   transform: rotate(0deg);
 }
 .res-team-row--open .res-ttt-caret { transform: rotate(180deg); color: var(--accent-text); }
 .res-ttt-rider { background: var(--bg-subtle, rgba(127,127,127,0.04)); }
-.res-ttt-rider .res-td--rider { font-weight: 400; font-size: 0.86rem; }
+.res-ttt-rider .res-td--rider { font-weight: 400; font-size: var(--fs-3); }
 .res-ttt-rider-cell { padding-left: 1.4rem !important; }
-.res-ttt-rider .res-gap { color: var(--text-muted); font-size: 0.82rem; }
+.res-ttt-rider .res-gap { color: var(--text-muted); font-size: var(--fs-2); }
 
 /* Columna lateral: datos de la jornada. */
 .res-stage-data {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius);
   padding: 12px;
   background: var(--bg-card);
 }
-.res-stage-data h2 { font-size: 1rem; margin: 0 0 12px; }
+.res-stage-data h2 { font-size: var(--fs-4); margin: 0 0 12px; }
 .res-stage-data dl { margin: 0; }
 .res-stage-data dl>div {
   display: flex;
@@ -362,7 +365,7 @@ html.light .res-table thead .so-th { background: #fff; }
   justify-content: space-between;
   gap: 6px 12px;
   margin-top: 8px;
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
 }
 .res-stage-data dt { color: var(--text-muted); }
 .res-stage-data dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -374,33 +377,51 @@ html.light .res-table thead .so-th { background: #fff; }
   margin: 0 auto;
   padding: 1.4rem 0 0.4rem;
 }
-.feed-hero__title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.45rem;
-  margin: 0;
-}
 .feed-view-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.65rem;
 }
+/* Las dos vistas hacen de título de la página: texto a tamaño de título, la
+   activa con el subrayado del menú principal y la otra en gris. */
+.feed-hero > .feed-view-tabs { gap: 1.5rem; margin-top: 0; }
+.feed-hero > .feed-view-tabs .feed-view-tab,
+.feed-hero > .feed-view-tabs .feed-view-tab:hover {
+  position: relative;
+  padding: 0.2rem 0 0.45rem;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font: 700 var(--fs-5)/1.25 var(--font-display);
+}
+.feed-hero > .feed-view-tabs .feed-view-tab:hover { color: var(--text); }
+.feed-hero > .feed-view-tabs .feed-view-tab--active { color: var(--text); }
+.feed-hero > .feed-view-tabs .feed-view-tab--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent-text);
+}
 .feed-view-tab {
   padding: 0.32rem 0.8rem;
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
   color: var(--text-muted);
-  font: 500 0.8rem/1.3 var(--font-body);
+  font: 500 var(--fs-2)/1.3 var(--font-body);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.feed-view-tab:hover, .feed-view-tab:focus-visible { color: var(--accent-text, var(--accent)); }
-.feed-view-tab--active {
-  background: var(--accent-dim);
+/* Mismo aspecto que los filtros de Hoy y las divisiones de Fichajes. */
+.feed-view-tab:hover { color: var(--text); background: var(--bg-card-hover); }
+.feed-view-tab--active, .feed-view-tab--active:hover {
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
   color: var(--accent-text, var(--accent));
-  font-weight: 600;
+  font-weight: 700;
 }
 .feed-day {
   width: var(--page-width);
@@ -409,42 +430,37 @@ html.light .res-table thead .so-th { background: #fff; }
 }
 .feed-day__hdr {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  font-size: var(--fs-2);
   color: var(--text-muted);
   margin: 1.1rem 0 0.3rem;
 }
-/* Filas con el tinte base de las tarjetas de Hoy: color de carrera al 4% sobre
-   --bg-card y borde al 12%. */
+/* Bajo las pestañas-título, el primer día queda a la misma distancia que los
+   botones de género del ránking. */
+#resultsFeedPanel > .feed-day:first-child > .feed-day__hdr { margin-top: 0.35rem; }
+/* Filas con la superficie neutra de las tarjetas de Hoy. */
 .feed-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 0.8rem;
   margin: 0.35rem 0;
-  background: color-mix(in srgb, var(--card-color, var(--accent)) 4%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text);
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.12s ease;
 }
-.feed-row:hover {
-  background: color-mix(in srgb, var(--card-color, var(--accent)) 8%, var(--bg-card));
-  border-color: color-mix(in srgb, var(--card-color, var(--border)) 25%, var(--border));
-}
+.feed-row:hover { background: var(--bg-card-hover); }
 button.feed-row {
   width: 100%;
+  border: 0;
   appearance: none;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-/* Las filas del día conservan la paleta anterior al rediseño. */
-.feed-day>.feed-row { --bg-card: #1c1e24; --border: #2e3038; --text-muted: #8e9099; }
-html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-muted: #5f6368; }
 .feed-row__gclabel { font-weight: 600; color: var(--text); }
 /* Distintivos de tipo, en tamaño reducido. */
 .feed-row__badges {
@@ -455,7 +471,7 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
 }
 .feed-row__winner {
   display: block;
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   color: var(--text);
   margin-top: 0.1rem;
   overflow: hidden;
@@ -468,7 +484,7 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
   width: 1.25em;
   height: 0.95em;
   display: block;
-  border-radius: 1px;
+  border-radius: var(--radius-sm);
 }
 /* Columna de 32px aunque no haya logo; la bandera, centrada debajo. */
 .feed-row__logo {
@@ -486,17 +502,18 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
   min-width: 0;
   flex: 1;
 }
+/* Nombre completo: pasa a una segunda línea en lugar de cortarse, para que
+   «sub23 masculino» y «sub23 femenino» se distingan. */
 .feed-row__race {
-  font-weight: 600;
-  font-size: 0.92rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--fs-4);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 .feed-day>.feed-row .feed-row__race { position: relative; }
 .feed-row__fem { font-size: 0.75em; opacity: 0.7; font-weight: 400; }
 .feed-row__sub {
-  font-size: 0.78rem;
+  font-size: var(--fs-2);
   color: var(--text-muted);
   margin-top: 0.05rem;
   overflow: hidden;
@@ -505,7 +522,7 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
 }
 /* «Etapa X» en negrita dentro de la línea de recorrido. */
 .feed-row__sub strong { font-weight: 650; color: var(--text); }
-.feed-row__chevron { color: var(--text-dim); font-size: 1.1rem; flex-shrink: 0; }
+.feed-row__chevron { color: var(--text-dim); font-size: var(--fs-4); flex-shrink: 0; }
 /* Destacada de una vuelta por etapas (FeedRowView en las apps): divisor y
    clasificaciones complementarias debajo. */
 .feed-row--featured { align-items: flex-start; }
@@ -522,7 +539,7 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 0.72rem;
+  font-size: var(--fs-1);
   line-height: 1.3;
 }
 .feed-row__leader-dot {
@@ -548,7 +565,7 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
 .feed-more {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
   color: var(--accent-text);
   background: var(--accent-dim);
   border: none;
@@ -560,89 +577,94 @@ html.light .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-mute
 .feed-more:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .feed-more:disabled { cursor: progress; opacity: 0.7; }
 
-/* Ránking UCI de equipos. */
+/* Ránking UCI de equipos: lista sobre superficie de tarjeta, sin filetes ni
+   franjas. El nivel de invitación se lee en el color del puesto, explicado
+   por la leyenda. */
 .uci-ranking {
   width: var(--page-width);
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 0.25rem 0 2.5rem;
+  padding: 0 0 2.5rem;
 }
-.uci-ranking-heading-row { position: relative; width: fit-content; margin-top: 0.3rem; }
-.uci-ranking-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 700;
+.uci-ranking-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.35rem 0 0.75rem; }
+.uci-ranking-gender-tabs { margin: 0; }
+.uci-ranking-updated { margin: 0; color: var(--text-muted); font-size: var(--fs-1); }
+/* Explicación de las etiquetas: panel a la izquierda en escritorio, encima
+   de la lista en móvil. */
+.uci-ranking-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; }
+.uci-ranking-key {
+  align-self: start;
+  padding: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius);
 }
-.uci-ranking-heading-meta {
-  display: flex;
+.uci-ranking-key__title { margin: 0 0 10px; font: 600 var(--fs-4) var(--font-display); }
+.uci-ranking-key__item + .uci-ranking-key__item { margin-top: 10px; }
+.uci-ranking-key__item p { margin: 4px 0 0; font-size: var(--fs-2); line-height: 1.4; color: var(--text-muted); }
+@media (min-width: 1100px) {
+  .uci-ranking-layout { grid-template-columns: 18rem minmax(0,1fr); gap: 24px; }
+  .uci-ranking-key { position: sticky; top: calc(var(--site-header-h, 56px) + 16px); }
+}
+/* Puesto en etiqueta con el color de su nivel; la explicación usa la misma
+   etiqueta. Todos los puestos comparten caja para alinear las cifras. */
+.uci-ranking-legend__item {
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.1rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font: 600 var(--fs-1)/1.3 var(--font-body);
 }
-.uci-ranking-updated { margin: 0; color: var(--text-muted); font-size: 0.75rem; }
-.uci-ranking-gender-tabs { margin: 0.8rem 0 0.65rem; }
-.uci-ranking-table { display: grid; gap: 0; }
+.uci-ranking-row .uci-ranking-row__rank {
+  justify-self: center;
+  min-width: 1.9rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.uci-ranking-table__head span:first-child { justify-self: center; min-width: 1.9rem; text-align: center; }
+.uci-ranking-legend__item--wt, .uci-ranking-row--wt .uci-ranking-row__rank { background: var(--badge-wt-bg); color: var(--badge-wt-color); }
+.uci-ranking-legend__item--orange, .uci-ranking-row--orange .uci-ranking-row__rank { background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); }
+.uci-ranking-legend__item--green, .uci-ranking-row--green .uci-ranking-row__rank { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.uci-ranking-legend__item--excluded, .uci-ranking-row--excluded .uci-ranking-row__rank { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red); }
+/* Misma presentación que la tabla de clasificación de una carrera
+   (.res-table): superficie, cabecera y filas separadas por filete. */
+.uci-ranking-table {
+  display: grid;
+  align-self: start;
+  background: #252e3b;
+  box-shadow: var(--card-shadow);
+}
+html.light .uci-ranking-table { background: #fff; }
 .uci-ranking-table__head, .uci-ranking-row {
   display: grid;
-  grid-template-columns: 2.35rem 1.55rem minmax(0, 1fr) 3.2rem 6.2rem;
+  grid-template-columns: 2.4rem 1.55rem minmax(0, 1fr) 3.2rem 6.6rem;
   align-items: center;
-  column-gap: 0.4rem;
+  column-gap: 0.5rem;
 }
 .uci-ranking-table__head {
-  padding: 0.2rem 0.55rem;
+  padding: 0.38rem 0.55rem;
+  box-shadow: 0 1px 0 var(--border);
   color: var(--text-muted);
-  font: 700 0.68rem/1.2 var(--font-body);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font: 700 var(--fs-1)/1.2 var(--font-body);
 }
 .uci-ranking-table__head span:last-child { text-align: right; }
+.uci-ranking-table__head span:nth-child(4) { text-align: center; }
 .uci-ranking-row {
   position: relative;
-  min-height: 2.15rem;
-  padding: 0.25rem 0.55rem;
-  border: 0;
+  min-height: 35px;
+  padding: 6px 0.55rem;
   border-bottom: 1px solid var(--border);
-  background: transparent;
-  font-size: 0.83rem;
+  font-size: var(--fs-3);
   transition: background 0.1s;
 }
-.uci-ranking-row:hover { background: var(--bg-hover, rgb(0 0 0 / 3%)); }
-.uci-ranking-row--wt {
-  border-bottom-color: color-mix(in srgb, var(--badge-wt-color) 26%, var(--border));
-  background: color-mix(in srgb, var(--badge-wt-bg) 78%, transparent);
-}
-.uci-ranking-row--orange {
-  border-bottom-color: color-mix(in srgb, var(--orange) 30%, var(--border));
-  background: color-mix(in srgb, var(--orange) 14%, transparent);
-}
-.uci-ranking-row--green {
-  border-bottom-color: color-mix(in srgb, var(--green) 30%, var(--border));
-  background: color-mix(in srgb, var(--green) 13%, transparent);
-}
-/* El tinte de estas filas deja el texto atenuado por debajo de 4.5:1 en el
-   tema oscuro (WCAG 1.4.3): se aclara solo ahí. */
-.uci-ranking-row--orange .uci-ranking-row__rank,
-.uci-ranking-row--orange .uci-ranking-row__category,
-.uci-ranking-row--green .uci-ranking-row__rank,
-.uci-ranking-row--green .uci-ranking-row__category {
-  color: #a2a4ad;
-}
-html.light .uci-ranking-row--orange .uci-ranking-row__rank,
-html.light .uci-ranking-row--orange .uci-ranking-row__category,
-html.light .uci-ranking-row--green .uci-ranking-row__rank,
-html.light .uci-ranking-row--green .uci-ranking-row__category {
-  color: var(--text-muted);
-}
-.uci-ranking-row--excluded {
-  border-bottom-color: color-mix(in srgb, var(--red) 30%, var(--border));
-  background: color-mix(in srgb, var(--red) 13%, transparent);
-}
+.uci-ranking-row:last-child { border-bottom: 0; }
+.uci-ranking-row:hover { background: var(--hover-bg); }
 .uci-ranking-row--explained { cursor: help; }
 .uci-ranking-row__rank {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 700;
   text-align: right;
 }
 .uci-ranking-row__flag { display: inline-flex; justify-content: center; }
@@ -651,18 +673,18 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 500;
 }
 .uci-ranking-row__category {
   color: var(--text-muted);
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: var(--fs-1);
+  font-weight: 600;
   text-align: center;
 }
 .uci-ranking-row__points {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 600;
 }
 .uci-ranking-row--explained::after {
   content: attr(data-tooltip);
@@ -672,12 +694,11 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
   bottom: calc(100% + 0.45rem);
   width: min(24rem, calc(100vw - 5rem));
   padding: 0.55rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 0.45rem;
+  border-radius: var(--radius);
   background: var(--bg-card);
   box-shadow: 0 6px 18px rgb(0 0 0 / 22%);
   color: var(--text);
-  font: 400 0.78rem/1.4 var(--font-body);
+  font: 400 var(--fs-2)/1.4 var(--font-body);
   pointer-events: none;
   opacity: 0;
   transform: translateY(0.2rem);
@@ -721,7 +742,6 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     margin-left: 0;
     text-align: right;
   }
-  .res-tabs__sep { display: none; }
   .res-teamfilter__select { width: 100%; max-width: 100%; }
   .res-table .so-td { padding-block: 7px; }
   .res-table .res-td--rider { display: table-cell; overflow: visible; }
@@ -736,7 +756,7 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     display: block;
     white-space: normal;
     overflow: visible;
-    font-size: 0.8rem;
+    font-size: var(--fs-2);
     line-height: 1.3;
     margin-top: 3px;
   }
@@ -768,7 +788,7 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     margin-top: 0;
     margin-right: 0.3rem;
     flex: 0 0 auto;
-    font-size: 0.86rem;
+    font-size: var(--fs-3);
   }
   .res-rider-main {
     flex: 1 1 auto;
@@ -778,8 +798,8 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     line-height: 1.15;
   }
   .res-rider-name, .res-rider-team { min-width: 0; text-overflow: ellipsis; }
-  .res-td--uci { font-size: 0.75rem; }
-  .res-td--result { font-size: 0.8rem; }
+  .res-td--uci { font-size: var(--fs-1); }
+  .res-td--result { font-size: var(--fs-2); }
   .res-team-cell, .res-ttt-team { max-width: 100%; }
   .res-team-cell .so-link, .res-ttt-team-name { text-overflow: ellipsis; }
 }
@@ -789,9 +809,9 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     grid-template-columns: 2rem 1.35rem minmax(0, 1fr) 2.7rem 4.5rem;
     column-gap: 0.3rem;
   }
-  .uci-ranking-row { min-height: 2.05rem; padding: 0.22rem 0.5rem; font-size: 0.8rem; }
-  .uci-ranking-row__category { font-size: 0.62rem; }
-  .uci-ranking-row__points { font-size: 0.76rem; }
+  .uci-ranking-row { min-height: 2.05rem; padding: 4px 10px; font-size: var(--fs-2); }
+  .uci-ranking-row__category { font-size: var(--fs-1); }
+  .uci-ranking-row__points { font-size: var(--fs-1); }
 }
 
 @media (min-width: 701px) {
@@ -831,7 +851,6 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
     top: calc(var(--site-header-h, 56px) + var(--primary-nav-h));
     z-index: 60;
     background: var(--bg);
-    box-shadow: 0 1px 0 var(--border);
   }
   .res-tabs-bar {
     top: calc(var(--site-header-h, 56px) + var(--primary-nav-h) + var(--results-race-header-h, 0px));
@@ -860,6 +879,3 @@ html.light .uci-ranking-row--green .uci-ranking-row__category {
   .res-refreshing .res-status-icon { animation: none; }
 }
 
-@media (prefers-color-scheme: light) {
-  html:not(.dark) .feed-day>.feed-row { --bg-card: #fff; --border: #e0e0e0; --text-muted: #5f6368; }
-}

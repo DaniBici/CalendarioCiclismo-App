@@ -15,7 +15,7 @@ function harness({reads=[],writes=[],confirmations=[]}={}) {
   for(const id of ['operationsRefreshBtn','operationsUpdated','operationsJobs','operationsSources','operationsHistory'])nodes.set(id,node());
   Object.defineProperty(nodes.get('operationsJobs'),'innerHTML',{get(){return this.html||'';},set(html){this.html=html;buttons=[...html.matchAll(/<button[^>]*data-job="([^"]+)"([^>]*)>([\s\S]*?)<\/button>/g)].map(([,job,attributes,label])=>({...node(),dataset:{job},disabled:attributes.includes('disabled'),textContent:label.trim()}));}});
   const context={...monitor,URL,window:{setInterval:vi.fn()},document:{getElementById:id=>nodes.get(id),querySelectorAll:()=>buttons},
-    esc:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),showToast:vi.fn(),
+    esc:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),showToast:vi.fn(),formatCount:value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'}),
     confirmDialog:vi.fn(async()=>{const next=confirmations.shift();return next?await next.promise:true;}),
     supabase:{rpc:vi.fn(async name=>{calls.push(name);const next=(name==='admin_get_automation_monitor'?reads:writes).shift();return next?await next.promise:{data:name==='admin_get_automation_monitor'?snapshot('current'):{}};})}};
   const api=runInNewContext(`${code}\n({refresh:refreshOperationsMonitor,force:_operationsForce,render:_operationsRenderJobs})`,context);

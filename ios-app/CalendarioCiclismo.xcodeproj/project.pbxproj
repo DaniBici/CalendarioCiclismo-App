@@ -35,6 +35,8 @@
 		36293990D303F6743D421A93 /* FollowedStagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0811885F83B6EABBFD87270 /* FollowedStagesView.swift */; };
 		3695B0BAAFC5DF0A19C1E943 /* WidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2AEADA23EA969AFFA2A257 /* WidgetViews.swift */; };
 		385244A97900B41E18D5BBFC /* PlaceholderModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B7E81F3B5D7C731DEEA2C5 /* PlaceholderModal.swift */; };
+		5A1C0E7B3D9F42A6B8E1C701 /* ProfileSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C0E7B3D9F42A6B8E1C702 /* ProfileSegment.swift */; };
+		5A1C0E7B3D9F42A6B8E1C703 /* ProfileSegmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C0E7B3D9F42A6B8E1C704 /* ProfileSegmentTests.swift */; };
 		388E6D1B1FF25CB5F0320864 /* SimplifiedGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */; };
 		3985A8303466057709E9F567 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F410AB613DDCE9F8F0BAD6 /* WidgetShared.swift */; };
 		3B52A990E027BAAC784D6325 /* NotificationServiceExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 955A90C67B81CFC59D9F9F5C /* NotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -347,6 +349,8 @@
 		CEB09DB4C005F23EC644C08C /* RaceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDetailViewModel.swift; sourceTree = "<group>"; };
 		CF019505A2CAFB9F41393E6C /* ResultsFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsFeedView.swift; sourceTree = "<group>"; };
 		D2BAFEAD9A7705A75925642F /* SeasonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonViewModel.swift; sourceTree = "<group>"; };
+		5A1C0E7B3D9F42A6B8E1C702 /* ProfileSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSegment.swift; sourceTree = "<group>"; };
+		5A1C0E7B3D9F42A6B8E1C704 /* ProfileSegmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSegmentTests.swift; sourceTree = "<group>"; };
 		D4C781610DAD5634167E4421 /* SimplifiedGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedGuide.swift; sourceTree = "<group>"; };
 		D4FA1EB1E628E55B20F4FFC1 /* FlagRenderAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlagRenderAuditTests.swift; sourceTree = "<group>"; };
 		D7AEF801C0A7E4A20304BC02 /* StartlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartlistView.swift; sourceTree = "<group>"; };
@@ -574,6 +578,7 @@
 				8C6AC123A990B0C9E6BCF37F /* RaceLogicTests.swift */,
 				569313D924D61EEFAC8A2E5A /* RegionServiceTests.swift */,
 				5F12AB2A72EF4FF21C4A3386 /* ResultsFeedLogicTests.swift */,
+				5A1C0E7B3D9F42A6B8E1C704 /* ProfileSegmentTests.swift */,
 				E454526BA7E1E81A5F72B631 /* ReviewPromptPolicyTests.swift */,
 				122A04AF5748EF3E37189B1E /* RouteMapLogicTests.swift */,
 				DBF7B880148DC442CE138930 /* SeasonChallengeLogicTests.swift */,
@@ -712,6 +717,7 @@
 				4FC94B5A84FB5302532B485A /* NotificationCategoryService.swift */,
 				BD984740158A331D289F46E1 /* NotificationManager.swift */,
 				DF3F3F16A5F6D7C23C1282CC /* OfflineManager.swift */,
+				5A1C0E7B3D9F42A6B8E1C702 /* ProfileSegment.swift */,
 				1E0236C5253451C5FAFCE767 /* PremiumService.swift */,
 				4F5F8AEBCD527F96AD9FC75C /* RaceFollowService.swift */,
 				18679C62EF0371AD001964A3 /* RaceLogic.swift */,
@@ -1068,6 +1074,7 @@
 				206B684001F9D3FA899E23DE /* ReviewPromptPolicyTests.swift in Sources */,
 				6A398CFF70A46920EABBB087 /* RouteMapLogicTests.swift in Sources */,
 				B0426EA0EE9C388D1101DAD7 /* SeasonChallengeLogicTests.swift in Sources */,
+				5A1C0E7B3D9F42A6B8E1C703 /* ProfileSegmentTests.swift in Sources */,
 				A2E87701565BBDD3B3FDF2ED /* SimplifiedGuideTests.swift in Sources */,
 				8904A9C7762FD14991A5AF2F /* TransfersLogicTests.swift in Sources */,
 				D5D04507A64E6366C9D6ECE7 /* UciResultsLogicTests.swift in Sources */,
@@ -1152,6 +1159,7 @@
 				3C17EFBA098E9566014F7A64 /* SeasonView.swift in Sources */,
 				C43221CCF34ADDFAD816E0CD /* SeasonViewModel.swift in Sources */,
 				BDA9C9BCCB1C08EB16F32ECE /* SettingsView.swift in Sources */,
+				5A1C0E7B3D9F42A6B8E1C701 /* ProfileSegment.swift in Sources */,
 				388E6D1B1FF25CB5F0320864 /* SimplifiedGuide.swift in Sources */,
 				9F62BAFD4E0153E6C6B7B712 /* StageDetailView.swift in Sources */,
 				DB49F25B6E96EB766CC4823E /* StageDetailViewModel.swift in Sources */,
@@ -1251,7 +1259,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1453;
+				CURRENT_PROJECT_VERSION = 1461;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1270,7 +1278,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.0.13;
+				MARKETING_VERSION = 5.0.14;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1319,7 +1327,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1453;
+				CURRENT_PROJECT_VERSION = 1461;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1332,7 +1340,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 5.0.13;
+				MARKETING_VERSION = 5.0.14;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1394,7 +1402,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1453;
+				CURRENT_PROJECT_VERSION = 1461;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1403,7 +1411,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.0.13;
+				MARKETING_VERSION = 5.0.14;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1445,7 +1453,7 @@
 				CODE_SIGN_ENTITLEMENTS = CalendarioCiclismo/CalendarioCiclismo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1453;
+				CURRENT_PROJECT_VERSION = 1461;
 				DEVELOPMENT_TEAM = 67VKJ7LF55;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CalendarioCiclismo/Info.plist;
@@ -1454,7 +1462,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.0.13;
+				MARKETING_VERSION = 5.0.14;
 				PRODUCT_BUNDLE_IDENTIFIER = app.calendariociclismo;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

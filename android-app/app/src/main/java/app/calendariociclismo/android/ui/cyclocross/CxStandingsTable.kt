@@ -1,5 +1,7 @@
 package app.calendariociclismo.android.ui.cyclocross
 
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -99,12 +101,12 @@ private fun CxRoundsTable(
     var headerHeight by remember { mutableIntStateOf(0) }
     var viewportWidth by remember { mutableIntStateOf(0) }
     val cells = remember(rows, breakdown) { rows.map(breakdown::cells) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(CCRadius.Surface)
     val headerBackground = MaterialTheme.colorScheme.surfaceVariant
     val tableBackground = MaterialTheme.colorScheme.surface
     val divider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     BoxWithConstraints(
-        Modifier.fillMaxWidth().clip(shape).background(tableBackground).border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+        Modifier.fillMaxWidth().clip(shape).background(tableBackground),
     ) {
         // Total y rondas ocupan su ancho natural; el corredor toma el resto
         // con un mínimo, y lo que no cabe se desplaza.
@@ -138,14 +140,14 @@ private fun CxRoundsTable(
             vms.forEachIndexed { index, vm ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.width(fixedWidth).padding(start = EdgePadding), horizontalArrangement = Arrangement.spacedBy(CellGap), verticalAlignment = Alignment.CenterVertically) {
-                        Text(vm.rank?.toString() ?: vm.rankBadge ?: "–", Modifier.width(RankWidth), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        Text(vm.rank?.toString() ?: vm.rankBadge ?: "–", Modifier.width(RankWidth), style = CCText.S13, fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface)
                         CxStandingRider(vm, Modifier.weight(1f))
                     }
                     Spacer(Modifier.width(CellGap))
                     Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                         Row(Modifier.padding(end = EdgePadding), horizontalArrangement = Arrangement.spacedBy(CellGap), verticalAlignment = Alignment.CenterVertically) {
-                            Text(vm.valueText, Modifier.width(TotalWidth), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            Text(vm.valueText, Modifier.width(TotalWidth), style = CCText.S13, fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End, maxLines = 1)
                             cells[index].forEach { cell -> CxRoundValue(cell, Modifier.width(RoundWidth)) }
                         }
@@ -186,7 +188,7 @@ private fun CxHeaderCell(text: String, modifier: Modifier, end: Boolean = false)
     Text(
         text,
         modifier = modifier,
-        fontSize = 11.sp,
+        style = CCText.S12,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = if (end) TextAlign.End else TextAlign.Start,
@@ -194,19 +196,19 @@ private fun CxHeaderCell(text: String, modifier: Modifier, end: Boolean = false)
     )
 }
 
-/** Corredor con bandera y, debajo, su equipo con la chapa de colores. */
+/** Corredor con bandera y, debajo, su equipo con las franjas de maillot. */
 @Composable
 private fun CxStandingRider(vm: UciResultsLogic.ResultRowVM, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode, height = 13.dp)
-            Text(vm.riderName.ifEmpty { "—" }, fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold,
+            Text(vm.riderName.ifEmpty { "—" }, style = CCText.S14, fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (vm.teamName.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 vm.team?.takeIf { it.hasVisibleBadge }?.let { TeamColorBands(it) }
-                Text(vm.teamName, fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(vm.teamName, style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -220,7 +222,7 @@ private fun CxRoundValue(cell: CxRoundCell, modifier: Modifier) {
     Text(
         cell.text,
         modifier = if (cell.dropped) modifier.semantics { contentDescription = "${cell.text}, $dropped" } else modifier,
-        fontSize = 12.sp,
+        style = CCText.S12,
         color = if (cell.dropped) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         textDecoration = if (cell.dropped) TextDecoration.LineThrough else null,
         textAlign = TextAlign.End,

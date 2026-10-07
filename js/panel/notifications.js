@@ -10,7 +10,7 @@ import {
 import { confirmDialog } from '../components/dialog.js';
 import { panelState } from './state.js';
 import { MARKET_SEASON } from './constants.js';
-import { showToast, uciRankSimple } from './helpers.js';
+import { formatCount, showToast, toSlug, uciRankSimple } from './helpers.js';
 import { getAuthHeaders, R2_PUBLIC_BASE, r2PutObject } from './uploads.js';
 
 // ═════════════════════════════════════════════════════════════════
@@ -18,6 +18,7 @@ import { getAuthHeaders, R2_PUBLIC_BASE, r2PutObject } from './uploads.js';
 // ═════════════════════════════════════════════════════════════════
 
 const SEND_PUSH_FN = `${SUPABASE_URL}/functions/v1/send-push`;
+const PUSH_IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 let _notificationsInitialized = false;
 let _pushRaceDays = []; // cache de jornadas para la carrera seleccionada
 let _pushCxRaceRequest = 0;
@@ -368,10 +369,17 @@ export async function setupNotificationsView() {
       const file = fileInput.files[0];
       if (!file) return;
       try {
-        const filename = `push/${Date.now()}-${file.name.replace(/\s/g, '-')}`;
+        // La Edge Function firma la clave sin codificarla: tildes, signos o
+        // paréntesis del nombre original provocan SignatureDoesNotMatch en R2.
+        const ext = PUSH_IMAGE_EXT[file.type] || 'jpg';
+        const base = toSlug(file.name.replace(/\.[^.]+$/, '')) || 'imagen';
+        const filename = `push/${Date.now()}-${base}.${ext}`;
         const buf = await file.arrayBuffer();
         const res = await r2PutObject(filename, buf, file.type);
-        if (!res.ok) throw new Error('Error al subir imagen');
+        if (!res.ok) {
+          const detail = await res.json().then(d => d.error).catch(() => '');
+          throw new Error(detail || `Error al subir imagen (${res.status})`);
+        }
         const url = `${R2_PUBLIC_BASE}/${filename}`;
         imageInput.value = url;
         updatePreview();
@@ -478,7 +486,7 @@ async function _loadPushDebugDevices() {
     if (previousValue && rows.some(r => (r.deviceToken || r.devicetoken) === previousValue)) {
       sel.value = previousValue;
     }
-    if (countEl) countEl.textContent = `${rows.length} dispositivo${rows.length !== 1 ? 's' : ''}`;
+    if (countEl) countEl.textContent = `${formatCount(rows.length)} dispositivo${rows.length !== 1 ? 's' : ''}`;
   } catch (err) {
     console.error('[push-debug] Error cargando dispositivos:', err);
     sel.innerHTML = '<option value="">— Error cargando dispositivos —</option>';
@@ -691,7 +699,7 @@ async function _sendPushNotification(target) {
     const { count: filteredCount, error: countError } = await countQuery;
     if (countError) { errorDiv.textContent = `No se pudo comprobar el público: ${countError.message}`; errorDiv.style.display = 'block'; return; }
     const n = filteredCount ?? 0;
-    const subscriberText = `${n} dispositivo${n !== 1 ? 's' : ''} suscrito${n !== 1 ? 's' : ''}`;
+    const subscriberText = `${formatCount(n)} dispositivo${n !== 1 ? 's' : ''} suscrito${n !== 1 ? 's' : ''}`;
     const platformInfo = targetPlatforms?.length > 0 ? ` (solo ${targetPlatforms.map(pushPlatformLabel).join(', ')})` : '';
     const audienceTitle = category === 'cyclocross' ? 'Enviar aviso de ciclocross' : 'Enviar a todos';
     if (!await confirmDialog(`¿Enviar notificación al público indicado?\n\nTítulo: ${title}\n${subtitle ? `Subtítulo: ${subtitle}\n` : ''}${subscriberText}${platformInfo}${deepLinkInfo}${audienceInfo}`, { title: audienceTitle, confirmText: 'Enviar' })) {
@@ -731,8 +739,8 @@ async function _sendPushNotification(target) {
         statusEl.textContent = `Debug enviado a …${tail}`;
       }
     } else {
-      showToast(`Notificación enviada a ${data.sent} dispositivos`, 'success');
-      statusEl.textContent = `Enviada a ${data.sent}/${data.totalDevices} dispositivos`;
+      showToast(`Notificación enviada a ${formatCount(data.sent)} dispositivos`, 'success');
+      statusEl.textContent = `Enviada a ${formatCount(data.sent)}/${formatCount(data.totalDevices)} dispositivos`;
     }
     _clearPushForm();
     loadPushHistory();
@@ -791,7 +799,7 @@ async function loadScheduledNotifications() {
       .limit(30);
     if (error) throw error;
     if (!data || data.length === 0) {
-      container.innerHTML = '<div class="u-c-dim u-fs-082 u-py-050 u-px-0">No hay notificaciones programadas.</div>';
+      container.innerHTML = '<div class="u-c-dim u-fs-2 u-py-050 u-px-0">No hay notificaciones programadas.</div>';
       return;
     }
     container.innerHTML = data.map(n => {
@@ -799,7 +807,7 @@ async function loadScheduledNotifications() {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid',
       });
-      const dlLabel = n.deepLink ? ` → <span class="u-c-accent">${esc(deepLinkDisplayLabel(n.deepLink))}</span>` : '';
+      const dlLabel = n.deepLink ? ` → ${esc(deepLinkDisplayLabel(n.deepLink))}` : '';
 
       const isPending    = n.status === 'pending';
       const isProcessing  = n.status === 'processing';
@@ -826,20 +834,20 @@ async function loadScheduledNotifications() {
         : '';
 
       const errorNote = isFailed && n.errorMessage
-        ? `<div class="u-fs-072 u-c-danger u-mt-020">${esc(n.errorMessage.slice(0, 120))}</div>`
+        ? `<div class="u-fs-1 u-c-danger u-mt-020">${esc(n.errorMessage.slice(0, 120))}</div>`
         : '';
 
       return `<div class="push-history-row">
         ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" class="push-history-img">` : ''}
         <div class="u-grow u-min0">
           <div class="u-row u-wrap u-mb-020">
-            <span class="u-fw-600 u-fs-085">${esc(n.title)}</span>
+            <span class="u-fw-600 u-fs-3">${esc(n.title)}</span>
             ${statusBadge}
             ${platformsBadge}
           </div>
-          ${n.subtitle ? `<div class="u-fs-080 u-c-muted">${esc(n.subtitle)}</div>` : ''}
-          <div class="u-fs-072 u-c-dim u-mt-020">${scheduledDate}${dlLabel}</div>
-          ${n.category === 'cyclocross' ? `<div class="u-fs-080 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
+          ${n.subtitle ? `<div class="u-fs-2 u-c-muted">${esc(n.subtitle)}</div>` : ''}
+          <div class="u-fs-1 u-c-dim u-mt-020">${scheduledDate}${dlLabel}</div>
+          ${n.category === 'cyclocross' ? `<div class="u-fs-2 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
           ${errorNote}
         </div>
         <div class="u-flex u-gap-040 u-shrink-0">
@@ -849,7 +857,7 @@ async function loadScheduledNotifications() {
       </div>`;
     }).join('');
   } catch (err) {
-    container.innerHTML = `<div class="u-c-danger u-fs-082">${esc(err.message)}</div>`;
+    container.innerHTML = `<div class="u-c-danger u-fs-2">${esc(err.message)}</div>`;
   }
 }
 
@@ -907,7 +915,7 @@ async function sendScheduledNotificationNow(id) {
       .eq('id', id);
     if (updateError) throw updateError;
 
-    showToast(`Notificación enviada a ${result.sent} dispositivos`, 'success');
+    showToast(`Notificación enviada a ${formatCount(result.sent)} dispositivos`, 'success');
     loadScheduledNotifications();
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
@@ -949,7 +957,7 @@ async function loadPushHistory() {
       .limit(20);
     if (error) throw error;
     if (!data || data.length === 0) {
-      container.innerHTML = '<div class="u-c-dim u-fs-082 u-py-050 u-px-0">No se han enviado notificaciones aún.</div>';
+      container.innerHTML = '<div class="u-c-dim u-fs-2 u-py-050 u-px-0">No se han enviado notificaciones aún.</div>';
       return;
     }
     container.innerHTML = data.map(n => {
@@ -957,7 +965,7 @@ async function loadPushHistory() {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid'
       });
-      const dlLabel = n.deepLink ? ` → <span class="u-c-accent">${esc(deepLinkDisplayLabel(n.deepLink))}</span>` : '';
+      const dlLabel = n.deepLink ? ` → ${esc(deepLinkDisplayLabel(n.deepLink))}` : '';
       const platformsText = pushPlatformsLabel(n.targetPlatforms);
       const platformsBadge = platformsText
         ? `<span class="push-badge push-badge--muted push-badge--platforms u-ml-040" title="Plataformas">${esc(platformsText)}</span>`
@@ -965,15 +973,15 @@ async function loadPushHistory() {
       return `<div class="push-history-row">
         ${n.imageUrl ? `<img src="${esc(n.imageUrl)}" alt="" class="push-history-img">` : ''}
         <div class="u-grow u-min0">
-          <div class="u-fw-600 u-fs-085">${esc(n.title)}${platformsBadge}</div>
-          ${n.subtitle ? `<div class="u-fs-080 u-c-muted">${esc(n.subtitle)}</div>` : ''}
-          ${n.category === 'cyclocross' ? `<div class="u-fs-080 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
-          <div class="u-fs-072 u-c-dim u-mt-025">${date} · ${n.recipientCount} destinatarios${dlLabel}</div>
+          <div class="u-fw-600 u-fs-3">${esc(n.title)}${platformsBadge}</div>
+          ${n.subtitle ? `<div class="u-fs-2 u-c-muted">${esc(n.subtitle)}</div>` : ''}
+          ${n.category === 'cyclocross' ? `<div class="u-fs-2 u-c-muted">${esc(cxPushAudienceLabel(n.cxRaceId))}</div>` : ''}
+          <div class="u-fs-1 u-c-dim u-mt-025">${date} · ${formatCount(n.recipientCount)} destinatarios${dlLabel}</div>
         </div>
       </div>`;
     }).join('');
   } catch (err) {
-    container.innerHTML = `<div class="u-c-danger u-fs-082">${esc(err.message)}</div>`;
+    container.innerHTML = `<div class="u-c-danger u-fs-2">${esc(err.message)}</div>`;
   }
 }
 
@@ -985,7 +993,7 @@ async function loadSubscriberCount() {
       .eq('isActive', true);
     if (error) throw error;
     const n = count ?? 0;
-    el.textContent = `${n} dispositivo${n !== 1 ? 's' : ''}`;
+    el.textContent = `${formatCount(n)} dispositivo${n !== 1 ? 's' : ''}`;
   } catch {
     el.textContent = '';
   }

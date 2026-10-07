@@ -467,7 +467,7 @@ export async function setupStartOrderSection(rd) {
         deleteEl.className = 'btn btn--ghost';
         deleteEl.id = 'soDeleteBtn';
         deleteEl.type = 'button';
-        deleteEl.style.color = 'var(--red,#e55)';
+        deleteEl.style.color = 'var(--red)';
         deleteEl.textContent = 'Eliminar';
         // Insertar después del botón de resync (o tras saveBtn si aún no existía).
         const anchor = document.getElementById('soResyncBtn') || saveBtn;

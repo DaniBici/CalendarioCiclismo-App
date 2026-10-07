@@ -79,6 +79,18 @@ final class TransfersLogicTests: XCTestCase {
         XCTAssertEqual(out.count, 8)
     }
 
+    func test_limitedFeedWideKeepsLongerHistory() {
+        // 10 fichajes en 6 fechas: el corte ancho conserva todo lo que el
+        // corte corto recortaría.
+        let feed = (1...10).map { transfer(id: "t\($0)", riderId: "r\($0)", to: "team_b", announcedAt: "2026-07-0\(min($0, 6))") }
+            .sorted { ($0.announcedAt ?? "") > ($1.announcedAt ?? "") }
+        let wide = TransfersLogic.limitedFeed(
+            feed, maxDays: TransfersLogic.feedScrollMaxDays, maxItems: TransfersLogic.feedScrollMaxItems
+        )
+        XCTAssertEqual(wide.count, 10)
+        XCTAssertEqual(TransfersLogic.limitedFeed(feed).count, 8)
+    }
+
     func test_feedSortsReverseChronological() {
         let feed = TransfersLogic.confirmedFeed([
             transfer(id: "old", riderId: "r1", to: "team_b", announcedAt: "2026-07-01"),

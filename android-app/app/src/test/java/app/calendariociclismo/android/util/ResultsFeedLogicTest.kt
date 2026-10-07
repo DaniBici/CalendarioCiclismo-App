@@ -370,4 +370,13 @@ class ResultsFeedLogicTest {
         // 9 jun primero (Giro GT antes que Camerún), después 8 jun, después 30 may.
         assertEquals(listOf("giro#21", "camerun#6", "camerun#5", "giro#20"), orden)
     }
+
+    @Test
+    fun `selecciones nacionales con el nombre del pais en castellano`() {
+        assertEquals("Francia", ResultsFeedLogic.localizedNationName("France", isEnglish = false))
+        assertEquals("Gran Bretaña", ResultsFeedLogic.localizedNationName("Great Britain", isEnglish = false))
+        assertEquals("Países Bajos", ResultsFeedLogic.localizedNationName("Netherlands", isEnglish = false))
+        assertEquals("Team Visma | Lease a Bike", ResultsFeedLogic.localizedNationName("Team Visma | Lease a Bike", isEnglish = false))
+        assertEquals("France", ResultsFeedLogic.localizedNationName("France", isEnglish = true))
+    }
 }

@@ -21,8 +21,8 @@ private struct UciRankingExplanationItem: Identifiable {
 /// inversa agrupada por día, ventana de 14 días + "Cargar más" hasta el
 /// arranque de temporada. Espejo de `ResultsFeedScreen` (Android).
 ///
-/// Filas con el lenguaje visual de las cards de Hoy (`RaceCardView`): CCCard
-/// con tinte del color de la carrera, logo + bandera, "Etapa N · km · desnivel"
+/// Filas con la superficie neutra de las cards de Hoy (`CCCard`, sin tinte del
+/// color de carrera), logo + bandera, "Etapa N · km · desnivel"
 /// + badge de tipo solo para contrarrelojes, y el ganador con trofeo. Cada fila
 /// abre su clasificación propia mediante `ResultsRoute`.
 struct ResultsFeedView: View {
@@ -51,7 +51,7 @@ struct ResultsFeedView: View {
                 switch activeSection {
                 case .latest:
                     if isLoading && entries.isEmpty {
-                        LoadingView(message: localeService.t("Cargando resultados...", "Loading results..."), branded: true)
+                        LoadingView(branded: true, title: localeService.t("Últimos resultados", "Latest results"))
                     } else if let error, entries.isEmpty {
                         ErrorView(message: error) {
                             Task { await load() }
@@ -61,7 +61,7 @@ struct ResultsFeedView: View {
                     }
                 case .ranking:
                     if isRankingLoading && rankingRows.isEmpty {
-                        LoadingView(message: localeService.t("Cargando ránking UCI...", "Loading UCI ranking..."), branded: true)
+                        LoadingView(branded: true, title: localeService.t("Ránking UCI", "UCI ranking"))
                     } else if let rankingError, rankingRows.isEmpty {
                         ErrorView(message: rankingError) {
                             Task { await loadRanking() }
@@ -106,54 +106,37 @@ struct ResultsFeedView: View {
         }
     }
 
+    /// Selector de vista: control segmentado nativo, como el de Fichajes. El
+    /// título de la pantalla es el de navegación («Resultados»).
     private var sectionSelector: some View {
-        HStack(spacing: 8) {
-            sectionChip(
-                localeService.t("Últimos Resultados", "Latest Results"),
-                selected: activeSection == .latest
-            ) {
-                activeSection = .latest
-            }
-            sectionChip(
-                localeService.t("Ránking UCI", "UCI Ranking"),
-                selected: activeSection == .ranking
-            ) {
-                activeSection = .ranking
-                AnalyticsService.shared.logScreenView("uci_team_ranking")
-                if rankingRows.isEmpty {
-                    Task { await loadRanking() }
-                }
-            }
-            Spacer()
+        Picker(
+            localeService.t("Vista de resultados", "Results view"),
+            selection: Binding(
+                get: { activeSection },
+                set: { selectSection($0) }
+            )
+        ) {
+            Text(localeService.t("Últimos resultados", "Latest results"))
+                .tag(ResultsFeedSection.latest)
+            Text(localeService.t("Ránking UCI", "UCI ranking"))
+                .tag(ResultsFeedSection.ranking)
         }
+        .pickerStyle(.segmented)
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
-    private func sectionChip(
-        _ label: String,
-        selected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            Haptics.play(.selection)
-            action()
-        } label: {
-            Text(label)
-                .font(.caption)
-                .fontWeight(selected ? .semibold : .regular)
-                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(
-                        selected
-                            ? Color.accentColor.opacity(0.15)
-                            : Color(.secondarySystemBackground)
-                    )
-                )
+    private func selectSection(_ section: ResultsFeedSection) {
+        guard section != activeSection else { return }
+        Haptics.play(.selection)
+        activeSection = section
+        if section == .ranking {
+            AnalyticsService.shared.logScreenView("uci_team_ranking")
+            if rankingRows.isEmpty {
+                Task { await loadRanking() }
+            }
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Lista
@@ -194,32 +177,33 @@ struct ResultsFeedView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, minHeight: 320)
                 } else {
-                    ForEach(groupedByDay) { group in
+                    let groups = groupedByDay
+                    ForEach(groups) { group in
                         // Cabecera de día: fecha larga en idioma de CONTENIDO.
                         Text(DateFormatting.formatDateLongContent(group.date))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .ccFont(.s13, weight: .semibold)
                             .foregroundStyle(.secondary)
-                            .padding(.top, 8)
+                            .padding(.top, group.id == groups.first?.id ? 0 : 10)
                             .accessibilityAddTraits(.isHeader)
-                        let rows = AdaptiveLayoutPolicy.rows(
-                            group.entries,
-                            columns: columns,
-                            spansAllColumns: { _ in group.entries.count == 1 }
-                        )
+                        // Ninguna fila ocupa las dos columnas, como la web
+                        // (`.feed-day>.feed-row { grid-column: auto }`).
+                        let rows = AdaptiveLayoutPolicy.rows(group.entries, columns: columns)
                         ForEach(rows) { row in
                             if columns == 1 || row.spansAllColumns {
                                 feedRow(row.items[0])
                             } else {
+                                // Misma altura para las tarjetas de la fila: la
+                                // fila toma el alto de la más alta.
                                 HStack(alignment: .top, spacing: 8) {
                                     ForEach(row.items) { entry in
                                         feedRow(entry)
-                                            .frame(maxWidth: .infinity, alignment: .top)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                                     }
                                     if row.items.count < columns {
                                         Color.clear.frame(maxWidth: .infinity)
                                     }
                                 }
+                                .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
@@ -257,34 +241,40 @@ struct ResultsFeedView: View {
         UciTeamRankingLogic.decorate(rankingRows, gender: rankingGender.rawValue)
     }
 
+    /// Ránking UCI por equipos con la presentación de las clasificaciones:
+    /// género y fecha de actualización en una fila, panel «Invitaciones» y
+    /// tabla. En pantallas anchas el panel va a la izquierda.
     private var rankingList: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                sectionChip(
-                    localeService.t("Masculino", "Men"),
-                    selected: rankingGender == .male
-                ) { rankingGender = .male }
-                sectionChip(
-                    localeService.t("Femenino", "Women"),
-                    selected: rankingGender == .female
-                ) { rankingGender = .female }
-                Spacer()
+        let ranking = decoratedRanking
+        let isEnglish = LocaleService.shouldShowEnglishContent
+        let keyItems = UciTeamRankingLogic.keyItems(ranking, isEnglish: isEnglish)
+        let wide = AdaptiveLayoutPolicy.usesWideDetail(
+            width: contentWidth,
+            isRegular: horizontalSizeClass == .regular
+        )
+        return VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Picker(localeService.t("Género del ránking", "Ranking gender"), selection: $rankingGender) {
+                    Text(localeService.t("Masculino", "Men")).tag(UciRankingGender.male)
+                    Text(localeService.t("Femenino", "Women")).tag(UciRankingGender.female)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .onChange(of: rankingGender) { _, _ in Haptics.play(.selection) }
+
+                if let rankingDate = ranking.first?.row.rankingDate {
+                    Text(DateFormatting.formatUciRankingUpdated(rankingDate))
+                        .ccFont(.s12)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                }
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 10)
+            .padding(.bottom, 12)
 
-            if let rankingDate = decoratedRanking.first?.row.rankingDate {
-                Text(DateFormatting.formatUciRankingUpdated(rankingDate))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if decoratedRanking.isEmpty {
+            if ranking.isEmpty {
                 EmptyStateView(
                     icon: "list.number",
                     title: localeService.t("Ránking no disponible", "Ranking unavailable"),
@@ -296,28 +286,58 @@ struct ResultsFeedView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        Section {
-                            ForEach(decoratedRanking) { item in
-                                UciRankingRowView(item: item) {
-                                    let message = item.explanation(isEnglish: LocaleService.isEnglish)
-                                    guard !message.isEmpty else { return }
-                                    Haptics.play(.selection)
-                                    rankingExplanation = UciRankingExplanationItem(
-                                        id: item.id,
-                                        title: item.row.displayName,
-                                        message: message
+                    Group {
+                        if wide {
+                            HStack(alignment: .top, spacing: 24) {
+                                if !keyItems.isEmpty {
+                                    UciRankingKeyPanel(
+                                        year: UciTeamRankingLogic.invitationYear(ranking),
+                                        items: keyItems
+                                    )
+                                    .frame(width: 288)
+                                }
+                                rankingTable(ranking, isEnglish: isEnglish)
+                            }
+                        } else {
+                            VStack(spacing: 16) {
+                                if !keyItems.isEmpty {
+                                    UciRankingKeyPanel(
+                                        year: UciTeamRankingLogic.invitationYear(ranking),
+                                        items: keyItems
                                     )
                                 }
+                                rankingTable(ranking, isEnglish: isEnglish)
                             }
-                        } header: {
-                            UciRankingTableHeader()
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
+                    .padding(.bottom, 24)
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 .refreshable { await loadRanking() }
+            }
+        }
+    }
+
+    private func rankingTable(_ ranking: [UciTeamRankingPresentation], isEnglish: Bool) -> some View {
+        ResultsTableSurface {
+            UciRankingTableHeader()
+            ResultsTableRule()
+            ForEach(Array(ranking.enumerated()), id: \.element.id) { index, item in
+                UciRankingRowView(
+                    item: item,
+                    points: UciTeamRankingLogic.formatPoints(item.row.points, isEnglish: isEnglish)
+                ) {
+                    let message = item.explanation(isEnglish: isEnglish)
+                    guard !message.isEmpty else { return }
+                    Haptics.play(.selection)
+                    rankingExplanation = UciRankingExplanationItem(
+                        id: item.id,
+                        title: item.row.displayName,
+                        message: message
+                    )
+                }
+                if index < ranking.count - 1 { ResultsTableRule() }
             }
         }
     }
@@ -333,11 +353,11 @@ struct ResultsFeedView: View {
                     ProgressView()
                 } else {
                     Text(localeService.t("Cargar más resultados", "Load more results"))
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .ccFont(.s14, weight: .semibold)
                 }
             }
             .buttonStyle(.bordered)
+            .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
             .disabled(isLoadingMore)
             Spacer()
         }
@@ -397,89 +417,148 @@ struct ResultsFeedView: View {
 
 // MARK: - Componentes del ránking UCI
 
+/// Colores de la etiqueta de puesto y de la explicación (`.uci-ranking-legend__item`).
+private extension UciRankingKeyStyle {
+    var foreground: Color {
+        switch self {
+        case .worldTour: return Color(light: "0842a0", dark: "aac7ff")
+        case .orange: return AppTheme.orange
+        case .green: return AppTheme.green
+        case .excluded: return AppTheme.red
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .worldTour: return Color(light: "d3e3fd", dark: "333e51")
+        case .orange: return AppTheme.orange.opacity(0.16)
+        case .green: return AppTheme.green.opacity(0.16)
+        case .excluded: return AppTheme.red.opacity(0.14)
+        }
+    }
+}
+
+/// Etiqueta de color de un nivel (puesto y panel explicativo), radio 4.
+private struct UciRankingTag: View {
+    let text: String
+    let style: UciRankingKeyStyle?
+
+    var body: some View {
+        Text(text)
+            .ccFont(.s12, weight: .semibold)
+            .monospacedDigit()
+            .foregroundStyle(style?.foreground ?? Color.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                style?.background ?? Color.clear,
+                in: RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+            )
+    }
+}
+
+/// Panel «Invitaciones <año>»: cada etiqueta de puesto con su explicación.
+private struct UciRankingKeyPanel: View {
+    let year: Int
+    let items: [UciRankingKeyItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LocaleService.shouldShowEnglishContent ? "Invitations \(year)" : "Invitaciones \(year)")
+                .ccFont(.s16, weight: .semibold)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(items) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    UciRankingTag(text: item.label, style: item.style)
+                    Text(item.text)
+                        .ccFont(.s13)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
+    }
+}
+
+/// Columnas del ránking: puesto (caja común), bandera, equipo, categoría y puntos.
+private enum UciRankingColumns {
+    static let rank: CGFloat = 38
+    static let flag: CGFloat = 20
+    static let category: CGFloat = 40
+    static let points: CGFloat = 64
+}
+
 private struct UciRankingTableHeader: View {
     var body: some View {
-        HStack(spacing: 7) {
-            Text("#").frame(width: 27, alignment: .trailing)
-            Color.clear.frame(width: 18)
-            Text(LocaleService.t("Equipo", "Team")).frame(maxWidth: .infinity, alignment: .leading)
-            Text("Cat.").frame(width: 32)
-            Text(LocaleService.t("Puntos", "Points")).frame(width: 68, alignment: .trailing)
+        HStack(spacing: ResultsTableMetrics.columnSpacing) {
+            ResultsHeaderCell(text: "#").frame(width: UciRankingColumns.rank)
+            Color.clear.frame(width: UciRankingColumns.flag, height: 1)
+            ResultsHeaderCell(text: LocaleService.t("Equipo", "Team"))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ResultsHeaderCell(text: "Cat.").frame(width: UciRankingColumns.category)
+            ResultsHeaderCell(text: LocaleService.t("Puntos", "Points"))
+                .frame(width: UciRankingColumns.points, alignment: .trailing)
         }
-        .font(.caption2)
-        .fontWeight(.bold)
-        .textCase(.uppercase)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(AppTheme.background)
+        .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+        .padding(.vertical, ResultsTableMetrics.headerVerticalPadding)
         .accessibilityHidden(true)
     }
 }
 
 private struct UciRankingRowView: View {
     let item: UciTeamRankingPresentation
+    let points: String
     let onTap: () -> Void
 
-    private var background: Color {
-        if item.grandTourExcluded {
-            return AppTheme.red.opacity(0.13)
-        }
-        return switch item.invitationTier {
-        case .worldTour:
-            AppTheme.categoryBadgeColor(for: "1.UWT").background
-        case .allWorldTour, .womensWorldTour:
-            AppTheme.orange.opacity(0.15)
-        case .proSeries:
-            AppTheme.green.opacity(0.15)
-        case .standard:
-            Color.clear
-        }
-    }
-
     private var explanation: String {
-        item.explanation(isEnglish: LocaleService.isEnglish)
+        item.explanation(isEnglish: LocaleService.shouldShowEnglishContent)
     }
 
     var body: some View {
-        HStack(spacing: 7) {
-            Text("\(item.row.rank)")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .frame(width: 27, alignment: .trailing)
-            CountryFlag(countryCode: item.row.countryCode, width: 18)
-                .frame(width: 18)
-            Text(item.row.displayName)
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(item.row.teamCategory ?? "")
-                .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundStyle(.secondary)
-                .frame(width: 32)
-            Text(item.row.points.formatted(.number.precision(.fractionLength(0))))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .frame(width: 68, alignment: .trailing)
+        if explanation.isEmpty {
+            rowContent
+                .accessibilityElement(children: .combine)
+        } else {
+            Button(action: onTap) { rowContent }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityHint(explanation)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(background)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(explanation)
-        .accessibilityAddTraits(explanation.isEmpty ? [] : .isButton)
+    }
+
+    private var rowContent: some View {
+            HStack(spacing: ResultsTableMetrics.columnSpacing) {
+                // Todos los puestos comparten caja: las cifras quedan alineadas.
+                UciRankingTag(text: "\(item.row.rank)", style: item.rankStyle)
+                    .frame(minWidth: 30)
+                    .frame(width: UciRankingColumns.rank)
+                CountryFlag(countryCode: item.row.countryCode, width: 18)
+                    .frame(width: UciRankingColumns.flag)
+                Text(item.row.displayName)
+                    .ccFont(.s14, weight: .medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(item.row.teamCategory ?? "")
+                    .ccFont(.s12, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: UciRankingColumns.category)
+                Text(points)
+                    .ccFont(.s14, weight: .semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: UciRankingColumns.points, alignment: .trailing)
+            }
+            .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+            .padding(.vertical, ResultsTableMetrics.rowVerticalPadding)
+            .frame(minHeight: 35)
+            .contentShape(Rectangle())
     }
 }
 
@@ -492,14 +571,6 @@ private struct FeedRowView: View {
 
     private var race: Race { entry.race }
     private var rd: RaceDay? { entry.rd }
-
-    /// Tinte de la carrera (como `stripeColor` en RaceCardView).
-    private var accent: Color {
-        if let hex = race.colorHex, !hex.isEmpty {
-            return Color(hex: hex)
-        }
-        return .gray
-    }
 
     /// Etiqueta de etapa: prólogo/Etapa N; pruebas de un día SIN etiqueta.
     private var stageLabelText: String {
@@ -535,12 +606,7 @@ private struct FeedRowView: View {
         Button {
             onTap()
         } label: {
-            CCCard(
-                accent: accent,
-                accentAlpha: 0.04,
-                cornerRadius: 14,
-                showShadow: false
-            ) {
+            CCCard {
                 ZStack(alignment: .trailing) {
                     HStack(alignment: entry.isFeatured ? .top : .center, spacing: 10) {
                         // Columna izquierda: logo de carrera con la bandera debajo.
@@ -556,22 +622,22 @@ private struct FeedRowView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                // Nombre completo: pasa a una segunda línea en
+                                // lugar de cortarse («sub23 masculino/femenino»).
                                 Text(race.localizedName)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .lineLimit(1)
+                                    .ccFont(.s16, weight: .semibold)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 if RaceLogic.shouldShowFemaleIndicator(race) {
                                     Text("♀")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.green)
+                                        .ccFont(.s12)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
 
                             if entry.isGcFinal {
                                 Text(LocaleService.t("General final", "Final GC"))
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
+                                    .ccFont(.s13, weight: .semibold)
                                     .foregroundStyle(.secondary)
                             } else {
                                 // HStack (no FlowLayout): el flow mide el texto a su
@@ -582,7 +648,7 @@ private struct FeedRowView: View {
                                 HStack(spacing: 6) {
                                     if let subtitle = subtitleText {
                                         subtitle
-                                            .font(.caption)
+                                            .ccFont(.s13)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                             .truncationMode(.tail)
@@ -608,8 +674,7 @@ private struct FeedRowView: View {
                                         .foregroundStyle(.secondary)
                                         .accessibilityHidden(true)
                                     Text(entry.winner)
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
+                                        .ccFont(.s13, weight: .semibold)
                                         .lineLimit(1)
                                 }
                             }
@@ -622,10 +687,10 @@ private struct FeedRowView: View {
                                             Circle().fill(Color(hex: hex)).frame(width: 7, height: 7)
                                         }
                                         Text(item.localizedLabel)
-                                            .font(.caption2.weight(.semibold))
+                                            .ccFont(.s12, weight: .semibold)
                                             .foregroundStyle(.secondary)
                                         if !item.winner.isEmpty {
-                                            Text(item.winner).font(.caption2).lineLimit(1)
+                                            Text(item.winner).ccFont(.s12).lineLimit(1)
                                         }
                                     }
                                 }
@@ -639,6 +704,8 @@ private struct FeedRowView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
+                // En dos columnas, las tarjetas de una fila igualan su alto.
+                .frame(maxHeight: .infinity)
             }
         }
         .buttonStyle(.plain)

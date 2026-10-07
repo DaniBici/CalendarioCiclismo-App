@@ -194,6 +194,7 @@
     "noInfo": "No TV information",
     "noTvRegion": "No TV available in your region",
     "fullStage": "Full Race",
+    "live": "Live",
     "filterAll": "All",
     "filterMine": "My region",
     "status": {
@@ -401,7 +402,7 @@
     "heading": "{season} Transfer Market",
     "feedTitle": "Latest confirmations",
     "feedSignings": "Signings",
-    "midSeason": "Mid-Season",
+    "midSeason": "Mid-season",
     "feedRenewals": "Renewals",
     "feedEmpty": "No confirmed moves yet.",
     "loadMore": "Load more",
@@ -429,10 +430,6 @@
     "teamEmpty": "No moves announced yet.",
     "unknownTeam": "To be confirmed",
     "loading": "Loading transfer market",
-    "loadError": "Could not load the transfer market.",
-    "infoLabel": "Transfer information",
-    "infoModalTitle": "Transfer sources",
-    "close": "Close",
-    "infoText": "Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:"
+    "loadError": "Could not load the transfer market."
   }
 }

@@ -279,6 +279,18 @@ export function pendingRelayTeams(teamStartList, sourceRows = []) {
     .map((team) => teamNameOf(team.teamName || team.lastName) || bibOf(team));
 }
 
+// Corredores de la lista de salida de una CRI de un día que siguen en carrera
+// o por salir: sin fila en la clasificación (llegada o IRM). Sin lista no se
+// puede acreditar que esté completa (Europeos de Liubliana 2026: la CRI sub23
+// masculina se volcó con parte de los corredores aún por llegar).
+export function pendingTimeTrialRiders(startList, stageRows = []) {
+  if (!Array.isArray(startList) || !startList.length) return null;
+  const classified = new Set(stageRows.map((row) => row.bib).filter(Boolean));
+  return startList
+    .filter((rider) => bibOf(rider) && rider.starting !== false && !classified.has(bibOf(rider)))
+    .map(bibOf);
+}
+
 function buildRelayStage(code, subEvent, payload) {
   const pending = pendingRelayTeams(payload.relayTeams, payload.timing?.times);
   if (pending == null || pending.length) return [];
@@ -329,6 +341,13 @@ export function buildStage(code, subEvent, payload, { totalStages = null, oneDay
   const lastArrival = lastArrivalAt(payload.timing?.times);
   const arrivalClosed = Number.isFinite(lastArrival) && now - lastArrival >= ARRIVAL_QUIET_MS;
   const stageRows = oneDay ? [...timingRows, ...mapStartListIrm(payload.startList, timingRows, { arrivalClosed })] : timingRows;
+  // La CRI se publica cuando el último corredor tiene llegada o estado IRM, y
+  // entonces como oficial: no se completa por grupos como una llegada en línea.
+  const closedTimeTrial = oneDay && sourceRaceType === 'ITT';
+  if (closedTimeTrial) {
+    const pending = pendingTimeTrialRiders(payload.startList, stageRows);
+    if (pending == null || pending.length) return [];
+  }
 
   const stageClassification = {
     eventId: synthEventId(code, subEvent.eventId, 'stage', 'stage'),
@@ -337,6 +356,7 @@ export function buildStage(code, subEvent, payload, { totalStages = null, oneDay
     rowCount: stageRows.length,
     ...(Number(payload.timing?.tot) === timingRows.length && timingRows.length > 0 ? { expectedRowCount: stageRows.length } : {}),
     rows: stageRows,
+    ...(closedTimeTrial ? { publication: { provider: RESULTS_SOURCE, format: 'fixed', sourceStatus: 'official' } } : {}),
   };
   const generalClassifications = (oneDay ? [] : (payload.jerseys || []))
     .map((jersey) => buildClassification(code, subEvent.eventId, jersey, payload.generals?.[String(jersey.jerseyId)], false))

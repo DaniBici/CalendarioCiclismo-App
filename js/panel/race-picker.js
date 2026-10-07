@@ -215,7 +215,7 @@ function newRaceBodyHtml() {
       </div>
       <div class="field">
         <label>Abreviatura <span class="u-hint">(máx. 6)</span></label>
-        <input class="u-upper" type="text" id="nr-abbrev" placeholder="VUELTA" maxlength="6">
+        <input type="text" id="nr-abbrev" placeholder="VUELTA" maxlength="6">
       </div>
     </div>
     <div class="field-row field-row--2">
@@ -249,7 +249,7 @@ function newRaceBodyHtml() {
       </div>
       <div class="field">
         <label>País (código ISO)</label>
-        <input class="u-upper" type="text" id="nr-country" placeholder="ES" maxlength="5">
+        <input type="text" id="nr-country" placeholder="ES" maxlength="5">
       </div>
       <div class="field">
         <label>Año de edición</label>

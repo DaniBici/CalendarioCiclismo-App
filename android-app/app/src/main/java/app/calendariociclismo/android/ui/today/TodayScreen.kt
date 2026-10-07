@@ -1,19 +1,12 @@
 package app.calendariociclismo.android.ui.today
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,13 +20,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,22 +37,23 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.SportsScore
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,16 +64,18 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -87,7 +83,6 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -101,12 +96,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
 import androidx.navigation.NavController
 import app.calendariociclismo.android.ui.components.RouteLoadingView
@@ -123,15 +116,17 @@ import app.calendariociclismo.android.ui.components.MiniElevationProfile
 import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
 import app.calendariociclismo.android.ui.components.WaitingResultsIndicator
-import app.calendariociclismo.android.ui.components.RaceCardIdentity
 import app.calendariociclismo.android.ui.components.RaceActionBadge
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.StageTypeBadge
 import app.calendariociclismo.android.ui.components.TVBadge
 import app.calendariociclismo.android.ui.adaptive.AdaptiveLayoutPolicy
+import app.calendariociclismo.android.ui.adaptive.AdaptiveWidthClass
 import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.Constants
@@ -144,7 +139,6 @@ import app.calendariociclismo.android.util.TodaySeason
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.util.rememberHaptics
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -362,7 +356,6 @@ fun TodayScreen(navController: NavController) {
                             vm.setCategory(it)
                         }
                     },
-                    onLongPress = { haptic(Haptics.Event.PrimaryAction); pendingDefault = it },
                 )
                 VerticalDivider(
                     modifier = Modifier.height(22.dp),
@@ -427,6 +420,7 @@ fun TodayScreen(navController: NavController) {
                     when {
                         state.isLoading && data == null -> RouteLoadingView(
                             message = stringResource(R.string.loading),
+                            title = LocaleHolder.t("Carreras de hoy", "Today's races"),
                         )
                         state.error != null && data == null -> CenteredText(state.error?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.startlist_error_unknown))
                         data == null || data.raceDays.isEmpty() -> EmptyState(
@@ -443,12 +437,10 @@ fun TodayScreen(navController: NavController) {
                         )
                         else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                             val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
-                            val rows = AdaptiveLayoutPolicy.rows(data.raceDays, columns) { day ->
-                                shouldDisplayTodayRaceAsFeatured(
-                                    day.race?.id in data.featuredRaceIds,
-                                    state.sortMode,
-                                )
-                            }
+                            // Las destacadas solo cambian el orden: misma tarjeta y
+                            // misma columna. Una tarjeta suelta conserva media anchura.
+                            val rows = AdaptiveLayoutPolicy.rows(data.raceDays, columns)
+                            val isPhone = adaptiveInfo.widthClass == AdaptiveWidthClass.Compact
                             val renderDay: @Composable (EnrichedRaceDay) -> Unit = { day ->
                                 // In-house: si la jornada tiene clasificación propia, el
                                 // acceso va a la pantalla nativa.
@@ -465,10 +457,6 @@ fun TodayScreen(navController: NavController) {
                                 val isWaiting = raceState == RaceLogic.TodayRaceState.WAITING
                                 val showsFinishTime = state.sortMode == TodayViewModel.SortMode.FINISH_TIME ||
                                     raceState == RaceLogic.TodayRaceState.RUNNING
-                                val isFeatured = shouldDisplayTodayRaceAsFeatured(
-                                    day.race?.id in data.featuredRaceIds,
-                                    state.sortMode,
-                                )
                                 val isFinalStage = day.race?.isStageRace == true &&
                                     !day.raceDay.isRestDay &&
                                     !day.raceDay.isCancelledDay &&
@@ -477,9 +465,10 @@ fun TodayScreen(navController: NavController) {
                                     day = day,
                                     activeFilter = state.category,
                                     isFinalStage = isFinalStage,
-                                    isFeatured = isFeatured,
                                     showsFinishTimeOnly = showsFinishTime,
                                     isWaitingForResults = isWaiting,
+                                    isPhone = isPhone,
+                                    now = statusNow,
                                     onShowResults = if (hasInhouse && day.race != null) { {
                                         haptic(Haptics.Event.PrimaryAction)
                                         navController.navigate(Routes.results(day.race!!.id, inhouseStage, suffix = day.raceDay.stageSuffix))
@@ -658,12 +647,12 @@ private fun DateBarWithControls(
             FilledTonalButton(
                 onClick = onToday,
                 modifier = Modifier.height(48.dp),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(CCRadius.Surface),
                 contentPadding = PaddingValues(horizontal = 10.dp),
             ) {
                 Text(
                     text = stringResource(R.string.today_button_today),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = CCText.S14,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -691,6 +680,11 @@ private fun DateBarWithControls(
     }
 }
 
+/**
+ * Día de la tira: abreviatura del día (mayúscula inicial, sin punto) sobre el
+ * número, un único formato en todos los anchos. Solo el día seleccionado lleva
+ * el acento (selección); sin otros adornos. `Surface` seleccionable nativo.
+ */
 @Composable
 private fun DateBarItem(
     dateKey: String,
@@ -702,49 +696,47 @@ private fun DateBarItem(
     val weekday = remember(dateKey, LocaleHolder.current) {
         localDate?.let {
             val locale = LocaleHolder.current
-            DateTimeFormatter.ofPattern("EEE", locale)
+            val short = DateTimeFormatter.ofPattern("EEE", locale)
                 .format(it)
+                .replace(".", "")
                 .take(3)
-                .uppercase(locale)
+            short.replaceFirstChar { c -> c.titlecase(locale) }
         }.orEmpty()
     }
 
-    // Día seleccionado con el mismo lenguaje suave que los chips y el cintillo:
-    // fondo azul de marca al 15% + texto azul, en vez del azul sólido opaco
-    // previo (que era lo más "duro" de la pantalla).
     val primary = MaterialTheme.colorScheme.primary
-    val background = if (isSelected) primary.copy(alpha = 0.15f) else Color.Transparent
     val foreground = if (isSelected) primary else MaterialTheme.colorScheme.onSurface
     val weekdayColor = if (isSelected) primary else MaterialTheme.colorScheme.onSurfaceVariant
     val cellLabel = "$weekday $day"
 
-    Column(
+    Surface(
+        selected = isSelected,
+        onClick = onClick,
         modifier = Modifier
             .width(48.dp)
             .height(56.dp)
-            .background(background, RoundedCornerShape(24.dp))
-            .semantics {
-                this.role = Role.Button
-                this.selected = isSelected
-                this.contentDescription = cellLabel
-            }
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .semantics { contentDescription = cellLabel },
+        shape = RoundedCornerShape(CCRadius.Surface),
+        color = if (isSelected) primary.copy(alpha = 0.15f) else Color.Transparent,
     ) {
-        Text(
-            text = weekday,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = weekdayColor,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = day,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = foreground,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = weekday,
+                style = CCText.S12,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                color = weekdayColor,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = day,
+                style = CCText.S16,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                color = foreground,
+            )
+        }
     }
 }
 
@@ -757,7 +749,6 @@ private fun CategoryChips(
     pinned: Constants.CategoryFilter,
     champWeekLock: Boolean,
     onPick: (Constants.CategoryFilter) -> Unit,
-    onLongPress: (Constants.CategoryFilter) -> Unit,
 ) {
     // En la semana de Campeonatos (22-28 jun) solo Todas/Pro/Masc/Fem y sin
     // posibilidad de fijar un predeterminado (el pin queda inhibido).
@@ -779,7 +770,6 @@ private fun CategoryChips(
                 pinFilled = pinFilled,
                 pinOutline = pinOutline,
                 onClick = { onPick(cat) },
-                onLongClick = { if (!champWeekLock) onLongPress(cat) },
             )
         }
     }
@@ -793,29 +783,24 @@ private fun SortMenu(
     var expanded by remember { mutableStateOf(false) }
     val label = stringResource(current.labelRes)
     val actionLabel = stringResource(R.string.today_sort_action)
-    Box(modifier = Modifier.padding(end = 12.dp)) {
-        Row(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
-                .semantics {
-                    role = Role.Button
-                    contentDescription = "$actionLabel: $label"
-                }
-                .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+    Box(modifier = Modifier.padding(end = 4.dp)) {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier.semantics { contentDescription = "$actionLabel: $label" },
+            shape = RoundedCornerShape(CCRadius.Control),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         ) {
             Icon(
                 imageVector = Icons.Filled.SwapVert,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.width(4.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = CCText.S13,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
         }
@@ -833,7 +818,12 @@ private fun SortMenu(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Chip de categoría (`FilterChip` de Material 3): activo con el azul al 15 % y
+ * texto azul (selección); inactivo sobre la superficie de tarjeta con texto
+ * secundario. Radio de control y sin borde. Pulsar el activo abre el diálogo
+ * de filtro predeterminado.
+ */
 @Composable
 private fun CategoryChip(
     label: String,
@@ -841,61 +831,52 @@ private fun CategoryChip(
     pinFilled: Boolean,
     pinOutline: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    val background = if (selected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-    val foreground = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier
-            .background(background, RoundedCornerShape(50))
-            .semantics {
-                this.role = Role.Button
-                this.selected = selected
-            }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = foreground,
-        )
-        when {
-            pinFilled -> Icon(
-                imageVector = Icons.Filled.PushPin,
-                contentDescription = null,
-                tint = primary,
-                modifier = Modifier.size(12.dp),
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                style = CCText.S13,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             )
-            pinOutline -> Icon(
-                imageVector = Icons.Outlined.PushPin,
-                contentDescription = null,
-                tint = primary.copy(alpha = 0.55f),
-                modifier = Modifier.size(12.dp),
-            )
-        }
-    }
+        },
+        trailingIcon = when {
+            pinFilled -> { {
+                Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
+            } }
+            pinOutline -> { {
+                Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp))
+            } }
+            else -> null
+        },
+        shape = RoundedCornerShape(CCRadius.Control),
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = primary.copy(alpha = 0.15f),
+            selectedLabelColor = primary,
+        ),
+        border = null,
+    )
 }
 
 // ─── Race card ─────────────────────────────────────────────────────
 
-/** Altura de la franja del mini-perfil (a sangre, al fondo de la tarjeta):
- *  mayor en montaña para exacerbar las diferencias de perfil; algo más en
- *  cotas, sinuosas y clásicas de pavé/sterrato (desnivel a baja altitud que
- *  sin altura extra queda aplastado). Algo más altas que el sparkline inline
- *  previo, ahora que ocupan todo el ancho de la tarjeta. */
-private fun miniProfileBandHeight(primaryType: String?) = when (primaryType) {
-    "high_mountain", "summit_finish", "chrono_climb" -> 54.dp
-    "medium_mountain" -> 46.dp
-    "cotas", "uphill_finish", "rolling", "cobbles", "sterrato" -> 40.dp
-    else -> 34.dp
-}
-
+/**
+ * Tarjeta de carrera de Hoy (`buildCard` de js/app.js). Estructura común a
+ * todos los anchos: columna de logotipo (con la bandera debajo); a su derecha,
+ * el nombre (hasta dos líneas, nunca cortado) con la hora o los accesos de
+ * jornada terminada arriba a la derecha, la línea de cifras debajo y las
+ * etiquetas a todo el ancho a 6 dp de las cifras. El miniperfil ocupa la
+ * banda inferior (36 dp en teléfono, 58 dp en pantallas anchas).
+ *
+ * Superficie neutra: el color de la carrera solo marca el avance de una
+ * jornada en directo (perfil recorrido o, sin perfil, relleno del 8 % hasta el
+ * porcentaje de avance). Las destacadas no tienen diseño propio.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RaceCard(
@@ -908,363 +889,359 @@ private fun RaceCard(
     onShowStartOrder: (() -> Unit)? = null,
     onShowCompetition: (() -> Unit)? = null,
     isFinalStage: Boolean = false,
-    isFeatured: Boolean = false,
     showsFinishTimeOnly: Boolean = false,
     isWaitingForResults: Boolean = false,
+    isPhone: Boolean = true,
+    now: java.time.Instant = java.time.Instant.now(),
 ) {
     val race = day.race
-    val stripe = colorFromHex(race?.colorHex, fallback = MaterialTheme.colorScheme.outlineVariant)
     val rd = day.raceDay
+    val raceColor = colorFromHex(race?.colorHex, fallback = MaterialTheme.colorScheme.primary)
     val liveTextUrl = day.assets.firstOrNull { it.type == "live_text" }?.url
     val isFinishedMode = onShowResults != null || onRevive != null
-    val isCompactPointTwo = !isFeatured && RaceLogic.categoryTier(race?.uciCategory) == "2"
+    val isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt"
     val isFemaleFilterActive = activeFilter == Constants.CategoryFilter.FEMALE ||
         activeFilter == Constants.CategoryFilter.WWT
     val displayName = race?.localizedName?.let {
         if (isFemaleFilterActive && race?.isFemale == true) RaceLogic.cleanFeminineDisplayName(it) else it
     } ?: stringResource(R.string.today_race_fallback)
 
-    val cancelled = race?.isCancelled == true || rd.isCancelledDay
     val app = rememberApp()
-    // Mini-perfil + badge inscritos se liberaron al plan gratuito: visibles
+    // Mini-perfil + etiqueta de dorsales se liberaron al plan gratuito: visibles
     // siempre (gateados por featuresUnlocked, no por la suscripción).
     val featuresUnlocked = app.premium.featuresUnlocked
-    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay && !isCompactPointTwo &&
+    val showsMiniProfile = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay &&
         rd.elevationProfile?.points?.let { it.size >= 2 } == true
     // Paridad con web: clásicas siempre; vueltas por etapas solo el primer día.
     val isFirstOrOnlyDay = race?.raceFormat != "stage_race" || rd.dateKey == race?.startDate
+    // Crono de etapa única: el orden de salida sustituye a los dorsales.
+    val isSingleTimeTrial = isTimeTrial && race?.raceFormat != "stage_race"
     val showsStartlistBadge = featuresUnlocked && !rd.isRestDay && !rd.isCancelledDay &&
-        onShowStartlist != null && race?.startlistImportedAt != null && isFirstOrOnlyDay
+        onShowStartlist != null && race?.startlistImportedAt != null && isFirstOrOnlyDay && !isSingleTimeTrial
     val startOrderAsset = day.assets.firstOrNull { it.type == "startOrder" && !it.url.isNullOrEmpty() }
-    val showsStartOrderBadge = startOrderAsset != null && !rd.isCancelledDay &&
-        (rd.primaryType == "itt" || rd.primaryType == "ttt")
-    val isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt"
+    val showsStartOrderBadge = startOrderAsset != null && !rd.isCancelledDay && isTimeTrial
+    // Etiquetas de enlace (TV, dorsales, orden de salida) solo mientras la
+    // jornada no ha terminado ni espera resultados (paridad con la web).
+    val showsLinkBadges = !isFinishedMode && !isWaitingForResults
+    // Tipo: CRI/CRE y cronoescalada siempre; el resto solo sin miniperfil.
+    // Etiqueta de tipo solo en contrarreloj (CRI, CRE y cronoescalada), como
+    // la web: el resto de tipos no lleva etiqueta, haya o no miniperfil.
+    val showsStageType = !rd.isCancelledDay &&
+        (isTimeTrial || rd.secondaryType == "chrono_climb")
+    // Relleno de avance: jornadas en directo sin miniperfil.
+    val liveFill = if (!showsMiniProfile && !isFinishedMode && !isWaitingForResults &&
+        !rd.isRestDay && !rd.isCancelledDay && !isTimeTrial
+    ) {
+        RaceLogic.profileProgress(rd, hasInhouseResults = false, now = now).takeIf { it > 0f && it < 1f }
+    } else null
+    val liveFillColor = raceColor.copy(alpha = 0.08f)
+    val horizontalPadding = if (isPhone) 16.dp else 20.dp
+    val verticalPadding = if (isPhone) 14.dp else 16.dp
 
-    // Tarjeta canónica (CCCard) con tinte de marca por carrera — paridad con el
-    // cintillo "Hoy". El contenido es la misma fila logo + textos + columna
-    // derecha que antes, pero ahora vive sobre la superficie elevada compartida.
-    CCCard(
-        accent = race?.colorHex?.let { colorFromHex(it, fallback = MaterialTheme.colorScheme.outlineVariant) },
-        // Las destacadas conservan el mismo tinte base que las demás carreras.
-        accentAlpha = 0.04f,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-      Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick),
-      ) {
-      Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // El contenido cede el borde inferior a la franja de perfil cuando
-            // ésta se muestra (llega de lado a lado de la tarjeta).
-            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = if (showsMiniProfile) 8.dp else 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        RaceCardIdentity(logoUrl = race?.logoUrl, title = {
-            // Nombre + bandera
+    CCCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    liveFill?.let { progress ->
+                        drawRect(liveFillColor, size = Size(size.width * progress, size.height))
+                    }
+                }
+                .clickable(role = Role.Button, onClick = onClick),
+        ) {
             Row(
-                modifier = Modifier.height(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = horizontalPadding,
+                        end = horizontalPadding,
+                        top = verticalPadding,
+                        bottom = if (showsMiniProfile) 12.dp else verticalPadding,
+                    ),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (race?.hideFlag != true || rd.countryCode != null) {
-                    CountryFlag(countryCode = rd.countryCode ?: race?.countryCode)
-                }
-                // Idéntico al título del cintillo: Medium 14/16. Antes 15/18,
-                // que se percibía un punto más grande que el cintillo pese a
-                // compartir peso y familia.
-                Text(
-                    text = displayName,
-                    // El botón de competición conserva sus 16 dp incluso cuando
-                    // el título agota el ancho disponible.
-                    modifier = Modifier.weight(1f, fill = false),
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                RaceIdentityColumn(
+                    logoUrl = race?.logoUrl,
+                    countryCode = if (race?.hideFlag != true || rd.countryCode != null) {
+                        rd.countryCode ?: race?.countryCode
+                    } else null,
                 )
-                if (onShowCompetition != null) {
-                    RaceCompetitionButton(LocaleHolder.t("Ver competición", "View race"), onShowCompetition)
-                }
-                if (!isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)) {
-                    val femaleCd = stringResource(R.string.season_female_indicator_cd)
-                    Text(
-                        text = "♀",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.semantics { contentDescription = femaleCd },
-                    )
-                }
-            }
-
-        }, details = {
-            if (rd.isRestDay) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Bedtime,
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = stringResource(R.string.today_subtitle_rest),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                val subtitle = buildSubtitle(day, isFinalStage)
-                if (subtitle.isNotEmpty()) {
-                    // Mismo registro que el subtítulo del cintillo (Normal 12/14)
-                    // en lugar de labelSmall (Medium 11), que pesaba más. Las
-                    // partes en negrita (etapa, distancia) conservan su SpanStyle
-                    // SemiBold definido en buildSubtitle; route y desnivel quedan
-                    // en Normal, como el subtítulo del cintillo.
-                    Text(
-                        text = subtitle,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (isFeatured && !rd.routeDescription.isNullOrEmpty()) {
-                    Text(
-                        text = rd.routeDescription.orEmpty(),
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (isFinishedMode) {
-                    // En modo terminado solo categoría (tipo + TV ocultos)
-                    CategoryBadge(category = race?.uciCategory)
-                } else {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            RaceNameRow(
+                                name = displayName,
+                                onShowCompetition = onShowCompetition,
+                                showFemale = !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race),
+                            )
+                            if (rd.isRestDay) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Bedtime,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.today_subtitle_rest),
+                                        style = CCText.S13,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            } else {
+                                val metrics = buildSubtitle(day, isFinalStage, MaterialTheme.colorScheme.onSurface)
+                                if (metrics.isNotEmpty()) {
+                                    Text(
+                                        text = metrics,
+                                        style = CCText.S13,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                        // Esquina superior derecha: accesos de jornada terminada,
+                        // espera de resultados u horario, alineados con la
+                        // primera línea del nombre.
+                        if (!rd.isRestDay && !rd.isCancelledDay) {
+                            when {
+                                isFinishedMode -> FinishedActions(onShowResults, onRevive, isPhone)
+                                isWaitingForResults -> Box(
+                                    Modifier.semantics {
+                                        contentDescription = LocaleHolder.t("Esperando resultados", "Awaiting results")
+                                    },
+                                ) { WaitingResultsIndicator() }
+                                else -> ScheduleColumn(rd, showsFinishTimeOnly, isTimeTrial, isPhone)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    // Etiquetas a todo el ancho, en el orden de la web:
+                    // Categoría → Cancelada → Tipo → TV → Dorsales → Orden de salida.
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         CategoryBadge(category = race?.uciCategory)
-                        if (rd.isCancelledDay) {
-                            CancelledDayBadge()
-                        } else if ((!isCompactPointTwo && !showsMiniProfile)
-                            || rd.primaryType == "itt" || rd.primaryType == "ttt"
-                            || rd.secondaryType == "chrono_climb") {
-                            // Cuando hay mini-perfil, la silueta de elevación ya
-                            // comunica el carácter de la etapa; omitir el badge
-                            // de tipo (primary/secondary) — paridad con iOS.
-                            // Excepción: CRI/CRE siempre muestran el badge (la silueta
-                            // no comunica que es contrarreloj).
-                            StageTypeBadge(
-                                primaryType = rd.primaryType,
-                                secondaryType = rd.secondaryType,
-                                countryCode = rd.countryCode ?: race?.countryCode,
-                            )
-                        }
-                        // Una jornada cancelada no se emite: ni TV ni Live Texto
-                        // (no hay nada que seguir). Paridad con la web.
-                        if (!rd.isCancelledDay) {
-                            TVBadge(
-                                tvStatus = rd.tvStatus,
-                                broadcasts = day.broadcasts,
-                                neutralStartTimeUtc = rd.neutralStartTimeUtc,
-                                liveTextUrl = liveTextUrl,
-                            )
-                        }
-                        if (showsStartlistBadge && onShowStartlist != null) {
-                            StartlistBadge(
-                                onClick = onShowStartlist,
-                                isFemale = race?.isFemale == true,
-                                isProvisional = race?.startlistProvisional == true,
-                            )
-                        }
-                        if (showsStartOrderBadge && onShowStartOrder != null) {
-                            val startOrderHaptic = rememberHaptics()
-                            StartOrderBadge {
-                                startOrderHaptic(Haptics.Event.PrimaryAction)
-                                onShowStartOrder()
+                        if (!rd.isRestDay) {
+                            if (rd.isCancelledDay) {
+                                CancelledDayBadge()
+                            } else if (showsStageType) {
+                                StageTypeBadge(
+                                    primaryType = rd.primaryType,
+                                    secondaryType = rd.secondaryType,
+                                    countryCode = rd.countryCode ?: race?.countryCode,
+                                )
+                            }
+                            if (showsLinkBadges) {
+                                // Una jornada cancelada no se emite: ni TV ni Live
+                                // texto (no hay nada que seguir). Paridad con la web.
+                                if (!rd.isCancelledDay) {
+                                    TVBadge(
+                                        tvStatus = rd.tvStatus,
+                                        broadcasts = day.broadcasts,
+                                        neutralStartTimeUtc = rd.neutralStartTimeUtc,
+                                        liveTextUrl = liveTextUrl,
+                                    )
+                                }
+                                if (showsStartlistBadge && onShowStartlist != null) {
+                                    StartlistBadge(
+                                        onClick = onShowStartlist,
+                                        isFemale = race?.isFemale == true,
+                                        isProvisional = race?.startlistProvisional == true,
+                                        iconOnly = isPhone,
+                                    )
+                                }
+                                if (showsStartOrderBadge && onShowStartOrder != null) {
+                                    val startOrderHaptic = rememberHaptics()
+                                    StartOrderBadge(iconOnly = isPhone) {
+                                        startOrderHaptic(Haptics.Event.PrimaryAction)
+                                        onShowStartOrder()
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                // El mini-perfil ya no va aquí: se renderiza como franja a
-                // sangre al fondo de la tarjeta (ver más abajo).
             }
-        })
 
-        // Columna derecha: tiempos o iconos de resultados/revive.
-        // Cancelada → sin horario: la etapa no se corre (paridad con la web).
-        if (!rd.isRestDay && !rd.isCancelledDay) {
-            if (isFinishedMode) {
-                Row(
-                    modifier = Modifier.width(if (isFeatured) 144.dp else 96.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    onShowResults?.let { action ->
-                        IconButton(onClick = action) {
-                            Icon(
-                                imageVector = Icons.Outlined.EmojiEvents,
-                                contentDescription = stringResource(R.string.today_results_cd),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                    }
-                    onRevive?.let { action ->
-                        IconButton(onClick = action) {
-                            Icon(
-                                imageVector = Icons.Outlined.Tv,
-                                contentDescription = stringResource(R.string.today_revive_cd),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                    }
-                }
-            } else if (isWaitingForResults) {
-                Row(
-                    modifier = Modifier
-                        .width(if (isFeatured) 144.dp else 96.dp)
-                        .semantics {
-                            contentDescription = LocaleHolder.t("Esperando resultados", "Awaiting results")
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-                ) {
-                    WaitingResultsIndicator()
-                }
-            } else {
-                val startStr = rd.neutralStartTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
-                val finishStr = rd.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
-                if (startStr != null || finishStr != null) {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(1.dp),
-                    ) {
-                        if (showsFinishTimeOnly && finishStr != null) {
-                            FinishTimeLine(finishStr, isTimeTrial)
-                        } else if (startStr != null) {
-                            ScheduleLabel(if (isTimeTrial) LocaleHolder.t("Inicio", "Start") else LocaleHolder.t("Salida", "Start"))
-                            Text(
-                                text = startStr,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else if (finishStr != null) {
-                            FinishTimeLine(finishStr, isTimeTrial)
-                        }
-                    }
+            if (showsMiniProfile) {
+                rd.elevationProfile?.let { profile ->
+                    MiniElevationProfile(
+                        profile = profile,
+                        tint = raceColor,
+                        height = if (isPhone) 36.dp else 58.dp,
+                        summits = rd.profileSummits ?: emptyList(),
+                        waypoints = rd.profileWaypoints ?: emptyList(),
+                        primaryType = rd.primaryType,
+                        fixedProgress = RaceLogic.profileProgress(rd, hasInhouseResults = isFinishedMode, now = now),
+                    )
                 }
             }
         }
-      }
-
-      if (showsMiniProfile) {
-          rd.elevationProfile?.let { profile ->
-              MiniElevationProfile(
-                  profile = profile,
-                  tint = stripe,
-                  height = miniProfileBandHeight(rd.primaryType),
-                  summits = rd.profileSummits ?: emptyList(),
-                  waypoints = rd.profileWaypoints ?: emptyList(),
-                  primaryType = rd.primaryType,
-                  startTimeMs = (rd.realStartTimeUtc ?: rd.neutralStartTimeUtc)?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                    endTimeMs = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it)?.toEpochMilli() },
-                    isTimeTrial = rd.primaryType == "itt" || rd.primaryType == "ttt",
-                    forceCompleted = isFinishedMode,
-                )
-          }
-      }
-      }
     }
 }
 
+/** Columna izquierda: logotipo en caja de lista con la bandera debajo; sin
+ *  logotipo, solo la bandera (`cardLogoHtml` de la web). */
 @Composable
-private fun FinishTimeLine(finishTime: String, isTimeTrial: Boolean) {
+private fun RaceIdentityColumn(logoUrl: String?, countryCode: String?) {
+    val hasLogo = !logoUrl.isNullOrBlank()
+    if (!hasLogo && countryCode == null) return
     Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        modifier = Modifier.width(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        ScheduleLabel(if (isTimeTrial) LocaleHolder.t("Final", "End") else LocaleHolder.t("Meta", "Finish"))
+        if (hasLogo) RaceLogo(logoUrl, size = 32.dp)
+        if (countryCode != null) CountryFlag(countryCode = countryCode)
+    }
+}
+
+/** Nombre de la carrera: pasa a dos líneas si hace falta, nunca se corta. */
+@Composable
+private fun RaceNameRow(name: String, onShowCompetition: (() -> Unit)?, showFemale: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Text(
-            text = "~$finishTime",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
+            text = name,
+            modifier = Modifier.weight(1f, fill = false),
+            style = CCText.S16,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        if (onShowCompetition != null) {
+            RaceCompetitionButton(LocaleHolder.t("Ver competición", "View race"), onShowCompetition)
+        }
+        if (showFemale) {
+            val femaleCd = stringResource(R.string.season_female_indicator_cd)
+            Text(
+                text = "♀",
+                style = CCText.S13,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { contentDescription = femaleCd },
+            )
+        }
+    }
+}
+
+/** Copa (resultados) y TV (Revive) juntas arriba a la derecha. */
+@Composable
+private fun FinishedActions(onShowResults: (() -> Unit)?, onRevive: (() -> Unit)?, isPhone: Boolean) {
+    val glyph = if (isPhone) 20.dp else 22.dp
+    // El botón nativo conserva su área táctil; se desplaza hacia arriba para que
+    // el glifo quede a la altura de la primera línea del nombre.
+    Row(modifier = Modifier.offset(x = 8.dp, y = (-8).dp)) {
+        onShowResults?.let { action ->
+            IconButton(onClick = action, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.EmojiEvents,
+                    contentDescription = stringResource(R.string.today_results_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(glyph),
+                )
+            }
+        }
+        onRevive?.let { action ->
+            IconButton(onClick = action, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Tv,
+                    contentDescription = stringResource(R.string.today_revive_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(glyph),
+                )
+            }
+        }
+    }
+}
+
+/** Rótulo (Salida/Meta/Inicio/Final) apilado sobre la hora. */
+@Composable
+private fun ScheduleColumn(rd: RaceDay, showsFinishTimeOnly: Boolean, isTimeTrial: Boolean, isPhone: Boolean) {
+    val startStr = rd.neutralStartTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
+    val finishStr = rd.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }
+    val startLabel = if (isTimeTrial) LocaleHolder.t("Inicio", "Start") else LocaleHolder.t("Salida", "Start")
+    val finishLabel = if (isTimeTrial) LocaleHolder.t("Final", "End") else LocaleHolder.t("Meta", "Finish")
+    val (label, value) = when {
+        showsFinishTimeOnly && finishStr != null -> finishLabel to "~$finishStr"
+        startStr != null -> startLabel to startStr
+        finishStr != null -> finishLabel to "~$finishStr"
+        else -> return
+    }
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(
+            text = label,
+            style = CCText.S12,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Text(
+            text = value,
+            style = if (isPhone) CCText.S14 else CCText.S16,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
     }
 }
 
-@Composable
-private fun ScheduleLabel(text: String) {
-    Text(
-        text = text.uppercase(LocaleHolder.currentState),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.25.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-    )
-}
-
-
-/**
- * Badge tappable que abre directamente la lista de inscritos sin pasar
- * por el detalle de jornada. Premium en Fase 6 — abierto en Fases 1-5.
- */
+/** Etiqueta «Dorsales»: abre la lista de inscritos sin pasar por la jornada. */
 @Composable
 private fun StartlistBadge(
     onClick: () -> Unit,
     isFemale: Boolean = false,
     isProvisional: Boolean = false,
+    iconOnly: Boolean = false,
 ) {
     val label = when {
         isProvisional -> stringResource(R.string.stage_doc_startlist_provisional)
         isFemale -> stringResource(R.string.stage_doc_startlist_female)
         else -> stringResource(R.string.today_startlist_badge)
     }
-    RaceActionBadge(label = label, icon = Icons.Filled.Group, primaryAction = true, onClick = onClick)
+    RaceActionBadge(label = label, icon = Icons.Filled.Group, primaryAction = true, iconOnly = iconOnly, onClick = onClick)
 }
 
 @Composable
-private fun StartOrderBadge(onClick: () -> Unit) {
-    RaceActionBadge(label = stringResource(R.string.asset_start_order), icon = Icons.Filled.Timer, primaryAction = true, onClick = onClick)
+private fun StartOrderBadge(iconOnly: Boolean = false, onClick: () -> Unit) {
+    RaceActionBadge(label = stringResource(R.string.asset_start_order), icon = Icons.Filled.Timer, primaryAction = true, iconOnly = iconOnly, onClick = onClick)
 }
 
-/** Badge de jornada cancelada, idéntico en geometría y color al de la web. */
+/** Etiqueta de jornada cancelada, idéntica en geometría y color a la web. */
 @Composable
 private fun CancelledDayBadge() {
     Text(
-        text = stringResource(R.string.today_subtitle_cancelled).uppercase(LocaleHolder.currentState),
-        style = MaterialTheme.typography.labelSmall,
+        text = stringResource(R.string.today_subtitle_cancelled),
+        style = CCText.S12,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.error,
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(3))
+            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(CCRadius.Control))
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
-
 /**
- * Subtítulo "Etapa N · Distancia · Desnivel". Etapa y distancia van en negrita.
+ * Cifras "Etapa N · Distancia · Desnivel". Etapa y distancia en seminegrita y
+ * en el color de texto principal (`.race-card__stage`, `.race-card__km`).
  */
-private fun buildSubtitle(day: EnrichedRaceDay, isFinalStage: Boolean = false): AnnotatedString {
+private fun buildSubtitle(day: EnrichedRaceDay, isFinalStage: Boolean = false, strongColor: Color = Color.Unspecified): AnnotatedString {
     val race = day.race
     val rd = day.raceDay
-    val bold = SpanStyle(fontWeight = FontWeight.SemiBold)
+    val bold = SpanStyle(fontWeight = FontWeight.SemiBold, color = strongColor)
     return buildAnnotatedString {
         var first = true
         fun appendSeparator() {

@@ -21,11 +21,16 @@ struct TransfersTeamView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var contentWidth: CGFloat = 0
 
+    private var title: String {
+        localeService.t(
+            "Mercado de fichajes \(String(TransfersLogic.marketSeason))",
+            "\(String(TransfersLogic.marketSeason)) Transfer Market"
+        )
+    }
+
     var body: some View {
-        Group {
-            if isLoading {
-                LoadingView(message: localeService.t("Cargando...", "Loading..."), branded: true)
-            } else if let error {
+        LoadingGate(isLoading: isLoading && detail == nil, title: season?.name ?? title) {
+            if let error {
                 ErrorView(message: error) {
                     Task { await load() }
                 }
@@ -35,10 +40,7 @@ struct TransfersTeamView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(localeService.t(
-            "Mercado de Fichajes \(String(TransfersLogic.marketSeason))",
-            "\(String(TransfersLogic.marketSeason)) Transfer Market"
-        ))
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $linkedTeamRoute) { route in
             TransfersTeamView(teamId: route.teamId)
@@ -89,23 +91,28 @@ struct TransfersTeamView: View {
         let unknownTeam = localeService.t("Por confirmar", "To be confirmed")
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                // Cabecera cromática compacta, equivalente a la web.
-                let appearance = TransfersLogic.badgeSeason(for: season, prev: data.prevSeasonsByTeamId)
-                let background = appearance?.headerBg.map(Color.init(hex:)) ?? AppTheme.cardBackground
-                let foreground = appearance?.headerText.map(Color.init(hex:)) ?? .primary
+                // Cabecera sobre superficie neutra con las franjas de maillot
+                // de Resultados delante del nombre (`.tr-team-header` web).
                 HStack(spacing: 12) {
-                    Text(season.name ?? "")
-                        .font(.headline)
-                        .foregroundStyle(foreground)
+                    HStack(spacing: 8) {
+                        if let team = TransfersLogic.stripesTeam(for: season, prev: data.prevSeasonsByTeamId) {
+                            TeamColorBands(team: team, width: 14, height: 15)
+                        }
+                        Text(season.name ?? "")
+                            .ccFont(.s20, weight: .bold)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     Spacer(minLength: 8)
-                    Text("\(season.category ?? "") · \(String(TransfersLogic.marketSeason))")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(foreground)
+                    Text([season.category, String(TransfersLogic.marketSeason)]
+                        .compactMap { $0?.isEmpty == false ? $0 : nil }
+                        .joined(separator: " · "))
+                        .ccFont(.s13, weight: .semibold)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .ccCardSurface(cornerRadius: 8, fill: background, showShadow: false)
+                .padding(.vertical, 9)
+                .ccCardSurface()
 
                 // Aviso: la continuidad del equipo en la temporada del mercado
                 // no está confirmada (mig. 123). El equipo se lista igual.
@@ -218,10 +225,9 @@ struct TransfersTeamView: View {
         ) == 2
         if wide, !blocks.isEmpty {
             let columns = marketColumns(blocks)
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .top, spacing: 24) {
                 marketColumn(columns[0], data: data, unknownTeam: unknownTeam)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                Divider()
                 marketColumn(columns[1], data: data, unknownTeam: unknownTeam)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -254,7 +260,7 @@ struct TransfersTeamView: View {
             CCCard {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        if index > 0 { Divider().opacity(0.5) }
+                        if index > 0 { Divider() }
                         personRow(
                             nationality: row.rider.nationality,
                             name: row.rider.fullName.isEmpty ? row.rider.id : row.rider.fullName,
@@ -270,7 +276,7 @@ struct TransfersTeamView: View {
             CCCard {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        if index > 0 { Divider().opacity(0.5) }
+                        if index > 0 { Divider() }
                         let riderName = row.rider?.fullName ?? ""
                         personRow(
                             nationality: row.rider?.nationality,
@@ -287,7 +293,7 @@ struct TransfersTeamView: View {
             CCCard {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, move in
-                        if index > 0 { Divider().opacity(0.5) }
+                        if index > 0 { Divider() }
                         let rider = data.ridersById[move.riderId]
                         personRow(
                             nationality: rider?.nationality,
@@ -309,17 +315,17 @@ struct TransfersTeamView: View {
     }
 
     private func sectionTitle(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.caption)
-            .fontWeight(.bold)
-            .kerning(0.8)
-            .foregroundStyle(.secondary)
-            .padding(.top, 16)
+        Text(text)
+            .ccFont(.s16, weight: .semibold)
+            .foregroundStyle(.primary)
+            .padding(.top, 20)
+            .padding(.bottom, 2)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func emptyText(_ text: String) -> some View {
         Text(text)
-            .font(.subheadline)
+            .ccFont(.s14)
             .foregroundStyle(.secondary)
             .padding(.vertical, 4)
     }
@@ -350,7 +356,7 @@ struct TransfersTeamView: View {
     ) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
-                if index > 0 { Divider().opacity(0.5) }
+                if index > 0 { Divider() }
                 let rider = data.ridersById[move.riderId]
                 let detailText: String = {
                     if showOrigin {
@@ -384,13 +390,13 @@ struct TransfersTeamView: View {
     /// Aviso de continuidad del equipo en duda — espejo de `.tr-team-notice`.
     private func teamDoubtNotice(_ text: String) -> some View {
         Text(text)
-        .font(.footnote)
+        .ccFont(.s13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
         .fixedSize(horizontal: false, vertical: true)
         .background(Color.transfersDoubt.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
         .padding(.top, 10)
     }
 
@@ -417,7 +423,7 @@ struct TransfersTeamView: View {
             // la derecha. El realce de "clicable" es la FILA entera (Button más
             // abajo), no el nombre → nombre en el color normal, sin accent.
             Text(personLine(name: name, detail: detail))
-                .font(.footnote)
+                .ccFont(.s14)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 4)
@@ -447,66 +453,55 @@ struct TransfersTeamView: View {
         }
     }
 
-    /// Nombre (medium) + "· equipo" atenuado inline — espejo del divisor de la web.
+    /// Nombre en negrita + "· equipo" atenuado inline — espejo de la web.
     private func personLine(name: String, detail: String?) -> AttributedString {
         var line = AttributedString(name)
-        line.font = .footnote.weight(.medium)
+        line.inlinePresentationIntent = .stronglyEmphasized
         guard let detail, !detail.isEmpty else { return line }
         var tail = AttributedString(" · \(detail)")
-        tail.font = .footnote
         tail.foregroundColor = .secondary
         return line + tail
     }
 }
 
-/// Badge neutro del año de fin de contrato — espejo del `.tr-contract` de la web.
-/// El año centinela 9999 (contrato vitalicio) se pinta como ∞.
+/// Año de fin de contrato como texto gris (`.tr-contract` web). El año
+/// centinela 9999 (contrato vitalicio) se pinta como ∞.
 struct YearBadge: View {
     let year: Int
     var body: some View {
         Text(year == 9999 ? "∞" : String(year))
-            .font(.system(size: 11, weight: .bold))
+            .ccFont(.s12, weight: .bold)
+            .monospacedDigit()
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.secondary.opacity(0.14))
-            )
+            .accessibilityLabel(year == 9999
+                ? LocaleService.t("Contrato vitalicio", "Lifetime contract")
+                : LocaleService.t("Contrato hasta \(year)", "Contract until \(year)"))
     }
 }
 
-/// Badge azul para un fichaje efectivo durante la temporada en curso.
+/// Fichaje efectivo durante la temporada en curso: mismo texto gris que el año
+/// de contrato (`.tr-contract--midseason` web).
 struct MidSeasonBadge: View {
     var body: some View {
-        Text(LocaleService.t("M. TEMPORADA", "MID-SEASON"))
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255).opacity(0.14))
-            )
+        Text(LocaleService.t("M. temporada", "Mid-season"))
+            .ccFont(.s12, weight: .bold)
+            .foregroundStyle(.secondary)
     }
 }
 
-/// Badge ámbar "Rumor" — espejo del `.tr-chip--rumor` de la web.
+/// Etiqueta "Rumor" — espejo del `.tr-chip--rumor` de la web: ámbar sobre su
+/// tinte, sin mayúsculas forzadas.
 struct RumorBadge: View {
     var body: some View {
-        Text(LocaleService.shared.t("Rumor", "Rumor").uppercased())
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Color(red: 0.96, green: 0.62, blue: 0.04))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(red: 0.96, green: 0.62, blue: 0.04).opacity(0.16))
-            )
+        TransferStateChip(
+            text: LocaleService.shared.t("Rumor", "Rumor"),
+            foreground: Color(light: "a04607", dark: "fbbf24"),
+            background: Color(hex: "f59e0b").opacity(0.16)
+        )
     }
 }
 
-/// Badge violeta "Duda" — espejo del `.tr-chip--doubt` de la web. Color propio,
+/// Etiqueta "Duda" — espejo del `.tr-chip--doubt` de la web. Color propio,
 /// distinto del ámbar del rumor: un rumor es una noticia sin confirmar, una
 /// duda es la ausencia de noticia; no deben leerse como el mismo estado.
 struct DoubtBadge: View {
@@ -514,14 +509,29 @@ struct DoubtBadge: View {
     var text: String?
 
     var body: some View {
-        Text((text ?? LocaleService.shared.t("Duda", "Undecided")).uppercased())
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Color.transfersDoubt)
+        TransferStateChip(
+            text: text ?? LocaleService.shared.t("Duda", "Undecided"),
+            foreground: Color(light: "7c3aed", dark: "a78bfa"),
+            background: Color.transfersDoubt.opacity(0.16)
+        )
+    }
+}
+
+/// Etiqueta de estado del mercado: 12 negrita, radio de control.
+private struct TransferStateChip: View {
+    let text: String
+    let foreground: Color
+    let background: Color
+
+    var body: some View {
+        Text(text)
+            .ccFont(.s12, weight: .bold)
+            .foregroundStyle(foreground)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.transfersDoubt.opacity(0.16))
+                RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+                    .fill(background)
             )
     }
 }

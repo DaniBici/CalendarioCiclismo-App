@@ -137,17 +137,29 @@ struct MiniElevationProfile: View {
     /// o Revive. Tiene prioridad sobre el caso CRI/CRE, que en directo se queda
     /// intencionadamente al 0%.
     var forceCompleted: Bool = false
+    /// Avance ya resuelto por el llamador (Hoy: `RaceLogic.profileProgress`).
+    /// Tiene prioridad sobre el resto de reglas; nil conserva el cálculo propio.
+    var fixedProgress: Double? = nil
 
     /// Radio del círculo del indicador en px. `nonisolated` para que el closure
     /// del `Canvas` (que se ejecuta fuera del MainActor en Swift 6) pueda leerla
     /// sin warnings.
     nonisolated static let indicatorRadius: CGFloat = 6
-    /// Color neutro de la porción aún "no recorrida" cuando se muestra progreso.
-    nonisolated static let progressBaseColor = Color(white: 0.6)
+    /// Color de la porción pendiente (`--profile-pending-color` de la web):
+    /// #657185 al 30 % en claro y #465568 al 50 % en oscuro.
+    nonisolated static func pendingFill(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(hex: "465568").opacity(0.5)
+            : Color(hex: "657185").opacity(0.3)
+    }
+    /// Opacidad de relleno de la porción recorrida (color de la carrera).
+    nonisolated static let traversedOpacity: Double = 0.6
 
     var body: some View {
         Group {
-            if forceCompleted {
+            if let fixedProgress {
+                profileCanvas(progress: min(1, max(0, fixedProgress)))
+            } else if forceCompleted {
                 profileCanvas(progress: 1)
             } else if isTimeTrial, !usesLineFallbackWithoutTimeTrialSchedule || (startTime != nil && endTime != nil) {
                 // CRI/CRE: siempre 0% (silueta gris, sin teñir). Cada corredor o
@@ -181,6 +193,7 @@ struct MiniElevationProfile: View {
     /// `progress != nil` → base gris + porción teñida recortada al avance.
     private func profileCanvas(progress: Double?) -> some View {
         let profileTint = MiniProfileColorContrast.adjusted(tint, for: colorScheme)
+        let pendingFill = Self.pendingFill(for: colorScheme)
         return Canvas { ctx, size in
             guard profile.points.count >= 2 else { return }
 
@@ -267,26 +280,18 @@ struct MiniElevationProfile: View {
             let lastPt = point(at: profile.points.count - 1)
             fillPath.addLine(to: CGPoint(x: lastPt.x, y: baseY))
             fillPath.closeSubpath()
-            // Trazo principal.
-            var strokePath = Path()
-            strokePath.move(to: firstPt)
-            for i in 1..<profile.points.count {
-                strokePath.addLine(to: point(at: i))
-            }
 
-            let lineStyle = StrokeStyle(lineWidth: 1.2, lineJoin: .round)
+            // Silueta tenue y sin trazo, como `.race-card__elevation` de la
+            // web: la parte pendiente en gris y la recorrida con el color de
+            // la carrera recortada al avance (de izquierda a derecha).
+            let traversed = profileTint.opacity(Self.traversedOpacity)
             if let progress {
-                // Base gris (silueta completa) + porción teñida recortada al
-                // % transcurrido: el relleno avanza de izquierda a derecha.
-                ctx.fill(fillPath, with: .color(Self.progressBaseColor.opacity(0.28)))
-                ctx.stroke(strokePath, with: .color(Self.progressBaseColor.opacity(0.5)), style: lineStyle)
+                ctx.fill(fillPath, with: .color(pendingFill))
                 var tinted = ctx
                 tinted.clip(to: Path(CGRect(x: 0, y: 0, width: size.width * CGFloat(progress), height: size.height)))
-                tinted.fill(fillPath, with: .color(profileTint.opacity(0.20)))
-                tinted.stroke(strokePath, with: .color(profileTint.opacity(0.95)), style: lineStyle)
+                tinted.fill(fillPath, with: .color(traversed))
             } else {
-                ctx.fill(fillPath, with: .color(profileTint.opacity(0.15)))
-                ctx.stroke(strokePath, with: .color(profileTint.opacity(0.85)), style: lineStyle)
+                ctx.fill(fillPath, with: .color(traversed))
             }
 
             // Indicadores: summits primero (los círculos más grandes/visibles),

@@ -5,8 +5,8 @@ import Foundation
 @MainActor
 @Observable
 final class MonthViewModel {
-    var year: Int = Calendar.current.component(.year, from: Date())
-    var month: Int = Calendar.current.component(.month, from: Date()) // 1-12
+    var year: Int = DateFormatting.calendarStart().year
+    var month: Int = DateFormatting.calendarStart().month // 1-12
     var allRaceDays: [RaceDay] = []
     var races: [Race] = []
     var isLoading = false

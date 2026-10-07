@@ -158,7 +158,7 @@ export async function initCintillo(scope = 'road') {
       const href = _isEn ? '/en/transfers/' : '/fichajes/';
       const name = _isEn
         ? (h.customTitleEn || h.customTitle || 'Transfer market')
-        : (h.customTitle || 'Mercado de Fichajes');
+        : (h.customTitle || 'Mercado de fichajes');
       const detail = _isEn ? (h.customDetailEn || h.customDetail || '') : (h.customDetail || '');
       const iconSvg = h.customLogo
         ? null
@@ -258,13 +258,11 @@ export async function initCintillo(scope = 'road') {
   const prev = el.querySelector('[data-direction="prev"]'), next = el.querySelector('[data-direction="next"]');
   let current = 0, manual = false, hovered = false, timer;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const syncHeight = () => document.documentElement.style.setProperty('--giro-h', el.offsetHeight + 'px');
   const go = index => {
     current = Math.max(0, Math.min(slides.length - 1, index));
     card.style.background = `linear-gradient(${slides[current].bg},${slides[current].bg}),var(--bg-card)`;
     area.innerHTML = slides[current].link;
     if (multi) { prev.disabled = current === 0; next.disabled = current === slides.length - 1; }
-    syncHeight();
   };
   const stop = () => { clearInterval(timer); timer = null; };
   const resume = () => {
@@ -295,6 +293,5 @@ export async function initCintillo(scope = 'road') {
     if (suppressClick) { event.preventDefault(); event.stopPropagation(); }
     else { manual = true; stop(); }
   }, true);
-  new ResizeObserver(syncHeight).observe(el);
   go(0); resume();
 }

@@ -2,7 +2,6 @@ package app.calendariociclismo.android.ui.results
 
 import java.math.BigDecimal
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -43,13 +42,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import app.calendariociclismo.android.R
@@ -61,6 +65,10 @@ import app.calendariociclismo.android.data.model.RaceClassificationConfig
 import app.calendariociclismo.android.data.model.ResolvedRider
 import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.ui.components.CCCard
+import app.calendariociclismo.android.ui.components.CC_CARD_ELEVATION
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.neutralFill
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.MiniElevationProfile
@@ -87,7 +95,7 @@ internal fun classLabel(classKind: String): String = stringResource(
 /** Header simple para clasificación final / carrera de un día sin raceDay. */
 @Composable
 internal fun ResultsPlainHeader(race: Race, onBack: () -> Unit) {
-    CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
+    CCCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -104,8 +112,8 @@ internal fun ResultsPlainHeader(race: Race, onBack: () -> Unit) {
             Text(
                 race.localizedName,
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium,
+                style = CCText.S16,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -126,7 +134,7 @@ internal fun ResultsStageContextCard(
     val hasMetrics = raceDay.distanceKm != null || raceDay.elevationProfile?.elevationGain != null ||
         raceDay.neutralStartTimeUtc != null || raceDay.averageSpeedKmh != null || raceDay.hasValidTimeLimit
     if (!raceDay.hasElevationProfile && visibleOfficialProfileUrl == null && !hasMetrics) return
-    CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
+    CCCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             raceDay.elevationProfile?.takeIf { raceDay.hasElevationProfile }?.let { profile ->
                 Column(
@@ -135,8 +143,9 @@ internal fun ResultsStageContextCard(
                 ) {
                     Text(
                         LocaleHolder.t("Perfil y datos", "Profile and data"),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = CCText.S16,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
                     )
                     MiniElevationProfile(
                         profile = profile,
@@ -161,7 +170,7 @@ internal fun ResultsStageContextCard(
                 ) {
                     Text(
                         LocaleHolder.t("Perfil oficial", "Official profile"),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = CCText.S14,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f),
                     )
@@ -179,8 +188,8 @@ internal fun ResultsStageContextCard(
                     ResultsContextMetric(LocaleHolder.t("Salida neutralizada", "Neutral start"), it)
                 }
             }
-            raceDay.averageSpeedKmh?.let {
-                ResultsContextMetric(LocaleHolder.t("Velocidad media", "Average speed"), "%.1f km/h".format(java.util.Locale.US, it))
+            raceDay.averageSpeedKmh?.takeIf { it > 0 }?.let {
+                ResultsContextMetric(LocaleHolder.t("Velocidad media", "Average speed"), averageSpeedText(it))
             }
             if (raceDay.hasValidTimeLimit) RaceDay.formatDuration(raceDay.timeLimitSeconds)?.let {
                 ResultsContextMetric(LocaleHolder.t("Fuera de control", "Time limit"), it)
@@ -189,15 +198,29 @@ internal fun ResultsStageContextCard(
     }
 }
 
+/** Velocidad media con los decimales del idioma (hasta dos), como la web. */
+private fun averageSpeedText(value: Double): String {
+    val locale = if (LocaleHolder.shouldShowEnglishContent) java.util.Locale.UK else java.util.Locale.forLanguageTag("es-ES")
+    val format = java.text.NumberFormat.getNumberInstance(locale).apply {
+        minimumFractionDigits = 0
+        maximumFractionDigits = 2
+    }
+    return "${format.format(value)} km/h"
+}
+
 @Composable
 private fun ResultsContextMetric(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+        Text(label, style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = CCText.S14.copy(fontFeatureSettings = "tnum"))
     }
 }
 
-/** Selector de etapa: P · 1 · 2 · … · F (cápsulas, estética canónica). */
+/**
+ * Selector de etapa: P · 1 · 2 · … · F, con `FilterChip` con el aspecto de los
+ * filtros de Hoy (`.res-stage-btn`). Compartido con Ciclocross (categorías y
+ * meses).
+ */
 @Composable
 internal fun ResultsStageSelector(
     stageKeys: List<String>,
@@ -358,6 +381,11 @@ internal fun ResultsClassTabsBar(
     selectedTeam: String?,
     onSelectClass: (String) -> Unit,
     onSelectTeam: (String?) -> Unit,
+    /**
+     * Clasificación activa: sin pestañas (carreras de un día), su estado
+     * (Oficial/Provisional) ocupa la izquierda de la fila del filtro.
+     */
+    publicationStage: RaceUciStage? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -428,6 +456,14 @@ internal fun ResultsClassTabsBar(
                     }
                 }
             }
+        } else if (publicationStage != null) {
+            Box(Modifier.weight(1f)) {
+                ResultsPublicationStatus(
+                    stage = publicationStage,
+                    classificationLabel = "",
+                    showClassificationLabel = false,
+                )
+            }
         } else {
             Spacer(Modifier.weight(1f))
         }
@@ -444,27 +480,37 @@ internal fun ResultsClassTabsBar(
             var expanded by remember { mutableStateOf(false) }
             val allLabel = stringResource(R.string.results_filter_all_teams)
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                Row(
+                // Desplegable como `.res-teamfilter__select`: superficie de
+                // tarjeta, texto principal y flecha gris.
+                Surface(
+                    onClick = { expanded = true },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                        .clickable { expanded = true }
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(CCRadius.Surface),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = CC_CARD_ELEVATION,
                 ) {
-                    Text(
-                        selectedTeam ?: allLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 140.dp),
-                    )
-                    Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Row(
+                        modifier = Modifier.heightIn(min = 48.dp).padding(start = 10.dp, end = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            selectedTeam ?: allLabel,
+                            style = CCText.S14,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 140.dp),
+                        )
+                        Icon(
+                            Icons.Filled.ArrowDropDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     DropdownMenuItem(
@@ -523,7 +569,12 @@ private fun ResultsRailArrow(
     }
 }
 
-/** Pestaña rectangular equivalente al selector de clasificaciones de la web. */
+/**
+ * Pestaña de clasificación (`.res-tab`) sobre el `Tab` de Material 3: filete
+ * superior con el color del maillot si la clasificación lo declara (Etapa
+ * permanece neutra); la activa con texto principal y subrayado de acento de
+ * 2 dp, sin fondo; las inactivas en gris. Compartida con Ciclocross.
+ */
 @Composable
 internal fun ResultsClassificationTab(
     label: String,
@@ -531,59 +582,53 @@ internal fun ResultsClassificationTab(
     tint: Color? = null,
     onClick: () -> Unit,
 ) {
-    val selectedUnderline = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-    Column(
+    val accent = MaterialTheme.colorScheme.primary
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    Tab(
+        selected = selected,
+        onClick = onClick,
+        selectedContentColor = MaterialTheme.colorScheme.onSurface,
+        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .widthIn(min = 48.dp)
             .height(48.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.surfaceVariant
-                else MaterialTheme.colorScheme.surface,
-            )
-            // El carril horizontal mide sus hijos sin un ancho máximo. Las bandas
-            // con fillMaxWidth podían recibir ancho cero; dibujarlas sobre el
-            // tamaño final de la pestaña garantiza el destaque cromático.
+            // El filete del maillot y el subrayado de la activa se dibujan
+            // sobre el tamaño final de la pestaña (el carril no fija anchos).
             .drawBehind {
-                val stripeHeight = 3.dp.toPx()
                 tint?.let {
+                    val inset = 10.dp.toPx()
+                    val top = 2.dp.toPx()
+                    val stripe = 3.dp.toPx()
                     drawRect(
-                        color = it,
-                        size = Size(size.width, stripeHeight),
+                        color = outline,
+                        topLeft = Offset(inset - 1.dp.toPx(), top - 1.dp.toPx()),
+                        size = Size(size.width - 2 * inset + 2.dp.toPx(), stripe + 2.dp.toPx()),
                     )
+                    drawRect(color = it, topLeft = Offset(inset, top), size = Size(size.width - 2 * inset, stripe))
                 }
                 if (selected) {
-                    drawRect(
-                        color = selectedUnderline,
-                        topLeft = Offset(0f, size.height - stripeHeight),
-                        size = Size(size.width, stripeHeight),
-                    )
+                    val line = 2.dp.toPx()
+                    drawRect(color = accent, topLeft = Offset(0f, size.height - line), size = Size(size.width, line))
                 }
-            }
-            .semantics { role = Role.Button; this.selected = selected }
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            },
     ) {
-        Spacer(Modifier.height(3.dp))
-        Box(
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.height(3.dp))
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp),
+            style = CCText.S13,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
-/** Cápsula de filtro (igual estética que StartOrderFilterPill / CategoryChip). */
+/**
+ * Botón del selector de etapas sobre `FilterChip`, con el aspecto de los
+ * filtros de Hoy: inactivo en gris sobre la superficie de tarjeta; activo con
+ * el acento al 15 % y texto de acento en negrita. Radio de control.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ResultsPill(
     label: String,
@@ -595,43 +640,49 @@ private fun ResultsPill(
     accessibilityLabel: String = label,
     onClick: () -> Unit,
 ) {
-    val primary = MaterialTheme.colorScheme.primary
-    val selectedColor = tint ?: primary
-    val bg = if (selected) selectedColor.copy(alpha = 0.15f) else if (dateNavigationStyle) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant
-    Box(
+    val selectedColor = tint ?: MaterialTheme.colorScheme.primary
+    val idleContainer = if (dateNavigationStyle) Color.Transparent else MaterialTheme.colorScheme.surface
+    val idleLabel = if (subtitle != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .semantics {
-                role = Role.Button
-                this.selected = selected
-                contentDescription = accessibilityLabel
+            .padding(horizontal = 2.dp)
+            .heightIn(min = if (subtitle != null) 44.dp else 32.dp)
+            .semantics { contentDescription = accessibilityLabel },
+        shape = RoundedCornerShape(CCRadius.Control),
+        border = null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = idleContainer,
+            labelColor = idleLabel,
+            selectedContainerColor = selectedColor.copy(alpha = 0.15f),
+            selectedLabelColor = selectedColor,
+        ),
+        label = {
+            // Con subtítulo (selector de meses CX) el mando es el mes: línea
+            // grande en color de texto; el año queda pequeño y atenuado.
+            Column(
+                modifier = Modifier.widthIn(min = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    label,
+                    style = CCText.S14,
+                    fontWeight = when {
+                        selected -> FontWeight.Bold
+                        subtitle != null -> FontWeight.Medium
+                        else -> FontWeight.SemiBold
+                    },
+                )
+                if (subtitle != null) Text(
+                    subtitle,
+                    style = CCText.S12,
+                    color = if (selected) selectedColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 5.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        // Con subtítulo (selector de meses CX) el mando es el mes: línea
-        // grande en color de texto; el año queda pequeño y atenuado.
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(bg)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-        ) {
-            Text(label,
-                style = if (subtitle != null) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.SemiBold else if (subtitle != null) FontWeight.Medium else FontWeight.Normal,
-                color = when {
-                    selected -> selectedColor
-                    subtitle != null -> MaterialTheme.colorScheme.onSurface
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                })
-            if (subtitle != null) Text(subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (selected) selectedColor else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -651,8 +702,8 @@ internal fun ResultsPublicationStatus(
         if (showClassificationLabel) {
             Text(
                 classificationLabel,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
+                style = CCText.S16,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -663,7 +714,7 @@ internal fun ResultsPublicationStatus(
                 "Provisional"
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium,
+            style = CCText.S13,
         )
         if (!official && UciResultsLogic.classificationIsUpdating(stage)) {
             val updatingLabel = if (LocaleHolder.shouldShowEnglishContent) {
@@ -671,35 +722,28 @@ internal fun ResultsPublicationStatus(
             } else {
                 "Clasificación actualizándose"
             }
-            Row(
+            // Solo el indicador giratorio, sin texto, sobre el acento atenuado
+            // con 6 de relleno y sin radio, como la web.
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(6.dp)
                     .clearAndSetSemantics { contentDescription = updatingLabel },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(14.dp),
                     color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 2.dp,
                 )
-                Text(
-                    if (LocaleHolder.shouldShowEnglishContent) "Updating" else "Actualizando",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
         }
         if (!official && !stage.lastSyncedAt.isNullOrBlank()) {
             Text(
-                (if (LocaleHolder.shouldShowEnglishContent) "Last upd.: " else "Últ. act.: ") +
+                (if (LocaleHolder.shouldShowEnglishContent) "Last update: " else "Última actualización: ") +
                     stage.lastSyncedAt.take(16).replace('T', ' '),
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelSmall,
+                style = CCText.S13,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -782,7 +826,7 @@ internal fun ResultsTable(
         Text(
             stringResource(R.string.results_no_data),
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            style = CCText.S14,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         return
@@ -851,53 +895,101 @@ internal fun ResultsTable(
         showTableHeader = showTableHeader, notice = { CarriedStandingsNotice(stage) })
 }
 
+// ── Tabla de clasificación (`.res-table`) ──────────────────────────
+//
+// Presentación común de las clasificaciones, el ránking UCI por equipos y el
+// orden de salida: superficie de tarjeta, cabecera de columnas en gris y filas
+// separadas por un filete fino, sin franjas ni fondos por fila.
+
+/** Medidas comunes de fila y cabecera. */
+internal object ResultsTableMetrics {
+    val HorizontalPadding = 9.dp
+    val RowVerticalPadding = 7.dp
+    val HeaderVerticalPadding = 7.dp
+    val ColumnSpacing = 8.dp
+    val RankWidth = 32.dp
+}
+
+private val TableTopShape = RoundedCornerShape(topStart = CCRadius.Surface, topEnd = CCRadius.Surface)
+private val TableBottomShape = RoundedCornerShape(bottomStart = CCRadius.Surface, bottomEnd = CCRadius.Surface)
+
+/** Superficie de una tabla de clasificación. */
+@Composable
+internal fun ResultsTableSurface(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(CCRadius.Surface),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = CC_CARD_ELEVATION,
+    ) {
+        Column(Modifier.fillMaxWidth(), content = content)
+    }
+}
+
+/** Celda de la cabecera de columnas: 12 en negrita, gris. */
+@Composable
+internal fun ResultsHeaderCell(text: String, modifier: Modifier, align: TextAlign = TextAlign.Start) {
+    Text(
+        text,
+        modifier = modifier,
+        style = CCText.S12,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = align,
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun ResultsTableDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
 @Composable
 internal fun ResultsClassificationTable(
     rows: List<UciResultsLogic.ResultRowVM>, showTeam: Boolean, showUciPoints: Boolean, valueHeader: String,
     showTableHeader: Boolean = true, notice: @Composable () -> Unit = {},
 ) {
     val sameTimeLabel = stringResource(R.string.results_same_time)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
-    ) {
+    Column(Modifier.fillMaxWidth()) {
         notice()
-        if (showTableHeader) {
-            ResultsTableHeader(
-                showTeam = showTeam,
-                showUciPoints = showUciPoints,
-                valueHeader = valueHeader,
-            )
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-        }
-        // m.t. dinámico: el 1º visible de cada grupo de gap muestra su gap real;
-        // los siguientes con el mismo gap → m.t. (igual que applyTeamFilter web).
-        var prevGap: String? = null
-        rows.forEach { vm ->
-            val displayKind: UciResultsLogic.ValueKind
-            val displayValue: String
-            if (vm.valueKind == UciResultsLogic.ValueKind.GAP && vm.rowGap.isNotEmpty()) {
-                if (prevGap != null && vm.rowGap == prevGap) {
-                    displayKind = UciResultsLogic.ValueKind.SAME_TIME; displayValue = sameTimeLabel
-                } else {
-                    displayKind = UciResultsLogic.ValueKind.GAP; displayValue = vm.rowGap
-                }
-                prevGap = vm.rowGap
-            } else {
-                displayKind = vm.valueKind
-                displayValue = if (vm.valueKind == UciResultsLogic.ValueKind.SAME_TIME) sameTimeLabel else vm.valueText
+        // Sin cabecera propia (la fija la pantalla bajo las pestañas), la
+        // superficie continúa la de esa cabecera.
+        ResultsTableSurface(shape = if (showTableHeader) RoundedCornerShape(CCRadius.Surface) else TableBottomShape) {
+            if (showTableHeader) {
+                ResultsTableHeaderRow(showTeam = showTeam, showUciPoints = showUciPoints, valueHeader = valueHeader)
+                ResultsTableDivider()
             }
-            ResultsRow(
-                vm = vm,
-                showTeam = showTeam,
-                showUciPoints = showUciPoints,
-                displayKind = displayKind,
-                displayValue = displayValue,
-            )
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            // m.t. dinámico: el 1º visible de cada grupo de gap muestra su gap real;
+            // los siguientes con el mismo gap → m.t. (igual que applyTeamFilter web).
+            var prevGap: String? = null
+            rows.forEachIndexed { index, vm ->
+                val displayKind: UciResultsLogic.ValueKind
+                val displayValue: String
+                if (vm.valueKind == UciResultsLogic.ValueKind.GAP && vm.rowGap.isNotEmpty()) {
+                    if (prevGap != null && vm.rowGap == prevGap) {
+                        displayKind = UciResultsLogic.ValueKind.SAME_TIME; displayValue = sameTimeLabel
+                    } else {
+                        displayKind = UciResultsLogic.ValueKind.GAP; displayValue = vm.rowGap
+                    }
+                    prevGap = vm.rowGap
+                } else {
+                    displayKind = vm.valueKind
+                    displayValue = if (vm.valueKind == UciResultsLogic.ValueKind.SAME_TIME) sameTimeLabel else vm.valueText
+                }
+                ResultsRow(
+                    vm = vm,
+                    showTeam = showTeam,
+                    showUciPoints = showUciPoints,
+                    displayKind = displayKind,
+                    displayValue = displayValue,
+                )
+                if (index < rows.lastIndex) ResultsTableDivider()
+            }
         }
     }
 }
@@ -909,33 +1001,26 @@ internal fun ResultsClassificationTable(
  */
 @Composable
 private fun CancelledStageNotice() {
+    val red = MaterialTheme.colorScheme.error
     Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), Alignment.Center) {
         Row(
             modifier = Modifier
-                .background(
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.10f),
-                    shape = RoundedCornerShape(6.dp),
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.30f),
-                    shape = RoundedCornerShape(6.dp),
-                )
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .background(color = red.copy(alpha = 0.10f), shape = RoundedCornerShape(CCRadius.Surface))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(
                 imageVector = Icons.Outlined.Cancel,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
+                tint = red,
                 modifier = Modifier.size(16.dp),
             )
             Text(
                 text = stringResource(R.string.race_stage_cancelled),
-                style = MaterialTheme.typography.labelLarge,
+                style = CCText.S13,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error,
+                color = red,
             )
         }
     }
@@ -951,29 +1036,24 @@ private fun CancelledStageNotice() {
 private fun CarriedStandingsNotice(stage: RaceUciStage) {
     val fromNum = stage.carriedFromStage ?: return
     val from = "$fromNum${stage.carriedFromSuffix.orEmpty()}"   // "3A" en dobles sectores
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(6.dp),
+    CCCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(15.dp),
             )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Info,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(15.dp),
-        )
-        Text(
-            text = stringResource(R.string.results_carried_standings, from),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            Text(
+                text = stringResource(R.string.results_carried_standings, from),
+                style = CCText.S13,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -983,8 +1063,24 @@ internal data class ResultsTableHeaderSpec(
     val isPoints: Boolean,
 )
 
+/**
+ * Cabecera de columnas fijada por la pantalla bajo las pestañas: abre la
+ * superficie que continúa la tabla (`showTableHeader = false`).
+ */
 @Composable
 internal fun ResultsTableHeader(
+    showTeam: Boolean,
+    showUciPoints: Boolean,
+    valueHeader: String,
+) {
+    ResultsTableSurface(shape = TableTopShape) {
+        ResultsTableHeaderRow(showTeam = showTeam, showUciPoints = showUciPoints, valueHeader = valueHeader)
+        ResultsTableDivider()
+    }
+}
+
+@Composable
+private fun ResultsTableHeaderRow(
     showTeam: Boolean,
     showUciPoints: Boolean,
     valueHeader: String,
@@ -992,32 +1088,22 @@ internal fun ResultsTableHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.HeaderVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HeaderCell("#", Modifier.width(32.dp))
-        HeaderCell(
+        ResultsHeaderCell("#", Modifier.width(ResultsTableMetrics.RankWidth), align = TextAlign.Center)
+        ResultsHeaderCell(
             stringResource(if (showTeam) R.string.results_col_rider else R.string.results_col_team),
             Modifier.weight(1f),
         )
-        if (showUciPoints) HeaderCell("UCI", Modifier.width(44.dp), end = true)
-        HeaderCell(valueHeader, Modifier.width(70.dp), end = true)
+        if (showUciPoints) ResultsHeaderCell("UCI", Modifier.width(44.dp), align = TextAlign.End)
+        ResultsHeaderCell(valueHeader, Modifier.width(72.dp), align = TextAlign.End)
     }
 }
 
-@Composable
-private fun HeaderCell(text: String, modifier: Modifier, end: Boolean = false) {
-    Text(
-        text,
-        modifier = modifier,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start,
-    )
-}
+private val TabularS14: TextStyle get() = CCText.S14.copy(fontFeatureSettings = "tnum")
+private val TabularS13: TextStyle get() = CCText.S13.copy(fontFeatureSettings = "tnum")
 
 @Composable
 private fun ResultsRow(
@@ -1028,23 +1114,26 @@ private fun ResultsRow(
     displayValue: String,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 35.dp)
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.RowVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // # / IRM
-        Box(modifier = Modifier.width(32.dp), contentAlignment = Alignment.CenterStart) {
+        Box(modifier = Modifier.width(ResultsTableMetrics.RankWidth), contentAlignment = Alignment.Center) {
             if (vm.rank != null) {
                 Text(
                     vm.rank.toString(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = TabularS14,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Text(
                     vm.rankBadge ?: "–",
-                    fontSize = 11.sp,
+                    style = CCText.S12,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1053,7 +1142,7 @@ private fun ResultsRow(
 
         // Corredor (bandera + nombre [+ equipo como subtítulo]) o equipo.
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (vm.countryCode.isNotEmpty()) CountryFlag(countryCode = vm.countryCode, height = 13.dp)
                 if (!showTeam) {
                     vm.team?.let { team ->
@@ -1062,8 +1151,7 @@ private fun ResultsRow(
                 }
                 Text(
                     vm.riderName.ifEmpty { "—" },
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
+                    style = CCText.S14,
                     fontWeight = FontWeight.SemiBold,
                     color = if (vm.riderName.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -1074,15 +1162,14 @@ private fun ResultsRow(
             if (showTeam && vm.teamName.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     vm.team?.let { team ->
                         if (team.hasVisibleBadge) TeamColorBands(team)
                     }
                     Text(
                         vm.teamName,
-                        fontSize = 11.sp,
-                        lineHeight = 13.sp,
+                        style = CCText.S12,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1093,7 +1180,7 @@ private fun ResultsRow(
 
         // Jerarquía compartida: puesto · identidad · [UCI] · resultado.
         if (showUciPoints) UciPointsCell(vm.uciPoints, Modifier.width(44.dp))
-        ResultValueCell(displayKind, displayValue, Modifier.width(70.dp))
+        ResultValueCell(displayKind, displayValue, Modifier.width(72.dp))
     }
 }
 
@@ -1102,10 +1189,10 @@ private fun UciPointsCell(points: Double?, modifier: Modifier) {
     Text(
         points?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty(),
         modifier = modifier,
-        fontSize = 12.sp,
+        style = TabularS13,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        textAlign = TextAlign.End,
         maxLines = 1,
     )
 }
@@ -1120,14 +1207,14 @@ private fun ResultValueCell(kind: UciResultsLogic.ValueKind, value: String, modi
     Text(
         value,
         modifier = modifier,
-        fontSize = 13.sp,
+        style = TabularS14,
         fontWeight = weight,
         color = color,
-        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        textAlign = TextAlign.End,
         maxLines = 1,
         // Textos largos («vuelta perdida» en CX) acaban en puntos suspensivos
         // como en iOS, en vez de cortarse sin indicación.
-        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -1148,20 +1235,14 @@ private fun ResultsTttTable(
     val timeHeader = stringResource(R.string.results_col_time)
     val showUciPoints = rows.any { it.uciPoints != null }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
-    ) {
+    ResultsTableSurface(shape = if (showTableHeader) RoundedCornerShape(CCRadius.Surface) else TableBottomShape) {
         if (showTableHeader) {
-            ResultsTableHeader(
+            ResultsTableHeaderRow(
                 showTeam = false,
                 showUciPoints = showUciPoints,
                 valueHeader = timeHeader,
             )
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            ResultsTableDivider()
         }
 
         teams.forEachIndexed { i, team ->
@@ -1170,54 +1251,54 @@ private fun ResultsTttTable(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { expanded[i] = !isOpen }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .heightIn(min = 35.dp)
+                    .clickable(role = Role.Button) { expanded[i] = !isOpen }
+                    .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.RowVerticalPadding),
+                horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     team.rank?.toString() ?: "–",
-                    modifier = Modifier.width(32.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.width(ResultsTableMetrics.RankWidth),
+                    style = TabularS14,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     team.team?.let { teamModel ->
                         if (teamModel.hasVisibleBadge) TeamColorBands(teamModel)
                     }
                     Text(
                         team.teamName.ifEmpty { "—" },
-                        fontSize = 14.sp,
+                        style = CCText.S14,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Text(if (isOpen) "▴" else "▾", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        imageVector = if (isOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = if (isOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
                 if (showUciPoints) UciPointsCell(team.uciPoints, Modifier.width(44.dp))
-                val (color, weight) = when {
-                    team.rank == 1 && team.teamTimeText != null -> MaterialTheme.colorScheme.primary to FontWeight.Bold
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant to FontWeight.Normal
-                }
+                val isWinner = team.rank == 1 && team.teamTimeText != null
                 val value = when {
                     team.rank == null -> ""
-                    team.rank == 1 && team.teamTimeText != null -> team.teamTimeText
+                    isWinner -> team.teamTimeText.orEmpty()
                     else -> UciResultsLogic.tttGapBetween(team.teamSecs, winnerSecs) ?: team.teamTimeText.orEmpty()
                 }
-                Text(
+                ResultValueCell(
+                    if (isWinner) UciResultsLogic.ValueKind.WINNER_TIME else UciResultsLogic.ValueKind.GAP,
                     value,
-                    modifier = Modifier.width(70.dp),
-                    fontSize = 13.sp,
-                    fontWeight = weight,
-                    color = color,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    maxLines = 1,
+                    Modifier.width(72.dp),
                 )
             }
             // Sub-filas de corredores (al desplegar).
@@ -1226,16 +1307,21 @@ private fun ResultsTttTable(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
-                            .padding(start = 38.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            .background(neutralFill.copy(alpha = 0.04f))
+                            .padding(
+                                start = ResultsTableMetrics.HorizontalPadding + ResultsTableMetrics.RankWidth + ResultsTableMetrics.ColumnSpacing,
+                                end = ResultsTableMetrics.HorizontalPadding,
+                                top = 5.dp,
+                                bottom = 5.dp,
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (rider.countryCode.isNotEmpty()) CountryFlag(countryCode = rider.countryCode, height = 13.dp)
                         Text(
                             rider.name.ifEmpty { "—" },
                             modifier = Modifier.weight(1f),
-                            fontSize = 13.sp,
+                            style = CCText.S14,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -1246,16 +1332,16 @@ private fun ResultsTttTable(
                         if (showUciPoints) UciPointsCell(rider.uciPoints, Modifier.width(44.dp))
                         Text(
                             indiv,
-                            modifier = Modifier.width(70.dp),
-                            fontSize = 12.sp,
+                            modifier = Modifier.width(72.dp),
+                            style = TabularS13,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            textAlign = TextAlign.End,
                             maxLines = 1,
                         )
                     }
                 }
             }
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            if (i < teams.lastIndex) ResultsTableDivider()
         }
     }
 }

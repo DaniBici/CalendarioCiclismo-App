@@ -159,11 +159,12 @@ enum CyclocrossLogic {
         return (first.0, first.1, row.id)
     }
 
-    /// Número de prueba por carrera y torneo. Las canceladas conservan su
-    /// número; sin torneo o fuera de temporada no se numeran.
+    /// Número de prueba por carrera y torneo. Una carrera cancelada en su
+    /// totalidad sale de la numeración; una manga cancelada no la altera. Sin
+    /// torneo o fuera de temporada no se numeran.
     static func tournamentRounds(_ rows: [CxRoundRow], season: String) -> [String: CxRound] {
         var groups: [String: [CxRoundRow]] = [:]
-        for row in rows where !(row.tournamentId ?? "").isEmpty && row.seasonKey == season && dateInSeason(row.dateKey, season: season) {
+        for row in rows where !(row.tournamentId ?? "").isEmpty && row.isCancelled != true && row.seasonKey == season && dateInSeason(row.dateKey, season: season) {
             groups[row.tournamentId!, default: []].append(row)
         }
         var rounds: [String: CxRound] = [:]

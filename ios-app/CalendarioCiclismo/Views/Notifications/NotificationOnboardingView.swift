@@ -19,20 +19,20 @@ struct NotificationOnboardingView: View {
                 // Icono animado
                 Image(systemName: "bell.badge")
                     .font(.system(size: iconSize))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.secondary)
                     .symbolEffect(.bounce, value: isAnimating)
                     .accessibilityHidden(true)
                     .padding(.bottom, 20)
 
                 // Título
                 Text("Mantente informado")
-                    .font(.title.bold())
+                    .ccFont(.s28, weight: .bold)
                     .multilineTextAlignment(.center)
                     .padding(.bottom, 12)
 
                 // Descripción
                 Text("La app no tiene anuncios y utilizaremos estos avisos solo para notificarte en caso de grandes actualizaciones de contenido o jornadas señaladas del calendario, para que tengas la mejor información a tu disposición. Nada invasivo.")
-                    .font(.body)
+                    .ccFont(.s16)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -73,13 +73,13 @@ struct NotificationOnboardingView: View {
                         }
                     } label: {
                         Text("Activar notificaciones")
-                            .font(.headline)
+                            .ccFont(.s16, weight: .semibold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
                     .accessibilityIdentifier(AccessibilityID.onboardingEnableButton)
                     .accessibilityHint("Activa las notificaciones push y accede a la aplicación")
                     .accessibilityInputLabels(["Activar notificaciones", "Activar", "Sí"])
@@ -94,7 +94,7 @@ struct NotificationOnboardingView: View {
                         onDismiss()
                     } label: {
                         Text("Ahora no")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
@@ -122,11 +122,11 @@ struct NotificationOnboardingView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.secondary)
                 .frame(width: 28)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.primary)
         }
         .accessibilityElement(children: .combine)

@@ -50,7 +50,7 @@ struct StartOrderView: View {
             }
 
             if viewModel.isLoading && viewModel.raceDay == nil {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Orden de salida", "Start order"))
             } else if let error = viewModel.error {
                 ErrorView(message: error, retry: {
                     Task { await viewModel.load(raceDayId: raceDayId) }
@@ -102,7 +102,7 @@ struct StartOrderView: View {
             if viewModel.entries.isEmpty && !viewModel.isLoading {
                 Text(LocaleService.t("No hay datos de orden de salida para esta jornada.",
                                      "No start order data available for this stage."))
-                    .font(.subheadline)
+                    .ccFont(.s14)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -124,7 +124,7 @@ struct StartOrderFilterBar: View {
     @Bindable var viewModel: StartOrderViewModel
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             chip(.all,  LocaleService.t("Todos", "All"))
             if viewModel.hasTtFilter { chip(.tt, LocaleService.t("Contrarrelojistas", "TT Specialists")) }
             if viewModel.hasGcFilter { chip(.gc, LocaleService.t("General", "GC")) }
@@ -132,22 +132,24 @@ struct StartOrderFilterBar: View {
         }
     }
 
+    /// Filtro con el aspecto de los de Hoy: inactivo en gris sobre la
+    /// superficie de tarjeta; activo con el acento al 15 % y texto de acento
+    /// en negrita.
     private func chip(_ filter: StartOrderViewModel.Filter, _ label: String) -> some View {
         let isActive = viewModel.activeFilter == filter
         return Button { viewModel.activeFilter = filter } label: {
             Text(label)
-                .font(.caption)
-                .fontWeight(isActive ? .semibold : .regular)
+                .ccFont(.s13, weight: isActive ? .bold : .medium)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                // Pill al patrón canónico (igual que los chips de Hoy/Mes/Temporada):
-                // activo en azul de marca suave (15%) + texto azul, inactivo en
-                // surfaceVariant. Antes azul sólido + blanco.
-                .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
+                .background(
+                    isActive ? Color.accentColor.opacity(0.15) : AppTheme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+                )
                 .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-                .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 }
 
@@ -162,50 +164,53 @@ struct StartOrderTimezoneNote: View {
         Text(LocaleService.isEnglish
              ? "Times shown in your local time (\(userOffset)). Tap a time for race-local time in \(location) (\(raceOffset))."
              : "Horarios en tu hora local (\(userOffset)). Toca una hora para ver la oficial en \(location) (\(raceOffset)).")
-            .font(.caption)
+            .ccFont(.s13)
             .foregroundStyle(.secondary)
-            .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.08))
-            .cornerRadius(8)
     }
 }
 
 // MARK: - Table
 
+/// Orden de salida con la presentación de las clasificaciones
+/// (`ResultsTableSurface`): misma superficie, cabecera gris, filas con filete
+/// fino y tipografía de 14.
 struct StartOrderTable: View {
     @Bindable var viewModel: StartOrderViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header row — CRE muestra solo Salida + Equipo; CRI las 3 columnas.
-            HStack(spacing: 10) {
-                Text(LocaleService.t("Salida", "Start")).frame(width: 72, alignment: .leading)
+        let entries = viewModel.filteredEntries
+        ResultsTableSurface {
+            // Cabecera — CRE muestra solo Salida + Equipo; CRI las 3 columnas.
+            HStack(spacing: ResultsTableMetrics.columnSpacing) {
+                ResultsHeaderCell(text: LocaleService.t("Salida", "Start"))
+                    .frame(width: StartOrderRow.timeWidth, alignment: .leading)
                 if viewModel.isTtt {
-                    Text(LocaleService.t("Equipo", "Team")).frame(maxWidth: .infinity, alignment: .leading)
+                    ResultsHeaderCell(text: LocaleService.t("Equipo", "Team"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    Text(LocaleService.t("Dor.", "Bib")).frame(width: 36, alignment: .leading)
-                    Text(LocaleService.t("Corredor", "Rider")).frame(maxWidth: .infinity, alignment: .leading)
+                    ResultsHeaderCell(text: LocaleService.t("Dor.", "Bib"))
+                        .frame(width: StartOrderRow.dorsalWidth, alignment: .center)
+                    ResultsHeaderCell(text: LocaleService.t("Corredor", "Rider"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+            .padding(.vertical, ResultsTableMetrics.headerVerticalPadding)
+            ResultsTableRule()
 
-            Divider()
-
-            ForEach(viewModel.filteredEntries) { entry in
+            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 StartOrderRow(entry: entry, viewModel: viewModel)
-                Divider().opacity(0.4)
+                if index < entries.count - 1 { ResultsTableRule() }
             }
         }
-        .background(Color.gray.opacity(0.04))
-        .cornerRadius(8)
     }
 }
 
 struct StartOrderRow: View {
+    static let timeWidth: CGFloat = 76
+    static let dorsalWidth: CGFloat = 36
+
     let entry: StartOrderEntry
     @Bindable var viewModel: StartOrderViewModel
     @State private var showingOfficialTime = false
@@ -219,19 +224,23 @@ struct StartOrderRow: View {
 
     var body: some View {
         let (timeStr, shift) = timeText
-        HStack(spacing: 10) {
+        HStack(spacing: ResultsTableMetrics.columnSpacing) {
             HStack(spacing: 3) {
                 if let shift {
                     Text(shift)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.orange)
+                        .ccFont(.s12, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 3)
+                        .background(AppTheme.neutralFill, in: RoundedRectangle(cornerRadius: AppTheme.Radius.control))
                 }
+                // Hora en negrita con cifras tabulares, sin espaciado de letras.
                 Text(timeStr)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .ccFont(.s14, weight: .bold)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
             }
-            .frame(width: 72, alignment: .leading)
+            .frame(width: Self.timeWidth, alignment: .leading)
             // Solo es interactivo cuando se está convirtiendo a hora del usuario:
             // si no, la hora mostrada YA es la oficial de la sede y no hay nada
             // que revelar. Al tocar, popover con la hora oficial original.
@@ -244,49 +253,51 @@ struct StartOrderRow: View {
             ))
 
             if viewModel.isTtt {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     if let team = UciResultsLogic.findMatchingTeam(entry.teamName, teams: viewModel.teams) {
                         TeamColorBands(team: team)
                     }
                     Text(entry.teamName?.isEmpty == false ? entry.teamName! : "—")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .medium)
                         .foregroundStyle(entry.teamName?.isEmpty == false ? .primary : .secondary)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("\(entry.dorsal)")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .ccFont(.s13, weight: .semibold)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(width: 36, alignment: .leading)
+                    .frame(width: Self.dorsalWidth, alignment: .center)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
                         if let cc = entry.countryCode, !cc.isEmpty {
-                            CountryFlag(countryCode: cc)
+                            CountryFlag(countryCode: cc, width: 17.33)
                         }
                         Text(entry.riderName?.isEmpty == false ? entry.riderName! : "—")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .ccFont(.s14, weight: .medium)
                             .foregroundStyle(entry.riderName?.isEmpty == false ? .primary : .secondary)
                             .lineLimit(1)
                     }
                     if let team = entry.teamName, !team.isEmpty {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             if let resolved = UciResultsLogic.findMatchingTeam(team, teams: viewModel.teams) {
                                 TeamColorBands(team: resolved)
                             }
-                            Text(team).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(team)
+                                .ccFont(.s12)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+        .padding(.vertical, ResultsTableMetrics.rowVerticalPadding)
+        .frame(minHeight: 35)
     }
 
 }
@@ -308,15 +319,14 @@ private struct OfficialTimeTapModifier: ViewModifier {
                 .popover(isPresented: $isPresented) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(LocaleService.t("Hora oficial", "Race-local time"))
-                            .font(.caption2)
+                            .ccFont(.s12)
                             .foregroundStyle(.secondary)
                         Text(officialTime)
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                            .ccFont(.s20, weight: .semibold)
                             .monospacedDigit()
                         if !location.isEmpty {
                             Text(location)
-                                .font(.caption)
+                                .ccFont(.s13)
                                 .foregroundStyle(.secondary)
                         }
                     }

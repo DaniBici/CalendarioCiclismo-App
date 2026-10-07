@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { automaticTeamHeaderText, teamHeaderColors, marketTeamColors, teamsForSeason } from '../team-appearance.js';
+import { automaticTeamHeaderText, teamHeaderColors, teamsForSeason } from '../team-appearance.js';
 
 describe('apariencia de equipo', () => {
-  it('usa la pareja publicada del mercado o la temporada anterior', () => {
-    const previous={headerBg:'#123456',headerText:'#FFFFFF'},next={headerBg:'#ABCDEF',headerText:'#000000',badgeVisible:false};
-    expect(marketTeamColors(next,previous)).toEqual({background:'#123456',text:'#FFFFFF'});
-    expect(marketTeamColors({...next,badgeVisible:true},previous)).toEqual({background:'#ABCDEF',text:'#000000'});
+  it('sin pareja completa usa la superficie neutra', () => {
     expect(teamHeaderColors({headerBg:'#123456'})).toEqual({background:'var(--bg-card)',text:'var(--text)'});
   });
   it('resuelve automáticamente un texto legible para la cabecera del equipo', () => {

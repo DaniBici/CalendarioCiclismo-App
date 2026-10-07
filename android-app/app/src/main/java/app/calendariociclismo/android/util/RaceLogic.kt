@@ -42,6 +42,30 @@ object RaceLogic {
         return TodayRaceState.SCHEDULED
     }
 
+    /**
+     * Avance (0…1) del miniperfil de la tarjeta de Hoy. Espejo de
+     * `profileProgress` (js/services/race-presentation.js): con resultados o
+     * estado terminado, completo; crono en curso sin avance único (salidas
+     * escalonadas); el resto, tiempo transcurrido entre salida real (o
+     * neutralizada) y meta prevista.
+     */
+    fun profileProgress(
+        rd: RaceDay,
+        hasInhouseResults: Boolean,
+        now: Instant = Instant.now(),
+    ): Float {
+        if (rd.isCancelledDay || rd.isRestDay) return 0f
+        if (hasInhouseResults || rd.raceStatus == "finished") return 1f
+        if (rd.primaryType == "itt" || rd.primaryType == "ttt") return 0f
+        val startRaw = rd.realStartTimeUtc?.takeIf { it.isNotEmpty() } ?: rd.neutralStartTimeUtc
+        val start = startRaw?.let { DateFormatting.parseIso(it) } ?: return 0f
+        val finish = rd.estimatedFinishTimeUtc?.let { DateFormatting.parseIso(it) } ?: return 0f
+        if (!finish.isAfter(start)) return 0f
+        val elapsed = (now.toEpochMilli() - start.toEpochMilli()).toDouble()
+        val total = (finish.toEpochMilli() - start.toEpochMilli()).toDouble()
+        return (elapsed / total).coerceIn(0.0, 1.0).toFloat()
+    }
+
     /** Carreras referenciadas por jornadas que no estaban en la consulta por
      * solapamiento de fechas del mes. */
     fun missingRaceIds(raceDays: List<RaceDay>, races: List<Race>): List<String> {
@@ -295,6 +319,27 @@ object RaceLogic {
         if (Constants.CATEGORY_TIERS["PRO"]?.contains(uci) == true) return "pro"
         if (Constants.CATEGORY_TIERS["MINOR"]?.contains(uci) == true) return "2"
         return if (uci.isEmpty()) null else "1"
+    }
+
+    /**
+     * Nombre legible de la categoría UCI para cabeceras: las siglas sin
+     * contexto (CC, WC, NC) se escriben completas y las clases numéricas se
+     * leen con el prefijo UCI («UCI 2.2»). Espejo de `uciCategoryName`
+     * (`js/shared.js`).
+     */
+    fun uciCategoryName(uci: String?, english: Boolean = LocaleHolder.shouldShowEnglishContent): String {
+        if (uci.isNullOrEmpty()) return ""
+        val names = if (english) mapOf(
+            "CC" to "Continental Championships", "WC" to "World Championships", "NC" to "National Championships",
+            "UWT" to "UCI WorldTour", "WWT" to "UCI Women\u2019s WorldTour", "Pro" to "UCI ProSeries",
+        ) else mapOf(
+            "CC" to "Campeonato continental", "WC" to "Campeonato del mundo", "NC" to "Campeonato nacional",
+            "UWT" to "UCI WorldTour", "WWT" to "UCI Women\u2019s WorldTour", "Pro" to "UCI ProSeries",
+        )
+        names[uci]?.let { return it }
+        val parts = uci.split('.')
+        if (parts.size > 1) names[parts[1]]?.let { return it }
+        return if (parts.size > 1 && uci.first().isDigit()) "UCI $uci" else uci
     }
 
     // ── Ordenación ──────────────────────────────────────────────

@@ -1,5 +1,8 @@
 package app.calendariociclismo.android.ui.resultsfeed
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import app.calendariociclismo.android.ui.components.ccSegmentedColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -57,7 +60,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.style.TextAlign
+import app.calendariociclismo.android.ui.results.ResultsHeaderCell
+import app.calendariociclismo.android.ui.results.ResultsTableMetrics
+import app.calendariociclismo.android.ui.results.ResultsTableSurface
+import app.calendariociclismo.android.ui.theme.BadgeColor
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.util.UciRankingKeyItem
+import app.calendariociclismo.android.util.UciRankingKeyStyle
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.components.CCHeaderMark
@@ -73,7 +95,6 @@ import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
 import app.calendariociclismo.android.ui.theme.colorFromHex
-import app.calendariociclismo.android.ui.theme.categoryBadgeColor
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
 import app.calendariociclismo.android.util.LocaleHolder
@@ -81,10 +102,7 @@ import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.ResultsFeedLogic
 import app.calendariociclismo.android.util.UciTeamRankingLogic
 import app.calendariociclismo.android.util.UciTeamRankingPresentation
-import app.calendariociclismo.android.util.UciTeamRankingTier
 import app.calendariociclismo.android.util.rememberHaptics
-import java.text.NumberFormat
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -207,6 +225,7 @@ fun ResultsFeedScreen(navController: NavController) {
 
     Scaffold(
         topBar = {
+            // Título nativo de la sección, como Ciclocross y Fichajes.
             TopAppBar(
                 title = {
                     Row(
@@ -215,8 +234,9 @@ fun ResultsFeedScreen(navController: NavController) {
                     ) {
                         CCHeaderMark()
                         Text(
-                            text = stringResource(R.string.results_feed_heading),
+                            text = stringResource(R.string.tab_results),
                             style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
                         )
                     }
                 },
@@ -241,8 +261,7 @@ fun ResultsFeedScreen(navController: NavController) {
                     ) {
                         when (val current = state) {
                             is FeedState.Loading -> {
-                                val loadingCd = stringResource(R.string.loading)
-                                RouteLoadingView(message = loadingCd)
+                                RouteLoadingView(message = stringResource(R.string.loading), title = LocaleHolder.t("Últimos resultados", "Latest results"))
                             }
                             is FeedState.Error -> Text(
                                 text = current.message,
@@ -289,6 +308,7 @@ fun ResultsFeedScreen(navController: NavController) {
                         UciRankingContent(
                             state = rankingState,
                             gender = rankingGender,
+                            adaptiveInfo = adaptiveInfo,
                             onGenderSelect = {
                                 haptic(Haptics.Event.Selection)
                                 rankingGender = it
@@ -322,62 +342,98 @@ fun ResultsFeedScreen(navController: NavController) {
     }
 }
 
+/**
+ * Selector de vista: control segmentado nativo con radio 4, como el de
+ * Fichajes y el de género del ránking. El título de la pantalla es el de la
+ * barra superior («Resultados»).
+ */
 @Composable
 private fun ResultsSectionSelector(
     active: ResultsSection,
     onSelect: (ResultsSection) -> Unit,
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+    val options = listOf(
+        ResultsSection.Latest to stringResource(R.string.results_feed_latest),
+        ResultsSection.Ranking to stringResource(R.string.uci_ranking_tab),
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
     ) {
-        RankingChip(
-            label = stringResource(R.string.results_feed_latest),
-            selected = active == ResultsSection.Latest,
-            onClick = { onSelect(ResultsSection.Latest) },
-        )
-        RankingChip(
-            label = stringResource(R.string.uci_ranking_tab),
-            selected = active == ResultsSection.Ranking,
-            onClick = { onSelect(ResultsSection.Ranking) },
-        )
+        options.forEachIndexed { index, (section, label) ->
+            SegmentedButton(
+                colors = ccSegmentedColors(),
+                selected = active == section,
+                onClick = { if (active != section) onSelect(section) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = options.size,
+                    baseShape = RoundedCornerShape(CCRadius.Control),
+                ),
+                icon = {},
+            ) {
+                Text(label, style = CCText.S13, maxLines = 1)
+            }
+        }
     }
 }
 
+/** Colores de la etiqueta de puesto y de la explicación (`.uci-ranking-legend__item`). */
 @Composable
-private fun RankingChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val primary = MaterialTheme.colorScheme.primary
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(
-                if (selected) primary.copy(alpha = 0.15f)
-                else MaterialTheme.colorScheme.surfaceVariant
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun UciRankingKeyStyle.colors(): BadgeColor {
+    val dark = isSystemInDarkTheme()
+    return when (this) {
+        UciRankingKeyStyle.WORLD_TOUR -> if (dark) {
+            BadgeColor(Color(0xFFAAC7FF).copy(alpha = 0.15f), Color(0xFFAAC7FF))
+        } else {
+            BadgeColor(Color(0xFFD3E3FD), Color(0xFF0842A0))
+        }
+        UciRankingKeyStyle.ORANGE -> {
+            val fg = if (dark) Color(0xFFFFB77C) else Color(0xFFE37400)
+            BadgeColor(fg.copy(alpha = 0.16f), fg)
+        }
+        UciRankingKeyStyle.GREEN -> {
+            val fg = if (dark) Color(0xFF6DD58C) else Color(0xFF137333)
+            BadgeColor(fg.copy(alpha = 0.16f), fg)
+        }
+        UciRankingKeyStyle.EXCLUDED -> {
+            val fg = if (dark) Color(0xFFFFB4AB) else Color(0xFFC5221F)
+            BadgeColor(fg.copy(alpha = 0.14f), fg)
+        }
     }
 }
 
+/** Etiqueta de color de un nivel (puesto y panel explicativo), radio 4. */
+@Composable
+private fun UciRankingTag(text: String, style: UciRankingKeyStyle?, modifier: Modifier = Modifier) {
+    val colors = style?.colors()
+    Text(
+        text = text,
+        style = CCText.S12,
+        fontWeight = FontWeight.SemiBold,
+        color = colors?.foreground ?: MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = modifier
+            .clip(RoundedCornerShape(CCRadius.Control))
+            .background(colors?.background ?: Color.Transparent)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UciRankingContent(
     state: RankingState,
     gender: RankingGender,
+    adaptiveInfo: AdaptiveLayoutInfo,
     onGenderSelect: (RankingGender) -> Unit,
     onRetry: () -> Unit,
     onRowTap: (UciTeamRankingPresentation) -> Unit,
 ) {
     when (state) {
         is RankingState.Loading -> RouteLoadingView(
-            message = stringResource(R.string.uci_ranking_loading),
+            message = stringResource(R.string.loading),
+            title = LocaleHolder.t("Ránking UCI", "UCI ranking"),
         )
         is RankingState.Error -> Column(
             modifier = Modifier.fillMaxSize(),
@@ -394,47 +450,49 @@ private fun UciRankingContent(
             }
         }
         is RankingState.Ready -> {
+            val isEnglish = LocaleHolder.shouldShowEnglishContent
             val rows = remember(state.rows, gender) {
                 UciTeamRankingLogic.decorate(state.rows, gender.value)
             }
+            val keyItems = remember(rows, isEnglish) { UciTeamRankingLogic.keyItems(rows, isEnglish) }
             Column(Modifier.fillMaxSize()) {
+                // Género y fecha de actualización en una fila.
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 10.dp,
-                        bottom = 6.dp,
-                    ),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RankingChip(
-                        label = stringResource(R.string.uci_ranking_men),
-                        selected = gender == RankingGender.Male,
-                        onClick = { onGenderSelect(RankingGender.Male) },
+                    val options = listOf(
+                        RankingGender.Male to stringResource(R.string.uci_ranking_men),
+                        RankingGender.Female to stringResource(R.string.uci_ranking_women),
                     )
-                    RankingChip(
-                        label = stringResource(R.string.uci_ranking_women),
-                        selected = gender == RankingGender.Female,
-                        onClick = { onGenderSelect(RankingGender.Female) },
-                    )
-                }
-                rows.firstOrNull()?.row?.rankingDate?.let { rankingDate ->
-                    Text(
-                        text = DateFormatting.formatUciRankingUpdated(
-                            rankingDate,
-                            LocaleHolder.shouldShowEnglishContent,
-                        ),
-                        modifier = Modifier.fillMaxWidth().padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 4.dp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    SingleChoiceSegmentedButtonRow {
+                        options.forEachIndexed { index, (value, label) ->
+                            SegmentedButton(
+                                colors = ccSegmentedColors(),
+                                selected = gender == value,
+                                onClick = { onGenderSelect(value) },
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = options.size,
+                                    baseShape = RoundedCornerShape(CCRadius.Control),
+                                ),
+                                icon = {},
+                            ) {
+                                Text(label, style = CCText.S13, maxLines = 1)
+                            }
+                        }
+                    }
+                    rows.firstOrNull()?.row?.rankingDate?.let { rankingDate ->
+                        Text(
+                            text = DateFormatting.formatUciRankingUpdated(rankingDate, isEnglish),
+                            modifier = Modifier.weight(1f),
+                            style = CCText.S12,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (rows.isEmpty()) {
                     Text(
@@ -443,86 +501,103 @@ private fun UciRankingContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    UciRankingList(rows = rows, onRowTap = onRowTap)
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val wide = adaptiveInfo.supportsTwoPanes && maxWidth >= 820.dp
+                        val year = UciTeamRankingLogic.invitationYear(rows)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            if (wide) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                                    if (keyItems.isNotEmpty()) {
+                                        UciRankingKeyPanel(year, keyItems, Modifier.width(288.dp))
+                                    }
+                                    UciRankingTable(rows, isEnglish, onRowTap, Modifier.weight(1f))
+                                }
+                            } else {
+                                if (keyItems.isNotEmpty()) {
+                                    UciRankingKeyPanel(year, keyItems, Modifier.fillMaxWidth())
+                                }
+                                UciRankingTable(rows, isEnglish, onRowTap, Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/** Panel «Invitaciones <año>»: cada etiqueta de puesto con su explicación. */
 @Composable
-private fun UciRankingList(
-    rows: List<UciTeamRankingPresentation>,
-    onRowTap: (UciTeamRankingPresentation) -> Unit,
-) {
-    val locale = remember(LocaleHolder.shouldShowEnglishContent) {
-        if (LocaleHolder.shouldShowEnglishContent) Locale.UK else Locale.forLanguageTag("es-ES")
-    }
-    val pointsFormatter = remember(locale) {
-        NumberFormat.getNumberInstance(locale).apply {
-            minimumFractionDigits = 0
-            maximumFractionDigits = 0
-        }
-    }
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        item(key = "ranking-header") {
-            UciRankingHeader()
-        }
-        items(rows, key = { it.id }) { item ->
-            Column {
-                UciRankingRow(
-                    item = item,
-                    points = pointsFormatter.format(item.row.points),
-                    onClick = { onRowTap(item) },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+private fun UciRankingKeyPanel(year: Int, items: List<UciRankingKeyItem>, modifier: Modifier) {
+    CCCard(modifier = modifier) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = LocaleHolder.t("Invitaciones $year", "Invitations $year"),
+                style = CCText.S16,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.semantics { heading() },
+            )
+            items.forEach { item ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    UciRankingTag(item.label, item.style)
+                    Text(
+                        text = item.text,
+                        style = CCText.S13,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
 }
 
+private val RankColumnWidth = 38.dp
+private val FlagColumnWidth = 20.dp
+private val CategoryColumnWidth = 40.dp
+private val PointsColumnWidth = 64.dp
+
+/** Ránking con la presentación de las clasificaciones (`ResultsTableSurface`). */
 @Composable
-private fun UciRankingHeader() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Text(
-            "#",
-            modifier = Modifier.width(27.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-        )
-        Spacer(Modifier.width(18.dp))
-        Text(
-            stringResource(R.string.uci_ranking_team),
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-        )
-        Text(
-            "Cat.",
-            modifier = Modifier.width(32.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-        )
-        Text(
-            stringResource(R.string.uci_ranking_points),
-            modifier = Modifier.width(68.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-        )
+private fun UciRankingTable(
+    rows: List<UciTeamRankingPresentation>,
+    isEnglish: Boolean,
+    onRowTap: (UciTeamRankingPresentation) -> Unit,
+    modifier: Modifier,
+) {
+    ResultsTableSurface(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.HeaderVerticalPadding)
+                .clearAndSetSemantics {},
+            horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ResultsHeaderCell("#", Modifier.width(RankColumnWidth), align = TextAlign.Center)
+            Spacer(Modifier.width(FlagColumnWidth))
+            ResultsHeaderCell(stringResource(R.string.uci_ranking_team), Modifier.weight(1f))
+            ResultsHeaderCell("Cat.", Modifier.width(CategoryColumnWidth), align = TextAlign.Center)
+            ResultsHeaderCell(stringResource(R.string.uci_ranking_points), Modifier.width(PointsColumnWidth), align = TextAlign.End)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        rows.forEachIndexed { index, item ->
+            UciRankingRow(
+                item = item,
+                points = UciTeamRankingLogic.formatPoints(item.row.points, isEnglish),
+                explanation = item.explanation(isEnglish),
+                onClick = { onRowTap(item) },
+            )
+            if (index < rows.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
     }
 }
 
@@ -530,77 +605,55 @@ private fun UciRankingHeader() {
 private fun UciRankingRow(
     item: UciTeamRankingPresentation,
     points: String,
+    explanation: String,
     onClick: () -> Unit,
 ) {
-    val dark = isSystemInDarkTheme()
-    val orange = if (dark) Color(0xFFFFB77C) else Color(0xFFE37400)
-    val green = if (dark) Color(0xFF6DD58C) else Color(0xFF137333)
-    val red = if (dark) Color(0xFFFFB4AB) else Color(0xFFC5221F)
-    val background = if (item.grandTourExcluded) {
-        red.copy(alpha = 0.13f)
-    } else {
-        when (item.invitationTier) {
-            UciTeamRankingTier.WORLD_TOUR -> categoryBadgeColor("1.UWT").background
-            UciTeamRankingTier.ALL_WORLD_TOUR,
-            UciTeamRankingTier.WOMENS_WORLD_TOUR -> orange.copy(alpha = 0.15f)
-            UciTeamRankingTier.PRO_SERIES -> green.copy(alpha = 0.15f)
-            UciTeamRankingTier.STANDARD -> Color.Transparent
-        }
-    }
-    val explanation = item.explanation(LocaleHolder.shouldShowEnglishContent)
     val clickableModifier = if (explanation.isNotEmpty()) {
         Modifier.clickable(role = Role.Button, onClick = onClick)
     } else {
         Modifier
     }
-
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(background)
-            .then(clickableModifier),
+            .heightIn(min = 35.dp)
+            .then(clickableModifier)
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.RowVerticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Text(
-                text = item.row.rank.toString(),
-                modifier = Modifier.width(27.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 12.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            )
-            Box(Modifier.width(18.dp), contentAlignment = Alignment.Center) {
-                CountryFlag(countryCode = item.row.countryCode, height = 13.5.dp)
-            }
-            Text(
-                text = item.row.displayName,
-                modifier = Modifier.weight(1f),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = item.row.teamCategory.orEmpty(),
-                modifier = Modifier.width(32.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-            )
-            Text(
-                text = points,
-                modifier = Modifier.width(68.dp),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 12.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                maxLines = 1,
-                softWrap = false,
-            )
+        // Todos los puestos comparten caja: las cifras quedan alineadas.
+        Box(Modifier.width(RankColumnWidth), contentAlignment = Alignment.Center) {
+            UciRankingTag(item.row.rank.toString(), item.rankStyle, Modifier.widthIn(min = 30.dp))
         }
+        Box(Modifier.width(FlagColumnWidth), contentAlignment = Alignment.Center) {
+            CountryFlag(countryCode = item.row.countryCode, height = 13.5.dp)
+        }
+        Text(
+            text = item.row.displayName,
+            modifier = Modifier.weight(1f),
+            style = CCText.S14,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = item.row.teamCategory.orEmpty(),
+            modifier = Modifier.width(CategoryColumnWidth),
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = points,
+            modifier = Modifier.width(PointsColumnWidth),
+            style = CCText.S14.copy(fontFeatureSettings = "tnum"),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
@@ -623,7 +676,7 @@ private fun FeedList(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = AdaptiveLayoutPolicy.feedColumns(maxWidth.value, adaptiveInfo)
         LazyColumn(
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -633,13 +686,17 @@ private fun FeedList(
                     // dispositivo) — mismo criterio que las fechas de cabecera de etapa.
                     Text(
                         text = DateFormatting.formatDateLongContent(date),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = CCText.S13,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp),
+                        modifier = Modifier
+                            .padding(top = if (date == grouped.keys.first()) 0.dp else 8.dp, start = 4.dp)
+                            .semantics { heading() },
                     )
                 }
-                val rows = AdaptiveLayoutPolicy.rows(dayEntries, columns) { it.isFeatured }
+                // Ninguna fila ocupa las dos columnas, como la web
+                // (`.feed-day>.feed-row { grid-column: auto }`).
+                val rows = AdaptiveLayoutPolicy.rows(dayEntries, columns)
                 items(rows, key = { row ->
                     row.items.joinToString("|") { e ->
                         e.stageRefId ?: "ext-${e.rd?.id ?: e.race.id}-${e.stageNumber ?: "f"}"
@@ -649,14 +706,20 @@ private fun FeedList(
                         val entry = row.items.first()
                         FeedEntryRow(entry = entry, onClick = { onEntryTap(entry) })
                     } else {
+                        // Misma altura para las tarjetas de la fila: la fila
+                        // toma el alto de la más alta.
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.Top,
                         ) {
                             row.items.forEach { entry ->
-                                Box(Modifier.weight(1f)) {
-                                    FeedEntryRow(entry = entry, onClick = { onEntryTap(entry) })
+                                Box(Modifier.weight(1f).fillMaxHeight()) {
+                                    FeedEntryRow(
+                                        entry = entry,
+                                        onClick = { onEntryTap(entry) },
+                                        modifier = Modifier.fillMaxHeight(),
+                                    )
                                 }
                             }
                             repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
@@ -670,14 +733,22 @@ private fun FeedList(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        OutlinedButton(onClick = onLoadMore, enabled = !loadingMore) {
+                        OutlinedButton(
+                            onClick = onLoadMore,
+                            enabled = !loadingMore,
+                            shape = RoundedCornerShape(CCRadius.Control),
+                        ) {
                             if (loadingMore) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
                                 )
                             } else {
-                                Text(stringResource(R.string.results_feed_load_more))
+                                Text(
+                                    stringResource(R.string.results_feed_load_more),
+                                    style = CCText.S14,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
                             }
                         }
                     }
@@ -688,27 +759,26 @@ private fun FeedList(
 }
 
 /**
- * Fila del feed — mimetiza la card de Hoy (`RaceCard`): superficie CCCard con
- * el tinte del color de la carrera, logo 36dp con la bandera debajo, nombre con
- * la tipografía de card, línea "Etapa N · NNN km · +N.NNN m" + badge de tipo
- * solo para contrarrelojes, y tercera línea trofeo + ganador en
- * SemiBold. Las generales finales conservan su etiqueta propia y el tinte base.
+ * Fila del feed — superficie neutra de la card de Hoy (`CCCard`, sin tinte del
+ * color de carrera), logo 36dp con la bandera debajo, nombre completo con el
+ * peso de los títulos de Hoy, línea "Etapa N · NN,N km · +N.NNN m" + badge de
+ * tipo solo para contrarrelojes, y tercera línea trofeo + ganador en
+ * SemiBold. Las generales finales conservan su etiqueta propia.
  */
 @Composable
 private fun FeedEntryRow(
     entry: ResultsFeedLogic.FeedEntry,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val race = entry.race
     CCCard(
-        accent = race.colorHex?.let { colorFromHex(it, fallback = MaterialTheme.colorScheme.outlineVariant) },
-        // Mismo tinte base para destacados y generales finales.
-        accentAlpha = 0.04f,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .clickable(role = Role.Button, onClick = onClick)
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -736,24 +806,23 @@ private fun FeedEntryRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                // Nombre — misma tipografía que las cards de Hoy (Medium 14/16).
+                // Nombre completo con el peso de los títulos de Hoy (16
+                // seminegrita): pasa a una segunda línea en lugar de cortarse.
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.Top,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = race.localizedName,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        lineHeight = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = CCText.S16,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     if (RaceLogic.shouldShowFemaleIndicator(race)) {
                         Text(
                             text = "♀",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary,
+                            style = CCText.S12,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -762,9 +831,8 @@ private fun FeedEntryRow(
                     // Las generales finales solo llevan su etiqueta (sin datos de etapa).
                     Text(
                         text = stringResource(R.string.results_feed_gc_final),
+                        style = CCText.S13,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
@@ -781,9 +849,7 @@ private fun FeedEntryRow(
                                 Text(
                                     text = subtitle,
                                     modifier = Modifier.weight(1f, fill = false),
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = 12.sp,
-                                    lineHeight = 14.sp,
+                                    style = CCText.S13,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -818,9 +884,8 @@ private fun FeedEntryRow(
                         )
                         Text(
                             text = entry.winner,
+                            style = CCText.S13,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -838,16 +903,16 @@ private fun FeedEntryRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             item.colorHex?.let {
-                                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(colorFromHex(it)))
+                                Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(colorFromHex(it)))
                             }
                             Text(
                                 if (LocaleHolder.shouldShowEnglishContent) item.labelEn else item.labelEs,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = CCText.S12,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             if (item.winner.isNotEmpty()) {
-                                Text(item.winner, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(item.winner, style = CCText.S12, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

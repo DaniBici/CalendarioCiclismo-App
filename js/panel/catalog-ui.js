@@ -1,4 +1,5 @@
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const count=value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'});
 const idAttribute=id=>id?` id="${escapeHtml(id)}"`:'';
 
 export function panelDayNavigationHtml({pickerId,previousId,nextId,todayId,addId,addLabel,disabled=false,title='Agenda'}) {
@@ -18,9 +19,10 @@ export function shiftPanelDay(dateKey,delta) {
 }
 
 export function wirePanelDayNavigation({picker,previous,next,today},{getDate,onChange,todayDate,normalize=date=>date}) {
-  const commit=(date,direction=0)=>{const value=normalize(date,direction);picker.value=value;onChange(value);};
+  // onChange recibe el sentido (-1, 0, 1) y si la fecha la eligió el usuario en el selector.
+  const commit=(date,direction=0,picked=false)=>{const value=normalize(date,direction);picker.value=value;onChange(value,{direction,picked});};
   picker.value=getDate();
-  picker.addEventListener('change',()=>{if(picker.value)commit(picker.value);else picker.value=getDate();});
+  picker.addEventListener('change',()=>{if(picker.value)commit(picker.value,0,true);else picker.value=getDate();});
   const shift=delta=>commit(shiftPanelDay(getDate(),delta),delta);
   picker.addEventListener('keydown',event=>{
     if(!['ArrowUp','ArrowDown'].includes(event.key))return;
@@ -59,9 +61,10 @@ export function renderPanelCatalog(root,model,{onCategory,onRace,itemHtml,emptyM
   if(!model.list.length){const empty=document.createElement('p');empty.className='panel-catalog-empty';empty.textContent=emptyMessage;root.append(empty);return;}
   if(!model.flat&&!model.selectedCategory){
     const grid=document.createElement('div');grid.className='cat-grid';
-    for(const category of model.categories){const button=document.createElement('button');button.type='button';button.className='cat-grid__btn';button.innerHTML=`<span class="cat-grid__label">${escapeHtml(category)}</span><span class="cat-grid__count">${model.groups.get(category).length}</span>`;button.onclick=()=>onCategory(category);grid.append(button);}
+    for(const category of model.categories){const button=document.createElement('button');button.type='button';button.className='cat-grid__btn';button.innerHTML=`<span class="cat-grid__label">${escapeHtml(category)}</span><span class="cat-grid__count">${count(model.groups.get(category).length)}</span>`;button.onclick=()=>onCategory(category);grid.append(button);}
     root.append(grid);return;
   }
-  if(model.selectedCategory&&!model.flat){const back=document.createElement('div');back.className='cat-back';back.innerHTML=`<button type="button" class="cat-back__btn">← Categorías</button><div class="cat-back__title">${escapeHtml(model.selectedCategory)} <span class="u-o60">(${model.list.length})</span></div>`;back.querySelector('button').onclick=()=>onCategory(null);root.append(back);}
-  for(const race of model.list){const button=document.createElement('button');button.type='button';button.className='race-list-item';button.innerHTML=itemHtml(race,{showTimestamp:model.sort==='recent'});button.onclick=()=>onRace(race);root.append(button);}
+  if(model.selectedCategory&&!model.flat){const back=document.createElement('div');back.className='cat-back';back.innerHTML=`<button type="button" class="cat-back__btn">← Categorías</button><div class="cat-back__title">${escapeHtml(model.selectedCategory)} <span class="u-c-muted u-fw-400">(${count(model.list.length)})</span></div>`;back.querySelector('button').onclick=()=>onCategory(null);root.append(back);}
+  const list=document.createElement('div');list.className='panel-list';root.append(list);
+  for(const race of model.list){const button=document.createElement('button');button.type='button';button.className='race-list-item';button.innerHTML=itemHtml(race,{showTimestamp:model.sort==='recent'});button.onclick=()=>onRace(race);list.append(button);}
 }

@@ -10,6 +10,16 @@ final class CyclocrossTests: XCTestCase {
 
     private func race() throws -> CxRace { try JSONDecoder().decode(CxRace.self, from: Data(fixture.utf8)) }
 
+    func testClassNameWritesAcronymsInFull() {
+        XCTAssertEqual(CyclocrossPresentation.className("NAC", english: false), "Nacional")
+        XCTAssertEqual(CyclocrossPresentation.className("CN", english: false), "Campeonato nacional")
+        XCTAssertEqual(CyclocrossPresentation.className("CDM", english: true), "UCI World Cup")
+        XCTAssertEqual(CyclocrossPresentation.className("C1", english: false), "UCI C1")
+        XCTAssertEqual(CyclocrossPresentation.className("C2", english: true), "UCI C2")
+        XCTAssertEqual(CyclocrossPresentation.className("X", english: false), "X")
+        XCTAssertEqual(CyclocrossPresentation.className(nil, english: false), "")
+    }
+
     func testNationalRacesHiddenOnlyInEnglish() throws {
         let national = try JSONDecoder().decode(CxRace.self, from: Data(fixture.replacingOccurrences(of: "\"class\":\"CM\"", with: "\"class\":\"NAC\"").utf8))
         let defaults = UserDefaults.standard
@@ -822,12 +832,13 @@ final class CyclocrossTests: XCTestCase {
     }
 
     func testTournamentRoundsFollowStandingsContractOrder() {
-        func row(_ id: String, _ tournamentId: String? = nil, _ dateKey: String, _ seasonKey: String? = "2026-27", entries: [CxRoundEntry] = []) -> CxRoundRow {
-            CxRoundRow(id: id, tournamentId: tournamentId, dateKey: dateKey, seasonKey: seasonKey, cx_race_categories: entries)
+        func row(_ id: String, _ tournamentId: String? = nil, _ dateKey: String, _ seasonKey: String? = "2026-27", cancelled: Bool = false, entries: [CxRoundEntry] = []) -> CxRoundRow {
+            CxRoundRow(id: id, tournamentId: tournamentId, dateKey: dateKey, seasonKey: seasonKey, isCancelled: cancelled, cx_race_categories: entries)
         }
         let rows = [
             row("oct-late", "t1", "2026-10-03", entries: [CxRoundEntry(dateKey: "2026-10-04", startTimeUtc: "2026-10-04T15:00:00Z")]),
             row("sin-torneo", nil, "2026-10-03"),
+            row("cancelada", "t1", "2026-10-02", cancelled: true),
             row("sin-hora", "t1", "2026-10-03", entries: [CxRoundEntry(dateKey: "2026-10-04", startTimeUtc: nil)]),
             row("oct-early", "t1", "2026-10-03", entries: [CxRoundEntry(dateKey: "2026-10-04", startTimeUtc: "2026-10-04T13:00:00Z"), CxRoundEntry(dateKey: "2026-10-04", startTimeUtc: "2026-10-04T11:00:00Z")]),
             row("fuera", "t1", "2027-03-01"),
@@ -842,6 +853,7 @@ final class CyclocrossTests: XCTestCase {
         XCTAssertEqual(rounds["oct-late"], CxRound(n: 2, total: 4))
         XCTAssertEqual(rounds["sin-hora"], CxRound(n: 3, total: 4))
         XCTAssertEqual(rounds["nov"], CxRound(n: 4, total: 4))
+        XCTAssertNil(rounds["cancelada"])
         XCTAssertNil(rounds["fuera"])
         XCTAssertNil(rounds["sin-torneo"])
         XCTAssertNil(rounds["otra-temporada"])

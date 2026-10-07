@@ -9,9 +9,9 @@
 :root {
   --content-max: 1440px;
   --page-gutter: 16px;
-  --bg:            #141923;
-  --bg-card:       #1e2632;
-  --bg-card-hover: #293443;
+  --bg:            #10141c;
+  --bg-card:       #222b38;
+  --bg-card-hover: #2b3646;
   --border:        #354252;
   --border-light:  #465568;
   --text:          #e2e2e9;
@@ -33,15 +33,33 @@
   --font-display: 'Google Sans', 'Roboto', sans-serif;
   --font-body:    'Google Sans', 'Roboto', sans-serif;
 
+  /* Escala de radios: 4 px para controles y etiquetas, 8 px para superficies;
+     50 % solo en elementos circulares. Los alias heredados (pill, soft, btn,
+     lg) apuntan a la escala y no admiten valores propios. */
+  --radius-sm:   4px;
   --radius:      8px;
-  --radius-btn:  3px;          /* legado — los botones usan --radius-pill/-soft */
-  --radius-lg:   12px;
+  --radius-lg:   var(--radius);
+  --radius-btn:  var(--radius-sm);
+  --radius-pill: var(--radius-sm);
+  --radius-soft: var(--radius);
+  /* Escala tipográfica: siete tamaños. Ninguna regla fija otro valor. */
+  --fs-1: 0.75rem;     /* 12 px: etiquetas y metadatos */
+  --fs-2: 0.8125rem;   /* 13 px: texto secundario */
+  --fs-3: 0.875rem;    /* 14 px: controles y texto de interfaz */
+  --fs-4: 1rem;        /* 16 px: títulos de tarjeta y texto corrido */
+  --fs-5: 1.25rem;     /* 20 px: títulos de sección */
+  --fs-6: 1.75rem;     /* 28 px: cifras destacadas */
+  --fs-7: 2.25rem;     /* 36 px: título de página */
+  /* Hover único de controles sin caja y relleno neutro de etiquetas. */
+  --hover-bg: color-mix(in srgb, var(--text) 8%, transparent);
+  --badge-neutral-bg: color-mix(in srgb, var(--text) 8%, transparent);
+  --badge-neutral-hover: color-mix(in srgb, var(--text) 14%, transparent);
   --transition:  0.15s ease;
   --bg-header:   #202938;
-  /* Elevación de tarjetas: en oscuro se eleva con LUZ (glow blanco tenue),
-     no con sombra oscura — sobre fondo casi negro una sombra no contrasta.
-     Paridad conceptual con la elevación de CCCard en las apps. */
-  --card-shadow: 0 0 6px rgba(255,255,255,0.07);
+  /* Elevación única de las tarjetas, sin borde: la de ccCardShadow() en iOS
+     (radio 8 → desenfoque 16px, y = 3). En oscuro la tarjeta se separa por el
+     tono de su superficie; la sombra sube al 24 % para seguir viéndose. */
+  --card-shadow: 0 3px 16px rgba(0,0,0,0.24);
 
   /* ── Badges de categoría UCI ──────────────────────────────────
      WT / WWT (WorldTour)  → azul
@@ -97,8 +115,8 @@
 
 /* ── Tema claro ───────────────────────────────────────────────── */
 html.light {
-  --bg:            #f3f5f8;
-  --bg-card:       #fafbfc;
+  --bg:            #eef1f5;
+  --bg-card:       #ffffff;
   --bg-card-hover: #e9edf3;
   --border:        #d8dee8;
   --border-light:  #c8cacf;
@@ -116,9 +134,8 @@ html.light {
 
   --header-text:   #1f1f1f;
   --bg-header:     #edf1f6;
-  /* En claro la elevación sí es una sombra oscura suave, idéntica a la de
-     CCCard en iOS/Android (negro 6-8% sobre fondo claro). */
-  --card-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  /* En claro, la misma sombra que ccCardShadow() en iOS: negro 6 %. */
+  --card-shadow: 0 3px 16px rgba(0,0,0,0.06);
 
   --badge-wt-bg:     #d3e3fd;
   --badge-wt-color:  #0842a0;
@@ -160,8 +177,8 @@ html.light {
 /* ── Tema claro del sistema, salvo tema oscuro elegido ───────── */
 @media (prefers-color-scheme: light) {
   html:not(.dark) {
-    --bg:            #f3f5f8;
-    --bg-card:       #fafbfc;
+    --bg:            #eef1f5;
+    --bg-card:       #ffffff;
     --bg-card-hover: #e9edf3;
     --border:        #d8dee8;
     --border-light:  #c8cacf;
@@ -179,7 +196,7 @@ html.light {
 
     --header-text:   #1f1f1f;
     --bg-header:     #edf1f6;
-    --card-shadow:   0 2px 6px rgba(0,0,0,0.08);
+    --card-shadow:   0 3px 16px rgba(0,0,0,0.06);
 
     --badge-wt-bg:     #d3e3fd;
     --badge-wt-color:  #0842a0;

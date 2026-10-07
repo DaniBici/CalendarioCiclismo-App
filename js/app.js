@@ -40,7 +40,7 @@ function _updateProgressCards() {
   _progressCards = _progressCards.filter(({ card, startMs, endMs, clipRect }) => {
     if (now >= endMs) {
       if (clipRect) clipRect.setAttribute('width', '100');
-      else card.style.setProperty('--progress', '100%');
+      else card.style.removeProperty('--progress');
       return false;
     }
     const pct = Math.max(0, Math.min(100, Math.round((now - startMs) / (endMs - startMs) * 100)));
@@ -122,7 +122,7 @@ function tvBadgeCard(tvStatus, broadcasts, neutralStartTs, liveTextUrl, regionBl
   if (refTs) {
     const refMs = refTs.toDate ? refTs.toDate().getTime() : new Date(refTs).getTime();
     if (tvStatus === 'confirmed_time' && refMs <= nowMs) {
-      return wrapTv(`${tvIconHtml} Live`, true);
+      return wrapTv(`${tvIconHtml} ${t('tv.live')}`, true);
     }
     // Si el broadcast de referencia empieza antes de la salida neutralizada → cobertura íntegra
     const label = (neutralMs !== null && refMs <= neutralMs) ? t('tv.fullStage') : formatTime(refTs);
@@ -201,13 +201,9 @@ function buildDateBar() {
   days.forEach(dk => {
     const [y, m, d] = dk.split('-').map(Number);
     const date  = new Date(y, m - 1, d);
-    // Móvil conserva la abreviatura en dos líneas. En escritorio se muestra el
-    // nombre completo: el selector ya no dispersa siete etiquetas cortas por
-    // todo el ancho de la agenda y funciona como una unidad compacta.
+    // Un solo formato en todos los anchos: abreviatura sobre el número.
     let wdShort = date.toLocaleDateString(getLocale(), { weekday: 'short' }).replace(/\.$/, '');
     wdShort = wdShort.charAt(0).toUpperCase() + wdShort.slice(1);
-    let wdLong = date.toLocaleDateString(getLocale(), { weekday: 'long' });
-    wdLong = wdLong.charAt(0).toUpperCase() + wdLong.slice(1);
     const dayNum = date.toLocaleDateString(getLocale(), { day: 'numeric' });
 
     const pill=dateNavigationButton({kind:'pill',label:dk,selected:dk===currentDateKey,isToday:dk===today});
@@ -216,7 +212,7 @@ function buildDateBar() {
     pill.setAttribute('aria-label', date.toLocaleDateString(getLocale(),
       { weekday: 'long', day: 'numeric', month: 'long' }));
     if (dk === currentDateKey) pill.setAttribute('aria-current', 'date');
-    pill.innerHTML = `<span class="date-pill__wd" aria-hidden="true"><span class="date-pill__wd-short">${wdShort}</span><span class="date-pill__wd-long">${wdLong}</span></span><span class="date-pill__num" aria-hidden="true">${dayNum}</span>`;
+    pill.innerHTML = `<span class="date-pill__wd" aria-hidden="true">${wdShort}</span><span class="date-pill__num" aria-hidden="true">${dayNum}</span>`;
     pill.dataset.dk = dk;
     pill.addEventListener('click', () => loadDay(dk));
     pillsInner.appendChild(pill);
@@ -574,8 +570,8 @@ async function ensureYearRacesCached(year) {
 // ── Tarjetas de la agenda ─────────────────────────────────────────
 // Estructura común de components/race-card.js: logo | datos | horario, con el
 // miniperfil como banda inferior. Las destacadas añaden la clase
-// race-card--featured y, en la rejilla de escritorio, el CSS lleva el perfil a
-// una columna central. Carreras sin jornada, canceladas y días de descanso son
+// race-card--featured (orden y paridad con las apps); en la web no cambian de
+// diseño. Carreras sin jornada, canceladas y días de descanso son
 // la misma tarjeta con otro estado. El DOM no depende del ancho de pantalla.
 
 const _overviewBtnHtml = race => race.raceFormat === 'stage_race' && race.startDate !== race.endDate && race.id && !race.isNoClickable
@@ -666,8 +662,10 @@ function buildCard(rd) {
   const tvHtml = (showResults || waiting || rd.isCancelledDay) ? ''
     : tvBadgeCard(rd.tvStatus, rd._broadcasts, rd.neutralStartTimeUtc, rd._assets?.find(a => a.type === 'live_text')?.url || null, rd._tvBlocked);
   const isFirstOrOnlyDay = race.raceFormat !== 'stage_race' || rd.dateKey === race.startDate;
-  const startlistHtml = race.startlistImportedAt && !showResults && !waiting && !rd.isCancelledDay && isFirstOrOnlyDay
-    ? `<a class="badge badge--startlist" href="${startlistUrl(race)}" onclick="event.stopPropagation()">${_cyclistSvg} ${race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'))}</a>` : '';
+  // Crono de etapa única: el orden de salida sustituye a los dorsales.
+  const isSingleTimeTrial = isTimeTrial && race.raceFormat !== 'stage_race';
+  const startlistHtml = race.startlistImportedAt && !showResults && !waiting && !rd.isCancelledDay && isFirstOrOnlyDay && !isSingleTimeTrial
+    ? `<a class="badge badge--startlist" href="${startlistUrl(race)}" onclick="event.stopPropagation()">${_cyclistSvg} <span class="badge__text">${race.startlistProvisional ? t('stage.startlistProvisional') : (race.gender === 'female' ? t('stage.startlistLabelFemale') : t('stage.startlistLabel'))}</span></a>` : '';
   const startOrderHtml = isTimeTrial && rd._assets?.some(a => a.url && a.type === 'startOrder') && !rd.isCancelledDay && !showResults && !waiting
     ? startOrderBadgeHtml(startOrderUrl(rd)) : '';
 

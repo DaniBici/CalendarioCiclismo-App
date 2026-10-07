@@ -128,7 +128,6 @@ private struct SmallView: View {
                     Text(text.t("Próxima", "Next") + " · " + text.day(next.date, relativeTo: entry.date))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.wTertiary)
-                        .textCase(.uppercase)
                     Text(next.name)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.wPrimary)
@@ -283,7 +282,6 @@ private struct ListView: View {
                     Text(text.t("Hoy", "Today") + " · " + dayTitle(text))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.wTertiary)
-                        .textCase(.uppercase)
                     Spacer()
                     if entry.isStale { WidgetStaleDot() }
                     WidgetLogo(height: 16)

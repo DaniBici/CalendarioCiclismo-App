@@ -11,17 +11,15 @@ struct CategoryBadge: View {
         if let cat = category, !cat.isEmpty {
             let colors = AppTheme.categoryBadgeColor(for: cat, highContrast: isHighContrast)
             Text(cat)
-                .font(.caption2)
-                .fontWeight(.semibold)
-                .textCase(.uppercase)
+                .ccFont(.s12, weight: .semibold)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(colors.background)
                 .foregroundStyle(colors.foreground)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
                 .overlay(
                     isHighContrast
-                        ? RoundedRectangle(cornerRadius: 3).strokeBorder(colors.foreground, lineWidth: 1)
+                        ? RoundedRectangle(cornerRadius: AppTheme.Radius.control).strokeBorder(colors.foreground, lineWidth: 1)
                         : nil
                 )
                 .accessibilityLabel(AccessibilityCategoryLabel.description(for: cat) ?? cat)

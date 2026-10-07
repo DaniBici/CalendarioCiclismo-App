@@ -98,12 +98,12 @@ export async function openEditor(raceDayId, cachedData = null) {
 // Tipos de documento soportados en la sección Documentación.
 // El icono se inyecta como SVG inline para no depender de assets externos.
 const ASSET_TYPE_LABELS = {
-  technicalGuide: 'Libro de Ruta',
+  technicalGuide: 'Libro de ruta',
   roadbook: 'Rutómetro',
   profile: 'Perfil',
   ports: 'Puertos',
   map: 'Mapa',
-  startOrder: 'Orden Salida',
+  startOrder: 'Orden de salida',
   live_text: 'Live texto',
 };
 const ASSET_TYPE_ICONS = {
@@ -283,7 +283,7 @@ function renderEditor(rd, race, broadcasts, assets) {
               <span class="editor-race-name">
                 ${flag} ${race.name || '—'}
               </span>
-              <button class="btn btn--ghost u-fs-075 u-py-035 u-px-070" id="ed-changeRace">
+              <button class="btn btn--ghost u-fs-1 u-py-035 u-px-070" id="ed-changeRace">
                 Cambiar
               </button>
             </div>
@@ -301,19 +301,19 @@ function renderEditor(rd, race, broadcasts, assets) {
               <div class="u-row">
                 <input type="text" id="ed-slug" value="${esc(rd.slug || '')}" placeholder="tour-de-france-2025-etapa-3" maxlength="80"
                        autocomplete="off" spellcheck="false" ${!rd.slug ? 'data-auto="1"' : ''}>
-                <button type="button" id="ed-slug-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
+                <button type="button" id="ed-slug-suggest" class="btn btn--ghost u-fs-1 u-btn-sm"
                        >Auto</button>
               </div>
-              <div id="ed-slug-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
+              <div id="ed-slug-error" class="u-c-danger u-fs-1 u-mt-025" style="display:none"></div>
             </div>
             <div class="field lang-field--en">
               <div class="u-row">
                 <input type="text" id="ed-slug-en" value="${esc(rd.slugEn || '')}" placeholder="tour-de-france-2025-stage-3" maxlength="80"
                        autocomplete="off" spellcheck="false" ${!rd.slugEn ? 'data-auto="1"' : ''}>
-                <button type="button" id="ed-slug-en-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
+                <button type="button" id="ed-slug-en-suggest" class="btn btn--ghost u-fs-1 u-btn-sm"
                        >Auto</button>
               </div>
-              <div id="ed-slug-en-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
+              <div id="ed-slug-en-error" class="u-c-danger u-fs-1 u-mt-025" style="display:none"></div>
             </div>
           </div>
           <div class="field">
@@ -335,7 +335,7 @@ function renderEditor(rd, race, broadcasts, assets) {
           <div class="lang-pair" data-lang="es">
             <div class="lang-pair__header">
               <span class="lang-pair__label">
-                <span class="lang-field--es">Salida y Llegada</span>
+                <span class="lang-field--es">Salida y llegada</span>
                 <span class="lang-field--en">Start &amp; Finish (EN)</span>
               </span>
               <button type="button" class="lang-toggle" data-lang-target="es">EN</button>
@@ -478,7 +478,7 @@ function renderEditor(rd, race, broadcasts, assets) {
             </div>
             <div class="field lang-field--en">
               <label class="u-row">Description (EN) ${statusBadge('description')}
-                ${tr.description?.status !== 'manual' ? `<button type="button" class="btn btn--ghost u-fs-070 u-py-015 u-px-050" onclick="markTranslationAsManual('description')">✓ Manual</button>` : ''}
+                ${tr.description?.status !== 'manual' ? `<button type="button" class="btn btn--ghost u-fs-1 u-py-015 u-px-050" onclick="markTranslationAsManual('description')">✓ Manual</button>` : ''}
               </label>
               <div class="md-editor">
                 ${mdToolbarHtml('md-toolbar-en', { bold: 'Bold (Cmd+B)', italic: 'Italic (Cmd+I)', h2: 'Heading H2', h3: 'Heading H3', ul: 'List', blockquote: 'Blockquote', hr: 'Horizontal rule' })}
@@ -516,7 +516,7 @@ function renderEditor(rd, race, broadcasts, assets) {
       <!-- Orden de Salida (solo CRI/CRE) -->
       ${(rd.primaryType === 'itt' || rd.primaryType === 'ttt') ? `<div class="editor-section" data-tab="mas" id="soEditorSection">
         <div class="editor-section__header">
-          <span class="editor-section__title">Orden de Salida</span>
+          <span class="editor-section__title">Orden de salida</span>
         </div>
         <div class="editor-section__body">
           ${rd.startOrderImportedAt
@@ -538,7 +538,7 @@ function renderEditor(rd, race, broadcasts, assets) {
             ${rd.startOrderImportedAt
               ? `<button class="btn btn--ghost u-c-red" id="soDeleteBtn" type="button">Eliminar</button>`
               : ''}
-            <span class="u-fs-080 u-c-muted" id="soMsg"></span>
+            <span class="u-fs-2 u-c-muted" id="soMsg"></span>
           </div>
           <div class="so-group-fields">
             <div>
@@ -548,17 +548,17 @@ function renderEditor(rd, race, broadcasts, assets) {
             </div>
             ${rd.primaryType === 'ttt' ? '' : `
             <div>
-              <label class="u-sublabel" for="soTtDorsals">Dorsales Contrarrelojistas (separados por coma)</label>
+              <label class="u-sublabel" for="soTtDorsals">Dorsales contrarrelojistas (separados por coma)</label>
               <input type="text" id="soTtDorsals" class="input u-input-block" value="${(rd.startOrderTtDorsals || []).join(', ')}" placeholder="Ej: 1, 12, 45">
             </div>
             <div>
-              <label class="u-sublabel" for="soGcDorsals">Dorsales General / GC (separados por coma)</label>
+              <label class="u-sublabel" for="soGcDorsals">Dorsales general / GC (separados por coma)</label>
               <input type="text" id="soGcDorsals" class="input u-input-block" value="${(rd.startOrderGcDorsals || []).join(', ')}" placeholder="Ej: 1, 12, 45">
             </div>
-            <p class="u-fs-075 u-c-muted u-m0">Los grupos con al menos un dorsal muestran filtros en la página pública.</p>`}
+            <p class="u-fs-1 u-c-muted u-m0">Los grupos con al menos un dorsal muestran filtros en la página pública.</p>`}
             <div class="u-row u-mt-025">
-              <button class="btn btn--ghost u-fs-082" id="soGroupSaveBtn" type="button">${rd.primaryType === 'ttt' ? 'Guardar zona horaria' : 'Guardar zona y grupos'}</button>
-              <span id="soGroupMsg" class="u-fs-078 u-c-muted"></span>
+              <button class="btn btn--ghost u-fs-2" id="soGroupSaveBtn" type="button">${rd.primaryType === 'ttt' ? 'Guardar zona horaria' : 'Guardar zona y grupos'}</button>
+              <span id="soGroupMsg" class="u-fs-2 u-c-muted"></span>
             </div>
           </div>
           <div id="soPreview" class="so-editor-preview"></div>
@@ -606,10 +606,10 @@ function renderEditor(rd, race, broadcasts, assets) {
           </div>
           <div class="editor-actions">
             <button class="btn btn--ghost" id="ed-gpx-btn">${rd.elevationProfile ? 'Reemplazar GPX' : 'Subir GPX'}</button>
-            <button class="btn btn--ghost u-fs-080 u-c-red" id="ed-gpx-del"${rd.elevationProfile ? '' : ' style="display:none"'}>Borrar</button>
-            <a class="btn btn--ghost u-fs-082" id="ed-gpx-view" href="/perfil.html?id=${rd.id}" target="_blank" rel="noopener"${rd.elevationProfile ? '' : ' style="display:none"'}>Ver perfil ↗</a>
-            <button class="btn btn--ghost u-fs-082" id="ed-gpx-png"${rd.elevationProfile ? '' : ' style="display:none"'} title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon u-mr-030em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>
-            <span class="u-fs-080 u-c-muted" id="ed-gpx-status"></span>
+            <button class="btn btn--ghost u-fs-2 u-c-red" id="ed-gpx-del"${rd.elevationProfile ? '' : ' style="display:none"'}>Borrar</button>
+            <a class="btn btn--ghost u-fs-2" id="ed-gpx-view" href="/perfil.html?id=${rd.id}" target="_blank" rel="noopener"${rd.elevationProfile ? '' : ' style="display:none"'}>Ver perfil ↗</a>
+            <button class="btn btn--ghost u-fs-2" id="ed-gpx-png"${rd.elevationProfile ? '' : ' style="display:none"'} title="Exportar el miniperfil (solo iconos) a PNG con fondo transparente"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-inline-icon u-mr-030em"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar PNG</button>
+            <span class="u-fs-2 u-c-muted" id="ed-gpx-status"></span>
           </div>
           <label id="ed-profile-not-viewable-label" class="editor-profile-hidden"${rd.elevationProfile ? '' : ' style="display:none"'}>
             <input type="checkbox" id="ed-profile-not-viewable" ${rd.profileNotViewable ? 'checked' : ''} class="editor-profile-hidden__box">
@@ -640,9 +640,9 @@ function renderEditor(rd, race, broadcasts, assets) {
           </div>
           <div class="editor-actions u-wrap">
             <button class="btn btn--ghost" id="ed-map-btn">${rd.routeGpxUrl ? 'Reemplazar GPX del mapa' : 'Subir GPX del mapa'}</button>
-            ${rd.routeGpxUrl ? `<button class="btn btn--ghost u-fs-080 u-c-red" id="ed-map-del">Quitar mapa</button>` : ''}
-            ${rd.routeGpxUrl ? `<a class="btn btn--ghost u-fs-082" href="/mapa.html?id=${rd.id}" target="_blank" rel="noopener">Ver mapa ↗</a>` : ''}
-            <span class="u-fs-080 u-c-muted" id="ed-map-status"></span>
+            ${rd.routeGpxUrl ? `<button class="btn btn--ghost u-fs-2 u-c-red" id="ed-map-del">Quitar mapa</button>` : ''}
+            ${rd.routeGpxUrl ? `<a class="btn btn--ghost u-fs-2" href="/mapa.html?id=${rd.id}" target="_blank" rel="noopener">Ver mapa ↗</a>` : ''}
+            <span class="u-fs-2 u-c-muted" id="ed-map-status"></span>
           </div>
         </div>
       </div>
@@ -667,7 +667,7 @@ function renderEditor(rd, race, broadcasts, assets) {
             <span class="ann-del-placeholder"></span>
           </div>
           <div id="summitsList">${(rd.profileSummits || []).map(summitRowHTML).join('')}</div>
-          <button class="btn btn--ghost u-mt-050 u-fs-082" id="addSummitBtn">+ Añadir puerto</button>
+          <button class="btn btn--ghost u-mt-050 u-fs-2" id="addSummitBtn">+ Añadir puerto</button>
         </div>
       </div>
 
@@ -678,14 +678,14 @@ function renderEditor(rd, race, broadcasts, assets) {
         </div>
         <div class="editor-section__body">
           <div class="ann-row ann-row--header" aria-hidden="true">
-            <span class="u-w-time u-fs-072 u-c-muted">km</span>
-            <span class="u-grow u-fs-072 u-c-muted">Nombre</span>
-            <span class="u-w-1200 u-fs-072 u-c-muted">Tipo</span>
-            <span class="u-w-550em u-fs-072 u-c-muted">hora</span>
+            <span class="u-w-time u-fs-1 u-c-muted">km</span>
+            <span class="u-grow u-fs-1 u-c-muted">Nombre</span>
+            <span class="u-w-1200 u-fs-1 u-c-muted">Tipo</span>
+            <span class="u-w-550em u-fs-1 u-c-muted">hora</span>
             <span class="u-w-200"></span>
           </div>
           <div id="waypointsList">${(rd.profileWaypoints || []).filter(w => w.type !== 'kom').map(waypointRowHTML).join('')}</div>
-          <button class="btn btn--ghost u-mt-050 u-fs-082" id="addWaypointBtn">+ Añadir localidad</button>
+          <button class="btn btn--ghost u-mt-050 u-fs-2" id="addWaypointBtn">+ Añadir localidad</button>
         </div>
       </div>
 
@@ -695,7 +695,7 @@ function renderEditor(rd, race, broadcasts, assets) {
           <span class="editor-section__title">Clasificaciones</span>
         </div>
         <div class="editor-section__body" id="ruSectionBody">
-          <div class="u-c-muted u-fs-080">Cargando clasificaciones…</div>
+          <div class="u-c-muted u-fs-2">Cargando clasificaciones…</div>
         </div>
       </div>
 

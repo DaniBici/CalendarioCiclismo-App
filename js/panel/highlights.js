@@ -145,15 +145,15 @@ function _onHighlightRaceSearch() {
       .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
       .slice(0, 20);
     if (matches.length === 0) {
-      resultsDiv.innerHTML = '<div class="u-py-050 u-px-070 u-c-dim u-fs-082">Sin resultados</div>';
+      resultsDiv.innerHTML = '<div class="u-py-050 u-px-070 u-c-dim u-fs-2">Sin resultados</div>';
     } else {
       resultsDiv.innerHTML = matches.map(r => {
         const flag = r.hideFlag ? '' : countryFlag(r.countryCode);
         return `
           <div class="hl-race-option" data-race-id="${esc(r.id)}">
             ${flag ? `<span>${flag}</span>` : ''}
-            <span class="u-grow u-fs-085">${esc(r.name)}</span>
-            <span class="u-fs-072 u-c-dim">${esc(r.startDate || '')} · ${esc(r.uciCategory || '')}</span>
+            <span class="u-grow u-fs-3">${esc(r.name)}</span>
+            <span class="u-fs-1 u-c-dim">${esc(r.startDate || '')} · ${esc(r.uciCategory || '')}</span>
           </div>`;
       }).join('');
       resultsDiv.querySelectorAll('.hl-race-option').forEach(opt => {
@@ -289,7 +289,7 @@ const HIGHLIGHT_TARGETS = [
   ['race', 'Competición (vista general de la carrera)', 'road'],
   ['startlist', 'Dorsales (startlist)', 'road'],
   ['startOrder', 'Orden de salida', 'road'],
-  ['championships', 'Modo Campeonatos — web abre la página; apps, la pantalla nativa', 'road'],
+  ['championships', 'Modo campeonatos — web abre la página; apps, la pantalla nativa', 'road'],
   ['transfers', 'Mercado de Fichajes — web abre /fichajes/; apps, la pantalla nativa', 'road'],
   ['season', 'Calendario de una temporada — web abre la vista Temporada; apps, la pestaña Calendario', 'road'],
   ['custom', 'Personalizado (solo web) — URL, título y logo libres', 'road'],
@@ -315,7 +315,7 @@ function highlightEditorBodyHtml(scope) {
       <div class="hl-target-options">
         ${_highlightTargetOptionsHtml(scope)}
       </div>
-      <div id="hl-target-warning" class="u-c-red u-fs-078 u-mt-040" style="display:none"></div>
+      <div id="hl-target-warning" class="u-c-red u-fs-2 u-mt-040" style="display:none"></div>
     </div>
     <div class="field" id="hl-cx-race-row" style="display:none">
       <label>Carrera de ciclocross</label>
@@ -336,9 +336,9 @@ function highlightEditorBodyHtml(scope) {
       <input type="text" id="hl-race-search" placeholder="Busca por nombre de carrera…" autocomplete="off">
       <div id="hl-race-results" class="hl-race-results" style="display:none"></div>
       <div id="hl-race-selected" class="hl-race-selected" style="display:none">
-        <span id="hl-race-selected-flag" class="u-fs-110 u-lh-100"></span>
-        <span id="hl-race-selected-name" class="u-grow u-fs-090 u-fw-600"></span>
-        <button class="btn btn--ghost u-py-025 u-px-055 u-fs-072" id="hl-race-clear">Cambiar</button>
+        <span id="hl-race-selected-flag" class="u-fs-4 u-lh-100"></span>
+        <span id="hl-race-selected-name" class="u-grow u-fs-3 u-fw-600"></span>
+        <button class="btn btn--ghost u-py-025 u-px-055 u-fs-1" id="hl-race-clear">Cambiar</button>
       </div>
     </div>
     <div class="field" id="hl-stage-row" style="display:none">
@@ -394,7 +394,7 @@ function highlightEditorBodyHtml(scope) {
     <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveHighlightBtn">Guardar</button>
       <button class="btn btn--ghost u-c-red" id="deleteHighlightBtn" style="display:none">Eliminar</button>
-      <span class="u-fs-080 u-c-dim" id="highlightSaveStatus"></span>
+      <span class="u-fs-2 u-c-dim" id="highlightSaveStatus"></span>
     </div>
   `;
 }
@@ -741,7 +741,7 @@ function renderHighlightsList() {
   const container = document.getElementById('highlightsList');
   const list = _highlightsCache || [];
   if (list.length === 0) {
-    container.innerHTML = `<div class="u-empty-note u-fs-085">
+    container.innerHTML = `<div class="u-empty-note u-fs-3">
       No hay destacados todavía. Pulsa <strong>+ Añadir destacado</strong> para empezar.
     </div>`;
     return;
@@ -796,14 +796,14 @@ function renderHighlightsList() {
       <div class="hl-row" data-id="${esc(h.id)}" data-idx="${idx}">
         <span class="hl-handle" title="Arrastrar para reordenar">⋮⋮</span>
         <div class="u-grow u-min0">
-          <div class="u-truncate u-fs-092">
+          <div class="u-truncate u-fs-4">
             <span class="u-fw-600">${esc(lhs)}</span>
             <span class="u-c-dim u-ml-030 u-mr-030">→</span>
             <span class="u-fw-500">${esc(targetLabel)}</span>
           </div>
-          ${subtitle ? `<div class="u-truncate u-fs-074 u-c-dim u-mt-015">${subtitle}</div>` : ''}
+          ${subtitle ? `<div class="u-truncate u-fs-1 u-c-dim u-mt-015">${subtitle}</div>` : ''}
         </div>
-        <button class="btn btn--ghost hl-edit-btn u-py-025 u-px-055 u-fs-072" data-id="${esc(h.id)}">Editar</button>
+        <button class="btn btn--ghost hl-edit-btn u-py-025 u-px-055 u-fs-1" data-id="${esc(h.id)}">Editar</button>
       </div>`;
   }).join('');
 

@@ -147,7 +147,7 @@ struct CxRaceDetailView: View {
             // LazyVStack la altura máxima no se expande y el cargador queda
             // pegado arriba en vez de centrado.
             if data == nil, error == nil, !loaded {
-                LoadingView(message: CyclocrossPresentation.t("Cargando...", "Loading..."), branded: true, showProfile: false)
+                LoadingView(branded: true, showProfile: false, title: CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
             } else {
                 GeometryReader { proxy in
                     ScrollView {
@@ -158,7 +158,7 @@ struct CxRaceDetailView: View {
                             // conserva su propio indicador.
                             if let error {
                                 Text(error).foregroundStyle(.red)
-                                Button(CyclocrossPresentation.t("Reintentar", "Retry")) { Task { await refresh() } }.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 3))
+                                Button(CyclocrossPresentation.t("Reintentar", "Retry")) { Task { await refresh() } }.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
                             }
                             if let data, CyclocrossPresentation.isHidden(data.race) {
                                 CxSpanishAudienceView()
@@ -176,7 +176,6 @@ struct CxRaceDetailView: View {
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if let race = data?.race, let tournament = race.tournament {
                 if #available(iOS 26, *) {
@@ -312,10 +311,10 @@ struct CxRaceDetailView: View {
         if let tournament = race.tournament {
             HStack(spacing: 6) {
                 NavigationLink(destination: CyclocrossView(tournament: tournament, season: race.seasonKey)) {
-                    RaceActionLabel(label: CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name), primary: false)
-                }.buttonStyle(.plain)
+                    CxLinkLabel(label: CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name))
+                }.buttonStyle(CxCategoryBoxStyle())
                 if let round, round.total > 1 {
-                    Text("\(round.n)/\(round.total)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Text("\(round.n)/\(round.total)").ccFont(.s12).foregroundStyle(AppTheme.textMuted).monospacedDigit()
                 }
             }
         }
@@ -425,7 +424,7 @@ struct CxRaceDetailView: View {
                 if let url = CyclocrossPresentation.link(asset.url) {
                     Button { safariURL = url } label: {
                         ActionStripTile(icon: asset.type == "map" ? "map" : "doc",
-                                        label: asset.type == "map" ? CyclocrossPresentation.t("Mapa", "Map") : CyclocrossPresentation.t("Libro de Ruta", "Technical Guide"))
+                                        label: asset.type == "map" ? CyclocrossPresentation.t("Mapa", "Map") : CyclocrossPresentation.t("Libro de ruta", "Technical Guide"))
                     }
                         .accessibilityLabel(CyclocrossPresentation.t("Ver \(asset.type == "map" ? "mapa" : "libro de ruta")", "View \(asset.type == "map" ? "map" : "technical guide")"))
                         .accessibilityHint(CyclocrossPresentation.t("Se abrirá en el navegador", "Will open in browser"))
@@ -442,15 +441,17 @@ struct CxRaceDetailView: View {
     private func header(_ race: CxRace, assets: [CxAsset]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             RaceDayHeading(name: CyclocrossPresentation.name(race), logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode,
-                           category: CyclocrossPresentation.raceClass(race.raceClass),
+                           // Clase completa (Nacional, Campeonato nacional, UCI C1…),
+                           // nunca la sigla sola.
+                           category: CyclocrossPresentation.className(race.raceClass),
                            dateLabel: DateFormatting.formatDateLongContent(race.dateKey) + (race.endDateKey.flatMap { $0 == race.dateKey ? nil : " – " + DateFormatting.formatDateLongContent($0) } ?? ""))
             RaceDayLocation(location: race.venue ?? "")
             tournamentHeading(race)
-            if race.isCancelled { Text(CyclocrossPresentation.t("Carrera cancelada", "Race cancelled")).font(.caption.bold()).foregroundStyle(.red) }
+            if race.isCancelled { Text(CyclocrossPresentation.t("Carrera cancelada", "Race cancelled")).ccFont(.s12, weight: .bold).foregroundStyle(AppTheme.red) }
             documentationChips(race: race, assets: assets)
         }.padding().ccCardSurface()
     }
-    private func empty(_ text: String) -> some View { Text(text).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
+    private func empty(_ text: String) -> some View { Text(text).ccFont(.s14).foregroundStyle(AppTheme.textMuted).frame(maxWidth: .infinity, alignment: .leading) }
 }
 
 private struct CxProgrammeSection: View {
@@ -464,7 +465,7 @@ private struct CxProgrammeSection: View {
         VStack(alignment: .leading, spacing: 14) {
             if !categories.isEmpty {
                 JornadaInfoCard {
-                    Text(CyclocrossPresentation.t("Horarios", "Schedule")).font(.headline).accessibilityAddTraits(.isHeader)
+                    Text(CyclocrossPresentation.t("Horarios", "Schedule")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
                     ForEach(categories) { category in
                         if category.id != categories.first?.id { Divider() }
                         // Fila centrada verticalmente: hora (en negrita) y
@@ -473,17 +474,17 @@ private struct CxProgrammeSection: View {
                         HStack(alignment: .center, spacing: 10) {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 10) {
-                                    Text(detail.race.isCancelled || category.isCancelled ? CyclocrossPresentation.t("Cancelada", "Cancelled") : CyclocrossPresentation.localTime(category.startTimeUtc) ?? "").font(.body.weight(.bold)).monospacedDigit()
-                                    Text(CyclocrossPresentation.category(category.category)).font(.body)
+                                    Text(detail.race.isCancelled || category.isCancelled ? CyclocrossPresentation.t("Cancelada", "Cancelled") : CyclocrossPresentation.localTime(category.startTimeUtc) ?? "").ccFont(.s16, weight: .bold).monospacedDigit()
+                                    Text(CyclocrossPresentation.category(category.category)).ccFont(.s16)
                                 }
                                 if Set(detail.race.categories.map { $0.dateKey ?? detail.race.dateKey }).count > 1 {
-                                    Text(DateFormatting.formatDateLongContent(category.dateKey ?? detail.race.dateKey)).font(.subheadline).foregroundStyle(.secondary)
+                                    Text(DateFormatting.formatDateLongContent(category.dateKey ?? detail.race.dateKey)).ccFont(.s13).foregroundStyle(AppTheme.textMuted)
                                 }
                             }
                             Spacer(minLength: 0)
                             HStack(spacing: 6) {
                                 if detail.startlist.contains(where: { $0.category == category.category }) {
-                                    Button { onStartlist(category.category) } label: { RaceActionLabel(label: CyclocrossPresentation.t("Dorsales", "Startlist"), icon: "figure.outdoor.cycle", primary: false) }.buttonStyle(.plain)
+                                    Button { onStartlist(category.category) } label: { CxLinkLabel(label: CyclocrossPresentation.t("Dorsales", "Startlist"), icon: "figure.outdoor.cycle") }.buttonStyle(CxCategoryBoxStyle())
                                 }
                                 // Copa solo-icono de las cards de Hoy en lugar del
                                 // botón de texto; la sección Revive sigue aparte.
@@ -515,17 +516,17 @@ private struct CxRaceDataCard: View {
         let categories = CxDetailSelection.scheduledCategories(detail)
         let multiDate = Set(detail.race.categories.map { $0.dateKey ?? detail.race.dateKey }).count > 1
         VStack(alignment: .leading, spacing: 10) {
-            Text(CyclocrossPresentation.t("Datos de la jornada", "Race data")).font(.headline).accessibilityAddTraits(.isHeader)
+            Text(CyclocrossPresentation.t("Datos de la jornada", "Race data")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
             ForEach(categories) { category in
                 let active = category.category == activeCategory
                 let time = detail.race.isCancelled || category.isCancelled ? CyclocrossPresentation.t("Cancelada", "Cancelled")
                     : (multiDate ? DateFormatting.formatDateShort(category.dateKey ?? detail.race.dateKey) + " · " : "") + (CyclocrossPresentation.localTime(category.startTimeUtc) ?? "")
                 HStack(spacing: 8) {
                     Text(CyclocrossPresentation.category(category.category))
-                        .font(.subheadline.weight(active ? .semibold : .regular))
-                        .foregroundStyle(active ? .primary : .secondary)
+                        .ccFont(.s14, weight: active ? .semibold : .regular)
+                        .foregroundStyle(active ? AppTheme.textPrimary : AppTheme.textMuted)
                     Spacer(minLength: 0)
-                    Text(time).font(.subheadline.weight(.semibold)).monospacedDigit()
+                    Text(time).ccFont(.s14, weight: .semibold).monospacedDigit()
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -541,16 +542,16 @@ private struct CxStartlistSection: View {
     let category: String
     private var rows: [CxStartlistRider] { detail.startlist.filter { $0.category == category }.sorted { $0.sortOrder < $1.sortOrder } }
     var body: some View {
-        CCCard(cornerRadius: 12) {
+        CCCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text(CyclocrossPresentation.t("Dorsales", "Startlist")).font(.headline)
-                if rows.isEmpty { Text(CyclocrossPresentation.t("Dorsales pendientes", "Startlist pending")).foregroundStyle(.secondary) }
+                Text(CyclocrossPresentation.t("Dorsales", "Startlist")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
+                if rows.isEmpty { Text(CyclocrossPresentation.t("Dorsales pendientes", "Startlist pending")).ccFont(.s14).foregroundStyle(AppTheme.textMuted) }
                 ForEach(rows) { row in
                     HStack(alignment: .top, spacing: 8) {
-                        Text(row.bib ?? "—").monospacedDigit().frame(minWidth: 28, alignment: .leading)
+                        Text(row.bib ?? "—").ccFont(.s14, weight: .semibold).monospacedDigit().frame(minWidth: 28, alignment: .leading)
                         CountryFlag(countryCode: row.countryCode)
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text([row.firstName, row.lastName].filter { !$0.isEmpty }.joined(separator: " ")).layoutPriority(1)
+                            Text([row.firstName, row.lastName].filter { !$0.isEmpty }.joined(separator: " ")).ccFont(.s14).layoutPriority(1)
                             if let team = detail.teams.first(where: { $0.id == row.teamId }) {
                                 TeamColorBands(team: team.roadTeam)
                             }
@@ -580,7 +581,7 @@ private struct CxResultsSection: View {
             }, showTeam: rows.contains { !($0.teamName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, showUciPoints: rows.contains { $0.points != nil }, valueHeader: CyclocrossPresentation.t("Tiempo", "Time"))
             ForEach(rows.filter { $0.bonusSeconds != nil }) { row in
                 Text(row.riderDisplay + " · " + CyclocrossPresentation.t("Bonificación: ", "Bonus: ") + String(row.bonusSeconds!) + " s")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .ccFont(.s12).foregroundStyle(AppTheme.textMuted)
             }
         }
     }
@@ -605,13 +606,13 @@ struct CxPublicationStatus: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(label)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(.primary)
+                .ccFont(.s14, weight: .bold)
+                .foregroundStyle(AppTheme.textPrimary)
             Text(official
                  ? CyclocrossPresentation.t("Oficial", "Official")
                  : CyclocrossPresentation.t("Provisional", "Provisional"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .ccFont(.s12)
+                .foregroundStyle(AppTheme.textMuted)
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
@@ -720,12 +721,7 @@ private struct CxStandingsRoundsTable: View {
                 if hasMore { scrollHint }
             }
         }
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
+        .ccCardSurface()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // La geometría del desplazamiento solo avisa de cambios: el estado
         // inicial y los cambios de ancho se calculan con las medidas fijas.
@@ -789,8 +785,8 @@ private struct CxStandingsRoundsTable: View {
         let team = matcher.match(row.teamName)
         return HStack(spacing: 6) {
             Text(String(row.rank))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+                .ccFont(.s13, weight: .semibold)
+                .foregroundStyle(AppTheme.textPrimary)
                 .frame(width: rankWidth, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
@@ -798,8 +794,8 @@ private struct CxStandingsRoundsTable: View {
                         CountryFlag(countryCode: country, width: 17.33)
                     }
                     Text(row.riderDisplay.isEmpty ? "—" : row.riderDisplay)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .ccFont(.s14, weight: .semibold)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                 }
                 if let teamName = row.teamName, !teamName.isEmpty {
@@ -808,8 +804,8 @@ private struct CxStandingsRoundsTable: View {
                             TeamColorBands(team: team)
                         }
                         Text(teamName)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .ccFont(.s12)
+                            .foregroundStyle(AppTheme.textMuted)
                             .lineLimit(1)
                     }
                 }
@@ -822,8 +818,8 @@ private struct CxStandingsRoundsTable: View {
 
     private func headerText(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .ccFont(.s12, weight: .semibold)
+            .foregroundStyle(AppTheme.textMuted)
     }
 
     @ViewBuilder private func roundHeader(_ header: CxRoundHeader) -> some View {
@@ -850,14 +846,14 @@ private struct CxStandingsRoundsTable: View {
             }
         }()
         return Text(value.text)
-            .font(.system(size: 13, weight: weight))
+            .ccFont(.s13, weight: weight)
             .foregroundStyle(color)
             .lineLimit(1)
     }
 
     private func roundCell(_ cell: CxRoundCell) -> some View {
         Text(cell.text)
-            .font(.system(size: 12))
+            .ccFont(.s12)
             .monospacedDigit()
             .strikethrough(cell.dropped)
             .foregroundStyle(cell.dropped ? Color.secondary : Color.primary)
@@ -917,22 +913,22 @@ private struct CxBroadcastSection: View {
     private func tvCard(_ selection: CxMediaSelection) -> some View {
         JornadaInfoCard {
             HStack {
-                Text(CyclocrossPresentation.t("TV y streaming", "TV and streaming")).font(.headline).accessibilityAddTraits(.isHeader)
+                Text(CyclocrossPresentation.t("TV y streaming", "TV and streaming")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
                 Spacer()
                 if selection.hasHiddenTV {
                     Button(showAll ? CyclocrossPresentation.t("Mi región", "My region") : CyclocrossPresentation.t("Todas", "All")) { showAll.toggle() }
-                        .font(.caption).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 3))
+                        .ccFont(.s12, weight: .semibold).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
                 }
             }
             // Conmutador y mensaje con las reglas de carretera (StageDetailView):
             // botón solo con filas de otras regiones, etiqueta de región con
             // «Todas» y mensaje solo sin filas de la región y sin «Todas».
             if selection.showsRegionEmpty {
-                Text(CyclocrossPresentation.t("No hay TV en tu región", "No TV available in your region")).font(.subheadline).foregroundStyle(.secondary)
+                Text(CyclocrossPresentation.t("No hay TV en tu región", "No TV available in your region")).ccFont(.s14).foregroundStyle(AppTheme.textMuted)
             }
             ForEach(selection.tv) { group in
                 if let code = group.category {
-                    Text(CyclocrossPresentation.category(code)).font(.subheadline.weight(.semibold))
+                    Text(CyclocrossPresentation.category(code)).ccFont(.s14, weight: .semibold)
                 }
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 8, alignment: .top), count: columns),
@@ -951,7 +947,7 @@ private struct CxBroadcastSection: View {
 
     private func reviveCard(_ links: [CxReplayLink]) -> some View {
         JornadaInfoCard {
-            Text(CyclocrossPresentation.t("Revive la carrera", "Race replay")).font(.headline).accessibilityAddTraits(.isHeader)
+            Text(CyclocrossPresentation.t("Revive la carrera", "Race replay")).ccFont(.s16, weight: .semibold).accessibilityAddTraits(.isHeader)
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 8, alignment: .top), count: columns),
                 alignment: .leading,
@@ -978,10 +974,10 @@ private struct CxVideosSection: View {
                 if let id = CyclocrossPresentation.youtubeVideoId(video.url),
                    let url = CyclocrossPresentation.link(video.url) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(CyclocrossPresentation.title(video)).font(.headline)
+                        Text(CyclocrossPresentation.title(video)).ccFont(.s16, weight: .semibold)
                         CxYouTubePlayer(id: id)
                             .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                         BroadcastRowView(broadcast: Broadcast(id: video.id, raceDayId: video.raceId, channel: "YouTube", startTimeUtc: nil,
                             url: url.absoluteString, note: nil, sortOrder: nil, showInRevive: true, country: nil), isRevive: true, hasResults: true, onTap: onOpen)
                     }.padding().ccCardSurface()

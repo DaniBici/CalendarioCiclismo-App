@@ -5,6 +5,12 @@
 import { UCI_ORDER } from '../shared.js';
 import { panelState } from './state.js';
 
+// ── Números ───────────────────────────────────────────────────────
+// es-ES solo agrupa desde 10.000; el panel separa los millares siempre.
+export function formatCount(value) {
+  return Number(value || 0).toLocaleString('es-ES', { useGrouping: 'always' });
+}
+
 // ── Slug utils ────────────────────────────────────────────────────
 export function toSlug(str) {
   if (!str) return '';

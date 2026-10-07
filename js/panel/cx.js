@@ -4,12 +4,13 @@ import {PdfTextImportState} from '../pdf-text-import-state.js';
 import {extractPdfText} from '../services/pdf-text.js';
 import {panelEditorTopbarHtml,panelEditorTabsHtml,panelSectionHtml,panelClassificationRowHtml,panelTeamRowHtml,panelTeamCatalogHtml,panelRiderRowHtml} from './editor-ui.js';
 import {riderMatchesSearch,riderSearchLookupToken} from '../results/panel-logic.js';
-import {panelDayNavigationHtml,panelCatalogHeaderHtml,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml,panelAgendaItemHtml,renderPanelCatalog} from './catalog-ui.js';
-import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces} from '../cx/panel-presentation.js';
+import {panelDayNavigationHtml,panelCatalogHeaderHtml,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml,renderPanelCatalog} from './catalog-ui.js';
+import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces,cxPanelNearestRaceDate} from '../cx/panel-presentation.js';
+import {cxCategories,cxCategoryCardState,cxTime} from '../cx/presentation.js';
 import {madridDateKey} from '../services/timezone.js';
 import {cxLogoImage} from '../components/cx-logo.js';
-import {cxAllRows,cxQuery,cxRpc} from '../services/cx-data.js';
-import {buildTeamBadgeSvg} from '../shared.js';
+import {cxAllRows,cxQuery,cxRpc,cxTournamentRounds} from '../services/cx-data.js';
+import {resultsTrophyHtml} from '../services/race-presentation.js';
 import {attachCountryAutocomplete} from '../country-select.js';
 import {automaticTeamHeaderText} from '../team-appearance.js';
 import {CX_CATEGORIES,CX_CLASSES,CX_COUNTRY_GROUPS,cxGender,cxSlug,cxSlugWithoutDiscipline,cxRaceSlugSuggestion,cxUniqueRaceSlug,cxSaveErrorMessage,cxEscape as esc,cxUrl,cxAssertMapImageUrl,cxYouTubeWatchUrl,cxLocalParts,cxLocalToUtc,cxDuration,parseCxRows,compareCxStandings,cxManualStandingsRows,cxManualStandingsCalculation} from '../cx/editor-logic.js';
@@ -51,6 +52,8 @@ let ctx,view,activeTab,renderVersion=0,roadRailOrder=[];
 let seasonKey=currentSeason(),races=[],tournaments=[],teams=[];
 let commonRaces=[];
 let agendaDateKey=cxPanelAgendaDate(madridDateKey(new Date()));let activeRaceId=null;
+// Sentido de la última navegación de la agenda; null si el usuario eligió la fecha.
+let agendaSkipDirection=0;
 const raceFilters={search:'',country:'',category:null,sort:'cat'};
 export const cxCommonRaceName=id=>commonRaces.find(r=>r.id===id)?.name;
 export async function loadCxCommonRaces(client) {commonRaces=(await cxAllRows(client,'cx_races','id,name,dateKey,seasonKey')).filter(r=>cxDateInSeason(r.seasonKey,r.dateKey));commonRaces.sort((a,b)=>b.dateKey.localeCompare(a.dateKey)||a.name.localeCompare(b.name));return commonRaces;}
@@ -171,12 +174,15 @@ async function render(tab,keepHeader=false) {
   view.querySelector('[name=season]')?.addEventListener('change',event=>{seasonKey=event.target.value;void refresh();});
   view.querySelector('[data-refresh]')?.addEventListener('click',()=>void refresh());
   view.querySelector('[data-subview=tournaments]')?.addEventListener('click',()=>ctx.navigate('cxTournaments'));
-  if(dayTab&&!keepHeader)wirePanelDayNavigation({picker:view.querySelector('[data-date]'),previous:view.querySelector('[data-previous]'),next:view.querySelector('[data-next]'),today:view.querySelector('[data-today]')},{getDate:()=>agendaDateKey,todayDate:()=>madridDateKey(new Date()),normalize:cxPanelAgendaDate,onChange:date=>{agendaDateKey=date;void render(tab,true);}});
+  if(dayTab&&!keepHeader)wirePanelDayNavigation({picker:view.querySelector('[data-date]'),previous:view.querySelector('[data-previous]'),next:view.querySelector('[data-next]'),today:view.querySelector('[data-today]')},{getDate:()=>agendaDateKey,todayDate:()=>madridDateKey(new Date()),normalize:cxPanelAgendaDate,onChange:(date,{direction,picked})=>{agendaDateKey=date;agendaSkipDirection=picked?null:direction;void render(tab,true);}});
+  if(dayTab&&!keepHeader)agendaSkipDirection=0;
   try {
     const [nextTournaments,nextTeams]=await Promise.all([cxAllRows(ctx.supabase,'cx_tournaments'),cxAllRows(ctx.supabase,'cx_teams')]);
     const nextRaces=['cxAgenda','cxRaces','cxStartlists'].includes(tab)?await loadRaces(season):null;
     if(version!==renderVersion || activeTab!==tab)return;
     tournaments=nextTournaments;teams=nextTeams;if(nextRaces)races=nextRaces;
+    // Sin jornadas en el día: salto automático al día con jornadas más cercano.
+    if(dayTab&&agendaSkipDirection!==null){const target=cxPanelNearestRaceDate(races,agendaDateKey,agendaSkipDirection);if(target!==agendaDateKey){agendaDateKey=target;const picker=view.querySelector('[data-date]');if(picker)picker.value=target;}}
     view.querySelectorAll('[data-search],[data-new],[data-import],[data-class],[data-country],[data-sort]').forEach(node=>node.disabled=false);
     view.querySelector('[data-import]')?.addEventListener('click',()=>void calendarImport());
     const create=view.querySelector('[data-new]');if(create)create.onclick=()=>tab==='cxTournaments'?editTournament():tab==='cxTeams'?editTeam():tab==='cxRiders'?editRider():tab==='cxStartlists'?openNewCxStartlist():editRace(null,'identity',tab==='cxAgenda'?agendaDateKey:null);
@@ -199,14 +205,35 @@ async function render(tab,keepHeader=false) {
 function agendaList(root,dateKey,rows,section='identity') {
   root.replaceChildren();
   const dayRaces=cxPanelAgendaRaces(rows,dateKey);
-  for(const race of dayRaces)root.append(agendaItem(race,dateKey,section));
-  if(!root.children.length)root.innerHTML='<p class="panel-catalog-empty">No hay jornadas para este día.</p>';
+  // Mangas como en la web: solo cuentan las pruebas publicadas del torneo.
+  const rounds=cxTournamentRounds(rows.filter(race=>race.editorialStatus==='published'),cxPanelSeasonForDate(dateKey));
+  const group=document.createElement('div');group.className='panel-list';
+  for(const race of dayRaces)group.append(agendaItem(race,dateKey,section,rounds));
+  if(group.children.length)root.append(group);else root.innerHTML='<p class="panel-catalog-empty">No hay jornadas para este día.</p>';
 }
-function agendaItem(race,dateKey,section) {
-  const item=document.createElement('button');item.type='button';item.className='sidebar-item';item.dataset.raceId=race.id;
+// Ficha de agenda con la presentación de la web: torneo, manga y lugar; clase;
+// y la rejilla de categorías con su hora de España, el trofeo o el aspa.
+const CX_CANCELLED_CROSS='<svg class="cx-category-cross" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Cancelada"><path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>';
+function agendaCategoriesHtml(race,dateKey) {
+  const categories=cxCategories(race,dateKey);
+  if(!categories.length)return '';
+  const states=categories.map(c=>cxCategoryCardState(race,c));
+  const withState=categories.some((c,index)=>c.startTimeUtc||states[index]!=='time');
+  const cells=categories.map((c,index)=>{
+    const state=states[index]==='results'?resultsTrophyHtml:states[index]==='cancelled'?CX_CANCELLED_CROSS:`<strong>${esc(cxTime(c.startTimeUtc,'es-ES','Europe/Madrid')||'—')}</strong>`;
+    return `<span class="cx-category-cell"><span class="cx-category-box">${esc(c.category)}</span>${withState?`<span class="cx-category-state">${state}</span>`:''}</span>`;
+  }).join('');
+  return `<div class="cx-category-times" style="--cx-category-count:${categories.length}">${cells}</div>`;
+}
+function agendaItem(race,dateKey,section,rounds) {
+  const item=document.createElement('button');item.type='button';item.className='sidebar-item sidebar-item--cx';item.dataset.raceId=race.id;
   if(race.id===activeRaceId)item.classList.add('active');
-  const categories=race.cx_race_categories.filter(c=>(c.dateKey||race.dateKey)===dateKey);
-  item.innerHTML=panelAgendaItemHtml({flagHtml:ctx.countryFlag?.(race.countryCode)||'',name:race.name,detailHtml:categories.map(c=>esc(c.category)).join(' / '),badgesHtml:(ctx.categoryBadge?.(race.class,false)||`<span class="badge">${esc(race.class)}</span>`)+(race.isCancelled?' <span class="badge badge--type-cancelled">Cancelada</span>':'')});
+  const tournament=tournaments.find(t=>t.id===race.tournamentId);
+  const round=rounds.get(race.id);
+  const sub=[tournament?esc(tournament.name):'',round&&round.total>1?`${round.n}/${round.total}`:'',race.venue&&race.venue!==race.name?esc(race.venue):''].filter(Boolean).join(' · ');
+  const badges=(ctx.categoryBadge?.(race.class,false)||`<span class="badge">${esc(race.class)}</span>`)+(race.isCancelled?' <span class="badge badge--type-cancelled">Cancelada</span>':'');
+  item.innerHTML=`<span class="sidebar-item__flag cx-agenda-logo"><span data-logo></span>${ctx.countryFlag?.(race.countryCode)||''}</span><div class="sidebar-item__info"><div class="sidebar-item__name">${esc(race.name)}</div>${sub?`<div class="sidebar-item__stage">${sub}</div>`:''}<div class="sidebar-item__badges">${badges}</div>${agendaCategoriesHtml(race,dateKey)}</div>`;
+  const logo=cxLogoImage(race,tournament);if(logo)item.querySelector('[data-logo]').replaceWith(logo);else item.querySelector('[data-logo]').remove();
   item.onclick=()=>void editRace(race,section);
   return item;
 }
@@ -253,13 +280,13 @@ function riderList(renderToken) {
   const paint=async()=>{
     const token=++riderSearchVersion,term=search.value.trim(),safe=riderSearchLookupToken(term).replace(/[%,()]/g,'');
     if(term.length<3||safe.length<2){root.innerHTML='';return;}
-    root.innerHTML='<div class="u-fs-085 u-c-dim">Buscando…</div>';
+    root.innerHTML='<div class="u-fs-3 u-c-dim">Buscando…</div>';
     try {
       const filter=`lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
       const [men,women]=await Promise.all(['men','women'].map(gender=>cxQuery(ctx.supabase.from(`cx_riders_${gender}`).select('*').or(filter).order('lastName').limit(12))));
       if(token!==riderSearchVersion||renderToken!==renderVersion||!root.isConnected)return;
       const rows=[...men.map(r=>({...r,gender:'men'})),...women.map(r=>({...r,gender:'women'}))].filter(r=>riderMatchesSearch(r,term)).sort((a,b)=>`${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`,'es',{sensitivity:'base'}));
-      root.innerHTML=rows.length?rows.map((r,index)=>panelRiderRowHtml(r,{index,flagHtml:ctx.countryFlag?.(r.nationality)||'',teamName:teams.find(t=>t.id===r.currentTeamId)?.name})).join(''):'<div class="u-fs-085 u-c-dim">Sin resultados.</div>';
+      root.innerHTML=rows.length?'<div class="panel-list">'+rows.map((r,index)=>panelRiderRowHtml(r,{index,flagHtml:ctx.countryFlag?.(r.nationality)||'',teamName:teams.find(t=>t.id===r.currentTeamId)?.name})).join('')+'</div>':'<div class="u-fs-3 u-c-dim">Sin resultados.</div>';
       root.querySelectorAll('[data-rider-index]').forEach(button=>button.onclick=()=>editRider(rows[Number(button.dataset.riderIndex)]));
     }catch(error){if(token===riderSearchVersion&&renderToken===renderVersion&&root.isConnected){root.innerHTML=`<p class="cx-error" role="alert">${esc(error.message)}</p><button type="button" class="btn btn--ghost">Reintentar</button>`;root.querySelector('button').onclick=()=>void paint();}}
   };
@@ -273,7 +300,7 @@ function cxOriginHtml(link,lastDumpAt) {
     </div></div>`;
   return `<div class="ru-origin">
     <div class="ru-origin__state">Origen: <a href="https://dataride.uci.ch/" target="_blank" rel="noopener">DataRide ↗</a>${lastDumpAt?`<span class="u-c-dim"> · último volcado ${esc(new Date(lastDumpAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))}</span>`:''}</div>
-    ${link.lastFetchError?`<div class="u-c-danger u-fs-072 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
+    ${link.lastFetchError?`<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.lastFetchError)}</div>`:''}
     <div class="u-row u-mt-045 u-wrap">
       <button type="button" class="btn btn--ghost cru-link-edit btn--compact">Cambiar enlace</button>
       <button type="button" class="btn btn--ghost cru-unlink btn--compact u-c-danger">Desenlazar</button>
@@ -285,7 +312,7 @@ function cxOriginHtml(link,lastDumpAt) {
 function cxSyncPolicyHtml(link) {
   const start=link.syncStartOffsetMinutes??-15,stop=link.syncStopOffsetMinutes??720,interval=link.syncIntervalMinutes??30;
   return `<div class="ru-sync-policy u-mt-065">
-    <div class="u-fs-076 u-c-muted">Horario de volcado automático</div>
+    <div class="u-fs-1 u-c-muted">Horario de volcado automático</div>
     <div class="ru-sync-box">
       <label><input type="checkbox" data-sync-enabled ${link.syncEnabled?'checked':''}> Recogida automática</label>
       <div class="u-row u-gap-055 u-wrap u-mt-050 u-items-end">
@@ -301,9 +328,9 @@ async function resultsView(root,race,categories) {
   const link=links[0],lastDump=rows.map(r=>r.updatedAt).filter(Boolean).sort().at(-1);
   const render=()=>resultsView(root,race,categories);
   const byCategory=new Map(categories.map(c=>[c.category,c]));
-  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-080" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
+  root.innerHTML=panelSectionHtml('Resultados',`${cxOriginHtml(link,lastDump)}<div class="cru-link-panel u-mt-050 u-fs-2" style="display:none"></div>${link?cxSyncPolicyHtml(link):''}${categories.length?`<div class="ru-class-list">${categories.map(c=>{
     const own=rows.filter(r=>r.category===c.category),leader=own.find(r=>r.rank===1&&!r.irm)?.riderDisplay;
-    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-068 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
+    return panelClassificationRowHtml({label:c.category,title:STATUS_LABELS[c.resultsStatus]||'Pendiente',rowCount:own.length,leader,locked:Boolean(c.resultsLockedAt),chipsHtml:`<span class="uci-chip">${esc(STATUS_LABELS[c.resultsStatus]||'Pendiente')}</span>${c.resultsLockedAt?`<span class="uci-chip ru-chip-lock" title="Bloqueada el ${esc(new Date(c.resultsLockedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}))} — el cron no la sobreescribe">🔒 bloqueada</span>`:''}`,actionsHtml:`<button type="button" class="btn btn--ghost cru-lock u-fs-1 u-py-0 u-px-055" data-category="${esc(c.category)}">${c.resultsLockedAt?'Desbloquear':'Bloquear'}</button><button type="button" class="btn btn--ghost cru-edit btn--row" data-category="${esc(c.category)}">Editar</button>${own.length||c.resultsStatus!=='pending'?`<button type="button" class="btn btn--ghost cru-delete btn--row u-c-danger" data-category="${esc(c.category)}" aria-label="Borrar resultados ${esc(c.category)}">Borrar</button>`:''}`});
   }).join('')}</div>`:'<p class="ru-empty">Sin categorías.</p>'}<p class="cx-error" role="alert"></p>`);
   root.querySelectorAll('.cru-link-edit').forEach(button=>button.onclick=()=>{
     const panel=root.querySelector('.cru-link-panel');
@@ -312,7 +339,7 @@ async function resultsView(root,race,categories) {
       <input type="number" data-comp placeholder="competitionId" min="1" value="${link?.competitionId??''}" class="u-w-950">
       <input type="number" data-season placeholder="seasonId" min="1" value="${link?.seasonId??472}" class="u-w-800" title="Season ID de resultados de DataRide; 472 = 2026-27.">
       <input type="number" data-uci placeholder="uciRaceId (manga, opc.)" min="0" value="${link?.uciRaceId||''}" class="u-w-1200" title="Race ID de DataRide para volcar solo una prueba de la competición. Vacío o 0 = competición entera.">
-      <button type="button" class="btn btn--primary cru-link-save u-fs-070 u-py-0 u-px-060">Guardar enlace</button></div>`;
+      <button type="button" class="btn btn--primary cru-link-save u-fs-1 u-py-0 u-px-060">Guardar enlace</button></div>`;
     panel.querySelector('[data-comp]').focus();
     panel.querySelector('.cru-link-save').onclick=async event=>{
       const save=event.currentTarget;
@@ -362,7 +389,7 @@ async function resultsView(root,race,categories) {
 }
 function catalogList(rows,label,edit) {
   const root=view.querySelector('.cx-list'),search=view.querySelector('[data-search]');
-  const paint=()=>{root.replaceChildren();for(const row of rows.filter(r=>label(r).toLowerCase().includes(search.value.toLowerCase())).sort((a,b)=>label(a).localeCompare(label(b)))){const button=document.createElement('button');button.className='cx-row';const identity=document.createElement('span');identity.className='cx-row__identity';const text=document.createElement('span');text.textContent=label(row);identity.append(text);const logo=cxLogoImage(row);if(logo)identity.prepend(logo);button.append(identity);button.onclick=()=>void edit(row);root.append(button);}if(!root.children.length)root.innerHTML='<p>No hay entradas.</p>';};
+  const paint=()=>{root.replaceChildren();const group=document.createElement('div');group.className='panel-list';for(const row of rows.filter(r=>label(r).toLowerCase().includes(search.value.toLowerCase())).sort((a,b)=>label(a).localeCompare(label(b)))){const button=document.createElement('button');button.className='cx-row';const identity=document.createElement('span');identity.className='cx-row__identity';const text=document.createElement('span');text.textContent=label(row);identity.append(text);const logo=cxLogoImage(row);if(logo)identity.prepend(logo);button.append(identity);button.onclick=()=>void edit(row);group.append(button);}if(group.children.length)root.append(group);else root.innerHTML='<p>No hay entradas.</p>';};
   paint();search.oninput=paint;
 }
 
@@ -416,8 +443,7 @@ async function editRace(existing=null,section='identity',presetDate=null,{duplic
     }
     const categories=race.cx_race_categories||[];
     activeRaceId=race.id||null;markAgendaActive();
-    let openSection=duplicate?'identity':section;
-    if(!fromPublic&&openSection==='identity'&&race.id) {try{const saved=localStorage.getItem('panel_cxEditorTab');if(EDITOR_TAB_KEYS.includes(saved))openSection=saved;}catch{ }}
+    const openSection=duplicate?'identity':section;
     const handle=ctx.openDrawer({title:'Jornada',onClose:()=>{handle.body.classList.remove('cx-jornada-drawer');if(handle.isCurrent()){activeRaceId=null;markAgendaActive();}},render:body=>{
       body.classList.add('cx-jornada-drawer');
       body.innerHTML=`<div class="editor-area">${panelEditorTopbarHtml({name:race.name||'Nueva jornada',flagHtml:ctx.countryFlag?.(race.countryCode)||'',date:race.dateKey,published:Boolean(race.id)&&race.editorialStatus==='published',updated:race.updatedAt?new Date(race.updatedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}):'',actionsHtml:`${race.id?`<a class="btn btn--ghost" href="/ciclocross/${esc(race.slug)}/" target="_blank" rel="noopener">Ver ↗</a><button type="button" class="btn btn--ghost" data-dorsals>Dorsales</button><button type="button" class="btn btn--danger" data-delete-race>Borrar</button><button type="button" class="btn btn--ghost" data-duplicate>Duplicar</button>`:''}<button type="button" class="btn btn--ghost" data-draft hidden>Borrador</button><button type="button" class="btn btn--primary" data-save-section>Actualizar</button>`})}<div class="editor-content">${panelEditorTabsHtml(EDITOR_TABS.map(([key,label])=>({key,label,disabled:!race.id&&key!=='identity'})),{attribute:'section'})}<div class="cx-editor-body"></div></div></div>`;
@@ -426,7 +452,6 @@ async function editRace(existing=null,section='identity',presetDate=null,{duplic
       const root=document.createElement('div');handle.body.querySelector('.cx-editor-body').replaceChildren(root);root.innerHTML='<p role="status">Cargando…</p>';
       const save=handle.body.querySelector('[data-save-section]');save.disabled=true;save.hidden=key==='results';save.textContent=key==='identity'?(race.id&&race.editorialStatus==='published'?'Actualizar':'Publicar'):key==='startlist'?'Preparar importación':'Guardar';
       const draft=handle.body.querySelector('[data-draft]');draft.hidden=key!=='identity';
-      if(EDITOR_TAB_KEYS.includes(key)) {try{localStorage.setItem('panel_cxEditorTab',key);}catch{ }}
       handle.body.querySelectorAll('[data-section]').forEach(b=>{const selected=b.dataset.section===key;b.classList.toggle('editor-tab--active',selected);b.setAttribute('aria-selected',String(selected));});
       try {
         if(key==='identity'){const slugRaces=await cxAllRows(ctx.supabase,'cx_races','id,slug,slugEn',{seasonKey:race.seasonKey});if(!root.isConnected)return;raceForm(root,race,categories,handle,slugRaces);root.querySelector('.cx-actions [type=submit]').hidden=true;const remove=root.querySelector('[data-delete]');if(remove)remove.hidden=true;}
@@ -458,7 +483,7 @@ async function markCxRacePageIfMissing(slug) {
 
 function raceForm(root,race,categories,handle,slugRaces=[]) {
   const saveId=race.id||crypto.randomUUID();
-  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('abbrev','Abreviatura',race.abbrev)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','class="u-upper" maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',[['','Sin verificar'],['individual','Manga propia de la categoría'],...(['WE','WJ'].includes(category)?[['WE_WJ','WE y WJ en la misma manga']]:[])],c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
+  root.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',race.name,'text','required')}${input('nameEn','Nombre (EN)',race.nameEn)}${input('abbrev','Abreviatura',race.abbrev)}${input('slug','Slug',race.slug,'text','required pattern="[a-z0-9-]+"')}${input('slugEn','Slug (EN)',race.slugEn,'text','pattern="[a-z0-9-]+"')}${input('seasonKey','Temporada',race.seasonKey,'text','required pattern="[0-9]{4}-[0-9]{2}"')}${input('dateKey','Fecha',race.dateKey,'date','required')}${input('endDateKey','Fecha fin (multidía)',race.endDateKey,'date')}${select('class','Clase',CX_CLASSES,race.class,true)}${input('countryCode','País',race.countryCode,'text','maxlength="5" autocomplete="off" spellcheck="false" placeholder="ES, FR, ES-CT…"')}${input('venue','Localidad',race.venue)}${input('timezone','Zona horaria',race.timezone)}${input('websiteUrl','Web oficial',race.websiteUrl,'url')}${select('tournamentId','Torneo',[['','Sin torneo'],...tournaments.map(t=>[t.id,`${t.name} · ${t.seasonKey}`])],race.tournamentId||'')}${raceColorField(race.colorHex)}<input type="hidden" name="editorialStatus" value="${esc(race.editorialStatus||'published')}">${checkbox('isCancelled','Carrera cancelada',race.isCancelled)}${logoField(race.logoUrl)}</div><h2 class="editor-section__header editor-section__title">Categorías</h2><div class="cx-category-options">${CX_CATEGORIES.map(category=>checkbox(`enabled-${category}`,category,categories.some(c=>c.category===category))).join('')}</div><div class="cx-category-grid">${CX_CATEGORIES.map(category=>{const c=categories.find(x=>x.category===category),local=cxLocalParts(c?.startTimeUtc,race.timezone);return `<fieldset data-category="${category}"><legend>${category}</legend>${input('dateKey','Fecha',c?.dateKey||race.dateKey,'date')}${input('time','Salida local',local?.time,'time')}${select('durationFormat','Formato de manga',[['','Sin verificar'],['individual','Manga propia de la categoría'],...(['WE','WJ'].includes(category)?[['WE_WJ','WE y WJ en la misma manga']]:[])],c?.durationFormat||'')}${checkbox('isCancelled','Categoría cancelada',c?.isCancelled)}<small data-timing></small></fieldset>`;}).join('')}</div>${actions()}${race.id?'<button class="btn btn--danger" data-delete type="button">Eliminar carrera</button>':''}</form>`;
   const form=root.querySelector('form');
   boxSection(form,'Identidad',[form.querySelector('.cx-grid')]);
   form.querySelector('h2').remove();
@@ -545,7 +570,7 @@ async function mediaForm(root,race,categories,section) {
   const kind=section==='tv'?'broadcasts':'videos';
   const rows=await cxAllRows(ctx.supabase,`cx_${kind}`,'*',{raceId:race.id});rows.sort((a,b)=>a.sortOrder-b.sortOrder);
   if(!root.isConnected)return;
-  root.innerHTML=`<form class="cx-form"><p data-media-empty>No hay ${section==='tv'?'emisiones guardadas':'vídeos guardados'}.</p><div data-media></div><button class="btn btn--ghost" data-add type="button">Añadir ${section==='tv'?'emisión':'vídeo'}</button>${actions()}</form>`;
+  root.innerHTML=`<form class="cx-form"><p data-media-empty>No hay ${section==='tv'?'emisiones guardadas':'vídeos guardados'}.</p><div data-media></div><button class="btn btn--ghost" data-add type="button">+ Añadir ${section==='tv'?'emisión':'vídeo'}</button>${actions()}</form>`;
   const form=root.querySelector('form');boxSection(form,section==='tv'?'Televisión':'Vídeos',[form.querySelector('[data-media-empty]'),form.querySelector('[data-media]'),form.querySelector('[data-add]')]);
   const list=form.querySelector('[data-media]');
   const empty=()=>form.querySelector('[data-media-empty]').hidden=Boolean(list.children.length);
@@ -588,7 +613,7 @@ function nextCxAssetKey(race,type,ext,currentUrl='') {
 async function uploadCxDoc(file,input,tipo,race) {
   const allowed=['image/jpeg','image/png','image/webp','application/pdf'];
   if(!allowed.includes(file.type))throw new Error('Formato no permitido. Solo JPG, PNG, WebP o PDF.');
-  if(tipo==='technicalGuide'&&file.type!=='application/pdf')throw new Error('El Libro de Ruta debe ser un PDF.');
+  if(tipo==='technicalGuide'&&file.type!=='application/pdf')throw new Error('El libro de ruta debe ser un PDF.');
   if(tipo==='map'&&!['image/jpeg','image/png'].includes(file.type))throw new Error('El mapa debe ser JPG o PNG. Convierte el PDF a imagen antes de subirlo.');
   const maxBytes=tipo==='technicalGuide'?150*1024*1024:10*1024*1024;
   if(file.size>maxBytes)throw new Error(`El archivo supera los ${tipo==='technicalGuide'?'150':'10'} MB.`);
@@ -604,7 +629,7 @@ async function docsForm(root,race) {
     const assets=await cxAllRows(ctx.supabase,'assets','*',{cxRaceId:race.id});
     if(!root.isConnected)return;
     root.innerHTML=`<form class="cx-form"><div class="assets-list">${CX_DOC_TYPES.map(({type,icon})=>{
-      const asset=assets.find(a=>a.type===type),label=type==='technicalGuide'?'Libro de Ruta':'Mapa';
+      const asset=assets.find(a=>a.type===type),label=type==='technicalGuide'?'Libro de ruta':'Mapa';
       return `<div class="asset-row" data-asset-type="${type}"><span class="asset-row__type">${icon} ${label}</span><input type="url" class="asset-url-input" data-type="${type}" value="${esc(asset?.url||'')}" placeholder="https://…"><button type="button" class="inline-upload-btn" data-upload="${type}" title="Subir archivo">↑</button><button type="button" class="asset-row__remove" title="Quitar" aria-label="Quitar">✕</button></div>`;
     }).join('')}</div><span class="cx-error" role="alert"></span></form>`;
     const form=root.querySelector('form');
@@ -814,13 +839,13 @@ const cxColorField=(key,label,value)=>`<div class="field cx-field"><label>${esc(
 function editTeam(existing=null) {
   const row=existing||{gender:'mixed',...CX_TEAM_DEFAULTS};
   const saveId=row.id||crypto.randomUUID();
-  const handle=ctx.openDrawer({title:row.name||'Crear equipo CX',render:body=>body.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',row.name,'text','required')}${input('uciCode','Código UCI (3 caracteres)',row.uciCode,'text','required pattern="[A-Z0-9]{3}" maxlength="3"')}${select('category','Categoría',[['UCI','Equipo UCI'],['CLUB','Club']],row.category||'UCI')}${select('gender','Género',['male','female','mixed'],row.gender)}${input('countryCode','País ISO2',row.countryCode,'text','pattern="[A-Z]{2}" maxlength="2"')}${input('nameAliases','Alias separados por punto y coma',(row.nameAliases||[]).join('; '))}</div><div class="cx-colors">${cxColorField('headerBg','Fondo de pestaña / barra de título',row.headerBg||CX_TEAM_DEFAULTS.headerBg)}<div class="cx-colors-row">${cxColorField('torsoSides','Cuadrado cromático 1',row.badgeTorsoSides||CX_TEAM_DEFAULTS.badgeTorsoSides)}${cxColorField('torsoCenter','Cuadrado cromático 2',row.badgeTorsoCenter||CX_TEAM_DEFAULTS.badgeTorsoCenter)}${cxColorField('shorts','Cuadrado cromático 3',row.badgeShorts||CX_TEAM_DEFAULTS.badgeShorts)}</div></div><div class="cx-team-preview"><span data-badge></span><span data-header>Cabecera</span></div>${actions()}${row.id?'<button class="btn btn--danger" type="button" data-delete>Eliminar equipo</button>':''}</form>`});
+  const handle=ctx.openDrawer({title:row.name||'Crear equipo CX',render:body=>body.innerHTML=`<form class="cx-form"><div class="cx-grid">${input('name','Nombre',row.name,'text','required')}${input('uciCode','Código UCI (3 caracteres)',row.uciCode,'text','required pattern="[A-Z0-9]{3}" maxlength="3"')}${select('category','Categoría',[['UCI','Equipo UCI'],['CLUB','Club']],row.category||'UCI')}${select('gender','Género',['male','female','mixed'],row.gender)}${input('countryCode','País ISO2',row.countryCode,'text','pattern="[A-Z]{2}" maxlength="2"')}${input('nameAliases','Alias separados por punto y coma',(row.nameAliases||[]).join('; '))}</div><div class="cx-colors">${cxColorField('headerBg','Fondo de pestaña / barra de título',row.headerBg||CX_TEAM_DEFAULTS.headerBg)}<div class="cx-colors-row">${cxColorField('torsoSides','Cuadrado cromático 1',row.badgeTorsoSides||CX_TEAM_DEFAULTS.badgeTorsoSides)}${cxColorField('torsoCenter','Cuadrado cromático 2',row.badgeTorsoCenter||CX_TEAM_DEFAULTS.badgeTorsoCenter)}${cxColorField('shorts','Cuadrado cromático 3',row.badgeShorts||CX_TEAM_DEFAULTS.badgeShorts)}</div></div><div class="cx-team-preview"><span class="team-color-squares team-color-squares--small" data-badge aria-label="Tres colores cromáticos"><i></i><i></i><i></i></span><span data-header>Cabecera</span></div>${actions()}${row.id?'<button class="btn btn--danger" type="button" data-delete>Eliminar equipo</button>':''}</form>`});
   const form=handle.body.querySelector('form');boxSection(form,'Identidad',[form.querySelector('.cx-grid'),form.querySelector('.cx-colors'),form.querySelector('.cx-team-preview')]);
   const colorValue=key=>{const text=(form.querySelector(`[data-cx-color-text="${key}"]`).value||'').trim();return /^#[0-9a-fA-F]{6}$/.test(text)?text.toLowerCase():form.querySelector(`[data-cx-color="${key}"]`).value.toLowerCase();};
   const setColor=(key,value)=>{const hex=(value||'').toLowerCase(),safe=/^#[0-9a-f]{6}$/.test(hex)?hex:'#000000';form.querySelector(`[data-cx-color="${key}"]`).value=safe;form.querySelector(`[data-cx-color-text="${key}"]`).value=safe.toUpperCase();};
   const paint=()=>{
     const badge=form.querySelector('[data-badge]'),header=form.querySelector('[data-header]');
-    badge.innerHTML=buildTeamBadgeSvg({badgeTorsoCenter:colorValue('torsoCenter'),badgeTorsoSides:colorValue('torsoSides'),badgeShorts:colorValue('shorts'),badgeInnerCircle:null},{size:28});
+    ['torsoSides','torsoCenter','shorts'].forEach((key,index)=>{badge.children[index].style.background=colorValue(key);});
     const headerBg=colorValue('headerBg');header.style.background=headerBg;header.style.color=automaticTeamHeaderText(headerBg);header.textContent=form.elements.name.value||'Cabecera';
   };
   setColor('headerBg',row.headerBg||CX_TEAM_DEFAULTS.headerBg);setColor('torsoSides',row.badgeTorsoSides||CX_TEAM_DEFAULTS.badgeTorsoSides);setColor('torsoCenter',row.badgeTorsoCenter||CX_TEAM_DEFAULTS.badgeTorsoCenter);setColor('shorts',row.badgeShorts||CX_TEAM_DEFAULTS.badgeShorts);

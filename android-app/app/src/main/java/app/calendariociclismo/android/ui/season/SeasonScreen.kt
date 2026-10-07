@@ -1,9 +1,19 @@
 package app.calendariociclismo.android.ui.season
 
+import androidx.compose.ui.text.style.TextOverflow
+import app.calendariociclismo.android.util.LocaleHolder
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.month.CalendarChampionshipsMark
+import app.calendariociclismo.android.ui.month.CalendarFilterChip
+import app.calendariociclismo.android.ui.month.CalendarMonthChip
+import app.calendariociclismo.android.ui.month.CalendarSelectorChip
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,21 +26,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,19 +67,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.ChallengeGroup
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.ui.calendar.CalendarNavigation
+import app.calendariociclismo.android.ui.calendar.CalendarStart
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CategoryBadge
 import app.calendariociclismo.android.ui.components.CountryFlag
@@ -84,7 +87,6 @@ import app.calendariociclismo.android.ui.components.PlaceholderItem
 import app.calendariociclismo.android.ui.components.PlaceholderModalOverlay
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
-import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.util.Constants
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.Haptics
@@ -92,8 +94,6 @@ import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.SeasonChallengeLogic
 import app.calendariociclismo.android.util.SeasonEntry
 import app.calendariociclismo.android.util.rememberHaptics
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.res.painterResource
 import app.calendariociclismo.android.util.ChampionshipsConfig
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -120,7 +120,9 @@ fun SeasonScreen(
     val scope = rememberCoroutineScope()
     val allRaces by app.repository.observeAllRaces().collectAsState(initial = emptyList())
     // El cintillo puede pedir una temporada concreta (CalendarNavigation).
-    var year by remember { mutableStateOf(CalendarNavigation.pendingSeasonYear.value ?: LocalDate.now().year) }
+    // Un año posterior al actual abre en su primer mes con carreras
+    // (`bestPageIndex`).
+    var year by remember { mutableStateOf(CalendarNavigation.pendingSeasonYear.value ?: CalendarStart.initial().year) }
     var category by remember { mutableStateOf(Constants.CategoryFilter.ALL) }
     var country by remember { mutableStateOf<String?>(null) }
     var yearMenuOpen by remember { mutableStateOf(false) }
@@ -356,10 +358,9 @@ fun SeasonScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box {
-                        PillButton(
+                        CalendarSelectorChip(
                             icon = Icons.Filled.CalendarMonth,
                             label = year.toString(),
-                            active = true,
                             onClick = { yearMenuOpen = true },
                         )
                         DropdownMenu(
@@ -379,10 +380,9 @@ fun SeasonScreen(
                         }
                     }
                     Box {
-                        PillButton(
+                        CalendarSelectorChip(
                             icon = Icons.Filled.Public,
                             label = countryLabel,
-                            active = country != null,
                             onClick = { countryMenuOpen = true },
                         )
                         DropdownMenu(
@@ -422,7 +422,9 @@ fun SeasonScreen(
                         val isPinnedValid = defaultFilterPref != Constants.CategoryFilter.ALL
                         val pinFilled = !hideAll && isPinnedValid && defaultFilterPref == cat
                         val pinOutline = !hideAll && !pinFilled && category == cat
-                        CategoryFilterChip(
+                        // Pulsar el filtro activo abre el diálogo de filtro
+                        // predeterminado (paridad con iOS).
+                        CalendarFilterChip(
                             label = stringResource(cat.labelRes),
                             selected = category == cat,
                             pinFilled = pinFilled,
@@ -435,10 +437,6 @@ fun SeasonScreen(
                                     haptic(Haptics.Event.Selection)
                                     category = cat
                                 }
-                            },
-                            onLongClick = {
-                                haptic(Haptics.Event.PrimaryAction)
-                                pendingDefault = cat
                             },
                         )
                     }
@@ -455,9 +453,9 @@ fun SeasonScreen(
                             val idx = months.indexOf(month)
                             val chipLabel = if (month == 0) stringResource(R.string.season_pill_all_months)
                                 else DateFormatting.shortMonthName(month)
-                            MonthChip(
+                            CalendarMonthChip(
                                 label = chipLabel,
-                                isSelected = pagerState.currentPage == idx,
+                                selected = pagerState.currentPage == idx,
                                 onClick = {
                                     haptic(Haptics.Event.Navigation)
                                     scope.launch { pagerState.animateScrollToPage(idx) }
@@ -474,7 +472,7 @@ fun SeasonScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (allRaces.isEmpty()) {
-                            RouteLoadingView(message = stringResource(R.string.loading))
+                            RouteLoadingView(message = stringResource(R.string.loading), title = LocaleHolder.t("Temporada", "Season"))
                         } else {
                             Text(
                                 text = stringResource(R.string.season_empty_no_races),
@@ -583,6 +581,13 @@ fun SeasonScreen(
 
 // MARK: - Month page
 
+/** Fila de la tarjeta de un mes. */
+private sealed interface SeasonListRow {
+    data object Championships : SeasonListRow
+    data class ChallengeItem(val entry: SeasonEntry.Challenge) : SeasonListRow
+    data class RaceItem(val race: Race, val nested: Boolean) : SeasonListRow
+}
+
 @Composable
 private fun MonthPage(
     year: Int,
@@ -613,21 +618,19 @@ private fun MonthPage(
 
     LazyColumn(
         state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .wrapContentWidth(Alignment.CenterHorizontally)
-            .widthIn(max = 760.dp),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         groups.forEach { (groupMonth, groupEntries) ->
+            // Rótulo del mes como las demás fechas de grupo: 13 seminegrita en gris.
             item(key = "header-$groupMonth") {
                 Text(
                     text = DateFormatting.formatMonthYear(year, groupMonth),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .padding(bottom = 4.dp)
+                        .padding(top = 8.dp, bottom = 8.dp)
                         .semantics { heading() },
                 )
             }
@@ -642,57 +645,130 @@ private fun MonthPage(
             } else {
                 -1
             }
-            groupEntries.forEachIndexed { index, entry ->
-                if (index == champIndex) {
-                    item(key = "championships-$groupMonth") {
-                        SeasonChampionshipsRow(onClick = onChampionshipsClick)
-                    }
-                }
-                when (entry) {
-                    is SeasonEntry.Single -> item(key = entry.key) {
-                        SeasonRaceRow(
-                            race = entry.race,
-                            activeFilter = activeFilter,
-                            onClick = { onRaceClick(entry.race) },
-                        )
-                    }
-                    is SeasonEntry.Challenge -> {
-                        val expanded = entry.group.id in expandedChallengeIds
-                        item(key = entry.key) {
-                            SeasonChallengeRow(
-                                entry = entry,
-                                activeFilter = activeFilter,
-                                expanded = expanded,
-                                onClick = {
-                                    expandedChallengeIds = if (expanded) expandedChallengeIds - entry.group.id
-                                        else expandedChallengeIds + entry.group.id
-                                },
-                            )
-                        }
-                        // Pruebas del challenge desplegado, cada una con su navegación.
-                        if (expanded) {
-                            entry.races.forEach { race ->
-                                item(key = "${entry.key}-${race.id}") {
-                                    Box(Modifier.padding(start = 16.dp)) {
-                                        SeasonRaceRow(
-                                            race = race,
-                                            activeFilter = activeFilter,
-                                            onClick = { onRaceClick(race) },
-                                        )
+            // Las carreras del mes en una sola superficie de tarjeta, con las
+            // filas separadas por un filete (`.temporada-races` de la web).
+            item(key = "month-$groupMonth") {
+                CCCard(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                    Column {
+                        val rows = buildList {
+                            groupEntries.forEachIndexed { index, entry ->
+                                if (index == champIndex) add(SeasonListRow.Championships)
+                                when (entry) {
+                                    is SeasonEntry.Single -> add(SeasonListRow.RaceItem(entry.race, nested = false))
+                                    is SeasonEntry.Challenge -> {
+                                        add(SeasonListRow.ChallengeItem(entry))
+                                        // Pruebas del challenge desplegado, cada una con su navegación.
+                                        if (entry.group.id in expandedChallengeIds) {
+                                            entry.races.forEach { add(SeasonListRow.RaceItem(it, nested = true)) }
+                                        }
                                     }
+                                }
+                            }
+                            // Campeonatos al final del grupo (todas las carreras empiezan antes).
+                            if (champIndex == groupEntries.size) add(SeasonListRow.Championships)
+                        }
+                        rows.forEachIndexed { index, row ->
+                            val nested = row is SeasonListRow.RaceItem && row.nested
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    modifier = if (nested) Modifier.padding(start = 16.dp) else Modifier,
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                )
+                            }
+                            when (row) {
+                                SeasonListRow.Championships -> SeasonChampionshipsRow(onClick = onChampionshipsClick)
+                                is SeasonListRow.ChallengeItem -> {
+                                    val expanded = row.entry.group.id in expandedChallengeIds
+                                    SeasonChallengeRow(
+                                        entry = row.entry,
+                                        activeFilter = activeFilter,
+                                        expanded = expanded,
+                                        onClick = {
+                                            expandedChallengeIds = if (expanded) expandedChallengeIds - row.entry.group.id
+                                                else expandedChallengeIds + row.entry.group.id
+                                        },
+                                    )
+                                }
+                                is SeasonListRow.RaceItem -> Box(if (nested) Modifier.padding(start = 16.dp) else Modifier) {
+                                    SeasonRaceRow(
+                                        race = row.race,
+                                        activeFilter = activeFilter,
+                                        onClick = { onRaceClick(row.race) },
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-            // Campeonatos al final del grupo (todas las carreras empiezan antes).
-            if (champIndex == groupEntries.size) {
-                item(key = "championships-$groupMonth") {
-                    SeasonChampionshipsRow(onClick = onChampionshipsClick)
-                }
-            }
         }
+    }
+}
+
+/**
+ * Disposición común de una fila de Temporada (`.t-race`): bandera, logotipo,
+ * nombre completo (pasa a otra línea en lugar de cortarse), fechas y categoría.
+ * Sin superficie propia: la tarjeta es la del mes. Pulsación neutra (ripple).
+ */
+@Composable
+private fun SeasonRowLayout(
+    onClick: () -> Unit,
+    countryCode: String?,
+    showFlag: Boolean,
+    name: String,
+    showFemale: Boolean,
+    dates: String,
+    category: String?,
+    modifier: Modifier = Modifier,
+    cancelled: Boolean = false,
+    logo: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+) {
+    val femaleColor = MaterialTheme.colorScheme.tertiary
+    val femaleCd = stringResource(R.string.season_female_indicator_cd)
+    val nameText = buildAnnotatedString {
+        append(name)
+        if (showFemale) withStyle(SpanStyle(color = femaleColor)) { append(" \u2640") }
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (showFlag) CountryFlag(countryCode = countryCode)
+        logo()
+        Text(
+            text = nameText,
+            style = CCText.S14,
+            fontWeight = FontWeight.Medium,
+            textDecoration = if (cancelled) TextDecoration.LineThrough else null,
+            // Una sola línea por fila: el nombre se recorta antes que partir
+            // la fila en dos.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { if (showFemale) contentDescription = "$name, $femaleCd" },
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (dates.isNotEmpty()) {
+                Text(
+                    text = dates,
+                    style = CCText.S13,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            CategoryBadge(category = category)
+        }
+        trailing()
     }
 }
 
@@ -704,162 +780,26 @@ private fun MonthPage(
  */
 @Composable
 private fun SeasonChampionshipsRow(onClick: () -> Unit) {
-    // Azul suave del rediseño (= CAMP.ACCENT de la web).
-    val accent = Color(0xFF1A73E8)
-    CCCard(
-        accent = accent,
-        accentAlpha = 0.04f,
-        cornerRadius = 14,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.Button, onClick = onClick)
-                .padding(horizontal = 10.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(accent.copy(alpha = 0.12f), shape = CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_globe_europe_africa),
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(17.dp),
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.champ_title),
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                CategoryBadge(category = "CN")
-            }
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-            )
-        }
-    }
-}
-
-// MARK: - Composables (sin cambios respecto a la versión anterior)
-
-@Composable
-private fun PillButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    active: Boolean,
-    onClick: () -> Unit,
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val background = if (active) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-    val foreground = if (active) primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .background(background, RoundedCornerShape(50))
-            .semantics(mergeDescendants = true) { this.role = Role.Button }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = foreground,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = foreground,
-        )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun CategoryFilterChip(
-    label: String,
-    selected: Boolean,
-    pinFilled: Boolean,
-    pinOutline: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val background = if (selected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-    val foreground = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier
-            .background(background, RoundedCornerShape(50))
-            .semantics {
-                this.role = Role.Button
-                this.selected = selected
-            }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = foreground,
-        )
-        when {
-            pinFilled -> Icon(
-                imageVector = Icons.Filled.PushPin,
-                contentDescription = null,
-                tint = primary,
-                modifier = Modifier.size(12.dp),
-            )
-            pinOutline -> Icon(
-                imageVector = Icons.Outlined.PushPin,
-                contentDescription = null,
-                tint = primary.copy(alpha = 0.55f),
-                modifier = Modifier.size(12.dp),
-            )
-        }
-    }
+    SeasonRowLayout(
+        onClick = onClick,
+        countryCode = null,
+        showFlag = false,
+        name = stringResource(R.string.champ_title),
+        showFemale = false,
+        dates = "",
+        category = "CN",
+        logo = { CalendarChampionshipsMark() },
+        trailing = { SeasonRowChevron() },
+    )
 }
 
 @Composable
-private fun MonthChip(label: String, isSelected: Boolean = false, onClick: () -> Unit) {
-    val primary = MaterialTheme.colorScheme.primary
-    val background = if (isSelected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-    val foreground = if (isSelected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        // No seleccionado en Normal (no Medium), para casar con los chips de
-        // filtro: solo el seleccionado lleva peso fuerte.
-        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-        color = foreground,
-        modifier = Modifier
-            .background(background, RoundedCornerShape(50))
-            .semantics {
-                this.role = Role.Button
-                this.selected = isSelected
-            }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+private fun SeasonRowChevron(expanded: Boolean = false) {
+    Icon(
+        imageVector = Icons.Filled.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.rotate(if (expanded) 90f else 0f),
     )
 }
 
@@ -900,72 +840,21 @@ private fun SeasonChallengeRow(
     )
     val stateLabel = stringResource(if (expanded) R.string.season_challenge_expanded else R.string.season_challenge_collapsed)
 
-    CCCard(
-        accent = colorFromHex(group.colorHex, fallback = Color.Gray),
-        accentAlpha = 0.04f,
-        cornerRadius = 14,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { stateDescription = stateLabel }
-                .clickable(role = Role.Button) {
-                    haptic(Haptics.Event.Selection)
-                    onClick()
-                }
-                .padding(horizontal = 10.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            CountryFlag(countryCode = group.countryCode)
-            RaceLogo(url = group.logoUrl, size = 28.dp)
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = displayName,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (showFemale) {
-                    val femaleCd = stringResource(R.string.season_female_indicator_cd)
-                    Text(
-                        text = "♀",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.semantics { contentDescription = femaleCd },
-                    )
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (range.isNotEmpty()) {
-                    Text(
-                        text = range,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-                CategoryBadge(category = group.uciCategory ?: entry.races.firstOrNull()?.uciCategory)
-            }
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.rotate(if (expanded) 90f else 0f),
-            )
-        }
-    }
+    SeasonRowLayout(
+        onClick = {
+            haptic(Haptics.Event.Selection)
+            onClick()
+        },
+        countryCode = group.countryCode,
+        showFlag = true,
+        name = displayName,
+        showFemale = showFemale,
+        dates = range,
+        category = group.uciCategory ?: entry.races.firstOrNull()?.uciCategory,
+        modifier = Modifier.semantics { stateDescription = stateLabel },
+        logo = { RaceLogo(url = group.logoUrl, size = 28.dp) },
+        trailing = { SeasonRowChevron(expanded = expanded) },
+    )
 }
 
 @Composable
@@ -988,81 +877,22 @@ private fun SeasonRaceRow(
             activeFilter == Constants.CategoryFilter.FEMALE
         ) false else RaceLogic.shouldShowFemaleIndicator(race)
     }
-    val stripe = colorFromHex(race.colorHex, fallback = Color.Gray)
     val rowAlpha = if (race.isCancelled) 0.5f else 1f
     val cancelledLabel = stringResource(R.string.race_label_cancelled)
 
-    // Tarjeta con tono de carrera (CCCard) — mismo lenguaje que Hoy y Mes.
-    CCCard(
-        accent = stripe,
-        accentAlpha = 0.04f,
-        cornerRadius = 14,
+    SeasonRowLayout(
+        onClick = onClick,
+        countryCode = race.countryCode,
+        showFlag = !race.hideFlag,
+        name = displayName,
+        showFemale = showFemale,
+        dates = DateFormatting.formatDateRange(race.startDate, race.endDate),
+        category = race.uciCategory,
+        cancelled = race.isCancelled,
         modifier = Modifier
-            .fillMaxWidth()
-            .alpha(rowAlpha),
-    ) {
-      Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                if (race.isCancelled) stateDescription = cancelledLabel
-            }
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (!race.hideFlag) {
-            CountryFlag(countryCode = race.countryCode)
-        }
-
-        RaceLogo(url = race.logoUrl, size = 28.dp)
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Peso del nombre alineado con Hoy/cintillo (Medium 14/16).
-            Text(
-                text = displayName,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                lineHeight = 16.sp,
-                textDecoration = if (race.isCancelled) TextDecoration.LineThrough else null,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (showFemale) {
-                val femaleCd = stringResource(R.string.season_female_indicator_cd)
-                Text(
-                    text = "♀",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.semantics { contentDescription = femaleCd },
-                )
-            }
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            val range = DateFormatting.formatDateRange(race.startDate, race.endDate)
-            if (range.isNotEmpty()) {
-                Text(
-                    text = range,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-            CategoryBadge(category = race.uciCategory)
-        }
-        Icon(
-            imageVector = Icons.Filled.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-        )
-      }
-    }
+            .alpha(rowAlpha)
+            .semantics { if (race.isCancelled) stateDescription = cancelledLabel },
+        logo = { RaceLogo(url = race.logoUrl, size = 28.dp) },
+        trailing = { SeasonRowChevron() },
+    )
 }

@@ -14,7 +14,7 @@
 
   // Colores de fondo base — deben coincidir con --bg de css/app.css
   // (:root oscuro / html.light claro).
-  const BG = { dark: '#141923', light: '#f3f5f8' };
+  const BG = { dark: '#10141c', light: '#eef1f5' };
 
   function apply(theme) {
     const root = document.documentElement;
@@ -48,8 +48,9 @@
       dark: 'Cambiar a modo oscuro'
     };
     document.querySelectorAll('.theme-toggle').forEach(btn => {
-      btn.innerHTML = isDark ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>` : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="currentColor"/></svg>`;
+      btn.innerHTML = isDark ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>` : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="currentColor"/></svg>`;
       btn.title = isDark ? labels.light : labels.dark;
+      btn.setAttribute('aria-label', btn.title);
     });
   }
 

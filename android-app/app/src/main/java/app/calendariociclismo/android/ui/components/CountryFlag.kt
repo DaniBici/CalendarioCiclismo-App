@@ -1,11 +1,10 @@
 package app.calendariociclismo.android.ui.components
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -72,6 +71,6 @@ fun CountryFlag(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .size(width = height * 4 / 3, height = height)
-            .clip(RoundedCornerShape(2.dp)),
+            .clipToBounds(),
     )
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit.UIGestureRecognizerSubclass
 
 // MARK: - Profile color contrast
 
@@ -238,7 +239,7 @@ private struct ChartMarker: Identifiable {
 
 private struct ChartGeometry {
     let size: CGSize
-    let ml: CGFloat = 44
+    let ml: CGFloat = 50
     let mr: CGFloat = 8
     let mt: CGFloat = 14
     let mb: CGFloat = 24
@@ -278,78 +279,132 @@ private struct ChartGeometry {
     }
 }
 
+// MARK: - Selección del perfil
+
+/// Tramo marcado sobre el perfil, en cualquier sentido.
+struct ProfileRange: Equatable {
+    var a: Double
+    var b: Double
+    /// Nombre del puerto o del punto clave; sin nombre se lee «Tramo».
+    var label: String?
+}
+
+/// Selección compartida entre el perfil interactivo, su lectura en la cabecera
+/// del panel y Puntos clave. Espejo del estado de `mountStageProfile`
+/// (`js/stage/profile.js`).
+struct ProfileSelection: Equatable {
+    /// Punto a la vista: el del puntero o el fijado.
+    var pointKm: Double?
+    /// Punto fijado con un toque o desde Puntos clave.
+    var pinnedKm: Double?
+    var range: ProfileRange?
+    /// Fila de Puntos clave pulsada.
+    var pressedRowID: String?
+}
+
+/// Alto común del perfil interactivo y del oficial: el panel no cambia de
+/// tamaño al alternar. Espejo de `graphicHeight` (`js/stage/profile.js`).
+struct ProfileGraphicLayout: Layout {
+    static func height(forWidth width: CGFloat) -> CGFloat {
+        max(264, min(400, width * 0.4))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let proposed = proposal.width ?? 320
+        let width = proposed.isFinite ? proposed : 320
+        return CGSize(width: width, height: Self.height(forWidth: width))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+        }
+    }
+}
+
+/// Lectura del perfil en una sola línea de altura fija: el punto señalado
+/// («88,2 km · 939 m») o el tramo marcado (nombre, distancia, desniveles y
+/// pendiente media, con «Quitar»). Sin selección queda vacía.
+struct ProfileReadout: View {
+    let points: [ElevationPoint]
+    @Binding var selection: ProfileSelection
+    var alignment: Alignment = .leading
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let range = selection.range,
+               let stats = ProfileSegment.stats(points: points, from: range.a, to: range.b, interpolateAlt: { ProfileSegment.interpolateAlt(points: points, km: $0) }) {
+                Text(range.label ?? LocaleService.t("Tramo", "Section"))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .truncationMode(.tail)
+                Group {
+                    Text("\(ProfileFormat.km(stats.distance)) km").fontWeight(.bold)
+                    Text("+\(ProfileFormat.meters(stats.ascent)) m").fontWeight(.bold)
+                    Text("\u{2212}\(ProfileFormat.meters(stats.descent)) m")
+                    Text("\(ProfileFormat.gradient(stats.gradient)) %")
+                    Button(LocaleService.t("Quitar", "Clear")) {
+                        selection.range = nil
+                        selection.pressedRowID = nil
+                    }
+                    .buttonStyle(.borderless)
+                    .fontWeight(.semibold)
+                }
+                .fixedSize()
+                .layoutPriority(1)
+            } else if let km = selection.pointKm {
+                let altitude = ProfileSegment.interpolateAlt(points: points, km: km)
+                Text("\(ProfileFormat.km(km)) km · \(ProfileFormat.meters(altitude)) m")
+                    .fontWeight(.bold)
+            }
+        }
+        .ccFont(.s13)
+        .monospacedDigit()
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: alignment)
+        .frame(height: 24)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 // MARK: - Chart Card
 
+/// Perfil interactivo: arrastrar en horizontal mide un tramo, un toque fija un
+/// punto y un doble toque sobre un puerto marca del pie a la cima. El tramo
+/// conserva el color del perfil y el resto queda velado; no se rotula nada
+/// sobre el gráfico (la lectura vive en la cabecera del panel).
 struct ElevationChartCard: View {
     let profile: ElevationProfile
     let summits: [ProfileSummit]
     let waypoints: [ProfileWaypoint]
     var profileColor: Color = .accentColor
+    @Binding var selection: ProfileSelection
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedMarker: ChartMarker?
-    @State private var selectedClimb: ClimbInfo?
-    @State private var cursorKm: Double?
     @State private var dragStartKm: Double?
-    @State private var dragEndKm: Double?
-    @State private var frozenSegment: SegmentMeasure?
+    @State private var lastTapDate: Date?
+    @State private var lastTapX: CGFloat = 0
 
-    private struct SegmentMeasure {
-        let startKm: Double
-        let endKm: Double
-        let distanceKm: Double
-        let elevationMeters: Int
-        let percentageGrade: Double
-    }
-
-    private struct ClimbInfo: Identifiable {
-        let id: String
+    /// Zona de un puerto, del pie a la cima.
+    private struct ClimbZone {
         let startKm: Double
         let endKm: Double
         let name: String?
-        let category: String?
-        let lengthKm: Double
-        let avgGradient: Double
-        let gain: Int
-        let summitAlt: Int
     }
 
     private var visibleProfileColor: Color {
         ProfileColorContrast.adjusted(profileColor, for: colorScheme)
     }
 
-    private var climbs: [ClimbInfo] {
-        summits.compactMap { s in
-            guard let summitKm = s.km,
-                  let stats = s.climbStats(points: profile.points) else { return nil }
-            let endKm = min(summitKm, profile.distance)
-            let startAlt = altitudeOnCurveStatic(points: profile.points, km: s.startKm ?? 0) ?? 0
-            let summitAlt = Double(s.altitude ?? Int(altitudeOnCurveStatic(points: profile.points, km: endKm) ?? 0))
-            return ClimbInfo(
-                id: "climb-\(summitKm)-\(s.name ?? "")",
-                startKm: s.startKm ?? 0,
-                endKm: endKm,
-                name: s.name,
-                category: s.category,
-                lengthKm: stats.lengthKm,
-                avgGradient: stats.avgGradient,
-                gain: max(0, Int(summitAlt - startAlt)),
-                summitAlt: Int(summitAlt)
-            )
+    private var climbs: [ClimbZone] {
+        summits.compactMap { summit in
+            guard let km = summit.km, let start = summit.startKm, start < km else { return nil }
+            let startKm = max(0, start)
+            let endKm = min(km, profile.distance)
+            guard endKm - startKm >= 0.05 else { return nil }
+            let name = summit.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ClimbZone(startKm: startKm, endKm: endKm, name: name?.isEmpty == false ? name : nil)
         }
-    }
-
-    private func altitudeOnCurveStatic(points: [ElevationPoint], km targetKm: Double) -> Double? {
-        guard points.count >= 2 else { return nil }
-        if let exact = points.first(where: { $0.km == targetKm }) { return Double(exact.alt) }
-        if targetKm <= points.first!.km { return Double(points.first!.alt) }
-        if targetKm >= points.last!.km  { return Double(points.last!.alt) }
-        guard let idx = points.firstIndex(where: { $0.km > targetKm }), idx > 0 else { return nil }
-        let p0 = points[idx - 1], p1 = points[idx]
-        let span = p1.km - p0.km
-        if span <= 0 { return Double(p0.alt) }
-        let t = (targetKm - p0.km) / span
-        return Double(p0.alt) + t * Double(p1.alt - p0.alt)
     }
 
     private var markers: [ChartMarker] {
@@ -421,97 +476,26 @@ struct ElevationChartCard: View {
     var body: some View {
         GeometryReader { geo in
             let g = geometry(size: geo.size)
-            ZStack(alignment: .topLeading) {
-                Canvas { ctx, _ in
-                    drawChart(ctx: &ctx, g: g)
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 8)
-                        .onChanged { v in
-                            let g2 = geometry(size: geo.size)
-                            let km = g2.km(for: v.location.x)
-                            if dragStartKm == nil {
-                                dragStartKm = km
-                                frozenSegment = nil
-                            }
-                            dragEndKm = km
-                            selectedMarker = nil
-                        }
-                        .onEnded { _ in
-                            guard let start = dragStartKm, let end = dragEndKm, abs(end - start) >= 0.1 else {
-                                dragStartKm = nil
-                                dragEndKm = nil
-                                return
-                            }
-                            let alt1 = altitudeOnCurve(km: start) ?? Double(profile.points.first?.alt ?? 0)
-                            let alt2 = altitudeOnCurve(km: end) ?? Double(profile.points.last?.alt ?? 0)
-                            let distance = abs(end - start)
-                            let elevation = abs(alt2 - alt1)
-                            let grade = distance > 0 ? (elevation / (distance * 1000)) * 100 : 0
-                            frozenSegment = SegmentMeasure(
-                                startKm: start,
-                                endKm: end,
-                                distanceKm: distance,
-                                elevationMeters: Int(elevation),
-                                percentageGrade: grade
-                            )
-                            dragStartKm = nil
-                            dragEndKm = nil
-                            Haptics.play(.primaryAction)
-                        }
-                )
-                .onTapGesture { loc in
-                    let g2 = geometry(size: geo.size)
-                    let tapped = nearestMarker(at: loc, g: g2)
-                    if let m = tapped {
-                        selectedMarker = (selectedMarker?.id == m.id) ? nil : m
-                        selectedClimb = nil
-                    } else {
-                        // Detectar tap dentro de una zona de puerto (área sombreada)
-                        let tapKm = g2.km(for: loc.x)
-                        if loc.y >= g2.mt && loc.y <= g2.mt + g2.plotHeight,
-                           let climb = climbs.first(where: { tapKm >= $0.startKm && tapKm <= $0.endKm }) {
-                            selectedClimb = (selectedClimb?.id == climb.id) ? nil : climb
-                            selectedMarker = nil
-                        } else {
-                            selectedMarker = nil
-                            selectedClimb = nil
-                        }
-                    }
-                    frozenSegment = nil
-                    dragStartKm = nil
-                    dragEndKm = nil
-                    cursorKm = nil
-                }
-
-                // Cursor overlay (drag en curso o segmento congelado)
-                if dragStartKm != nil, let endKm = dragEndKm {
-                    segmentDragOverlay(g: g, startKm: dragStartKm!, endKm: endKm, containerSize: geo.size)
-                } else if let seg = frozenSegment {
-                    segmentLineOverlay(g: g, startKm: seg.startKm, endKm: seg.endKm)
-                } else if let ckm = cursorKm {
-                    cursorOverlay(g: g, km: ckm, containerSize: geo.size)
-                }
-
-                // Callout overlay
-                if let marker = selectedMarker {
-                    calloutOverlay(g: g, marker: marker, containerSize: geo.size)
-                }
-
-                // Climb tooltip
-                if let climb = selectedClimb {
-                    climbTooltip(climb: climb)
-                }
-
-                // Segment measurement tooltip (congelado después del drag)
-                if let seg = frozenSegment {
-                    segmentTooltip(segment: seg)
+            Canvas { ctx, _ in
+                drawChart(ctx: &ctx, g: g)
+            }
+            .contentShape(Rectangle())
+            .gesture(ProfileTouchGesture { event in
+                handle(event, g: g)
+            })
+            .onContinuousHover { phase in
+                // Puntero (iPad): el punto sigue al puntero; al salir queda el
+                // fijado. Con un tramo marcado, el puntero no lo sustituye.
+                guard dragStartKm == nil, selection.range == nil else { return }
+                switch phase {
+                case .active(let location):
+                    selection.pointKm = g.km(for: location.x)
+                    selection.pressedRowID = nil
+                case .ended:
+                    selection.pointKm = selection.pinnedKm
                 }
             }
         }
-        .frame(height: 240)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LocaleService.t("Perfil interactivo", "Interactive profile"))
         .accessibilityValue(accessibilityCursorValue)
@@ -520,22 +504,67 @@ struct ElevationChartCard: View {
             "Swipe up or down to explore distance and altitude"
         ))
         .accessibilityAdjustableAction { direction in
-            let current = cursorKm ?? 0
+            let current = selection.pinnedKm ?? 0
+            let next: Double
             switch direction {
-            case .increment:
-                cursorKm = min(profile.distance, current + 1)
-            case .decrement:
-                cursorKm = max(0, current - 1)
-            @unknown default:
-                break
+            case .increment: next = min(profile.distance, current + 1)
+            case .decrement: next = max(0, current - 1)
+            @unknown default: return
             }
+            selection.range = nil
+            selection.pressedRowID = nil
+            selection.pinnedKm = next
+            selection.pointKm = next
         }
     }
 
     private var accessibilityCursorValue: String {
-        let km = cursorKm ?? 0
-        let altitude = Int((altitudeOnCurve(km: km) ?? Double(profile.points.first?.alt ?? 0)).rounded())
-        return "\(formatKmDecimal(km)) · \(formatAltitude(altitude))"
+        let km = selection.pointKm ?? 0
+        let altitude = ProfileSegment.interpolateAlt(points: profile.points, km: km)
+        return "\(ProfileFormat.km(km)) km · \(ProfileFormat.meters(altitude)) m"
+    }
+
+    // MARK: Gestos
+
+    private func handle(_ event: ProfileTouchGesture.Event, g: ChartGeometry) {
+        switch event {
+        case .tap(let location):
+            let km = g.km(for: location.x)
+            let now = Date()
+            // Doble toque sobre un puerto: su tramo, del pie a la cima. El
+            // primer toque ya ha fijado el punto, como el doble clic de la web.
+            if let last = lastTapDate, now.timeIntervalSince(last) < 0.35, abs(lastTapX - location.x) < 24,
+               let climb = climbs.first(where: { km >= $0.startKm && km <= $0.endKm }) {
+                lastTapDate = nil
+                setRange(climb.startKm, climb.endKm, label: climb.name ?? LocaleService.t("Puerto", "Climb"))
+                return
+            }
+            lastTapDate = now
+            lastTapX = location.x
+            selection.range = nil
+            selection.pressedRowID = nil
+            selection.pinnedKm = km
+            selection.pointKm = km
+        case .dragBegan(let start, let current):
+            let startKm = g.km(for: start.x)
+            dragStartKm = startKm
+            lastTapDate = nil
+            setRange(startKm, g.km(for: current.x), label: nil)
+        case .dragChanged(let current):
+            guard let startKm = dragStartKm else { return }
+            setRange(startKm, g.km(for: current.x), label: nil)
+        case .dragEnded:
+            dragStartKm = nil
+            if selection.range != nil { Haptics.play(.selection) }
+        case .dragCancelled:
+            dragStartKm = nil
+        }
+    }
+
+    private func setRange(_ a: Double, _ b: Double, label: String?) {
+        guard ProfileSegment.stats(points: profile.points, from: a, to: b, interpolateAlt: { ProfileSegment.interpolateAlt(points: profile.points, km: $0) }) != nil else { return }
+        selection.range = ProfileRange(a: a, b: b, label: label)
+        selection.pressedRowID = nil
     }
 
     // MARK: Canvas drawing
@@ -556,10 +585,8 @@ struct ElevationChartCard: View {
             ctx.stroke(gridPath, with: .color(.secondary.opacity(0.2)),
                        style: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
 
-            // Y label
-            let label = formatAltitude(Int(yVal))
             ctx.draw(
-                Text(label).font(.system(size: 9)).foregroundStyle(Color.secondary),
+                Text("\(ProfileFormat.meters(yVal)) m").font(.system(size: 12)).foregroundStyle(Color.secondary),
                 at: CGPoint(x: g.ml - 4, y: yPos),
                 anchor: .trailing
             )
@@ -577,16 +604,16 @@ struct ElevationChartCard: View {
             ctx.stroke(gridPath, with: .color(.secondary.opacity(0.2)),
                        style: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
 
-            let xLabel = formatKmInt(xVal)
             ctx.draw(
-                Text(xLabel).font(.system(size: 9)).foregroundStyle(Color.secondary),
+                Text(formatKmInt(xVal)).font(.system(size: 12)).foregroundStyle(Color.secondary),
                 at: CGPoint(x: xPos, y: g.mt + g.plotHeight + 12),
                 anchor: .center
             )
             xVal += xStep
         }
 
-        // Filled area + profile line
+        // Relleno y línea del perfil. Las zonas de puerto no se sombrean: un
+        // puerto se distingue al seleccionarlo.
         var fillPath = Path()
         let startPt = CGPoint(x: g.x(for: pts[0].km), y: g.y(for: Double(pts[0].alt)))
         fillPath.move(to: CGPoint(x: startPt.x, y: g.mt + g.plotHeight))
@@ -599,33 +626,6 @@ struct ElevationChartCard: View {
         fillPath.closeSubpath()
 
         ctx.fill(fillPath, with: .color(visibleProfileColor.opacity(0.30)))
-
-        // Climb zones — área bajo la curva entre startKm y km del summit
-        for climb in climbs {
-            let segPts: [ElevationPoint] = {
-                var arr: [ElevationPoint] = []
-                if let startAlt = altitudeOnCurve(km: climb.startKm) {
-                    arr.append(ElevationPoint(km: climb.startKm, alt: Int(startAlt)))
-                }
-                arr.append(contentsOf: pts.filter { $0.km > climb.startKm && $0.km < climb.endKm })
-                if let endAlt = altitudeOnCurve(km: climb.endKm) {
-                    arr.append(ElevationPoint(km: climb.endKm, alt: Int(endAlt)))
-                }
-                return arr
-            }()
-            guard segPts.count >= 2 else { continue }
-
-            var zonePath = Path()
-            let first = CGPoint(x: g.x(for: segPts[0].km), y: g.y(for: Double(segPts[0].alt)))
-            zonePath.move(to: CGPoint(x: first.x, y: g.mt + g.plotHeight))
-            zonePath.addLine(to: first)
-            for sp in segPts.dropFirst() {
-                zonePath.addLine(to: CGPoint(x: g.x(for: sp.km), y: g.y(for: Double(sp.alt))))
-            }
-            zonePath.addLine(to: CGPoint(x: g.x(for: segPts.last!.km), y: g.mt + g.plotHeight))
-            zonePath.closeSubpath()
-            ctx.fill(zonePath, with: .color(Color.summitRed.opacity(0.22)))
-        }
 
         var linePath = Path()
         linePath.move(to: startPt)
@@ -665,7 +665,7 @@ struct ElevationChartCard: View {
         // Marker circles
         let markerRadius: CGFloat = 8
         for marker in markers {
-            guard let alt = altitudeOnCurve(km: marker.km) else { continue }
+            let alt = ProfileSegment.interpolateAlt(points: pts, km: marker.km)
             let cx = g.x(for: marker.km)
             let cy = g.y(for: alt)
             var badges: [(color: Color, label: String, textColor: Color, kind: String)] = [
@@ -697,6 +697,7 @@ struct ElevationChartCard: View {
                     checks.addRect(CGRect(x: origin.x + tile, y: origin.y + tile, width: tile, height: tile))
                     ctx.fill(checks, with: .color(.white))
                 } else {
+                    // Glifo del marcador (categoría o letra), a tamaño de icono.
                     ctx.draw(
                         Text(badge.label)
                             .font(.system(size: 9, weight: .bold))
@@ -707,255 +708,137 @@ struct ElevationChartCard: View {
                 }
             }
         }
+
+        drawSelection(ctx: &ctx, g: g)
     }
 
-    private func altitudeOnCurve(km targetKm: Double) -> Double? {
-        let pts = profile.points
-        guard pts.count >= 2 else { return nil }
-        if let exact = pts.first(where: { $0.km == targetKm }) { return Double(exact.alt) }
-        guard let idx = pts.firstIndex(where: { $0.km > targetKm }), idx > 0 else {
-            return Double(pts.last!.alt)
-        }
-        let p0 = pts[idx - 1]
-        let p1 = pts[idx]
-        let t = (targetKm - p0.km) / (p1.km - p0.km)
-        return Double(p0.alt) + t * Double(p1.alt - p0.alt)
-    }
-
-    private func nearestMarker(at loc: CGPoint, g: ChartGeometry) -> ChartMarker? {
-        let hitRadius: CGFloat = 14
-        var best: (marker: ChartMarker, dist: CGFloat)? = nil
-        for marker in markers {
-            guard let alt = altitudeOnCurve(km: marker.km) else { continue }
-            let mx = g.x(for: marker.km)
-            let my = g.y(for: alt)
-            let dist = hypot(loc.x - mx, loc.y - my)
-            if dist <= hitRadius {
-                if best == nil || dist < best!.dist {
-                    best = (marker, dist)
-                }
-            }
-        }
-        return best?.marker
-    }
-
-    // MARK: Cursor overlay
-
-    @ViewBuilder
-    private func cursorOverlay(g: ChartGeometry, km: Double, containerSize: CGSize) -> some View {
-        let xPos = g.x(for: km)
-        let alt = altitudeOnCurve(km: km)
-        Canvas { ctx, _ in
-            var path = Path()
-            path.move(to: CGPoint(x: xPos, y: g.mt))
-            path.addLine(to: CGPoint(x: xPos, y: g.mt + g.plotHeight))
-            ctx.stroke(path, with: .color(.secondary.opacity(0.5)), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-        }
-        .allowsHitTesting(false)
-        if let a = alt {
-            let yPos = max(g.mt + 14, min(g.mt + g.plotHeight - 14, g.y(for: a)))
-            Text(formatAltitude(Int(a)))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 3))
-                .position(x: max(30, min(containerSize.width - 30, xPos)), y: yPos)
-                .allowsHitTesting(false)
+    /// Tramo: el resto del perfil se vela con el color de la tarjeta, de
+    /// arriba al eje. Punto: guía vertical discontinua en el color de acento.
+    private func drawSelection(ctx: inout GraphicsContext, g: ChartGeometry) {
+        if let range = selection.range {
+            let from = max(0, min(profile.distance, min(range.a, range.b)))
+            let to = max(0, min(profile.distance, max(range.a, range.b)))
+            let x1 = g.x(for: from), x2 = g.x(for: to)
+            let left = g.ml, right = g.ml + g.plotWidth, bottom = g.mt + g.plotHeight + 1
+            var dim = Path()
+            dim.addRect(CGRect(x: left, y: 0, width: max(0, x1 - left), height: bottom))
+            dim.addRect(CGRect(x: x2, y: 0, width: max(0, right - x2), height: bottom))
+            ctx.fill(dim, with: .color(AppTheme.cardBackground.opacity(0.72)))
+        } else if let km = selection.pointKm {
+            let x = g.x(for: max(0, min(profile.distance, km)))
+            var line = Path()
+            line.move(to: CGPoint(x: x, y: g.mt))
+            line.addLine(to: CGPoint(x: x, y: g.mt + g.plotHeight))
+            ctx.stroke(line, with: .color(.accentColor), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
         }
     }
+}
 
-    // MARK: Segment line overlay (línea + puntos, sin tooltip vivo)
+// MARK: - Gesto del perfil
 
-    @ViewBuilder
-    private func segmentLineOverlay(g: ChartGeometry, startKm: Double, endKm: Double) -> some View {
-        Canvas { ctx, _ in
-            let x1 = g.x(for: startKm)
-            let x2 = g.x(for: endKm)
-            let alt1 = altitudeOnCurve(km: startKm) ?? Double(profile.points.first?.alt ?? 0)
-            let alt2 = altitudeOnCurve(km: endKm) ?? Double(profile.points.last?.alt ?? 0)
-            let y1 = g.y(for: alt1)
-            let y2 = g.y(for: alt2)
+/// Reconocedor del perfil (gráfico propio, sin control nativo equivalente).
+/// Un arrastre que, superado el umbral de 6 pt, es predominantemente
+/// horizontal mide un tramo; si es vertical, falla y deja paso al
+/// desplazamiento de la página. Sin movimiento, es un toque.
+private final class ProfileTouchRecognizer: UIGestureRecognizer {
+    enum Kind { case none, tap, drag }
 
-            var path = Path()
-            path.move(to: CGPoint(x: x1, y: y1))
-            path.addLine(to: CGPoint(x: x2, y: y2))
-            ctx.stroke(path, with: .color(.accentColor), style: StrokeStyle(lineWidth: 2.5))
+    static let threshold: CGFloat = 6
 
-            let markerRadius: CGFloat = 5
-            ctx.fill(Path(ellipseIn: CGRect(x: x1 - markerRadius, y: y1 - markerRadius, width: markerRadius * 2, height: markerRadius * 2)), with: .color(.accentColor))
-            ctx.fill(Path(ellipseIn: CGRect(x: x2 - markerRadius, y: y2 - markerRadius, width: markerRadius * 2, height: markerRadius * 2)), with: .color(.accentColor))
+    private(set) var kind: Kind = .none
+    private(set) var translation: CGPoint = .zero
+    private var startLocation: CGPoint = .zero
+    private weak var trackedTouch: UITouch?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard trackedTouch == nil, touches.count == 1, let touch = touches.first else {
+            if state == .possible { state = .failed } else if kind == .drag { state = .cancelled }
+            return
         }
-        .allowsHitTesting(false)
+        trackedTouch = touch
+        kind = .none
+        translation = .zero
+        startLocation = touch.location(in: view)
     }
 
-    // MARK: Segment drag overlay (mientras se arrastra)
-
-    @ViewBuilder
-    private func segmentDragOverlay(g: ChartGeometry, startKm: Double, endKm: Double, containerSize: CGSize) -> some View {
-        segmentLineOverlay(g: g, startKm: startKm, endKm: endKm)
-
-        let distance = abs(endKm - startKm)
-        let alt1 = altitudeOnCurve(km: startKm) ?? Double(profile.points.first?.alt ?? 0)
-        let alt2 = altitudeOnCurve(km: endKm) ?? Double(profile.points.last?.alt ?? 0)
-        let elevation = abs(alt2 - alt1)
-        let grade = distance > 0 ? (elevation / (distance * 1000)) * 100 : 0
-
-        Text("\(formatKmDecimal(distance)) / +\(Int(elevation)) m / \(String(format: "%.1f", grade))%")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 3))
-            .padding()
-            .allowsHitTesting(false)
-    }
-
-    // MARK: Segment tooltip (congelado después del drag)
-
-    @ViewBuilder
-    private func segmentTooltip(segment: SegmentMeasure) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.left.and.right")
-                    .foregroundStyle(.secondary)
-                Text(formatKmDecimal(segment.distanceKm))
-                    .fontWeight(.semibold)
-            }
-            .font(.subheadline)
-
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(.secondary)
-                Text("+\(segment.elevationMeters) m")
-                    .fontWeight(.semibold)
-            }
-            .font(.subheadline)
-
-            HStack(spacing: 4) {
-                Image(systemName: "percent")
-                    .foregroundStyle(.secondary)
-                Text(String(format: "%.1f%%", segment.percentageGrade))
-                    .fontWeight(.semibold)
-            }
-            .font(.subheadline)
-        }
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
-        .padding()
-    }
-
-    // MARK: Climb tooltip
-
-    @ViewBuilder
-    private func climbTooltip(climb: ClimbInfo) -> some View {
-        let title = (climb.name?.isEmpty == false) ? climb.name! : "Puerto"
-        let gradeStr = String(format: "%.1f%%", climb.avgGradient)
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            HStack(spacing: 6) {
-                Text(formatKmDecimal(climb.lengthKm))
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Text(gradeStr)
-                    .fontWeight(.semibold)
-            }
-            .font(.subheadline)
-            Text("desnivel: \(climb.gain) m")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
-        .padding()
-    }
-
-    // MARK: Callout overlay
-
-    @ViewBuilder
-    private func calloutOverlay(g: ChartGeometry, marker: ChartMarker, containerSize: CGSize) -> some View {
-        if let alt = altitudeOnCurve(km: marker.km) {
-            let mx = g.x(for: marker.km)
-            let my = g.y(for: alt)
-
-            let calloutWidth: CGFloat = 160
-            let calloutHeight: CGFloat = marker.secondaryDescription == nil ? 70 : 86
-            let gap: CGFloat = 14
-            let preferAbove = my > 90
-            let calloutY = preferAbove ? my - gap - calloutHeight : my + gap
-            let rawX = mx - calloutWidth / 2
-            let clampedX = max(4, min(containerSize.width - calloutWidth - 4, rawX))
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    markerBadge(color: marker.color, label: marker.label, textColor: marker.textColor, kind: marker.kind)
-                    if let secondaryColor = marker.secondaryColor,
-                       let secondaryLabel = marker.secondaryLabel,
-                       let secondaryKind = marker.secondaryKind {
-                        markerBadge(color: secondaryColor, label: secondaryLabel,
-                                    textColor: marker.secondaryTextColor, kind: secondaryKind)
-                    }
-                }
-                if let name = marker.name {
-                    Text(name)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-                }
-                if let secondaryDescription = marker.secondaryDescription {
-                    Text(secondaryDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                HStack(spacing: 4) {
-                    if let a = marker.altitude ?? (altitudeOnCurve(km: marker.km).map { Int($0) }) {
-                        Text(formatAltitude(a))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("· km \(formatKmInt(marker.km))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(10)
-            .frame(width: calloutWidth, alignment: .leading)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
-            .position(x: clampedX + calloutWidth / 2, y: calloutY + calloutHeight / 2)
-            .allowsHitTesting(false)
-        }
-    }
-
-    private func markerBadge(color: Color, label: String, textColor: Color, kind: String) -> some View {
-        ZStack {
-            Circle().fill(color)
-            if kind == "cobblestone" || kind == "sterrato" {
-                GuideMarkerView(type: kind, category: nil)
-            } else if kind == "finish" {
-                Canvas { context, size in
-                    let tile = min(size.width, size.height) / 2
-                    var board = Path()
-                    board.addRect(CGRect(x: 0, y: 0, width: tile * 2, height: tile * 2))
-                    context.fill(board, with: .color(.white.opacity(0.3)))
-                    var checks = Path()
-                    checks.addRect(CGRect(x: 0, y: 0, width: tile, height: tile))
-                    checks.addRect(CGRect(x: tile, y: tile, width: tile, height: tile))
-                    context.fill(checks, with: .color(.white))
-                }
-                .frame(width: 7, height: 7)
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = trackedTouch, touches.contains(touch) else { return }
+        let location = touch.location(in: view)
+        translation = CGPoint(x: location.x - startLocation.x, y: location.y - startLocation.y)
+        switch state {
+        case .possible:
+            guard hypot(translation.x, translation.y) >= Self.threshold else { return }
+            if abs(translation.x) > abs(translation.y) {
+                kind = .drag
+                state = .began
             } else {
-                Text(label)
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(textColor)
+                state = .failed
             }
+        case .began, .changed:
+            state = .changed
+        default:
+            break
         }
-        .frame(width: 16, height: 16)
-        .accessibilityHidden(true)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = trackedTouch, touches.contains(touch) else { return }
+        if state == .possible {
+            kind = .tap
+            state = .ended
+        } else if state == .began || state == .changed {
+            state = .ended
+        }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        state = state == .possible ? .failed : .cancelled
+    }
+
+    override func reset() {
+        super.reset()
+        trackedTouch = nil
+        kind = .none
+        translation = .zero
+    }
+
+    /// El desplazamiento de la página espera a que el perfil descarte el
+    /// gesto (movimiento vertical) para empezar.
+    override func shouldBeRequiredToFail(by otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        otherGestureRecognizer is UIPanGestureRecognizer && otherGestureRecognizer.view is UIScrollView
+    }
+}
+
+private struct ProfileTouchGesture: UIGestureRecognizerRepresentable {
+    enum Event {
+        case tap(CGPoint)
+        case dragBegan(start: CGPoint, current: CGPoint)
+        case dragChanged(CGPoint)
+        case dragEnded
+        case dragCancelled
+    }
+
+    let onEvent: (Event) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> ProfileTouchRecognizer {
+        ProfileTouchRecognizer()
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: ProfileTouchRecognizer, context: Context) {
+        let location = context.converter.localLocation
+        switch recognizer.state {
+        case .began:
+            let start = CGPoint(x: location.x - recognizer.translation.x, y: location.y - recognizer.translation.y)
+            onEvent(.dragBegan(start: start, current: location))
+        case .changed:
+            onEvent(.dragChanged(location))
+        case .ended:
+            onEvent(recognizer.kind == .tap ? .tap(location) : .dragEnded)
+        case .cancelled, .failed:
+            if recognizer.kind == .drag { onEvent(.dragCancelled) }
+        default:
+            break
+        }
     }
 }
 
@@ -968,39 +851,36 @@ private struct SummitRow: View {
 
     var body: some View {
         let stats = summit.climbStats(points: profilePoints)
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(Color.summitRed)
-                    .frame(width: 18, height: 18)
-                Text(summit.category ?? "?")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white)
-            }
+        HStack(spacing: 8) {
+            GuideMarkerView(type: "summit", category: summit.category)
+                .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
             if let name = summit.name, !name.isEmpty {
                 Text(name)
-                    .font(.subheadline)
+                    .ccFont(.s14)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 1) {
+            VStack(alignment: .trailing, spacing: 2) {
                 if let km = summit.km {
                     let remaining = totalDistance - km
-                    Text(remaining < 0.5 ? LocaleService.t("Meta", "Finish") : "-\(formatKmInt(remaining)) km")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                    Text(remaining < 0.5 ? LocaleService.t("Meta", "Finish") : "\(ProfileFormat.km(remaining)) km")
+                        .ccFont(.s14)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
                 if let s = stats {
-                    Text("\(formatKmDecimal(s.lengthKm)) · \(String(format: "%.1f%%", s.avgGradient))")
-                        .font(.caption)
+                    Text("\(ProfileFormat.km(s.lengthKm)) km \(LocaleService.t("al", "at")) \(ProfileFormat.gradient(s.avgGradient)) %")
+                        .ccFont(.s13)
                         .foregroundStyle(.secondary)
                 } else if let alt = summit.altitude {
-                    Text(formatAltitude(alt))
-                        .font(.caption)
+                    Text("\(ProfileFormat.meters(Double(alt))) m")
+                        .ccFont(.s13)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 
@@ -1013,58 +893,47 @@ private struct WaypointRow: View {
     private var typeLabel: String {
         guard case .waypoint(let wp) = marker.source else { return "" }
         switch wp.type {
-        case "bonus_sprint":        return "Bonificación"
-        case "intermediate_sprint": return "Sprint Int."
-        case "intermediate_split":  return "Punto int."
-        case "cobblestone":         return "Pavé"
-        case "sterrato":            return "Sterrato"
+        case "bonus_sprint":        return LocaleService.t("Sprint bonificación", "Bonus sprint")
+        case "intermediate_sprint": return LocaleService.t("Sprint intermedio", "Intermediate sprint")
+        case "intermediate_split":  return LocaleService.t("Punto intermedio", "Intermediate point")
+        case "cobblestone":         return LocaleService.t("Pavé", "Cobbles")
+        case "sterrato":            return LocaleService.t("Sterrato", "Gravel")
         default:                    return wp.type
         }
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            if marker.kind == "cobblestone" || marker.kind == "sterrato" {
-                GuideMarkerView(type: marker.kind, category: nil)
-                    .frame(width: 18, height: 18)
-            } else {
-                ZStack {
-                    Circle()
-                        .fill(marker.color)
-                        .frame(width: 18, height: 18)
-                    Text(marker.label)
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
-            VStack(alignment: .leading, spacing: 1) {
+        HStack(spacing: 8) {
+            GuideMarkerView(type: marker.kind, category: nil)
+                .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 if let name = marker.name, !name.isEmpty {
                     Text(name)
-                        .font(.subheadline)
+                        .ccFont(.s14)
+                    Text(typeLabel)
+                        .ccFont(.s13)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text(typeLabel)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if let name = marker.name, !name.isEmpty {
-                    Text(typeLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .ccFont(.s14)
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 1) {
-                Text("-\(formatKmInt(totalDistance - marker.km)) km")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(ProfileFormat.km(max(0, totalDistance - marker.km))) km")
+                    .ccFont(.s14)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
                 if let len = marker.lengthKm {
-                    Text(formatKmDecimal(len))
-                        .font(.caption)
+                    Text("\(ProfileFormat.km(len)) km")
+                        .ccFont(.s13)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 
@@ -1073,6 +942,8 @@ private struct WaypointRow: View {
 struct ElevationProfileView: View {
     let raceDay: RaceDay
     let race: Race?
+
+    @State private var selection = ProfileSelection()
 
     private var profile: ElevationProfile { raceDay.elevationProfile! }
     private var summits: [ProfileSummit]  { raceDay.profileSummits ?? [] }
@@ -1085,8 +956,8 @@ struct ElevationProfileView: View {
 
     private var navigationTitle: String {
         let stage = raceDay.stageLabel
-        let raceName = race?.name ?? ""
-        if stage.isEmpty { return raceName.isEmpty ? "Perfil" : raceName }
+        let raceName = race?.localizedName ?? ""
+        if stage.isEmpty { return raceName.isEmpty ? LocaleService.t("Perfil", "Profile") : raceName }
         if raceName.isEmpty { return stage }
         return "\(raceName) · \(stage)"
     }
@@ -1102,35 +973,57 @@ struct ElevationProfileView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 // Datos generales de la etapa, el mismo bloque que en la
                 // jornada aparece encima de la documentación. Mantiene el
                 // contexto (carrera, etapa, recorrido, distancia/desnivel)
                 // por encima del perfil.
                 StageInfoHeader(raceDay: raceDay, race: race)
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .ccCardSurface()
-                    .padding(.horizontal)
 
-                ElevationChartCard(
-                    profile: profile,
-                    summits: summits,
-                    waypoints: waypoints,
-                    profileColor: profileColor
-                )
-                .padding(.horizontal)
+                StagePanel {
+                    VStack(alignment: .leading, spacing: 8) {
+                        StagePanelTitle(LocaleService.t("Perfil", "Profile"))
+                        ProfileReadout(points: profile.points, selection: $selection)
+                    }
+                } content: {
+                    ProfileGraphicLayout {
+                        ElevationChartCard(
+                            profile: profile,
+                            summits: summits,
+                            waypoints: waypoints,
+                            profileColor: profileColor,
+                            selection: $selection
+                        )
+                    }
+                    .padding(.vertical, 8)
+                }
 
                 if !summits.isEmpty {
-                    summitsSection
-                        .padding(.horizontal)
+                    StagePanel {
+                        StagePanelTitle(LocaleService.t("Puertos", "Climbs"))
+                    } content: {
+                        ForEach(Array(summits.enumerated()), id: \.offset) { index, summit in
+                            if index > 0 { Divider() }
+                            SummitRow(summit: summit, totalDistance: profile.distance, profilePoints: profile.points)
+                        }
+                    }
                 }
 
                 if !listWaypoints.isEmpty {
-                    waypointsSection
-                        .padding(.horizontal)
+                    StagePanel {
+                        StagePanelTitle(LocaleService.t("Otros puntos", "Other points"))
+                    } content: {
+                        ForEach(Array(listWaypoints.enumerated()), id: \.offset) { index, marker in
+                            if index > 0 { Divider() }
+                            WaypointRow(marker: marker, totalDistance: profile.distance)
+                        }
+                    }
                 }
             }
-            .padding(.vertical)
+            .padding()
         }
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(navigationTitle)
@@ -1141,7 +1034,7 @@ struct ElevationProfileView: View {
                     NavigationLink(destination: RaceDetailView(raceId: race.id)) {
                         RaceLogo(race.logoUrl, size: 24)
                     }
-                    .accessibilityLabel("Ver todas las etapas de \(race.name)")
+                    .accessibilityLabel(LocaleService.t("Ver todas las etapas de \(race.localizedName)", "View all stages of \(race.localizedName)"))
                 }
             }
         }
@@ -1153,73 +1046,11 @@ struct ElevationProfileView: View {
             ])
         }
     }
-
-    // MARK: Summits section
-
-    @ViewBuilder
-    private var summitsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Puertos")
-                .font(.headline)
-            Divider()
-            ForEach(summits) { summit in
-                SummitRow(summit: summit, totalDistance: profile.distance, profilePoints: profile.points)
-                if summit.id != summits.last?.id {
-                    Divider().padding(.leading, 28)
-                }
-            }
-        }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: Waypoints section
-
-    @ViewBuilder
-    private var waypointsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Otros puntos")
-                .font(.headline)
-            Divider()
-            ForEach(listWaypoints) { marker in
-                WaypointRow(marker: marker, totalDistance: profile.distance)
-                if marker.id != listWaypoints.last?.id {
-                    Divider().padding(.leading, 28)
-                }
-            }
-        }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
 }
 
 // MARK: - Formatting helpers (file-private)
 
-// Los separadores (miles y decimal) siguen el IDIOMA DE CONTENIDO, no el locale
-// del dispositivo ni el chrome de la UI — igual que RaceDay.distanceFormatted /
-// elevationGainFormatted y que Android (ElevationProfileScreen.formatAlt).
-
-private func formatAltitude(_ alt: Int) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    let isEn = LocaleService.shouldShowEnglishContent
-    formatter.groupingSeparator = isEn ? "," : "."
-    formatter.locale = Locale(identifier: isEn ? "en_US" : "es_ES")
-    return (formatter.string(from: NSNumber(value: alt)) ?? "\(alt)") + " m"
-}
-
 private func formatKmInt(_ km: Double) -> String {
     let rounded = Int(km.rounded())
     return "\(rounded)"
-}
-
-private func formatKmDecimal(_ km: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    formatter.minimumFractionDigits = km.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1
-    formatter.maximumFractionDigits = 1
-    formatter.locale = Locale(identifier: LocaleService.shouldShowEnglishContent ? "en_US" : "es_ES")
-    return (formatter.string(from: NSNumber(value: km)) ?? "\(km)") + " km"
 }

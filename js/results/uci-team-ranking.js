@@ -59,9 +59,6 @@ export function decorateUciRanking(rows, gender) {
 }
 
 export function uciRankingRuleText(row, isEnglish = false) {
-  const projection = isEnglish
-    ? 'Projection based on the current position.'
-    : 'Proyección según la posición actual.';
   const rankingYear = Number(String(row.rankingDate || '').slice(0, 4));
   const invitationYear = Number.isFinite(rankingYear) ? rankingYear + 1 : new Date().getFullYear() + 1;
   const messages = [];
@@ -71,18 +68,18 @@ export function uciRankingRuleText(row, isEnglish = false) {
       break;
     case UciRankingTier.ALL_WORLD_TOUR:
       messages.push(isEnglish
-        ? `Mandatory invitation to every ${invitationYear} UCI WorldTour race, including the Grand Tours, and every ${invitationYear} UCI ProSeries race. ${projection}`
-        : `Invitación obligatoria a todas las pruebas UCI WorldTour de ${invitationYear}, incluidas las Grandes Vueltas, y a todas las pruebas UCI ProSeries de ${invitationYear}. ${projection}`);
+        ? `Mandatory invitation to every ${invitationYear} UCI WorldTour race, including the Grand Tours, and every ${invitationYear} UCI ProSeries race.`
+        : `Invitación obligatoria a todas las pruebas UCI WorldTour de ${invitationYear}, incluidas las Grandes Vueltas, y a todas las pruebas UCI ProSeries de ${invitationYear}.`);
       break;
     case UciRankingTier.PRO_SERIES:
       messages.push(isEnglish
-        ? `Mandatory invitation to every ${invitationYear} UCI ProSeries race. ${projection}`
-        : `Invitación obligatoria a todas las pruebas UCI ProSeries de ${invitationYear}. ${projection}`);
+        ? `Mandatory invitation to every ${invitationYear} UCI ProSeries race.`
+        : `Invitación obligatoria a todas las pruebas UCI ProSeries de ${invitationYear}.`);
       break;
     case UciRankingTier.WOMENS_WORLD_TOUR:
       messages.push(isEnglish
-        ? `Mandatory invitation to every ${invitationYear} UCI Women's WorldTour race. ${projection}`
-        : `Invitación obligatoria a todas las pruebas UCI Women's WorldTour de ${invitationYear}. ${projection}`);
+        ? `Mandatory invitation to every ${invitationYear} UCI Women's WorldTour race.`
+        : `Invitación obligatoria a todas las pruebas UCI Women's WorldTour de ${invitationYear}.`);
       break;
     default:
       break;
@@ -90,8 +87,8 @@ export function uciRankingRuleText(row, isEnglish = false) {
 
   if (row.grandTourExcluded) {
     messages.push(isEnglish
-      ? `Outside the overall top 30, this UCI ProTeam is not currently eligible for a ${invitationYear} Grand Tour wildcard. ${projection}`
-      : `Fuera del top-30 absoluto, este UCI ProTeam no puede recibir actualmente una invitación para una Gran Vuelta de ${invitationYear}. ${projection}`);
+      ? `Outside the overall top 30, this UCI ProTeam is not currently eligible for a ${invitationYear} Grand Tour wildcard.`
+      : `Fuera del top-30 absoluto, este UCI ProTeam no puede recibir actualmente una invitación para una Gran Vuelta de ${invitationYear}.`);
   }
   return messages.join(' ');
 }

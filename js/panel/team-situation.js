@@ -5,7 +5,7 @@
 import { supabase, esc } from '../shared.js';
 import { openDrawer, closeDrawer } from '../components/drawer.js';
 import {
-  isMarketDestinationTeamEligible, marketDestinationTeamOptions, transferRowBorderColor,
+  isMarketDestinationTeamEligible, marketDestinationTeamOptions,
 } from '../services/transfer-rider.js';
 import { panelState } from './state.js';
 import { MARKET_SEASON } from './constants.js';
@@ -45,10 +45,10 @@ let _tseIncoming     = [];     // transfers type=transfer con toTeamId = este eq
 let _tseGender       = null;   // género del equipo (para el picker de destino)
 
 export const TSE_STATES = [
-  { key: 'stay',   label: 'Continúa',        color: 'var(--accent)' },
-  { key: 'doubt',  label: 'Duda',            color: '#8b5cf6' },
-  { key: 'change', label: 'Cambio',          color: '#f59e0b' },
-  { key: 'end',    label: 'Fin de contrato', color: '#ef4444' },
+  { key: 'stay',   label: 'Continúa',        color: 'var(--green)' },
+  { key: 'doubt',  label: 'Duda',            color: 'var(--orange)' },
+  { key: 'change', label: 'Cambio',          color: 'var(--text)' },
+  { key: 'end',    label: 'Fin de contrato', color: 'var(--red)' },
 ];
 
 function _tseNewId(prefix) {
@@ -82,7 +82,7 @@ export async function openTeamSituationEditor(teamId) {
     level: 1,
     wide: true,
     render: (body) => {
-      body.innerHTML = `<div class="u-fs-085 u-c-dim u-py-100 u-px-0">Cargando plantilla…</div>`;
+      body.innerHTML = `<div class="u-fs-3 u-c-dim u-py-100 u-px-0">Cargando plantilla…</div>`;
     },
   });
 
@@ -145,7 +145,7 @@ export async function openTeamSituationEditor(teamId) {
   } catch (err) {
     console.error('[openTeamSituationEditor]', err);
     const b = body_of(1);
-    if (b) b.innerHTML = `<div class="u-c-red u-fs-090 u-py-100 u-px-0">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
+    if (b) b.innerHTML = `<div class="u-c-red u-fs-3 u-py-100 u-px-0">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -195,34 +195,32 @@ function _tseRenderEditor(body, { teamName, teamCat }) {
     <div class="u-stack u-gap-100">
       <div class="tse-header">
         <div class="u-grow u-min0">
-          <div class="u-fs-100 u-fw-700">${esc(teamName)}</div>
-          <div class="u-fs-072 u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
+          <div class="u-fs-4 u-fw-700">${esc(teamName)}</div>
+          <div class="u-fs-1 u-c-dim">${esc(teamCat || '')} · temporada ${MARKET_SEASON}</div>
         </div>
-        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-075" id="tse-edit-identity" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
+        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-1" id="tse-edit-identity" title="Renombre de sponsor, colores 2027, continuidad en duda…">Editar identidad 2027</button>
       </div>
 
       <div class="u-stack u-stack--xs">
         <div class="u-flex u-items-center u-gap-075">
           <div class="u-micro u-nowrap">Plantilla 2026 → situación ${MARKET_SEASON}</div>
-          <div class="u-grow u-hr-line"></div>
-          <span class="u-fs-075 u-c-dim" id="tse-roster-count">${rows.length} corredor${rows.length === 1 ? '' : 'es'}</span>
+          <span class="u-fs-1 u-c-dim" id="tse-roster-count">${rows.length} corredor${rows.length === 1 ? '' : 'es'}</span>
         </div>
-        <div class="u-fs-075 u-c-dim">Marca la situación de cada corredor. <strong class="u-c-accent">Continúa</strong> lo incluye en la plantilla ${MARKET_SEASON}; el resto lo saca. Los que dejes sin marcar NO entran en ${MARKET_SEASON}.</div>
-        <div id="tse-roster" class="u-stack u-stack--xs u-mt-035"></div>
+        <div class="u-fs-1 u-c-dim">Marca la situación de cada corredor. <strong class="u-c-ok">Continúa</strong> lo incluye en la plantilla ${MARKET_SEASON}; el resto lo saca. Los que dejes sin marcar NO entran en ${MARKET_SEASON}.</div>
+        <div id="tse-roster" class="panel-list u-mt-035"></div>
       </div>
 
       <div class="u-stack u-stack--xs">
         <div class="u-flex u-items-center u-gap-075">
           <div class="u-micro u-nowrap">Incorporaciones ${MARKET_SEASON}</div>
-          <div class="u-grow u-hr-line"></div>
-          <button class="btn btn--ghost u-py-020 u-px-060 u-fs-074 u-c-accent" id="tse-new-signing">+ Nueva incorporación</button>
+          <button class="btn btn--ghost u-py-020 u-px-060 u-fs-1 u-c-accent" id="tse-new-signing">+ Nueva incorporación</button>
         </div>
-        <div id="tse-incoming" class="u-stack u-stack--xs"></div>
+        <div id="tse-incoming" class="panel-list"></div>
       </div>
     </div>
     <div class="u-row tse-save-bar">
       <button class="btn btn--primary" id="tse-save">Guardar equipo</button>
-      <span class="u-fs-080 u-c-dim" id="tse-save-status"></span>
+      <span class="u-fs-2 u-c-dim" id="tse-save-status"></span>
     </div>
   `;
 
@@ -246,21 +244,21 @@ function _tseRenderRoster() {
   if (!box) return;
   const rows = [..._tseSituations.values()];
   if (rows.length === 0) {
-    box.innerHTML = `<div class="u-fs-085 u-c-dim u-py-050 u-px-0">Este equipo no tiene plantilla 2026 (sin corredores con currentTeamId aquí).</div>`;
+    box.innerHTML = `<div class="u-fs-3 u-c-dim u-py-050 u-px-0">Este equipo no tiene plantilla 2026 (sin corredores con currentTeamId aquí).</div>`;
     return;
   }
   box.innerHTML = rows.map(s => {
     const r = s.rider;
     const seg = TSE_STATES.map(st => {
       const active = s.state === st.key;
-      return `<button type="button" class="tse-seg-btn${active ? ' is-active' : ''}" data-rider="${esc(r.id)}" data-state="${st.key}"${active ? ` style="--seg-color:${st.color};--seg-bg:${st.color}22"` : ''}>${st.label}</button>`;
+      return `<button type="button" class="tse-seg-btn${active ? ' is-active' : ''}" data-rider="${esc(r.id)}" data-state="${st.key}"${active ? ` style="--seg-color:${st.color}"` : ''}>${st.label}</button>`;
     }).join('');
     return `
       <div class="tse-rider-row" data-rider="${esc(r.id)}">
         <div class="tse-rider-main">
           <span class="u-w-150em u-center">${_slRiderFlagPreview(r.nationality || '')}</span>
-          <span class="u-grow u-minw-900 u-fs-085"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
-            <span class="u-c-dim u-fs-070">${r.gender === 'female' ? '♀' : '♂'}</span></span>
+          <span class="u-grow u-minw-900 u-fs-3"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+            <span class="u-c-dim u-fs-1">${r.gender === 'female' ? '♀' : '♂'}</span></span>
           <div class="u-flex u-gap-030 u-wrap">${seg}</div>
         </div>
         <div class="tse-rider-extra" data-rider="${esc(r.id)}"></div>
@@ -306,7 +304,7 @@ function _tseRenderRiderExtra(s) {
   } else if (s.state === 'doubt') {
     html = `<div class="tse-extra-row">
       ${yearInput(false)}
-      <span class="u-fs-075 u-c-dim">Duda de renovación: sigue en plantilla ${MARKET_SEASON} pero sin confirmar.</span>
+      <span class="u-fs-1 u-c-dim">Duda de renovación: sigue en plantilla ${MARKET_SEASON} pero sin confirmar.</span>
     </div>`;
   } else if (s.state === 'change') {
     // El destino de un fichaje es la temporada del MERCADO → nombre/categoría de
@@ -341,7 +339,7 @@ function _tseRenderRiderExtra(s) {
   } else if (s.state === 'end') {
     html = `<div class="tse-extra-row">
       ${chk('tse-retired', s.retired, 'Se retira')}
-      <span class="u-fs-075 u-c-dim">${s.retired ? 'Cuelga la bici.' : 'Acaba contrato sin equipo conocido (baja sin destino).'}</span>
+      <span class="u-fs-1 u-c-dim">${s.retired ? 'Cuelga la bici.' : 'Acaba contrato sin equipo conocido (baja sin destino).'}</span>
     </div>`;
   }
   wrap.innerHTML = html;
@@ -368,7 +366,7 @@ function _tseRenderIncoming() {
   const box = document.getElementById('tse-incoming');
   if (!box) return;
   if (_tseIncoming.length === 0) {
-    box.innerHTML = `<div class="u-fs-085 u-c-dim u-py-035 u-px-0">Sin incorporaciones registradas hacia este equipo.</div>`;
+    box.innerHTML = `<div class="u-fs-3 u-c-dim u-py-035 u-px-0">Sin incorporaciones registradas hacia este equipo.</div>`;
     return;
   }
   box.innerHTML = _tseIncoming.map(t => {
@@ -376,13 +374,13 @@ function _tseRenderIncoming() {
     const name = r ? `${r.lastName}, ${r.firstName}` : t.riderId;
     const from = _trTeamLabel(t.fromTeamId, t.fromTeamName, 'from');
     const isRumor = t.status === 'rumor';
-    return `<div class="transfer-row u-gap-055" style="--row-border:${transferRowBorderColor(t.status)}">
+    return `<div class="transfer-row u-gap-055">
       <span class="u-w-150em u-center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
-      <span class="u-grow u-minw-900 u-fs-085"><strong>${esc(name)}</strong>
-        <span class="u-c-dim u-fs-072">· ${esc(from)}</span></span>
-      ${t.contractUntil ? `<span class="u-fs-072 u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
+      <span class="u-grow u-minw-900 u-fs-3"><strong>${esc(name)}</strong>
+        <span class="u-c-dim u-fs-1">· ${esc(from)}</span></span>
+      ${t.contractUntil ? `<span class="u-fs-1 u-c-dim">${esc(String(t.contractUntil))}</span>` : ''}
       ${isRumor ? `<span class="tse-rumor-chip">Rumor</span>` : ''}
-      <button class="btn btn--ghost tse-incoming-edit u-py-015 u-px-045 u-fs-070" data-id="${esc(t.id)}">Editar</button>
+      <button class="btn btn--ghost tse-incoming-edit u-py-015 u-px-045 u-fs-1" data-id="${esc(t.id)}">Editar</button>
     </div>`;
   }).join('');
   box.querySelectorAll('.tse-incoming-edit').forEach(btn => {

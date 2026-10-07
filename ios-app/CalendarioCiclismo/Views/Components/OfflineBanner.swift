@@ -9,13 +9,12 @@ struct OfflineBanner: View {
             Image(systemName: "icloud.slash")
                 .font(.caption2)
             Text("Sin conexión")
-                .font(.caption2)
-                .fontWeight(.medium)
+                .ccFont(.s12, weight: .medium)
             if let ageLabel {
                 Text("·")
-                    .font(.caption2)
+                    .ccFont(.s12)
                 Text(ageLabel)
-                    .font(.caption2)
+                    .ccFont(.s12)
             }
         }
         .foregroundStyle(.secondary)

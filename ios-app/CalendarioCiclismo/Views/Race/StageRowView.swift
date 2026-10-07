@@ -46,12 +46,7 @@ struct StageRowView: View {
     }
 
     var body: some View {
-        CCCard(
-            accent: miniProfileTint,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
+        CCCard {
             VStack(spacing: 0) {
                 contentRow
                     .padding(.horizontal, 12)
@@ -80,18 +75,17 @@ struct StageRowView: View {
             VStack {
                 if rd.isRestDay {
                     Image(systemName: "moon.zzz")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 } else if rd.isCancelledDay {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(AppTheme.red)
                         .accessibilityHidden(true)
                 } else {
                     Text(rd.stageLabelShort.isEmpty ? "—" : rd.stageLabelShort)
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .ccFont(.s13, weight: .semibold)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -100,24 +94,24 @@ struct StageRowView: View {
             // Info
             VStack(alignment: .leading, spacing: 3) {
                 if rd.isRestDay {
-                    Text("Jornada de descanso")
-                        .font(.subheadline)
+                    Text(LocaleService.t("Jornada de descanso", "Rest day"))
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                 } else {
                     Text(DateFormatting.formatDateShort(rd.dateKey))
-                        .font(.caption2)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
 
                     if let route = rd.routeDescription {
                         Text(route)
-                            .font(.subheadline)
+                            .ccFont(.s14, weight: .semibold)
                             .lineLimit(1)
                     }
 
                     HStack(spacing: 4) {
                         if rd.isCancelledDay {
-                            Text("Etapa cancelada")
-                                .font(.caption2)
+                            Text(LocaleService.t("Etapa cancelada", "Stage cancelled"))
+                                .ccFont(.s12)
                                 .foregroundStyle(AppTheme.red)
                         } else if !showsMiniProfile || rd.primaryType == "itt" || rd.primaryType == "ttt" {
                             StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race.countryCode)
@@ -125,17 +119,17 @@ struct StageRowView: View {
 
                         if let dist = rd.distanceFormatted {
                             Text(dist)
-                                .font(.caption2)
+                                .ccFont(.s12)
                                 .foregroundStyle(.secondary)
                         }
                         if rd.distanceFormatted != nil && rd.elevationGainFormatted != nil {
                             Text("·")
-                                .font(.caption2)
+                                .ccFont(.s12)
                                 .foregroundStyle(.secondary)
                         }
                         if let elev = rd.elevationGainFormatted {
                             Text(elev)
-                                .font(.caption2)
+                                .ccFont(.s12)
                                 .foregroundStyle(.secondary)
                         }
                     }

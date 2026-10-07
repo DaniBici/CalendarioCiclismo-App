@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.startorder
 
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,15 +23,20 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import app.calendariociclismo.android.ui.results.ResultsHeaderCell
+import app.calendariociclismo.android.ui.results.ResultsTableMetrics
+import app.calendariociclismo.android.ui.results.ResultsTableSurface
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.neutralFill
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.StartOrderData
 import app.calendariociclismo.android.data.model.StartOrderEntry
 import app.calendariociclismo.android.data.model.StartOrderRaceDay
 import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
-import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.startlist.TeamColorBands
 import app.calendariociclismo.android.ui.rememberApp
@@ -100,9 +106,11 @@ fun StartOrderScreen(
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val current = state) {
-                is StartOrderState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                is StartOrderState.Loading -> RouteLoadingView(
+                    message = stringResource(R.string.loading),
+                    showProfile = false,
+                    title = LocaleHolder.t("Orden de salida", "Start order"),
+                )
                 is StartOrderState.Error -> Text(
                     current.message,
                     modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -189,10 +197,13 @@ private fun StartOrderContent(
                 locationLabel = headerLocationLabel(raceDay, raceTzId),
             )
         }
-        StartOrderTableHeader(isTtt = isTtt)
-        Column {
+        // Misma presentación que las clasificaciones: superficie, cabecera
+        // gris y filas separadas por filete fino.
+        ResultsTableSurface {
+            StartOrderTableHeader(isTtt = isTtt)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             val rowLocationLabel = headerLocationLabel(raceDay, raceTzId)
-            filtered.forEach { entry ->
+            filtered.forEachIndexed { index, entry ->
                 StartOrderRow(
                     entry = entry,
                     rdDate = raceDay.effectiveDate,
@@ -202,10 +213,9 @@ private fun StartOrderContent(
                     locationLabel = rowLocationLabel,
                     teams = data.teams,
                 )
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                )
+                if (index < filtered.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
             }
         }
     }
@@ -274,7 +284,7 @@ private fun StartOrderFilterBar(
     hasTt: Boolean,
     hasGc: Boolean,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         StartOrderFilterPill(
             label = stringResource(R.string.start_order_filter_all),
             selected = filter == StartOrderFilter.ALL,
@@ -294,11 +304,11 @@ private fun StartOrderFilterBar(
 }
 
 /**
- * Pill de filtro con la estética canónica de la app (igual que `CategoryChip`
- * de Hoy/Mes/Temporada): cápsula redondeada, fondo surfaceVariant, seleccionado
- * con primary al 15% + texto SemiBold. Sustituye al `FilterChip` de M3, que
- * desentonaba con su borde y check propios.
+ * Filtro sobre `FilterChip`, con el aspecto de los filtros de Hoy: inactivo
+ * en gris sobre la superficie de tarjeta; activo con el acento al 15 % y texto
+ * de acento en negrita. Radio de control.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StartOrderFilterPill(
     label: String,
@@ -306,22 +316,24 @@ private fun StartOrderFilterPill(
     onClick: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    val background = if (selected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-    val foreground = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        color = foreground,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(background)
-            .semantics {
-                role = Role.Button
-                this.selected = selected
-            }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        shape = RoundedCornerShape(CCRadius.Control),
+        border = null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = primary.copy(alpha = 0.15f),
+            selectedLabelColor = primary,
+        ),
+        label = {
+            Text(
+                text = label,
+                style = CCText.S13,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            )
+        },
     )
 }
 
@@ -339,54 +351,33 @@ private fun StartOrderTimezoneNote(
     } ?: Date()
     val userOffset = tzOffsetLabel(userTz, refDate)
     val raceOffset = tzOffsetLabel(raceTz, refDate)
-    // Nota informativa neutra en CCCard (antes Card surfaceVariant 60%).
-    CCCard(cornerRadius = 12) {
-        Text(
-            stringResource(R.string.start_order_tz_note, userOffset, locationLabel, raceOffset),
-            modifier = Modifier.padding(10.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    // Nota informativa en texto gris, sin caja (`.so-tz-note`).
+    Text(
+        stringResource(R.string.start_order_tz_note, userOffset, locationLabel, raceOffset),
+        style = CCText.S13,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
+
+private val TimeColumnWidth = 76.dp
+private val DorsalColumnWidth = 36.dp
+private val TabularS14Bold get() = CCText.S14.copy(fontFeatureSettings = "tnum", fontWeight = FontWeight.Bold)
 
 @Composable
 private fun StartOrderTableHeader(isTtt: Boolean) {
     Row(
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding, vertical = ResultsTableMetrics.HeaderVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
     ) {
-        Text(
-            stringResource(R.string.start_order_col_time),
-            modifier = Modifier.width(72.dp),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        ResultsHeaderCell(stringResource(R.string.start_order_col_time), Modifier.width(TimeColumnWidth))
         if (isTtt) {
             // CRE: solo Salida + Equipo.
-            Text(
-                stringResource(R.string.start_order_col_team),
-                modifier = Modifier.weight(1f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ResultsHeaderCell(stringResource(R.string.start_order_col_team), Modifier.weight(1f))
         } else {
-            Text(
-                stringResource(R.string.start_order_col_bib),
-                modifier = Modifier.width(36.dp),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                stringResource(R.string.start_order_col_rider),
-                modifier = Modifier.weight(1f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ResultsHeaderCell(stringResource(R.string.start_order_col_bib), Modifier.width(DorsalColumnWidth), align = TextAlign.Center)
+            ResultsHeaderCell(stringResource(R.string.start_order_col_rider), Modifier.weight(1f))
         }
     }
 }
@@ -429,9 +420,10 @@ private fun StartOrderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .heightIn(min = 35.dp)
+            .padding(horizontal = ResultsTableMetrics.HorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(ResultsTableMetrics.ColumnSpacing),
     ) {
         val timeRow: @Composable () -> Unit = {
             Row(
@@ -441,17 +433,20 @@ private fun StartOrderRow(
                 timeData.second?.let {
                     Text(
                         it,
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp,
+                        style = CCText.S12,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.tertiary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(CCRadius.Control))
+                            .background(neutralFill)
+                            .padding(horizontal = 3.dp),
                     )
                 }
+                // Hora en negrita con cifras tabulares, sin espaciado de letras.
                 Text(
                     timeData.first,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = TabularS14Bold,
+                    color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                 )
             }
@@ -462,28 +457,27 @@ private fun StartOrderRow(
                 tooltip = { PlainTooltip { Text(tooltipText) } },
                 state = tooltipState,
                 modifier = Modifier
-                    .width(72.dp)
+                    .width(TimeColumnWidth)
                     .clickable { scope.launch { tooltipState.show() } },
             ) {
                 timeRow()
             }
         } else {
-            Box(modifier = Modifier.width(72.dp)) { timeRow() }
+            Box(modifier = Modifier.width(TimeColumnWidth)) { timeRow() }
         }
         if (isTtt) {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = ResultsTableMetrics.RowVerticalPadding),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 UciResultsLogic.findMatchingTeam(entry.teamName, teams)?.let { TeamColorBands(it) }
                 Text(
                     if (hasTeam) entry.teamName!! else "—",
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = CCText.S14,
+                    fontWeight = FontWeight.Medium,
                     color = if (hasTeam) MaterialTheme.colorScheme.onSurface
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -493,30 +487,29 @@ private fun StartOrderRow(
         } else {
             Text(
                 entry.dorsal.toString(),
-                fontSize = 12.sp,
-                lineHeight = 14.sp,
+                style = CCText.S13.copy(fontFeatureSettings = "tnum"),
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(36.dp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(DorsalColumnWidth),
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = ResultsTableMetrics.RowVerticalPadding),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     entry.countryCode?.takeIf { it.isNotEmpty() }?.let {
-                        CountryFlag(countryCode = it)
+                        CountryFlag(countryCode = it, height = 13.dp)
                     }
                     Text(
                         if (hasName) entry.riderName!! else "—",
-                        fontSize = 14.sp,
-                        lineHeight = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        style = CCText.S14,
+                        fontWeight = FontWeight.Medium,
                         color = if (hasName) MaterialTheme.colorScheme.onSurface
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -524,12 +517,11 @@ private fun StartOrderRow(
                     )
                 }
                 entry.teamName?.takeIf { it.isNotEmpty() }?.let {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         UciResultsLogic.findMatchingTeam(it, teams)?.let { team -> TeamColorBands(team) }
                         Text(
                             it,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp,
+                            style = CCText.S12,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

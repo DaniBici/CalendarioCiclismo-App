@@ -4,8 +4,8 @@ import SwiftUI
 ///
 /// Arquitectura de 3 capas (ZStack):
 /// - Capa 1: ScrollView scrollable con los días en texto oscuro.
-/// - Capa 2: Capsule azul fija en el centro (decorativa).
-/// - Capa 3: DateBarItem con texto blanco para el día bajo la capsule.
+/// - Capa 2: selección azul fija en el centro.
+/// - Capa 3: DateBarItem en azul para el día bajo la selección.
 ///
 /// La barra gestiona su propio rango de fechas interno (±45 días desde la
 /// fecha seleccionada al inicializar). Este rango es FIJO y nunca se reordena
@@ -138,15 +138,7 @@ struct DateBarView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(dateRange, id: \.self) { key in
-                    DateBarItem(
-                        dateKey: key,
-                        isSelected: false,
-                        isToday: key == DateFormatting.todayKey()
-                    )
-                    .frame(width: dayWidth, height: itemHeight)
-                    .id(key)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                    Button {
                         guard key != scrollPosition else { return }
                         Haptics.play(.navigation)
                         // Los tres últimos días no pueden centrarse: se
@@ -158,15 +150,19 @@ struct DateBarView: View {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
                             scrollPosition = key
                         }
+                    } label: {
+                        DateBarItem(dateKey: key, isSelected: false)
+                            .frame(width: dayWidth, height: itemHeight)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .id(key)
                     .accessibilityLabel(DateBarItem.accessibilityDescription(
                         dateKey: key,
                         isSelected: key == selectedDate,
                         isToday: key == DateFormatting.todayKey()
                     ))
-                    .accessibilityAddTraits(
-                        key == selectedDate ? [.isButton, .isSelected] : [.isButton]
-                    )
+                    .accessibilityAddTraits(key == selectedDate ? [.isSelected] : [])
                     .accessibilityInputLabels(DateBarItem.inputLabels(dateKey: key))
                 }
             }
@@ -195,21 +191,16 @@ struct DateBarView: View {
             recenter(on: selectedDate, rebuildingScrollView: false)
         }
 
-        // ── Capa 2: capsule fija en el centro ─────────────────────
-        // Azul de marca suave (15%) en lugar de azul sólido — mismo
-        // gesto que los chips de filtro y el cintillo "Hoy". El texto
-        // del día centrado (Capa 3) va en azul, no en blanco.
-        Capsule()
+        // ── Capa 2: selección fija en el centro ───────────────────
+        // Azul de marca suave (15 %), radio de superficie: único adorno
+        // de la tira. El texto del día centrado (Capa 3) va en azul.
+        RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
             .fill(Color.accentColor.opacity(0.15))
             .frame(width: capsuleWidth, height: itemHeight)
             .allowsHitTesting(false)
 
-        // ── Capa 3: texto blanco del día centrado ─────────────────
-        DateBarItem(
-            dateKey: displayedCenter,
-            isSelected: true,
-            isToday: displayedCenter == DateFormatting.todayKey()
-        )
+        // ── Capa 3: texto del día centrado ────────────────────────
+        DateBarItem(dateKey: displayedCenter, isSelected: true)
         .frame(width: capsuleWidth, height: itemHeight)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -222,30 +213,29 @@ struct DateBarView: View {
         HStack(spacing: 0) {
             ForEach(keys, id: \.self) { key in
                 let selected = key == selectedDate
-                DateBarItem(
-                    dateKey: key,
-                    isSelected: selected,
-                    isToday: key == DateFormatting.todayKey()
-                )
-                .frame(width: capsuleWidth, height: itemHeight)
-                .background {
-                    if selected {
-                        Capsule().fill(Color.accentColor.opacity(0.15))
-                    }
-                }
-                .frame(width: dayWidth, height: itemHeight)
-                .contentShape(Rectangle())
-                .onTapGesture {
+                Button {
                     guard !selected else { return }
                     Haptics.play(.navigation)
                     onSelect(key)
+                } label: {
+                    DateBarItem(dateKey: key, isSelected: selected)
+                        .frame(width: capsuleWidth, height: itemHeight)
+                        .background {
+                            if selected {
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
+                                    .fill(Color.accentColor.opacity(0.15))
+                            }
+                        }
+                        .frame(width: dayWidth, height: itemHeight)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel(DateBarItem.accessibilityDescription(
                     dateKey: key,
                     isSelected: selected,
                     isToday: key == DateFormatting.todayKey()
                 ))
-                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
                 .accessibilityInputLabels(DateBarItem.inputLabels(dateKey: key))
             }
         }
@@ -277,13 +267,11 @@ struct DateBarView: View {
 
 // MARK: - DateBarItem
 
-/// Elemento individual de la barra de fechas.
+/// Elemento individual de la barra de fechas: abreviatura del día (mayúscula
+/// inicial, sin punto) sobre el número. Un único formato en todos los anchos.
 private struct DateBarItem: View {
     let dateKey: String
     let isSelected: Bool
-    let isToday: Bool
-    @ScaledMetric(relativeTo: .caption2) private var weekdaySize: CGFloat = 10
-    @ScaledMetric(relativeTo: .body) private var dayNumberSize: CGFloat = 16
 
     private var dayNumber: String {
         guard let date = DateFormatting.date(from: dateKey) else { return "" }
@@ -295,7 +283,10 @@ private struct DateBarItem: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: LocaleService.isEnglish ? "en_US" : "es_ES")
         f.dateFormat = "EEE"
-        return f.string(from: date).prefix(3).uppercased()
+        let short = f.string(from: date)
+            .replacingOccurrences(of: ".", with: "")
+            .prefix(3)
+        return short.prefix(1).uppercased() + short.dropFirst()
     }
 
     static func accessibilityDescription(dateKey: String, isSelected: Bool, isToday: Bool) -> String {
@@ -318,24 +309,14 @@ private struct DateBarItem: View {
     var body: some View {
         VStack(spacing: 2) {
             Text(weekday)
-                .font(.system(size: weekdaySize, weight: .medium))
+                .ccFont(.s12, weight: isSelected ? .bold : .semibold)
                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
             Text(dayNumber)
-                .font(.system(size: dayNumberSize, weight: isSelected ? .bold : .medium))
+                .ccFont(.s16, weight: isSelected ? .bold : .semibold)
                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 48)
-        .background {
-            if isToday && !isSelected {
-                Capsule().fill(Color.accentColor.opacity(0.1))
-            }
-        }
-        .overlay(
-            isToday && !isSelected
-                ? Capsule().strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 1)
-                : nil
-        )
         .contentShape(Rectangle())
         .accessibilityHidden(true)
     }

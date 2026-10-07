@@ -203,17 +203,16 @@ function raceRowHtml(rd, refId) {
   let l2 = '';
   if (!isRestDay) {
     const cat = race.uciCategory ? categoryBadge(race.uciCategory) : '';
-    let stageStr = (rd.stageNumber != null && rd.stageNumber !== '') ? stageLabel(rd.stageNumber, rd._stageSuffix) : '';
-    if (rd.primaryType === 'itt' || rd.primaryType === 'ttt') {
-      const type = t(`types.${rd.primaryType}`);
-      stageStr = stageStr ? `${stageStr} (${type})` : `(${type})`;
-    }
+    const stageStr = (rd.stageNumber != null && rd.stageNumber !== '') ? stageLabel(rd.stageNumber, rd._stageSuffix) : '';
+    // Tipo CRI/CRE: la misma etiqueta de color que en Hoy.
+    const typeBadge = (rd.primaryType === 'itt' || rd.primaryType === 'ttt')
+      ? `<span class="badge badge--type-chrono">${t(`types.${rd.primaryType}`)}</span>` : '';
     const route = (race.raceFormat === 'stage_race' && rd.startLocation)
       ? (!rd.finishLocation || rd.startLocation === rd.finishLocation
           ? rdLocation(rd, 'startLocation')
           : `${rdLocation(rd, 'startLocation')} › ${rdLocation(rd, 'finishLocation')}`)
       : '';
-    l2 = `<div class="cal-race__l2">${cat}${stageStr ? `<span class="cal-race__stage">${stageStr}</span>` : ''}${route ? `<span class="cal-race__route">${route}</span>` : ''}</div>`;
+    l2 = `<div class="cal-race__l2">${cat}${typeBadge}${stageStr ? `<span class="cal-race__stage">${stageStr}</span>` : ''}${route ? `<span class="cal-race__route">${route}</span>` : ''}</div>`;
   }
 
   const logo = race.logoUrl

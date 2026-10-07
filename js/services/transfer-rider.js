@@ -9,12 +9,6 @@ const MARKET_DESTINATION_GENDER = Object.freeze({
   PRW: 'female',
 });
 
-export function transferRowBorderColor(status) {
-  if (status === 'rumor') return 'transparent';
-  if (status === 'doubt') return '#8b5cf6';
-  return 'var(--border)';
-}
-
 export function transferRiderInitialGender({
   teams = [],
   fromTeamId = null,

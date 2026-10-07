@@ -163,7 +163,7 @@ async function init() {
   const routeLabel = sameOrOne
     ? (startLoc || finishLoc || '')
     : `${startLoc} › ${finishLoc}`;
-  const distLabel = rd.distanceKm ? `${rd.distanceKm} km` : '';
+  const distLabel = rd.distanceKm ? `${Number(rd.distanceKm).toLocaleString(_isEn ? 'en-GB' : 'es-ES')} km` : '';
 
   const heroTitle = [raceName, year].filter(Boolean).join(' ');
   const heroSubline = [stageLabel, typeLabel, routeLabel, distLabel].filter(Boolean).join(' · ');
@@ -223,7 +223,7 @@ async function init() {
   const ridersLabel = isTtt
     ? (_isEn ? 'teams' : 'equipos')
     : (_isEn ? 'riders' : 'corredores');
-  const startOrderLabel = _isEn ? 'Start order' : 'Orden de Salida';
+  const startOrderLabel = _isEn ? 'Start order' : 'Orden de salida';
   const contextAssets = withRaceTechnicalGuide(soAssets || [], await loadRaceTechnicalGuide(race.id));
 
   let html = buildRaceHeader({
@@ -277,7 +277,7 @@ async function init() {
 
   html += `
     <div class="so-table-wrap">
-      <table class="so-table${isTtt ? ' so-table--teams' : ''}">
+      <table class="so-table res-table${isTtt ? ' so-table--teams' : ''}">
         <thead>
           <tr>
             <th class="so-th so-th--time">${_isEn ? 'Start' : 'Salida'}</th>
@@ -360,21 +360,6 @@ async function init() {
     day: rd, race, assets: contextAssets, hidePointNames: true,
   });
   window.addEventListener('pagehide', cleanupProfile, { once: true });
-
-  // ── Botón de edición admin (solo si hay sesión activa) ──
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session?.user) return;
-    const existing = document.getElementById('editOrdenSalidaBtn');
-    if (existing) return;
-    const btn = document.createElement('a');
-    btn.id        = 'editOrdenSalidaBtn';
-    btn.className = 'edit-jornada-btn';
-    btn.href      = '/panel/app.html?edit=' + encodeURIComponent(rdId) + '&tab=mas';
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar orden de salida';
-    const hero = content.querySelector('.race-header');
-    if (hero) hero.appendChild(btn);
-    else document.body.appendChild(btn);
-  });
 
   if (hasFilters) {
     const tableWrap = content.querySelector('.so-table-wrap');

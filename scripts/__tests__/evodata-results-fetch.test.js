@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildStage, eventsListUrl, fetchCompetition, jornadasOf, mapGeneralRows, mapRelayRows, mapStartListIrm, mapTimingRows,
-  parseCode, pendingRelayTeams, raceTypeFor, relayRacesOf, stageNumberFor, suggestCompetitionId,
+  parseCode, pendingRelayTeams, pendingTimeTrialRiders, raceTypeFor, relayRacesOf, stageNumberFor, suggestCompetitionId,
 } from '../results-fetchers/evodata-results-fetch.mjs';
 
 describe('EvoData CIS — resultados públicos', () => {
@@ -144,10 +144,35 @@ describe('EvoData CIS — resultados públicos', () => {
       { races: [{ raceTypeId: 13 }], timing: { status: 'OK', times: [
         { position: 1, bib: '1', order: 3_600_000, gap: '0' },
         { position: 2, bib: '2', order: 3_609_000, gap: '-' },
-      ] } },
+      ] }, startList: [{ bib: '1', status: 0 }, { bib: '2', status: 0 }] },
       { oneDay: true });
     expect(stages[0].raceType).toBeNull();
     expect(stages[0].classifications[0].rows[1]).toMatchObject({ gapText: '+09' });
+  });
+
+  it('no publica una CRI de un día hasta que el último corredor llega o abandona', () => {
+    const subEvent = { eventId: 108121, order: 1, eventType: -1, name: 'MEN UNDER23 TIME TRIAL', date: '2026-10-07' };
+    const times = [
+      { position: 1, bib: '1', order: 2_100_000, gap: '0', createdAt: '2026-10-07T11:00:00Z' },
+      { position: 2, bib: '2', order: 2_130_000, gap: '30000', createdAt: '2026-10-07T11:02:00Z' },
+    ];
+    const rider = (bib, extra = {}) => ({ bib, status: 0, started: true, starting: true, finished: true, ...extra });
+    const build = (startList, now = '2026-10-07T11:05:00Z') => buildStage('108121', subEvent,
+      { races: [{ raceTypeId: 13 }], timing: { status: 'OK', tot: 2, times }, startList },
+      { oneDay: true, now: Date.parse(now) });
+    const onCourse = [rider('1'), rider('2'), rider('3', { finished: false })];
+
+    expect(build(null)).toEqual([]);
+    expect(build(onCourse)).toEqual([]);
+    const [closed] = build([rider('1'), rider('2'), rider('3', { status: 1, finished: false })])[0].classifications;
+    expect(closed.rows.map(({ bib, irm }) => [bib, irm])).toEqual([['1', null], ['2', null], ['3', 'DNF']]);
+    // Completa de golpe: se publica como oficial, no como llegada progresiva.
+    expect(closed.publication).toEqual({ provider: 'evodata', format: 'fixed', sourceStatus: 'official' });
+    // Sin estado codificado, el abandono se deriva tras 20 minutos sin llegadas.
+    expect(build(onCourse, '2026-10-07T11:30:00Z')[0].classifications[0].rows.at(-1)).toMatchObject({ bib: '3', irm: 'DNF' });
+    // Un corredor retirado de la salida (starting=false) no bloquea.
+    expect(build([rider('1'), rider('2'), rider('4', { started: false, starting: false, finished: false })])).toHaveLength(1);
+    expect(pendingTimeTrialRiders(onCourse, [{ bib: '1' }, { bib: '2' }])).toEqual(['3']);
   });
 
   it('completa los abandonos de una carrera de un día con la lista de salida', () => {

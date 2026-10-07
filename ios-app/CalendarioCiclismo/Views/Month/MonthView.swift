@@ -8,13 +8,16 @@ struct MonthView: View {
     var switchAction: (() -> Void)? = nil
     var embedded = false
     @State private var viewModel = MonthViewModel()
-    @State private var currentMonthIndex: Int = Calendar.current.component(.month, from: Date()) - 1
+    @State private var currentMonthIndex: Int = DateFormatting.calendarStart().month - 1
     @State private var placeholderItem: PlaceholderModalItem?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
     @State private var scrolledToTodayForMonth: String? = nil
     /// Incrementa para forzar scroll-to-today desde el botón "Hoy".
     @State private var scrollToTodayTrigger = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Ancho de la página del mes: decide las dos columnas de carreras.
+    @State private var pageWidth: CGFloat = 0
     @AppStorage("defaultFilter") private var storedDefaultFilter: String = ""
     @State private var localeService = LocaleService.shared
 
@@ -23,7 +26,7 @@ struct MonthView: View {
             if embedded {
                 HStack(spacing: 10) {
                     Text(localeService.t("Agenda", "Agenda"))
-                        .font(.headline)
+                        .ccFont(.s16, weight: .semibold)
                     Spacer()
                     if viewModel.availableYears.count > 1 {
                         Menu {
@@ -34,11 +37,11 @@ struct MonthView: View {
                             }
                         } label: {
                             Label(String(viewModel.year), systemImage: "calendar")
-                                .font(.caption.weight(.semibold))
+                                .ccFont(.s13, weight: .semibold)
                         }
                     }
                     Button(localeService.t("Hoy", "Today")) { goToCurrentMonth() }
-                        .font(.caption.weight(.semibold))
+                        .ccFont(.s13, weight: .semibold)
                 }
                 .padding(.horizontal)
                 .frame(minHeight: 44)
@@ -55,18 +58,10 @@ struct MonthView: View {
                             Button {
                                 currentMonthIndex = idx
                             } label: {
-                                Text(DateFormatting.shortMonthName(idx + 1))
-                                    .font(.caption)
-                                    // No seleccionado en Normal (no Medium), para casar con
-                                    // los chips de filtro: solo el seleccionado lleva peso.
-                                    .fontWeight(isSelected ? .semibold : .regular)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    // Azul de marca suave (15%) + texto azul cuando activo.
-                                    .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-                                    .foregroundStyle(isSelected ? Color.accentColor : Color(.secondaryLabel))
-                                    // Cápsula redondeada, igual que las pills de mes de Temporada.
-                                    .clipShape(Capsule())
+                                CalendarMonthChipLabel(
+                                    label: DateFormatting.shortMonthName(idx + 1),
+                                    isSelected: isSelected
+                                )
                             }
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
@@ -99,10 +94,7 @@ struct MonthView: View {
             }
 
             if viewModel.isLoading && viewModel.allRaceDays.isEmpty {
-                LoadingView(
-                    message: localeService.t("Cargando calendario...", "Loading calendar..."),
-                    branded: true
-                )
+                LoadingView(branded: true, title: localeService.t("Calendario", "Calendar"))
             } else if viewModel.isUncachedOffline {
                 VStack(spacing: 16) {
                     EmptyStateView(
@@ -118,8 +110,7 @@ struct MonthView: View {
                             Image(systemName: "arrow.clockwise")
                             Text(localeService.t("Reintentar", "Retry"))
                         }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .ccFont(.s14, weight: .medium)
                     }
                     .buttonStyle(.bordered)
                     .accessibilityHint(localeService.t("Intenta cargar los datos de nuevo", "Try loading data again"))
@@ -155,7 +146,6 @@ struct MonthView: View {
         }
         .navigationTitle(localeService.t("Calendario", "Calendar"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if !embedded, viewModel.availableYears.count > 1 {
                 ToolbarItem(placement: .topBarLeading) {
@@ -166,18 +156,7 @@ struct MonthView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "calendar")
-                            Text(String(viewModel.year))
-                        }
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        // Cápsula, igual que el picker de año de Temporada.
-                        .clipShape(Capsule())
+                        CalendarSelectorLabel(icon: "calendar", label: String(viewModel.year))
                     }
                     .accessibilityLabel("Año \(viewModel.year)")
                     .accessibilityHint("Pulsa dos veces para cambiar de año")
@@ -191,7 +170,7 @@ struct MonthView: View {
                     Button(localeService.t("Hoy", "Today")) {
                         goToCurrentMonth()
                     }
-                    .font(.subheadline)
+                    .ccFont(.s14)
                     .accessibilityHint("Navega al mes actual")
                     .accessibilityIdentifier(AccessibilityID.todayButton)
                     .accessibilityInputLabels(["Hoy", "Ir a hoy", "Mes actual"])
@@ -347,13 +326,17 @@ struct MonthView: View {
         let currentDay = Calendar.current.component(.day, from: Date())
         let isCurrentMonth = viewModel.year == Calendar.current.component(.year, from: Date())
             && monthNum == Calendar.current.component(.month, from: Date())
+        // Pantalla ancha: carreras del día en dos columnas bajo su rótulo.
+        let columns = AdaptiveLayoutPolicy.feedColumns(
+            width: max(0, pageWidth - 32),
+            isRegular: horizontalSizeClass == .regular
+        )
 
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Text(viewModel.title(forMonth: monthNum))
-                        .font(.title3)
-                        .fontWeight(.bold)
+                        .ccFont(.s20, weight: .bold)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 12)
                         .padding(.bottom, 4)
@@ -372,6 +355,7 @@ struct MonthView: View {
                             isToday: isToday,
                             raceDays: dayRaces,
                             isChampDay: isChampDay,
+                            columns: columns,
                             raceMap: viewModel.raceMap,
                             activeFilter: viewModel.activeFilter,
                             onPlaceholderTap: { race, rd in
@@ -383,10 +367,10 @@ struct MonthView: View {
 
                     Color.clear.frame(height: 16)
                 }
-                .frame(maxWidth: 760)
                 .padding(.horizontal)
             }
             .background(AppTheme.background)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
             .accessibilityIdentifier(AccessibilityID.monthScheduleList)
             .onAppear {
                 let monthKey = "\(viewModel.year)-\(monthNum)"
@@ -409,7 +393,23 @@ struct MonthView: View {
 
 // MARK: - Schedule view components
 
-/// Sección de un día en la vista de agenda mensual.
+/// Elemento de la lista de un día: la fila sintética de Campeonatos o una
+/// jornada.
+private enum MonthDayItem: Identifiable {
+    case championships
+    case raceDay(RaceDay)
+
+    var id: String {
+        switch self {
+        case .championships: return "__championships__"
+        case .raceDay(let rd): return rd.id
+        }
+    }
+}
+
+/// Sección de un día en la vista de agenda mensual: el rótulo del día encima y
+/// sus carreras debajo (en dos columnas en pantalla ancha), como
+/// `.cal-day` de `css/calendario.css`.
 private struct MonthScheduleDaySection: View {
     let day: Int
     let dateKey: String
@@ -417,6 +417,7 @@ private struct MonthScheduleDaySection: View {
     let raceDays: [RaceDay]
     /// Día de la semana de Campeonatos (22-28 jun): muestra la fila sintética.
     var isChampDay: Bool = false
+    var columns: Int = 1
     let raceMap: [String: Race]
     let activeFilter: Constants.CategoryFilter
     var onPlaceholderTap: ((Race, RaceDay) -> Void)?
@@ -424,6 +425,12 @@ private struct MonthScheduleDaySection: View {
     /// Un día puede tener `raceDays` vacío (todas eran CN y se filtraron) pero
     /// seguir teniendo contenido: la fila sintética de Campeonatos.
     private var hasContent: Bool { !raceDays.isEmpty || isChampDay }
+
+    /// Fila sintética de Campeonatos Nacionales, primero (espejo web y
+    /// Android: la fila va por delante de las carreras del día).
+    private var items: [MonthDayItem] {
+        (isChampDay ? [.championships] : []) + raceDays.map { .raceDay($0) }
+    }
 
     private static var weekdayFormatter: DateFormatter {
         let f = DateFormatter()
@@ -440,12 +447,12 @@ private struct MonthScheduleDaySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Cabecera del día
+            // Rótulo del día en gris, como las fechas de Resultados y Fichajes;
+            // el día de hoy conserva el círculo de acento.
             HStack(alignment: .center, spacing: 8) {
                 Text("\(day)")
-                    .font(.title3)
-                    .fontWeight(isToday ? .bold : .medium)
-                    .foregroundStyle(isToday ? .white : Color.accentColor)
+                    .ccFont(.s14, weight: isToday ? .bold : .semibold)
+                    .foregroundStyle(isToday ? Color.white : AppTheme.textMuted)
                     .frame(width: 34, height: 34)
                     .background {
                         if isToday {
@@ -454,74 +461,90 @@ private struct MonthScheduleDaySection: View {
                     }
 
                 Text(weekdayName)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.accentColor)
+                    .ccFont(.s13, weight: .semibold)
+                    .foregroundStyle(AppTheme.textMuted)
 
                 Spacer()
             }
-            .padding(.top, 12)
-            .padding(.bottom, hasContent ? 6 : 10)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             .accessibilityLabel("\(day), \(weekdayName)\(isToday ? ", \(LocaleService.t("hoy", "today"))" : "")\(hasContent ? "" : ", \(LocaleService.t("sin carreras", "no races"))")")
 
-            // Filas de carreras
             if !hasContent {
                 Text(LocaleService.t("Sin carreras", "No races"))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 46)
+                    .ccFont(.s12)
+                    .foregroundStyle(AppTheme.textDim)
+                    .padding(.leading, 42)
                     .padding(.bottom, 8)
             } else {
-                // Separación entre tarjetas (antes 2pt para filas planas).
-                VStack(spacing: 6) {
-                    // Fila sintética de Campeonatos Nacionales, primero (espejo web
-                    // y Android: la fila va por delante de las carreras del día).
-                    if isChampDay {
-                        NavigationLink(value: ChampionshipsRoute()) {
-                            MonthChampionshipsRow()
-                        }
-                        .buttonStyle(.plain)
-                        .simultaneousGesture(TapGesture().onEnded {
-                            Haptics.play(.navigation)
-                        })
-                    }
-                    ForEach(raceDays, id: \.id) { rd in
-                        if rd.isRestDay {
-                            // La jornada cancelada SÍ navega a su ficha (paridad
-                            // con la vista de competición, Android y la web). La
-                            // de DESCANSO no: no tiene ficha que abrir.
-                            MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
-                                .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
-                        } else if rd.editorialStatus == "placeholder",
-                                  let raceId = rd.raceId,
-                                  let race = raceMap[raceId] {
-                            Button {
-                                Haptics.play(.navigation)
-                                onPlaceholderTap?(race, rd)
-                            } label: {
-                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
+                // Rejilla de una o dos columnas: las tarjetas de una misma fila
+                // comparten altura.
+                Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                    ForEach(AdaptiveLayoutPolicy.rows(items, columns: columns)) { row in
+                        GridRow {
+                            ForEach(row.items) { item in
+                                itemView(item)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Sin información detallada, pulsa dos veces para ver más")
-                            .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
-                        } else {
-                            NavigationLink(value: rd) {
-                                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
+                            if row.items.count < columns {
+                                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                             }
-                            .buttonStyle(.plain)
-                            .simultaneousGesture(TapGesture().onEnded {
-                                Haptics.play(.navigation)
-                            })
-                            .accessibilityHint("Pulsa dos veces para ver el detalle de la jornada")
-                            .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
                         }
                     }
                 }
-                .padding(.bottom, 6)
+                .padding(.bottom, 8)
             }
+        }
+    }
 
-            Divider()
+    @ViewBuilder
+    private func itemView(_ item: MonthDayItem) -> some View {
+        switch item {
+        case .championships:
+            NavigationLink(value: ChampionshipsRoute()) {
+                MonthChampionshipsRow()
+            }
+            .buttonStyle(CalendarPressStyle(cornerRadius: AppTheme.Radius.surface))
+            .simultaneousGesture(TapGesture().onEnded {
+                Haptics.play(.navigation)
+            })
+        case .raceDay(let rd):
+            raceView(rd)
+        }
+    }
+
+    @ViewBuilder
+    private func raceView(_ rd: RaceDay) -> some View {
+        if rd.isRestDay {
+            // La jornada cancelada SÍ navega a su ficha (paridad con la vista de
+            // competición, Android y la web). La de DESCANSO no: no tiene ficha
+            // que abrir.
+            MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
+                .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
+        } else if rd.editorialStatus == "placeholder",
+                  let raceId = rd.raceId,
+                  let race = raceMap[raceId] {
+            Button {
+                Haptics.play(.navigation)
+                onPlaceholderTap?(race, rd)
+            } label: {
+                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
+            }
+            .buttonStyle(CalendarPressStyle(cornerRadius: AppTheme.Radius.surface))
+            .accessibilityHint("Sin información detallada, pulsa dos veces para ver más")
+            .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
+        } else {
+            NavigationLink(value: rd) {
+                MonthScheduleRaceRow(raceDay: rd, raceMap: raceMap, activeFilter: activeFilter)
+            }
+            .buttonStyle(CalendarPressStyle(cornerRadius: AppTheme.Radius.surface))
+            .simultaneousGesture(TapGesture().onEnded {
+                Haptics.play(.navigation)
+            })
+            .accessibilityHint("Pulsa dos veces para ver el detalle de la jornada")
+            .accessibilityIdentifier(AccessibilityID.raceCard(rd.id))
         }
     }
 }
@@ -531,38 +554,15 @@ private struct MonthScheduleDaySection: View {
 /// Espejo de `champRowHtml()` de `js/calendario-mes.js` y de `MonthChampionshipsRow`
 /// de Android.
 private struct MonthChampionshipsRow: View {
-    // Azul suave del rediseño (= CAMP.ACCENT de la web).
-    private let accent = Color(hex: "1a73e8")
-
     var body: some View {
-        CCCard(
-            accent: accent,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
+        CCCard {
             HStack(spacing: 10) {
-                // Hueco del logo (las CN colapsadas no tienen logo único), con un
-                // globo terráqueo centrado en Europa/África como marca de
-                // Campeonatos (varios países). SVG prefabricado (Twemoji 1F30D,
-                // CC-BY 4.0) monocromo, teñido con el accent — el MISMO asset que
-                // Android (ic_globe_europe_africa).
-                ZStack {
-                    Circle().fill(accent.opacity(0.12))
-                    Image("GlobeEuropeAfrica")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 17, height: 17)
-                        .foregroundStyle(accent)
-                }
-                .frame(width: 28, height: 28)
+                CalendarChampionshipsMark()
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(ChampionshipsConfig.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
+                        .ccFont(.s14, weight: .medium)
+                        .fixedSize(horizontal: false, vertical: true)
                     CategoryBadge(category: "CN")
                 }
 
@@ -573,8 +573,9 @@ private struct MonthChampionshipsRow: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 9)
             .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ChampionshipsConfig.title)
@@ -582,7 +583,10 @@ private struct MonthChampionshipsRow: View {
     }
 }
 
-/// Fila simplificada de carrera en la vista de agenda mensual.
+/// Fila de carrera en la vista de agenda mensual: superficie de tarjeta sin
+/// tinte (`.cal-race` de `css/calendario.css`). Nombre completo en varias
+/// líneas, con la bandera alineada con la primera; CRI/CRE como etiqueta de
+/// tipo de etapa.
 private struct MonthScheduleRaceRow: View {
     let raceDay: RaceDay
     let raceMap: [String: Race]
@@ -606,96 +610,73 @@ private struct MonthScheduleRaceRow: View {
         !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
     }
 
-    private var raceColor: Color {
-        if let hex = race?.colorHex, !hex.isEmpty {
-            return Color(hex: hex)
-        }
-        return .gray
+    /// Descanso y jornada sin información: se atenúa lo decorativo (logo,
+    /// bandera, chevron) y el texto conserva su color.
+    private var dimsDecoration: Bool {
+        raceDay.isRestDay || raceDay.editorialStatus == "placeholder"
     }
 
-    /// True si el tipo de etapa es CRI (itt) o CRE (ttt).
-    private var isTimeTrial: Bool {
-        raceDay.primaryType == "itt" || raceDay.primaryType == "ttt"
-    }
-
-    /// Etiqueta corta de etapa con tipo CRI/CRE entre paréntesis si aplica.
-    private var stageLabelWithType: String {
-        let label = raceDay.stageLabelShort
-        if isTimeTrial, let primary = raceDay.primaryType {
-            let typeLabel = RaceLogic.typeLabel(primary)
-            return label.isEmpty ? "(\(typeLabel))" : "\(label) (\(typeLabel))"
-        }
-        return label
+    /// Tipo CRI/CRE: la misma etiqueta de color que en Hoy.
+    private var timeTrialType: String? {
+        guard let primary = raceDay.primaryType, primary == "itt" || primary == "ttt" else { return nil }
+        return primary
     }
 
     var body: some View {
-        // Tarjeta con tono de carrera (CCCard) — mismo lenguaje que Hoy.
-        CCCard(
-            accent: raceColor,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
+        CCCard {
             HStack(spacing: 10) {
                 RaceLogo(race?.logoUrl, size: 28)
+                    .opacity(dimsDecoration ? 0.65 : 1)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
                         if race?.hideFlag != true || raceDay.countryCode != nil {
                             CountryFlag(countryCode: raceDay.countryCode ?? race?.countryCode)
+                                .opacity(dimsDecoration ? 0.65 : 1)
+                                // Centro de la bandera a media altura de la
+                                // primera línea del nombre.
+                                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
                         }
-                        Text(displayRaceName)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-
-                        if showFemaleIndicator {
-                            Text("♀")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.green)
-                        }
-
-                        if raceDay.isRestDay {
-                            Text("· \(LocaleService.t("Descanso", "Rest day"))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else if raceDay.isCancelledDay {
-                            Text("· \(LocaleService.t("Cancelada", "Cancelled"))")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.red)
-                        }
+                        nameLine
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     if !raceDay.isRestDay && !raceDay.isCancelledDay {
                         HStack(spacing: 6) {
                             CategoryBadge(category: race?.uciCategory)
+                                .fixedSize()
 
-                            if !stageLabelWithType.isEmpty {
-                                Text(stageLabelWithType)
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
+                            if let timeTrialType {
+                                StageTypeBadge(primaryType: timeTrialType, secondaryType: nil)
+                                    .fixedSize()
+                            }
+
+                            if !raceDay.stageLabelShort.isEmpty {
+                                Text(raceDay.stageLabelShort)
+                                    .ccFont(.s12, weight: .semibold)
+                                    .foregroundStyle(AppTheme.textMuted)
+                                    .fixedSize()
                             }
 
                             if race?.isOneDay != true, let route = raceDay.routeDescription {
                                 Text(route)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .ccFont(.s12)
+                                    .foregroundStyle(AppTheme.textMuted)
                                     .lineLimit(1)
                             }
                         }
                     }
                 }
 
-                Spacer(minLength: 0)
-
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .opacity(dimsDecoration ? 0.65 : 1)
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 9)
             .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         // Solo se atenúa la CARRERA cancelada (no se corre en absoluto). Una
         // JORNADA cancelada no: su aviso ya lo dice y su ficha sigue siendo
@@ -703,6 +684,25 @@ private struct MonthScheduleRaceRow: View {
         .opacity(race?.isCancelled == true ? 0.5 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(scheduleRaceAccessibilityLabel)
+    }
+
+    /// Nombre completo (pasa a otra línea en lugar de cortarse), con el
+    /// símbolo femenino y el aviso de descanso o cancelación a continuación.
+    private var nameLine: some View {
+        let name = Text(displayRaceName)
+            .foregroundStyle(raceDay.isRestDay ? AppTheme.textMuted : AppTheme.textPrimary)
+        let female = Text(showFemaleIndicator ? " ♀" : "").foregroundStyle(AppTheme.green)
+        let note: Text
+        if raceDay.isRestDay {
+            note = Text("  · \(LocaleService.t("Descanso", "Rest day"))").foregroundStyle(AppTheme.textMuted)
+        } else if raceDay.isCancelledDay {
+            note = Text("  · \(LocaleService.t("Cancelada", "Cancelled"))").foregroundStyle(AppTheme.red)
+        } else {
+            note = Text("")
+        }
+        return Text("\(name)\(female)\(note)")
+            .ccFont(.s14, weight: .medium)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var scheduleRaceAccessibilityLabel: String {
@@ -721,6 +721,9 @@ private struct MonthScheduleRaceRow: View {
         } else {
             if !raceDay.stageLabelShort.isEmpty {
                 parts.append(raceDay.stageLabelShort)
+            }
+            if let timeTrialType {
+                parts.append(RaceLogic.typeLabel(timeTrialType))
             }
             if let route = raceDay.routeDescription {
                 parts.append(route)
@@ -754,31 +757,12 @@ private struct MonthFilterChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 4) {
-                Text(filter.label)
-                    .fontWeight(isActive ? .semibold : .regular)
-                switch pinDisplay {
-                case .filled:
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                case .outline:
-                    Image(systemName: "pin")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.accentColor)
-                        .opacity(0.55)
-                case .hidden:
-                    EmptyView()
-                }
-            }
-            .font(.caption)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            // Activo en azul de marca suave (15%) + texto azul — mismo gesto que el
-            // cintillo "Hoy" y el día seleccionado, en vez del azul sólido + blanco.
-            .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-            .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-            .clipShape(Capsule())
+            CalendarFilterChipLabel(
+                label: filter.label,
+                isActive: isActive,
+                pinFilled: pinDisplay == .filled,
+                pinOutline: pinDisplay == .outline
+            )
             .frame(minHeight: 44)
         }
         // Mantener el Button estándar: los estilos primitivos basados en

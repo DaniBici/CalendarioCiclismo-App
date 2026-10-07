@@ -39,7 +39,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,8 +57,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -71,7 +68,12 @@ import app.calendariociclismo.android.data.prefs.RaceFollowMode
 import app.calendariociclismo.android.ui.components.AssetChip
 import app.calendariociclismo.android.ui.components.AssetActionStrip
 import app.calendariociclismo.android.ui.components.CCCard
-import app.calendariociclismo.android.ui.components.CategoryBadge
+import app.calendariociclismo.android.ui.components.RouteLoadingView
+import app.calendariociclismo.android.ui.components.rememberLoadingVisible
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.neutralFill
+import androidx.compose.foundation.shape.RoundedCornerShape
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.components.MiniElevationProfile
@@ -94,7 +96,7 @@ import kotlinx.coroutines.launch
  * seguida de una lista de etapas (o estado vacío si aún no hay jornadas).
  */
 @Composable
-fun RaceScreen(raceId: String, navController: NavController) {
+fun RaceScreen(raceId: String, navController: NavController, raceName: String? = null) {
     val app = rememberApp()
     var state by remember { mutableStateOf<RaceState>(RaceState.Loading) }
     val context = LocalContext.current
@@ -132,20 +134,29 @@ fun RaceScreen(raceId: String, navController: NavController) {
         inhouseByDay = runCatching { app.repository.inhouseStagesForDays(raceId, days, cancelled) }.getOrDefault(emptyMap())
     }
 
+    val loadingVisible = rememberLoadingVisible(state is RaceState.Loading)
+
     Scaffold { padding ->
-        when (val s = state) {
-            RaceState.Loading -> {
-                val loadingCd = stringResource(R.string.loading)
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loadingCd }) }
-            }
-            is RaceState.Error -> Box(
+        val s = state
+        when {
+            loadingVisible -> RouteLoadingView(
+                message = stringResource(R.string.loading),
+                title = (s as? RaceState.Ready)?.race?.localizedName ?: raceName
+                    ?: stringResource(R.string.race_loading_title),
+                modifier = Modifier.padding(padding),
+            )
+            s is RaceState.Error -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
-            ) { Text(s.message, color = MaterialTheme.colorScheme.error) }
-            is RaceState.Ready -> LazyColumn(
+            ) {
+                Text(
+                    s.message,
+                    style = CCText.S14,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+            s is RaceState.Ready -> LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -229,7 +240,6 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
     // del detalle de jornada. El color de la carrera vive en logo y badges.
     CCCard(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 12,
     ) {
       Column(
         modifier = Modifier
@@ -244,7 +254,7 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CategoryBadge(category = race.uciCategory)
+            RaceCategoryLabel(race.uciCategory)
             val showStageCount = race.isStageRace && stageCount > 0
             if (showStageCount) {
                 Text(
@@ -291,6 +301,26 @@ private fun RaceHeader(race: Race, stageCount: Int, onBack: () -> Unit) {
 
       }
     }
+}
+
+/**
+ * Categoría completa de la carrera («UCI WorldTour», «UCI 2.2») como etiqueta
+ * neutra: texto sobre el gris al 8 %, radio de control.
+ */
+@Composable
+private fun RaceCategoryLabel(category: String?) {
+    val name = RaceLogic.uciCategoryName(category)
+    if (name.isEmpty()) return
+    Text(
+        text = name,
+        style = CCText.S12,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        modifier = Modifier
+            .background(neutralFill, RoundedCornerShape(CCRadius.Control))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }
 
 @Composable
@@ -456,8 +486,6 @@ private fun StageRow(
     // Tarjeta canónica (CCCard) por etapa — paridad con el cintillo "Hoy" y la
     // web. El mini-perfil va como franja a sangre al fondo de la tarjeta.
     CCCard(
-        accent = race?.colorHex?.let { colorFromHex(it, fallback = MaterialTheme.colorScheme.outlineVariant) },
-        accentAlpha = 0.04f,
         modifier = Modifier
             .fillMaxWidth(),
     ) {

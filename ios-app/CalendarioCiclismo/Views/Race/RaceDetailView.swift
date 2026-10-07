@@ -3,8 +3,21 @@ import SwiftUI
 /// Vista de detalle de una carrera — equivalente a `competicion.html` + `competicion.js`.
 struct RaceDetailView: View {
     let raceId: String
+    /// Nombre conocido por la pantalla de origen, para rotular la carga.
+    var raceName: String? = nil
 
-    @State private var viewModel = RaceDetailViewModel()
+    @State private var viewModel: RaceDetailViewModel
+
+    /// `initialRace`: carrera ya cargada por la pantalla de origen
+    /// (Temporada). La cabecera se muestra al instante y las etapas aparecen
+    /// al llegar, sin pantalla de carga.
+    init(raceId: String, raceName: String? = nil, initialRace: Race? = nil) {
+        self.raceId = raceId
+        self.raceName = raceName
+        let model = RaceDetailViewModel()
+        model.race = initialRace
+        _viewModel = State(initialValue: model)
+    }
     @State private var showStartlist = false
     @State private var safariURL: URL?
     @State private var manager = NotificationManager.shared
@@ -18,10 +31,11 @@ struct RaceDetailView: View {
     @State private var resultsRoute: ResultsRoute?
 
     var body: some View {
-        Group {
-            if viewModel.isLoading || (viewModel.race == nil && viewModel.error == nil) {
-                LoadingView()
-            } else if let error = viewModel.error {
+        LoadingGate(
+            isLoading: viewModel.race == nil && viewModel.error == nil,
+            title: viewModel.race?.localizedName ?? raceName ?? LocaleService.t("Carrera", "Race")
+        ) {
+            if let error = viewModel.error {
                 ErrorView(message: error) {
                     Task { await viewModel.load(raceId: raceId) }
                 }
@@ -32,12 +46,17 @@ struct RaceDetailView: View {
                         raceDocumentationSection(race: race)
 
                         if viewModel.days.isEmpty {
+                            if !viewModel.isLoading {
                             EmptyStateView(
                                 icon: "list.bullet",
-                                title: "Sin etapas publicadas",
-                                subtitle: "Las etapas se irán publicando próximamente"
+                                title: LocaleService.t("Sin etapas publicadas", "No stages published"),
+                                subtitle: LocaleService.t(
+                                    "Las etapas se irán publicando próximamente",
+                                    "Stages will be published soon"
+                                )
                             )
                             .frame(height: 200)
+                            }
                         } else {
                             stagesList(race: race)
                         }
@@ -57,7 +76,7 @@ struct RaceDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(viewModel.race?.name ?? "Carrera")
+        .navigationTitle(viewModel.race?.name ?? raceName ?? LocaleService.t("Carrera", "Race"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load(raceId: raceId) }
         // Mapa de jornadas con resultados in-house, diferido tras la carga.
@@ -144,38 +163,32 @@ struct RaceDetailView: View {
                 showFemale: RaceLogic.shouldShowFemaleIndicator(race))
 
             HStack(spacing: 8) {
-                CategoryBadge(category: race.uciCategory)
+                RaceCategoryLabel(category: race.uciCategory)
 
                 if race.isStageRace {
-                    Text("\(viewModel.stageCount) etapas")
-                        .font(.caption)
+                    Text(LocaleService.t("\(viewModel.stageCount) etapas", "\(viewModel.stageCount) stages"))
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                     if !viewModel.dateRange.isEmpty {
                         Text("·")
-                            .font(.caption)
+                            .ccFont(.s12)
                             .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
                     }
                 }
 
                 Text(viewModel.dateRange)
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
 
                 Spacer()
             }
 
             if race.isCancelled {
-                HStack {
-                    Image(systemName: "xmark.circle.fill")
-                        .accessibilityHidden(true)
-                    Text("Carrera cancelada")
-                }
-                .font(.subheadline)
+                Label(LocaleService.t("Carrera cancelada", "Race cancelled"), systemImage: "xmark.circle.fill")
+                .ccFont(.s14)
                 .foregroundStyle(AppTheme.red)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Carrera cancelada")
             }
         }
         .padding()
@@ -232,9 +245,34 @@ struct RaceDetailView: View {
 
     private func raceDocChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            ActionStripTile(icon: icon, label: label)
+            // Acción como enlace neutro: texto principal, sin el azul de acento.
+            ActionStripTile(icon: icon, label: label, tint: .primary)
         }
         .accessibilityLabel(label)
+    }
+}
+
+// MARK: - Categoría
+
+/// Categoría completa de la carrera («UCI WorldTour», «UCI 2.2») como
+/// etiqueta neutra: texto sobre el gris al 8 %, radio de control.
+private struct RaceCategoryLabel: View {
+    let category: String?
+
+    var body: some View {
+        let name = RaceLogic.uciCategoryName(category)
+        if !name.isEmpty {
+            Text(name)
+                .ccFont(.s12, weight: .semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+                        .fill(AppTheme.neutralFill)
+                )
+        }
     }
 }
 
@@ -258,6 +296,7 @@ private struct RaceNotificationChip: View {
             ActionStripTile(
                 icon: isFollowing ? "bell.fill" : "bell",
                 label: LocaleService.t("Notificaciones", "Notifications"),
+                tint: .primary,
                 showsTrailingSeparator: false
             )
         }

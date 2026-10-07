@@ -21,6 +21,16 @@ class CyclocrossTest {
     private val race = CxRace("cx-1", "Prueba local", slug = "prueba", slugEn = "test", seasonKey = "2026-27", dateKey = "2027-01-29", endDateKey = "2027-01-31", raceClass = "CM",
         categories = listOf(CxCategory("ME", "2027-01-31T14:00:00Z", "2027-01-31", durationFormat = "individual", durationRuleVersion = "2026-07-01", durationMinutes = 60), CxCategory("WE", dateKey = "2027-01-30")))
 
+    @Test fun `nombre de clase escribe las siglas enteras`() {
+        assertEquals("Nacional", CxPresentation.className("NAC", english = false))
+        assertEquals("Campeonato nacional", CxPresentation.className("CN", english = false))
+        assertEquals("UCI World Cup", CxPresentation.className("CDM", english = true))
+        assertEquals("UCI C1", CxPresentation.className("C1", english = false))
+        assertEquals("UCI C2", CxPresentation.className("C2", english = true))
+        assertEquals("X", CxPresentation.className("X", english = false))
+        assertEquals("", CxPresentation.className(null, english = false))
+    }
+
     @Test fun `cabecera de torneo usa sus rondas y no el maximo de la temporada`() {
         val target = race.copy(id = "target", tournamentId = "hg")
         val other = race.copy(id = "other", tournamentId = "world")
@@ -477,6 +487,7 @@ class CyclocrossTest {
         val rows = listOf(
             CxRoundRow("oct-late", "t1", "2026-10-03", "2026-27", categories = listOf(CxRoundEntry("2026-10-04", "2026-10-04T15:00:00Z"))),
             CxRoundRow("sin-torneo", null, "2026-10-03", "2026-27"),
+            CxRoundRow("cancelada", "t1", "2026-10-02", "2026-27", isCancelled = true),
             CxRoundRow("sin-hora", "t1", "2026-10-03", "2026-27", categories = listOf(CxRoundEntry("2026-10-04"))),
             CxRoundRow("oct-early", "t1", "2026-10-03", "2026-27", categories = listOf(CxRoundEntry("2026-10-04", "2026-10-04T13:00:00Z"), CxRoundEntry("2026-10-04", "2026-10-04T11:00:00Z"))),
             CxRoundRow("fuera", "t1", "2027-03-01", "2026-27"),
@@ -491,7 +502,7 @@ class CyclocrossTest {
         assertEquals(CxRound(2, 4), rounds["oct-late"])
         assertEquals(CxRound(3, 4), rounds["sin-hora"])
         assertEquals(CxRound(4, 4), rounds["nov"])
-        assertNull(rounds["fuera"]); assertNull(rounds["sin-torneo"]); assertNull(rounds["otra-temporada"])
+        assertNull(rounds["cancelada"]); assertNull(rounds["fuera"]); assertNull(rounds["sin-torneo"]); assertNull(rounds["otra-temporada"])
         assertEquals(CxRound(1, 2), rounds["a"]); assertEquals(CxRound(2, 2), rounds["b"])
         assertEquals(CxRound(1, 1), rounds["solitaria"])
     }

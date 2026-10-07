@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.onboarding
 
+import app.calendariociclismo.android.ui.theme.CCRadius
 import android.os.Build
 import android.os.Bundle
 import androidx.compose.foundation.layout.Arrangement
@@ -138,7 +139,7 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
                 imageVector = Icons.Filled.Language,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(20.dp))
 
@@ -158,7 +159,7 @@ fun LanguageAnnouncementOnboardingScreen(onDismiss: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(CCRadius.Control),
                 contentPadding = PaddingValues(vertical = 14.dp),
             ) {
                 Row(

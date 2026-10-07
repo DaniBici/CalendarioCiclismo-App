@@ -1,10 +1,10 @@
 package app.calendariociclismo.android.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
-import app.calendariociclismo.android.util.RaceLogic
 
 /**
  * Port Kotlin del enum de colores de badges de `ios-app/.../Theme/AppTheme.swift`.
@@ -15,26 +15,29 @@ data class BadgeColor(val background: Color, val foreground: Color)
 
 private fun mix(bg: Color): Color = bg.copy(alpha = 0.15f)
 
-/** Colores de badge por categoría UCI. */
+/**
+ * Categoría UCI y género: superficie neutra (el color queda para el tipo de
+ * etapa y los estados).
+ */
 @Composable
 @ReadOnlyComposable
-fun categoryBadgeColor(category: String?): BadgeColor {
-    val dark = isSystemInDarkTheme()
-    if (category.isNullOrEmpty()) return grayBadge(dark)
-    return when (RaceLogic.categoryTier(category)) {
-        "wc" -> {
-            val fg = if (dark) Color(0xFFD2B4FF) else Color(0xFF7C3AED)
-            BadgeColor(background = mix(fg), foreground = fg)
-        }
-        "wt" -> {
-            val fg = if (dark) Color(0xFF5BA3F5) else Color(0xFF1A73E8)
-            BadgeColor(background = mix(fg), foreground = fg)
-        }
-        "pro" -> grayBadge(dark)
-        "2" -> grayBadge(dark)
-        else -> grayBadge(dark)
-    }
-}
+@Suppress("UNUSED_PARAMETER")
+fun categoryBadgeColor(category: String?): BadgeColor = neutralBadgeColor()
+
+/** Etiqueta neutra con texto atenuado (categoría, género). */
+@Composable
+@ReadOnlyComposable
+fun neutralBadgeColor(): BadgeColor =
+    BadgeColor(neutralFill, MaterialTheme.colorScheme.onSurfaceVariant)
+
+/**
+ * Etiqueta neutra de enlace (TV, Íntegra, dorsales, orden de salida,
+ * resultados): texto principal sobre la superficie neutra.
+ */
+@Composable
+@ReadOnlyComposable
+fun neutralLinkBadgeColor(): BadgeColor =
+    BadgeColor(neutralFill, MaterialTheme.colorScheme.onSurface)
 
 /** Colores de badge por tipo de etapa (llana, media montaña, CRI, etc). */
 @Composable
@@ -65,7 +68,11 @@ fun stageTypeBadgeColor(type: String?): BadgeColor {
     }
 }
 
-/** Colores del badge de TV según su estado. */
+/**
+ * Colores del badge de TV. Color con significado solo en los estados: en
+ * directo verde, «No TV España» rojo, sin confirmar naranja. Emisión con hora,
+ * Íntegra y Live texto previo van en la etiqueta neutra de enlace.
+ */
 @Composable
 @ReadOnlyComposable
 fun tvStatusBadgeColor(
@@ -77,9 +84,8 @@ fun tvStatusBadgeColor(
 ): BadgeColor {
     val dark = isSystemInDarkTheme()
     val green = if (dark) Color(0xFF6DD58C) else Color(0xFF137333)
-    val blue = if (dark) Color(0xFF7FCFFF) else Color(0xFF1A73E8)
     return when {
-        isLiveTextPre -> BadgeColor(mix(blue), blue)
+        isLiveTextPre -> neutralLinkBadgeColor()
         isTvLive -> BadgeColor(mix(green), green)
         isLiveText -> BadgeColor(mix(green), green)
         status == "none" -> grayBadge(dark)
@@ -91,7 +97,7 @@ fun tvStatusBadgeColor(
             val fg = if (dark) Color(0xFFFFB77C) else Color(0xFFE37400)
             BadgeColor(mix(fg), fg)
         }
-        hasBroadcasts || status == "confirmed" -> BadgeColor(mix(blue), blue)
+        hasBroadcasts || status == "confirmed" -> neutralLinkBadgeColor()
         else -> grayBadge(dark)
     }
 }

@@ -178,7 +178,7 @@ export function attachCountryAutocomplete(input) {
   dropdown.className = 'country-ac-dropdown';
   // position:fixed anclado al body para no depender del overflow:hidden de contenedores
   // ancestrales (p.ej. .editor-section tiene overflow:hidden para recortar el header).
-  dropdown.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,0.18);max-height:220px;overflow-y:auto;min-width:220px;display:none';
+  dropdown.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-card);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,0.18);max-height:220px;overflow-y:auto;min-width:220px;display:none';
   document.body.appendChild(dropdown);
 
   function positionDropdown() {

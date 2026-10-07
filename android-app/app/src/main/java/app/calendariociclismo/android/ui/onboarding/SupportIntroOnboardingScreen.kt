@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.onboarding
 
+import app.calendariociclismo.android.ui.theme.CCRadius
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -109,7 +110,7 @@ fun SupportIntroOnboardingScreen(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(CCRadius.Surface),
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         FeatureRow(Icons.Filled.Code, stringResource(R.string.onboarding_support_benefit_open))
@@ -150,7 +151,7 @@ fun SupportIntroOnboardingScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(CCRadius.Control),
                     contentPadding = PaddingValues(vertical = 14.dp),
                 ) {
                     Text(
@@ -192,7 +193,7 @@ fun SupportIntroOnboardingScreen(
 @Composable
 private fun FeatureRow(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }

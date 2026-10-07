@@ -122,6 +122,10 @@ enum CyclocrossPresentation {
     /// `cxHiddenClasses` (web).
     nonisolated static var hiddenClasses: [String] { LocaleService.isEnglish ? ["NAC"] : [] }
     nonisolated static func isHidden(_ race: CxRace) -> Bool { hiddenClasses.contains(race.raceClass) }
+    /// Carrera visible en la agenda: no está cancelada en su totalidad ni
+    /// oculta por idioma. Las categorías canceladas siguen visibles. Espejo de
+    /// `CxPresentation.listedInAgenda` (Android) y `cxListedInAgenda` (web).
+    nonisolated static func listedInAgenda(_ race: CxRace) -> Bool { !race.isCancelled && !isHidden(race) }
     /// Aviso al abrir en inglés una carrera o un torneo solo nacional.
     static let spanishAudienceNotice = "This content is intended for Spanish-speaking audiences, mainly in Spain. Switch the app to Spanish to view it."
     /// Filtro de la agenda CX (Todos/Big/Pro/España).
@@ -181,6 +185,23 @@ enum CyclocrossPresentation {
         return valid(race.colorHex)
     }
     static func raceClass(_ code: String) -> String { code == "NAC" ? t("Nac", "Nat") : code }
+    /// Nombre completo de la clase para la cabecera de la ficha: las siglas
+    /// sin contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
+    /// carretera. Espejo de `cxClassName` (`js/cx/presentation.js`).
+    nonisolated static func className(_ code: String?, english: Bool) -> String {
+        let names: [String: String] = english
+            ? ["CM": "World Championships", "CDM": "UCI World Cup", "CC": "Continental Championships",
+               "CN": "National Championships", "NAC": "National"]
+            : ["CM": "Campeonato del mundo", "CDM": "Copa del Mundo UCI", "CC": "Campeonato continental",
+               "CN": "Campeonato nacional", "NAC": "Nacional"]
+        guard let code, !code.isEmpty else { return "" }
+        if let name = names[code] { return name }
+        if code.count == 2, code.first == "C", code.last?.isNumber == true { return "UCI \(code)" }
+        return code
+    }
+    static func className(_ code: String?) -> String {
+        className(code, english: LocaleService.shared.current.rawValue == "en")
+    }
     static func date(_ key: String, format: String = "d MMMM yyyy") -> String {
         guard let value = CyclocrossLogic.instant(key + "T12:00:00Z") else { return key }
         let formatter = DateFormatter()

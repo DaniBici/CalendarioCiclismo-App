@@ -11,36 +11,27 @@ struct FollowedStagesView: View {
     var body: some View {
         Group {
             if isLoading {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Jornadas seguidas", "Followed stages"))
             } else if let error {
                 ErrorView(message: error) {
                     Task { await loadStages() }
                 }
             } else if stages.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "bell.slash")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text("Sin jornadas seguidas")
-                        .font(.headline)
-                    Text("Pulsa Notificaciones en cualquier jornada para añadirla.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    icon: "bell.slash",
+                    title: LocaleService.t("Sin jornadas seguidas", "No followed stages"),
+                    subtitle: LocaleService.t("Pulsa Notificaciones en cualquier jornada para añadirla.", "Tap Notifications on any stage to add it.")
+                )
             } else {
                 List {
                     ForEach(stages) { stage in
                         VStack(alignment: .leading, spacing: 2) {
                             let label = stage.stageLabel.isEmpty ? stage.dateKey : stage.stageLabel
                             Text(label)
-                                .font(.subheadline)
+                                .ccFont(.s14)
                             if let routeDesc = stage.routeDescription, !routeDesc.isEmpty {
                                 Text(routeDesc)
-                                    .font(.caption)
+                                    .ccFont(.s12)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
@@ -61,7 +52,7 @@ struct FollowedStagesView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle("Jornadas seguidas")
+        .navigationTitle(LocaleService.t("Jornadas seguidas", "Followed stages"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadStages() }
         .onChange(of: raceFollow.followedStageIds) { _, _ in

@@ -67,7 +67,7 @@ function _raceListItemHtml(race, { showTimestamp = false } = {}) {
     const createdStr = tsStr
       ? new Date(tsStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })
       : '';
-    if (createdStr) extra = ` · <span class="u-c-accent">${createdStr}</span>`;
+    if (createdStr) extra = ` · <span class="u-c-muted">${createdStr}</span>`;
   }
   return panelRaceListItemHtml({flagHtml:flag,name:race.name,isCancelled:race.isCancelled,
     metadataHtml:`${gender} · ${format} · ${esc(race.startDate || '—')} → ${esc(race.endDate || '—')} · <strong>${esc(race.uciCategory || '—')}</strong>${extra}`,
@@ -102,7 +102,7 @@ function raceEditorBodyHtml() {
       </div>
       <div class="field">
         <label>Abreviatura <span class="u-hint">(máx. 6)</span></label>
-        <input class="u-upper" type="text" id="er-abbrev" placeholder="VUELTA" maxlength="6">
+        <input type="text" id="er-abbrev" placeholder="VUELTA" maxlength="6">
       </div>
     </div>
     <div class="field">
@@ -120,10 +120,10 @@ function raceEditorBodyHtml() {
       <div class="u-row u-gap-050">
         <input type="text" id="er-slug" placeholder="tour-de-france-2025" maxlength="80"
                autocomplete="off" spellcheck="false">
-        <button type="button" id="er-slug-suggest" class="btn btn--ghost u-fs-072 u-btn-sm"
+        <button type="button" id="er-slug-suggest" class="btn btn--ghost u-fs-1 u-btn-sm"
                >Auto</button>
       </div>
-      <div id="er-slug-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
+      <div id="er-slug-error" class="u-c-danger u-fs-1 u-mt-025" style="display:none"></div>
     </div>
     <div class="field">
       <label class="u-row u-row--gap-sm">Slug EN
@@ -131,7 +131,7 @@ function raceEditorBodyHtml() {
       </label>
       <input type="text" id="er-slugEn" placeholder="tour-of-flanders-2025" maxlength="80"
              autocomplete="off" spellcheck="false">
-      <div id="er-slugEn-error" class="u-c-danger u-fs-075 u-mt-025" style="display:none"></div>
+      <div id="er-slugEn-error" class="u-c-danger u-fs-1 u-mt-025" style="display:none"></div>
     </div>
     <div class="field-row field-row--2">
       <div class="field">
@@ -201,9 +201,9 @@ function raceEditorBodyHtml() {
       <label>DataRide (competitionId)</label>
       <div class="u-row u-gap-040">
         <input class="u-grow" type="number" id="er-uciCompetitionId" placeholder="—" min="1">
-        <button type="button" class="btn btn--ghost u-fs-070 u-py-0 u-px-060 u-nowrap" id="er-uciLinkBtn">Enlazar con UCI</button>
+        <button type="button" class="btn btn--ghost u-fs-1 u-py-0 u-px-060 u-nowrap" id="er-uciLinkBtn">Enlazar con UCI</button>
       </div>
-      <div id="er-uciPanel" class="u-mt-050 u-fs-080" style="display:none"></div>
+      <div id="er-uciPanel" class="u-mt-050 u-fs-2" style="display:none"></div>
     </div>
     <div class="u-row nr-check-row nr-check-row--first">
       <input class="u-checkbox" type="checkbox" id="er-hideFlag">
@@ -224,7 +224,7 @@ function raceEditorBodyHtml() {
     <div class="panel-form-actions u-justify-between u-items-center u-wrap">
       <div class="u-row u-gap-050">
         <button class="btn btn--danger" id="er-deleteBtn">Borrar carrera</button>
-        <button class="btn btn--ghost u-fs-075" id="er-editStartlistBtn">Editar dorsales</button>
+        <button class="btn btn--ghost u-fs-1" id="er-editStartlistBtn">Editar dorsales</button>
       </div>
       <div class="u-row u-gap-050">
         <button class="btn btn--ghost" id="er-duplicateBtn">Crear edición</button>

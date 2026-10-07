@@ -3,9 +3,12 @@
 //  Lo importa js/header.js, así que corre en TODAS las páginas (también
 //  las ~5000 generadas por og-pages) tras el parse y antes de DOMContentLoaded.
 //
-//  Reglas de visibilidad (decisión Dani 2026-06-12):
-//   · Se muestra en TODAS las cargas de página, con un mínimo de 600 ms
-//     para que no parpadee (es bonito y es marca; no se racanea).
+//  Reglas de visibilidad:
+//   · La capa queda bajo la cabecera y la barra inferior: la navegación se ve
+//     y se puede usar desde el primer momento.
+//   · Tapa el contenido a medio cargar con el fondo, pero la marca y el perfil
+//     solo aparecen si la carga supera REVEAL_MS; una carga rápida no muestra
+//     animación. Una vez visible, se mantiene al menos MIN_SHOW_MS.
 //   · Páginas sin marcador .loading/.pfe-loading (about, buscar, panel…):
 //     no se muestra nunca — no hay datos que esperar.
 //
@@ -44,12 +47,8 @@ const PROFILES = [
     points: [[0,1182],[3.75,1207],[5.35,1255],[6.96,1239],[8.56,1253],[9.63,1233],[11.24,1183],[12.31,1174],[14.99,1117],[18.2,1075],[19.8,1067],[22.48,938],[24.09,912],[26.76,903],[28.37,917],[29.44,952],[30.51,895],[31.04,885],[31.58,895],[33.72,994],[34.79,1003],[35.86,1040],[36.4,1030],[37.47,1046],[38.54,992],[39.61,997],[40.14,975],[40.68,974],[43.89,1050],[45.5,1109],[47.1,1193],[49.78,1260],[50.31,1289],[50.85,1285],[52.45,1199],[53.52,1206],[57.81,1059],[59.95,1078],[62.09,985],[63.69,938],[65.3,841],[65.83,828],[69.05,794],[71.19,755],[74.4,738],[77.08,688],[78.15,683],[79.22,702],[79.75,701],[82.43,733],[84.03,815],[84.57,802],[85.64,813],[86.17,840],[89.39,1166],[92.06,1383],[92.6,1421],[93.13,1408],[93.67,1421],[94.2,1481],[95.81,1366],[97.95,1255],[100.63,1066],[101.16,1037],[102.23,1009],[105.44,770],[107.05,730],[109.19,709],[110.26,725],[110.8,714],[111.33,718],[113.47,743],[115.08,822],[116.68,824],[117.22,841],[120.43,1165],[123.64,1435],[124.71,1429],[125.25,1481],[128.99,1270],[135.95,782],[136.49,785],[137.56,820],[139.7,967],[140.77,988],[142.37,1078],[143.45,1080],[144.52,1069],[145.05,1102],[145.59,1116],[147.19,1045],[148.26,1082],[150.94,1362],[152.54,1490],[155.22,1656],[155.76,1650],[156.83,1575],[158.43,1529],[161.11,1365],[162.18,1317],[169.67,787],[170.21,781],[171.81,832],[173.42,954],[174.49,980],[176.63,1083],[177.17,1066],[177.7,1075],[178.24,1068],[178.77,1080],[181.98,1369],[186.8,1884]] },
 ];
 
-// Mismos iconos que el logo del header (js/header.js LOGO_SVG), a mayor tamaño.
-const ICONS_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
-
-const MIN_SHOW_MS = 600;   // mínimo en pantalla (anti-parpadeo)
+const REVEAL_MS   = 400;   // la animación solo aparece en cargas lentas
+const MIN_SHOW_MS = 300;   // mínimo en pantalla una vez visible (anti-parpadeo)
 const MAX_SHOW_MS = 12000; // fallback duro si la página nunca repinta
 const SETTLE_MS   = 350;   // sin marcador, esperar a que el DOM repose
 const DRAW_MS     = 2600;  // trazado del perfil
@@ -57,6 +56,10 @@ const HOLD_MS     = 700;   // pausa con el perfil completo antes de repetir
 
 // viewBox del perfil: y=PROF_BASE es la línea de suelo del relleno.
 const PROF_W = 1000, PROF_H = 240, PROF_TOP = 36, PROF_BASE = 232;
+
+function escapeText(value) {
+  return String(value).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+}
 
 function isEnglish() {
   const p = window.location.pathname;
@@ -72,6 +75,15 @@ function profilePathD(prof) {
   }).join(' ');
 }
 
+// Qué se está cargando: la cabecera ya muestra la marca, así que el rótulo
+// nombra la página. Las páginas generadas traen el nombre real en <title>
+// («La Vuelta, Etapa 20: …» → «La Vuelta, Etapa 20»); la portada, la agenda.
+function loadingSubject(en) {
+  const title = document.title.split(' — ')[0].split(':')[0].trim();
+  if (!title || title === 'Calendario Ciclismo App') return en ? "Today's races" : 'Carreras de hoy';
+  return title;
+}
+
 function buildOverlay() {
   const en = isEnglish();
   const prof = PROFILES[Math.floor(Math.random() * PROFILES.length)];
@@ -83,8 +95,7 @@ function buildOverlay() {
   el.setAttribute('aria-label', en ? 'Loading' : 'Cargando');
   el.innerHTML =
     '<div class="page-loading__brand">' +
-      `<div class="page-loading__icons">${ICONS_SVG}</div>` +
-      '<p class="page-loading__title">Calendario Ciclismo</p>' +
+      `<p class="page-loading__title">${escapeText(loadingSubject(en))}</p>` +
       `<p class="page-loading__msg">${en ? 'Loading…' : 'Cargando…'}</p>` +
     '</div>' +
     '<div class="page-loading__profile"><div class="page-loading__svgwrap">' +
@@ -152,20 +163,25 @@ function initPageLoading() {
   const container = marker.parentElement;
   if (!container) { reveal(); return; }
 
-  let stopAnim = null, maxTimer = 0, done = false;
+  let stopAnim = null, maxTimer = 0, done = false, shownAt = null;
 
   const overlay = buildOverlay();
   document.body.appendChild(overlay);
   reveal();
-  stopAnim = startAnimation(overlay);
-  const shownAt = performance.now();
+  const revealTimer = setTimeout(() => {
+    if (done) return;
+    overlay.classList.add('page-loading--active');
+    stopAnim = startAnimation(overlay);
+    shownAt = performance.now();
+  }, REVEAL_MS);
 
   const finish = () => {
     if (done) return;
     done = true;
     clearTimeout(maxTimer);
+    clearTimeout(revealTimer);
     observer.disconnect();
-    const wait = Math.max(0, MIN_SHOW_MS - (performance.now() - shownAt));
+    const wait = shownAt == null ? 0 : Math.max(0, MIN_SHOW_MS - (performance.now() - shownAt));
     setTimeout(() => {
       overlay.classList.add('page-loading--hide');
       setTimeout(() => { stopAnim?.(); overlay.remove(); }, 320);

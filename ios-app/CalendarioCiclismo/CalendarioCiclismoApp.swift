@@ -53,6 +53,35 @@ struct CalendarioCiclismoApp: App {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        Self.configureBarAppearance()
+    }
+
+    /// Barra superior y barra de pestañas sobre la superficie de las tarjetas
+    /// (blanca en claro, tono de tarjeta en oscuro) con el filete de borde,
+    /// como la cabecera y la barra inferior de la web. La pestaña activa toma
+    /// el acento del `tint` de `ContentView`.
+    private static func configureBarAppearance() {
+        let surface = UIColor(AppTheme.cardBackground)
+        let border = UIColor(AppTheme.border)
+
+        let navigation = UINavigationBarAppearance()
+        navigation.configureWithOpaqueBackground()
+        navigation.backgroundColor = surface
+        navigation.shadowColor = border
+        UINavigationBar.appearance().standardAppearance = navigation
+        UINavigationBar.appearance().compactAppearance = navigation
+        UINavigationBar.appearance().scrollEdgeAppearance = navigation
+        UINavigationBar.appearance().compactScrollEdgeAppearance = navigation
+
+        let tabs = UITabBarAppearance()
+        tabs.configureWithOpaqueBackground()
+        tabs.backgroundColor = surface
+        tabs.shadowColor = border
+        UITabBar.appearance().standardAppearance = tabs
+        UITabBar.appearance().scrollEdgeAppearance = tabs
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {
@@ -90,12 +119,14 @@ struct CalendarioCiclismoApp: App {
             }
             .task {
                 WidgetBridge.start()
-                await withTaskGroup { group in
-                    group.addTask { await preloadTodayData() }
-                    group.addTask { try? await Task.sleep(for: .seconds(0.6)) }
-                    await group.waitForAll()
-                }
+                // El splash continúa el arranque del sistema durante 0,6 s
+                // (igual que Android) y no espera a la red: una carga lenta se
+                // muestra dentro de Hoy, con la barra de pestañas visible. La
+                // precarga sigue en segundo plano y llena la caché del día.
+                let preload = Task { await preloadTodayData() }
+                try? await Task.sleep(for: .seconds(0.6))
                 splashDismissing = true
+                await preload.value
                 await NotificationManager.shared.checkCurrentStatus()
                 // Reenviar el token al servidor si el usuario está suscrito
                 // localmente. Cubre instalaciones que se quedaron "suscritas
@@ -255,11 +286,10 @@ private struct SplashView: View {
             // Bloque separado del logo central que presenta el sistema al arrancar.
             VStack(spacing: 6) {
                 Text("Calendario Ciclismo")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .ccFont(.s28, weight: .bold)
                     .foregroundStyle(Color(light: "1f2937", dark: "ffffff"))
                 Text("Ciclismo, al instante.")
-                    .font(.body)
+                    .ccFont(.s16)
                     .foregroundStyle(Color(light: "536174", dark: "c4ccd7"))
             }
             .offset(y: 98)

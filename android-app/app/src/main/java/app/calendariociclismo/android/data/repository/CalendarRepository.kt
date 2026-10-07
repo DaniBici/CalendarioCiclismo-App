@@ -30,6 +30,7 @@ import app.calendariociclismo.android.data.remote.SupabaseService
 import app.calendariociclismo.android.util.ChampionshipsConfig
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.RaceLogic
+import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.ResultsFeedLogic
 import app.calendariociclismo.android.util.StartlistLogic
 import app.calendariociclismo.android.util.TransfersLogic
@@ -966,7 +967,14 @@ class CalendarRepository(
                 slTeam.teamId?.let { canonId ->
                     api.teamNameById(canonId)?.let { teamWinner = it }
                 }
-                if (teamWinner.isNotEmpty()) resolved[i] = e.copy(winner = teamWinner)
+                if (teamWinner.isNotEmpty()) {
+                    resolved[i] = e.copy(
+                        winner = ResultsFeedLogic.localizedNationName(
+                            teamWinner,
+                            LocaleHolder.shouldShowEnglishContent,
+                        ),
+                    )
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {

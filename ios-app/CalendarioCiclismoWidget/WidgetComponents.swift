@@ -138,10 +138,10 @@ struct WidgetRow: View {
                                 .lineLimit(1)
                             if item.isCX {
                                 Text("CX")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.caption2.weight(.semibold))
                                     .foregroundStyle(Color.wSecondary)
-                                    .padding(.horizontal, 3).padding(.vertical, 1)
-                                    .background(Color.wBadge, in: RoundedRectangle(cornerRadius: 3))
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background(Color.wBadge, in: RoundedRectangle(cornerRadius: 4))
                             }
                         }
                         HStack(spacing: 3) {
@@ -187,7 +187,6 @@ struct WidgetNextLine: View {
                     Text(text.t("Próxima", "Next") + " · " + text.day(next.date, relativeTo: now))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.wTertiary)
-                        .textCase(.uppercase)
                     Text([next.name, next.stageLabel].compactMap { $0 }.joined(separator: " · "))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.wPrimary)

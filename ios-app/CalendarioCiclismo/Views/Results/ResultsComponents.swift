@@ -26,7 +26,7 @@ struct ResultsPlainHeader: View {
                 CountryFlag(countryCode: cc)
             }
             Text(race.localizedName)
-                .font(.headline)
+                .ccFont(.s16, weight: .semibold)
                 .lineLimit(2)
             Spacer()
             RaceLogo(race.logoUrl, size: 36)
@@ -37,7 +37,8 @@ struct ResultsPlainHeader: View {
     }
 }
 
-/// Selector de etapa: P · 1 · 2 · … · F (cápsulas, estética canónica).
+/// Selector de etapa: P · 1 · 2 · … · F, con el aspecto de los filtros de Hoy
+/// (`.res-stage-btn`). Compartido con Ciclocross (categorías y meses).
 struct ResultsStageSelector: View {
     let stageKeys: [String]
     let activeKey: String?
@@ -211,6 +212,9 @@ struct ResultsClassTabsBar: View {
     let selectedTeam: String?
     let onSelectClass: (String) -> Void
     let onSelectTeam: (String?) -> Void
+    /// Clasificación activa: sin pestañas (carreras de un día), su estado
+    /// (Oficial/Provisional) ocupa la izquierda de la fila del filtro.
+    var publicationStage: RaceUciStage? = nil
 
     var body: some View {
         HStack(spacing: 6) {
@@ -228,6 +232,12 @@ struct ResultsClassTabsBar: View {
                         .id(st.classKind)
                     }
                 }
+            } else if let publicationStage {
+                ResultsPublicationStatus(
+                    stage: publicationStage,
+                    classificationLabel: "",
+                    showClassificationLabel: false
+                )
             } else {
                 Spacer()
             }
@@ -245,27 +255,39 @@ struct ResultsClassTabsBar: View {
                         Button(tn) { onSelectTeam(tn) }
                     }
                 } label: {
-                    HStack(spacing: 2) {
+                    // Desplegable como `.res-teamfilter__select`: superficie de
+                    // tarjeta, texto principal y flecha gris.
+                    HStack(spacing: 6) {
                         Text(selectedTeam ?? allLabel)
-                            .font(.caption)
+                            .ccFont(.s14, weight: .semibold)
+                            .foregroundStyle(.primary)
                             .lineLimit(1)
                             .frame(maxWidth: 140)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 10)
                     .frame(minHeight: 44)
-                    .background(AppTheme.cardBackgroundHover)
-                    .foregroundStyle(Color(.secondaryLabel))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
+                    .ccCardSurface()
                 }
                 .accessibilityLabel(LocaleService.t("Filtrar por equipo", "Filter by team"))
                 .accessibilityValue(selectedTeam ?? allLabel)
             }
+        }
+    }
+}
+
+/// Carril enmarcado: superficie de tarjeta, sin filete.
+private struct ResultsRailSurface: ViewModifier {
+    let framed: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if framed {
+            content.ccCardSurface()
+        } else {
+            content
         }
     }
 }
@@ -357,14 +379,7 @@ struct ResultsScrollRail<Content: View>: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .background(framed ? AppTheme.cardBackgroundHover : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: framed ? 8 : 0))
-            .overlay {
-                if framed {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
-            }
+            .modifier(ResultsRailSurface(framed: framed))
         }
     }
 
@@ -391,9 +406,10 @@ struct ResultsScrollRail<Content: View>: View {
     }
 }
 
-/// Pestaña de clasificación alineada con la web 4.4: banda editorial superior,
-/// superficie rectangular y subrayado de selección. El color solo aparece si
-/// la clasificación lo declara; Etapa permanece neutra.
+/// Pestaña de clasificación (`.res-tab`): filete superior con el color del
+/// maillot si la clasificación lo declara (Etapa permanece neutra); la activa,
+/// como el menú principal, con texto principal y subrayado de acento de 2 pt,
+/// sin fondo; las inactivas en gris. Compartida con Ciclocross.
 struct ResultsClassificationTab: View {
     let label: String
     let selected: Bool
@@ -414,16 +430,15 @@ struct ResultsClassificationTab: View {
                 .padding(.horizontal, 10)
 
                 Text(label)
-                    .font(.caption.weight(selected ? .bold : .semibold))
+                    .ccFont(.s13, weight: selected ? .bold : .semibold)
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
                     .padding(.horizontal, 10)
-                    .frame(minHeight: 38)
+                    .frame(minHeight: 39)
 
                 Rectangle()
-                    .fill(selected ? Color.secondary.opacity(0.65) : Color.clear)
-                    .frame(height: 3)
+                    .fill(selected ? Color.accentColor : Color.clear)
+                    .frame(height: 2)
             }
-            .background(selected ? AppTheme.cardBackgroundHover : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -431,7 +446,9 @@ struct ResultsClassificationTab: View {
     }
 }
 
-/// Cápsula de filtro (igual estética que StartOrderFilterBar / chips de Hoy).
+/// Botón del selector de etapas (`.res-stage-btn`), con el aspecto de los
+/// filtros de Hoy: inactivo en gris sobre la superficie de tarjeta; activo con
+/// el acento al 15 % y texto de acento en negrita. Radio de control.
 private struct ResultsPill: View {
     let label: String
     let selected: Bool
@@ -447,20 +464,24 @@ private struct ResultsPill: View {
             // grande en color de texto; el año queda pequeño y atenuado.
             VStack(spacing: 1) {
                 Text(label)
-                    .font(subtitle == nil ? Font.caption : .subheadline)
-                    .fontWeight(selected ? .semibold : subtitle == nil ? .regular : .medium)
+                    .ccFont(.s14, weight: selected ? .bold : subtitle == nil ? .semibold : .medium)
                     .foregroundStyle(selected ? (tint ?? Color.accentColor)
                                      : subtitle == nil ? Color(.secondaryLabel) : Color.primary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.caption2)
+                        .ccFont(.s12)
                         .foregroundStyle(selected ? (tint ?? Color.accentColor) : Color(.secondaryLabel))
                 }
             }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(selected ? (tint ?? Color.accentColor).opacity(0.15) : dateNavigationStyle ? Color.clear : Color(.tertiarySystemBackground))
-                .clipShape(Capsule())
+                .padding(.horizontal, 9)
+                .frame(minWidth: 32, minHeight: 32)
+                .padding(.vertical, subtitle == nil ? 0 : 3)
+                .background(
+                    selected
+                        ? (tint ?? Color.accentColor).opacity(0.15)
+                        : dateNavigationStyle ? Color.clear : AppTheme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+                )
         }
         .buttonStyle(.plain)
         .frame(minWidth: 44, minHeight: 44)
@@ -481,28 +502,23 @@ struct ResultsPublicationStatus: View {
         HStack(spacing: 12) {
             if showClassificationLabel {
                 Text(classificationLabel)
-                    .font(.subheadline.weight(.bold))
+                    .ccFont(.s16, weight: .semibold)
                     .foregroundStyle(.primary)
             }
             Text(isOfficial
                  ? LocaleService.t("Oficial", "Official")
                  : LocaleService.t("Provisional", "Provisional"))
-                .font(.caption)
+                .ccFont(.s13)
                 .foregroundStyle(.secondary)
             if !isOfficial, UciResultsLogic.classificationIsUpdating(stage) {
-                HStack(spacing: 5) {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(.accentColor)
-                        .accessibilityHidden(true)
-                    Text(LocaleService.t("Actualizando", "Updating"))
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.accentColor.opacity(0.12), in: Capsule())
-                .accessibilityElement(children: .ignore)
+                // Solo el indicador giratorio, sin texto, sobre el acento
+                // atenuado con 6 de relleno y sin radio, como la web.
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(.accentColor)
+                    .padding(6)
+                    .background(Color.accentColor.opacity(0.12))
+                    .accessibilityElement(children: .ignore)
                 .accessibilityLabel(LocaleService.t(
                     "Clasificación actualizándose",
                     "Classification updating"
@@ -510,9 +526,9 @@ struct ResultsPublicationStatus: View {
             }
             if !isOfficial, let raw = stage.lastSyncedAt,
                let date = DateFormatting.parseISO(raw) {
-                Text(LocaleService.t("Últ. act.", "Last upd.") + ": "
+                Text(LocaleService.t("Última actualización", "Last update") + ": "
                      + date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
+                    .ccFont(.s13)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -643,7 +659,7 @@ struct ResultsTableView: View {
             } else if let loaded = rows {
                 if loaded.isEmpty {
                     Text(LocaleService.t("No hay datos para esta clasificación.", "No data for this classification."))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
@@ -694,19 +710,14 @@ struct ResultsTableView: View {
                 .font(.caption)
                 .accessibilityHidden(true)
             Text(LocaleService.t("Etapa cancelada", "Stage cancelled"))
-                .font(.caption)
-                .fontWeight(.bold)
+                .ccFont(.s13, weight: .bold)
         }
-        .foregroundStyle(.red)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .foregroundStyle(AppTheme.red)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.red.opacity(0.10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.red.opacity(0.30), lineWidth: 1)
-                )
+            AppTheme.red.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
@@ -729,17 +740,14 @@ struct ResultsTableView: View {
                     "La clasificación no varía: la etapa se canceló. General tras la etapa \(from).",
                     "Standings unchanged: the stage was cancelled. Classification after stage \(from)."
                 ))
-                .font(.footnote)
+                .ccFont(.s13)
                 .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.tertiarySystemBackground))
-            )
-            .padding(.bottom, 8)
+            .ccCardSurface()
+            .padding(.bottom, 12)
             .accessibilityElement(children: .combine)
         }
     }
@@ -813,6 +821,51 @@ struct ResultsTableView: View {
     }
 }
 
+// ── Tabla de clasificación (`.res-table`) ──────────────────────────
+//
+// Presentación común de las clasificaciones, el ránking UCI por equipos y el
+// orden de salida: superficie de tarjeta, cabecera de columnas en gris y filas
+// separadas por un filete fino, sin franjas ni fondos por fila.
+
+/// Superficie de una tabla de clasificación.
+struct ResultsTableSurface<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ccCardSurface()
+    }
+}
+
+/// Filete fino bajo la cabecera y entre filas (`Divider` del sistema).
+struct ResultsTableRule: View {
+    var body: some View {
+        Divider()
+    }
+}
+
+/// Celda de la cabecera de columnas: 12 en negrita, gris.
+struct ResultsHeaderCell: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .ccFont(.s12, weight: .bold)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+}
+
+/// Medidas comunes de fila y cabecera.
+enum ResultsTableMetrics {
+    static let horizontalPadding: CGFloat = 9
+    static let rowVerticalPadding: CGFloat = 7
+    static let headerVerticalPadding: CGFloat = 7
+    static let columnSpacing: CGFloat = 8
+    static let rankWidth: CGFloat = 32
+}
+
 struct ResultsClassificationTable: View {
     let rows: [(vm: UciResultsLogic.ResultRowVM, kind: UciResultsLogic.ValueKind, value: String)]
     let showTeam: Bool
@@ -823,40 +876,23 @@ struct ResultsClassificationTable: View {
     /// pila perezosa anidada con su propia cabecera fijada se superpondría a
     /// ellas y obligaría a recomponer la tabla en cada fotograma del scroll.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            headerView
-            rowViews
-        }
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder private var rowViews: some View {
-        ForEach(rows.indices, id: \.self) { i in
-            let entry = rows[i]
-            ResultsRowView(
-                vm: entry.vm, showTeam: showTeam, showUciPoints: showUciPoints,
-                displayKind: entry.kind,
-                displayValue: entry.value
-            )
-            Divider().opacity(0.4)
-        }
-    }
-
-    private var headerView: some View {
-        VStack(spacing: 0) {
+        ResultsTableSurface {
             ResultsTableHeaderRow(
                 showTeam: showTeam,
                 showUciPoints: showUciPoints,
                 valueHeader: valueHeader
             )
-            Divider().opacity(0.4)
+            ResultsTableRule()
+            ForEach(rows.indices, id: \.self) { i in
+                let entry = rows[i]
+                ResultsRowView(
+                    vm: entry.vm, showTeam: showTeam, showUciPoints: showUciPoints,
+                    displayKind: entry.kind,
+                    displayValue: entry.value
+                )
+                if i < rows.count - 1 { ResultsTableRule() }
+            }
         }
-        .background(AppTheme.cardBackground)
     }
 }
 
@@ -866,9 +902,9 @@ private struct ResultsTableHeaderRow: View {
     let valueHeader: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: ResultsTableMetrics.columnSpacing) {
             ResultsHeaderCell(text: "#")
-                .frame(width: 32, alignment: .leading)
+                .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
             ResultsHeaderCell(text: showTeam
                 ? LocaleService.t("Corredor", "Rider")
                 : LocaleService.t("Equipo", "Team"))
@@ -878,21 +914,10 @@ private struct ResultsTableHeaderRow: View {
                     .frame(width: 44, alignment: .trailing)
             }
             ResultsHeaderCell(text: valueHeader)
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(AppTheme.cardBackgroundHover)
-    }
-}
-
-private struct ResultsHeaderCell: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+        .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+        .padding(.vertical, ResultsTableMetrics.headerVerticalPadding)
     }
 }
 
@@ -904,30 +929,26 @@ private struct ResultsRowView: View {
     let displayValue: String
 
     var body: some View {
-        rowContent
-    }
-
-    private var rowContent: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: ResultsTableMetrics.columnSpacing) {
             // # / IRM
             Group {
                 if let rank = vm.rank {
                     Text(String(rank))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .ccFont(.s14, weight: .bold)
+                        .monospacedDigit()
                 } else {
                     Text(vm.rankBadge ?? "–")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .ccFont(.s12, weight: .semibold)
                 }
             }
-            .frame(width: 32, alignment: .leading)
+            .foregroundStyle(.secondary)
+            .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
 
             // Corredor arriba; equipación + equipo en el subtítulo, como en la
             // tabla móvil de la web. La marca cromática identifica al equipo,
             // no al corredor.
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     if !vm.countryCode.isEmpty {
                         CountryFlag(countryCode: vm.countryCode, width: 17.33)
                     }
@@ -935,7 +956,7 @@ private struct ResultsRowView: View {
                         TeamColorBands(team: team)
                     }
                     Text(vm.riderName.isEmpty ? "—" : vm.riderName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .ccFont(.s14, weight: .semibold)
                         .foregroundStyle(vm.riderName.isEmpty ? Color.secondary : Color.primary)
                         .lineLimit(1)
                 }
@@ -946,7 +967,7 @@ private struct ResultsRowView: View {
                             TeamColorBands(team: team)
                         }
                         Text(vm.teamName)
-                            .font(.system(size: 11))
+                            .ccFont(.s12)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -960,10 +981,11 @@ private struct ResultsRowView: View {
                     .frame(width: 44, alignment: .trailing)
             }
             ResultsValueCell(kind: displayKind, value: displayValue)
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+        .padding(.vertical, ResultsTableMetrics.rowVerticalPadding)
+        .frame(minHeight: 35)
     }
 }
 
@@ -972,7 +994,8 @@ private struct ResultsUciPointsCell: View {
 
     var body: some View {
         Text(points?.formatted(.number.precision(.fractionLength(0...2))) ?? "")
-            .font(.system(size: 12, weight: .semibold))
+            .ccFont(.s13, weight: .semibold)
+            .monospacedDigit()
             .foregroundStyle(.secondary)
             .lineLimit(1)
     }
@@ -991,7 +1014,8 @@ private struct ResultsValueCell: View {
             }
         }()
         Text(value)
-            .font(.system(size: 13, weight: weight))
+            .ccFont(.s14, weight: weight)
+            .monospacedDigit()
             .foregroundStyle(color)
             .multilineTextAlignment(.trailing)
             .lineLimit(1)
@@ -1016,9 +1040,24 @@ private struct ResultsTttTable: View {
 
         // Pila normal, como ResultsClassificationTable: las pestañas de
         // clasificación son la cabecera fijada de la pantalla.
-        VStack(alignment: .leading, spacing: 0) {
-            Section {
-                ForEach(teams.indices, id: \.self) { i in
+        ResultsTableSurface {
+            HStack(spacing: ResultsTableMetrics.columnSpacing) {
+                ResultsHeaderCell(text: "#")
+                    .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
+                ResultsHeaderCell(text: LocaleService.t("Equipo", "Team"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if showUciPoints {
+                    ResultsHeaderCell(text: "UCI")
+                        .frame(width: 44, alignment: .trailing)
+                }
+                ResultsHeaderCell(text: LocaleService.t("Tiempo", "Time"))
+                    .frame(width: 72, alignment: .trailing)
+            }
+            .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+            .padding(.vertical, ResultsTableMetrics.headerVerticalPadding)
+            ResultsTableRule()
+
+            ForEach(teams.indices, id: \.self) { i in
                 let team = teams[i]
                 let isOpen = expanded.contains(i)
 
@@ -1026,23 +1065,26 @@ private struct ResultsTttTable: View {
                 Button {
                     if isOpen { expanded.remove(i) } else { expanded.insert(i) }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: ResultsTableMetrics.columnSpacing) {
                         Text(team.rank.map(String.init) ?? "–")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 32, alignment: .leading)
+                            .ccFont(.s14, weight: .bold)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: ResultsTableMetrics.rankWidth, alignment: .center)
 
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             if let t = team.team, t.hasVisibleBadge {
                                 TeamColorBands(team: t)
                             }
                             Text(team.teamName.isEmpty ? "—" : team.teamName)
-                                .font(.system(size: 14, weight: .semibold))
+                                .ccFont(.s14, weight: .semibold)
                                 .foregroundStyle(.primary)
                                 .lineLimit(1)
-                            Text(isOpen ? "▴" : "▾")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .rotationEffect(.degrees(isOpen ? 180 : 0))
+                                .foregroundStyle(isOpen ? Color.accentColor : Color.secondary)
+                                .accessibilityHidden(true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1057,14 +1099,12 @@ private struct ResultsTttTable: View {
                             return UciResultsLogic.tttGapBetween(teamSecs: team.teamSecs, winnerSecs: winnerSecs)
                                 ?? (team.teamTimeText ?? "")
                         }()
-                        Text(value)
-                            .font(.system(size: 13, weight: isWinner ? .bold : .regular))
-                            .foregroundStyle(isWinner ? Color.accentColor : Color.secondary)
-                            .lineLimit(1)
-                            .frame(width: 70, alignment: .trailing)
+                        ResultsValueCell(kind: isWinner ? .winnerTime : .gap, value: value)
+                            .frame(width: 72, alignment: .trailing)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, ResultsTableMetrics.horizontalPadding)
+                    .padding(.vertical, ResultsTableMetrics.rowVerticalPadding)
+                    .frame(minHeight: 35)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1075,35 +1115,8 @@ private struct ResultsTttTable: View {
                         tttRiderRow(rider, showUciPoints: showUciPoints)
                     }
                 }
-                Divider().opacity(0.4)
-                }
-            } header: {
-                VStack(spacing: 0) {
-                    HStack(spacing: 6) {
-                        ResultsHeaderCell(text: "#")
-                            .frame(width: 32, alignment: .leading)
-                        ResultsHeaderCell(text: LocaleService.t("Equipo", "Team"))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if showUciPoints {
-                            ResultsHeaderCell(text: "UCI")
-                                .frame(width: 44, alignment: .trailing)
-                        }
-                        ResultsHeaderCell(text: LocaleService.t("Tiempo", "Time"))
-                            .frame(width: 70, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.cardBackgroundHover)
-                    Divider().opacity(0.4)
-                }
-                .background(AppTheme.cardBackground)
+                if i < teams.count - 1 { ResultsTableRule() }
             }
-        }
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
         }
     }
 
@@ -1112,12 +1125,12 @@ private struct ResultsTttTable: View {
         _ rider: UciResultsLogic.TttRiderRow,
         showUciPoints: Bool
     ) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             if !rider.countryCode.isEmpty {
                 CountryFlag(countryCode: rider.countryCode, width: 17.33)
             }
             Text(rider.name.isEmpty ? "—" : rider.name)
-                .font(.system(size: 13))
+                .ccFont(.s14)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1132,14 +1145,15 @@ private struct ResultsTttTable: View {
                     .frame(width: 44, alignment: .trailing)
             }
             Text(indiv)
-                .font(.system(size: 12))
+                .ccFont(.s13)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
         }
-        .padding(.leading, 38)
-        .padding(.trailing, 8)
+        .padding(.leading, ResultsTableMetrics.horizontalPadding + ResultsTableMetrics.rankWidth + ResultsTableMetrics.columnSpacing)
+        .padding(.trailing, ResultsTableMetrics.horizontalPadding)
         .padding(.vertical, 5)
-        .background(Color(.secondarySystemBackground).opacity(0.6))
+        .background(AppTheme.neutralFill.opacity(0.5))
     }
 }

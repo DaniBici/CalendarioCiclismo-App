@@ -1,5 +1,8 @@
 package app.calendariociclismo.android.ui.cyclocross
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import app.calendariociclismo.android.ui.theme.CCText
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -199,7 +202,7 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
         // Primera carga: pantalla de carga completa (sin perfil inferior, como
         // Hoy) hasta tener jornada, ronda y mapa listos.
         if (loading && data == null) {
-            RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, modifier = Modifier.padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.statusBars))
+            RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, title = LocaleHolder.t("Ciclocross", "Cyclocross"), modifier = Modifier.padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.statusBars))
             return@Scaffold
         }
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.statusBars)) {
@@ -219,17 +222,17 @@ fun CxRaceScreen(nav: NavController, raceId: String, initialCategory: String? = 
                             val date = DateFormatting.formatDateLongContent(race.dateKey) + (race.endDateKey?.takeIf { it != race.dateKey }?.let { " – " + DateFormatting.formatDateLongContent(it) } ?: "")
                             RaceDayHeading(name = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name,
                                 logoUrl = CxPresentation.logo(race), countryCode = race.countryCode,
-                                category = CxPresentation.raceClass(race.raceClass, english), dateLabel = date, onBack = { nav.popBackStack() })
+                                category = CxPresentation.className(race.raceClass, english), dateLabel = date, onBack = { nav.popBackStack() })
                             RaceDayLocation(race.venue ?: "")
                             race.tournament?.let { tournament ->
                                 val currentRound = round
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    RaceActionBadge(LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name),
+                                    CxLinkBadge(LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name),
                                         onClick = { nav.navigate(Routes.cxTournament(tournament.id, race.seasonKey, LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name), tournament.logoUrl)) })
-                                    if (currentRound != null && currentRound.total > 1) Text("${currentRound.n}/${currentRound.total}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (currentRound != null && currentRound.total > 1) Text("${currentRound.n}/${currentRound.total}", style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            if (race.isCancelled) Text(stringResource(R.string.cx_cancelled), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            if (race.isCancelled) Text(stringResource(R.string.cx_cancelled), style = CCText.S12, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                             // Zona de documentación, idéntica a la de carretera:
                             // tira enmarcada con Web oficial · Libro de Ruta · Mapa.
                             // La acción de seguimiento es también la puerta de
@@ -408,7 +411,8 @@ private fun CxSelectedContent(
                     Text(
                         if (english) race.tournament?.nameEn ?: race.tournament?.name.orEmpty()
                         else race.tournament?.name.orEmpty(),
-                        fontWeight = FontWeight.Bold,
+                        style = CCText.S16,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     val standings = detail.standings.filter { it.category == standingCategory }
                     CxStandingsTable(
@@ -427,11 +431,11 @@ private fun CxSelectedContent(
         section == CxDetailSection.STARTLIST -> {
             val riders = detail.startlist.filter { it.category == category.category }.sortedBy { it.sortOrder }
             Column {
-                Text(cxCategoryName(category.category), fontWeight = FontWeight.SemiBold)
+                Text(cxCategoryName(category.category), style = CCText.S16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 if (categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
-                    Text(category.dateKey ?: race.dateKey, style = MaterialTheme.typography.bodySmall)
+                    Text(category.dateKey ?: race.dateKey, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (riders.isEmpty()) Text(stringResource(R.string.cx_no_startlist))
+                if (riders.isEmpty()) Text(stringResource(R.string.cx_no_startlist), style = CCText.S14, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 riders.forEach { row ->
                     CxTableRow(
                         row.bib ?: "—",
@@ -449,7 +453,7 @@ private fun CxSelectedContent(
             Column {
                 CxPublicationStatus(cxCategoryName(category.category), category.resultsStatus == "official")
                 if (categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
-                    Text(category.dateKey ?: race.dateKey, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(category.dateKey ?: race.dateKey, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(4.dp))
                 val resultRows = remember(rows, locale, teamMatcher) { CxPresentation.resultRows(rows, locale, teamMatcher) }
@@ -462,7 +466,8 @@ private fun CxSelectedContent(
                 rows.filter { it.bonusSeconds != null }.forEach { row ->
                     Text(
                         row.riderDisplay + " · " + LocaleHolder.t("Bonificación: ", "Bonus: ") + row.bonusSeconds + " s",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = CCText.S12,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -479,7 +484,7 @@ private fun CxVideosCard(videos: List<CxVideo>) {
             val id = CxPresentation.youtubeVideoId(video.url) ?: return@forEach
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(LocaleHolder.t(video.title, video.titleEn?.takeIf { it.isNotBlank() } ?: video.title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(LocaleHolder.t(video.title, video.titleEn?.takeIf { it.isNotBlank() } ?: video.title), style = CCText.S16, fontWeight = FontWeight.SemiBold)
                     AndroidView(
                         factory = { context -> WebView(context).apply {
                             // Con WRAP_CONTENT el WebView adopta la altura del
@@ -517,9 +522,9 @@ private fun CxVideosCard(videos: List<CxVideo>) {
 @Composable
 internal fun CxPublicationStatus(label: String, official: Boolean, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text(label, style = CCText.S14, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Text(if (official) LocaleHolder.t("Oficial", "Official") else LocaleHolder.t("Provisional", "Provisional"),
-            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.weight(1f))
     }
 }
@@ -564,10 +569,10 @@ private fun CxRaceDataCard(race: CxRace, scheduled: List<CxCategory>, activeCate
                     else (if (multiDate) DateFormatting.formatDateShort(category.dateKey ?: race.dateKey) + " · " else "") +
                         category.startTimeUtc?.let(DateFormatting::formatTimeLocal).orEmpty()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(cxCategoryName(category.category), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                    Text(cxCategoryName(category.category), Modifier.weight(1f), style = CCText.S14,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(time, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(time, style = CCText.S14, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -603,15 +608,15 @@ private fun CxProgrammeCard(
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (race.isCancelled || category.isCancelled) stringResource(R.string.cx_cancelled)
-                                    else category.startTimeUtc?.let(DateFormatting::formatTimeLocal).orEmpty(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                Text(cxCategoryName(category.category), style = MaterialTheme.typography.bodyMedium)
+                                    else category.startTimeUtc?.let(DateFormatting::formatTimeLocal).orEmpty(), style = CCText.S16, fontWeight = FontWeight.Bold)
+                                Text(cxCategoryName(category.category), style = CCText.S16)
                             }
                             if (race.categories.map { it.dateKey ?: race.dateKey }.distinct().size > 1) {
-                                Text(DateFormatting.formatDateLongContent(category.dateKey ?: race.dateKey), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(DateFormatting.formatDateLongContent(category.dateKey ?: race.dateKey), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (detail.startlist.any { it.category == category.category }) RaceActionBadge(stringResource(R.string.cx_startlist), { onStartlist(category.category) }, icon = Icons.Filled.Group)
+                            if (detail.startlist.any { it.category == category.category }) CxLinkBadge(stringResource(R.string.cx_startlist), { onStartlist(category.category) }, icon = Icons.Filled.Group)
                             // Copa solo-icono de las cards de Hoy en lugar del botón de texto.
                             if (category.category in CxPresentation.resultCategories(detail)) {
                                 ResultsTrophyAction(onClick = { onResults(category.category) }, contentDescription = stringResource(R.string.cx_results), boxSize = 28.dp, glyphSize = 20.dp)
@@ -639,7 +644,7 @@ private fun CxProgrammeCard(
                 }
                 if (media.tv.isEmpty() && media.hasHiddenTV && !showAllTV) Text(
                     text = stringResource(R.string.cx_no_tv),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = CCText.S14,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 6.dp),
                 )
@@ -647,7 +652,7 @@ private fun CxProgrammeCard(
                 // comunes (sin categoría) sin encabezado y un bloque por
                 // categoría en directo, en el orden del programa.
                 for (group in media.tv) {
-                    group.category?.let { Text(cxCategoryName(it), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold) }
+                    group.category?.let { Text(cxCategoryName(it), style = CCText.S14, fontWeight = FontWeight.SemiBold) }
                     group.rows.chunked(broadcastColumns).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             row.forEach { tv ->
@@ -703,19 +708,19 @@ private fun CxProgrammeCard(
 private fun CxTableRow(position: String, name: String, teamName: String?, country: String?, value: String?, team: Team? = null) {
     Column {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(position, Modifier.width(36.dp), style = MaterialTheme.typography.bodySmall)
+            Text(position, Modifier.width(36.dp), style = CCText.S14, fontWeight = FontWeight.SemiBold)
             CountryFlag(country, height = 12.dp)
             Column(Modifier.weight(1f)) {
                 // Franjas junto al corredor, como en iOS y en la web.
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(name, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f, fill = false))
+                    Text(name, style = CCText.S14, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f, fill = false))
                     team?.let { TeamColorBands(it) }
                 }
-                teamName?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                teamName?.takeIf { it.isNotBlank() }?.let { Text(it, style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            value?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            value?.let { Text(it, style = CCText.S13) }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

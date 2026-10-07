@@ -75,10 +75,7 @@ struct ResultsView: View {
         Group {
             switch state {
             case .loading:
-                LoadingView(
-                    message: LocaleService.t("Cargando clasificaciones...", "Loading classifications..."),
-                    branded: true
-                )
+                LoadingView(branded: true, title: LocaleService.t("Clasificaciones", "Classifications"))
             case .error(let message):
                 ErrorView(message: message) {
                     Task { await load(resetSelection: true) }
@@ -396,15 +393,21 @@ struct ResultsView: View {
                     .padding(.bottom, 4)
                 }
 
+                let hasClassTabs = sortedStages(data, for: activeStageKey).count > 1
                 Section {
-                    ResultsPublicationStatus(
-                        stage: stage,
-                        classificationLabel: classificationLabel,
-                        showClassificationLabel: !data.race.isOneDay
-                    )
-                        .padding(.horizontal)
-                        .padding(.top, 2)
-                        .padding(.bottom, 4)
+                    // Con pestañas, el estado va en la línea del título de la
+                    // clasificación («Etapa · Oficial»); sin ellas, en la fila
+                    // del filtro de equipos (ResultsClassTabsBar).
+                    if hasClassTabs {
+                        ResultsPublicationStatus(
+                            stage: stage,
+                            classificationLabel: classificationLabel,
+                            showClassificationLabel: true
+                        )
+                            .padding(.horizontal)
+                            .padding(.top, 2)
+                            .padding(.bottom, 4)
+                    }
                     if stage.isPendingClassification {
                         EmptyStateView(
                             icon: "hourglass",
@@ -451,7 +454,8 @@ struct ResultsView: View {
                         teamsAvailable: teamsAvailable,
                         selectedTeam: selectedTeam,
                         onSelectClass: { activeClassKind = $0 },
-                        onSelectTeam: { selectedTeam = $0 }
+                        onSelectTeam: { selectedTeam = $0 },
+                        publicationStage: hasClassTabs ? nil : stage
                     )
                     .padding(.horizontal)
                     .padding(.vertical, 4)
@@ -665,8 +669,8 @@ struct ResultsStageContext: View {
                     NavigationLink(destination: ElevationProfileView(raceDay: raceDay, race: race)) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(LocaleService.t("Perfil y datos", "Profile and data"))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .ccFont(.s16, weight: .semibold)
+                                .foregroundStyle(.primary)
                             MiniElevationProfile(
                                 profile: profile,
                                 summits: raceDay.profileSummits ?? [],
@@ -686,7 +690,7 @@ struct ResultsStageContext: View {
                     Link(destination: url) {
                         HStack(spacing: 8) {
                             Text(LocaleService.t("Perfil oficial", "Official profile"))
-                                .font(.caption.weight(.semibold))
+                                .ccFont(.s14, weight: .semibold)
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption2)
@@ -704,8 +708,8 @@ struct ResultsStageContext: View {
                    let value = DateFormatting.formatTimeLocal(raw) {
                     contextMetric(LocaleService.t("Salida neutralizada", "Neutral start"), value)
                 }
-                if let value = raceDay.averageSpeedKmh {
-                    contextMetric(LocaleService.t("Velocidad media", "Average speed"), String(format: "%.1f km/h", value))
+                if let value = raceDay.averageSpeedKmh, value > 0 {
+                    contextMetric(LocaleService.t("Velocidad media", "Average speed"), averageSpeedText(value))
                 }
                 if raceDay.hasValidTimeLimit,
                    let value = RaceDay.formatDuration(seconds: raceDay.timeLimitSeconds) {
@@ -718,11 +722,18 @@ struct ResultsStageContext: View {
         }
     }
 
+    /// Velocidad media con los decimales del idioma (hasta dos), como la web.
+    private func averageSpeedText(_ value: Double) -> String {
+        let locale = Locale(identifier: LocaleService.shouldShowEnglishContent ? "en_GB" : "es_ES")
+        let number = value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        return "\(number) km/h"
+    }
+
     private func contextMetric(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).ccFont(.s14).foregroundStyle(.secondary)
             Spacer()
-            Text(value).font(.caption.weight(.semibold)).monospacedDigit()
+            Text(value).ccFont(.s14).monospacedDigit()
         }
     }
 }

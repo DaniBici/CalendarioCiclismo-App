@@ -18,3 +18,18 @@ export function cxPanelAgendaRaces(races,dateKey) {
     (race.cx_race_categories||[]).some(category=>(category.dateKey||race.dateKey)===dateKey)
     ||!(race.cx_race_categories||[]).length&&race.dateKey===dateKey));
 }
+
+// Día con jornadas más cercano en el sentido de la navegación: hacia delante
+// con direction>=0 y hacia atrás con direction<0; sin sentido (apertura, Hoy)
+// prueba también hacia atrás. Sin días con jornadas devuelve la fecha pedida.
+export function cxPanelNearestRaceDate(races,dateKey,direction=0) {
+  const days=[...new Set(races.flatMap(race=>{
+    const categories=race.cx_race_categories||[];
+    const keys=categories.length?categories.map(category=>category.dateKey||race.dateKey):[race.dateKey];
+    return keys.filter(key=>key&&cxDateInSeason(race.seasonKey,key));
+  }))].sort();
+  if(days.includes(dateKey))return dateKey;
+  const after=days.find(day=>day>dateKey),before=days.filter(day=>day<dateKey).pop();
+  if(direction<0)return before||dateKey;
+  return after||(direction>0?dateKey:before||dateKey);
+}

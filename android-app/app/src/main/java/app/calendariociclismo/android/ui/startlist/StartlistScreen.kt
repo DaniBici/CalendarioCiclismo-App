@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.startlist
 
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import android.widget.Toast
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,7 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.neutralFill
 import androidx.navigation.NavController
 import app.calendariociclismo.android.CalendarioCiclismoApp
 import app.calendariociclismo.android.R
@@ -136,12 +142,11 @@ fun StartlistScreen(
 
 @Composable
 private fun LoadingContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
+    RouteLoadingView(
+        message = stringResource(R.string.loading),
+        showProfile = false,
+        title = LocaleHolder.t("Inscritos", "Startlist"),
+    )
 }
 
 @Composable
@@ -274,7 +279,6 @@ private fun StartlistHeaderCard(
     // detalle. Sustituye el Card surfaceVariant 40% por la superficie pulida.
     CCCard(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 12,
     ) {
         Column(
             modifier = Modifier
@@ -305,9 +309,8 @@ private fun StartlistHeaderCard(
                         }
                         Text(
                             race.localizedName,
-                            style = MaterialTheme.typography.titleLarge,
-                            // Peso igualado al titular del cintillo (Medium, no Bold).
-                            fontWeight = FontWeight.Medium,
+                            style = CCText.S16,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -332,28 +335,28 @@ private fun StartlistHeaderCard(
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
                             stringResource(R.string.startlist_label_teams),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = CCText.S12,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             teamCount.toString(),
-                            style = MaterialTheme.typography.titleSmall,
+                            style = CCText.S20,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.width(1.dp))
+                    VerticalDivider(modifier = Modifier.height(32.dp))
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         stringResource(if (race.isFemale) R.string.startlist_label_riders_female else R.string.startlist_label_riders_male),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = CCText.S12,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         riderCount.toString(),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = CCText.S20,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -383,30 +386,37 @@ private fun StartlistHeaderCard(
     }
 }
 
+/** Aviso de lista provisional sobre la superficie neutra; título en acento, como la web. */
 @Composable
 private fun ProvisionalDisclaimerCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
+    CCCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                stringResource(R.string.startlist_disclaimer_provisional_title),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    stringResource(R.string.startlist_disclaimer_provisional_title),
+                    style = CCText.S14,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Text(
                 stringResource(R.string.startlist_disclaimer_provisional_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                style = CCText.S13,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -421,17 +431,10 @@ private fun StartlistTeamCard(
     ridersOut: Map<String, RiderOut> = emptyMap(),
     isOneDay: Boolean = false,
 ) {
-    val headerBgColor = globalTeam?.headerBg?.let { Color(android.graphics.Color.parseColor(it)) }
-        ?: MaterialTheme.colorScheme.surfaceVariant
-    val headerTextColor = globalTeam?.headerText?.let { Color(android.graphics.Color.parseColor(it)) }
-        ?: MaterialTheme.colorScheme.onSurfaceVariant
-
-    // Tarjeta de equipo recta, sin sombra y con hairline, como la web y iOS
-    // (`ccCardSurface(cornerRadius: 0, showShadow: false)`).
+    // Tarjeta de equipo sobre la superficie neutra: cabecera gris con las
+    // franjas de maillot del equipo (las de Resultados), como iOS.
     CCCard(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 0,
-        elevation = 0,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Los estados sin equipo van SIN cabecera (ocultación cosmética,
@@ -439,25 +442,29 @@ private fun StartlistTeamCard(
             if (!team.isNoTeamPlaceholder) Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(headerBgColor)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    .heightIn(min = 38.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp)
+                    .semantics(mergeDescendants = true) { heading() },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                globalTeam?.let { TeamColorBands(it) }
                 Text(
                     globalTeam?.name ?: team.displayName,
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = headerTextColor,
-                    maxLines = 1
+                    style = CCText.S14,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 if (isProvisional) {
                     Box(
                         modifier = Modifier
                             .size(18.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(CCRadius.Control))
                             .background(
                                 if (team.isConfirmed) MaterialTheme.colorScheme.primary
                                 else Color(0xFF6B7280)
@@ -481,7 +488,7 @@ private fun StartlistTeamCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
+                    .padding(vertical = 4.dp)
             ) {
                 riders.forEach { rider ->
                     val out = rider.globalRiderId?.let { ridersOut[it] }
@@ -508,37 +515,27 @@ private fun StartlistRiderRow(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isOut) 0.55f else 1f)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Dorsal
+        // Dorsal en recuadro gris (radio de control), como la web.
         if (rider.dorsal != null && rider.dorsal != 0) {
-            Surface(
+            Text(
+                "${rider.dorsal}",
                 modifier = Modifier
-                    .width(28.dp)
-                    .wrapContentHeight(),
-                shape = RoundedCornerShape(2.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        "${rider.dorsal}",
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp
-                    )
-                }
-            }
+                    .width(34.dp)
+                    .clip(RoundedCornerShape(CCRadius.Control))
+                    .background(neutralFill)
+                    .padding(vertical = 1.dp),
+                style = CCText.S13.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
         } else {
-            Spacer(modifier = Modifier.width(28.dp))
+            Spacer(modifier = Modifier.width(34.dp))
         }
 
         // Flag
@@ -553,7 +550,7 @@ private fun StartlistRiderRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 rider.fullName,
-                style = MaterialTheme.typography.bodySmall,
+                style = CCText.S14,
                 maxLines = 2,
                 textDecoration = if (isOut) TextDecoration.LineThrough else null,
             )
@@ -571,7 +568,7 @@ private fun StartlistRiderRow(
                 }
                 Text(
                     reason,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = CCText.S12,
                     color = MaterialTheme.colorScheme.error,
                     maxLines = 1,
                 )

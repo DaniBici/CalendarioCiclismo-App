@@ -27,12 +27,17 @@ import app.calendariociclismo.android.data.model.ProfileSummit
 import app.calendariociclismo.android.data.model.ProfileWaypoint
 import kotlinx.coroutines.delay
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 
 private val SUMMIT_COLOR  = Color(0xFFC53030)
-/** Color neutro de la porción aún "no recorrida" cuando se muestra progreso. */
-private val PROGRESS_BASE = Color(0xFF999999)
+/**
+ * Porción pendiente (`--profile-pending-color` de la web): #657185 al 30 % en
+ * claro y #465568 al 50 % en oscuro. La recorrida usa el color de la carrera
+ * al 60 %. Sin trazo, como `.race-card__elevation`.
+ */
+private val PENDING_LIGHT = Color(0xFF657185).copy(alpha = 0.30f)
+private val PENDING_DARK = Color(0xFF465568).copy(alpha = 0.50f)
+private const val TRAVERSED_ALPHA = 0.60f
 private val COLOR_SPRINT  = Color(0xFF0F9D58)
 private val COLOR_BONUS   = Color(0xFFF9AB00)
 private val COLOR_SPLIT   = Color(0xFF00838F)
@@ -139,17 +144,21 @@ fun MiniElevationProfile(
     usesLineFallbackWithoutTimeTrialSchedule: Boolean = false,
     /** Fuerza 100% cuando la tarjeta ya muestra Resultados o Revive. */
     forceCompleted: Boolean = false,
+    /**
+     * Avance ya resuelto por el llamador (Hoy: `RaceLogic.profileProgress`).
+     * Tiene prioridad sobre el resto de reglas; null conserva el cálculo propio.
+     */
+    fixedProgress: Float? = null,
 ) {
-    val adjustedTint = adjustedMiniProfileColor(
-        tint,
-        darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
-    )
+    val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val adjustedTint = adjustedMiniProfileColor(tint, darkTheme = darkTheme)
+    val pendingColor = if (darkTheme) PENDING_DARK else PENDING_LIGHT
     // Reloj que avanza cada 60 s mientras la etapa está en curso. `remember`
     // y `LaunchedEffect` se invocan siempre (las condiciones van dentro) para
     // no romper las reglas de composición.
     val nowState = remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(startTimeMs, endTimeMs, isTimeTrial) {
-        if (startTimeMs == null || endTimeMs == null || endTimeMs <= startTimeMs || isTimeTrial) {
+    LaunchedEffect(startTimeMs, endTimeMs, isTimeTrial, fixedProgress) {
+        if (fixedProgress != null || startTimeMs == null || endTimeMs == null || endTimeMs <= startTimeMs || isTimeTrial) {
             return@LaunchedEffect
         }
         while (true) {
@@ -159,6 +168,7 @@ fun MiniElevationProfile(
         }
     }
     val progress: Float? = when {
+        fixedProgress != null -> fixedProgress.coerceIn(0f, 1f)
         // CRI/CRE: siempre 0% (silueta gris, sin teñir). Cada corredor o equipo
         // sale en un momento distinto, así que un único reloj de salida→llegada
         // no representa el avance (paridad con la web).
@@ -259,28 +269,16 @@ fun MiniElevationProfile(
             lineTo(last.x, size.height)
             close()
         }
-        // Trazo principal
-        val strokePath = Path().apply {
-            val first = pointAt(0)
-            moveTo(first.x, first.y)
-            for (i in 1 until pts.size) {
-                val p = pointAt(i)
-                lineTo(p.x, p.y)
-            }
-        }
-
+        // Silueta tenue y sin trazo: parte pendiente en gris y recorrida con
+        // el color de la carrera recortada al avance (de izquierda a derecha).
+        val traversed = adjustedTint.copy(alpha = TRAVERSED_ALPHA)
         if (progress != null) {
-            // Base gris (silueta completa) + porción teñida recortada al
-            // % transcurrido: el relleno avanza de izquierda a derecha.
-            drawPath(fillPath, color = PROGRESS_BASE.copy(alpha = 0.28f))
-            drawPath(strokePath, color = PROGRESS_BASE.copy(alpha = 0.5f), style = Stroke(width = 1.4f))
+            drawPath(fillPath, color = pendingColor)
             clipRect(left = 0f, top = 0f, right = size.width * progress, bottom = size.height) {
-                drawPath(fillPath, color = adjustedTint.copy(alpha = 0.20f))
-                drawPath(strokePath, color = adjustedTint.copy(alpha = 0.95f), style = Stroke(width = 1.4f))
+                drawPath(fillPath, color = traversed)
             }
         } else {
-            drawPath(fillPath, color = adjustedTint.copy(alpha = 0.15f))
-            drawPath(strokePath, color = adjustedTint.copy(alpha = 0.85f), style = Stroke(width = 1.4f))
+            drawPath(fillPath, color = traversed)
         }
 
         // Indicadores: summits primero, luego waypoints (mismo orden que iOS).

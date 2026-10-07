@@ -42,7 +42,7 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
   root.querySelector=selector=>selector==='[data-cx-race-id]'?new Element({'data-cx-race-id':'race'}):root.querySelectorAll(selector)[0]||null;
   root.addEventListener=(name,fn)=>{clicks[name]=fn;};
   const back=vi.fn(),buildRaceHeader=vi.fn(()=>'<header class="race-header"><h1>Carrera CX</h1></header>');
-  const editButton={update:vi.fn()},mountCxPublicEditButton=vi.fn(()=>editButton),limitScrollToStickyStart=vi.fn();
+  const limitScrollToStickyStart=vi.fn();
   const data={cx_results:resultCodes.map(category=>({category,rank:1,riderDisplay:'Ganador',timeSeconds:3600})),
     cx_startlist_riders:startlist?['ME','WE'].map(category=>({category,firstName:'Nombre',lastName:category,bib:1,sortOrder:0})):[],
     cx_broadcasts:broadcasts??[{channel:'TV CX',url:'https://tv.example/live',country:'ALL'}],
@@ -61,7 +61,7 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
       createElement:()=>new Element(),head:{append:node=>{alternates[`link[rel=alternate][hreflang="${node.hreflang}"]`]=node;}}},
     initI18n:async()=>{},t:key=>key,getLang:()=>lang,getLocale:()=>lang==='en'?'en-GB':'es-ES',
     supabase,cxQuery:async query=>query.table==='cx_races'?testRace:[],cxAllRows,cxSeasonRounds:async()=>new Map(),cxIsHidden,CX_SPANISH_AUDIENCE,
-    countryFlag:()=>'',buildRaceHeader,teamStripes:()=>'',findMatchingTeam:()=>null,cxLogoImage:()=>null,mountCxPublicEditButton,limitScrollToStickyStart,
+    countryFlag:()=>'',buildRaceHeader,teamStripes:()=>'',findMatchingTeam:()=>null,cxLogoImage:()=>null,limitScrollToStickyStart,
     setMeta:(key,value)=>{meta[key]=value;},setMetaProperty:(key,value)=>{meta[key]=value;},
     filterBroadcastsByRegion:rows=>rows,broadcastRegionBadgeLabel:country=>country,seoLongDateWeekday:date=>date,
     cxCategoryTiming:()=>({displayState:'official'}),startlistCyclistHtml:'',resultsTrophyHtml:'',setInterval:()=>1,clearInterval:()=>{}
@@ -70,7 +70,7 @@ async function open(path='/ciclocross/carrera/',{lang='es',resultCodes=['ME','WE
   const click=(node,options={})=>{
     const event={target:node,button:0,preventDefault:vi.fn(),...options};clicks.click(event);return event;
   };
-  return {root,node,click,location,back,buildRaceHeader,cxAllRows,canonical,meta,mountCxPublicEditButton,editButton,limitScrollToStickyStart,writes:()=>writes,
+  return {root,node,click,location,back,buildRaceHeader,cxAllRows,canonical,meta,limitScrollToStickyStart,writes:()=>writes,
     restore:path=>{navigate(path);events.popstate();}};
 }
 
@@ -92,17 +92,6 @@ describe('jornada CX integrada',()=>{
       expect(page.root.innerHTML).toContain('cx-programme-schedule');
     }
   });
-  it('monta el acceso administrativo y actualiza su sección durante la navegación pública',async()=>{
-    const page=await open('/en/cyclocross/race/',{lang:'en'});
-    const [client,root,id,options]=page.mountCxPublicEditButton.mock.calls[0];
-    expect(client).toBeDefined();expect(root).toBe(page.root);expect(id).toBe('race');
-    expect(options.lang).toBe('en');
-    expect(options.getSection()).toBe('results');
-    page.click(page.node('cxSectionLink','programme'));
-    expect(options.getSection()).toBe('programme');
-    expect(page.editButton.update).toHaveBeenCalledTimes(2);
-  });
-
   it('muestra la general como sección propia y redirige los enlaces antiguos de resultados',async()=>{
     const standings=[{category:'ME',rank:1,riderDisplay:'Líder',points:'40'},{category:'WU',rank:1,riderDisplay:'Sub-23',points:'40'}];
     const states=['ME','WU'].map(category=>({category,status:'ready',roundIds:['race']}));

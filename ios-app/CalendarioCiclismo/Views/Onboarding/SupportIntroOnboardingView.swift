@@ -23,12 +23,12 @@ struct SupportIntroOnboardingView: View {
                         .padding(.bottom, 20)
 
                     Text(LocaleService.t("Gratis y sin anuncios para todos", "Free and ad-free for everyone"))
-                        .font(.title.bold())
+                        .ccFont(.s28, weight: .bold)
                         .multilineTextAlignment(.center)
                         .padding(.bottom, 12)
 
                     Text(subtitle)
-                        .font(.body)
+                        .ccFont(.s16)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.bottom, 32)
@@ -41,14 +41,13 @@ struct SupportIntroOnboardingView: View {
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .ccCardSurface()
 
                     if !isNewInstallation {
                         Button(LocaleService.t("Conoce el cambio", "Learn about the change")) {
                             openURL(explanationURL)
                         }
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                         .frame(minHeight: 44)
                     }
@@ -76,17 +75,17 @@ struct SupportIntroOnboardingView: View {
         VStack(spacing: 12) {
             Button { primaryAction() } label: {
                 Text(primaryTitle)
-                    .font(.headline)
+                    .ccFont(.s16, weight: .semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
 
             if shouldShowSecondaryButton {
                 Button(secondaryTitle) { secondaryAction() }
-                    .font(.subheadline)
+                    .ccFont(.s14)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 44)
             } else {
@@ -177,10 +176,10 @@ struct SupportIntroOnboardingView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.secondary)
                 .frame(width: 28)
                 .accessibilityHidden(true)
-            Text(text).font(.subheadline)
+            Text(text).ccFont(.s14)
             Spacer()
         }
         .accessibilityElement(children: .combine)

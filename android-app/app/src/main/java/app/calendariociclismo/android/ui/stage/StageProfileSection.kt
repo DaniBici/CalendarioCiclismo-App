@@ -1,5 +1,11 @@
 package app.calendariociclismo.android.ui.stage
 
+import app.calendariociclismo.android.ui.components.ccSegmentedColors
+import app.calendariociclismo.android.ui.theme.CCRadius
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.graphics.pdf.PdfRenderer
@@ -9,6 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,15 +26,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -35,20 +42,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Asset
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.rememberApp
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.util.LocaleHolder
 import coil3.compose.AsyncImage
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-private enum class StageProfileMode { INTERACTIVE, OFFICIAL }
 
 private sealed interface PdfPreviewState {
     data object Loading : PdfPreviewState
@@ -57,10 +65,12 @@ private sealed interface PdfPreviewState {
 }
 
 /**
- * Visor integrado de perfil para Jornada. Reproduce el contrato de la web:
- * muestra el perfil interactivo, el oficial o un selector entre ambos cuando
- * coexisten. El toque sobre el oficial conserva la apertura completa y offline
- * que ya ofrece la barra documental.
+ * Panel de perfil de la jornada. Reproduce el contrato de la web
+ * (`js/stage/profile.js`): cabecera con el título, la lectura del perfil en
+ * una línea de altura fija y el selector «Interactivo/Oficial» cuando
+ * coexisten ambos formatos; debajo, el gráfico. El oficial (imagen o PDF) se
+ * encaja en el mismo hueco que el interactivo, así que el panel no cambia de
+ * tamaño al alternar. El estado de selección se comparte con Puntos clave.
  */
 @Composable
 internal fun StageProfileSection(
@@ -68,70 +78,118 @@ internal fun StageProfileSection(
     race: Race?,
     officialProfile: Asset?,
     onOfficialProfileTap: (Asset) -> Unit,
+    selection: ProfileSelection,
+    modifier: Modifier = Modifier,
 ) {
-    val interactiveAvailable = raceDay.hasElevationProfile
+    val profile = raceDay.elevationProfile?.takeIf { raceDay.hasElevationProfile && it.points.size >= 2 }
     val visibleOfficial = officialProfile?.takeUnless { raceDay.profileNotViewable }
-    if (!interactiveAvailable && visibleOfficial == null) return
-
-    var preferredMode by rememberSaveable(raceDay.id) {
-        mutableStateOf(
-            if (interactiveAvailable) StageProfileMode.INTERACTIVE
-            else StageProfileMode.OFFICIAL,
-        )
-    }
-    val mode = when {
-        interactiveAvailable && visibleOfficial != null -> preferredMode
-        interactiveAvailable -> StageProfileMode.INTERACTIVE
-        else -> StageProfileMode.OFFICIAL
+    if (profile == null && visibleOfficial == null) return
+    val bothFormats = profile != null && visibleOfficial != null
+    val showOfficial = when {
+        bothFormats -> selection.official
+        profile != null -> false
+        else -> true
     }
 
-    SectionCard {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle(stringResource(R.string.stage_profile_title))
-            if (interactiveAvailable && visibleOfficial != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    StagePanel(modifier) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // Móvil: la lectura ocupa su propia línea reservada bajo el título.
+            val narrow = maxWidth < ProfileReadoutInlineMinWidth
+            val graphicHeight = profileGraphicHeight(maxWidth)
+            Column(Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = PanelHeaderMinHeight)
+                        .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    StageActionButton(
-                        label = stringResource(R.string.stage_profile_mode_interactive),
-                        onClick = { preferredMode = StageProfileMode.INTERACTIVE },
-                        modifier = Modifier.weight(1f),
-                        selected = mode == StageProfileMode.INTERACTIVE,
-                    )
-                    StageActionButton(
-                        label = stringResource(R.string.stage_profile_mode_official),
-                        onClick = { preferredMode = StageProfileMode.OFFICIAL },
-                        modifier = Modifier.weight(1f),
-                        selected = mode == StageProfileMode.OFFICIAL,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PanelTitle(stringResource(R.string.stage_profile_title))
+                        if (profile != null && !narrow) {
+                            ProfileReadout(
+                                profile = profile,
+                                selection = selection,
+                                visible = !showOfficial,
+                                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        if (bothFormats) {
+                            // Control segmentado nativo, como el Picker de iOS.
+                            val modes = listOf(
+                                false to stringResource(R.string.stage_profile_mode_interactive),
+                                true to stringResource(R.string.stage_profile_mode_official),
+                            )
+                            SingleChoiceSegmentedButtonRow(
+                                modifier = Modifier.semantics {
+                                    contentDescription = LocaleHolder.t("Tipo de perfil", "Profile format")
+                                },
+                            ) {
+                                modes.forEachIndexed { index, (official, label) ->
+                                    SegmentedButton(
+                                        colors = ccSegmentedColors(),
+                                        selected = showOfficial == official,
+                                        onClick = { selection.official = official },
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index = index,
+                                            count = modes.size,
+                                            baseShape = RoundedCornerShape(CCRadius.Control),
+                                        ),
+                                        icon = {},
+                                    ) {
+                                        Text(label, style = CCText.S13, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (profile != null && narrow) {
+                        ProfileReadout(
+                            profile = profile,
+                            selection = selection,
+                            visible = !showOfficial,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            alignEnd = false,
+                        )
+                    }
                 }
-            }
-
-            when (mode) {
-                StageProfileMode.INTERACTIVE -> {
-                    raceDay.elevationProfile?.let { profile ->
+                PanelDivider()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(graphicHeight),
+                ) {
+                    if (!showOfficial && profile != null) {
                         ElevationChart(
                             profile = profile,
                             summits = raceDay.profileSummits.orEmpty(),
                             waypoints = raceDay.profileWaypoints.orEmpty(),
                             race = race,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(264.dp),
+                            selection = selection,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else if (visibleOfficial != null) {
+                        OfficialProfilePreview(
+                            asset = visibleOfficial,
+                            onOpen = { onOfficialProfileTap(visibleOfficial) },
                         )
                     }
-                }
-                StageProfileMode.OFFICIAL -> visibleOfficial?.let { asset ->
-                    OfficialProfilePreview(
-                        asset = asset,
-                        onOpen = { onOfficialProfileTap(asset) },
-                    )
                 }
             }
         }
     }
 }
+
+/** Ancho mínimo del panel para llevar la lectura en la fila del título (600 px en la web). */
+private val ProfileReadoutInlineMinWidth = 600.dp
+
+/** Alto común de los dos formatos: 40 % del ancho entre 264 y 400 (`graphicHeight` de la web). */
+internal fun profileGraphicHeight(width: Dp): Dp = (width * 0.4f).coerceIn(264.dp, 400.dp)
 
 @Composable
 private fun OfficialProfilePreview(
@@ -166,8 +224,7 @@ private fun OfficialProfilePreview(
                 contentDescription = stringResource(R.string.stage_profile_official_cd),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 180.dp, max = 420.dp)
+                    .fillMaxSize()
                     .background(androidx.compose.ui.graphics.Color.White)
                     .clickable(role = Role.Button, onClick = onOpen)
                     .padding(4.dp),
@@ -194,8 +251,7 @@ private fun OfficialProfilePreview(
             contentScale = ContentScale.Fit,
             onError = { failed = true },
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 180.dp, max = 420.dp)
+                .fillMaxSize()
                 .background(androidx.compose.ui.graphics.Color.White)
                 .clickable(role = Role.Button, onClick = onOpen)
                 .padding(4.dp),
@@ -206,9 +262,7 @@ private fun OfficialProfilePreview(
 @Composable
 private fun ProfileLoading() {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(220.dp),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator()
@@ -220,21 +274,20 @@ private fun ProfileLoadError(onOpen: () -> Unit) {
     val errorLabel = stringResource(R.string.stage_profile_load_error)
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .padding(24.dp)
             .semantics {
                 contentDescription = errorLabel
             },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
     ) {
         Text(
             text = errorLabel,
+            style = CCText.S14,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedButton(onClick = onOpen) {
-            Text(stringResource(R.string.stage_profile_open))
-        }
+        PanelTextAction(label = stringResource(R.string.stage_profile_open), onClick = onOpen)
     }
 }
 

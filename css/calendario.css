@@ -16,14 +16,15 @@
 
 .temporada-select {
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--bg);
+  letter-spacing: 0;
+  text-transform: none;
+  background-color: var(--bg-card);
   color: var(--text);
-  border: 1px solid var(--border-light);
+  border: 0;
   border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
   padding: 0.3rem 0.6rem;
   cursor: pointer;
   appearance: none;
@@ -37,7 +38,7 @@
 
 .temporada-main {
   width: var(--page-width);
-  max-width: 1200px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1.5rem 0 3rem;
 }
@@ -49,16 +50,14 @@
 }
 
 /* ── Meses ───────────────────────────────────────────────────── */
+/* Mes como las demás fechas de grupo: 13 seminegrita en gris. */
 .temporada-month__title {
   font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid var(--border);
   position: sticky;
   top: var(--temporada-month-top, calc(56px + env(safe-area-inset-top) + 45px));
   background: var(--bg);
@@ -67,13 +66,15 @@
   box-shadow: 0 -8px 8px 4px var(--bg);
 }
 
-/* Tema oscuro: el título del mes usa el color de los títulos de recorrido. */
-.dark .temporada-month__title { color: var(--text-muted); }
-
+/* Carreras del mes en una superficie de tarjeta, con filas separadas por
+   filete, como Puntos clave o el ránking. */
 .temporada-races {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
+  border-radius: var(--radius);
 }
 
 /* ── Fila de carrera ─────────────────────────────────────────── */
@@ -82,13 +83,15 @@
   grid-template-columns: 1.5rem 28px 1fr auto auto;
   align-items: center;
   gap: 0 0.65rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
   text-decoration: none;
   color: var(--text);
-  transition: background var(--transition), box-shadow var(--transition);
+  transition: background var(--transition);
   position: relative;
 }
+/* Filete entre filas, como en las clasificaciones: cada fila va envuelta en
+   su propio contenedor, así que el filete se pone entre envoltorios. */
+.temporada-races > * + * { border-top: 1px solid var(--border); }
 /* La fila que abre el modal es <button>: se neutralizan los estilos por
    defecto para que quede idéntica a las <a> (el display:grid lo hereda de
    .t-race, que no distingue elemento). */
@@ -102,13 +105,10 @@ button.t-race {
   -webkit-appearance: none;
   cursor: pointer;
 }
-.t-race:hover {
-  background: color-mix(in srgb, var(--rc, var(--accent)) 8%, var(--bg-card));
-  box-shadow: 0 1px 6px color-mix(in srgb, var(--rc, var(--accent)) 12%, transparent);
-}
+.t-race:hover { background: var(--hover-bg); }
 
 .t-race__flag {
-  font-size: 1rem;
+  font-size: var(--fs-4);
   line-height: 1;
   text-align: center;
 }
@@ -117,7 +117,7 @@ button.t-race {
   width: 28px;
   height: 28px;
   object-fit: contain;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   display: block;
 }
 .t-race__logo-empty {
@@ -128,23 +128,20 @@ button.t-race {
 
 .t-race__name {
   font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--fs-3);
+  font-weight: 500;
+  /* Nombre completo: pasa a una segunda línea en lugar de cortarse. */
+  overflow-wrap: anywhere;
 }
 .t-race__female {
-  font-size: 0.75rem;
+  font-size: var(--fs-1);
   font-weight: 400;
   opacity: 0.7;
 }
 
 .t-race__dates {
   font-family: var(--font-display);
-  font-size: 0.78rem;
+  font-size: var(--fs-2);
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -179,7 +176,7 @@ button.t-race {
   .t-race__dates {
     grid-column: 4;
     grid-row: 1;
-    font-size: 0.72rem;
+    font-size: var(--fs-1);
   }
   .t-race__logo,
   .t-race__logo-empty {
@@ -199,19 +196,20 @@ button.t-race {
   align-items: center;
   gap: 0.35rem;
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--bg);
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--bg-card);
   color: var(--accent-text);
-  border: 1px solid var(--border-light);
+  border: 0;
   border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
   padding: 0.3rem 0.6rem;
   cursor: pointer;
   white-space: nowrap;
 }
-.cal-view-toggle:hover { border-color: var(--accent); }
+.cal-view-toggle:hover { background: var(--accent-dim); }
 
 /* ── Barra de la subvista Mes ────────────────────────────────── */
 .cal-mes-bar__row1 {
@@ -242,12 +240,12 @@ button.t-race {
    sin borde, fondo transparente, activo/hover en --accent-dim. */
 .cal-month-chip {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--fs-3);
   font-weight: 500;
   color: var(--text);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--radius);
   padding: 0.3rem 0.65rem;
   cursor: pointer;
   white-space: nowrap;
@@ -263,30 +261,31 @@ button.t-race {
 
 .cal-today-btn {
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--bg);
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--bg-card);
   color: var(--text);
-  border: 1px solid var(--border-light);
+  border: 0;
   border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
   padding: 0.3rem 0.6rem;
   cursor: pointer;
 }
-.cal-today-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+.cal-today-btn:hover { background: var(--accent-dim); color: var(--accent-text); }
 
 /* ── Agenda mensual ──────────────────────────────────────────── */
 .cal-mes-list { display: flex; flex-direction: column; }
 
 .cal-mes-title {
   font-family: var(--font-display);
-  font-size: 1.35rem;
+  font-size: var(--fs-5);
   font-weight: 700;
   margin: 0.25rem 0 0.5rem;
 }
 
-.cal-day { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+.cal-day { padding-bottom: 0.5rem; }
 
 .cal-day__head {
   display: flex;
@@ -302,31 +301,33 @@ button.t-race {
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--accent-text);
+  font-size: var(--fs-3);
+  font-weight: 600;
+  color: var(--text-muted);
   flex: none;
 }
+/* Rótulo del día en gris, como las fechas de Resultados y Fichajes; el día de
+   hoy conserva el círculo de acento. */
 .cal-day--today .cal-day__num { background: var(--accent); color: #fff; font-weight: 700; }
-.cal-day__wd { font-size: 0.9rem; color: var(--accent-text); }
+.cal-day__wd { font-size: var(--fs-2); font-weight: 600; color: var(--text-muted); }
 
 .cal-day__empty {
   margin: 0 0 0.5rem 2.7rem;
-  font-size: 0.72rem;
+  font-size: var(--fs-1);
   color: var(--text-dim);
 }
 
 .cal-day__races { display: flex; flex-direction: column; gap: 6px; }
 
-/* Tarjeta de carrera — lenguaje CCCard: superficie card + tinte de marca 4-5% */
+/* Fila de carrera: superficie de tarjeta sin tinte, como las tarjetas de Hoy. */
 .cal-race {
   display: flex;
   align-items: center;
   gap: 0.65rem;
   padding: 0.55rem 0.65rem;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--rc, var(--accent)) 5%, var(--bg-card));
-  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--card-shadow);
   text-decoration: none;
   color: var(--text);
   min-width: 0;
@@ -335,13 +336,14 @@ button.t-race {
    estilos por defecto del botón para que se vean igual que las <a>. */
 button.cal-race {
   width: 100%;
+  border: 0;
   font: inherit;
   text-align: left;
   appearance: none;
   -webkit-appearance: none;
 }
 a.cal-race:hover,
-button.cal-race:not(.cal-race--ph):hover { border-color: color-mix(in srgb, var(--rc, var(--accent)) 45%, var(--border-light)); }
+button.cal-race:not(.cal-race--ph):hover { background: var(--bg-card-hover); }
 .cal-race--modal { cursor: pointer; }
 /* Estas filas se atenúan, pero la opacidad sobre TODA la fila arrastraba el
    texto por debajo de 4.5:1 (WCAG 1.4.3). Se atenúa lo decorativo —logo,
@@ -367,22 +369,21 @@ button.cal-race:not(.cal-race--ph):hover { border-color: color-mix(in srgb, var(
 
 .cal-race__l1 {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.3rem;
   min-width: 0;
 }
-.cal-race__flag { flex: none; display: inline-flex; }
-.cal-race__flag img { width: 17px; height: 13px; border-radius: 2px; display: block; }
+.cal-race__flag { flex: none; display: inline-flex; margin-top: 3px; }
+.cal-race__flag img { width: 17px; height: 13px; border-radius: var(--radius-sm); display: block; }
+/* Nombre completo: pasa a una segunda línea en lugar de cortarse. */
 .cal-race__name {
-  font-size: 0.875rem;
+  font-size: var(--fs-3);
   font-weight: 500;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-.cal-race__female { font-size: 0.72rem; opacity: 0.7; }
-.cal-race__note { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+.cal-race__female { font-size: var(--fs-1); opacity: 0.7; }
+.cal-race__note { font-size: var(--fs-1); color: var(--text-muted); white-space: nowrap; }
 .cal-race__note--cancel { color: #d93025; }
 
 .cal-race__l2 {
@@ -390,19 +391,25 @@ button.cal-race:not(.cal-race--ph):hover { border-color: color-mix(in srgb, var(
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
-  font-size: 0.72rem;
+  font-size: var(--fs-1);
   color: var(--text-muted);
 }
 .cal-race__stage { font-weight: 600; white-space: nowrap; }
 .cal-race__route { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.cal-race__chev { color: var(--text-dim); font-size: 1.1rem; flex: none; padding-right: 0.1rem; }
+.cal-race__chev { color: var(--text-dim); font-size: var(--fs-4); flex: none; padding-right: 0.1rem; }
 
-.cal-race--champ { background: color-mix(in srgb, var(--rc, var(--accent)) 8%, var(--bg-card)); }
+.cal-race--champ { background: var(--bg-card); }
+
+@media (min-width: 961px) {
+  /* Como la agenda de Ciclocross: el día encima y sus carreras debajo, en dos
+     columnas. */
+  .cal-mes-list .cal-day__races { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+}
 
 @media (max-width: 600px) {
   .cal-mes-bar__row1 { gap: 0.4rem; }
-  .cal-view-toggle { font-size: 0.72rem; padding: 0.28rem 0.45rem; }
-  .cal-today-btn { font-size: 0.72rem; padding: 0.28rem 0.45rem; }
+  .cal-view-toggle { font-size: var(--fs-1); padding: 0.28rem 0.45rem; }
+  .cal-today-btn { font-size: var(--fs-1); padding: 0.28rem 0.45rem; }
   .cal-race__route { display: none; }
 }

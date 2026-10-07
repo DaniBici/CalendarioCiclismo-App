@@ -309,7 +309,7 @@ def og_page(title, description, canonical_url,
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -661,7 +661,7 @@ def og_page_en(title, description, canonical_url,
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
+<script>!function(){{var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}}()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -2467,13 +2467,14 @@ def cx_round_map(races):
     """Mapa raceId -> (n, total) por torneo con el orden del contrato de generales CX.
 
     Orden: coalesce(categoria.dateKey, race.dateKey), startTimeUtc NULLS LAST y
-    race.id. Una carrera con varias categorías cuenta como una sola ronda.
+    race.id. Una carrera con varias categorías cuenta como una sola ronda. Una
+    carrera cancelada en su totalidad sale de la numeración.
     """
     from cx_calendar import cx_date_in_season
     groups = {}
     for race in races:
         tournament = race.get("cx_tournaments") or {}
-        if tournament.get("id"):
+        if tournament.get("id") and not race.get("isCancelled"):
             groups.setdefault(tournament["id"], []).append(race)
     rounds = {}
     for group in groups.values():
@@ -2512,6 +2513,7 @@ def cx_tournament_description(tournament, races, lang="es"):
     season = tournament["seasonKey"]
     own = {race["id"]: race for race in races
            if (race.get("tournamentId") or (race.get("cx_tournaments") or {}).get("id")) == tournament["id"]
+           and not race.get("isCancelled")
            and cx_date_in_season(race.get("dateKey"), season)}
     dates = sorted(value for race in own.values()
                    for value in [race.get("dateKey"), race.get("endDateKey")]
@@ -2558,7 +2560,7 @@ def generate_cx_tournament_pages(races):
                     + breadcrumb_html(crumbs) + f'<h1>{esc(name)}</h1></header>')
             days = {}
             for race in races:
-                if (race.get("cx_tournaments") or {}).get("id") != tournament["id"]:
+                if (race.get("cx_tournaments") or {}).get("id") != tournament["id"] or race.get("isCancelled"):
                     continue
                 if lang == "en" and not cx_race_has_english(race):
                     continue

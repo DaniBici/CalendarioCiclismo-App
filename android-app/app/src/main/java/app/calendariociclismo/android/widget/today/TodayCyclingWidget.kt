@@ -356,7 +356,7 @@ private fun ListContent(
         if (showsHeader) {
             Row(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    (text.s(R.string.widget_today_label) + " · " + text.today(today)).uppercase(text.locale),
+                    text.s(R.string.widget_today_label) + " · " + text.today(today),
                     style = TextStyle(color = WgTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium),
                     modifier = GlanceModifier.defaultWeight(),
                 )
@@ -420,8 +420,8 @@ private fun RaceRow(context: Context, item: WidgetItem, now: Instant, text: Widg
                         Spacer(GlanceModifier.width(4.dp))
                         Text(
                             "CX",
-                            style = TextStyle(color = WgSecondary, fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                            modifier = GlanceModifier.background(WgBadge).cornerRadius(3.dp).padding(horizontal = 3.dp),
+                            style = TextStyle(color = WgSecondary, fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            modifier = GlanceModifier.background(WgBadge).cornerRadius(4.dp).padding(horizontal = 4.dp),
                         )
                     }
                 }
@@ -454,7 +454,7 @@ private fun NextLine(context: Context, next: WidgetNext, today: LocalDate, text:
         Box(modifier = GlanceModifier.width(24.dp)) { Flag(next.countryCode, flags, 18) }
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
-                (text.s(R.string.widget_next) + " · " + text.day(next.date, today)).uppercase(text.locale),
+                text.s(R.string.widget_next) + " · " + text.day(next.date, today),
                 style = TextStyle(color = WgTertiary, fontSize = 10.sp, fontWeight = FontWeight.Medium),
             )
             Text(

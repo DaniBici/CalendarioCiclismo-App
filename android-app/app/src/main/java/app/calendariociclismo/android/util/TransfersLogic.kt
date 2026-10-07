@@ -2,6 +2,7 @@ package app.calendariociclismo.android.util
 
 import app.calendariociclismo.android.data.model.RiderProfile
 import app.calendariociclismo.android.data.model.RiderTransfer
+import app.calendariociclismo.android.data.model.Team
 import app.calendariociclismo.android.data.model.TeamSeason
 import java.text.Normalizer
 import java.util.Locale
@@ -63,16 +64,38 @@ object TransfersLogic {
     enum class TeamSide { FROM, TO }
 
     /**
-     * Chapa EFECTIVA de un equipo del mercado (decisión Dani 2026-07-18):
+     * Colores de equipación EFECTIVOS de un equipo del mercado (decisión Dani
+     * 2026-07-18):
      *  - Colores del mercado PUBLICADOS (badgeVisible) → la fila del mercado (2027).
      *  - Sin publicar pero el equipo YA existía la temporada anterior → su fila
      *    ANTERIOR (2026): los colores que la gente ya conoce, hasta que se
      *    anuncie el kit.
      *  - Sin publicar y SIN identidad anterior (equipo nacido este año) → null
-     *    (chapa vacía).
+     *    (sin franjas).
      */
     fun badgeSeason(season: TeamSeason, prev: Map<String, TeamSeason>): TeamSeason? =
         if (season.badgeVisible) season else prev[season.teamId]
+
+    /**
+     * Equipo que alimenta las franjas de maillot (`TeamColorBands`) de una
+     * tarjeta o cabecera del mercado: los colores de [badgeSeason]. Espejo de
+     * `marketStripesHtml` en `js/fichajes.js`.
+     */
+    fun stripesTeam(season: TeamSeason, prev: Map<String, TeamSeason>): Team? {
+        val source = badgeSeason(season, prev) ?: return null
+        return Team(
+            id = source.teamId,
+            name = source.name ?: season.name ?: source.teamId,
+            badgeTorsoCenter = source.badgeTorsoCenter ?: "#ffffff",
+            badgeTorsoSides = source.badgeTorsoSides ?: "#000000",
+            badgeShorts = source.badgeShorts ?: "#000000",
+            badgeInnerCircle = source.badgeInnerCircle,
+            headerBg = source.headerBg ?: "#1f2937",
+            headerText = source.headerText ?: "#ffffff",
+            nameAliases = null,
+            category = source.category,
+        )
+    }
 
     /** Marcador de "baja sin destino conocido" en el texto libre de destino. */
     const val UNKNOWN_DEST = "?"
@@ -141,21 +164,29 @@ object TransfersLogic {
             .sortedWith(feedComparator(categoryByTeamId, teamNameById))
 
     /**
-     * Corte del feed "Últimas confirmaciones": hasta [FEED_MAX_DAYS] fechas
-     * distintas O [FEED_MAX_ITEMS] fichajes, lo que se alcance antes (el feed
-     * viene en orden cronológico inverso). No hay "cargar más".
+     * Corte del feed de Fichajes y Renovaciones: hasta [maxDays] fechas
+     * distintas O [maxItems] movimientos, lo que se alcance antes (el feed viene
+     * en orden cronológico inverso). En teléfono se usa el corte corto; en
+     * pantallas anchas la lista tiene altura fija con desplazamiento y admite el
+     * corte largo (`feedHtml` en `js/fichajes.js`). No hay "cargar más".
      */
     const val FEED_MAX_DAYS = 5
     const val FEED_MAX_ITEMS = 8
-    fun limitedFeed(feed: List<RiderTransfer>): List<RiderTransfer> {
+    const val FEED_SCROLL_MAX_DAYS = 30
+    const val FEED_SCROLL_MAX_ITEMS = 60
+    fun limitedFeed(
+        feed: List<RiderTransfer>,
+        maxDays: Int = FEED_MAX_DAYS,
+        maxItems: Int = FEED_MAX_ITEMS,
+    ): List<RiderTransfer> {
         val out = ArrayList<RiderTransfer>()
         var lastDay: String? = null
         var daysShown = 0
         for (x in feed) {
             val day = x.announcedAt ?: ""
             val newDay = day != lastDay
-            if (newDay && daysShown >= FEED_MAX_DAYS) break
-            if (out.size >= FEED_MAX_ITEMS) break
+            if (newDay && daysShown >= maxDays) break
+            if (out.size >= maxItems) break
             if (newDay) { lastDay = day; daysShown++ }
             out.add(x)
         }

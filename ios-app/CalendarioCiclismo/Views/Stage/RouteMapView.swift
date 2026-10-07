@@ -83,7 +83,7 @@ private struct RoutePinView: View {
             switch marker.glyph {
             case .text(let s):
                 Text(s)
-                    .font(.system(size: 11, weight: .bold))
+                    .ccFont(.s12, weight: .bold)
                     .foregroundStyle(.white)
             case .symbol(let name):
                 Image(systemName: name)
@@ -103,18 +103,18 @@ private struct RouteCallout: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(marker.calloutTitle)
-                .font(.subheadline.weight(.semibold))
+                .ccFont(.s14, weight: .semibold)
                 .lineLimit(2)
             if let sub = marker.calloutSubtitle, !sub.isEmpty {
                 Text(sub)
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .frame(maxWidth: 220, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
         .shadow(color: .black.opacity(0.18), radius: 5, x: 0, y: 2)
         .accessibilityElement(children: .combine)
     }
@@ -161,7 +161,7 @@ struct RouteMapView: View {
         ZStack {
             switch loadState {
             case .loading:
-                LoadingView()
+                LoadingView(title: navigationTitle)
             case .error:
                 errorState
             case .ready:
@@ -247,7 +247,7 @@ struct RouteMapView: View {
     private var floatingHeader: some View {
         StageInfoHeader(raceDay: raceDay, race: race)
             .padding(12)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
             .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
             .padding(.horizontal, 12)
             .padding(.top, 4)
@@ -280,21 +280,15 @@ struct RouteMapView: View {
 
     @ViewBuilder
     private var errorState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "map")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text(LocaleService.t("No se pudo cargar el mapa", "Couldn't load the map"))
-                .font(.headline)
-            Button {
+        ContentUnavailableView {
+            Label(LocaleService.t("No se pudo cargar el mapa", "Couldn't load the map"), systemImage: "map")
+        } actions: {
+            Button(LocaleService.t("Reintentar", "Retry")) {
                 Task { await load(force: true) }
-            } label: {
-                Text(LocaleService.t("Reintentar", "Retry"))
-                    .fontWeight(.semibold)
             }
             .buttonStyle(.bordered)
+            .tint(.primary)
         }
-        .padding()
     }
 
     // MARK: Bottom sheet — cajas de puntos clave
@@ -320,12 +314,12 @@ struct RouteMapView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text(LocaleService.t("Puntos clave", "Key points"))
-                    .font(.headline)
+                    .ccFont(.s16, weight: .semibold)
                     .padding(.top, 20)
 
                 if summits.isEmpty && sprints.isEmpty && sectors.isEmpty {
                     Text(LocaleService.t("Sin puntos destacados", "No key points"))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                 }
 
@@ -357,14 +351,14 @@ struct RouteMapView: View {
     private func keyBox<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .ccFont(.s14, weight: .semibold)
                 .foregroundStyle(.secondary)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
     }
 
     /// Distancia total de referencia para el km inverso (lo que falta a meta),
@@ -385,22 +379,22 @@ struct RouteMapView: View {
         HStack(spacing: 10) {
             pinDot(color: .mapSummitRed, text: (s.category != nil && s.category != "M") ? s.category! : "•")
             if let name = s.name, !name.isEmpty {
-                Text(name).font(.subheadline)
+                Text(name).ccFont(.s14)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
                 if let km = s.km {
                     let remaining = totalDistanceForRows - km
                     Text(remaining < 0.5 ? LocaleService.t("Meta", "Finish") : "-\(formatKmIntMap(remaining)) km")
-                        .font(.subheadline.weight(.medium))
+                        .ccFont(.s14, weight: .medium)
                 }
                 if let st = stats {
                     Text("\(formatKmMap(st.lengthKm)) · \(String(format: "%.1f%%", st.avgGradient))")
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 } else if let alt = s.altitude {
                     Text(formatAltitudeMap(alt))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -414,15 +408,15 @@ struct RouteMapView: View {
             pinDot(color: waypointColor(w.type), text: waypointDotText(w.type), symbol: waypointDotSymbol(w.type))
             VStack(alignment: .leading, spacing: 1) {
                 if let name = w.name, !name.isEmpty {
-                    Text(name).font(.subheadline)
+                    Text(name).ccFont(.s14)
                 } else {
                     Text(waypointLabel(w.type))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                 }
                 if let name = w.name, !name.isEmpty {
                     Text(waypointLabel(w.type))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -430,11 +424,11 @@ struct RouteMapView: View {
             VStack(alignment: .trailing, spacing: 1) {
                 if let km = w.km {
                     Text("-\(formatKmIntMap(totalDistanceForRows - km)) km")
-                        .font(.subheadline.weight(.medium))
+                        .ccFont(.s14, weight: .medium)
                 }
                 if let len = w.lengthKm {
                     Text(formatKmMap(len))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
             }

@@ -1,5 +1,16 @@
 package app.calendariociclismo.android.ui.championships
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import app.calendariociclismo.android.ui.theme.CCColors
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.neutralFill
+import app.calendariociclismo.android.ui.theme.neutralFillPressed
+import app.calendariociclismo.android.ui.month.CalendarFilterChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -123,6 +134,7 @@ private fun ChampionshipsGrid(
                 RouteLoadingView(
                     message = stringResource(R.string.loading),
                     modifier = Modifier.fillMaxSize(),
+                    title = LocaleHolder.t("Campeonatos nacionales", "National championships"),
                 )
 
             !state.error.isNullOrEmpty() && state.countries.isEmpty() ->
@@ -141,7 +153,7 @@ private fun ChampionshipsGrid(
                     item(key = "__title__") {
                         Text(
                             text = "${stringResource(R.string.champ_title)} ${ChampionshipsConfig.YEAR}",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = CCText.S20,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(vertical = 4.dp),
                         )
@@ -178,23 +190,16 @@ private fun FilterChips(
     current: ChampionshipsConfig.Filter,
     onPick: (ChampionshipsConfig.Filter) -> Unit,
 ) {
-    val primary = MaterialTheme.colorScheme.primary
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 4.dp),
     ) {
         items(ChampionshipsConfig.visibleFilters(), key = { it.id }) { filter ->
             val selected = filter == current
-            Text(
-                text = stringResource(filter.labelRes),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (selected) primary.copy(alpha = 0.15f) else Color.Transparent)
-                    .clickable(role = Role.Button) { if (!selected) onPick(filter) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            CalendarFilterChip(
+                label = stringResource(filter.labelRes),
+                selected = selected,
+                onClick = { if (!selected) onPick(filter) },
             )
         }
     }
@@ -239,7 +244,10 @@ private fun CountryCard(
             // Rejilla compacta: 4 celdas por fila (8 pruebas → 2 filas, no 8).
             val slots = country.visibleSlots(filter)
             slots.chunked(4).forEach { rowSlots ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     rowSlots.forEach { slot ->
                         country.slots[slot]?.let { enriched ->
                             EventCell(
@@ -247,7 +255,7 @@ private fun CountryCard(
                                 item = enriched,
                                 navController = navController,
                                 inhouseKeys = inhouseKeys,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                         }
                     }
@@ -276,7 +284,6 @@ private fun EventCell(
     val rd = item.raceDay
     val app = rememberApp()
     val concluded = RaceLogic.isRaceConcluded(rd)
-    val tint = if (slot.isFemale) Color(0xFF9C27B0) else MaterialTheme.colorScheme.primary
     // El badge de TV de la celda debe respetar la preferencia regional igual que
     // las race cards / la web (que pre-filtra): si no, un usuario de España vería
     // la TV del campeonato de Bélgica.
@@ -286,18 +293,12 @@ private fun EventCell(
     val hasInhouse = item.race?.id?.let { inhouseKeys.contains(app.repository.inhouseKey(it, rd.stageNumber)) } ?: false
     val showResults = hasInhouse
 
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(tint.copy(alpha = 0.10f))
-            .border(0.5.dp, tint.copy(alpha = 0.18f), RoundedCornerShape(10.dp))
-            // Al mostrar resultados la navegación va solo en la zona etiqueta+día
-            // (más abajo); el resto de estados navega desde toda la celda.
-            .then(
-                if (showResults) Modifier
-                else Modifier.clickable(role = Role.Button) { navController.navigate(Routes.stage(rd.id)) }
-            )
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+    // Celda en superficie gris neutra, sin tinte ni borde. Al mostrar
+    // resultados la navegación va solo en la zona etiqueta+día (más abajo); el
+    // resto de estados navega desde toda la celda.
+    val shape = RoundedCornerShape(CCRadius.Control)
+    val cellContent: @Composable () -> Unit = { Column(
+        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -316,7 +317,7 @@ private fun EventCell(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            CellDivider(tint)
+            CellDivider()
             Text(
                 text = dayLabel(rd.dateKey),
                 style = MaterialTheme.typography.labelSmall,
@@ -324,18 +325,18 @@ private fun EventCell(
                 maxLines = 1,
             )
         }
-        CellDivider(tint)
+        CellDivider()
         when {
             // El trofeo (pantalla NATIVA) sustituye a hora/TV.
             showResults && item.race != null ->
-                TrophyBadge(tint) { navController.navigate(Routes.results(item.race!!.id, rd.stageNumber)) }
+                TrophyBadge { navController.navigate(Routes.results(item.race!!.id, rd.stageNumber)) }
             concluded -> Icon(
                 imageVector = Icons.Filled.Flag,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(12.dp),
             )
-            hasTvInfo -> TvBadge(broadcasts = regionBroadcasts, tint = tint)
+            hasTvInfo -> TvBadge(broadcasts = regionBroadcasts)
             else -> rd.estimatedFinishTimeUtc?.let { DateFormatting.formatTimeLocal(it) }?.let { time ->
                 // Hora de meta con bandera a cuadros (paridad con la web).
                 Row(
@@ -356,23 +357,32 @@ private fun EventCell(
                 }
             } ?: Spacer(Modifier.size(12.dp))
         }
+    } }
+    if (showResults) {
+        Surface(modifier = modifier, shape = shape, color = neutralFill, content = cellContent)
+    } else {
+        Surface(
+            onClick = { navController.navigate(Routes.stage(rd.id)) },
+            modifier = modifier,
+            shape = shape,
+            color = neutralFill,
+            content = cellContent,
+        )
     }
 }
 
 /** Separador fino entre prueba/día y día/estado: línea corta y tenue centrada. */
 @Composable
-private fun CellDivider(tint: Color) {
-    Box(
-        modifier = Modifier
-            .width(26.dp)
-            .height(0.5.dp)
-            .background(tint.copy(alpha = 0.20f)),
-    )
+private fun CellDivider() {
+    HorizontalDivider(modifier = Modifier.width(26.dp), color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 /** Badge de TV: "Live" si la hora de TV ya pasó, la hora si es futura, o "TV". */
 @Composable
-private fun TvBadge(broadcasts: List<Broadcast>, tint: Color) {
+private fun TvBadge(broadcasts: List<Broadcast>) {
+    val state = RaceLogic.championshipTvState(broadcasts)
+    // Verde solo en directo; el resto, texto principal neutro.
+    val tint = if (state is RaceLogic.ChampionshipTvState.Live) { if (isSystemInDarkTheme()) CCColors.DarkGreen else CCColors.LightGreen } else MaterialTheme.colorScheme.onSurface
     Row(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -383,7 +393,7 @@ private fun TvBadge(broadcasts: List<Broadcast>, tint: Color) {
             tint = tint,
             modifier = Modifier.size(11.dp),
         )
-        val label = when (val s = RaceLogic.championshipTvState(broadcasts)) {
+        val label = when (val s = state) {
             is RaceLogic.ChampionshipTvState.Live -> "Live"
             is RaceLogic.ChampionshipTvState.Time -> s.display
             is RaceLogic.ChampionshipTvState.Label -> "TV"
@@ -399,18 +409,22 @@ private fun TvBadge(broadcasts: List<Broadcast>, tint: Color) {
 
 /** Badge-trofeo → pantalla NATIVA de resultados (cuando hay clasificaciones in-house). */
 @Composable
-private fun TrophyBadge(tint: Color, onClick: () -> Unit) {
-    Icon(
-        imageVector = Icons.Filled.EmojiEvents,
-        contentDescription = stringResource(R.string.results_cta),
-        tint = Color.White,
-        modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(tint)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-            .size(14.dp),
-    )
+private fun TrophyBadge(onClick: () -> Unit) {
+    // Enlace neutro: texto principal sobre el gris de las etiquetas.
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(CCRadius.Control),
+        color = neutralFillPressed,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.EmojiEvents,
+            contentDescription = stringResource(R.string.results_cta),
+            modifier = Modifier
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+                .size(14.dp),
+        )
+    }
 }
 
 /** Día corto "EEE d" (sin mes — la semana es conocida). */

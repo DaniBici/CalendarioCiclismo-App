@@ -11,26 +11,17 @@ struct FollowedRacesView: View {
     var body: some View {
         Group {
             if isLoading {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Carreras seguidas", "Followed races"))
             } else if let error {
                 ErrorView(message: error) {
                     Task { await loadRaces() }
                 }
             } else if races.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "bell.slash")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text("Sin carreras seguidas")
-                        .font(.headline)
-                    Text("Pulsa Notificaciones en cualquier carrera para añadirla.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    icon: "bell.slash",
+                    title: LocaleService.t("Sin carreras seguidas", "No followed races"),
+                    subtitle: LocaleService.t("Pulsa Notificaciones en cualquier carrera para añadirla.", "Tap Notifications on any race to add it.")
+                )
             } else {
                 List {
                     ForEach(races) { race in
@@ -38,10 +29,10 @@ struct FollowedRacesView: View {
                             RaceLogo(race.logoUrl, size: 36)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(race.localizedName)
-                                    .font(.subheadline)
-                                if let cat = race.uciCategory {
-                                    Text(cat)
-                                        .font(.caption)
+                                    .ccFont(.s14)
+                                if let cat = race.uciCategory, !cat.isEmpty {
+                                    Text(RaceLogic.uciCategoryName(cat))
+                                        .ccFont(.s12)
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -63,7 +54,7 @@ struct FollowedRacesView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle("Carreras seguidas")
+        .navigationTitle(LocaleService.t("Carreras seguidas", "Followed races"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadRaces() }
         .onChange(of: raceFollow.followedRaceIds) { _, _ in
@@ -102,26 +93,17 @@ struct FollowedCxRacesView: View {
     var body: some View {
         Group {
             if isLoading {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Carreras de ciclocross", "Cyclocross races"))
             } else if let error {
                 ErrorView(message: error) {
                     Task { await loadRaces() }
                 }
             } else if races.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "bell.slash")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text("Sin carreras de ciclocross seguidas")
-                        .font(.headline)
-                    Text("Pulsa Notificaciones en cualquier carrera de ciclocross para añadirla.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    icon: "bell.slash",
+                    title: LocaleService.t("Sin carreras de ciclocross seguidas", "No followed cyclocross races"),
+                    subtitle: LocaleService.t("Pulsa Notificaciones en cualquier carrera de ciclocross para añadirla.", "Tap Notifications on any cyclocross race to add it.")
+                )
             } else {
                 List {
                     ForEach(races) { race in
@@ -129,9 +111,9 @@ struct FollowedCxRacesView: View {
                             RaceLogo(CyclocrossPresentation.logo(race), size: 36)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(CyclocrossPresentation.name(race))
-                                    .font(.subheadline)
+                                    .ccFont(.s14)
                                 Text(DateFormatting.formatDateLongContent(race.dateKey))
-                                    .font(.caption)
+                                    .ccFont(.s12)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -152,7 +134,7 @@ struct FollowedCxRacesView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle("Carreras de ciclocross")
+        .navigationTitle(LocaleService.t("Carreras de ciclocross", "Cyclocross races"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadRaces() }
         .onChange(of: raceFollow.followedCxRaceIds) { _, _ in

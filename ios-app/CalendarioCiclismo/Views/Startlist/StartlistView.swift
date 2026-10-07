@@ -50,7 +50,7 @@ struct StartlistView: View {
 
                             if viewModel.teamsList.isEmpty && !viewModel.isLoading {
                                 Text(LocaleService.t("No hay inscritos registrados", "No startlist available for this race"))
-                                    .font(.subheadline)
+                                    .ccFont(.s14)
                                     .foregroundStyle(.secondary)
                                     .padding()
                             } else {
@@ -92,7 +92,7 @@ struct StartlistView: View {
             }
 
             if viewModel.isLoading && viewModel.race == nil {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Inscritos", "Startlist"))
             } else if let error = viewModel.error {
                 ErrorView(message: error, retry: {
                     Task {
@@ -302,8 +302,7 @@ struct StartlistHeaderView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(race.localizedName)
-                        .font(.system(.headline, design: .default))
-                        .fontWeight(.bold)
+                        .ccFont(.s16, weight: .semibold)
                         .lineLimit(2)
 
                     if let countryCode = race.countryCode {
@@ -320,11 +319,11 @@ struct StartlistHeaderView: View {
                 if teamCount > 0 {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(LocaleService.t("Equipos", "Teams"))
-                            .font(.caption)
+                            .ccFont(.s12)
                             .foregroundStyle(.secondary)
                         Text("\(teamCount)")
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                            .ccFont(.s20, weight: .semibold)
+                            .monospacedDigit()
                     }
 
                     // Acotado en alto: con la cabecera FIJA (fuera del ScrollView),
@@ -337,11 +336,11 @@ struct StartlistHeaderView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(LocaleService.t(race.isFemale ? "Corredoras" : "Corredores", "Riders"))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                     Text("\(riderCount)")
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                        .ccFont(.s20, weight: .semibold)
+                        .monospacedDigit()
                 }
 
                 Spacer()
@@ -349,8 +348,7 @@ struct StartlistHeaderView: View {
             .padding(.horizontal, 8)
         }
         .padding(12)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .ccCardSurface()
     }
 }
 
@@ -367,24 +365,26 @@ struct StartlistDisclaimerView: View {
         VStack(alignment: .leading, spacing: 8) {
             if !title.isEmpty {
                 HStack(spacing: 8) {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundStyle(type == .provisional ? Color.accentColor : .orange)
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
+                    // Aviso de lista provisional: título en acento, como la web.
                     Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
+                        .foregroundStyle(Color.accentColor)
 
                     Spacer()
                 }
             }
 
             Text(message)
-                .font(.caption)
+                .ccFont(.s13)
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
     }
 
     private var title: String {
@@ -403,13 +403,6 @@ struct StartlistDisclaimerView: View {
             )
         }
     }
-
-    private var backgroundColor: Color {
-        switch type {
-        case .provisional:
-            return Color.accentColor.opacity(0.1)
-        }
-    }
 }
 
 // MARK: - Team Card
@@ -422,10 +415,9 @@ struct StartlistTeamCard: View {
     var isOneDay: Bool = false
 
     var body: some View {
-        // Tarjeta de equipo en CCCard: la superficie pulida (esquinas, hairline,
-        // sombra) envuelve el header con el color del equipo y la lista de
-        // corredores. `.ccCardSurface` recorta el contenido a la forma, así que
-        // el header coloreado queda enrasado con las esquinas redondeadas.
+        // Tarjeta de equipo sobre la superficie neutra: cabecera gris con las
+        // franjas de maillot del equipo (las de Resultados) y la lista de
+        // corredores.
         VStack(spacing: 0) {
             // Los estados sin equipo van SIN cabecera (ocultación cosmética,
             // espejo de la web/Android): solo se listan sus corredores.
@@ -442,9 +434,10 @@ struct StartlistTeamCard: View {
                     )
                 }
             }
+            .padding(.vertical, 4)
             .background(AppTheme.cardBackground)
         }
-        .ccCardSurface(cornerRadius: 0, showShadow: false)
+        .ccCardSurface()
     }
 }
 
@@ -455,15 +448,14 @@ struct StartlistTeamHeaderView: View {
     let isProvisional: Bool
 
     var body: some View {
-        let textColor: Color = team.team.flatMap { Color.fromHex($0.headerText) } ?? .primary
-        let bgColor: Color = team.team.flatMap { Color.fromHex($0.headerBg) } ?? Color(.systemGray6)
-
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            if let colors = team.team, colors.hasVisibleBadge {
+                TeamColorBands(team: colors)
+            }
             Text(team.displayName)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .ccFont(.s14, weight: .bold)
                 .lineLimit(1)
-                .foregroundStyle(textColor)
+                .foregroundStyle(.primary)
 
             Spacer()
 
@@ -472,15 +464,17 @@ struct StartlistTeamHeaderView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(team.isConfirmed ? Color.accentColor : (Color.fromHex("#6B7280") ?? .gray))
                     Image(systemName: team.isConfirmed ? "checkmark" : "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 .frame(width: 18, height: 18)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(bgColor)
+        .frame(minHeight: 38)
+        .background(AppTheme.cardBackgroundHover)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -500,17 +494,15 @@ struct StartlistRiderRowView: View {
         let isOut = out != nil
         // Fuera de carrera → fila atenuada (opacidad, no color → dark-mode safe).
         return HStack(spacing: 10) {
-            // Dorsal — misma tipografía que Orden de salida (.caption, no
-            // monoespaciada), conservando el fondo gris en recuadro.
+            // Dorsal en recuadro gris (radio de control), como la web.
             if let dorsal = rider.dorsal, dorsal > 0 {
                 Text("\(dorsal)")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .ccFont(.s13, weight: .semibold)
+                    .monospacedDigit()
                     .frame(width: 28, alignment: .center)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 1)
                     .padding(.horizontal, 4)
-                    .background(Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .background(AppTheme.neutralFill, in: RoundedRectangle(cornerRadius: AppTheme.Radius.control))
                     .foregroundStyle(.secondary)
             } else {
                 Color.clear
@@ -523,7 +515,7 @@ struct StartlistRiderRowView: View {
             // Nombre (tachado si fuera de carrera) + motivo como subtítulo.
             VStack(alignment: .leading, spacing: 1) {
                 Text(rider.fullName)
-                    .font(.subheadline)
+                    .ccFont(.s14)
                     .lineLimit(2)
                     .strikethrough(isOut)
                 if let out {
@@ -539,8 +531,8 @@ struct StartlistRiderRowView: View {
                         return label
                     }()
                     Text(reason)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
+                        .ccFont(.s12)
+                        .foregroundStyle(AppTheme.red)
                         .lineLimit(1)
                 }
             }
@@ -549,19 +541,19 @@ struct StartlistRiderRowView: View {
         }
         .opacity(isOut ? 0.55 : 1)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 5)
         .background(AppTheme.cardBackground)
     }
 }
 
 // MARK: - Team colors
 
-/// Tres bandas cromáticas de la equipación efectiva. Resultados y orden de
-/// salida usan esta marca lineal. Las chapas circulares se han retirado de las apps.
+/// Tres franjas de la equipación efectiva (`teamStripes` de la web), en
+/// Resultados, orden de salida e inscritos. Sin chapas circulares.
 struct TeamColorBands: View {
     let team: Team
-    var width: CGFloat = 15
-    var height: CGFloat = 16
+    var width: CGFloat = 14
+    var height: CGFloat = 15
 
     var body: some View {
         if team.hasVisibleBadge {
@@ -571,10 +563,9 @@ struct TeamColorBands: View {
                 Color.fromHex(team.badgeShorts) ?? .clear
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
             .overlay {
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(AppTheme.borderLight, lineWidth: 1)
+                Rectangle()
+                    .strokeBorder(AppTheme.borderLight, lineWidth: 1)
             }
             .accessibilityHidden(true)
         }

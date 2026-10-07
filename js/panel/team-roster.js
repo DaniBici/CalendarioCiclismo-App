@@ -74,7 +74,7 @@ async function loadTeamRoster(teamId) {
   const matrix = (panelState._teamsCache || []).find(t => t.id === teamId);
   if (!canHaveTeamRoster(matrix && { ...matrix, category: panelState._season27Row?.category ?? matrix.category })) return;
   const list = document.getElementById('teamRosterList');
-  if (list) list.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
+  if (list) list.innerHTML = '<div class="u-fs-3 u-c-dim">Cargando…</div>';
   try {
     // El contrato administrativo combina afiliaciones editables con observaciones
     // oficiales UCI de 2020–2025. Estas últimas acreditan una plantilla anual, no
@@ -132,7 +132,7 @@ async function loadTeamRoster(teamId) {
     renderTeamRoster();
   } catch (err) {
     console.error('[loadTeamRoster]', err);
-    if (list) list.innerHTML = `<div class="u-c-red u-fs-085">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
+    if (list) list.innerHTML = `<div class="u-c-red u-fs-3">Error cargando la plantilla: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -143,7 +143,7 @@ function renderTeamRoster() {
   if (countEl) countEl.textContent = _rosterRows.length ? `${_rosterRows.length} corredor${_rosterRows.length === 1 ? '' : 'es'}` : '';
 
   if (_rosterRows.length === 0) {
-    list.innerHTML = `<div class="u-c-dim u-fs-085 u-py-035 u-px-0">Sin corredores en la plantilla ${panelState._editingTeamSeasonYear}. Añade uno existente o crea uno nuevo.</div>`;
+    list.innerHTML = `<div class="u-c-dim u-fs-3 u-py-035 u-px-0">Sin corredores en la plantilla ${panelState._editingTeamSeasonYear}. Añade uno existente o crea uno nuevo.</div>`;
     return;
   }
 
@@ -152,7 +152,7 @@ function renderTeamRoster() {
     if (!r) {
       // Afiliación huérfana (el corredor ya no existe): fila degradada.
       return `<div class="roster-row roster-row--error" data-affiliation-id="${esc(row.id)}" data-rider-id="${esc(row.riderId)}" data-gender="${esc(row.riderGender)}">
-        <span class="u-grow u-fs-082 u-c-red">⚠ Corredor no encontrado — ${esc(row.riderId)} (${esc(row.riderGender)})</span>
+        <span class="u-grow u-fs-2 u-c-red">⚠ Corredor no encontrado — ${esc(row.riderId)} (${esc(row.riderGender)})</span>
         ${row.readOnly ? '' : '<button class="btn btn--ghost roster-clean-orphan u-btn-xs u-c-red">Limpiar afiliación</button>'}
       </div>`;
     }
@@ -160,24 +160,24 @@ function renderTeamRoster() {
     const isTrainee = row.affiliationType === 'trainee';
     return `<div class="roster-row u-wrap" data-affiliation-id="${esc(row.id)}" data-rider-id="${esc(r.id)}" data-gender="${esc(row.riderGender)}">
       <span class="u-shrink-0 u-w-160em u-center">${_slRiderFlagPreview(r.nationality)}</span>
-      <span class="u-grow u-minw-800 u-fs-085">
+      <span class="u-grow u-minw-800 u-fs-3">
         <strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
         ${isTrainee ? '<span class="badge roster-stagiaire-badge">Stagiaire</span>' : ''}
-        ${r.birthDate ? `<span class="u-c-dim u-fs-072 u-ml-030">'${esc(String(r.birthDate).slice(2,4))}</span>` : ''}
+        ${r.birthDate ? `<span class="u-c-dim u-fs-1 u-ml-030">'${esc(String(r.birthDate).slice(2,4))}</span>` : ''}
         ${r.verified === false ? '<span title="Sin verificar" class="u-c-warn u-ml-030">?</span>' : ''}
       </span>
-      ${!isTrainee && !row.readOnly ? `<label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Desde
+      ${!isTrainee && !row.readOnly ? `<label class="u-row u-row--gap-xs u-fs-1 u-c-dim">Desde
         <input type="date" class="roster-from u-chip-input" value="${esc(row.dateFrom || '')}">
       </label>
-      <label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Hasta
+      <label class="u-row u-row--gap-xs u-fs-1 u-c-dim">Hasta
         <input type="date" class="roster-to u-chip-input" value="${esc(row.dateTo || '')}">
       </label>
       <button class="btn btn--ghost roster-save-dates u-btn-xs" title="Guardar fechas de vínculo (vacío = toda la temporada)">💾</button>` : ''}
       <button class="btn btn--ghost roster-edit-rider u-btn-xs" title="Editar datos del corredor">✎</button>
       ${row.readOnly
-        ? '<span class="u-fs-068 u-c-dim" title="Observación anual oficial sin fechas contractuales">Solo lectura</span>'
+        ? '<span class="u-fs-1 u-c-dim" title="Observación anual oficial sin fechas contractuales">Solo lectura</span>'
         : isTrainee
-        ? '<span class="u-fs-068 u-c-dim" title="Las pruebas requieren la RPC y evidencia de stagiaires">Gestión por contrato de stagiaires</span>'
+        ? '<span class="u-fs-1 u-c-dim" title="Las pruebas requieren la RPC y evidencia de stagiaires">Gestión por contrato de stagiaires</span>'
         : '<button class="btn btn--ghost roster-remove u-btn-xs u-c-red" title="Quitar del equipo (no borra el corredor)">Quitar</button>'}
     </div>`;
   }).join('');
@@ -315,7 +315,7 @@ async function _rosterSearchRiders(q) {
   const table = _rosterAddGender === 'male' ? 'riders_men' : 'riders_women';
   const safe = term.replace(/[%,()]/g, '');
   results.style.display = 'flex';
-  results.innerHTML = '<div class="u-c-dim u-fs-080 u-py-030 u-px-0">Buscando…</div>';
+  results.innerHTML = '<div class="u-c-dim u-fs-2 u-py-030 u-px-0">Buscando…</div>';
   try {
     const { data, error } = await supabase
       .from(table)
@@ -327,7 +327,7 @@ async function _rosterSearchRiders(q) {
     const rows = data || [];
     const inRoster = new Set(_rosterRows.filter(r => r.riderGender === _rosterAddGender && r.affiliationType === 'regular').map(r => r.riderId));
     if (rows.length === 0) {
-      results.innerHTML = '<div class="u-c-dim u-fs-080 u-py-030 u-px-0">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-2 u-py-030 u-px-0">Sin resultados.</div>';
       return;
     }
     results.innerHTML = rows.map(r => {
@@ -335,12 +335,12 @@ async function _rosterSearchRiders(q) {
       const team = r.currentTeamId ? (panelState._teamsCache || []).find(t => t.id === r.currentTeamId) : null;
       return `<div class="roster-add-option" data-rid="${esc(r.id)}">
         <span class="u-w-150em u-center">${_slRiderFlagPreview(r.nationality)}</span>
-        <span class="u-grow u-min0 u-fs-082"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
-          ${r.birthDate ? `<span class="u-c-dim u-fs-070">'${esc(String(r.birthDate).slice(2,4))}</span>` : ''}
-          ${team ? `<span class="u-block u-fs-066 u-c-dim">${esc(team.name)}</span>` : ''}
+        <span class="u-grow u-min0 u-fs-2"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+          ${r.birthDate ? `<span class="u-c-dim u-fs-1">'${esc(String(r.birthDate).slice(2,4))}</span>` : ''}
+          ${team ? `<span class="u-block u-fs-1 u-c-dim">${esc(team.name)}</span>` : ''}
         </span>
         ${already
-          ? '<span class="u-fs-072 u-c-dim">ya en plantilla</span>'
+          ? '<span class="u-fs-1 u-c-dim">ya en plantilla</span>'
           : '<button class="btn btn--ghost roster-add-pick u-btn-xs">Añadir</button>'}
       </div>`;
     }).join('');
@@ -353,7 +353,7 @@ async function _rosterSearchRiders(q) {
     });
   } catch (err) {
     console.error('[_rosterSearchRiders]', err);
-    results.innerHTML = `<div class="u-c-red u-fs-080 u-py-030 u-px-0">Error: ${esc(err.message || String(err))}</div>`;
+    results.innerHTML = `<div class="u-c-red u-fs-2 u-py-030 u-px-0">Error: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -401,23 +401,23 @@ function openNewRiderInTeamForm() {
   results.style.display = 'flex';
   results.innerHTML = `
     <div class="roster-new-rider">
-      <div class="u-fs-078 u-fw-600 u-c-text">Nuevo corredor (${genderLabel}) en este equipo</div>
+      <div class="u-fs-2 u-fw-600 u-c-text">Nuevo corredor (${genderLabel}) en este equipo</div>
       <div class="u-grid u-cols-2 u-gap-040">
         <input class="u-input-bordered" type="text" id="rnr-firstName" placeholder="Nombre">
         <input class="u-input-bordered" type="text" id="rnr-lastName" placeholder="Apellido(s)">
         <input type="text" id="rnr-nationality" placeholder="País (es)" maxlength="5" class="u-input-bordered u-lower">
         <input class="u-input-bordered" type="date" id="rnr-birthDate" title="Fecha de nacimiento">
-        <label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Desde
+        <label class="u-row u-row--gap-xs u-fs-1 u-c-dim">Desde
           <input class="u-chip-input" type="date" id="rnr-from">
         </label>
-        <label class="u-row u-row--gap-xs u-fs-068 u-c-dim">Hasta
+        <label class="u-row u-row--gap-xs u-fs-1 u-c-dim">Hasta
           <input class="u-chip-input" type="date" id="rnr-to">
         </label>
       </div>
       <div class="u-row">
-        <button class="btn btn--primary u-py-030 u-px-070 u-fs-078" id="rnr-save">Crear</button>
-        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-078" id="rnr-cancel">Cancelar</button>
-        <span id="rnr-status" class="u-fs-076 u-c-dim"></span>
+        <button class="btn btn--primary u-py-030 u-px-070 u-fs-2" id="rnr-save">Crear</button>
+        <button class="btn btn--ghost u-py-030 u-px-070 u-fs-2" id="rnr-cancel">Cancelar</button>
+        <span id="rnr-status" class="u-fs-1 u-c-dim"></span>
       </div>
     </div>`;
   document.getElementById('rnr-firstName').focus();

@@ -4,12 +4,15 @@ import XCTest
 final class RaceLogicTests: XCTestCase {
 
     @MainActor
-    func test_todayFeaturedCardsAreLimitedToCategorySortAndReturnWhenRestored() {
-        XCTAssertTrue(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .category))
-        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .tvTime))
-        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(true, sortMode: .finishTime))
-        XCTAssertFalse(TodayViewModel.shouldRenderAsFeatured(false, sortMode: .category))
+    func test_uciCategoryName_expandsAcronymsAndNumericClasses() {
+        XCTAssertEqual(RaceLogic.uciCategoryName("CC", english: false), "Campeonato continental")
+        XCTAssertEqual(RaceLogic.uciCategoryName("1.UWT", english: false), "UCI WorldTour")
+        XCTAssertEqual(RaceLogic.uciCategoryName("2.Pro", english: true), "UCI ProSeries")
+        XCTAssertEqual(RaceLogic.uciCategoryName("2.2", english: false), "UCI 2.2")
+        XCTAssertEqual(RaceLogic.uciCategoryName("NE", english: false), "NE")
+        XCTAssertEqual(RaceLogic.uciCategoryName(nil, english: false), "")
     }
+
 
     func test_calendarYear_excludesHistoryAndUnknownYear_usingUTC() {
         let before = ISO8601DateFormatter().date(from: "2026-12-31T23:59:59Z")!
@@ -68,6 +71,35 @@ final class RaceLogicTests: XCTestCase {
             ),
             .waiting
         )
+    }
+
+    // MARK: - profileProgress (espejo de js/services/race-presentation.js)
+
+    private func iso(_ value: String) -> Date { ISO8601DateFormatter().date(from: value)! }
+
+    func test_profileProgress_clampsToScheduleAndSuppressesRunningTimeTrial() {
+        let start = "2026-09-04T10:00:00Z", finish = "2026-09-04T14:00:00Z"
+        let day = makeRaceDay(estimatedFinishTimeUtc: finish, neutralStartTimeUtc: start)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: day, hasInhouseResults: false, now: iso("2026-09-04T12:00:00Z")), 0.5)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: day, hasInhouseResults: false, now: iso("2026-09-04T09:00:00Z")), 0)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: day, hasInhouseResults: false, now: iso("2026-09-04T15:00:00Z")), 1)
+        for type in ["itt", "ttt"] {
+            let chrono = makeRaceDay(estimatedFinishTimeUtc: finish, primaryType: type, neutralStartTimeUtc: start)
+            XCTAssertEqual(RaceLogic.profileProgress(rd: chrono, hasInhouseResults: false, now: iso("2026-09-04T12:00:00Z")), 0)
+            XCTAssertEqual(RaceLogic.profileProgress(rd: chrono, hasInhouseResults: true, now: iso("2026-09-04T12:00:00Z")), 1)
+            let finished = makeRaceDay(estimatedFinishTimeUtc: finish, raceStatus: "finished", primaryType: type, neutralStartTimeUtc: start)
+            XCTAssertEqual(RaceLogic.profileProgress(rd: finished, hasInhouseResults: false, now: iso("2026-09-04T12:00:00Z")), 1)
+        }
+    }
+
+    func test_profileProgress_prefersRealStartAndIgnoresCancelledOrRestDays() {
+        let start = "2026-09-04T10:00:00Z", finish = "2026-09-04T14:00:00Z"
+        let real = makeRaceDay(estimatedFinishTimeUtc: finish, neutralStartTimeUtc: start, realStartTimeUtc: "2026-09-04T11:00:00Z")
+        XCTAssertEqual(RaceLogic.profileProgress(rd: real, hasInhouseResults: false, now: iso("2026-09-04T10:30:00Z")), 0)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: real, hasInhouseResults: false, now: iso("2026-09-04T12:30:00Z")), 0.5)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: makeRaceDay(isCancelledDay: true, raceStatus: "finished"), hasInhouseResults: true), 0)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: makeRaceDay(isRestDay: true, raceStatus: "finished"), hasInhouseResults: true), 0)
+        XCTAssertEqual(RaceLogic.profileProgress(rd: makeRaceDay(), hasInhouseResults: false), 0)
     }
 
     // MARK: - broadcastLinkPriority
@@ -384,7 +416,10 @@ final class RaceLogicTests: XCTestCase {
         isCancelledDay: Bool = false,
         estimatedFinishTimeUtc: String? = nil,
         stageNumber: Int? = 1,
-        raceStatus: String? = nil
+        raceStatus: String? = nil,
+        primaryType: String? = nil,
+        neutralStartTimeUtc: String? = nil,
+        realStartTimeUtc: String? = nil
     ) -> RaceDay {
         RaceDay(
             id: id,
@@ -397,9 +432,10 @@ final class RaceLogicTests: XCTestCase {
             startLocation: nil,
             finishLocation: nil,
             distanceKm: nil,
-            primaryType: nil,
+            primaryType: primaryType,
             secondaryType: nil,
-            neutralStartTimeUtc: nil,
+            neutralStartTimeUtc: neutralStartTimeUtc,
+            realStartTimeUtc: realStartTimeUtc,
             estimatedFinishTimeUtc: estimatedFinishTimeUtc,
             tvStatus: nil,
             description: nil,

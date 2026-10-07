@@ -17,17 +17,15 @@ struct StageTypeBadge: View {
             let colors = AppTheme.stageTypeBadgeColor(for: resolvedColorType, highContrast: isHighContrast)
 
             Text(label)
-            .font(compact ? .system(size: 9) : .caption2)
-            .fontWeight(.medium)
-            .textCase(.uppercase)
+            .ccFont(.s12, weight: .semibold)
             .padding(.horizontal, compact ? 6 : 8)
             .padding(.vertical, compact ? 1 : 3)
             .background(colors.background)
             .foregroundStyle(colors.foreground)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             .overlay(
                 isHighContrast
-                    ? RoundedRectangle(cornerRadius: 3).strokeBorder(colors.foreground, lineWidth: 1)
+                    ? RoundedRectangle(cornerRadius: AppTheme.Radius.control).strokeBorder(colors.foreground, lineWidth: 1)
                     : nil
             )
             .accessibilityElement(children: .ignore)

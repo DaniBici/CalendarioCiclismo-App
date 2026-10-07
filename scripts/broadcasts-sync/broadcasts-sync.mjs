@@ -5,7 +5,7 @@ import {
   HBO_SOURCE_URL, PARSER_VERSION, RTVE_SOURCE_URLS,
   RTVE_LIVES_URL, RTVE_VUELTA_SCHEDULE_URL, RTVE_VUELTA_VIDEOS_URL,
   contentHash, dateKeyInZone, fold,
-  desiredBroadcasts, matchObservation, newBroadcastRow, normalizedObservation, parseHboCatalog,
+  desiredBroadcasts, hboSharedEventVariants, matchObservation, newBroadcastRow, normalizedObservation, parseHboCatalog,
   parseHboEventStart, parseRtvePlayLives, parseRtveStructuredGuide, rtveDisciplineKey, rtveRaceHintMatch,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveVueltaExternalEventId,
 } from './broadcasts-sync-core.mjs';
@@ -976,7 +976,11 @@ export async function run({ client = null, collectors = {} } = {}) {
       report.push({ source: failure.source, sourceUrl: failure.sourceUrl,
         action: 'source_failure', error: failure.error.message });
     }
-    const scoped = observations.map((observation) => {
+    const scoped = observations.flatMap((observation) => {
+      const shared = hboSharedEventVariants(observation)
+        .map((variant) => ({ observation: variant, match: matchObservation(variant, context.raceDays) }))
+        .filter((item) => item.match.status === 'matched');
+      if (shared.length) return shared;
       let match = matchObservation(observation, context.raceDays);
       if (observation.source === 'rai' && match.status === 'unmatched') {
         // Las reposiciones se emiten también en días posteriores a la carrera.

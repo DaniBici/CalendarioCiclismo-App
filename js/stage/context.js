@@ -5,9 +5,13 @@ import { formatDurationSeconds, hasValidTimeLimit } from '../services/race-prese
 // Datos compartidos por Resultados y Orden de Salida, incluidos sus refrescos.
 export function stageMetricsHtml(day, { hideNeutralStart = false } = {}) {
   const en = getLang() === 'en';
+  const locale = en ? 'en-GB' : 'es-ES';
+  // Mismo formato que el resto de la web: decimales del idioma y desnivel
+  // positivo redondeado a la decena, con millares también con cuatro cifras.
+  const gain = day.elevationProfile?.elevationGain;
   const metrics = [
-    day.distanceKm ? [en ? 'Distance' : 'Distancia', `${day.distanceKm} km`] : null,
-    day.elevationProfile?.elevationGain != null ? [en ? 'Elevation gain' : 'Desnivel', `${day.elevationProfile.elevationGain} m`] : null,
+    day.distanceKm ? [en ? 'Distance' : 'Distancia', `${Number(day.distanceKm).toLocaleString(locale)} km`] : null,
+    gain != null ? [en ? 'Elevation gain' : 'Desnivel', `+${(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`] : null,
     day.neutralStartTimeUtc && !hideNeutralStart ? [en ? 'Neutral start' : 'Salida neutralizada', formatTimeUser(day.neutralStartTimeUtc)?.display] : null,
     Number(day.averageSpeedKmh) > 0 ? [en ? 'Average speed' : 'Velocidad media', `${Number(day.averageSpeedKmh).toLocaleString(en ? 'en-GB' : 'es-ES', { maximumFractionDigits: 2 })} km/h`] : null,
     hasValidTimeLimit(day) ? [en ? 'Time limit' : 'Fuera de control', formatDurationSeconds(day.timeLimitSeconds)] : null,

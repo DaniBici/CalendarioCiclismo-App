@@ -277,7 +277,8 @@ describe('número de ronda por torneo',()=>{
     {id:'oct-late',seasonKey:'2026-27',tournamentId:'t1',dateKey:'2026-10-03',cx_race_categories:[{dateKey:'2026-10-04',startTimeUtc:'2026-10-04T15:00:00Z'}]},
     {id:'no-tournament',seasonKey:'2026-27',dateKey:'2026-10-03',cx_race_categories:[]},
     {id:'untimed',seasonKey:'2026-27',tournamentId:'t1',dateKey:'2026-10-03',cx_race_categories:[{dateKey:'2026-10-04'}]},
-    {id:'oct-early',seasonKey:'2026-27',tournamentId:'t1',isCancelled:true,dateKey:'2026-10-03',cx_race_categories:[{dateKey:'2026-10-04',startTimeUtc:'2026-10-04T13:00:00Z'},{dateKey:'2026-10-04',startTimeUtc:'2026-10-04T11:00:00Z'}]},
+    {id:'oct-early',seasonKey:'2026-27',tournamentId:'t1',dateKey:'2026-10-03',cx_race_categories:[{dateKey:'2026-10-04',startTimeUtc:'2026-10-04T13:00:00Z',isCancelled:true},{dateKey:'2026-10-04',startTimeUtc:'2026-10-04T11:00:00Z'}]},
+    {id:'cancelada',seasonKey:'2026-27',tournamentId:'t1',isCancelled:true,dateKey:'2026-10-02',cx_race_categories:[]},
     {id:'fuera',seasonKey:'2026-27',tournamentId:'t1',dateKey:'2027-03-01',cx_race_categories:[]},
     {id:'nov',seasonKey:'2026-27',tournamentId:'t1',dateKey:'2026-11-01',cx_race_categories:[]},
     {id:'otra-temporada',seasonKey:'2025-26',tournamentId:'t1',dateKey:'2025-10-01',cx_race_categories:[]},
@@ -291,6 +292,7 @@ describe('número de ronda por torneo',()=>{
     expect(rounds.get('oct-late')).toEqual({n:2,total:4});
     expect(rounds.get('untimed')).toEqual({n:3,total:4});
     expect(rounds.get('nov')).toEqual({n:4,total:4});
+    expect(rounds.get('cancelada')).toBeUndefined();
     expect(rounds.get('fuera')).toBeUndefined();
     expect(rounds.get('no-tournament')).toBeUndefined();
     expect(rounds.get('otra-temporada')).toBeUndefined();

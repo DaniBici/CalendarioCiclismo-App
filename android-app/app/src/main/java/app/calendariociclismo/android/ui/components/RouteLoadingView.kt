@@ -36,6 +36,18 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import android.os.SystemClock
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import app.calendariociclismo.android.R
+import app.calendariociclismo.android.ui.theme.CCText
+import kotlinx.coroutines.delay
 
 /**
  * Perfil de carga compartido por los estados de espera y el splash propio.
@@ -132,43 +144,116 @@ fun AnimatedRouteProfile(
     }
 }
 
-/** Pantalla de carga de marca para esperas iniciales de contenido completo.
- *  `showProfile=false` retira el perfil inferior (ciclocross) y mantiene la
- *  identidad y la señal de carga. */
+/**
+ * Tiempos de la pantalla de carga, espejo de `js/page-loading.js` e iOS
+ * `LoadingTiming`: la animación solo aparece en cargas lentas y, una vez
+ * visible, se mantiene un mínimo para no parpadear.
+ */
+object LoadingTiming {
+    /** Espera antes de mostrar el rótulo y el perfil (`REVEAL_MS`). */
+    const val REVEAL_MILLIS = 400L
+    /** Permanencia mínima una vez visible (`MIN_SHOW_MS`). */
+    const val MIN_SHOW_MILLIS = 300L
+
+    /**
+     * Tiempo que la pantalla de carga sigue visible cuando el contenido ya está
+     * listo, según lo transcurrido desde que empezó la espera. Una carga rápida
+     * (sin animación visible) no espera nada.
+     */
+    fun remainingHold(elapsedMillis: Long): Long {
+        if (elapsedMillis < REVEAL_MILLIS) return 0L
+        return (REVEAL_MILLIS + MIN_SHOW_MILLIS - elapsedMillis).coerceAtLeast(0L)
+    }
+}
+
+/**
+ * Estado visible de una carga inicial: `true` mientras [isLoading] y, si la
+ * animación llegó a verse, durante el resto de [LoadingTiming.MIN_SHOW_MILLIS].
+ * El llamador pinta [RouteLoadingView] mientras devuelva `true`.
+ */
+@Composable
+fun rememberLoadingVisible(isLoading: Boolean): Boolean {
+    var visible by remember { mutableStateOf(isLoading) }
+    var startedAt by remember { mutableLongStateOf(if (isLoading) SystemClock.uptimeMillis() else 0L) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            if (!visible) {
+                startedAt = SystemClock.uptimeMillis()
+                visible = true
+            }
+            return@LaunchedEffect
+        }
+        if (!visible) return@LaunchedEffect
+        val hold = LoadingTiming.remainingHold(SystemClock.uptimeMillis() - startedAt)
+        if (hold > 0) delay(hold)
+        visible = false
+    }
+    return visible || isLoading
+}
+
+/**
+ * Pantalla de carga del contenido. La barra superior y la navegación quedan
+ * visibles: la vista ocupa solo el área de contenido. El rótulo y el perfil
+ * aparecen tras [LoadingTiming.REVEAL_MILLIS]; antes solo se ve el fondo.
+ *
+ * [title] nombra lo que se carga (la pantalla, la carrera o la jornada; en Hoy,
+ * «Carreras de hoy»), sin repetir la marca de la cabecera; con título, la
+ * segunda línea dice «Cargando…». Sin título, [message] es la única línea.
+ * `showProfile=false` retira el perfil inferior (ciclocross).
+ */
 @Composable
 fun RouteLoadingView(
     message: String,
     modifier: Modifier = Modifier,
     showProfile: Boolean = true,
+    title: String? = null,
 ) {
+    var revealed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(LoadingTiming.REVEAL_MILLIS)
+        revealed = true
+    }
+    val alpha by animateFloatAsState(
+        targetValue = if (revealed) 1f else 0f,
+        animationSpec = tween(durationMillis = 250),
+        label = "loadingReveal",
+    )
+    val loadingLine = if (title == null) message else stringResource(R.string.loading)
     Column(
         modifier = modifier
             .fillMaxSize()
-            .semantics { contentDescription = message },
+            .alpha(alpha)
+            .semantics { contentDescription = listOfNotNull(title, loadingLine).joinToString(". ") },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Zona central independiente: el perfil no puede cruzarse con la
-        // identidad del cargador aunque la pantalla sea baja.
+        // Zona central independiente: el perfil no puede cruzarse con el
+        // rótulo aunque la pantalla sea baja.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            CCHeaderMark(
-                width = 74.dp,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = CCText.S20,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                )
+            }
             Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                text = loadingLine,
+                style = CCText.S14,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
             if (!showProfile) {
                 CircularProgressIndicator(
                     modifier = Modifier
-                        .padding(top = 12.dp)
+                        .padding(top = 4.dp)
                         .size(20.dp),
                     strokeWidth = 2.dp,
                 )

@@ -1,5 +1,9 @@
 package app.calendariociclismo.android.ui.settings
 
+import app.calendariociclismo.android.ui.components.ccSegmentedColors
+import androidx.compose.material3.FilledTonalButton
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.neutralFill
 import app.calendariociclismo.android.ui.navigation.Routes
 import android.Manifest
 import android.content.Intent
@@ -563,7 +567,7 @@ private fun Section(
     leadingIcon: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    CCCard(cornerRadius = 14) {
+    CCCard {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -574,7 +578,7 @@ private fun Section(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -601,8 +605,13 @@ private fun FeedRow(label: String, description: String, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Button(
+            FilledTonalButton(
                 onClick = onClick,
+                shape = RoundedCornerShape(CCRadius.Control),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = neutralFill,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
                 modifier = Modifier.semantics { contentDescription = subscribeCd },
             ) { Text(stringResource(R.string.action_subscribe)) }
         }
@@ -610,78 +619,27 @@ private fun FeedRow(label: String, description: String, onClick: () -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun LocalePreferenceSelector(
     selected: LocalePreference,
     onSelect: (LocalePreference) -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            LocaleOptionRow(
-                option = LocalePreference.SPANISH,
-                flag = "🇪🇸",
-                selected = selected == LocalePreference.SPANISH,
-                onClick = { onSelect(LocalePreference.SPANISH) },
-            )
-            LocaleOptionRow(
-                option = LocalePreference.ENGLISH,
-                flag = "🇬🇧",
-                selected = selected == LocalePreference.ENGLISH,
-                onClick = { onSelect(LocalePreference.ENGLISH) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun LocaleOptionRow(
-    option: LocalePreference,
-    flag: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 6.dp, horizontal = 4.dp),
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = if (selected) 0.18f else 0.12f),
-            modifier = Modifier.size(28.dp),
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
+    val options = listOf(LocalePreference.SPANISH, LocalePreference.ENGLISH)
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                colors = ccSegmentedColors(),
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = options.size,
+                    baseShape = RoundedCornerShape(CCRadius.Control),
+                ),
             ) {
-                Text(flag, style = MaterialTheme.typography.bodyLarge)
+                Text(option.label)
             }
-        }
-        Text(
-            text = option.label,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold
-                             else androidx.compose.ui.text.font.FontWeight.Normal,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        if (selected) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(18.dp),
-            )
         }
     }
 }
@@ -692,7 +650,7 @@ private fun NotificationCategorySelector(
     onToggle: (NotificationCategoryPreference, Boolean) -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
         Column(
@@ -783,9 +741,14 @@ private fun ThemePreferenceSelector(
             val optionLabel = stringResource(option.labelRes)
             val themeCd = stringResource(R.string.settings_theme_cd, optionLabel)
             SegmentedButton(
+                colors = ccSegmentedColors(),
                 selected = option == selected,
                 onClick = { onSelect(option) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = options.size,
+                    baseShape = RoundedCornerShape(CCRadius.Control),
+                ),
                 icon = {
                     Icon(
                         imageVector = icon,
@@ -808,7 +771,7 @@ private fun ThemePreferenceSelector(
 private fun PremiumCTACard(onTap: () -> Unit) {
     Surface(
         onClick = onTap,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -837,7 +800,7 @@ private fun PremiumCTACard(onTap: () -> Unit) {
 @Composable
 private fun PremiumActiveCard(onManage: () -> Unit, onRedeemCode: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -885,13 +848,13 @@ private fun PremiumDebugCard(
     onToggle: (Boolean) -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Surface(
-                shape = RoundedCornerShape(3),
+                shape = RoundedCornerShape(CCRadius.Control),
                 color = androidx.compose.ui.graphics.Color(0xFFF59E0B).copy(alpha = 0.15f),
             ) {
                 Text(
@@ -944,7 +907,7 @@ private fun RaceFollowSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     androidx.compose.material3.Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -956,9 +919,12 @@ private fun RaceFollowSection(
                     RaceFollowMode.FOLLOW_FILTERS to stringResource(R.string.race_follow_mode_filters),
                 ).forEachIndexed { idx, (mode, label) ->
                     SegmentedButton(
+                        colors = ccSegmentedColors(),
                         selected = followMode == mode,
                         onClick = { onModeChange(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(idx, 3),
+                        shape = SegmentedButtonDefaults.itemShape(
+                            idx, 3, baseShape = RoundedCornerShape(CCRadius.Control),
+                        ),
                         label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     )
                 }
@@ -974,7 +940,7 @@ private fun RaceFollowSection(
                     Icon(
                         imageVector = Icons.Filled.Notifications,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
@@ -994,7 +960,7 @@ private fun RaceFollowSection(
                     Icon(
                         imageVector = Icons.Filled.Favorite,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
@@ -1040,7 +1006,7 @@ private fun RaceFollowSection(
     }
 
     androidx.compose.material3.Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier
             .fillMaxWidth()
@@ -1054,7 +1020,7 @@ private fun RaceFollowSection(
             Icon(
                 imageVector = Icons.Filled.CalendarMonth,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
             Text(
@@ -1073,7 +1039,7 @@ private fun RaceFollowSection(
     }
 
     androidx.compose.material3.Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier
             .fillMaxWidth()
@@ -1087,7 +1053,7 @@ private fun RaceFollowSection(
             Icon(
                 painter = painterResource(R.drawable.ic_cyclocross),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(width = 18.dp, height = 11.dp),
             )
             Text(
@@ -1119,7 +1085,7 @@ private fun OfficialSettingsIcon(
     backgroundColor: Color,
     size: androidx.compose.ui.unit.Dp,
 ) {
-    Surface(color = backgroundColor, shape = RoundedCornerShape(9.dp), modifier = Modifier.size(size)) {
+    Surface(color = backgroundColor, shape = RoundedCornerShape(CCRadius.Surface), modifier = Modifier.size(size)) {
         Icon(painter = painterResource(drawable), contentDescription = null,
             tint = Color.Unspecified, modifier = Modifier.fillMaxSize())
     }
@@ -1129,7 +1095,7 @@ private fun OfficialSettingsIcon(
 private fun SupportSectionIcon() {
     Surface(
         color = Color(0xFF1A73E8),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(CCRadius.Control),
         modifier = Modifier.size(28.dp),
     ) {
         Icon(
@@ -1304,7 +1270,7 @@ private fun RowScope.IconChoice(
         onClick = onClick,
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
         modifier = Modifier.weight(1f),
     ) {
         Column(

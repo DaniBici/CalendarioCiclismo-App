@@ -386,6 +386,24 @@ export function categoryBadge(uci, isFemale) {
   return uciBadge + genBadge;
 }
 
+// ── Nombre legible de la categoría UCI ──────────────────────────
+// Las siglas sin contexto (CC, WC) se escriben completas en las cabeceras;
+// las clases numéricas (2.2, 1.Pro) se leen con el prefijo UCI.
+const UCI_CATEGORY_NAMES = {
+  es: { CC: 'Campeonato continental', WC: 'Campeonato del mundo', NC: 'Campeonato nacional',
+        UWT: 'UCI WorldTour', WWT: 'UCI Women\u2019s WorldTour', Pro: 'UCI ProSeries' },
+  en: { CC: 'Continental Championships', WC: 'World Championships', NC: 'National Championships',
+        UWT: 'UCI WorldTour', WWT: 'UCI Women\u2019s WorldTour', Pro: 'UCI ProSeries' },
+};
+function uciCategoryName(uci) {
+  if (!uci) return '';
+  const names = UCI_CATEGORY_NAMES[getLang()] || UCI_CATEGORY_NAMES.es;
+  if (names[uci]) return names[uci];
+  const tier = uci.split('.')[1];
+  if (names[tier]) return names[tier];
+  return /^\d\./.test(uci) ? `UCI ${uci}` : uci;
+}
+
 // ── Nombre de carrera según idioma ──────────────────────────────
 export function raceName(race) {
   if (!race) return '';
@@ -1360,7 +1378,7 @@ export function buildRaceHero(rd, race, { showCancelledBanner = false } = {}) {
     race,
     countryCode: effectiveCountryCode(rd, race || {}),
     hideFlag: !showFlag,
-    detail: [stage, uci].filter(Boolean).join(' · '),
+    detail: [stage, uciCategoryName(uci)].filter(Boolean).join(' · '),
     date: rd.dateKey ? formatDateKeyLong(rd.dateKey) : '',
     extraHtml: cancelledHtml,
   });

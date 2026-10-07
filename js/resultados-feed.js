@@ -43,6 +43,28 @@ import {
   previousResultsWindow,
 } from './services/result-feed-pagination.js';
 
+// Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
+// («France»). En castellano se muestra el nombre del país en castellano.
+const NATION_ALIASES = { 'Great Britain': 'GB' };
+const NATION_NAMES_ES = { GB: 'Gran Bretaña' };
+let _nationCodeByName = null;
+function localizedNationName(name) {
+  if (getLang() === 'en' || !name || typeof Intl.DisplayNames !== 'function') return name;
+  if (!_nationCodeByName) {
+    _nationCodeByName = new Map(Object.entries(NATION_ALIASES));
+    const en = new Intl.DisplayNames(['en'], { type: 'region' });
+    const A = 65;
+    for (let i = 0; i < 26; i++) for (let j = 0; j < 26; j++) {
+      const code = String.fromCharCode(A + i, A + j);
+      const label = en.of(code);
+      if (label && label !== code) _nationCodeByName.set(label, code);
+    }
+  }
+  const code = _nationCodeByName.get(name.trim());
+  if (!code) return name;
+  return NATION_NAMES_ES[code] || new Intl.DisplayNames(['es'], { type: 'region' }).of(code) || name;
+}
+
 const TROPHY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
 
 function toDateKey(d) {
@@ -354,7 +376,7 @@ async function fetchEntries(fromKey, toKey, isEn) {
             const { data: tm } = await supabase.from('teams').select('name').eq('id', slt.teamId).maybeSingle();
             if (tm?.name) teamWinner = tm.name;
           }
-          if (teamWinner) e.winner = teamWinner;
+          if (teamWinner) e.winner = localizedNationName(teamWinner);
         } catch (_) { /* se queda el ganador que hubiera */ }
       }
     }
@@ -412,7 +434,9 @@ function entryRowHtml(e, isEn, locale) {
       ? `${Number(rd.distanceKm).toLocaleString(locale)} km` : '';
     const gain = rd?.elevationProfile?.elevationGain;
     const elevation = gain != null
-      ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale)} m`
+      // Separador de millares también con cuatro cifras («+1.810 m»), como en Hoy:
+      // es-ES no agrupa por defecto por debajo de 10.000.
+      ? `+${Number(Math.round(gain / 10) * 10).toLocaleString(locale, { useGrouping: 'always' })} m`
       : '';
     const stagePart = stageLabel(e.sn, isEn, e.suffix || '');
     const seg = [];
@@ -523,11 +547,11 @@ export function renderResultsFeed(content) {
   function shell(body) {
     return `
       <div class="feed-hero">
-        <h1 class="feed-hero__title">${_isEn ? 'Results' : 'Resultados'}</h1>
+        <h1 class="sr-only">${_isEn ? 'Results' : 'Resultados'}</h1>
         <div class="feed-view-tabs" role="tablist" aria-label="${_isEn ? 'Results view' : 'Vista de resultados'}">
           <button class="feed-view-tab${activeView === 'latest' ? ' feed-view-tab--active' : ''}"
                   type="button" role="tab" aria-selected="${activeView === 'latest'}" data-results-view="latest">
-            ${_isEn ? 'Latest Results' : 'Últimos Resultados'}
+            ${_isEn ? 'Latest Results' : 'Últimos resultados'}
           </button>
           <button class="feed-view-tab${activeView === 'ranking' ? ' feed-view-tab--active' : ''}"
                   type="button" role="tab" aria-selected="${activeView === 'ranking'}" data-results-view="ranking">
@@ -694,7 +718,30 @@ export function renderResultsFeed(content) {
   function renderRanking(rows) {
     const selected = decorateUciRanking(rows, rankingGender);
     const updated = formatUciRankingUpdated(selected[0]?.rankingDate, _isEn);
-    const pointsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+    // Puntos enteros con separador de millares siempre: las cifras se alinean.
+    const pointsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 0, useGrouping: 'always' });
+    // Explicación de cada etiqueta de puesto (columna izquierda en escritorio):
+    // solo los niveles presentes en el ránking seleccionado.
+    const rankingYear = Number(String(selected[0]?.rankingDate || '').slice(0, 4));
+    const invitationYear = Number.isFinite(rankingYear) && rankingYear > 0 ? rankingYear + 1 : new Date().getFullYear() + 1;
+    const keyItems = [
+      ['wt', UciRankingTier.WORLD_TOUR, _isEn ? 'WorldTour licence' : 'Licencia WorldTour',
+        _isEn ? 'Entitled and required to ride every UCI WorldTour race.' : 'Derecho y obligación de correr todas las pruebas UCI WorldTour.'],
+      ['orange', UciRankingTier.ALL_WORLD_TOUR, _isEn ? 'All WorldTour' : 'Todo el WorldTour',
+        _isEn ? `Invitation to every ${invitationYear} UCI WorldTour race, Grand Tours included, and every UCI ProSeries race.` : `Invitación a todas las pruebas UCI WorldTour de ${invitationYear}, Grandes Vueltas incluidas, y a todas las UCI ProSeries.`],
+      ['orange', UciRankingTier.WOMENS_WORLD_TOUR, _isEn ? "Women's WorldTour" : "Women's WorldTour",
+        _isEn ? `Invitation to every ${invitationYear} UCI Women's WorldTour race.` : `Invitación a todas las pruebas UCI Women's WorldTour de ${invitationYear}.`],
+      ['green', UciRankingTier.PRO_SERIES, 'ProSeries',
+        _isEn ? `Invitation to every ${invitationYear} UCI ProSeries race.` : `Invitación a todas las pruebas UCI ProSeries de ${invitationYear}.`],
+    ].filter(([, tier]) => selected.some(row => row.invitationTier === tier));
+    if (selected.some(row => row.grandTourExcluded)) {
+      keyItems.push(['excluded', null, _isEn ? 'No Grand Tours' : 'Sin Grandes Vueltas',
+        _isEn ? `Outside the overall top 30: not eligible for a ${invitationYear} Grand Tour wildcard.` : `Fuera del top-30 absoluto: sin opción a invitación para una Gran Vuelta de ${invitationYear}.`]);
+    }
+    const keyHtml = keyItems.length ? `<aside class="uci-ranking-key">
+        <h3 class="uci-ranking-key__title">${_isEn ? `Invitations ${invitationYear}` : `Invitaciones ${invitationYear}`}</h3>
+        ${keyItems.map(([cls, , label, text]) => `<div class="uci-ranking-key__item"><span class="uci-ranking-legend__item uci-ranking-legend__item--${cls}">${label}</span><p>${text}</p></div>`).join('')}
+      </aside>` : '';
     const genderButtons = [
       ['male', _isEn ? 'Men' : 'Masculino'],
       ['female', _isEn ? 'Women' : 'Femenino'],
@@ -721,15 +768,15 @@ export function renderResultsFeed(content) {
 
     const body = `
       <section class="uci-ranking">
-        <div class="uci-ranking-heading-row">
-          <h2 class="uci-ranking-title">${_isEn ? 'UCI Team Ranking' : 'Ránking UCI por equipos'}</h2>
-          <div class="uci-ranking-heading-meta">
-            <p class="uci-ranking-updated">${esc(updated)}</p>
+        <h2 class="sr-only">${_isEn ? 'UCI Team Ranking' : 'Ránking UCI por equipos'}</h2>
+        <div class="uci-ranking-bar">
+          <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
+            ${genderButtons}
           </div>
+          <p class="uci-ranking-updated">${esc(updated)}</p>
         </div>
-        <div class="feed-view-tabs uci-ranking-gender-tabs" aria-label="${_isEn ? 'Ranking gender' : 'Género del ránking'}">
-          ${genderButtons}
-        </div>
+        <div class="uci-ranking-layout">
+        ${keyHtml}
         <!-- Sin role="table": las filas son <div> sin role="row"/"cell" y
              además llevan botones e imágenes dentro, así que el rol prometía
              una estructura de tabla que el marcado no cumple y el lector la
@@ -739,6 +786,7 @@ export function renderResultsFeed(content) {
             <span>#</span><span></span><span>${_isEn ? 'Team' : 'Equipo'}</span><span>${_isEn ? 'Cat.' : 'Cat.'}</span><span>${_isEn ? 'Points' : 'Puntos'}</span>
           </div>
           ${rowsHtml || `<div class="startlist-empty">${_isEn ? 'Ranking not available.' : 'Ránking no disponible.'}</div>`}
+        </div>
         </div>
       </section>`;
     content.innerHTML = shell(body);

@@ -11,110 +11,24 @@
   box-sizing: border-box;
 }
 
-.tr-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 0.42rem;
-  position: relative;
-  width: fit-content;
-}
-
 .tr-heading {
   font-family: var(--font-display);
-  font-size: 1.45rem;
+  font-size: var(--fs-5);
   font-weight: 700;
   margin: 0.75rem 0 0.5rem;
 }
 
-.tr-info-button {
-  display: inline-grid;
-  place-items: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  padding: 0;
-  border: 1px solid var(--text-muted);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-muted);
-  font: 700 0.78rem/1 var(--font-body);
-  cursor: pointer;
-}
-.tr-info-button:hover, .tr-info-button:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-.tr-info-tooltip {
-  display: none;
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  left: calc(100% + 0.55rem);
-  right: auto;
-  transform: none;
-  width: min(26rem, calc(100vw - 2rem));
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.45rem;
-  background: var(--bg-card, var(--bg));
-  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 400;
-  line-height: 1.4;
-  text-transform: none;
-  letter-spacing: normal;
-}
-@media (min-width: 769px) {
-  .tr-heading-row:hover .tr-info-tooltip,
-  .tr-heading-row:focus-within .tr-info-tooltip { display: block; }
-}
-@media (max-width: 768px) {
-  .tr-info-tooltip { display: none !important; }
-}
-
-.tr-info-modal__body {
-  padding: 1.15rem 1.5rem 1.5rem;
-  color: var(--text);
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-.tr-info-modal__body p { margin: 0; }
-.tr-info-sources {
-  display: block;
-  margin: 0.55rem 0 0;
-  padding-left: 1.1rem;
-}
-.tr-info-sources li + li { margin-top: 0.22rem; }
-.tr-info-sources a {
-  color: var(--accent-text);
-  text-decoration: underline;
-  text-underline-offset: 0.12em;
-}
-.tr-info-tooltip .tr-info-sources {
-  margin-top: 0.4rem;
-  padding-left: 0.9rem;
-}
-@media (max-width: 480px) {
-  .tr-info-modal__body { padding: 1rem 1.1rem 1.25rem; }
-}
-
 .tr-section-title {
   font-family: var(--font-display);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  font-size: var(--fs-4);
+  font-weight: 600;
+  color: var(--text);
   margin: 1.75rem 0 0.6rem;
 }
 
-/* El primer bloque empieza justo después de la cabecera del Mercado: no
-   necesita el respiro que separa entre sí las secciones posteriores. */
-.tr-home-feed > .tr-section-title { margin-top: 0.85rem; }
-
 .tr-empty {
   color: var(--text-dim);
-  font-size: 0.85rem;
+  font-size: var(--fs-3);
   padding: 0.4rem 0;
 }
 
@@ -122,12 +36,11 @@
 
 /* ── Feed de confirmaciones ─────────────────────────────────────── */
 .tr-feed-day {
-  font-size: 0.72rem;
+  font-size: var(--fs-2);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin: 0.9rem 0 0.35rem;
+  color: var(--text-muted);
+  margin: 0;
+  padding: 10px 12px 4px;
 }
 
 .tr-row {
@@ -136,10 +49,10 @@
   gap: 0.6rem;
   padding: 0.5rem 0.7rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
   border-radius: var(--radius);
   margin-bottom: 0.35rem;
-  font-size: 0.88rem;
+  font-size: var(--fs-3);
   line-height: 1.35;
 }
 
@@ -147,16 +60,14 @@
    para que el selector y el inicio de la parrilla de equipos sigan asomando
    en la primera pantalla, sin sacrificar la lectura a una línea. */
 @media (max-width: 768px) {
-  .tr-home-feed > .tr-section-title { margin-top: 0.65rem; }
-  .tr-feed-day { font-size: 0.68rem; margin: 0.65rem 0 0.25rem; }
   .tr-row {
     gap: 0.45rem;
     padding: 0.38rem 0.55rem;
     margin-bottom: 0.25rem;
-    font-size: 0.82rem;
+    font-size: var(--fs-2);
     line-height: 1.25;
   }
-  .tr-contract { font-size: 0.64rem; padding: 0.12rem 0.35rem; }
+  .tr-contract { font-size: var(--fs-1); }
   .tr-div-btn { padding: 0.28rem 0.7rem; }
 }
 
@@ -204,35 +115,32 @@
    junto a los chips de rumor/duda. */
 .tr-contract {
   flex-shrink: 0;
-  font-size: 0.68rem;
+  font-size: var(--fs-1);
   font-weight: 700;
   letter-spacing: 0.02em;
   /* El fondo propio de la chapa aclara la base y --text-muted se quedaba en
      4.44:1 en tema oscuro (WCAG 1.4.3); en claro ya pasa. */
-  color: #989aa3;
-  background: var(--bg-subtle, rgba(120, 120, 128, 0.14));
-  padding: 0.14rem 0.45rem;
-  border-radius: 4px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  background: none;
+  padding: 0;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
 html.light .tr-contract { color: var(--text-muted); }
 
-.tr-contract--midseason {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.14);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+/* Mitad de temporada en lugar del año: mismo texto que el año de contrato. */
+.tr-contract--midseason { text-transform: none; letter-spacing: 0; }
 
 .tr-chip {
   flex-shrink: 0;
-  font-size: 0.62rem;
+  font-size: var(--fs-1);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0;
   padding: 0.14rem 0.45rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
@@ -259,10 +167,10 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 .tr-team-notice {
   margin: 0.6rem 0 0;
   padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(139, 92, 246, 0.1);
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: var(--fs-2);
   line-height: 1.4;
 }
 
@@ -270,7 +178,7 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   display: block;
   margin: 0.75rem auto 0;
   padding: 0.45rem 1.3rem;
-  font-size: 0.82rem;
+  font-size: var(--fs-2);
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--accent-text, var(--accent));
@@ -288,15 +196,15 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   margin-bottom: 0.75rem;
 }
 
-/* Mismo tamaño que los filtros de categoría de la vista Hoy (.tcat-btn):
-   sin borde, activo = relleno --accent-dim + texto accent. */
+/* Mismos filtros que la vista Hoy (.tcat-btn): inactivo sobre la superficie
+   de ficha; activo con el azul al 15 % y texto azul. */
 .tr-div-btn {
   padding: 0.32rem 0.8rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-2);
   font-family: var(--font-body);
   font-weight: 500;
   color: var(--text-muted);
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
   border: none;
   border-radius: var(--radius-pill);
   cursor: pointer;
@@ -304,24 +212,25 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 }
 
 .tr-div-btn--active {
-  background: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
   color: var(--accent-text, var(--accent));
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .tr-team-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .tr-team-card {
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   min-width:0; min-height:54px; padding:10px 12px; text-align:left;
-  background:var(--team-bg,var(--bg-card)); color:var(--team-text,var(--text));
-  border:1px solid color-mix(in srgb,currentColor 20%,transparent); border-radius:8px;
-  font:600 14px/1.35 var(--font-body); cursor:pointer;
+  background:var(--bg-card); color:var(--text);
+  border:0; border-radius: var(--radius); box-shadow: var(--card-shadow);
+  font: 600 var(--fs-3)/1.35 var(--font-body); cursor:pointer;
 }
-.tr-team-card:hover { box-shadow:inset 0 0 0 1px currentColor; }
+.tr-team-card:hover { background:var(--bg-card-hover); }
+/* Franjas de maillot (las de Resultados) delante del nombre del equipo. */
 .tr-team-card__name { overflow-wrap:anywhere; }
 .tr-team-card__label { min-width:0; }
-.tr-team-card__label .tr-chip { margin:4px 0 0; font-size:.7rem; }
-.tr-team-chevron { flex:none; font-size:22px; }
+.tr-team-card__label .tr-chip { margin:4px 0 0; font-size: var(--fs-1); }
+.tr-team-chevron { flex:none; font-size: var(--fs-5); }
 @media (max-width:1100px) { .tr-team-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px) { .tr-team-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:360px) { .tr-team-grid { grid-template-columns:1fr; } }
@@ -336,29 +245,30 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
   gap: 0.9rem;
   padding: 0.9rem 1rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
   border-radius: var(--radius);
 }
 
 .tr-team-header__name {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: var(--fs-5);
   font-weight: 700;
   margin: 0;
 }
 
 .tr-team-header__cat {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-2);
 }
 
 .tr-team-sections section { margin-top: 0.25rem; }
 
-.tr-row--team { font-size: 0.86rem; }
+.tr-row--team { font-size: var(--fs-3); }
 
-.tr-team-header { min-height:44px; padding:9px 12px; background:var(--team-bg,var(--bg-card)); color:var(--team-text,var(--text)); }
-.tr-team-header__text { display:flex; align-items:center; justify-content:space-between; gap:8px 16px; flex-wrap:wrap; width:100%; }
-.tr-team-header__name { font-size:18px; overflow-wrap:anywhere; }
+.tr-team-header { min-height:44px; padding:9px 12px; background:var(--bg-card); color:var(--text); }
+.tr-team-header__text { display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; width:100%; }
+.tr-team-header__cat { margin-left:auto; }
+.tr-team-header__name { font-size: var(--fs-5); overflow-wrap:anywhere; }
 .tr-team-header__cat { color:inherit; font-weight:600; }
 #trTeamView { margin-inline:auto; }
 .tr-team-sections { columns:350px 2; column-gap:24px; padding-top:1.75rem; }
@@ -380,11 +290,29 @@ html:not(.light) .tr-chip--doubt { color: #a78bfa; }
 
 .tr-main { width:var(--page-width); padding-inline:0; margin-inline:auto; }
 
-.tr-feed-column { display:none; min-width:0; }
+/* Fichajes y Renovaciones: paneles como Puntos clave (cabecera y filas con
+   filete). En móvil y tableta se ve uno, elegido con los botones. */
+.tr-feed-column { display:none; min-width:0; overflow:hidden; background:var(--bg-card); box-shadow:var(--card-shadow); border-radius:var(--radius); }
 .tr-feed-column--active { display:block; }
-.tr-feed-title { display:none; margin:0; color:var(--text-muted); font:700 .78rem var(--font-display); text-transform:uppercase; letter-spacing:.06em; }
+.tr-feed-title { display:none; align-items:center; min-height:48px; margin:0; padding:10px 12px; border-bottom:1px solid var(--border); color:var(--text); font: 600 var(--fs-4) var(--font-display); }
+.tr-feed-column .tr-row { margin:0; padding:8px 12px; background:none; box-shadow:none; border-radius:0; border-bottom:1px solid var(--border); }
+.tr-feed-column .tr-row--link:hover { background:var(--hover-bg); }
+.tr-feed-list { margin-bottom:-1px; }
+.tr-feed-column .tr-empty { padding:12px; }
+/* Sin desplazamiento (móvil y tableta), el feed se corta en FEED_MAX_*. */
+.tr-feed-extra { display:none; }
 @media(min-width:1100px) {
   #trFeedBtns { display:none; }
   #trFeed { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
-  .tr-feed-column, .tr-feed-title { display:block; }
+  .tr-feed-column { display:block; }
+  .tr-feed-title { display:flex; }
+  /* Fichajes y Renovaciones a la misma altura fija, con desplazamiento propio. */
+  .tr-feed-extra { display:flex; }
+  .tr-feed-day.tr-feed-extra { display:block; }
+  .tr-feed-list {
+    height: 22rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
 }

@@ -28,7 +28,7 @@ private val tightLineHeightStyle = LineHeightStyle(
     trim = LineHeightStyle.Trim.Both,
 )
 
-private fun ccTextStyle(
+internal fun ccTextStyle(
     weight: FontWeight,
     size: TextUnit,
     lineHeight: TextUnit,
@@ -41,17 +41,23 @@ private fun ccTextStyle(
     lineHeightStyle = tightLineHeightStyle,
 )
 
+/**
+ * Estilos Material 3 sobre la escala común de siete tamaños ([CCText]):
+ * 12, 13, 14, 16, 20, 28 y 36 sp.
+ */
 val CCTypography = Typography(
-    headlineLarge  = ccTextStyle(FontWeight.Bold,     28.sp, 34.sp),
-    headlineMedium = ccTextStyle(FontWeight.SemiBold, 22.sp, 28.sp),
+    headlineLarge  = ccTextStyle(FontWeight.Bold,     36.sp, 42.sp),
+    headlineMedium = ccTextStyle(FontWeight.Bold,     28.sp, 34.sp),
+    headlineSmall  = ccTextStyle(FontWeight.SemiBold, 20.sp, 26.sp),
     titleLarge     = ccTextStyle(FontWeight.SemiBold, 20.sp, 26.sp),
-    titleMedium    = ccTextStyle(FontWeight.Medium,   17.sp, 22.sp),
-    titleSmall     = ccTextStyle(FontWeight.Medium,   14.sp, 18.sp),
+    titleMedium    = ccTextStyle(FontWeight.SemiBold, 16.sp, 22.sp),
+    titleSmall     = ccTextStyle(FontWeight.SemiBold, 14.sp, 20.sp),
     bodyLarge      = ccTextStyle(FontWeight.Normal,   16.sp, 22.sp),
     bodyMedium     = ccTextStyle(FontWeight.Normal,   14.sp, 20.sp),
     bodySmall      = ccTextStyle(FontWeight.Normal,   12.sp, 16.sp),
     labelLarge     = ccTextStyle(FontWeight.Medium,   14.sp, 18.sp),
-    labelSmall     = ccTextStyle(FontWeight.Medium,   11.sp, 14.sp),
+    labelMedium    = ccTextStyle(FontWeight.Medium,   13.sp, 18.sp),
+    labelSmall     = ccTextStyle(FontWeight.Medium,   12.sp, 16.sp),
 )
 
 /**

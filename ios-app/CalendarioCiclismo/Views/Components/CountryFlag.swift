@@ -23,7 +23,7 @@ struct CountryFlag: View {
                 .interpolation(.high)
                 .scaledToFill()
                 .frame(width: width, height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .clipped()
                 .accessibilityLabel(AccessibilityCountryNames.name(for: countryCode) ?? "")
         }
     }

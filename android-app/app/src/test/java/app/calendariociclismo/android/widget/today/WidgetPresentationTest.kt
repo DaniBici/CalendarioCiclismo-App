@@ -59,7 +59,7 @@ class WidgetPresentationTest {
         assertEquals(R.drawable.ic_widget_tv, before?.icon)
         assertFalse(before!!.emphasized)
         val live = item.badge(Instant.parse("2026-09-27T12:40:00Z"), es)
-        assertEquals("Live", live?.text)
+        assertEquals(es.s(R.string.tv_badge_live), live?.text)
         assertTrue(live!!.emphasized)
         assertNull(live.url)
     }

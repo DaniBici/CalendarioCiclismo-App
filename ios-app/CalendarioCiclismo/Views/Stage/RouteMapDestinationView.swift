@@ -24,7 +24,7 @@ struct RouteMapDestinationView: View {
             } else if viewModel.error != nil {
                 StageDetailView(raceDayId: raceDayId)
             } else {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Mapa", "Map"))
             }
         }
         .task { await viewModel.load(raceDayId: raceDayId) }

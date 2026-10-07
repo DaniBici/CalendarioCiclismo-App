@@ -16,7 +16,7 @@ struct CxMapView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(CyclocrossPresentation.t("Mapa", "Map")).font(.headline)
+            Text(CyclocrossPresentation.t("Mapa", "Map")).ccFont(.s16, weight: .semibold)
             if let image {
                 Button { expanded = true } label: {
                     Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: maxImageHeight)
@@ -25,7 +25,7 @@ struct CxMapView: View {
                     .accessibilityLabel(CyclocrossPresentation.t("Ampliar mapa", "Expand map"))
             } else if failed {
                 Text(CyclocrossPresentation.t("No se ha podido cargar el mapa.", "The map could not be loaded."))
-                    .foregroundStyle(.secondary)
+                    .ccFont(.s14).foregroundStyle(AppTheme.textMuted)
                 HStack {
                     Button(CyclocrossPresentation.t("Reintentar", "Retry")) { attempt += 1 }
                     Link(CyclocrossPresentation.t("Abrir mapa", "Open map"), destination: url)

@@ -3,17 +3,11 @@ import { supabase, esc, stageLabel, formatTimeUser, raceUrl,
          buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, perfilUrl, enBase,
          seoLongDate, articuloNombre, startFinishLabels, setRaceRobots } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
-import { buildElevationProfileSVG } from './stage/elevation-profile.js';
-import { setupElevationProfileHover } from './stage/elevation-profile-hover.js';
-import { computeClimbStats, effectiveSummitAlt } from './stage/climb-detection.js';
+import { mountStageProfile } from './stage/profile.js';
 
 const params  = new URLSearchParams(location.search);
 const content = document.getElementById('perfilEtapaContent');
 const backBtn = document.getElementById('backBtn');
-
-const SPRINT_TYPES  = new Set(['intermediate_sprint', 'bonus_sprint']);
-const TERRAIN_TYPES = new Set(['cobblestone', 'sterrato']);
-const TERRAIN_LABELS = new Proxy({}, { get(_, key) { return t(`terrain.${key}`) || key; } });
 
 // ── Resolve id/slug — pathname takes priority for clean URLs ─────
 function slugFromPath() {
@@ -36,7 +30,7 @@ async function loadProfile(idOrSlug) {
   const cols = [
     'id','slug','slugEn','raceId','dateKey','stageNumber','isRestDay','isCancelledDay',
     'startLocation','finishLocation','startLocationEn','finishLocationEn','distanceKm','countryCode',
-    'neutralStartTimeUtc','estimatedFinishTimeUtc',
+    'neutralStartTimeUtc','realStartTimeUtc','estimatedFinishTimeUtc',
     'primaryType','secondaryType','startOrderImportedAt','profileNotViewable',
     'elevationProfile','profileSummits','profileWaypoints','routeGpxUrl',
   ].join(',');
@@ -103,14 +97,7 @@ async function loadProfile(idOrSlug) {
 // ── Render ────────────────────────────────────────────────────────
 function render(rd, race, siblings, jornadaHref, assets = []) {
   const isEn    = getLang() === 'en';
-  const profile   = rd.elevationProfile ?? null;
-  const summits   = rd.profileSummits   ?? [];
-  const waypoints = rd.profileWaypoints ?? [];
   const isTimeTrial = rd.primaryType === 'itt' || rd.primaryType === 'ttt';
-  const sprints   = isTimeTrial
-    ? waypoints.filter(w => w.type === 'intermediate_split')
-    : waypoints.filter(w => SPRINT_TYPES.has(w.type));
-  const terrain   = waypoints.filter(w => TERRAIN_TYPES.has(w.type));
 
   const name  = (isEn && race?.nameEn) || race?.name || '';
   const year  = race?.year ?? '';
@@ -285,133 +272,16 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
       </div>
     </div>`;
 
-  // ── SVG ───────────────────────────────────────────────────────
-  // Móvil (<600 px): altura reducida un 40 % (440 → 264) para que el perfil
-  // no domine la pantalla y se vea junto al route grid sin scroll.
-  const svgW = Math.max(240,content.clientWidth || window.innerWidth - 32);
-  const svgH = svgW < 600 ? 264 : 440;
-  const { svg: svgStr, hoverData } = buildElevationProfileSVG({
-    profile,
-    summits,
-    waypoints,
-    startLocation:  startName,
-    finishLocation: finishName,
-    width:  svgW,
-    height: svgH,
-    color:  race?.colorHex || null,
-    lang:   getLang(),
-  });
-
-  // ── Puntos clave ──────────────────────────────────────────────
-  const profilePts = profile?.points;
-  const summitsBoxHtml = summits.length
-    ? `<div class="pfe-box">
-          <p class="pfe-box-title">${t('profile.climbs')} (${summits.length})</p>
-          ${summits.map(s => {
-            const km  = s.km != null ? `${s.km}${kmUnit}` : '?';
-            const altRaw = effectiveSummitAlt(s, profilePts);
-            const alt = altRaw != null ? fmt(altRaw, isEn ? ',' : '.') + ' m' : null;
-            const cat = (s.category && s.category !== 'M') ? `Cat. ${s.category}` : null;
-            let climbStr = null;
-            if (s.startKm != null && s.km != null && profilePts?.length) {
-              const stats = computeClimbStats(profilePts, s.startKm, s.km, s.altitude ?? null);
-              if (stats) {
-                const sign = stats.avgGradient >= 0 ? '' : '−';
-                climbStr = `${stats.lengthKm}${kmUnit} · ${sign}${Math.abs(stats.avgGradient).toFixed(1)}%`;
-              }
-            }
-            const parts = [s.name?.trim() || null, climbStr, alt, cat].filter(Boolean);
-            return `<div class="pfe-item"><b>${km}</b>${esc(parts.join(' · '))}</div>`;
-          }).join('')}
-        </div>`
-    : '';
-
-  const sprintBoxTitle = isTimeTrial ? t('profile.splits') : t('profile.sprints');
-  const sprintsBoxHtml = sprints.length
-    ? `<div class="pfe-box">
-          <p class="pfe-box-title">${sprintBoxTitle} (${sprints.length})</p>
-          ${sprints.map(w => {
-            const km   = w.km != null ? `${w.km}${kmUnit}` : '?';
-            const type = isTimeTrial
-              ? null
-              : (w.type === 'bonus_sprint' ? t('profile.bonusSprint') : t('profile.intSprint'));
-            const parts = [w.name?.trim() || null, type].filter(Boolean);
-            return `<div class="pfe-item"><b>${km}</b>${esc(parts.join(' · '))}</div>`;
-          }).join('')}
-        </div>`
-    : '';
-
-  const terrainBoxHtml = terrain.length
-    ? `<div class="pfe-box">
-          <p class="pfe-box-title">${t('profile.sectors')} (${terrain.length})</p>
-          ${terrain.map(w => {
-            const km     = w.km != null ? `${w.km}${kmUnit}` : '?';
-            const label  = (rd.primaryType === 'ribinou' && w.type === 'sterrato')
-              ? t('terrain.ribinou')
-              : (TERRAIN_LABELS[w.type] ?? w.type);
-            const name   = w.name?.trim() || null;
-            const length = w.lengthKm != null ? `${w.lengthKm}${kmUnit}` : null;
-            const parts  = [name, label, length].filter(Boolean);
-            return `<div class="pfe-item"><b>${km}</b>${esc(parts.join(' · '))}</div>`;
-          }).join('')}
-        </div>`
-    : '';
-
-  const boxCount = [summitsBoxHtml, sprintsBoxHtml, terrainBoxHtml].filter(Boolean).length;
-  const keyPointsHtml = boxCount > 0
-    ? `<div class="pfe-section">
-      <p class="pfe-section-title">${t('profile.keyPoints')}</p>
-      <div class="pfe-grid${boxCount === 1 ? ' pfe-grid--single' : ''}">
-        ${summitsBoxHtml}
-        ${sprintsBoxHtml}
-        ${terrainBoxHtml}
-      </div>
-    </div>`
-    : '';
-
+  // Perfil y puntos clave con el mismo componente que la jornada: panel con
+  // lectura de punto y tramo, formato interactivo u oficial y lista de puntos.
   content.innerHTML = `
     ${stageNavHtml}
     ${heroHtml}
     ${actionButtonsHtml}
     ${routeGridHtml}
-
-    <div class="pfe-svg-wrap">${profile ? svgStr : `<p style="text-align:center;color:var(--text-muted);padding:2rem">${t('profile.noElevation')}</p>`}</div>
-
-    ${keyPointsHtml}
+    <div id="pfeProfile"></div>
   `;
-
-  // ── Botón de edición admin (solo si hay sesión activa) ──
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session?.user) return;
-    const existing = document.getElementById('editPerfilBtn');
-    if (existing) return;
-    const btn = document.createElement('a');
-    btn.id        = 'editPerfilBtn';
-    btn.className = 'edit-jornada-btn';
-    btn.href      = '/panel/app.html?perfil=' + encodeURIComponent(rd.id);
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar perfil';
-    // content es el <main class="pfe-wrap"> — anclar ahí para evitar el overflow del svg-wrap
-    content.style.position = 'relative';
-    content.appendChild(btn);
-  });
-
-  // Setup interactive hover effect on elevation profile
-  if (profile && hoverData) {
-    const wrap=content.querySelector('.pfe-svg-wrap');
-    let lastWidth=0;
-    const observer=new ResizeObserver(()=> {
-      const width=Math.round(wrap.clientWidth);
-      if (width<240 || width===lastWidth) return;
-      lastWidth=width;
-      const drawing=buildElevationProfileSVG({profile,summits,waypoints,startLocation:startName,finishLocation:finishName,width,height:width<600?264:440,color:race?.colorHex || null,lang:getLang()});
-      wrap.innerHTML=drawing.svg;
-      setupElevationProfileHover(wrap.querySelector('.ep-detailed'),drawing.hoverData);
-    });
-    observer.observe(wrap);
-    window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
-  }
-}
-
-function fmt(v, sep = '.') {
-  return v != null ? String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, sep) : '?';
+  const profileHost = document.getElementById('pfeProfile');
+  mountStageProfile(profileHost, { day:rd, race:race || {}, assets, points:true });
+  if (profileHost.hidden) profileHost.outerHTML = `<p class="pfe-loading">${t('profile.noElevation')}</p>`;
 }

@@ -22,7 +22,7 @@ struct CCHeaderBrandView: View {
         HStack(spacing: 8) {
             CCHeaderMarkView(width: markWidth)
             Text(title)
-                .font(.custom("GoogleSans-Medium", size: 18, relativeTo: .headline))
+                .font(.custom("GoogleSans-Medium", size: 20, relativeTo: .title3))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)

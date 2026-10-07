@@ -202,10 +202,10 @@ export function waypointRowHTML(w = {}) {
   const esc = v => String(v ?? '').replace(/"/g, '&quot;');
   const typeOpts = [
     ['town',                'Localidad'],
-    ['intermediate_sprint', 'Sprint Intermedio'],
-    ['bonus_sprint',        'Sprint Bonificación'],
+    ['intermediate_sprint', 'Sprint intermedio'],
+    ['bonus_sprint',        'Sprint de bonificación'],
     ['intermediate_split',  'Punto intermedio'],
-    ['cobblestone',         'Pavé / Adoquín'],
+    ['cobblestone',         'Pavé / adoquín'],
     ['sterrato',            'Sterrato'],
   ].map(([v, l]) => `<option value="${v}"${(w.type ?? 'town') === v ? ' selected' : ''}>${l}</option>`).join('');
   const isCobSter = w.type === 'cobblestone' || w.type === 'sterrato';
@@ -243,7 +243,7 @@ export function broadcastHTML(b, i) {
       <div class="field">
         <label>URL (opcional)</label>
         <input type="url" class="bc-url" value="${b.url || ''}" placeholder="https://…">
-        ${b.embeddable === false ? `<div class="field-hint u-c-caution u-fs-075 u-mt-025">⚠ Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
+        ${b.embeddable === false ? `<div class="field-hint u-c-caution u-fs-1 u-mt-025">⚠ Embed deshabilitado en YouTube — se abrirá en una pestaña nueva.</div>` : ''}
       </div>
     </div>
     <div class="field-row field-row--2">

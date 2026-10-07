@@ -19,7 +19,7 @@ let _challengeEditingId = null; // null = crear nuevo, string = editar existente
 // ── Render listado de challenges ─────────────────────────────────
 export async function renderChallengesView() {
   const container = document.getElementById('challengesListView');
-  container.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
+  container.innerHTML = '<div class="u-fs-3 u-c-dim">Cargando…</div>';
 
   try {
     const { data: groupsData } = await supabase.from('challenge_groups').select('*');
@@ -31,13 +31,13 @@ export async function renderChallengesView() {
     });
 
     if (!groups.length) {
-      container.innerHTML = `<div class="u-c-dim u-fs-085 u-py-100 u-px-0">
+      container.innerHTML = `<div class="u-c-dim u-fs-3 u-py-100 u-px-0">
         No hay challenge groups todavía. Crea uno con el botón de arriba.
       </div>`;
       return;
     }
 
-    container.innerHTML = groups.map(cg => {
+    container.innerHTML = '<div class="panel-list">' + groups.map(cg => {
       const raceCount = Array.isArray(cg.raceIds) ? cg.raceIds.length : 0;
       const genderLabel = cg.gender === 'female' ? 'Femenino' : 'Masculino';
       const colorDot = cg.colorHex
@@ -47,10 +47,10 @@ export async function renderChallengesView() {
       return `<div class="challenge-item" data-id="${cg.id}">
         ${colorDot}
         <div class="u-grow u-min0">
-          <div class="u-fw-600 u-fs-095">${cg.name || '—'}</div>
-          <div class="u-fs-078 u-c-dim u-mt-015">
+          <div class="u-fw-600 u-fs-4">${cg.name || '—'}</div>
+          <div class="u-fs-2 u-c-dim u-mt-015">
             ${cg.year || '—'} · ${genderLabel} · ${cg.uciCategory || '1.1'} · ${raceCount} carrera${raceCount !== 1 ? 's' : ''}
-            ${cg.slug ? `· <span class="u-mono u-fs-075">${cg.slug}</span>` : ''}
+            ${cg.slug ? `· <span class="u-mono u-fs-1">${cg.slug}</span>` : ''}
           </div>
         </div>
         <button class="cg-edit-btn" data-id="${cg.id}">Editar</button>
@@ -58,7 +58,7 @@ export async function renderChallengesView() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>
       </div>`;
-    }).join('');
+    }).join('') + '</div>';
 
     // Listeners de editar / borrar
     container.querySelectorAll('.cg-edit-btn').forEach(btn => {
@@ -73,7 +73,7 @@ export async function renderChallengesView() {
     });
 
   } catch (err) {
-    container.innerHTML = `<div class="u-c-red u-fs-082">Error: ${err.message}</div>`;
+    container.innerHTML = `<div class="u-c-red u-fs-2">Error: ${err.message}</div>`;
   }
 }
 

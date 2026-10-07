@@ -3,13 +3,12 @@ import {cxLogoImage} from './components/cx-logo.js';
 import {supabase,countryFlag,buildRaceHeader,findMatchingTeam,setMeta,setMetaProperty,filterBroadcastsByRegion,broadcastRegionBadgeLabel,seoLongDateWeekday} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxQuery,cxAllRows,cxSeasonRounds,cxIsHidden,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
-import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassLabel,cxRankSort,cxRaceMedia,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank} from './cx/presentation.js';
+import {cxEsc as esc,cxCategories,cxCategoryDate,cxRaceName,cxRaceUrl,cxRacePageUrl,cxRacePageLocation,cxClassificationSelection,cxLegacyGeneralFragment,cxTime,cxClassName,cxRankSort,cxRaceMedia,cxProgrammeOrder,cxResultCategories,cxGeneralCategories,cxGeneralSourceCategory,cxStandingMode,cxRoundLabel,cxResultCells,cxResultRank} from './cx/presentation.js';
 import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {teamStripes} from './team-appearance.js';
 import {cxRaceSeo} from './cx/race-seo.js';
 import {cxUrl,cxYouTubeVideoId} from './cx/editor-logic.js';
 import {cxDateInSeason} from './cx/season.js';
-import {mountCxPublicEditButton} from './cx/public-edit.js';
 import './race-assets.js';
 import {limitScrollToStickyStart} from './results/dom.js';
 
@@ -234,7 +233,7 @@ try {
   const capitalizeDate=value=>value?value.charAt(0).toLocaleUpperCase(lang)+value.slice(1):value;
   const headerDate= race.dateKey ? capitalizeDate(seoLongDateWeekday(race.dateKey,lang)) + (race.endDateKey&&race.endDateKey!==race.dateKey?` – ${capitalizeDate(seoLongDateWeekday(race.endDateKey,lang))}`:'') : '';
   const roundLabel=cxRoundLabel(rounds?.get(race.id));
-  const headerDetail=[cxClassLabel(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
+  const headerDetail=[cxClassName(race.class,lang),tournament&&cxRaceName(tournament,lang),roundLabel?.text,race.venue&&race.venue!==cxRaceName(race,lang)?race.venue:''].filter(Boolean).join(' · ');
   const headerHtml=buildRaceHeader({race:{...race,logoUrl:null},nameHref:'',detail:headerDetail,date:esc(headerDate),action:'',extraHtml:race.isCancelled?`<p class="jornada-cancelled-banner">${t('stage.cancelled')}</p>`:''});
   root.innerHTML=`${headerHtml}${docsStrip(race,docAssets)}<div class="cx-sticky-nav" data-cx-sticky-nav>${sectionNavigation}${categoryNavigation}${generalNavigation}</div><div data-cx-section="results" hidden>${classificationsHtml}</div><div data-cx-section="general" hidden>${standingsPageHtml}</div><div class="cx-race-sections" data-cx-section="startlist" hidden>${startlistHtml||`<p class="cx-empty">${t('cx.noStartlist')}</p>`}</div><div class="cx-race-sections" data-cx-section="programme" hidden>${programme(race,categories,results,multiDate,docAssets,hasMedia)}${tvGroups(tvRows,media.liveCategories)}${reviveMedia(reviveRows)}</div><div class="cx-race-sections" data-cx-section="videos" hidden>${videoMedia(videoRows)||`<p class="cx-empty">${t('cx.noVideos')}</p>`}</div>`;
   cxWireStandingsScroll(root);
@@ -248,7 +247,6 @@ try {
     syncStickyNav();
     if(typeof ResizeObserver!=='undefined')new ResizeObserver(syncStickyNav).observe(stickyNav);
   }
-  const editButton=mountCxPublicEditButton(supabase,root,race.id,{getSection:()=>page,lang,basePath:typeof CONFIG==='undefined'?'':CONFIG.basePath});
   const selectSection=()=>{
     const currentRoute=cxRacePageLocation(location.pathname,location.search);
     let hash;try{hash=decodeURIComponent(location.hash.slice(1));}catch{hash='';}
@@ -256,7 +254,6 @@ try {
     const legacyGeneral=currentRoute.page==='results'&&generalCategories.length?cxLegacyGeneralFragment(hash):null;
     if(legacyGeneral!=null){history.replaceState(null,'',cxRacePageUrl(race,lang,'general',legacyGeneral));hash=legacyGeneral;}
     page=legacyGeneral!=null?'general':currentRoute.page==='race'||(currentRoute.page==='videos'&&!videoRows.length)||(currentRoute.page==='general'&&!generalCategories.length)?defaultPage:currentRoute.page==='tv'?'programme':currentRoute.page;
-    editButton.update();
     const codes=categories.map(c=>c.category);
     const availableCodes=page==='general'?generalCategories:page==='results'?publishedCategories:page==='startlist'?codes.filter(code=>inscritos.some(row=>row.category===code)):codes;
     const selected=cxClassificationSelection(hash,page==='general'||(!hash&&availableCodes.length)?availableCodes:codes);

@@ -417,11 +417,11 @@ struct TodayView: View {
                     animateNavigation(forward: forward) { await viewModel.goToToday() }
                 } label: {
                     Text(localeService.t("Hoy", "Today"))
-                        .font(.caption.weight(.semibold))
+                        .ccFont(.s14, weight: .semibold)
                         .foregroundStyle(Color.accentColor)
                         .frame(minWidth: 44, minHeight: 48)
                         .padding(.horizontal, 4)
-                        .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 14))
+                        .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(localeService.t("Ir al día de hoy", "Go to today"))
@@ -465,8 +465,7 @@ struct TodayView: View {
     @ViewBuilder private var sortMenuBar: some View {
         HStack {
             Text(viewModel.dateLabel)
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .ccFont(.s14, weight: .medium)
                 .foregroundStyle(.secondary)
 
             Spacer()
@@ -482,9 +481,12 @@ struct TodayView: View {
                     Image(systemName: "arrow.up.arrow.down")
                     Text(viewModel.sortMode.label)
                 }
-                .font(.caption)
+                .ccFont(.s13, weight: .semibold)
                 .foregroundStyle(.secondary)
             }
+            // Control secundario en gris, como `.agenda-sort-select` de la web:
+            // el acento queda para la selección.
+            .tint(AppTheme.textMuted)
             .accessibilityLabel(localeService.t("Ordenar carreras por \(viewModel.sortMode.label)", "Sort races by \(viewModel.sortMode.label)"))
             .accessibilityHint(localeService.t("Pulsa dos veces para cambiar el orden", "Double tap to change sort order"))
             .accessibilityIdentifier(AccessibilityID.sortMenu)
@@ -499,7 +501,7 @@ struct TodayView: View {
     @ViewBuilder private var contentArea: some View {
         Group {
             if viewModel.isLoading {
-                LoadingView(message: LocaleService.t("Cargando carreras...", "Loading races..."), branded: true)
+                LoadingView(branded: true, title: LocaleService.t("Carreras de hoy", "Today's races"))
             } else {
                 ScrollView {
                     raceScrollContent
@@ -567,8 +569,7 @@ struct TodayView: View {
                         Image(systemName: "arrow.clockwise")
                         Text(LocaleService.t("Reintentar", "Retry"))
                     }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .ccFont(.s14, weight: .medium)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityHint(LocaleService.t("Intenta cargar los datos de nuevo", "Try loading data again"))
@@ -596,8 +597,7 @@ struct TodayView: View {
                             Text(LocaleService.t("Ir al próximo día con carreras", "Go to next day with races"))
                             Image(systemName: "arrow.right")
                         }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .ccFont(.s14, weight: .medium)
                     }
                     .accessibilityHint(LocaleService.t("Navega al siguiente día que tenga carreras programadas", "Navigate to the next day with scheduled races"))
                     .accessibilityInputLabels([LocaleService.t("Próximo día con carreras", "Next day with races"), LocaleService.t("Siguiente día", "Next day"), LocaleService.t("Próximo día", "Next day")])
@@ -609,11 +609,9 @@ struct TodayView: View {
                 width: max(0, contentWidth - 32),
                 isRegular: horizontalSizeClass == .regular
             )
-            let rows = AdaptiveLayoutPolicy.rows(
-                viewModel.displayItems,
-                columns: columns,
-                spansAllColumns: isDisplayedAsFeatured
-            )
+            // Las destacadas solo cambian el orden: misma tarjeta y misma
+            // columna que el resto. Una tarjeta suelta conserva media anchura.
+            let rows = AdaptiveLayoutPolicy.rows(viewModel.displayItems, columns: columns)
             LazyVStack(spacing: 8) {
                 ForEach(rows) { row in
                     if row.spansAllColumns || columns == 1 {
@@ -639,11 +637,6 @@ struct TodayView: View {
         }
     }
 
-    private func isDisplayedAsFeatured(_ item: EnrichedRaceDay) -> Bool {
-        let selected = item.race.map { viewModel.featuredRaceIds.contains($0.id) } ?? false
-        return TodayViewModel.shouldRenderAsFeatured(selected, sortMode: viewModel.sortMode)
-    }
-
     // MARK: - Filter chip
 
     @ViewBuilder
@@ -654,6 +647,7 @@ struct TodayView: View {
             activeFilter: viewModel.activeFilter,
             // En la semana de Campeonatos el pin está inhibido: sin chincheta.
             pinnedRawValue: champWeekLock ? "" : storedDefaultFilter,
+            canPin: !champWeekLock && filter != .all,
             onTap: {
                 if viewModel.activeFilter == filter {
                     // Fijado inhibido durante la semana de Campeonatos.
@@ -692,7 +686,6 @@ struct TodayView: View {
         )
         let isWaiting = raceState == .waiting
         let showsFinishTime = viewModel.sortMode == .finishTime || raceState == .running
-        let isFeatured = isDisplayedAsFeatured(item)
         let isFinalStage = item.race?.isStageRace == true
             && !item.raceDay.isRestDay
             && !item.raceDay.isCancelledDay
@@ -712,7 +705,6 @@ struct TodayView: View {
                     refreshToken: viewModel.refreshToken,
                     activeFilter: viewModel.activeFilter,
                     isFinalStage: isFinalStage,
-                    isFeatured: isFeatured,
                     showsFinishTimeOnly: showsFinishTime,
                     isWaitingForResults: isWaiting
                 )
@@ -731,7 +723,6 @@ struct TodayView: View {
                 refreshToken: viewModel.refreshToken,
                 activeFilter: viewModel.activeFilter,
                 isFinalStage: isFinalStage,
-                isFeatured: isFeatured,
                 showsFinishTimeOnly: showsFinishTime,
                 isWaitingForResults: isWaiting
             )
@@ -771,7 +762,6 @@ struct TodayView: View {
                         }
                     } : nil,
                     isFinalStage: isFinalStage,
-                    isFeatured: isFeatured,
                     showsFinishTimeOnly: showsFinishTime,
                     isWaitingForResults: isWaiting
                 )
@@ -831,6 +821,8 @@ private struct TodayFilterChip: View {
     let isActive: Bool
     let activeFilter: Constants.CategoryFilter
     let pinnedRawValue: String
+    /// Fijado permitido (fuera de la semana de Campeonatos y no en «Todas»).
+    let canPin: Bool
     let onTap: () -> Void
     let onLongPress: () -> Void
 
@@ -844,46 +836,60 @@ private struct TodayFilterChip: View {
         return .hidden
     }
 
+    /// Botón nativo de filtro. El filtro activo, pulsado de nuevo, abre el
+    /// diálogo de predeterminado; el menú contextual (pulsación larga) ofrece
+    /// la misma acción.
     var body: some View {
-        HStack(spacing: 4) {
-            Text(filter.label)
-                .fontWeight(isActive ? .semibold : .regular)
-            switch pinDisplay {
-            case .filled:
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            case .outline:
-                Image(systemName: "pin")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(0.55)
-            case .hidden:
-                EmptyView()
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Text(filter.label)
+                    .ccFont(.s13, weight: isActive ? .bold : .medium)
+                switch pinDisplay {
+                case .filled:
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                case .outline:
+                    Image(systemName: "pin")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                        .opacity(0.55)
+                case .hidden:
+                    EmptyView()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            // Activo en azul de marca suave (15 %) + texto azul (selección);
+            // inactivo sobre la superficie de tarjeta con texto secundario.
+            .background(isActive ? Color.accentColor.opacity(0.15) : AppTheme.cardBackground)
+            .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if canPin {
+                Button {
+                    onLongPress()
+                } label: {
+                    Label(
+                        pinDisplay == .filled
+                            ? LocaleService.t("Quitar filtro por defecto", "Remove default filter")
+                            : LocaleService.t("Fijar como filtro por defecto", "Set as default filter"),
+                        systemImage: pinDisplay == .filled ? "pin.slash" : "pin"
+                    )
+                }
             }
         }
-        .font(.caption)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        // Activo en azul de marca suave (15%) + texto azul — mismo gesto que el
-        // cintillo "Hoy" y el día seleccionado, en vez del azul sólido + blanco.
-        .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-        .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-        .clipShape(Capsule())
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        .onLongPressGesture(minimumDuration: 0.5, pressing: { isPressing in
-            if isPressing { Haptics.play(.selection) }
-        }, perform: { onLongPress() })
-        .accessibilityAddTraits([.isButton])
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .accessibilityLabel(pinDisplay == .filled
             ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"
             : "\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
         .accessibilityHint(isActive
-            ? LocaleService.t("Filtro activo. Mantén pulsado para establecer como filtro por defecto.", "Active filter. Long press to set as default filter.")
-            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label). Mantén pulsado para establecer como filtro por defecto.", "Double tap to filter by \(filter.label). Long press to set as default filter."))
+            ? LocaleService.t("Filtro activo. Pulsa dos veces para establecerlo como filtro por defecto.", "Active filter. Double tap to set it as default filter.")
+            : LocaleService.t("Pulsa dos veces para filtrar por \(filter.label).", "Double tap to filter by \(filter.label)."))
         .accessibilityIdentifier(AccessibilityID.filterButton(filter.rawValue))
     }
 }

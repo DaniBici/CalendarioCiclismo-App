@@ -23,7 +23,7 @@ function harness({fills=[],counts=[],confirmations=[],responses=[],area='road'}=
     panelArea:()=>areaKey,
     document:{getElementById:id=>nodes.get(id),querySelectorAll:()=>[],createElement:()=>({})},
     panelState:{allRaces:[]},MARKET_SEASON:2027,esc:value=>String(value??''),countryFlag:()=>'',uciRankSimple:()=>0,stageLabel:()=>'',
-    showToast:vi.fn(),loadPushHistory:vi.fn(),loadScheduledNotifications:vi.fn(),loadSubscriberCount:vi.fn(),_loadPushDebugDevices:vi.fn(),
+    showToast:vi.fn(),formatCount:value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'}),loadPushHistory:vi.fn(),loadScheduledNotifications:vi.fn(),loadSubscriberCount:vi.fn(),_loadPushDebugDevices:vi.fn(),
     fillCxRaceSelect:vi.fn(async(_client,node,selected='',options={})=>{const next=fills.shift();const rows=next?await next.promise:['cx-a','cx-b'];
       if(options.isCurrent&&!options.isCurrent())return;node.innerHTML=rows.join(',');node.value=selected&&rows.includes(selected)?selected:'';}),
     confirmDialog:vi.fn(async()=>{const next=confirmations.shift();return next?await next.promise:false;}),

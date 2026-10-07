@@ -95,6 +95,21 @@ class TransfersLogicTest {
     }
 
     @Test
+    fun limitedFeedWideKeepsLongerHistory() {
+        // 10 fichajes en 6 fechas: el corte ancho conserva todo lo que el
+        // corte corto recortaría.
+        val feed = (1..10).map { transfer("t$it", "r$it", to = "team_b", announcedAt = "2026-07-0${minOf(it, 6)}") }
+            .sortedByDescending { it.announcedAt }
+        val wide = TransfersLogic.limitedFeed(
+            feed,
+            maxDays = TransfersLogic.FEED_SCROLL_MAX_DAYS,
+            maxItems = TransfersLogic.FEED_SCROLL_MAX_ITEMS,
+        )
+        assertEquals(10, wide.size)
+        assertEquals(8, TransfersLogic.limitedFeed(feed).size)
+    }
+
+    @Test
     fun feedSortsReverseChronological() {
         val feed = TransfersLogic.confirmedFeed(
             listOf(

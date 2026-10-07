@@ -141,6 +141,7 @@ fun ResultsScreen(
             when (val current = state) {
                 is ResultsState.Loading -> RouteLoadingView(
                     message = stringResource(R.string.loading),
+                    title = LocaleHolder.t("Clasificaciones", "Classifications"),
                 )
                 is ResultsState.Error -> Text(
                     current.message,
@@ -270,6 +271,7 @@ private fun ResultsContent(
         if (activeStageKey !in stageKeys) activeStageKey = requestedEntryKey() ?: stageKeys.lastOrNull()
     }
     val activeStages = sortedStagesForKey(activeStageKey)
+    val hasClassTabs = activeStages.size > 1
 
     // Clasificación activa: por defecto la primera de la etapa. Si se pidió una
     // clasificación inicial (p. ej. "gc" desde "Así está la carrera") Y seguimos
@@ -430,16 +432,22 @@ private fun ResultsContent(
                                 selectedTeam = selectedTeam,
                                 onSelectClass = { activeClassKind = it },
                                 onSelectTeam = { selectedTeam = it },
+                                publicationStage = if (hasClassTabs) null else activeStage,
                             )
                         }
-                        val config = data.classificationConfig.firstOrNull { it.classKind == activeStage.classKind }
-                        val classificationLabel = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
-                            ?: classLabel(activeStage.classKind)
-                        ResultsPublicationStatus(
-                            stage = activeStage,
-                            classificationLabel = classificationLabel,
-                            showClassificationLabel = !data.race.isOneDay,
-                        )
+                        // Con pestañas, el estado va en la línea del título de
+                        // la clasificación («Etapa · Oficial»); sin ellas, en la
+                        // fila del filtro de equipos.
+                        if (hasClassTabs) {
+                            val config = data.classificationConfig.firstOrNull { it.classKind == activeStage.classKind }
+                            val classificationLabel = config?.let { UciResultsLogic.classificationLabel(it, isEn) }
+                                ?: classLabel(activeStage.classKind)
+                            ResultsPublicationStatus(
+                                stage = activeStage,
+                                classificationLabel = classificationLabel,
+                                showClassificationLabel = true,
+                            )
+                        }
                         Spacer(Modifier.height(4.dp))
                         tableHeader?.let { header ->
                             ResultsTableHeader(
@@ -449,10 +457,6 @@ private fun ResultsContent(
                                     if (header.isPoints) R.string.results_col_points
                                     else R.string.results_col_time,
                                 ),
-                            )
-                            HorizontalDivider(
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                             )
                         }
                     }

@@ -111,6 +111,39 @@ enum ResultsFeedLogic {
         return name
     }
 
+    /// Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
+    /// («France»). En castellano se muestra el nombre del país en castellano
+    /// («Francia», «Gran Bretaña»); en inglés, sin cambio. Un nombre que no es
+    /// un país se devuelve tal cual. Espejo de `localizedNationName` en
+    /// `js/resultados-feed.js`.
+    static func localizedNationName(_ name: String, isEnglish: Bool) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !isEnglish, !trimmed.isEmpty,
+              let code = nationCodeByEnglishName[trimmed] else { return name }
+        if let override = nationNamesEs[code] { return override }
+        return Locale(identifier: "es").localizedString(forRegionCode: code) ?? name
+    }
+
+    private static let nationAliases: [String: String] = ["Great Britain": "GB"]
+    private static let nationNamesEs: [String: String] = ["GB": "Gran Bretaña"]
+
+    /// Nombre inglés de cada región ISO → código ISO.
+    private static let nationCodeByEnglishName: [String: String] = {
+        var map: [String: String] = [:]
+        let en = Locale(identifier: "en")
+        let letters = (65...90).compactMap { UnicodeScalar($0).map(String.init) }
+        for a in letters {
+            for b in letters {
+                let code = a + b
+                if let label = en.localizedString(forRegionCode: code), label != code {
+                    map[label] = code
+                }
+            }
+        }
+        for (alias, code) in nationAliases { map[alias] = code }
+        return map
+    }()
+
     // MARK: - Construcción de entradas
 
     /// Clave (carrera × etapa); nil = clasificación final (espejo de `key()`).

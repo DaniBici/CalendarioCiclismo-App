@@ -9,7 +9,7 @@ import {
   genderToggleHtml, setGenderToggleActive, wireGenderToggle,
 } from '../components/gender-toggle.js';
 import { panelState } from './state.js';
-import { showToast } from './helpers.js';
+import { formatCount, showToast } from './helpers.js';
 import { _slRiderFlagPreview } from './startlist-picker.js';
 import { _refreshOpenRoster } from './team-roster.js';
 import { closeRiderEditor } from './riders.js';
@@ -44,17 +44,17 @@ export async function openMergeRiderPicker() {
   const popover = document.createElement('div');
   popover.className = 'merge-popover';
   popover.innerHTML = `
-    <div class="u-fs-080 u-c-text u-mb-060">
+    <div class="u-fs-2 u-c-text u-mb-060">
       <div class="u-fw-700 u-mb-020">Fusionar corredor</div>
-      <div class="u-fs-072 u-c-dim">
+      <div class="u-fs-1 u-c-dim">
         Origen: <strong class="u-c-text">${esc(source.lastName)}, ${esc(source.firstName)}</strong> (${linkedCount || 0} startlist${linkedCount === 1 ? '' : 's'} linkada${linkedCount === 1 ? '' : 's'})
       </div>
-      <div class="u-fs-072 u-c-dim u-mt-015">Elige el corredor destino al que moverlas. El origen se eliminará.</div>
+      <div class="u-fs-1 u-c-dim u-mt-015">Elige el corredor destino al que moverlas. El origen se eliminará.</div>
     </div>
     <input type="search" class="merge-picker-input" placeholder="Buscar destino por apellido, nombre u otherNames…">
     <div class="merge-picker-results"></div>
     <div class="merge-picker-footer">
-      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cancelar</button>
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-1">Cancelar</button>
     </div>`;
 
   const anchor = document.getElementById('mergeRiderBtn');
@@ -76,10 +76,10 @@ export async function openMergeRiderPicker() {
     const q = input.value.trim();
     const myId = ++reqId;
     if (q.length < 2) {
-      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Escribe al menos 2 letras.</div>';
       return;
     }
-    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
+    results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Buscando…</div>';
     const safe = q.replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(table)
       .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source')
@@ -87,16 +87,16 @@ export async function openMergeRiderPicker() {
       .neq('id', panelState._editingRiderId)   // no permitir auto-merge
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-1 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     if (!data?.length) {
-      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin resultados.</div>';
       return;
     }
     results.innerHTML = data.map(rd => `
       <button type="button" data-tid="${esc(rd.id)}" class="merge-picker-option">
         ${_slRiderFlagPreview(rd.nationality)}
-        <span class="u-grow u-min0"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd.otherNames)})</span>` : ''}</span>
-        ${rd.verified === false ? '<span title="Sin verificar" class="u-c-warn u-fs-065 u-fw-700">?</span>' : '<span title="Verificado" class="u-c-ok u-fs-065 u-fw-700">✓</span>'}
+        <span class="u-grow u-min0"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-1">(${esc(rd.otherNames)})</span>` : ''}</span>
+        ${rd.verified === false ? '<span title="Sin verificar" class="u-c-warn u-fs-1 u-fw-700">?</span>' : '<span title="Verificado" class="u-c-ok u-fs-1 u-fw-700">✓</span>'}
       </button>`).join('');
     results.querySelectorAll('[data-tid]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -261,7 +261,7 @@ const _updateDupScanGenderToggle = () =>
 function dupScanBodyHtml() {
   return `
     <div class="u-between u-gap-100 u-mb-100 u-wrap">
-      <div class="u-fs-080 u-c-dim" id="dupScanSubtitle"></div>
+      <div class="u-fs-2 u-c-dim" id="dupScanSubtitle"></div>
       ${genderToggleHtml({ idMale: 'dupScanGenderMale', idFemale: 'dupScanGenderFemale', value: _dupScanGender, labels: { male: 'Masculino', female: 'Femenino' } })}
     </div>
     <div class="u-stack" id="dupScanContent"></div>`;
@@ -310,7 +310,7 @@ export async function openDuplicateScanner() {
     riders.push(...data);
     if (data.length < CHUNK) break;
     offset += CHUNK;
-    content.innerHTML = `<div class="u-empty-note">Cargando catálogo… ${riders.length} corredores leídos</div>`;
+    content.innerHTML = `<div class="u-empty-note">Cargando catálogo… ${formatCount(riders.length)} corredores leídos</div>`;
   }
   if (error) {
     content.innerHTML = `<div class="u-c-red u-p-100">Error: ${esc(error.message)}</div>`;
@@ -340,7 +340,7 @@ export async function openDuplicateScanner() {
   }
   clusters.sort((a, b) => b.score - a.score || b.riders.length - a.riders.length);
 
-  subtitle.innerHTML = `${clusters.length} grupos a revisar en ${riders.length} ${_dupScanGender === 'male' ? 'corredores' : 'corredoras'} · ordenados por probabilidad${skippedCount ? ` · <button id="dupClearSkipped" class="link-button">${skippedCount} saltados (limpiar)</button>` : ''}.`;
+  subtitle.innerHTML = `${formatCount(clusters.length)} grupos a revisar en ${formatCount(riders.length)} ${_dupScanGender === 'male' ? 'corredores' : 'corredoras'} · ordenados por probabilidad${skippedCount ? ` · <button id="dupClearSkipped" class="link-button">${skippedCount} saltados (limpiar)</button>` : ''}.`;
   document.getElementById('dupClearSkipped')?.addEventListener('click', async () => {
     if (await confirmDialog(`¿Olvidar los ${skippedCount} grupos saltados y volver a mostrarlos?`)) {
       _clearDupSkipSet();
@@ -437,10 +437,10 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
   // Helper para listar las carreras de un rider de forma compacta.
   const racesChip = (riderId) => {
     const races = racesByRider.get(riderId) || [];
-    if (!races.length) return '<span class="u-fs-068 u-c-dim u-italic">sin startlists</span>';
+    if (!races.length) return '<span class="u-fs-1 u-c-dim u-italic">sin startlists</span>';
     const fullList = races.map(r => `${r.name}${r.year ? ' ' + r.year : ''}`).join(' · ');
     const visible = races.slice(0, 3).map(r => `<span class="dup-race-chip">${esc(r.name || r.raceId)}${r.year ? ` <span class="u-o70">${r.year}</span>` : ''}</span>`).join(' ');
-    const more = races.length > 3 ? ` <span class="u-fs-066 u-c-dim u-help" title="${esc(fullList)}">+${races.length - 3} más</span>` : '';
+    const more = races.length > 3 ? ` <span class="u-fs-1 u-c-dim u-help" title="${esc(fullList)}">+${races.length - 3} más</span>` : '';
     return `<span class="dup-race-list" title="${esc(fullList)}">${visible}${more}</span>`;
   };
 
@@ -450,12 +450,12 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
     // distinct = comparten al menos una carrera → personas distintas con certeza.
     // Se avisa explícitamente para que el admin NO los fusione por error.
     const scoreBadge = c.distinct
-      ? '<span title="Comparten carrera → no pueden ser la misma persona" class="dup-score dup-score--distinct">⚠ DISTINTOS (misma carrera)</span>'
+      ? '<span title="Comparten carrera → no pueden ser la misma persona" class="dup-score dup-score--distinct">⚠ Distintos (misma carrera)</span>'
       : c.score >= 7
-        ? '<span class="dup-score dup-score--probable">PROBABLE</span>'
+        ? '<span class="dup-score dup-score--probable">Probable</span>'
         : c.score >= 4
-          ? '<span class="dup-score dup-score--possible">POSIBLE</span>'
-          : '<span class="dup-score dup-score--doubtful">DUDOSO</span>';
+          ? '<span class="dup-score dup-score--possible">Posible</span>'
+          : '<span class="dup-score dup-score--doubtful">Dudoso</span>';
 
     const ridersHtml = c.riders.map(r => {
       const team = teamsMap[r.currentTeamId];
@@ -475,11 +475,11 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
           <input type="text" class="dup-firstname dup-input dup-input--first" value="${esc(origFirst)}" placeholder="Nombre">
           <input type="text" class="dup-nationality dup-input dup-input--nat" value="${esc(origNat)}" placeholder="es" maxlength="5" title="ISO 3166-1 alpha-2">
           <button data-dup-action="save-row" title="Guardar cambios de esta fila (sin fusionar)" disabled class="dup-save-btn" style="opacity:0.45">💾</button>
-          ${r.otherNames ? `<span class="u-c-dim u-fs-070 u-shrink-0" title="otherNames: ${esc(r.otherNames)}">+aliases</span>` : ''}
-          <span class="u-fs-068 u-fw-700 u-shrink-0 ${r.verified ? 'u-c-ok' : 'u-c-warn'}">${r.verified ? '✓' : '?'}</span>
-          <span class="u-fs-068 u-c-dim u-shrink-0">${esc(r.source || '')}</span>
+          ${r.otherNames ? `<span class="u-c-dim u-fs-1 u-shrink-0" title="otherNames: ${esc(r.otherNames)}">+aliases</span>` : ''}
+          <span class="u-fs-1 u-fw-700 u-shrink-0 ${r.verified ? 'u-c-ok' : 'u-c-warn'}">${r.verified ? '✓' : '?'}</span>
+          <span class="u-fs-1 u-c-dim u-shrink-0">${esc(r.source || '')}</span>
           <span class="dup-team-name">${team ? esc(team.name) : '<em>sin equipo</em>'}</span>
-          <code class="u-fs-062 u-c-dim u-shrink-0">${esc(r.id)}</code>
+          <code class="u-fs-1 u-c-dim u-shrink-0">${esc(r.id)}</code>
         </div>
         <div class="u-pl-160">${racesChip(r.id)}</div>
       </div>`;
@@ -488,8 +488,8 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
     return `<div data-cluster-idx="${idx}" class="dup-cluster">
       <div class="u-row u-justify-between u-mb-050 u-wrap">
         <div class="u-row">
-          <strong class="u-fs-085">${esc(headerName)}</strong>
-          <span class="u-fs-072 u-c-dim">${c.riders.length} candidatos</span>
+          <strong class="u-fs-3">${esc(headerName)}</strong>
+          <span class="u-fs-1 u-c-dim">${c.riders.length} candidatos</span>
           ${scoreBadge}
         </div>
         <div class="u-flex u-gap-040">
@@ -575,7 +575,7 @@ function _renderDupClusters(clusters, table, racesByRider = new Map()) {
       btn.textContent = '💾'; btn.style.opacity = '0.45';
       // Flash verde breve para feedback visual
       const prevBg = row.style.background;
-      row.style.background = '#22c55e22';
+      row.style.background = 'color-mix(in srgb, var(--green) 14%, transparent)';
       setTimeout(() => { row.style.background = prevBg; }, 600);
       showToast('Guardado', 'success');
     });

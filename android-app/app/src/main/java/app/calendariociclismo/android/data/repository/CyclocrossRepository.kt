@@ -40,7 +40,7 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
 
     suspend fun cachedMonth(season: String, month: YearMonth): CxCached<List<CxRace>>? =
         if (month !in CyclocrossLogic.months(season)) null else dao.month("$season:$month")?.let {
-            CxCached(json.decodeFromString<List<CxRace>>(it.payload).filterNot(CxPresentation::isHidden), true, it.cachedAt)
+            CxCached(json.decodeFromString<List<CxRace>>(it.payload).filter(CxPresentation::listedInAgenda), true, it.cachedAt)
         }
 
     suspend fun month(season: String, month: YearMonth): CxCached<List<CxRace>> {
@@ -48,9 +48,10 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
         return try {
             val races = remote.cxMonth(season, month)
             val now = System.currentTimeMillis()
-            // La caché guarda el mes completo; el idioma se aplica al leer.
+            // La caché guarda el mes completo; el idioma y las cancelaciones se
+            // aplican al leer.
             dao.saveMonth(CxMonthCacheEntity("$season:$month", season, month.toString(), json.encodeToString(races), now))
-            CxCached(races.filterNot(CxPresentation::isHidden), false, now)
+            CxCached(races.filter(CxPresentation::listedInAgenda), false, now)
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             cachedMonth(season, month) ?: throw error
@@ -143,7 +144,7 @@ class CyclocrossRepository(private val dao: CxCacheDao, private val remote: CxRe
     } catch (error: Exception) {
         if (error is CancellationException) throw error
         dao.months(season).flatMap { json.decodeFromString<List<CxRace>>(it.payload) }
-            .filter { !it.isCancelled && !CxPresentation.isHidden(it) && (tournamentId == null || it.tournamentId == tournamentId) }
+            .filter { CxPresentation.listedInAgenda(it) && (tournamentId == null || it.tournamentId == tournamentId) }
             .flatMap { race -> if (race.categories.isEmpty()) listOf(race.dateKey) else
                 race.categories.filterNot { it.isCancelled }.map { it.dateKey ?: race.dateKey } }
             .filter { it >= date && it.take(7) in CyclocrossLogic.months(season).map(YearMonth::toString) }.minOrNull()

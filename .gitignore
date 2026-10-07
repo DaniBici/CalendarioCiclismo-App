@@ -146,7 +146,7 @@ en/route-map/
 en/start-order/
 en/feed/
 
-# Binarios de diseño: viven en Drive («Calendario Ciclismo — diseño»), con
+# Binarios de diseño: viven en Drive («Calendario Ciclismo App»), con
 # manifiesto en docs/design/BINARIOS.md. Solo se versionan los ligeros y útiles
 # (< 200 KB) listados como excepción. Los SVG no se ignoran.
 docs/design/**/*.png
@@ -167,3 +167,5 @@ docs/design/**/*.mov
 .agents/skills/cc-graficos-sociales/examples/fotos/*
 !.agents/skills/cc-graficos-sociales/examples/fotos/van-der-poel-alpecin-premier-tech.webp
 .agents/skills/cc-graficos-sociales/examples/maqueta/*.png
+.agents/skills/cc-graficos-sociales/examples/dispositivos/*.png
+.agents/skills/cc-graficos-sociales/examples/*-4x5.json

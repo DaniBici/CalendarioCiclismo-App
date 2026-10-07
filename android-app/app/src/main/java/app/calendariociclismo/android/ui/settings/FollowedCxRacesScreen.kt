@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.settings
 
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,10 +99,11 @@ fun FollowedCxRacesScreen(navController: NavController) {
         },
     ) { padding ->
         when {
-            isLoading -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+            isLoading -> RouteLoadingView(
+                message = stringResource(R.string.loading),
+                title = stringResource(R.string.followed_cx_races_title),
+                modifier = Modifier.padding(padding),
+            )
 
             !error.isNullOrEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),

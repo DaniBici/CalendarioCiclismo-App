@@ -26,10 +26,6 @@ export function teamHeaderColors(team) {
   return background && text ? { background, text } : { background: 'var(--bg-card)', text: 'var(--text)' };
 }
 
-export function marketTeamColors(season, previous) {
-  return teamHeaderColors(season?.badgeVisible === true ? season : previous);
-}
-
 export async function teamsForSeason(client, teams, year, requestedIds = teams.map(team => team.id)) {
   const ids = [...new Set(requestedIds.filter(Boolean))];
   if (!ids.length || !year) return teams;

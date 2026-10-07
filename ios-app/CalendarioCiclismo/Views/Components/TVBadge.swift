@@ -11,6 +11,10 @@ struct TVBadge: View {
     @Environment(\.accessibilityShowButtonShapes) private var showButtonShapes
     @State private var regionService = RegionService.shared
     @State private var safariURL: URL?
+    @Environment(\.scenePhase) private var scenePhase
+    /// Reloj del badge. `Date()` no invalida la vista: sin este estado, un badge
+    /// pintado antes de la hora de emisión no pasaba a «Live» al alcanzarla.
+    @State private var now = Date()
 
     private var isHighContrast: Bool { showButtonShapes }
 
@@ -43,7 +47,7 @@ struct TVBadge: View {
     /// True si la emisión ya está EN DIRECTO (su hora de inicio ya pasó).
     private func isBroadcastLive(_ b: Broadcast) -> Bool {
         guard let ts = b.startTimeUtc, let date = DateFormatting.parseISO(ts) else { return false }
-        return Date() >= date
+        return now >= date
     }
 
     /// Broadcast seleccionado para el enlace: filtrado por región. Una emisión YA EN
@@ -82,13 +86,13 @@ struct TVBadge: View {
     private var raceStarted: Bool {
         guard let ts = neutralStartTimeUtc,
               let date = DateFormatting.parseISO(ts) else { return false }
-        return Date() >= date
+        return now >= date
     }
 
     /// True si la emisión de referencia (la más temprana accesible) ya ha comenzado.
     private var broadcastStarted: Bool {
         guard let ts = earliestTimedBroadcast?.startTimeUtc, let date = DateFormatting.parseISO(ts) else { return false }
-        return Date() >= date
+        return now >= date
     }
 
     /// True si el badge debe mostrarse como "Live" (verde, retransmisión en curso).
@@ -105,7 +109,27 @@ struct TVBadge: View {
               let url = liveTextUrl, !url.isEmpty,
               raceStarted else { return false }
         guard let ts = earliestTimedBroadcast?.startTimeUtc, let date = DateFormatting.parseISO(ts) else { return false }
-        return Date() < date
+        return now < date
+    }
+
+    /// Instantes en que cambia el estado del badge: inicio de cada emisión accesible
+    /// (→ «Live», enlace en directo) y salida neutralizada (→ chip «Live texto»).
+    private var timeBoundaries: [Date] {
+        (regionBroadcasts.compactMap(\.startTimeUtc) + [neutralStartTimeUtc].compactMap { $0 })
+            .compactMap { DateFormatting.parseISO($0) }
+    }
+
+    /// Avanza `now` en cada frontera futura (con tope de 60 s ante cambios de reloj)
+    /// y al volver a primer plano. Termina cuando no quedan fronteras pendientes.
+    private func runClock() async {
+        now = Date()
+        while !Task.isCancelled {
+            guard let next = timeBoundaries.filter({ $0 > now }).min() else { return }
+            let wait = min(max(next.timeIntervalSinceNow, 0), 60) + 0.05
+            try? await Task.sleep(for: .seconds(wait))
+            if Task.isCancelled { return }
+            now = Date()
+        }
     }
 
     private var label: String {
@@ -113,7 +137,7 @@ struct TVBadge: View {
         if showLiveText { return LocaleService.t("Live texto", "Live text") }
 
         // Retransmisión en vivo: la hora de inicio ya ha pasado
-        if showLive { return "Live" }
+        if showLive { return LocaleService.t("En directo", "Live") }
 
         // Comprobar estados "sin TV" ANTES de broadcasts (misma lógica que web)
         switch tvStatus {
@@ -171,22 +195,19 @@ struct TVBadge: View {
 
     @ViewBuilder
     private func badgeShape(text: String, iconName: String, colors: AppTheme.BadgeColor, accessibilityLabel: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             Image(systemName: iconName)
-                .font(.system(size: 9))
             Text(text)
-                .font(.caption2)
-                .fontWeight(.medium)
-                .textCase(.uppercase)
         }
+        .ccFont(.s12, weight: .semibold)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(colors.background)
         .foregroundStyle(colors.foreground)
-        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
         .overlay(
             isHighContrast
-                ? RoundedRectangle(cornerRadius: 3).strokeBorder(colors.foreground, lineWidth: 1)
+                ? RoundedRectangle(cornerRadius: AppTheme.Radius.control).strokeBorder(colors.foreground, lineWidth: 1)
                 : nil
         )
         .accessibilityElement(children: .ignore)
@@ -227,7 +248,7 @@ struct TVBadge: View {
                         ? AppTheme.tvStatusColor(for: "tv_live", hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
                         : AppTheme.tvStatusColor(for: tvStatus, hasBroadcasts: hasBroadcasts, highContrast: isHighContrast)
                     let accessibilityLabel = showLive
-                        ? "Live"
+                        ? LocaleService.t("En directo", "Live")
                         : (AccessibilityTVStatus.description(tvStatus: tvStatus, broadcasts: regionBroadcasts) ?? text)
                     let tvBadge = badgeShape(text: text, iconName: iconName, colors: colors, accessibilityLabel: accessibilityLabel)
 
@@ -247,6 +268,10 @@ struct TVBadge: View {
             }
         }
         .safariSheet(url: $safariURL)
+        .task(id: "\(scenePhase)-\(timeBoundaries.map(\.timeIntervalSince1970))") {
+            guard scenePhase == .active else { return }
+            await runClock()
+        }
     }
 
     private func open(_ url: URL) {

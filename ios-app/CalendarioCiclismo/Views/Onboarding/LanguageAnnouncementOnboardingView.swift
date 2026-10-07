@@ -25,7 +25,7 @@ struct LanguageAnnouncementOnboardingView: View {
 
                 Image(systemName: "globe")
                     .font(.system(size: iconSize))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.secondary)
                     .symbolEffect(.bounce, value: isAnimating)
                     .accessibilityHidden(true)
                     .padding(.bottom, 20)
@@ -34,7 +34,7 @@ struct LanguageAnnouncementOnboardingView: View {
                     "Elige tu idioma",
                     "Choose your language"
                 ))
-                .font(.title.bold())
+                .ccFont(.s28, weight: .bold)
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 32)
 
@@ -51,14 +51,14 @@ struct LanguageAnnouncementOnboardingView: View {
                             CountryFlag(countryCode: "es", width: 26)
                                 .accessibilityHidden(true)
                             Text("Continuar en español")
-                                .font(.headline)
+                                .ccFont(.s16, weight: .semibold)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .buttonBorderShape(.roundedRectangle(radius: AppTheme.Radius.control))
                     .accessibilityHint("Mantiene la app en español.")
                     .accessibilityInputLabels(["Español", "Continuar en español"])
 
@@ -69,7 +69,7 @@ struct LanguageAnnouncementOnboardingView: View {
                             CountryFlag(countryCode: "gb", width: 26)
                                 .accessibilityHidden(true)
                             Text("Switch to English")
-                                .font(.subheadline)
+                                .ccFont(.s14)
                         }
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)

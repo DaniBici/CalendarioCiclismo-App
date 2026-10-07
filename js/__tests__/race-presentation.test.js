@@ -22,7 +22,10 @@ describe('estado y métricas de jornada', () => {
     expect(profileProgress(day,Date.parse('2026-09-04T12:00:00Z'))).toBe(.5);
     expect(profileProgress(day,Date.parse('2026-09-04T09:00:00Z'))).toBe(0);
     expect(profileProgress(day,Date.parse('2026-09-04T15:00:00Z'))).toBe(1);
-    for(const primaryType of ['itt','ttt']) expect(profileProgress({...day,primaryType,_hasInhouse:true})).toBe(0);
+    for(const primaryType of ['itt','ttt']) {
+      expect(profileProgress({...day,primaryType},Date.parse('2026-09-04T12:00:00Z'))).toBe(0);
+      expect(profileProgress({...day,primaryType,_hasInhouse:true})).toBe(1);
+    }
   });
   it('prioriza la salida real y conserva la neutralizada como fallback', () => {
     const withReal = {...day, realStartTimeUtc:'2026-09-04T11:00:00Z'};

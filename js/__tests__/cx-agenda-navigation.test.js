@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE} from '../services/cx-data.js';
+import {cxHiddenClasses,cxIsHidden,cxListedInAgenda,CX_SPANISH_AUDIENCE} from '../services/cx-data.js';
 import {cxSeasonMonths,cxMonthDays,cxEsc,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxRoundBadge,cxUsesCategoryBadges,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,cxCategoryCardState,cxTime} from '../cx/presentation.js';
 import {cxTournamentDescription} from '../cx/tournament-seo.js';
 import {CX_CATEGORIES} from '../cx/editor-logic.js';
@@ -56,7 +56,7 @@ async function open({failure,nextDate=null,tournamentId=null,rows=[],rounds=new 
     cxAllRows:async(_client,table)=>({cx_standings_state:states,cx_tournament_standings:standings}[table]),cxQuery:async()=>[],
     cxTournamentGeneralCategories,cxClassificationSelection,cxStandingMode,cxStandingsTableHtml:({rows})=>`<table data-rows="${rows.length}"></table>`,cxWireStandingsScroll:()=>{},
     buildRaceHeader:({race})=>`<div class="race-header">${race.name}</div>`,cxRaceName,cxRaceUrl,cxTournamentUrl,cxCategories,cxColor,cxClassLabel,cxUsesCategoryBadges,countryFlag:()=>'',categoryBadge:()=>'',
-    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,CX_SPANISH_AUDIENCE,supabase:Object.defineProperty({},'from',{value:()=>({select:()=>({})})}),dateNavigationButton:()=>new Element(),cxMonthDays,esc:cxEsc,cxTournamentDescription,
+    setMeta:(key,value)=>metadata.set(key,value),setMetaProperty:(key,value)=>metadata.set(key,value),cxNextDate,cxHiddenClasses,cxIsHidden,cxListedInAgenda,CX_SPANISH_AUDIENCE,supabase:Object.defineProperty({},'from',{value:()=>({select:()=>({})})}),dateNavigationButton:()=>new Element(),cxMonthDays,esc:cxEsc,cxTournamentDescription,
     formatDateLabel:key=>key,CX_CATEGORIES,cxTournamentPage,cxTournamentPageUrl,
     cxSeasonRounds:vi.fn(async()=>rounds),cxRoundBadge,
     cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxRacePageUrl,openPhBanner:vi.fn(),wirePhDescriptions:vi.fn(),
@@ -108,7 +108,8 @@ describe('página de torneo con todas las pruebas en una sola página',()=>{
   const tournament={id:'t',name:'Circuito local',slug:'circuito'};
   const rows=[{id:'a',name:'Prueba del circuito',slug:'prueba-a',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'t',cx_tournaments:tournament,cx_race_categories:[]},
     {id:'b',name:'Prueba de enero',slug:'prueba-b',dateKey:'2027-01-30',seasonKey:'2026-27',tournamentId:'t',cx_tournaments:tournament,cx_race_categories:[]},
-    {id:'c',name:'Otra prueba',slug:'prueba-c',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'otro',cx_tournaments:tournament,cx_race_categories:[]}];
+    {id:'c',name:'Otra prueba',slug:'prueba-c',dateKey:'2026-09-19',seasonKey:'2026-27',tournamentId:'otro',cx_tournaments:tournament,cx_race_categories:[]},
+    {id:'d',name:'Prueba suspendida',slug:'prueba-d',dateKey:'2026-10-10',seasonKey:'2026-27',tournamentId:'t',isCancelled:true,cx_tournaments:tournament,cx_race_categories:[]}];
   it('carga la temporada una vez y reúne las fechas sin agrupaciones por mes ni torneo en las cards',async()=>{
     const agenda=await open({tournamentId:'t',rows,nextDate:'2027-01-30',pinnedFilter:'big'});
     expect(agenda.calls).toEqual(['temporada']);
@@ -123,6 +124,8 @@ describe('página de torneo con todas las pruebas en una sola página',()=>{
     const html=agenda.list.children[0].innerHTML;
     expect(html).toContain('Prueba de enero');
     expect(html).not.toContain('Otra prueba');
+    expect(html).not.toContain('Prueba suspendida');
+    expect(html).not.toContain('data-date="2026-10-10"');
     expect(html).not.toContain('cx-month');
     expect(html).not.toContain('Circuito local');
     expect(html).not.toContain('race-card__overview-btn');

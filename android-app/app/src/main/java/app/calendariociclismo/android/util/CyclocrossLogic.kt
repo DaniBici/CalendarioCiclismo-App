@@ -116,11 +116,12 @@ object CyclocrossLogic {
      * Número de prueba (n/total) por carrera y torneo, con el orden del contrato
      * de generales CX: coalesce(fecha de categoría, fecha de carrera), hora de
      * salida con nulos al final y race.id. Una carrera con varias categorías
-     * cuenta como una sola ronda; las canceladas conservan su número.
+     * cuenta como una sola ronda. Una carrera cancelada en su totalidad sale de
+     * la numeración; una manga cancelada no la altera.
      */
     fun tournamentRounds(rows: List<CxRoundRow>, season: String): Map<String, CxRound> {
         val allowed = runCatching { months(season).map(YearMonth::toString) }.getOrNull() ?: return emptyMap()
-        val groups = rows.filter { !it.tournamentId.isNullOrEmpty() && it.seasonKey == season && dateInSeason(it.dateKey, allowed) }
+        val groups = rows.filter { !it.tournamentId.isNullOrEmpty() && !it.isCancelled && it.seasonKey == season && dateInSeason(it.dateKey, allowed) }
             .groupBy { it.tournamentId!! }
         fun key(row: CxRoundRow): Pair<String, Instant> {
             val entries = row.categories.map { (it.dateKey ?: row.dateKey) to (parseInstant(it.startTimeUtc) ?: Instant.MAX) }

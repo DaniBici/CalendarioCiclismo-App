@@ -236,6 +236,10 @@ salida (1 DNF, 3 DNS, 9 OTL), ausentes de la llegada. Con `status` 0, tras 20
 minutos sin nuevas llegadas: `started` sin `finished` = DNF; `started=false`
 con `starting` no falso = DNS, si el concurso registra alguna salida. Un dorsal
 retirado de la lista de EvoData no se recupera.
+Una CRI de un día solo se publica cuando todos los corredores de la lista de
+salida con `starting` no falso tienen llegada o IRM; sin lista no se publica.
+Completa, se emite con `publication.format='fixed'` y `sourceStatus='official'`
+y queda oficial en el mismo volcado, sin la regla de estabilidad.
 El relevo mixto UEC (concurso de selecciones con `raceTypeId` 13 y concursos
 «Singoli» con los corredores) se publica como el de Tissot: `gc` final con
 `raceType='TTT'`, primer dorsal de cada selección con puesto y tiempo absoluto

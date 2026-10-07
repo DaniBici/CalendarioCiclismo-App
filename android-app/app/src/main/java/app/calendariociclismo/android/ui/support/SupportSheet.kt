@@ -1,5 +1,10 @@
 package app.calendariociclismo.android.ui.support
 
+import androidx.compose.foundation.background
+import androidx.compose.material3.ButtonDefaults
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.neutralFill
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -139,7 +144,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                     )
                     Text(
                         t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"),
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = CCText.S20,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                     )
@@ -163,7 +168,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(CCRadius.Surface),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -186,8 +191,9 @@ fun SupportSheet(onDismiss: () -> Unit) {
                         )
                     },
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
+                shape = RoundedCornerShape(CCRadius.Surface),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -215,6 +221,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     ),
+                    shape = RoundedCornerShape(CCRadius.Surface),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -243,7 +250,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                     selected = selectedPlan == PremiumService.PremiumPlan.YEARLY,
                     price = yearly?.formattedPrice ?: "17,99 €",
                     period = t("al año", "per year"),
-                    badge = t("MEJOR OPCIÓN", "BEST VALUE"),
+                    badge = t("Mejor opción", "Best value"),
                     onClick = { selectedPlan = PremiumService.PremiumPlan.YEARLY },
                 )
                 PlanRow(
@@ -258,6 +265,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                         activity?.let { app.premium.subscribe(it, selectedPlan) }
                     },
                     enabled = !isPurchasing,
+                    shape = RoundedCornerShape(CCRadius.Control),
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
                     if (isPurchasing) {
@@ -286,6 +294,10 @@ fun SupportSheet(onDismiss: () -> Unit) {
                         OutlinedButton(
                             onClick = { activity?.let { app.premium.contribute(it, id) } },
                             enabled = !isPurchasing,
+                            shape = RoundedCornerShape(CCRadius.Control),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
                             modifier = Modifier.weight(1f),
                         ) {
                             Text(price)
@@ -305,6 +317,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
                         }
                     }
                 },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text(t("Restaurar compras", "Restore purchases"))
@@ -337,7 +350,7 @@ fun SupportSheet(onDismiss: () -> Unit) {
 @Composable
 private fun Guarantee(text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -355,6 +368,7 @@ private fun PlanRow(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
+        shape = RoundedCornerShape(CCRadius.Surface),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -367,9 +381,12 @@ private fun PlanRow(
             badge?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = CCText.S12,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .background(neutralFill, RoundedCornerShape(CCRadius.Control))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
             }
         }

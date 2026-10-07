@@ -123,7 +123,7 @@ fun WidgetItem.tvBadge(now: Instant, text: WidgetText): WidgetBadge? {
         "time" -> {
             val tvStart = tv.start ?: return WidgetBadge(R.drawable.ic_widget_tv, "TV", false)
             when {
-                !now.isBefore(tvStart) -> WidgetBadge(R.drawable.ic_widget_tv, "Live", true)
+                !now.isBefore(tvStart) -> WidgetBadge(R.drawable.ic_widget_tv, text.s(R.string.tv_badge_live), true)
                 start?.let { !tvStart.isAfter(it) } == true -> WidgetBadge(R.drawable.ic_widget_tv, text.s(R.string.widget_full_race), false)
                 else -> WidgetBadge(R.drawable.ic_widget_tv, text.time(tvStart) ?: "TV", false)
             }

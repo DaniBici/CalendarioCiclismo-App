@@ -8,7 +8,7 @@ import {
   operationSourceCatalog, operationRunStatus, selectOperationHistory,
   shortOperationRevision,
 } from '../services/operations-monitor.js';
-import { showToast } from './helpers.js';
+import { formatCount, showToast } from './helpers.js';
 
 // ── Monitor de automatizaciones del VPS ─────────────────────────
 let _operationsReady = false;
@@ -73,19 +73,19 @@ function _operationsSourceIssues(item, sourceId) {
         ...(result.error?[result.error]:[])
       ])
     ]:(item?.summary?.categories||[]).flatMap(result=>[result.reviewReason,result.error,...(result.issues||[]).map(issue=>typeof issue==='string'?issue:issue.message||issue.code||JSON.stringify(issue))].filter(Boolean));
-    return issues.length?`<details class="operations-source__details"><summary>Revisiones CX (${issues.length})</summary><ul class="operations-source__issue-list">${issues.slice(0,50).map(issue=>`<li>${esc(issue)}</li>`).join('')}</ul></details>`:'';
+    return issues.length?`<details class="operations-source__details"><summary>Revisiones CX (${formatCount(issues.length)})</summary><ul class="operations-source__issue-list">${issues.slice(0,50).map(issue=>`<li>${esc(issue)}</li>`).join('')}</ul></details>`:'';
   }
   const actions = item?.summary?.actions || {};
   const actionEntries = Object.entries(actions)
     .filter(([action, count]) => _OPERATIONS_ACTION_LABELS[action] && Number(count) > 0)
-  const counts = actionEntries.map(([action, count]) => `${Number(count)} ${_operationsActionLabel(action, Number(count))}`);
+  const counts = actionEntries.map(([action, count]) => `${formatCount(count)} ${_operationsActionLabel(action, Number(count))}`);
   const issueCount = actionEntries.reduce((total, [, count]) => total + Number(count), 0);
   const details = Array.isArray(item?.summary?.issues) ? item.summary.issues : [];
   if (!counts.length && !details.length) {
     if (sourceId !== 'sporza' || Number(item?.itemsFound || 0) > 0) return '';
     return `<div class="operations-source__note">Sin emisiones confirmadas. Sporza solo se incorpora cuando la página editorial publica hora y canal; el horario deportivo no se usa como horario de TV.</div>`;
   }
-  const detailCount = issueCount > details.length ? `${details.length} de ${issueCount}` : String(details.length);
+  const detailCount = issueCount > details.length ? `${formatCount(details.length)} de ${formatCount(issueCount)}` : formatCount(details.length);
   const detailHtml = details.length ? `<details class="operations-source__details"><summary>Ver detalles registrados (${detailCount})</summary><ul class="operations-source__issue-list">${details.map((issue) => {
     const label = _operationsActionLabel(issue.action, 1);
     const subject = [issue.title, issue.dateKey].filter(Boolean).map(esc).join(' · ') || 'Fuente completa';
@@ -166,17 +166,17 @@ function _operationsCatalogInfo(catalog) {
     ['Otras revisiones', breakdown.otherOpen],
   ].filter(([, count]) => Number(count || 0) > 0);
   const detailRows = rows.length
-    ? `<dl class="operations-catalog__breakdown">${rows.map(([label, count]) => `<div><dt>${esc(label)}</dt><dd>${Number(count)}</dd></div>`).join('')}</dl>`
+    ? `<dl class="operations-catalog__breakdown">${rows.map(([label, count]) => `<div><dt>${esc(label)}</dt><dd>${formatCount(count)}</dd></div>`).join('')}</dl>`
     : '';
   const resolved = Number(breakdown.resolved || 0);
   return `<div class="operations-catalog">
     <p>Compara a diario el catálogo oficial de la UCI con las fichas, equipos y afiliaciones. Solo aplica correcciones automáticas seguras.</p>
-    <div class="operations-catalog__mode">${catalog.enabled ? 'Correcciones automáticas seguras activadas' : 'Solo observación'}${lockedCases ? ` · ${lockedCases} bloqueos manuales` : ''}${catalog.overdue ? ' · Sin captura válida en 36 horas' : ''}</div>
+    <div class="operations-catalog__mode">${catalog.enabled ? 'Correcciones automáticas seguras activadas' : 'Solo observación'}${lockedCases ? ` · ${formatCount(lockedCases)} bloqueos manuales` : ''}${catalog.overdue ? ' · Sin captura válida en 36 horas' : ''}</div>
     <details class="operations-catalog__details">
-      <summary>${openCases} incidencias pendientes de revisión</summary>
+      <summary>${formatCount(openCases)} incidencias pendientes de revisión</summary>
       <p>No son errores publicados: son diferencias retenidas para evitar cambios sin evidencia suficiente.</p>
       ${detailRows}
-      ${resolved ? `<div class="operations-catalog__resolved">${resolved} incidencias resueltas</div>` : ''}
+      ${resolved ? `<div class="operations-catalog__resolved">${formatCount(resolved)} incidencias resueltas</div>` : ''}
     </details>
   </div>`;
 }
@@ -192,10 +192,10 @@ function _operationsRenderSources(payload) {
     return `<article class="operations-source">
       <div class="operations-source__head"><strong>${esc(source.label)}</strong><span class="operations-status operations-status--${status}"><i></i>${_operationsStatusLabel(status)}</span></div>
       <div class="operations-source__numbers">
-        <span><b>${item?.itemsFound ?? 0}</b> encontrados</span>
-        <span><b>${item?.itemsMatched ?? 0}</b> ${source.id==='dataride_cx'?'importables':source.id==='cx_standings'?'publicadas':source.id==='cx_push'?'programados':'asociados'}</span>
-        <span><b>${item?.itemsChanged ?? 0}</b> cambios</span>
-        <span><b>${item?.errors ?? 0}</b> errores</span>
+        <span><b>${formatCount(item?.itemsFound)}</b> encontrados</span>
+        <span><b>${formatCount(item?.itemsMatched)}</b> ${source.id==='dataride_cx'?'importables':source.id==='cx_standings'?'publicadas':source.id==='cx_push'?'programados':'asociados'}</span>
+        <span><b>${formatCount(item?.itemsChanged)}</b> cambios</span>
+        <span><b>${formatCount(item?.errors)}</b> errores</span>
       </div>
       ${_operationsSourceIssues(item, source.id)}
       <div class="operations-source__time">${_operationsDate(item?.startedAt)}</div>

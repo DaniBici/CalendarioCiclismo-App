@@ -149,7 +149,7 @@ extension WidgetItem {
         switch tvStatus {
         case "time":
             guard let tvStart = tv?.startUtc else { return WidgetBadge(symbol: "tv", text: "TV", emphasized: false) }
-            if now >= tvStart { return WidgetBadge(symbol: "tv", text: "Live", emphasized: true) }
+            if now >= tvStart { return WidgetBadge(symbol: "tv", text: text.t("En directo", "Live"), emphasized: true) }
             if let start = startUtc, tvStart <= start {
                 return WidgetBadge(symbol: "tv", text: text.t("Íntegra", "Full Race"), emphasized: false)
             }

@@ -1,5 +1,15 @@
 package app.calendariociclismo.android.ui.cyclocross
 
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
+import app.calendariociclismo.android.ui.theme.CCText
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.neutralFill
+import app.calendariociclismo.android.ui.theme.neutralFillPressed
+import app.calendariociclismo.android.ui.month.CalendarFilterChip
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -11,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,7 +44,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -268,15 +281,15 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
         val base = Modifier.padding(padding).consumeWindowInsets(padding)
         Column(if (tournamentId != null) base.windowInsetsPadding(WindowInsets.statusBars) else base) {
             if (tournamentId == null) TodayHighlightsBanner(navController = nav, scope = "cx")
-            else CCCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), cornerRadius = 12) {
+            else CCCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     RaceCompetitionIdentity(tournamentName.orEmpty(), tournamentLogo, null, hideFlag = true, onBack = { nav.popBackStack() })
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (roundTotal > 1) {
-                            Text(stringResource(R.string.cx_rounds_count, roundTotal), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.cx_rounds_count, roundTotal), style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("·", style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(season, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(season, style = CCText.S13, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -339,7 +352,9 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                     val hidePin = option == CxAgendaFilter.ALL || filter == CxAgendaFilter.ALL
                     val pinFilled = !hidePin && pinnedFilter != CxAgendaFilter.ALL && pinnedFilter == option
                     val pinOutline = !hidePin && !pinFilled && filter == option
-                    CxAgendaFilterChip(
+                    // Pulsar el filtro activo abre el diálogo de filtro
+                    // predeterminado, como en Mes y Temporada.
+                    CalendarFilterChip(
                         label = stringResource(option.labelRes),
                         selected = filter == option,
                         pinFilled = pinFilled,
@@ -353,7 +368,6 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                                 filter = option
                             }
                         },
-                        onLongClick = { haptic(Haptics.Event.PrimaryAction); pendingDefault = option },
                     )
                 }
             }
@@ -386,7 +400,7 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
             // Torneo: pantalla de carga completa (sin perfil inferior) mientras
             // llega la primera tanda de carreras.
             if (tournamentId != null && state.busy && !state.isRefreshing && rows.isEmpty()) {
-                RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, modifier = Modifier.weight(1f))
+                RouteLoadingView(message = stringResource(R.string.loading), showProfile = false, modifier = Modifier.weight(1f), title = LocaleHolder.t("Ciclocross", "Cyclocross"))
             } else PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
                 onRefresh = { scope.launch { state.refresh() } },
@@ -446,15 +460,16 @@ fun CyclocrossScreen(nav: NavController, tournamentId: String? = null, selectedS
                         LazyColumn(modifier = Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(layoutRows, key = { group -> group.joinToString("|") { it.key } }) { group ->
                                 when (val first = group.first()) {
-                                    is AgendaRow.Day -> Text(DateFormatting.formatDateLabel(first.date), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = if (tournamentId != null && first.key != rows.firstOrNull()?.key) 6.dp else 0.dp).semantics { heading() })
+                                    // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
+                                    is AgendaRow.Day -> Text(DateFormatting.formatDateLabel(first.date), style = CCText.S13, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = if (tournamentId != null && first.key != rows.firstOrNull()?.key) 6.dp else 0.dp).semantics { heading() })
                                     is AgendaRow.Empty -> CxEmptyState(first.filtered)
                                     is AgendaRow.Race -> Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.Top,
                                     ) {
                                         group.filterIsInstance<AgendaRow.Race>().forEach { row ->
-                                            Box(Modifier.weight(1f)) {
+                                            Box(Modifier.weight(1f).fillMaxHeight()) {
                                                 CxRaceCard(row.race, row.date, clock, round = state.rounds[row.race.id], showTournamentLink = tournamentId == null, openTournament = {
                                                     row.race.tournament?.let { nav.navigate(Routes.cxTournament(it.id, row.race.seasonKey, if (locale.language != "es") it.nameEn ?: it.name else it.name, it.logoUrl)) }
                                                 }) { category -> nav.navigate(Routes.cxRace(row.race.id, category)) }
@@ -521,40 +536,55 @@ private fun CxTournamentGeneralContent(
     }
 }
 
-/** Chip de filtro de la agenda CX, con la misma presentación que `CategoryChip`
- *  de Hoy en Carretera (cápsula y azul de marca al activar). */
-@OptIn(ExperimentalFoundationApi::class)
+// MARK: - Caja de categoría y enlaces
+
+/**
+ * Caja de categoría de la agenda (ME, WE, MJ…): gris neutro con texto
+ * principal y radio de control; al pulsar, la onda neutra la oscurece
+ * (`.cx-category-box` de `css/ciclocross.css`). Espejo de `CxCategoryBoxStyle`
+ * de iOS.
+ */
 @Composable
-private fun CxAgendaFilterChip(
+internal fun CxCategoryBox(
     label: String,
-    selected: Boolean,
-    pinFilled: Boolean,
-    pinOutline: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    fillWidth: Boolean = false,
 ) {
-    val primary = MaterialTheme.colorScheme.primary
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier
-            .background(if (selected) primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
-            .semantics {
-                role = Role.Button
-                this.selected = selected
-            }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(CCRadius.Control),
+        color = if (selected) neutralFillPressed else neutralFill,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier.widthIn(min = 40.dp))
+            .height(24.dp)
+            .semantics { this.selected = selected },
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        when {
-            pinFilled -> Icon(Icons.Filled.PushPin, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
-            pinOutline -> Icon(Icons.Outlined.PushPin, contentDescription = null, tint = primary.copy(alpha = 0.55f), modifier = Modifier.size(12.dp))
+        Box(Modifier.padding(horizontal = if (fillWidth) 5.dp else 8.dp), contentAlignment = Alignment.Center) {
+            Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+/** Etiqueta de enlace neutra (Dorsales, torneo): texto principal sobre el gris de las etiquetas. */
+@Composable
+internal fun CxLinkBadge(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(CCRadius.Control),
+        color = neutralFill,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.height(24.dp),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp))
+            Text(label, style = CCText.S12, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -564,27 +594,26 @@ private fun CxAgendaFilterChip(
 private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRound?, showTournamentLink: Boolean, openTournament: () -> Unit, open: (String?) -> Unit) {
     val english = LocalConfiguration.current.locales[0].language != "es"
     val categories = CyclocrossLogic.categoriesOn(race, date)
-    // Sin documento (Libro de Ruta o Mapa) o sin horarios —o cancelada—, la
-    // ficha no está lista: card placeholder de Hoy en Carretera. El toque abre
-    // el aviso de información en vez de navegar.
-    val openRace = !race.isCancelled && CyclocrossLogic.raceOpen(race)
+    // Sin documento (Libro de Ruta o Mapa) o sin horarios, la ficha no está
+    // lista: card placeholder de Hoy en Carretera. El toque abre el aviso de
+    // información en vez de navegar.
+    val openRace = CyclocrossLogic.raceOpen(race)
     var showPlaceholder by remember { mutableStateOf(false) }
     // Prueba sin ningún horario asociado: los indicadores pasan a badges.
     val badges = CxPresentation.usesCategoryBadges(race, categories, clock)
-    CCCard(modifier = Modifier.fillMaxWidth(), accent = cxColor(CxPresentation.color(race)), accentAlpha = 0.04f, cornerRadius = 14, elevation = 0) {
+    CCCard(modifier = Modifier.fillMaxSize()) {
         // Card entera clicable (patrón de Hoy): cualquier zona abre la ficha;
         // los botones internos (categorías, torneo) conservan su acción.
-        Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { if (openRace) open(null) else showPlaceholder = true }) {
+        Column(Modifier.fillMaxSize().clickable(role = Role.Button) { if (openRace) open(null) else showPlaceholder = true }) {
             Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RaceCardIdentity(CxPresentation.logo(race), countryCode = race.countryCode, stackedFlag = true, title = {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         // Paridad web: nombre, badge de clase y hamburguesa de
-                        // torneo en la primera línea. El nombre largo se corta
-                        // con puntos suspensivos, sin dejar hueco antes del badge.
+                        // torneo en la primera línea. Nombre completo: pasa a
+                        // otra línea en lugar de cortarse.
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(modifier = Modifier.weight(1f, fill = false), text = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(modifier = Modifier.weight(1f, fill = false), text = if (english) race.nameEn?.takeIf { it.isNotBlank() } ?: race.name else race.name, style = CCText.S16, fontWeight = FontWeight.Medium)
                             CategoryBadge(CxPresentation.raceClass(race.raceClass, english))
-                            if (race.isCancelled) CxCancelledBadge()
                             // Hamburguesa compartida con Hoy: acceso directo al torneo.
                             if (showTournamentLink && race.tournament != null) RaceCompetitionButton(LocaleHolder.t("Ver torneo", "View series"), openTournament)
                         }
@@ -594,30 +623,27 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
                             val tournament = if (showTournamentLink) race.tournament else null
                             val currentRound = round?.takeIf { it.total > 1 }
                             if (tournament != null) {
-                                Text(LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name), modifier = Modifier.weight(1f, fill = false), fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(LocaleHolder.t(tournament.name, tournament.nameEn ?: tournament.name), modifier = Modifier.weight(1f, fill = false), style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (currentRound != null || venue != null) MetaDot()
                             }
                             if (currentRound != null) {
-                                Text("${currentRound.n}/${currentRound.total}", fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${currentRound.n}/${currentRound.total}", style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (venue != null) MetaDot()
                             }
-                            if (venue != null) Text(venue, modifier = Modifier.weight(1f, fill = false), fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (venue != null) Text(venue, modifier = Modifier.weight(1f, fill = false), style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }, details = {
                     val onOpen: (String?) -> Unit = { if (openRace) open(it) else showPlaceholder = true }
-                    // Prueba cancelada: solo la indicación; sin categorías.
-                    if (!race.isCancelled) {
-                        if (badges) {
-                            FlowRow(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                for (category in categories) CxCategoryActions(race, category, clock,
-                                    compact = true, onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
-                            }
-                        } else {
-                            Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                for (category in categories) CxCategoryActions(race, category, clock,
-                                    expanded = true, modifier = Modifier.weight(1f), onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
-                            }
+                    if (badges) {
+                        FlowRow(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (category in categories) CxCategoryActions(race, category, clock,
+                                compact = true, onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
+                        }
+                    } else {
+                        Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (category in categories) CxCategoryActions(race, category, clock,
+                                expanded = true, modifier = Modifier.weight(1f), onProgramme = { onOpen(category.category) }, onStartlist = { onOpen("inscritos-${category.category}") }, onResults = { onOpen("resultados-${category.category}") })
                         }
                     }
                 })
@@ -630,7 +656,7 @@ private fun CxRaceCard(race: CxRace, date: String, clock: Instant, round: CxRoun
 
 @Composable
 private fun MetaDot() {
-    Text("·", fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("·", style = CCText.S12, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -640,22 +666,22 @@ internal fun CxCategoryActions(race: CxRace, category: CxCategory, clock: Instan
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (compact) {
             // Prueba sin horarios: badge plano que mantiene su acción por fase.
-            RaceActionBadge(category.category, if (phase == CxCategoryCardState.RESULTS) onResults else onProgramme, selected = selected, neutral = true, modifier = Modifier.semantics { contentDescription = description })
+            CxCategoryBox(category.category, if (phase == CxCategoryCardState.RESULTS) onResults else onProgramme, selected = selected, modifier = Modifier.semantics { contentDescription = description })
         } else {
             // Con horarios: la caja solo lleva el código (mismo ancho, menos
             // alta); hora o copa se muestran debajo, fuera de la caja, con la
             // tipografía de salida/meta de Hoy en Carretera.
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    RaceActionTile(category.category, onProgramme,
-                        selected = selected, fillWidth = expanded, boxOnly = true, neutral = true,
+                    CxCategoryBox(category.category, onProgramme,
+                        selected = selected, fillWidth = expanded,
                         modifier = (if (expanded) Modifier.weight(1f) else Modifier).semantics { contentDescription = description })
-                    if (phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) RaceActionBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group, primaryAction = true)
+                    if (phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) CxLinkBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group)
                 }
                 CxCategorySchedule(phase, category, onResults)
             }
         }
-        if (compact && phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) RaceActionBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group, primaryAction = true)
+        if (compact && phase == CxCategoryCardState.TIME && category.startlistImportedAt != null) CxLinkBadge(stringResource(R.string.cx_startlist), onStartlist, icon = Icons.Filled.Group)
     }
 }
 
@@ -667,24 +693,28 @@ private fun CxCategorySchedule(phase: CxCategoryCardState, category: CxCategory,
         // sin el objetivo táctil de 48 dp del IconButton ni colchón extra.
         CxCategoryCardState.RESULTS -> ResultsTrophyAction(onClick = onResults, contentDescription = stringResource(R.string.cx_results))
         CxCategoryCardState.AWAITING -> WaitingResultsIndicator()
-        CxCategoryCardState.CANCELLED -> CxCancelledBadge()
+        CxCategoryCardState.CANCELLED -> CxCancelledCross()
         CxCategoryCardState.TIME -> Text(category.startTimeUtc?.let(DateFormatting::formatTimeLocal) ?: "—",
-            fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = CCText.S16, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
-/** Badge rojo de "Cancelada", idéntico al de Hoy en Carretera. */
+/**
+ * Aspa roja de una categoría cancelada: ocupa la mitad central del hueco, con
+ * trazo grueso y extremos redondeados como la X del emblema de ciclocross, y
+ * la altura del horario o de la copa.
+ */
 @Composable
-private fun CxCancelledBadge() {
-    Text(
-        text = stringResource(R.string.today_subtitle_cancelled).uppercase(LocaleHolder.currentState),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(3))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
+private fun CxCancelledCross() {
+    val color = MaterialTheme.colorScheme.error
+    val description = stringResource(R.string.today_subtitle_cancelled)
+    Canvas(Modifier.fillMaxWidth().height(24.dp).padding(vertical = 5.dp).semantics { contentDescription = description }) {
+        val stroke = 4.dp.toPx()
+        val left = size.width / 4
+        val right = size.width - left
+        drawLine(color, Offset(left, 0f), Offset(right, size.height), stroke, StrokeCap.Round)
+        drawLine(color, Offset(right, 0f), Offset(left, size.height), stroke, StrokeCap.Round)
+    }
 }
 
 /** Estado vacío de mes, con la presentación de Hoy en Carretera. */

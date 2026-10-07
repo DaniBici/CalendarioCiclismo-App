@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.calendariociclismo.android.data.sync.ImageAssetCache
+import app.calendariociclismo.android.ui.theme.CCRadius
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -22,6 +23,9 @@ import coil3.request.crossfade
  * contenido a su derecha se desplaza a ocuparlo. En un Row con `spacedBy`, el
  * espaciado solo se aplica entre hijos que sí emiten, así que tampoco queda
  * hueco de separación.
+ *
+ * Solo la imagen ajustada y el recorte de radio 4: sin caja, fondo, margen ni
+ * borde en ninguna vista.
  *
  * Si el modo offline ha descargado el logo, pasa el fichero local a Coil para
  * que el render sea instantáneo y funcione sin red.
@@ -42,6 +46,7 @@ fun RaceLogo(
         ?: cache?.bundledLogoAssetUri(url)
         ?: url
 
+    val shape = RoundedCornerShape(CCRadius.Control)
     AsyncImage(
         model = ImageRequest.Builder(context)
             .data(model)
@@ -51,7 +56,7 @@ fun RaceLogo(
         contentScale = ContentScale.Fit,
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(3.dp)),
+            .clip(shape),
         placeholder = null,
         error = null,
         fallback = null,

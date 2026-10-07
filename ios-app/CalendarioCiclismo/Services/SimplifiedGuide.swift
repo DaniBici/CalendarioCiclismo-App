@@ -221,6 +221,23 @@ enum SimplifiedGuide {
         }
     }
 
+    /// Filas de Puntos clave: `all` es la guía sin la salida (los pies de
+    /// puerto solo aparecen ahí, como filas secundarias) e `initial`, la lista
+    /// resumida. Si solo hay localidades, todas menos los pies; si no, las
+    /// filas relevantes sin pies ni localidades, y de ellas las seis últimas
+    /// para priorizar el desenlace. Espejo de `keyRows`/`initial`
+    /// (`js/stage/profile.js`).
+    static func keyPointRows(_ rows: [GuideRow]) -> (all: [GuideRow], initial: [GuideRow]) {
+        let all = rows.filter { $0.type != "start" }
+        let onlyTowns = all.contains { $0.type == "town" }
+            && all.allSatisfy { $0.type == "town" || $0.type == "finish" }
+        let relevant = all.filter { $0.type != "climb_foot" && $0.type != "town" }
+        let initial = onlyTowns
+            ? all.filter { $0.type != "climb_foot" }
+            : (relevant.count > 6 ? Array(relevant.suffix(6)) : relevant)
+        return (all, initial)
+    }
+
     /// True si la jornada tiene guía que merezca enseñarse. Es **opt-in**:
     /// solo si el editor introdujo al menos UNA hora real del rutómetro en un
     /// punto intermedio (cima/waypoint). Las horas interpoladas no bastan.

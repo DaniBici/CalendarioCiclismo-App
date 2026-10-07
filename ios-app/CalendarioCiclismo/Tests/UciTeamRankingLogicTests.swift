@@ -55,4 +55,24 @@ final class UciTeamRankingLogicTests: XCTestCase {
         ])
         XCTAssertFalse(result[1].explanation(isEnglish: false).contains("ProSeries"))
     }
+
+    func testPuntosEnterosConMillaresTambienConCuatroCifras() {
+        XCTAssertEqual(UciTeamRankingLogic.formatPoints(1234.4, isEnglish: false), "1.234")
+        XCTAssertEqual(UciTeamRankingLogic.formatPoints(12344.6, isEnglish: false), "12.345")
+        XCTAssertEqual(UciTeamRankingLogic.formatPoints(987, isEnglish: false), "987")
+        XCTAssertEqual(UciTeamRankingLogic.formatPoints(1234, isEnglish: true), "1,234")
+    }
+
+    func testPanelDeInvitacionesSoloConLosNivelesPresentes() {
+        let rows = UciTeamRankingLogic.decorate([
+            row(1, "WT"), row(8, "PT"), row(31, "PT"), row(40, "CT"),
+        ], gender: "male")
+
+        XCTAssertEqual(
+            UciTeamRankingLogic.keyItems(rows, isEnglish: false).map(\.style),
+            [.worldTour, .orange, .excluded]
+        )
+        XCTAssertEqual(rows.map(\.rankStyle), [.worldTour, .orange, .excluded, nil])
+        XCTAssertFalse(rows[1].explanation(isEnglish: false).contains("Proyección"))
+    }
 }

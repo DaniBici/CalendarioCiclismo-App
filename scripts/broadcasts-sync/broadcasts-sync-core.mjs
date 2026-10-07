@@ -7,7 +7,7 @@ export const RTVE_SOURCE_URLS = [
 export const RTVE_VUELTA_SCHEDULE_URL = 'https://www.rtve.es/play/noticias/20260818/vuelta-ciclista-2026-hora-donde-ver-gratis-todas-etapas/17194425.shtml';
 export const RTVE_VUELTA_VIDEOS_URL = 'https://www.rtve.es/api/programas/144990/videos.json?page=1&size=50';
 export const RTVE_LIVES_URL = 'https://api.rtve.es/api/lives/peticiones.json?size=200';
-export const PARSER_VERSION = '2026-10-05.1';
+export const PARSER_VERSION = '2026-10-07.1';
 
 const STAGE_RE = /\b(?:stage|etapa|[eé]tape|tappa)\s*(\d{1,2})(?:[a-z])?\b/i;
 const CYCLING_RE = /\b(ciclismo|ciclista|cycling|vuelta|giro|tour de france|tour femenino|clasica|clásica|mundial.*ruta|campeonato.*ruta)\b/i;
@@ -152,6 +152,13 @@ function hyphenHead(alias) {
   return significant(head).length >= 2 ? matchingForm(head) : null;
 }
 
+// «Eneco Tour (Vuelta a los Países Bajos)»: el paréntesis glosa el nombre y las
+// fuentes rotulan solo la parte exterior.
+function withoutParentheses(alias) {
+  const outer = String(alias).replace(/\s*\([^)]*\)/g, ' ').trim();
+  return outer !== String(alias).trim() && significant(outer).length >= 2 ? matchingForm(outer) : null;
+}
+
 function aliasesForRace(race, source) {
   const aliases = [race.name, race.nameEn];
   for (const language of Object.values(race.translations || {})) {
@@ -159,7 +166,7 @@ function aliasesForRace(race, source) {
   }
   const folded = new Set(aliases.filter(Boolean).flatMap((alias) => {
     const primary = String(alias).split(/\s*\/\s*/, 1)[0];
-    return [matchingForm(alias), matchingForm(primary), hyphenHead(primary)].filter(Boolean);
+    return [matchingForm(alias), matchingForm(primary), hyphenHead(primary), withoutParentheses(alias)].filter(Boolean);
   }));
   for (const alias of [...folded]) {
     if (/\bcre\b/.test(alias) && /\brelevo mixto\b/.test(alias)) {
@@ -752,6 +759,19 @@ export function matchObservation(observation, raceDays) {
     score: winner.score,
     evidence: { dateKey: observation.dateKey, stageNumber: observation.stageNumber, aliases: winner.aliases },
   };
+}
+
+// HBO Max rotula «Mixed» una emisión común a las carreras masculina y femenina
+// del mismo día («Eneco Tour | Prologue», «Mixed | The Hague (3.1km, ITT)»).
+// Fuera de los relevos y campeonatos, cada género se empareja por separado: la
+// variante femenina conserva el UUID de HBO y la masculina añade «:men».
+export function hboSharedEventVariants(observation) {
+  if (observation.source !== 'hbo_max' || !/^mixed\b/i.test(observation.subtitle || '')) return [];
+  if (/\b(?:championships?|relay|ttt|team)\b/i.test(`${observation.title} ${observation.subtitle}`)) return [];
+  const { sourceHash, ...event } = observation;
+  return [['Women', event.externalEventId], ['Men', `${event.externalEventId}:men`]].map(([gender, externalEventId]) => (
+    normalizedObservation({ ...event, externalEventId, subtitle: event.subtitle.replace(/^mixed\b/i, gender) })
+  ));
 }
 
 export function desiredBroadcasts(observation) {

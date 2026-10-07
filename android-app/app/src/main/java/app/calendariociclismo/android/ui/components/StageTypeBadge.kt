@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,9 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.calendariociclismo.android.ui.theme.stageTypeBadgeColor
-import app.calendariociclismo.android.util.LocaleHolder
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.util.RaceLogic
 
 /**
@@ -49,7 +48,7 @@ fun StageTypeBadge(
     val colors = stageTypeBadgeColor(colorKey)
     Row(
         modifier = modifier
-            .background(colors.background, RoundedCornerShape(3))
+            .background(colors.background, RoundedCornerShape(CCRadius.Control))
             .padding(
                 horizontal = if (compact) 6.dp else 8.dp,
                 vertical = if (compact) 1.dp else 3.dp,
@@ -58,13 +57,9 @@ fun StageTypeBadge(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
-            text = label.uppercase(LocaleHolder.currentState),
-            style = if (compact) {
-                MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 11.sp)
-            } else {
-                MaterialTheme.typography.labelSmall
-            },
-            fontWeight = FontWeight.Medium,
+            text = label,
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
             color = colors.foreground,
         )
     }

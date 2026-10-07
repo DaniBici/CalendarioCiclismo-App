@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.onboarding
 
+import app.calendariociclismo.android.ui.theme.CCRadius
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -98,7 +99,7 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
                 imageVector = Icons.Filled.Notifications,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(20.dp))
 
@@ -150,7 +151,7 @@ fun NotificationOnboardingScreen(onDismiss: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(CCRadius.Control),
                 contentPadding = PaddingValues(vertical = 14.dp),
             ) {
                 Text(
@@ -197,7 +198,7 @@ internal fun OnboardingBullet(icon: ImageVector, text: String) {
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.primary,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = text,

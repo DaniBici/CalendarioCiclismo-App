@@ -1,7 +1,8 @@
 package app.calendariociclismo.android.ui.components
 
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,11 +49,13 @@ import kotlinx.coroutines.launch
  * Chip de acción usado en la lista de "documentación" de una jornada y en el
  * header de competición (Web oficial, Inscritos, Orden de salida, etc.).
  *
- * Celda de una tira de acciones: azul tenue, con icono sobre una etiqueta de
- * una línea. El separador dibujado por cada celda crea un único grupo continuo.
+ * Celda de una tira de acciones: enlace neutro (icono gris sobre una etiqueta
+ * de una línea a 13 seminegrita). El separador dibujado por cada celda crea
+ * un único grupo continuo.
  *
- * `highlighted` invierte la celda al azul de marca con contenido blanco; lo usa
- * el primer chip ("Clasificaciones") de la tira de jornada.
+ * `highlighted` pone la etiqueta y el icono en acento y negrita, sin relleno;
+ * lo usa el primer chip ("Clasificaciones") de la tira de jornada. Paridad:
+ * iOS `ActionStripTile`.
  */
 @Composable
 fun AssetChip(
@@ -64,8 +67,9 @@ fun AssetChip(
     highlighted: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
-    val tileColor = if (highlighted) colors.primary else colors.surfaceVariant
-    val contentColor = if (highlighted) Color.White else colors.primary
+    val tileColor = colors.surfaceVariant
+    val iconColor = if (highlighted) colors.primary else colors.onSurfaceVariant
+    val labelColor = if (highlighted) colors.primary else colors.onSurface
     // La celda destacada ("Clasificaciones") se ensancha con su etiqueta; el
     // resto conserva el ancho fijo de la tira.
     val widthModifier = if (highlighted) Modifier.widthIn(min = 100.dp) else Modifier.width(100.dp)
@@ -92,22 +96,22 @@ fun AssetChip(
             Icon(
                 painter = iconPainter,
                 contentDescription = null,
-                tint = contentColor,
+                tint = iconColor,
                 modifier = Modifier.size(14.dp),
             )
         } else if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = contentColor,
+                tint = iconColor,
                 modifier = Modifier.size(14.dp),
             )
         }
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = contentColor,
+            style = CCText.S13,
+            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.SemiBold,
+            color = labelColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -130,9 +134,8 @@ fun AssetActionStrip(
         modifier = modifier
             .fillMaxWidth()
             .height(60.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(cardColor)
-            .border(1.dp, colors.outlineVariant, RoundedCornerShape(8.dp)),
+            .clip(RoundedCornerShape(CCRadius.Surface))
+            .background(cardColor),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),

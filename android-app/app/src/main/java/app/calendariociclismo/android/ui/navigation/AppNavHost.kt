@@ -17,7 +17,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -154,9 +159,33 @@ fun AppNavHost(navController: NavHostController) {
     // La suite cambia automáticamente entre barra inferior y rail lateral según
     // la ventana disponible. Las rutas de detalle —incluidos dorsales y orden de
     // salida— siguen siendo destinos jerárquicos y ocultan la navegación primaria.
+    // Barra inferior y rail sobre la superficie de las tarjetas (blanca en
+    // claro, tono de tarjeta en oscuro). Pestaña activa en acento, sin la
+    // píldora indicadora de Material.
+    val colors = MaterialTheme.colorScheme
+    val itemColors = NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = colors.primary,
+            selectedTextColor = colors.primary,
+            indicatorColor = Color.Transparent,
+            unselectedIconColor = colors.onSurfaceVariant,
+            unselectedTextColor = colors.onSurfaceVariant,
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = colors.primary,
+            selectedTextColor = colors.primary,
+            indicatorColor = Color.Transparent,
+            unselectedIconColor = colors.onSurfaceVariant,
+            unselectedTextColor = colors.onSurfaceVariant,
+        ),
+    )
     NavigationSuiteScaffold(
         state = navigationSuiteState,
         containerColor = MaterialTheme.colorScheme.background,
+        navigationSuiteColors = NavigationSuiteDefaults.colors(
+            navigationBarContainerColor = colors.surface,
+            navigationRailContainerColor = colors.surface,
+        ),
         navigationSuiteItems = {
             tabs.forEachIndexed { index, tab ->
                 val selected = currentRoute == tab.route ||
@@ -189,11 +218,13 @@ fun AppNavHost(navController: NavHostController) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Clip,
                         )
                     },
+                    colors = itemColors,
                 )
             }
         },

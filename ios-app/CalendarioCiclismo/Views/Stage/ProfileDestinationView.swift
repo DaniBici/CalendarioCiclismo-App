@@ -25,7 +25,7 @@ struct ProfileDestinationView: View {
             } else if viewModel.error != nil {
                 StageDetailView(raceDayId: raceDayId)
             } else {
-                LoadingView()
+                LoadingView(title: LocaleService.t("Perfil", "Profile"))
             }
         }
         .task { await viewModel.load(raceDayId: raceDayId) }

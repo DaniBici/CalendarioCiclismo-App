@@ -110,10 +110,10 @@ struct CyclocrossView: View {
                             RaceCompetitionIdentity(name: CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name), logoUrl: tournament.logoUrl, countryCode: nil, hideFlag: true)
                             HStack(spacing: 8) {
                                 if roundTotal > 1 {
-                                    Text(CyclocrossPresentation.t("\(roundTotal) rondas", "\(roundTotal) rounds")).font(.caption).foregroundStyle(.secondary)
-                                    Text("·").font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+                                    Text(CyclocrossPresentation.t("\(roundTotal) rondas", "\(roundTotal) rounds")).ccFont(.s13).foregroundStyle(AppTheme.textMuted)
+                                    Text("·").ccFont(.s13).foregroundStyle(AppTheme.textMuted).accessibilityHidden(true)
                                 }
-                                Text(tournament.seasonKey ?? model.season).font(.caption).foregroundStyle(.secondary)
+                                Text(tournament.seasonKey ?? model.season).ccFont(.s13).foregroundStyle(AppTheme.textMuted)
                                 Spacer()
                             }
                         }
@@ -127,7 +127,9 @@ struct CyclocrossView: View {
                     if showsGeneral, let standings {
                         tournamentGeneral(standings)
                     } else {
-                        if model.busy && !model.isRefreshing { ProgressView().accessibilityLabel(CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross")) }
+                        // Indicador solo sin pruebas a la vista: con la agenda
+                        // cargada no abre hueco bajo los filtros.
+                        if model.busy && !model.isRefreshing && model.rows.isEmpty { ProgressView().accessibilityLabel(CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross")) }
                         if let error = model.error {
                             VStack {
                                 Text(error).foregroundStyle(.red)
@@ -137,7 +139,7 @@ struct CyclocrossView: View {
                         // Torneo: pantalla de carga completa (sin perfil inferior,
                         // como las transiciones de Hoy) hasta la primera tanda.
                         if tournament != nil, model.busy, !model.isRefreshing, model.rows.isEmpty {
-                            LoadingView(message: CyclocrossPresentation.t("Cargando ciclocross", "Loading cyclocross"), branded: true, showProfile: false)
+                            LoadingView(branded: true, showProfile: false, title: CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
                         } else {
                             agendaList(proxy: proxy)
                         }
@@ -155,7 +157,6 @@ struct CyclocrossView: View {
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(tournament.map { CyclocrossPresentation.t($0.name, $0.nameEn ?? $0.name) } ?? CyclocrossPresentation.t("Ciclocross", "Cyclocross"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar { toolbarItems }
         .alert(
             pendingDefaultFilter == model.pinnedFilter && model.pinnedFilter != .all
@@ -256,24 +257,29 @@ struct CyclocrossView: View {
                             return true
                         }
                     )
-                    ForEach(rows) { row in
-                        if columns == 1 || row.spansAllColumns {
-                            agendaRow(row.items[0]).id(row.items[0].id)
-                        } else {
-                            HStack(alignment: .top, spacing: 10) {
-                                ForEach(row.items) { item in
-                                    agendaRow(item)
-                                        .id(item.id)
-                                        .frame(maxWidth: .infinity, alignment: .top)
-                                }
-                                if row.items.count < columns {
-                                    Color.clear.frame(maxWidth: .infinity)
+                    // Día encima y sus pruebas debajo, en dos columnas en
+                    // pantalla ancha.
+                    Grid(alignment: .top, horizontalSpacing: 10, verticalSpacing: 10) {
+                        ForEach(rows) { row in
+                            if columns == 1 || row.spansAllColumns {
+                                agendaRow(row.items[0]).id(row.items[0].id)
+                                    .gridCellColumns(columns)
+                            } else {
+                                GridRow(alignment: .top) {
+                                    ForEach(row.items) { item in
+                                        agendaRow(item)
+                                            .id(item.id)
+                                            .frame(maxWidth: .infinity, alignment: .top)
+                                    }
+                                    if row.items.count < columns {
+                                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }.scrollTargetLayout().padding()
+            }.scrollTargetLayout().padding(.horizontal).padding(.top, 8).padding(.bottom)
         }
         .refreshable {
             await model.refresh()
@@ -459,10 +465,6 @@ struct CyclocrossView: View {
                                 Haptics.play(.selection)
                                 model.filter = filter
                             }
-                        },
-                        onLongPress: {
-                            Haptics.play(.primaryAction)
-                            pendingDefaultFilter = filter
                         }
                     )
                 }
@@ -475,7 +477,9 @@ struct CyclocrossView: View {
     @ViewBuilder private func agendaRow(_ row: CxAgendaRow) -> some View {
         switch row {
         case .day(let date):
-            Text(DateFormatting.formatDateLabel(date)).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader)
+            // Fecha del día en gris, como en Resultados, Fichajes y Calendario.
+            Text(DateFormatting.formatDateLabel(date)).ccFont(.s13, weight: .semibold).foregroundStyle(AppTheme.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader)
                 .padding(.top, tournament != nil && row.id != model.rows.first?.id ? 6 : 0)
         case .empty(_, let filtered):
             // Estado vacío con la presentación de Hoy en Carretera.
@@ -502,13 +506,13 @@ struct CxRaceCard: View {
     /// Bloquea la navegación durante un swipe horizontal entre meses (patrón
     /// de Hoy: el touch-up no debe abrir la ficha a la vez que cambia el mes).
     var disableTap = false
-    /// La ficha no tiene la carga mínima (o la prueba está cancelada): el toque
+    /// La ficha no tiene la carga mínima: el toque
     /// abre el aviso de placeholder de Hoy en Carretera en vez de navegar.
     var onPlaceholder: ((CxRace) -> Void)? = nil
     private var tournament: CxTournament? { showTournamentLink ? race.tournament : nil }
     private var currentRound: CxRound? { round.flatMap { $0.total > 1 ? $0 : nil } }
     private var venue: String? { race.venue.flatMap { $0 != CyclocrossPresentation.name(race) ? $0 : nil } }
-    private var metaDot: some View { Text("·").font(.caption).foregroundStyle(.secondary).accessibilityHidden(true) }
+    private var metaDot: some View { Text("·").ccFont(.s12).foregroundStyle(AppTheme.textMuted).accessibilityHidden(true) }
     private var categories: [CxCategory] { CyclocrossLogic.categories(on: date, race: race) }
     /// Prueba sin ningún horario asociado: los indicadores pasan a badges.
     private var usesCategoryBadges: Bool {
@@ -517,15 +521,13 @@ struct CxRaceCard: View {
     /// Sin documento (Libro de Ruta o Mapa) o sin horarios, la ficha no está
     /// lista: la card no navega a la carrera ni a sus categorías.
     private var open: Bool { CyclocrossLogic.raceOpen(race) }
-    private var placeholder: Bool { race.isCancelled || !open }
+    private var placeholder: Bool { !open }
     /// Sin ficha lista, los indicadores de categoría no navegan: el toque abre
     /// el aviso de placeholder como el resto de la card.
     private var programmeTap: () -> Void {
         if open { return {} }
         return { onPlaceholder?(race) }
     }
-    /// Badge de prueba cancelada, con el mismo tratamiento que Hoy en Carretera.
-    private var cancelledBadge: some View { CxCancelledBadge() }
     // Card entera clicable (patrón de Hoy): cualquier zona abre la ficha; los
     // botones internos (categorías, torneo, TV) conservan su acción.
     private var cardLink: some View {
@@ -539,16 +541,17 @@ struct CxRaceCard: View {
         .disabled(disableTap)
     }
     private var cardView: some View {
-        CCCard(accent: CyclocrossPresentation.color(race).map { Color(hex: $0) }, accentAlpha: 0.04, cornerRadius: 14, showShadow: false) {
+        CCCard {
             HStack(spacing: 10) {
             RaceCardIdentity(logoUrl: CyclocrossPresentation.logo(race), countryCode: race.countryCode, stackedFlag: true) {
                 VStack(alignment: .leading, spacing: 3) {
                     // Paridad web: nombre, badge de clase y hamburguesa de
                     // torneo en la primera línea.
-                    HStack(spacing: 5) {
-                        Text(CyclocrossPresentation.name(race)).font(.subheadline.weight(.medium)).lineLimit(1)
-                        CategoryBadge(category: CyclocrossPresentation.raceClass(race.raceClass))
-                        if race.isCancelled { cancelledBadge }
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        // Nombre completo: pasa a otra línea en lugar de cortarse.
+                        Text(CyclocrossPresentation.name(race)).ccFont(.s16, weight: .medium)
+                            .fixedSize(horizontal: false, vertical: true)
+                        CategoryBadge(category: CyclocrossPresentation.raceClass(race.raceClass)).fixedSize()
                         // El acceso al torneo vive solo en la hamburguesa.
                         if let tournament {
                             NavigationLink(destination: CyclocrossView(tournament: tournament, season: race.seasonKey)) {
@@ -561,21 +564,19 @@ struct CxRaceCard: View {
                     HStack(spacing: 5) {
                         if let tournament {
                             Text(CyclocrossPresentation.t(tournament.name, tournament.nameEn ?? tournament.name))
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                .ccFont(.s12).foregroundStyle(AppTheme.textMuted).lineLimit(1)
                             if currentRound != nil || venue != nil { metaDot }
                         }
                         if let currentRound {
-                            Text("\(currentRound.n)/\(currentRound.total)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            Text("\(currentRound.n)/\(currentRound.total)").ccFont(.s12).foregroundStyle(AppTheme.textMuted).monospacedDigit()
                             if venue != nil { metaDot }
                         }
                         if let venue {
-                            Text(venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(venue).ccFont(.s12).foregroundStyle(AppTheme.textMuted).lineLimit(1)
                         }
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             } details: {
-                // Prueba cancelada: solo la indicación; sin categorías.
-                if !race.isCancelled {
                 if usesCategoryBadges {
                     FlowLayout(spacing: 4) {
                         ForEach(categories) { category in
@@ -591,7 +592,6 @@ struct CxRaceCard: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }.frame(maxWidth: .infinity).padding(.top, 3)
-                }
                 }
             }
             if open {
@@ -626,9 +626,9 @@ struct CxCategoryActions: View {
             HStack(spacing: 4) {
                 Group {
                     if let destination {
-                        NavigationLink(value: CxDestination(raceId: destination, anchor: phase == .results ? "resultados-" + category.category : category.category)) { categoryBadge }.buttonStyle(.plain)
+                        NavigationLink(value: CxDestination(raceId: destination, anchor: phase == .results ? "resultados-" + category.category : category.category)) { categoryBadge }.buttonStyle(CxCategoryBoxStyle(selected: selected))
                     } else {
-                        Button(action: phase == .results ? onResults ?? onProgramme : onProgramme) { categoryBadge }.buttonStyle(.plain)
+                        Button(action: phase == .results ? onResults ?? onProgramme : onProgramme) { categoryBadge }.buttonStyle(CxCategoryBoxStyle(selected: selected))
                     }
                 }
                 if phase == .time, category.startlistImportedAt != nil {
@@ -643,9 +643,9 @@ struct CxCategoryActions: View {
                 HStack(spacing: 4) {
                     Group {
                         if let destination {
-                            NavigationLink(value: CxDestination(raceId: destination, anchor: category.category)) { categoryTile }.buttonStyle(.plain)
+                            NavigationLink(value: CxDestination(raceId: destination, anchor: category.category)) { categoryTile }.buttonStyle(CxCategoryBoxStyle(selected: selected))
                         } else {
-                            Button(action: onProgramme) { categoryTile }.buttonStyle(.plain)
+                            Button(action: onProgramme) { categoryTile }.buttonStyle(CxCategoryBoxStyle(selected: selected))
                         }
                     }.frame(maxWidth: expanded ? .infinity : nil)
                     if phase == .time, category.startlistImportedAt != nil {
@@ -669,10 +669,10 @@ struct CxCategoryActions: View {
                 }
             }
         case .awaiting: WaitingResultsLabel()
-        case .cancelled: CxCancelledBadge()
+        case .cancelled: CxCancelledCross()
         case .time:
             Text(CyclocrossPresentation.localTime(category.startTimeUtc) ?? "—")
-                .font(.callout).fontWeight(.semibold).foregroundStyle(.secondary)
+                .ccFont(.s16, weight: .semibold).monospacedDigit().foregroundStyle(AppTheme.textPrimary)
         }
     }
     private var trophyLabel: some View {
@@ -683,12 +683,19 @@ struct CxCategoryActions: View {
             .accessibilityLabel(CyclocrossPresentation.category(category.category) + ": " + CyclocrossPresentation.t("Resultados", "Results"))
     }
     private var categoryBadge: some View {
-        RaceActionLabel(label: category.category, primary: false, neutral: true)
+        Text(category.category)
+            .ccFont(.s12, weight: .semibold)
+            .padding(.horizontal, 8)
+            .frame(height: 24)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(CyclocrossPresentation.category(category.category) + ": " + tileDescription)
     }
     @ViewBuilder private var categoryTile: some View {
-        RaceActionTileLabel(label: category.category, selected: selected, fillWidth: expanded, boxOnly: true, neutral: true) {}
+        Text(category.category)
+            .ccFont(.s12, weight: .semibold)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 40, maxWidth: expanded ? .infinity : nil, minHeight: 24, maxHeight: 24)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(CyclocrossPresentation.category(category.category) + ": " + tileDescription)
     }
@@ -702,42 +709,86 @@ struct CxCategoryActions: View {
     }
     @ViewBuilder private func action(_ label: String, icon: String? = nil, anchor: String, primary: Bool = false, selected: Bool = false, perform: @escaping () -> Void) -> some View {
         if let destination {
-            NavigationLink(value: CxDestination(raceId: destination, anchor: anchor)) { RaceActionLabel(label: label, icon: icon, primary: primary, selected: selected) }.buttonStyle(.plain)
+            NavigationLink(value: CxDestination(raceId: destination, anchor: anchor)) { CxLinkLabel(label: label, icon: icon) }.buttonStyle(CxCategoryBoxStyle(selected: selected))
         } else {
-            Button(action: perform) { RaceActionLabel(label: label, icon: icon, primary: primary, selected: selected) }.buttonStyle(.plain)
+            Button(action: perform) { CxLinkLabel(label: label, icon: icon) }.buttonStyle(CxCategoryBoxStyle(selected: selected))
                 .accessibilityAddTraits(selected ? .isSelected : [])
         }
     }
 }
 
-// MARK: - Filtro de la agenda CX
-
-/// Badge rojo de "Cancelada", idéntico al de Hoy en Carretera.
-private struct CxCancelledBadge: View {
+/// Aspa roja de una categoría cancelada: ocupa la mitad central del hueco,
+/// con trazo grueso y extremos redondeados como la X del emblema de
+/// ciclocross, y la altura del horario o de la copa. El estado ya figura en
+/// la etiqueta accesible de la caja de categoría.
+private struct CxCancelledCross: View {
     var body: some View {
-        Text(CyclocrossPresentation.t("Cancelada", "Cancelled"))
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .textCase(.uppercase)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .foregroundStyle(AppTheme.red)
-            .background(AppTheme.red.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-            .accessibilityLabel(CyclocrossPresentation.t("Prueba cancelada", "Cancelled race"))
+        CxCrossShape()
+            .stroke(AppTheme.red, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            .frame(maxWidth: .infinity).frame(height: 14)
+            .padding(.vertical, 5)
+            .accessibilityHidden(true)
     }
 }
 
-/// Chip de filtro de la agenda de ciclocross con la misma presentación que
-/// `TodayFilterChip` de Hoy en Carretera (cápsula, azul de marca al activar y
-/// chincheta de filtro predeterminado, propia de esta vista).
+private struct CxCrossShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let box = rect.insetBy(dx: rect.width / 4, dy: 0)
+        var path = Path()
+        path.move(to: CGPoint(x: box.minX, y: box.minY)); path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        path.move(to: CGPoint(x: box.maxX, y: box.minY)); path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        return path
+    }
+}
+
+// MARK: - Caja de categoría
+
+/// Caja de categoría de la agenda (ME, WE, MJ…): gris neutro con texto
+/// principal y radio de control; al pulsar, gris más intenso
+/// (`.cx-category-box` de `css/ciclocross.css`).
+struct CxCategoryBoxStyle: ButtonStyle {
+    var selected = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(AppTheme.textPrimary)
+            .background(
+                configuration.isPressed || selected ? AppTheme.neutralFillPressed : AppTheme.neutralFill,
+                in: RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+/// Etiqueta de enlace neutra (Dorsales, torneo): texto principal sobre la
+/// superficie gris; el fondo lo pone `CxCategoryBoxStyle`.
+struct CxLinkLabel: View {
+    let label: String
+    var icon: String? = nil
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if let icon { Image(systemName: icon).font(.system(size: 10, weight: .semibold)) }
+            Text(label).ccFont(.s12, weight: .semibold).lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 24)
+    }
+}
+
+// MARK: - Filtro de la agenda CX
+
+/// Chip de filtro de la agenda de ciclocross con la misma presentación que los
+/// filtros del Calendario (`CalendarFilterChipLabel`): acento al 15 % al
+/// activar y chincheta de filtro predeterminado, propia de esta vista.
 private struct CxFilterChip: View {
     let filter: CxAgendaFilter
     let isActive: Bool
     let activeFilter: CxAgendaFilter
     let pinnedFilter: CxAgendaFilter
+    /// Pulsar el filtro activo abre el diálogo de filtro predeterminado, como
+    /// en Mes y Temporada.
     let onTap: () -> Void
-    let onLongPress: () -> Void
 
     private enum PinDisplay { case filled, outline, hidden }
 
@@ -749,31 +800,17 @@ private struct CxFilterChip: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text(filter.label)
-                .fontWeight(isActive ? .semibold : .regular)
-            switch pinDisplay {
-            case .filled:
-                Image(systemName: "pin.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.accentColor)
-            case .outline:
-                Image(systemName: "pin").font(.system(size: 10)).foregroundStyle(Color.accentColor).opacity(0.55)
-            case .hidden:
-                EmptyView()
-            }
+        Button(action: onTap) {
+            CalendarFilterChipLabel(
+                label: filter.label,
+                isActive: isActive,
+                pinFilled: pinDisplay == .filled,
+                pinOutline: pinDisplay == .outline
+            )
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .font(.caption)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-        .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-        .clipShape(Capsule())
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
-            if pressing { Haptics.play(.selection) }
-        }, perform: { onLongPress() })
-        .accessibilityAddTraits([.isButton])
+        .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .accessibilityLabel(pinDisplay == .filled
             ? "\(LocaleService.t("Filtro", "Filter")) \(filter.label), \(LocaleService.t("fijado como predeterminado", "set as default"))"

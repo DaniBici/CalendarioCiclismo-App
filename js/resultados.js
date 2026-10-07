@@ -169,6 +169,9 @@ async function init() {
   // El módulo del feed se carga en diferido para no engordar las páginas de
   // carrera, que son la ruta caliente.
   if (!raceId && !raceSlug) {
+    // Índice de una sección principal: sin flecha de volver, como Fichajes,
+    // Ciclocross o Calendario (la base compartida con las fichas la declara).
+    window.ccHeaderBack?.(null);
     const { renderResultsFeed } = await import('./resultados-feed.js');
     renderResultsFeed(content);
     return;
@@ -733,10 +736,9 @@ async function init() {
       html += arrowHtml('next',moreLbl,'hidden');
     }
     html += `</div>`;   // .res-tabs__scroll
-    // Separador vertical entre las pestañas y el selector de equipos (solo con
-    // pestañas; su visibilidad la afina renderClassification según haya filtro).
-    if (hasTabs) html += `<div class="res-tabs__sep" id="resTabsSep" hidden></div>`;
-    html += `<div class="res-tabs__filter" id="resTeamFilterSlot"></div></div></div>`;
+    // Estado de publicación junto al filtro cuando no hay pestañas (carreras de
+    // un día); con pestañas va junto al título de la clasificación.
+    html += `<div class="res-tabs__status" id="resStatusSlot"></div><div class="res-tabs__filter" id="resTeamFilterSlot"></div></div></div>`;
   }
 
   // Contenedor de la tabla (se rellena por renderClassification).
@@ -979,32 +981,34 @@ async function init() {
   let renderRequest = 0;
   let displayedStage = null;
   const publication = document.getElementById('resPublication');
-  const showPublication = (stageRow, error = false, busy = false) => {
-    if (!stageRow || stageRow._cancelledStage) { updateResultsHtml(publication, ''); return; }
+  const statusSlot = document.getElementById('resStatusSlot');
+  const showPublication = (stageRow, error = false) => {
+    if (!stageRow || stageRow._cancelledStage) { updateResultsHtml(publication, ''); if (statusSlot) updateResultsHtml(statusSlot, ''); return; }
     const provisional = stageRow.publicationStatus === 'provisional';
     const stamp = provisional ? stageRow.lastSyncedAt : null;
     const date = stamp ? new Date(stamp) : null;
     const time = date && Number.isFinite(date.getTime()) ? date.toLocaleString(_isEn ? 'en-GB' : 'es-ES', { day:'numeric',month:'short',hour:'2-digit',minute:'2-digit' }) : '';
     const classHeading = isOneDay ? ''
       : `<strong class="res-class-heading">${esc(classificationLabel(configByKind.get(stageRow.classKind),_isEn?'en':'es'))}</strong>`;
-    const updating = classificationIsUpdating(stageRow);
+    // Clasificación en actualización: solo el indicador giratorio, sin letrero.
     const updatingText = _isEn ? 'Classification updating' : 'Clasificación actualizándose';
-    const inlineUpdating = busy && updating
-      ? `<span class="res-refreshing res-refreshing--busy" role="status">${statusIcon('refresh')}<span>${_isEn ? 'Updating' : 'Actualizando'}</span></span>`
+    const spinner = classificationIsUpdating(stageRow)
+      ? `<span class="res-refreshing" role="status" aria-label="${updatingText}" title="${updatingText}">${statusIcon('refresh')}</span>`
       : '';
     const updateNote = error
       ? `<div class="res-update-note">${statusIcon('offline')}${_isEn ? 'Offline · Saved results' : 'Sin conexión · Datos conservados'}${time ? ' · '+esc(time) : ''}<button type="button" data-results-retry>${_isEn ? 'Retry':'Reintentar'}</button></div>`
-      : updating && !busy
-        ? `<div class="res-update-note res-refreshing" role="status">${statusIcon('refresh')}<span>${updatingText}</span></div>`
-        : '';
-    const changed = updateResultsHtml(publication, `<div class="res-publication-line">${classHeading}<span>${stageRow.publicationStatus === 'official' ? (_isEn ? 'Official' : 'Oficial') : (_isEn ? 'Provisional' : 'Provisional')}</span>${inlineUpdating}${time ? `<time datetime="${esc(stamp)}">${_isEn ? 'Last updated' : 'Última actualización'}: ${esc(time)}</time>` : ''}</div>${updateNote}`);
+      : '';
+    const status = `<span>${stageRow.publicationStatus === 'official' ? (_isEn ? 'Official' : 'Oficial') : (_isEn ? 'Provisional' : 'Provisional')}</span>${spinner}${time ? `<time datetime="${esc(stamp)}">${_isEn ? 'Last updated' : 'Última actualización'}: ${esc(time)}</time>` : ''}`;
+    const inBar = statusSlot && !document.querySelector('#resTabsInner .res-tab');
+    if (statusSlot) updateResultsHtml(statusSlot, inBar ? `<div class="res-publication-line">${status}</div>` : '');
+    const changed = updateResultsHtml(publication, inBar ? updateNote : `<div class="res-publication-line">${classHeading}${status}</div>${updateNote}`);
     if (changed) publication.querySelector('[data-results-retry]')?.addEventListener('click', () => renderClassification(activeClass,{ refresh:true }));
   };
   async function renderClassification(stageRow, { refresh = false } = {}) {
     const request = ++renderRequest;
     activeClass = stageRow;
     try {
-    showPublication(stageRow,false,refresh);
+    showPublication(stageRow);
     // Etapa CANCELADA: su pestaña "Etapa" no tiene clasificación que mostrar —
     // la carrera no llegó a meta. En vez de una tabla vacía ("no hay datos",
     // que se lee como un volcado que falta), el aviso explica QUÉ pasó.
@@ -1395,12 +1399,9 @@ async function init() {
         slot.innerHTML = '';
       }
     }
-    // Separador pestañas↔filtro: solo cuando hay filtro de equipo a la derecha.
-    const sep = document.getElementById('resTabsSep');
-    if (sep) sep.hidden = !(slot && slot.innerHTML);
     applyTeamFilter();
     } catch { if(request===renderRequest) showPublication(displayedStage?.classKind===stageRow.classKind?displayedStage:stageRow,true); }
-    finally { if(request===renderRequest) publication.querySelector('.res-refreshing--busy')?.remove(); }
+
   }
 
   // Selección lógica: el captador puede sustituir el identificador de fuente.
@@ -1429,7 +1430,6 @@ async function init() {
   const refreshCurrent=async()=> {
     if(document.hidden || refreshing || !content.isConnected) return;
     refreshing=true;
-    showPublication(displayedStage||activeClass,false,true);
     try {
       const [stageResult,configResult,dayResult]=await Promise.all([
         supabase.from('race_uci_stages').select('*').eq('raceId',raceId).eq('keepForWeb',true).gt('rowCount',0),
@@ -1472,25 +1472,11 @@ async function init() {
         const list=content.querySelector('.res-stage-data dl');if(list) updateResultsHtml(list,stageMetricsHtml(raceDay));
       }
     } catch { showPublication(displayedStage||activeClass,true); }
-    finally { refreshing=false; publication.querySelector('.res-refreshing--busy')?.remove(); }
+    finally { refreshing=false; }
   };
   const refreshTimer=setInterval(refreshCurrent,60000);
   document.addEventListener('visibilitychange',refreshCurrent);
   window.addEventListener('pagehide',()=> {clearInterval(refreshTimer);document.removeEventListener('visibilitychange',refreshCurrent);window.removeEventListener('resize',centerActiveStage);document.getElementById('resProfile')?._profileCleanup?.();},{once:true});
-
-  // ── Botón de edición admin (solo con sesión) → pestaña Resultados del editor de la jornada ─
-  if (raceDayId) {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user || document.getElementById('editResultsBtn')) return;
-      const btn = document.createElement('a');
-      btn.id        = 'editResultsBtn';
-      btn.className = 'edit-jornada-btn';
-      btn.href      = '/panel/app.html?edit=' + encodeURIComponent(raceDayId) + '&tab=resultados';
-      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ' + (_isEn ? 'Edit' : 'Editar');
-      const hero = content.querySelector('.race-header');
-      (hero || document.body).appendChild(btn);
-    });
-  }
 }
 
 // Esperar a cargar las traducciones (en.json) antes de renderizar: el panel de

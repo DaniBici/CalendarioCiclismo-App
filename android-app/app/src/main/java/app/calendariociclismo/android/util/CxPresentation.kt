@@ -96,6 +96,13 @@ object CxPresentation {
 
     fun isHidden(race: CxRace): Boolean = race.raceClass in hiddenClasses
 
+    /**
+     * Carrera visible en la agenda: no está cancelada en su totalidad ni oculta
+     * por idioma. Las categorías canceladas siguen visibles. Espejo de
+     * `CyclocrossPresentation.listedInAgenda` (iOS) y `cxListedInAgenda` (web).
+     */
+    fun listedInAgenda(race: CxRace): Boolean = !race.isCancelled && !isHidden(race)
+
     /** Aviso al abrir en inglés una carrera o un torneo solo nacional. */
     const val SPANISH_AUDIENCE_TITLE = "Available in Spanish"
     const val SPANISH_AUDIENCE_NOTICE = "This content is intended for Spanish-speaking audiences, mainly in Spain. Switch the app to Spanish to view it."
@@ -171,6 +178,21 @@ object CxPresentation {
         return valid(race.colorHex)
     }
     fun raceClass(code: String, english: Boolean): String = if (code == "NAC") if (english) "Nat" else "Nac" else code
+    /** Nombre completo de la clase para la cabecera de la ficha: las siglas sin
+     *  contexto (Nac, CC, CM) se escriben enteras, como en la jornada de
+     *  carretera. Espejo de `cxClassName` (`js/cx/presentation.js`). */
+    fun className(code: String?, english: Boolean): String {
+        val names = if (english) mapOf(
+            "CM" to "World Championships", "CDM" to "UCI World Cup", "CC" to "Continental Championships",
+            "CN" to "National Championships", "NAC" to "National",
+        ) else mapOf(
+            "CM" to "Campeonato del mundo", "CDM" to "Copa del Mundo UCI", "CC" to "Campeonato continental",
+            "CN" to "Campeonato nacional", "NAC" to "Nacional",
+        )
+        if (code.isNullOrEmpty()) return ""
+        names[code]?.let { return it }
+        return if (Regex("^C\\d$").matches(code)) "UCI $code" else code
+    }
     private fun configured(race: CxRace): JsonObject? = race.tournament?.pointsScheme?.get("categories") as? JsonObject
     fun actualCategories(detail: CxDetail): List<String> = CyclocrossLogic.categories.filter { code ->
         detail.race.categories.any { it.category == code && (it.dateKey ?: detail.race.dateKey) in CyclocrossLogic.dates(detail.race) }

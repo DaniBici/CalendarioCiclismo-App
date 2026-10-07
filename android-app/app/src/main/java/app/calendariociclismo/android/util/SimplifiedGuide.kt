@@ -77,13 +77,15 @@ object SimplifiedGuide {
         summits: List<ProfileSummit>,
         waypoints: List<ProfileWaypoint>,
         primaryType: String?,
+        realStartTimeUtc: String? = null,
     ): List<GuideRow> {
         val isTimeTrial = primaryType == "itt" || primaryType == "ttt"
         val rows = mutableListOf<Tmp>()
 
-        // — Salida (km 0) —
-        if (neutralStartTimeUtc != null) {
-            rows.add(Tmp(0.0, null, "start", null, null, neutralStartTimeUtc, false))
+        // — Salida (km 0): salida real si existe; si no, neutralizada —
+        val startTimeUtc = realStartTimeUtc ?: neutralStartTimeUtc
+        if (startTimeUtc != null) {
+            rows.add(Tmp(0.0, null, "start", null, null, startTimeUtc, false))
         }
 
         // — Puertos: pie (estimado) + cima (manual si la hubiera) —

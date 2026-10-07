@@ -4,7 +4,9 @@ import Foundation
 @MainActor
 @Observable
 final class SeasonViewModel {
-    var year: Int = Calendar.current.component(.year, from: Date())
+    /// Un año posterior al actual abre en su primer mes con carreras
+    /// (`SeasonView.bestMonth`).
+    var year: Int = DateFormatting.calendarStart().year
     var races: [Race] = []
     /// Challenges del año (`challenge_groups`): sus pruebas se agrupan en una fila.
     var challengeGroups: [ChallengeGroup] = []

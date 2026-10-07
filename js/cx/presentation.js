@@ -219,6 +219,13 @@ export function cxTime(utc,locale='es-ES',timezone=undefined) {
   return new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',timeZone:timezone,hourCycle:'h23'}).format(new Date(utc));
 }
 export const cxClassLabel = (code,lang='es') => code==='NAC'?(lang==='en'?'Nat':'Nac'):code;
+// Nombre completo de la clase para la cabecera de la ficha: las siglas sin
+// contexto (Nac, CC, CM) se escriben enteras, como en la jornada de carretera.
+const CX_CLASS_NAMES = {
+  es: { CM:'Campeonato del mundo', CDM:'Copa del Mundo UCI', CC:'Campeonato continental', CN:'Campeonato nacional', NAC:'Nacional' },
+  en: { CM:'World Championships', CDM:'UCI World Cup', CC:'Continental Championships', CN:'National Championships', NAC:'National' },
+};
+export const cxClassName = (code,lang='es') => (CX_CLASS_NAMES[lang] || CX_CLASS_NAMES.es)[code] || (/^C\d$/.test(code || '') ? `UCI ${code}` : (code || ''));
 export function cxRoundLabel(round) {
   if(!round||!(round.total>1)||!(round.n>=1)||round.n>round.total)return null;
   return {text:t('cx.round',{n:round.n,total:round.total}),aria:t('cx.roundAria',{n:round.n,total:round.total})};

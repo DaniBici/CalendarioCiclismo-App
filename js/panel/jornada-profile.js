@@ -172,12 +172,12 @@ export async function _mapHandleUpload(file, rdId, statusEl, summaryEl, btnEl) {
     // Mostrar los botones "Quitar mapa" / "Ver mapa" si no estaban.
     if (!document.getElementById('ed-map-del')) {
       const delBtn = document.createElement('button');
-      delBtn.className = 'btn btn--ghost u-fs-080 u-c-red'; delBtn.id = 'ed-map-del';
+      delBtn.className = 'btn btn--ghost u-fs-2 u-c-red'; delBtn.id = 'ed-map-del';
       delBtn.textContent = 'Quitar mapa';
       btnEl.insertAdjacentElement('afterend', delBtn);
       _wireMapDelete(delBtn, rdId, summaryEl, btnEl);
       const viewLink = document.createElement('a');
-      viewLink.className = 'btn btn--ghost u-fs-082';
+      viewLink.className = 'btn btn--ghost u-fs-2';
       viewLink.href = `/mapa.html?id=${rdId}`; viewLink.target = '_blank'; viewLink.rel = 'noopener';
       viewLink.textContent = 'Ver mapa ↗';
       delBtn.insertAdjacentElement('afterend', viewLink);

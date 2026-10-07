@@ -18,7 +18,6 @@
   z-index: 50;
   background: var(--bg-header);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
 }
 .camp-sticky__inner {
   max-width: var(--content-max);
@@ -30,7 +29,7 @@
 .camp-title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.7rem;
+  font-size: var(--fs-6);
   letter-spacing: -0.02em;
   margin: 0 0 1.5rem;
   color: var(--text);
@@ -58,7 +57,7 @@
   align-items: stretch;
   gap: 0.85rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
   border-radius: var(--radius-lg);
   padding: 0.75rem 0.85rem;
 }
@@ -75,10 +74,10 @@
   border-right: 1px solid var(--border);
   padding-right: 0.6rem;
 }
-.camp-flag { font-size: 1.6rem; line-height: 1; }
+.camp-flag { font-size: var(--fs-6); line-height: 1; }
 .camp-flag img { width: 2em; height: 1.5em; }
 .camp-sede {
-  font-size: 0.72rem;
+  font-size: var(--fs-1);
   font-weight: 600;
   color: var(--text-muted);
   line-height: 1.15;
@@ -100,35 +99,28 @@
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.5rem 0.6rem;
-  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 4%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
+  background: var(--bg-card);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition);
+  transition: background var(--transition);
 }
-.camp-cell:hover {
-  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 8%, var(--bg-card));
-  border-color: color-mix(in srgb, var(--card-color, var(--border)) 30%, var(--border));
-}
+.camp-cell:hover { background: var(--bg-card-hover); }
 /* Celda sin datos (no cumple las condiciones de clic de Hoy): ni cursor ni hover.
    Los badges internos (TV/trofeo) conservan su propio cursor de enlace. */
 .camp-cell--static { cursor: default; }
-.camp-cell--static:hover {
-  background: color-mix(in srgb, var(--card-color, var(--bg-card)) 4%, var(--bg-card));
-  border-color: color-mix(in srgb, var(--card-color, var(--border)) 12%, var(--border));
-}
+.camp-cell--static:hover { background: var(--bg-card); }
 
 .camp-cell__label {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-1);
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--text);
   line-height: 1.1;
 }
 .camp-cell__day {
-  font-size: 0.72rem;
+  font-size: var(--fs-1);
   font-weight: 600;
   color: var(--text-muted);
   line-height: 1;
@@ -150,7 +142,7 @@
 @media (max-width: 720px) {
   .camp-wrap { padding: 0.85rem 0.85rem 3rem; }
   .camp-sticky__inner { padding: 0.85rem 0.85rem 0.6rem; }
-  .camp-title { font-size: 1.35rem; margin-bottom: 1rem; }
+  .camp-title { font-size: var(--fs-5); margin-bottom: 1rem; }
   .camp-sticky .camp-title { margin-bottom: 0.7rem; }
   .camp-row {
     flex-direction: column;
@@ -168,8 +160,8 @@
     padding-right: 0;
     padding-bottom: 0.5rem;
   }
-  .camp-flag { font-size: 1.4rem; }
-  .camp-sede { font-size: 0.8rem; }
+  .camp-flag { font-size: var(--fs-5); }
+  .camp-sede { font-size: var(--fs-2); }
   /* Mantener celdas uniformes: 2 columnas en móvil */
   .camp-events { grid-template-columns: repeat(2, 1fr); }
 }

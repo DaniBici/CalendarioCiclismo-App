@@ -1,4 +1,4 @@
-import { marketTeamColors } from './team-appearance.js';
+import { teamStripes } from './team-appearance.js';
 // ─────────────────────────────────────────────────────────────────
 //  FICHAJES — /fichajes/ (+ EN /en/transfers/)
 //  Mercado de fichajes de la temporada 2027 (tabla rider_transfers, mig. 122).
@@ -31,7 +31,7 @@ import { marketTeamColors } from './team-appearance.js';
 //  Cambiar de división es replaceState (no apila).
 // ─────────────────────────────────────────────────────────────────
 
-import { supabase, countryFlag, trapFocus } from './shared.js';
+import { supabase, countryFlag } from './shared.js';
 import { t, getLang, initI18n } from './i18n.js';
 
 const SEASON = 2027;
@@ -41,22 +41,13 @@ const DIVISIONS = ['WT', 'PT', 'WWT', 'PRW'];
 // que se alcance antes.
 const FEED_MAX_DAYS = 5;
 const FEED_MAX_ITEMS = 8;
+// Escritorio: lista de altura fija con desplazamiento; admite más historial.
+const FEED_SCROLL_MAX_DAYS = 30;
+const FEED_SCROLL_MAX_ITEMS = 60;
 // Orden editorial diario del equipo de destino. La categoría femenina se
 // guarda como PRW en la base de datos; PTW se admite como alias del rótulo
 // solicitado para Women's ProTeams.
 const FEED_CATEGORY_RANK = { WT: 0, PT: 1, WWT: 2, PRW: 3, PTW: 3 };
-
-// Periodistas acreditados en /abierto/. Se mantienen aquí para que los
-// enlaces del aviso de fuentes sean interactivos también en el modal web.
-const TRANSFER_SOURCES = [
-  { name: 'Nacho Labarga', outlet: 'MARCA', url: 'https://x.com/nacholabarga' },
-  { name: 'Dani Miranda', outlet: 'AS', url: 'https://x.com/danimiranda9' },
-  { name: 'Ciro Scognamiglio', outlet: 'La Gazzetta dello Sport', url: 'https://x.com/cirogazzetta' },
-  { name: 'Youri IJnsen', outlet: 'WielerFlits', url: 'https://x.com/Youri_IJnsen' },
-  { name: 'James Odvart', outlet: 'DirectVelo', url: 'https://x.com/OdvartJames' },
-  { name: 'Daniel Benson', outlet: '', url: 'https://x.com/dnlbenson' },
-  { name: 'Bram Vandecapelle', outlet: 'Het Laatste Nieuws', url: 'https://x.com/bvdecape' },
-];
 
 // Género de la tabla riders_* por división (para la plantilla "continúan").
 const DIVISION_GENDER = { WT: 'male', PT: 'male', WWT: 'female', PRW: 'female' };
@@ -310,25 +301,28 @@ function feedHtml(feed) {
   }
   // Corte del feed: hasta FEED_MAX_DAYS fechas distintas O FEED_MAX_ITEMS
   // fichajes, lo que se alcance antes (el feed viene en orden cronológico
-  // inverso). No hay "cargar más": el mercado completo se ve por equipo.
+  // inverso). En escritorio la lista tiene altura fija con desplazamiento y
+  // llega a FEED_SCROLL_MAX_*; lo que excede el corte corto se marca para
+  // ocultarlo en móvil. No hay "cargar más": el mercado completo se ve por equipo.
   let html = '';
   let lastDay = null;
   let daysShown = 0;
   let itemsShown = 0;
   for (const x of feed) {
     const newDay = x.announcedAt !== lastDay;
-    // ¿Cabe? Si abre una fecha nueva, no debe superar el límite de fechas.
-    if (newDay && daysShown >= FEED_MAX_DAYS) break;
-    if (itemsShown >= FEED_MAX_ITEMS) break;
+    if (newDay && daysShown >= FEED_SCROLL_MAX_DAYS) break;
+    if (itemsShown >= FEED_SCROLL_MAX_ITEMS) break;
+    const extra = (newDay ? daysShown >= FEED_MAX_DAYS : daysShown > FEED_MAX_DAYS) || itemsShown >= FEED_MAX_ITEMS;
     if (newDay) {
       lastDay = x.announcedAt;
       daysShown++;
-      html += `<div class="tr-feed-day">${esc(dayHeading(x.announcedAt))}</div>`;
+      html += `<div class="tr-feed-day${extra ? ' tr-feed-extra' : ''}">${esc(dayHeading(x.announcedAt))}</div>`;
     }
-    html += feedRowHtml(x);
+    const row = feedRowHtml(x);
+    html += extra ? row.replace(/^<(a|div) class="tr-row/, '<$1 class="tr-feed-extra tr-row') : row;
     itemsShown++;
   }
-  return html;
+  return `<div class="tr-feed-list">${html}</div>`;
 }
 
 function renderFeed() {
@@ -347,9 +341,11 @@ function divisionTeams(div) {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
 }
 
-function marketColorsStyle(season) {
-  const colors = marketTeamColors(season, _prevColorsByTeamId.get(season?.teamId));
-  return `--team-bg:${colors.background};--team-text:${colors.text}`;
+// Franjas de maillot de Resultados; sin colores publicados de la temporada,
+// los de la anterior.
+function marketStripesHtml(season) {
+  const source = season?.badgeVisible === true ? season : _prevColorsByTeamId.get(season?.teamId);
+  return source ? teamStripes(source) : '';
 }
 
 function renderTeams() {
@@ -378,9 +374,9 @@ function renderTeams() {
     return;
   }
   grid.innerHTML = teams.map(s => `
-    <button class="tr-team-card" data-team="${esc(s.teamId)}" style="${marketColorsStyle(s)}">
+    <button class="tr-team-card" data-team="${esc(s.teamId)}">
       <span class="tr-team-card__label${s.continuityDoubt ? ' tr-team-card__label--doubt' : ''}">
-        <span class="tr-team-card__name">${esc(s.name)}</span>
+        <span class="tr-team-card__name">${marketStripesHtml(s)}${esc(s.name)}</span>
         ${s.continuityDoubt ? `<span class="tr-chip tr-chip--doubt">${esc(t('transfers.teamDoubt'))}</span>` : ''}
       </span><span class="tr-team-chevron" aria-hidden="true">›</span>
     </button>`).join('');
@@ -519,9 +515,9 @@ async function openTeam(teamId, { push = true } = {}) {
     window.ccHeaderBack({ onClick: () => history.back(), label: t('transfers.back') });
   }
   view.innerHTML = `
-    <div class="tr-team-header" style="${marketColorsStyle(season)}">
+    <div class="tr-team-header">
       <div class="tr-team-header__text">
-        <h2 class="tr-team-header__name">${esc(season.name)}</h2>
+        <h2 class="tr-team-header__name">${marketStripesHtml(season)}${esc(season.name)}</h2>
         <span class="tr-team-header__cat">${esc(season.category || '')} · ${SEASON}</span>
       </div>
     </div>
@@ -789,19 +785,10 @@ async function init() {
     _activeDiv = qs.get('div').toUpperCase();
   }
 
-  const transfersInfo = t('transfers.infoText');
-  const transfersSources = TRANSFER_SOURCES.map(({ name, outlet, url }) => `
-    <li><a href="${url}" target="_blank" rel="noopener">${esc(name)}</a>${outlet ? ` <span>(${esc(outlet)})</span>` : ''}</li>
-  `).join('');
   content.innerHTML = `
-    <div class="tr-heading-row">
-      <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
-      <button class="tr-info-button" type="button" aria-label="${esc(t('transfers.infoLabel'))}" aria-describedby="trInfoTooltip" aria-expanded="false">i</button>
-      <div class="tr-info-tooltip" id="trInfoTooltip" role="tooltip">${esc(transfersInfo)}<ul class="tr-info-sources">${transfersSources}</ul></div>
-    </div>
+    <h1 class="tr-heading">${esc(t('transfers.heading', { season: SEASON }))}</h1>
     <div id="trHome">
-      <section class="tr-home-feed">
-        <h2 class="tr-section-title">${esc(t('transfers.feedTitle'))}</h2>
+      <section class="tr-home-feed" aria-label="${esc(t('transfers.feedTitle'))}">
         <div class="tr-div-btns" id="trFeedBtns"></div>
         <div class="tr-home-scroll" id="trFeed"></div>
       </section>
@@ -830,50 +817,6 @@ async function init() {
     }));
   };
   renderFeedButtons();
-
-  const infoButton = content.querySelector('.tr-info-button');
-  let infoModal = null;
-  let _releaseInfoFocus = null;
-  const closeInfoModal = () => {
-    if (!infoModal) return;
-    infoModal.classList.remove('rd-modal--open');
-    document.body.style.overflow = '';
-    if (_releaseInfoFocus) { _releaseInfoFocus(); _releaseInfoFocus = null; }
-    infoButton?.focus();
-  };
-  const openInfoModal = () => {
-    if (!infoModal) {
-      infoModal = document.createElement('div');
-      infoModal.className = 'rd-modal-overlay';
-      infoModal.innerHTML = `
-        <div class="rd-modal tr-info-modal" role="dialog" aria-modal="true" aria-labelledby="trInfoModalTitle">
-          <div class="rd-modal__bar">
-            <div class="rd-modal__header-text"><span class="rd-modal__race-name" id="trInfoModalTitle"></span></div>
-            <button class="rd-modal__close" type="button" aria-label="${esc(t('transfers.close'))}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <div class="rd-modal__body tr-info-modal__body"><p></p><ul class="tr-info-sources"></ul></div>
-        </div>`;
-      infoModal.querySelector('#trInfoModalTitle').textContent = t('transfers.infoModalTitle');
-      infoModal.querySelector('.tr-info-modal__body p').textContent = transfersInfo;
-      infoModal.querySelector('.tr-info-sources').innerHTML = transfersSources;
-      infoModal.addEventListener('click', (event) => { if (event.target === infoModal) closeInfoModal(); });
-      infoModal.querySelector('.rd-modal__close').addEventListener('click', closeInfoModal);
-      document.body.appendChild(infoModal);
-    }
-    infoModal.classList.add('rd-modal--open');
-    document.body.style.overflow = 'hidden';
-    // Ya enfocaba el botón de cerrar; faltaba retener el tabulador dentro.
-    _releaseInfoFocus = trapFocus(infoModal.querySelector('.rd-modal'),
-      { initial: infoModal.querySelector('.rd-modal__close') });
-  };
-  infoButton?.addEventListener('click', () => {
-    if (window.matchMedia('(max-width: 768px)').matches) openInfoModal();
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && infoModal?.classList.contains('rd-modal--open')) closeInfoModal();
-  });
 
   // Clic en fila de corredor enlazada (Llegan → equipo de origen; Se marchan →
   // equipo destino): navegación interna a ese equipo, sin recarga. Delegado UNA

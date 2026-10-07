@@ -87,6 +87,7 @@ data class CxRoundRow(
     val dateKey: String,
     val seasonKey: String? = null,
     @SerialName("cx_race_categories") val categories: List<CxRoundEntry> = emptyList(),
+    val isCancelled: Boolean = false,
 )
 
 /** Número de prueba de una carrera dentro de su torneo (1-indexado). */

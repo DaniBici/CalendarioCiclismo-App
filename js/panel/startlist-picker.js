@@ -7,6 +7,7 @@ import {
 } from '../shared.js';
 import { confirmDialog } from '../components/dialog.js';
 import { riderMatchesSearch, riderSearchLookupToken } from '../results/panel-logic.js';
+import { teamStripes } from '../team-appearance.js';
 import { panelState } from './state.js';
 import { showToast } from './helpers.js';
 import { _slRefreshRiderMatchBtn } from './startlists.js';
@@ -42,7 +43,7 @@ export async function _slOpenRiderMatchPicker(riderEl) {
   popover.className = 'panel-popover sl-picker-popover';
   popover.innerHTML = `
     ${currentId ? `
-      <div class="u-fs-070 u-c-dim u-mb-030">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>
+      <div class="u-fs-1 u-c-dim u-mb-030">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>
       <div class="sl-picker-edit-current sl-picker-box">
         <div class="sl-picker-heading">Editar este rider en BD</div>
         <div class="sl-picker-fields">
@@ -55,15 +56,15 @@ export async function _slOpenRiderMatchPicker(riderEl) {
         <input type="date" class="sl-edit-birth sl-picker-field sl-picker-field--wide u-mt-030" title="Fecha de nacimiento">
         <div class="u-between u-mt-040 u-gap-030">
           <button data-action="delete-current" type="button" class="btn btn--ghost btn--xs u-c-red" title="Eliminar este rider de la BD (desliga primero las startlists afectadas)">Eliminar de BD</button>
-          <button data-action="save-current" type="button" class="btn btn--primary u-py-025 u-px-055 u-fs-070" disabled style="opacity:0.45">Guardar</button>
+          <button data-action="save-current" type="button" class="btn btn--primary u-py-025 u-px-055 u-fs-1" disabled style="opacity:0.45">Guardar</button>
         </div>
         <div class="sl-picker-dups u-mt-050" style="display:none">
-          <div class="sl-picker-heading u-fs-066 u-mb-025">Posibles duplicados en BD</div>
+          <div class="sl-picker-heading u-fs-1 u-mb-025">Posibles duplicados en BD</div>
           <div class="sl-picker-dups-list u-stack u-stack--xs"></div>
         </div>
       </div>
     ` : `
-      <div class="u-fs-072 u-c-dim u-mb-040">Sin match en BD.</div>
+      <div class="u-fs-1 u-c-dim u-mb-040">Sin match en BD.</div>
       <div class="sl-picker-create-new sl-picker-box">
         <div class="sl-picker-heading">Crear nuevo rider en BD</div>
         <div class="sl-picker-fields u-mb-030">
@@ -75,7 +76,7 @@ export async function _slOpenRiderMatchPicker(riderEl) {
         <input type="text" class="sl-new-other sl-picker-field sl-picker-field--wide u-mb-030" placeholder="otherNames (opcional): aliases separados por coma">
         <input type="date" class="sl-new-birth sl-picker-field sl-picker-field--wide u-mb-040" title="Fecha de nacimiento verificada (obligatoria)">
         <div class="u-flex u-justify-end">
-          <button data-action="create-new" type="button" class="btn btn--primary u-py-025 u-px-060 u-fs-072">Preparar alta</button>
+          <button data-action="create-new" type="button" class="btn btn--primary u-py-025 u-px-060 u-fs-1">Preparar alta</button>
         </div>
       </div>
     `}
@@ -84,9 +85,9 @@ export async function _slOpenRiderMatchPicker(riderEl) {
     <div class="sl-picker-results"></div>
     <div class="panel-popover-footer">
       ${currentId
-        ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-072 u-c-dim">Desligar (sin borrar)</button>'
+        ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-1 u-c-dim">Desligar (sin borrar)</button>'
         : '<span></span>'}
-      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cerrar</button>
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-1">Cerrar</button>
     </div>`;
 
   document.body.appendChild(popover);
@@ -100,31 +101,31 @@ export async function _slOpenRiderMatchPicker(riderEl) {
     const q = input.value.trim();
     const myId = ++reqId;
     if (q.length < 2) {
-      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Escribe al menos 2 letras.</div>';
       return;
     }
-    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
+    results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Buscando…</div>';
     const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
       .select('id,firstName,lastName,otherNames,nationality,currentTeamId,verified,source,identityKey')
       .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-1 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
     if (!matchingData.length) {
-      results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin resultados.</div>';
       return;
     }
     results.innerHTML = matchingData.map(rd => `
       <div data-rid="${esc(rd.id)}" class="sl-match-row${rd.id === currentId ? ' sl-match-row--current' : ''}">
         <div data-pick="${esc(rd.id)}" role="button" tabindex="0" class="sl-match-pick">
           ${_slRiderFlagPreview(rd.nationality)}
-          <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd.otherNames)})</span>` : ''}</span>
+          <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd.lastName)}</strong>, ${esc(rd.firstName)}${rd.otherNames ? ` <span class="u-c-dim u-fs-1">(${esc(rd.otherNames)})</span>` : ''}</span>
           ${rd.verified === false ? '<span title="Sin verificar" class="sl-verify-mark u-c-warn">?</span>' : ''}
         </div>
-        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-035 u-fs-065">🔀</button>` : ''}
-        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" class="sl-mini-action sl-mini-action--delete u-py-010 u-px-035 u-fs-070">🗑</button>
+        ${currentId ? `<button type="button" data-action="merge-into" data-rid="${esc(rd.id)}" title="Fusionar este corredor en el match actual (mueve sus startlists y lo elimina)" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-035 u-fs-1">🔀</button>` : ''}
+        <button type="button" data-action="delete-result" data-rid="${esc(rd.id)}" title="Eliminar este corredor de la BD" class="sl-mini-action sl-mini-action--delete u-py-010 u-px-035 u-fs-1">🗑</button>
       </div>`).join('');
     // Click sobre la zona de info → selección como match.
     results.querySelectorAll('[data-pick]').forEach(btn => {
@@ -335,11 +336,11 @@ export async function _slOpenRiderMatchPicker(riderEl) {
       list.innerHTML = dups.map(d => `
         <div data-dup-id="${esc(d.id)}" class="sl-dup-row">
           ${_slRiderFlagPreview(d.nationality)}
-          <span class="u-grow u-min0 u-truncate"><strong>${esc(d.lastName)}</strong>, ${esc(d.firstName)}${d.otherNames ? ` <span class="u-c-dim u-fs-065">(${esc(d.otherNames)})</span>` : ''}</span>
+          <span class="u-grow u-min0 u-truncate"><strong>${esc(d.lastName)}</strong>, ${esc(d.firstName)}${d.otherNames ? ` <span class="u-c-dim u-fs-1">(${esc(d.otherNames)})</span>` : ''}</span>
           <span class="sl-verify-mark ${d.verified ? 'u-c-ok' : 'u-c-warn'}">${d.verified ? '✓' : '?'}</span>
-          <span class="u-c-dim u-fs-062 u-shrink-0">${esc(d.source || '')}</span>
-          <button data-dup-action="merge-into-current" title="Mover sus startlists al rider actual y eliminarlo" type="button" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-040 u-fs-065">Fusionar</button>
-          <button data-dup-action="delete-dup" title="Eliminar este rider de BD (desliga sus startlists, no las reapunta)" type="button" class="sl-mini-action sl-mini-action--delete u-py-015 u-px-040 u-fs-065">Borrar</button>
+          <span class="u-c-dim u-fs-1 u-shrink-0">${esc(d.source || '')}</span>
+          <button data-dup-action="merge-into-current" title="Mover sus startlists al rider actual y eliminarlo" type="button" class="sl-mini-action sl-mini-action--merge u-py-015 u-px-040 u-fs-1">Fusionar</button>
+          <button data-dup-action="delete-dup" title="Eliminar este rider de BD (desliga sus startlists, no las reapunta)" type="button" class="sl-mini-action sl-mini-action--delete u-py-015 u-px-040 u-fs-1">Borrar</button>
         </div>`).join('');
 
       list.querySelectorAll('[data-dup-action="merge-into-current"]').forEach(btn => {
@@ -468,16 +469,14 @@ export function _slUpdateRowEnrichUI(rowEl) {
   const rawName = rowEl.querySelector('.sl-team-name')?.value || '';
   // Las listas se guardan siempre con las identidades completas.
   if (isNoTeamPlaceholderTeam({ teamId: rowEl.dataset.teamId || null, teamName: rawName })) {
-    slot.innerHTML = `<span class="u-fs-072 u-c-dim">${esc(rawName)} · sin identidad de equipo</span>`;
+    slot.innerHTML = `<span class="u-fs-1 u-c-dim">${esc(rawName)} · sin identidad de equipo</span>`;
     return;
   }
   const teamId = rowEl.dataset.teamId || '';
   const team = teamId ? (panelState._teamsCache || []).find(t => t.id === teamId) : null;
   if (team) {
     slot.innerHTML = `
-      <span class="sl-team-badge" style="--team-bg:${esc(team.headerBg)};--team-fg:${esc(team.headerText)}">
-        ${esc(team.name)}
-      </span>
+      <span class="sl-team-badge">${teamStripes(team)}${esc(team.name)}</span>
       <button class="btn btn--ghost sl-change-team btn--tiny" type="button">Cambiar</button>`;
   } else {
     if (!rawName.trim()) { slot.replaceChildren(); return; }
@@ -486,7 +485,7 @@ export function _slUpdateRowEnrichUI(rowEl) {
       ? 'Varios equipos coinciden. Selecciona el correcto.'
       : 'Equipo no encontrado. Hay que crearlo.');
     slot.innerHTML = `
-      <span role="status" class="u-fs-070 u-c-orange">${esc(warning)}</span>
+      <span role="status" class="u-fs-1 u-c-orange">${esc(warning)}</span>
       ${matches.length > 1 ? '' : '<button class="btn btn--ghost sl-create-team btn--tiny" type="button">Crear equipo</button>'}
       <button class="btn btn--ghost sl-assign-team btn--tiny" type="button">Seleccionar existente</button>`;
   }

@@ -200,7 +200,7 @@ export async function setupUciResultsSection(rd, race) {
     _ruRenderSection(body, rd, race, linkRes.data || null, stages, daysRes.data || []);
   } catch (err) {
     console.error(err);
-    body.innerHTML = `<div class="u-c-danger u-fs-080">Error al cargar los resultados UCI: ${esc(err.message || String(err))}</div>`;
+    body.innerHTML = `<div class="u-c-danger u-fs-2">Error al cargar los resultados UCI: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -226,7 +226,7 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
   // Las fuentes de cronometrador sin fetcher necesitan el aviso para evitar que el
   // cron parezca activo. En PDF el volcado manual ya queda explícito en el origen.
   const manualWarn = UCI_MANUAL_SOURCES.has(src) && src !== 'pdf'
-    ? `<div class="ru-origin__warn u-c-pending u-fs-072 u-mt-030">
+    ? `<div class="ru-origin__warn u-c-pending u-fs-1 u-mt-030">
         ⚠ Fuente <strong>${esc(srcLabel)}</strong>: el cron NO vuelca esta carrera — sus resultados se suben a mano.
         Sus resultados se mantienen manualmente; no se puede programar un volcado automático para esta fuente.
       </div>`
@@ -246,7 +246,7 @@ function _ruOriginHtml(rd, race, link, stageResults = []) {
       ${lastDumpAt ? `<span class="u-c-dim"> · último volcado ${formatDateTime(lastDumpAt)}</span>` : ''}
     </div>
     ${manualWarn}
-    ${link.syncError ? `<div class="u-c-danger u-fs-072 u-mt-025">${esc(link.syncError)}</div>` : ''}
+    ${link.syncError ? `<div class="u-c-danger u-fs-1 u-mt-025">${esc(link.syncError)}</div>` : ''}
     <div class="u-row u-mt-045 u-wrap">
       <button type="button" class="btn btn--ghost ru-manual-link btn--compact">Cambiar enlace</button>
       <button type="button" class="btn btn--ghost ru-unlink btn--compact u-c-danger">Desenlazar</button>
@@ -326,7 +326,7 @@ function _ruSyncPolicyHtml(rd, race, link) {
       </div>`
     : '';
   return `<div class="ru-sync-policy u-mt-065">
-    <div class="u-fs-076 u-c-muted">Horario de volcado automático</div>
+    <div class="u-fs-1 u-c-muted">Horario de volcado automático</div>
     <div class="ru-sync-box">
       ${scopeOptions}
       <div class="u-row u-gap-055 u-wrap u-items-end${scopeOptions ? ' u-mt-050' : ''}">
@@ -440,7 +440,7 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // `updatedAt` vive en cada clasificación: no usar `link.lastSyncedAt`, que
   // pertenece a la carrera completa y puede corresponder a otra etapa.
   let html = _ruOriginHtml(rd, race, link, [...visibleMine, ...finals]);
-  html += `<div id="ruDetectPanel" class="u-mt-050 u-fs-080" style="display:none"></div>`;
+  html += `<div id="ruDetectPanel" class="u-mt-050 u-fs-2" style="display:none"></div>`;
   html += _ruSyncPolicyHtml(rd, race, link);
 
   // Las clasificaciones ya volcadas se muestran SIEMPRE (aunque la carrera se haya
@@ -462,7 +462,7 @@ function _ruRenderSection(body, rd, race, link, stages, raceDays) {
   // cron no trajo). La fila se inserta SIN bloquear → placeholder que la fuente
   // oficial PISA si llega (mismo modelo que el volcado PDF). Ver _ruCreateClass.
   html += `<div class="u-row u-mt-070 u-gap-050 u-wrap">
-    <button type="button" class="btn btn--ghost ru-new u-fs-074 u-py-030 u-px-070"
+    <button type="button" class="btn btn--ghost ru-new u-fs-1 u-py-030 u-px-070"
       title="Crea una clasificación vacía para teclear sus resultados a mano. Se crea como placeholder: si luego la UCI/PDF publica esa misma clasificación, su volcado la sustituye.">＋ Nueva clasificación</button>
   </div>`;
 
@@ -505,7 +505,7 @@ function _ruOpenManualLink(rd, race) {
     <input type="number" id="ruManualComp" placeholder="competitionId" min="1" class="u-w-950">
     <input type="number" id="ruManualUciRaceId" placeholder="uciRaceId (CN, opc.)" min="1" class="u-w-1100"
       title="Solo para Campeonatos Nacionales: race.Id de DataRide de la prueba dentro de la competición. Vacío = competición entera.">
-    <button type="button" class="btn btn--primary ru-manual-save u-fs-070 u-py-0 u-px-060">Guardar enlace</button>
+    <button type="button" class="btn btn--primary ru-manual-save u-fs-1 u-py-0 u-px-060">Guardar enlace</button>
   </div>`;
   panel.querySelector('.ru-manual-save').addEventListener('click', () => {
     const comp = parseInt(document.getElementById('ruManualComp').value, 10);

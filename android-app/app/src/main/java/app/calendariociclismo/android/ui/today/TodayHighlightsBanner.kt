@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -21,19 +24,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import app.calendariociclismo.android.R
@@ -45,6 +44,7 @@ import app.calendariociclismo.android.data.model.CxTournament
 import app.calendariociclismo.android.util.CyclocrossLogic
 import kotlinx.coroutines.CancellationException
 import app.calendariociclismo.android.ui.calendar.CalendarNavigation
+import app.calendariociclismo.android.ui.components.CC_CARD_ELEVATION
 import app.calendariociclismo.android.ui.components.RaceLogo
 import app.calendariociclismo.android.ui.navigation.Routes
 import app.calendariociclismo.android.ui.rememberApp
@@ -148,7 +148,7 @@ internal data class HighlightItem(
         cxRace?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         cxTournament?.let { return if (isEn) it.nameEn?.takeIf(String::isNotBlank) ?: it.name else it.name }
         if (isChampionships) return LocaleHolder.t("Campeonatos Nacionales", "National Championships")
-        if (isTransfers) return LocaleHolder.t("Mercado de Fichajes", "Transfer market")
+        if (isTransfers) return LocaleHolder.t("Mercado de fichajes", "Transfer market")
         if (isSeason) highlight.seasonYear?.let { return LocaleHolder.t("Calendario $it", "$it calendar") }
         return ""
     }
@@ -273,29 +273,21 @@ private fun BannerCarousel(
         }
     }
 
-    val current = items.getOrNull(pagerState.currentPage) ?: return
-    val accentColor = current.accentHex?.let { parseHex(it) } ?: MaterialTheme.colorScheme.primary
-    val bannerBackground = accentColor.copy(alpha = 0.07f)
-        .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    if (items.getOrNull(pagerState.currentPage) == null) return
+    val bannerBackground = MaterialTheme.colorScheme.surface
 
-    // Tarjeta estilo "App Store Today" — paridad con iOS pero idiomática
-    // Material 3: ElevatedCard con elevación tonal en vez del blur de iOS.
-    // El color de marca es un ACENTO (tinte 7% del contenedor),
-    // no el fondo a sangre. Margen lateral propio: el padre no aporta padding.
+    // Tarjeta neutra (ElevatedCard de Material 3) con el radio de superficie y
+    // la elevación común; sin tinte de carrera ni filete. Margen lateral
+    // propio: el padre no aporta padding.
     ElevatedCard(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.elevatedCardColors(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(CCRadius.Surface),
+        colors = CardDefaults.elevatedCardColors(containerColor = bannerBackground),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = CC_CARD_ELEVATION),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Tinte de marca muy leve sobre el contenedor de la card.
-                .background(accentColor.copy(alpha = 0.07f)),
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxWidth(),
@@ -346,36 +338,25 @@ private fun BannerArrow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Box(
+    // Botón nativo sobre la propia superficie del cintillo.
+    IconButton(
+        onClick = onClick,
         modifier = modifier
-            .width(48.dp)
+            .width(40.dp)
             .height(48.dp)
-            .semantics {
-                contentDescription = if (forward) {
-                    LocaleHolder.t("Destacado siguiente", "Next highlight")
-                } else {
-                    LocaleHolder.t("Destacado anterior", "Previous highlight")
-                }
-            }
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
+            .background(backgroundColor),
     ) {
-        Box(
-            modifier = Modifier
-                .align(if (forward) Alignment.CenterEnd else Alignment.CenterStart)
-                .width(40.dp)
-                .height(48.dp)
-                .background(backgroundColor),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = if (forward) Icons.AutoMirrored.Filled.KeyboardArrowRight
-                else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        Icon(
+            imageVector = if (forward) Icons.AutoMirrored.Filled.KeyboardArrowRight
+            else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            contentDescription = if (forward) {
+                LocaleHolder.t("Destacado siguiente", "Next highlight")
+            } else {
+                LocaleHolder.t("Destacado anterior", "Previous highlight")
+            },
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
@@ -470,10 +451,8 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasControls: Boolea
             // por defecto del tema (CCDefaultTextStyle vía LocalTextStyle).
             Text(
                 title,
-                // Mismo peso que el título del día en la barra superior (Medium).
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                lineHeight = 16.sp,
+                style = CCText.S14,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -485,9 +464,7 @@ private fun SlideContent(item: HighlightItem, isEn: Boolean, hasControls: Boolea
             ) {
                 Text(
                     detail,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    style = CCText.S13,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

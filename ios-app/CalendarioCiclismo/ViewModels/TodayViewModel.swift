@@ -73,13 +73,9 @@ final class TodayViewModel {
             switch self {
             case .category:   return LocaleService.t("Categoría", "Category")
             case .tvTime:     return LocaleService.t("Hora TV", "TV time")
-            case .finishTime: return LocaleService.t("Hora meta", "Finish time")
+            case .finishTime: return LocaleService.t("Hora de meta", "Finish time")
             }
         }
-    }
-
-    static func shouldRenderAsFeatured(_ isFeatured: Bool, sortMode: SortMode) -> Bool {
-        sortMode == .category && isFeatured
     }
 
     /// Pin del usuario (UserDefaults), independiente del filtro mostrado. Dentro

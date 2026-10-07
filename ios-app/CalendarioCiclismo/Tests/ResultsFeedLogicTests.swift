@@ -415,4 +415,14 @@ final class ResultsFeedLogicTests: XCTestCase {
         XCTAssertEqual(ResultsFeedLogic.extendedFromKey("2026-06-01"), "2026-05-18")
         XCTAssertEqual(ResultsFeedLogic.extendedFromKey("2026-01-10"), "2026-01-01")
     }
+
+    // MARK: - Selecciones nacionales
+
+    func testSeleccionesNacionalesConNombreDelPaisEnCastellano() {
+        XCTAssertEqual(ResultsFeedLogic.localizedNationName("France", isEnglish: false), "Francia")
+        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Great Britain", isEnglish: false), "Gran Bretaña")
+        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Netherlands", isEnglish: false), "Países Bajos")
+        XCTAssertEqual(ResultsFeedLogic.localizedNationName("Team Visma | Lease a Bike", isEnglish: false), "Team Visma | Lease a Bike")
+        XCTAssertEqual(ResultsFeedLogic.localizedNationName("France", isEnglish: true), "France")
+    }
 }

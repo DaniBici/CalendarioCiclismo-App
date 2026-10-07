@@ -65,16 +65,17 @@ final class CyclocrossRepository {
     func cachedMonth(season: String, month: CxMonth) async -> CxCached<[CxRace]>? {
         guard month.isActive, month.season == season else { return nil }
         guard let rows = await store.month(season + ":" + month.key) else { return nil }
-        return CxCached(data: rows.filter { !CyclocrossPresentation.isHidden($0) }, offline: true)
+        return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: true)
     }
 
     func month(season: String, month: CxMonth) async throws -> CxCached<[CxRace]> {
         guard month.isActive, month.season == season else { throw CxRepositoryError.invalidMonth }
         do {
-            // La caché guarda el mes completo; el idioma se aplica al leer.
+            // La caché guarda el mes completo; el idioma y las cancelaciones se
+            // aplican al leer.
             let rows = try await remote.cxMonth(season: season, month: month)
             await store.saveMonth(rows, key: season + ":" + month.key)
-            return CxCached(data: rows.filter { !CyclocrossPresentation.isHidden($0) }, offline: false)
+            return CxCached(data: rows.filter { CyclocrossPresentation.listedInAgenda($0) }, offline: false)
         } catch {
             if Task.isCancelled || error is CancellationError { throw error }
             if let cached = await cachedMonth(season: season, month: month) { return cached }
@@ -163,7 +164,7 @@ final class CyclocrossRepository {
             if Task.isCancelled || error is CancellationError { throw error }
             var dates: [String] = []
             for key in await store.knownMonths() where key.hasPrefix(season + ":") {
-                for race in await store.month(key) ?? [] where !race.isCancelled && !CyclocrossPresentation.isHidden(race) && (tournamentId == nil || race.tournamentId == tournamentId) {
+                for race in await store.month(key) ?? [] where CyclocrossPresentation.listedInAgenda(race) && (tournamentId == nil || race.tournamentId == tournamentId) {
                     dates.append(contentsOf: race.categories.isEmpty ? [race.dateKey] : race.categories.filter { !$0.isCancelled }.map { $0.dateKey ?? race.dateKey })
                 }
             }

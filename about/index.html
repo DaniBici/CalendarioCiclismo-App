@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#f3f5f8":"#141923";d.style.colorScheme="light"===t?"light":"dark"}()</script>
+  <script>!function(){var t=localStorage.getItem("cc-theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),d=document.documentElement;d.classList.toggle("light","light"===t);d.classList.toggle("dark","light"!==t);d.style.backgroundColor="light"===t?"#eef1f5":"#10141c";d.style.colorScheme="light"===t?"light":"dark"}()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -93,7 +93,7 @@
        onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter=''">
       Sitio Web de Dani Sánchez
     </a>
-    <section style="margin:2rem auto 0;padding:1.4rem 1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">
+    <section style="margin:2rem auto 0;padding:1.4rem 1.5rem;background:var(--bg-card);box-shadow:var(--card-shadow);border-radius:var(--radius)">
       <p style="font-size:0.95rem;line-height:1.8;margin:0;max-width:100%">
         <strong>Calendario Ciclismo no es un negocio.</strong> El contenido completo es gratis para todo el mundo y seguirá siéndolo en el futuro.
         <br><br>
@@ -104,11 +104,11 @@
            style="display:inline-flex;align-items:center;justify-content:center;
                   font-family:var(--font-display);font-weight:600;
                   font-size:0.9rem;letter-spacing:0;text-transform:none;
-                  padding:0.6rem 1.4rem;background:transparent;color:var(--text);
-                  border:1px solid var(--border);border-radius:var(--radius-pill);
-                  text-decoration:none;transition:border-color var(--transition),color var(--transition)"
-           onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-           onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+                  padding:0.6rem 1.4rem;background:var(--bg-card-hover);color:var(--text);
+                  border:0;border-radius:var(--radius-pill);
+                  text-decoration:none;transition:color var(--transition)"
+           onmouseover="this.style.color='var(--accent-text)'"
+           onmouseout="this.style.color='var(--text)'">
           Transparencia
         </a>
         <a href="/apoyar/"
@@ -116,7 +116,7 @@
                   font-family:var(--font-display);font-weight:600;
                   font-size:0.9rem;letter-spacing:0;text-transform:none;
                   padding:0.6rem 1.4rem;background:var(--accent);color:#fff;
-                  border:1px solid var(--accent);border-radius:var(--radius-pill);
+                  border:0;border-radius:var(--radius-pill);
                   text-decoration:none;transition:filter var(--transition)"
            onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter=''">
           Apoyar

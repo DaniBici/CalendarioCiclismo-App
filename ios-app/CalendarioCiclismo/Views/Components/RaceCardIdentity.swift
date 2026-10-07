@@ -19,24 +19,46 @@ struct RaceCardIdentity<Title: View, Details: View>: View {
     }
 }
 
+/// Etiqueta de acción de las tarjetas (Dorsales, Orden de salida, accesos
+/// de ciclocross). `primary` es la etiqueta neutra de enlace (texto principal
+/// sobre gris al 8 %); `neutral`, la informativa (texto atenuado). El acento
+/// queda solo para la selección (`selected`). Con `iconOnly` se muestra solo
+/// el icono (`Label` nativo con `.iconOnly`): el texto queda como etiqueta de
+/// accesibilidad.
 struct RaceActionLabel: View {
     let label: String
     var icon: String? = nil
     var primary = true
     var selected = false
     /// Tinte neutro (secundario) para los indicadores de categoría de la
-    /// agenda de ciclocross; el resto de acciones conservan el acento.
+    /// agenda de ciclocross.
     var neutral = false
-    private var tint: Color { neutral ? .secondary : .accentColor }
+    var iconOnly = false
+    private var colors: AppTheme.BadgeColor {
+        if primary { return AppTheme.neutralLinkBadgeColor() }
+        if neutral { return AppTheme.neutralBadgeColor() }
+        return AppTheme.BadgeColor(
+            background: Color.accentColor.opacity(selected ? 0.18 : 0.10),
+            foreground: .accentColor
+        )
+    }
     var body: some View {
-        HStack(spacing: 3) {
-            if let icon { Image(systemName: icon).font(.caption2) }
-            if !label.isEmpty { Text(label).font(.caption2.weight(.semibold)).textCase(.uppercase) }
+        Group {
+            if let icon {
+                if iconOnly || label.isEmpty {
+                    Label(label, systemImage: icon).labelStyle(.iconOnly)
+                } else {
+                    Label(label, systemImage: icon).labelStyle(.titleAndIcon)
+                }
+            } else {
+                Text(label)
+            }
         }
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .foregroundStyle(primary ? Color.white : tint)
-        .background(primary ? Color.accentColor : tint.opacity(selected ? 0.18 : 0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .ccFont(.s12, weight: .semibold)
+        .padding(.horizontal, iconOnly || label.isEmpty ? 6 : 8).padding(.vertical, 3)
+        .foregroundStyle(colors.foreground)
+        .background(colors.background)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
     }
 }
 
@@ -45,7 +67,7 @@ struct WaitingResultsLabel: View {
         HStack(spacing: 6) {
             Image(systemName: "flag.checkered").font(.system(size: 18, weight: .medium))
             PulsingDotsView(color: .secondary, size: 4, spacing: 3)
-        }.font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
+        }.ccFont(.s12, weight: .semibold).foregroundStyle(.secondary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LocaleService.t("Esperando resultados", "Awaiting results"))
     }
@@ -73,16 +95,16 @@ struct RaceActionTileLabel<Detail: View>: View {
             }
         }
         .foregroundStyle(tint)
-        .background(tint.opacity(selected ? 0.18 : 0.10), in: RoundedRectangle(cornerRadius: 3))
+        .background(tint.opacity(selected ? 0.18 : 0.10), in: RoundedRectangle(cornerRadius: AppTheme.Radius.control))
     }
     private var tileHeight: CGFloat { boxOnly ? 24 : 40 }
     @ViewBuilder private var tileContent: some View {
         if boxOnly {
-            Text(label).font(.system(size: 11, weight: .semibold))
+            Text(label).ccFont(.s12, weight: .semibold)
         } else {
             VStack(spacing: 2) {
-                Text(label).font(.system(size: 11, weight: .semibold))
-                detail().font(.system(size: 12, weight: .semibold)).frame(height: 14)
+                Text(label).ccFont(.s12, weight: .semibold)
+                detail().ccFont(.s12, weight: .semibold).frame(height: 14)
             }
         }
     }

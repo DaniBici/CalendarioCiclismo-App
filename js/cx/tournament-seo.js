@@ -4,7 +4,7 @@ import {cxDateInSeason} from './season.js';
 export function cxTournamentDescription(tournament,races,lang='es') {
   const name=tournament.name.trim();
   const own=[...new Map(races.filter(race=>
-    (race.tournamentId||race.cx_tournaments?.id)===tournament.id&&
+    (race.tournamentId||race.cx_tournaments?.id)===tournament.id&&!race.isCancelled&&
     cxDateInSeason(tournament.seasonKey,race.dateKey)
   ).map(race=>[race.id,race])).values()];
   const dates=own.flatMap(race=>[race.dateKey,race.endDateKey,

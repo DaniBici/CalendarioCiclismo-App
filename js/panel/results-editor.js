@@ -41,9 +41,9 @@ export async function _ruNewClass(rd, race, stages, finalStageDay = false, raceD
           su volcado la sustituye. Guardar no cambia el candado; si quieres impedir que el cron
           la toque, usa «Bloquear» en la lista.
         </div>
-        <label class="u-mt-080 u-mb-030 u-fs-080">Tipo de clasificación</label>
+        <label class="u-mt-080 u-mb-030 u-fs-2">Tipo de clasificación</label>
         <select id="ruNewKind" class="input u-input-block">${opts}</select>
-        <label class="u-row u-mt-080 u-fs-085 u-pointer">
+        <label class="u-row u-mt-080 u-fs-3 u-pointer">
           <input type="checkbox" id="ruNewFinal"${isOneDay ? ' checked' : ''}>
           <span>Es la clasificación <strong>final / de la prueba</strong>
             ${isOneDay ? '' : '(general definitiva del último día; no cuelga de una etapa)'}</span>
@@ -137,7 +137,7 @@ export async function openUciClassEditor(st, rd, race) {
     level: 2,
     wide: true,
     render: (body) => {
-      body.innerHTML = '<div class="u-c-muted u-fs-085 u-p-100">Cargando clasificación…</div>';
+      body.innerHTML = '<div class="u-c-muted u-fs-3 u-p-100">Cargando clasificación…</div>';
     },
   });
 
@@ -153,7 +153,7 @@ export async function openUciClassEditor(st, rd, race) {
     riderMap = map || {};
   } catch (err) {
     console.error(err);
-    h.body.innerHTML = `<div class="u-c-danger u-p-100 u-fs-085">Error al cargar: ${esc(err.message || String(err))}</div>`;
+    h.body.innerHTML = `<div class="u-c-danger u-p-100 u-fs-3">Error al cargar: ${esc(err.message || String(err))}</div>`;
     return;
   }
 
@@ -226,11 +226,11 @@ export async function openUciClassEditor(st, rd, race) {
 
   h.body.innerHTML = `
     <div class="u-row u-wrap u-mt-060 u-mb-060">
-      <button type="button" class="btn btn--ghost u-fs-075" id="ruAddRow">＋ Añadir fila</button>
-      <button type="button" class="btn btn--ghost u-fs-075" id="ruSortRank"
+      <button type="button" class="btn btn--ghost u-fs-1" id="ruAddRow">＋ Añadir fila</button>
+      <button type="button" class="btn btn--ghost u-fs-1" id="ruSortRank"
               title="Reordena las filas por la columna # (sin puesto → al final, en su orden actual)">Ordenar por puesto</button>
       <span class="u-grow"></span>
-      <button type="button" class="btn btn--primary ru-save u-fs-078">Guardar</button>
+      <button type="button" class="btn btn--primary ru-save u-fs-2">Guardar</button>
     </div>
     <table class="ru-edit-table">
       <thead><tr>
@@ -241,7 +241,7 @@ export async function openUciClassEditor(st, rd, race) {
         <th class="u-w-900" title="Equipo (override manual; gana a la resolución por dorsal)">Equipo</th>
         ${isPtsClass
           ? '<th class="u-w-500" title="Puntos">Pts</th>'
-          : '<th class="u-w-700" title="Tiempo del ganador, o gap del resto empezando por +">Tiempo / Gap</th>'}
+          : '<th class="u-w-700" title="Tiempo del ganador, o gap del resto empezando por +">Tiempo / gap</th>'}
         <th class="u-w-460" title="DNF/DNS/OTL/DSQ/DF/NR">IRM</th>
         <th class="u-w-240"></th>
       </tr></thead>

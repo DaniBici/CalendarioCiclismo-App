@@ -117,9 +117,10 @@ struct CxRoundRow: Codable, Sendable {
     let tournamentId: String?
     let dateKey: String
     let seasonKey: String?
+    var isCancelled: Bool? = nil
     let cx_race_categories: [CxRoundEntry]
     enum CodingKeys: String, CodingKey {
-        case id, tournamentId, dateKey, seasonKey
+        case id, tournamentId, dateKey, seasonKey, isCancelled
         case cx_race_categories = "cx_race_categories"
     }
 }

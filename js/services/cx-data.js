@@ -12,6 +12,13 @@ export function cxHiddenClasses(lang) {
 export function cxIsHidden(race,lang) {
   return cxHiddenClasses(lang).includes(race?.class);
 }
+// Carrera visible en la agenda: no está cancelada en su totalidad ni oculta
+// por idioma. Las categorías canceladas siguen visibles. Espejo de
+// CyclocrossPresentation.listedInAgenda (iOS) y CxPresentation.listedInAgenda
+// (Android).
+export function cxListedInAgenda(race,lang) {
+  return !race?.isCancelled&&!cxIsHidden(race,lang);
+}
 export const CX_SPANISH_AUDIENCE={
   title:'Available in Spanish',
   text:'This content is intended for Spanish-speaking audiences, mainly in Spain.',
@@ -88,7 +95,9 @@ export async function cxRpc(client,name,args={}) {
 
 // Orden del contrato de generales CX: coalesce(categoria.dateKey, race.dateKey),
 // categoria.startTimeUtc NULLS LAST y race.id. Una carrera con varias categorías
-// cuenta como una sola ronda y se ordena por su primera manga válida.
+// cuenta como una sola ronda y se ordena por su primera manga válida. Una
+// carrera cancelada en su totalidad sale de la numeración; una manga cancelada
+// no altera la de su carrera.
 const cxRoundStart=start=>{const time=start?Date.parse(start):NaN;return Number.isFinite(time)?time:Infinity;};
 function cxRaceRoundKey(race,seasonKey) {
   const entries=(race.cx_race_categories||[]).map(c=>({date:c.dateKey||race.dateKey,start:cxRoundStart(c.startTimeUtc)}))
@@ -100,7 +109,7 @@ function cxRaceRoundKey(race,seasonKey) {
 export function cxTournamentRounds(rows,seasonKey) {
   const byTournament=new Map();
   for(const race of rows) {
-    if(!race.tournamentId||race.seasonKey!==seasonKey||!cxDateInSeason(seasonKey,race.dateKey))continue;
+    if(!race.tournamentId||race.isCancelled||race.seasonKey!==seasonKey||!cxDateInSeason(seasonKey,race.dateKey))continue;
     if(!byTournament.has(race.tournamentId))byTournament.set(race.tournamentId,[]);
     byTournament.get(race.tournamentId).push(race);
   }

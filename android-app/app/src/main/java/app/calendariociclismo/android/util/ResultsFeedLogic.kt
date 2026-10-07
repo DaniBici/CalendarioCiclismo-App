@@ -69,6 +69,37 @@ object ResultsFeedLogic {
         return name
     }
 
+    private val nationAliases = mapOf("Great Britain" to "GB")
+    private val nationNamesEs = mapOf("GB" to "Gran Bretaña")
+
+    /** Nombre inglés de cada región ISO → código ISO. */
+    private val nationCodeByEnglishName: Map<String, String> by lazy {
+        val map = HashMap<String, String>()
+        for (code in java.util.Locale.getISOCountries()) {
+            val label = java.util.Locale("", code).getDisplayCountry(java.util.Locale.ENGLISH)
+            if (label.isNotEmpty() && label != code) map[label] = code
+        }
+        map.putAll(nationAliases)
+        map
+    }
+
+    /**
+     * Selecciones nacionales: el catálogo guarda el nombre UCI en inglés
+     * («France»). En castellano se muestra el nombre del país en castellano
+     * («Francia», «Gran Bretaña»); en inglés, sin cambio. Un nombre que no es
+     * un país se devuelve tal cual. Espejo de `localizedNationName` en
+     * `js/resultados-feed.js`.
+     */
+    fun localizedNationName(name: String, isEnglish: Boolean): String {
+        val trimmed = name.trim()
+        if (isEnglish || trimmed.isEmpty()) return name
+        val code = nationCodeByEnglishName[trimmed] ?: return name
+        nationNamesEs[code]?.let { return it }
+        return java.util.Locale("", code)
+            .getDisplayCountry(java.util.Locale.forLanguageTag("es"))
+            .ifEmpty { name }
+    }
+
     /**
      * Construye las entradas del feed de un rango [fromKey, toKey] (ambos
      * inclusive), YA ordenadas: cronología inversa y, dentro del día, el orden

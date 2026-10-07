@@ -160,7 +160,7 @@ function renderTeamSpecialEditionsPanel(teamId) {
     .filter(candidate => candidate.specialEdition && candidate.parentTeamId === teamId)
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
   if (!editions.length) {
-    list.innerHTML = '<div class="u-fs-085 u-c-dim">Sin ediciones especiales.</div>';
+    list.innerHTML = '<div class="u-fs-3 u-c-dim">Sin ediciones especiales.</div>';
     return;
   }
   list.innerHTML = editions.map(edition => {
@@ -168,8 +168,8 @@ function renderTeamSpecialEditionsPanel(teamId) {
       ? 'Carrera concreta'
       : [edition.specialEditionValidFrom, edition.specialEditionValidTo].filter(Boolean).join(' → ') || 'Sin vigencia limitada';
     return `<button type="button" class="btn btn--ghost team-edition-row" data-special-edition-id="${esc(edition.id)}">
-      <strong class="u-grow u-fs-080">${esc(edition.name)}</strong>
-      <span class="u-fs-072 u-c-dim">${esc(validity)}</span>
+      <strong class="u-grow u-fs-2">${esc(edition.name)}</strong>
+      <span class="u-fs-1 u-c-dim">${esc(validity)}</span>
       <span aria-hidden="true">›</span>
     </button>`;
   }).join('');
@@ -200,7 +200,7 @@ export async function setupTeamsView() {
       const label = document.getElementById('teamsListYearLabel');
       if (label) label.textContent = String(panelState._teamsListYear);
       const list = document.getElementById('teamsList');
-      if (list) list.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
+      if (list) list.innerHTML = '<div class="u-fs-3 u-c-dim">Cargando…</div>';
       await fetchTeamSeasonsForYear(panelState._teamsListYear);
       renderTeamsList();
     });
@@ -221,16 +221,16 @@ export async function setupTeamsView() {
 }
 
 const TEAM_CATEGORIES = [
-  { key: 'WT',    label: 'WorldTour Masculino',      gender: 'male'   },
-  { key: 'WWT',   label: 'WorldTour Femenino',       gender: 'female' },
-  { key: 'PT',    label: 'ProTeam Masculino',         gender: 'male'   },
-  { key: 'PRW',   label: 'ProTeam Femenino',          gender: 'female' },
-  { key: 'CT',    label: 'Continental Masculino',     gender: 'male'   },
-  { key: 'CTW',   label: 'Continental Femenino',      gender: 'female' },
-  { key: 'NTM',   label: 'Selecciones Masculino',     gender: 'male'   },
-  { key: 'NTW',   label: 'Selecciones Femenino',      gender: 'female' },
-  { key: 'CLUBM', label: 'Club Masculino',            gender: 'male'   },
-  { key: 'CLUBW', label: 'Club Femenino',             gender: 'female' },
+  { key: 'WT',    label: 'WorldTour masculino',      gender: 'male'   },
+  { key: 'WWT',   label: 'WorldTour femenino',       gender: 'female' },
+  { key: 'PT',    label: 'ProTeam masculino',         gender: 'male'   },
+  { key: 'PRW',   label: 'ProTeam femenino',          gender: 'female' },
+  { key: 'CT',    label: 'Continental masculino',     gender: 'male'   },
+  { key: 'CTW',   label: 'Continental femenino',      gender: 'female' },
+  { key: 'NTM',   label: 'Selecciones masculinas',     gender: 'male'   },
+  { key: 'NTW',   label: 'Selecciones femeninas',      gender: 'female' },
+  { key: 'CLUBM', label: 'Club masculino',            gender: 'male'   },
+  { key: 'CLUBW', label: 'Club femenino',             gender: 'female' },
 ];
 
 // Categoría de equipos seleccionada en la cuadrícula (null = mostrar cuadrícula).
@@ -249,7 +249,7 @@ export function renderTeamsList() {
   );
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="u-fs-085 u-c-dim">
+    container.innerHTML = `<div class="u-fs-3 u-c-dim">
       ${allTeams.length === 0 ? `No hay equipos en la temporada ${panelState._teamsListYear}.` : 'Sin resultados.'}
     </div>`;
     return;
@@ -411,7 +411,7 @@ function teamEditorBodyHtml() {
   return `
     <button type="button" class="btn btn--ghost team-editor-back" id="specialEditorBackBtn" style="display:none">← Volver al equipo</button>
     <div id="teamEditorKindTitle" class="panel-subheading u-mb-075">Equipo</div>
-    <div id="teamEditorKindDescription" class="u-fs-075 u-c-dim u-mb-075">Identidad de la temporada seleccionada.</div>
+    <div id="teamEditorKindDescription" class="u-fs-1 u-c-dim u-mb-075">Identidad de la temporada seleccionada.</div>
     <div class="team-editor-layout">
       <div class="u-stack">
         <div class="field">
@@ -430,7 +430,7 @@ function teamEditorBodyHtml() {
           </select>
         </div>
         <div id="te-specialValidity-row" class="panel-dashed-box u-gap-060 u-mt-010" style="display:none">
-          <div class="u-fs-078 u-c-dim">
+          <div class="u-fs-2 u-c-dim">
             Vigencia del maillot especial — usa <strong>un rango de fechas</strong> (denominación de tramo, p. ej. hasta abril)
             <strong>o</strong> una <strong>carrera concreta</strong> (maillot de una sola prueba). No ambos.
           </div>
@@ -455,7 +455,7 @@ function teamEditorBodyHtml() {
         <div class="field-row field-row--4">
           <div class="field">
             <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
-            <input type="text" id="te-uciCode" maxlength="3" class="u-w-full u-upper" autocapitalize="characters" autocomplete="off" spellcheck="false">
+            <input type="text" id="te-uciCode" maxlength="3" class="u-w-full" autocapitalize="characters" autocomplete="off" spellcheck="false">
           </div>
           <div class="field">
             <label>Categoría UCI</label>
@@ -552,13 +552,13 @@ function teamEditorBodyHtml() {
       <button class="btn btn--ghost" id="duplicateTeamBtn" style="display:none">Duplicar</button>
       <button class="btn btn--ghost u-c-red" id="deleteTeamBtn" style="display:none">Eliminar</button>
       <button class="btn btn--ghost u-c-red" id="seasonDiscontinueBtn" style="display:none">No continúa</button>
-      <span class="u-fs-080 u-c-dim" id="teamSaveStatus"></span>
+      <span class="u-fs-2 u-c-dim" id="teamSaveStatus"></span>
     </div>
     <div id="teamSpecialEditionsPanel" class="team-editor-panel u-gap-060" style="display:none">
       <div class="u-row u-gap-075 u-wrap">
         <div class="panel-subheading u-c-text">Ediciones especiales</div>
         <div class="u-grow"></div>
-        <button type="button" class="btn btn--ghost u-py-030 u-px-070 u-fs-076" id="addSpecialEditionBtn">+ Nueva edición</button>
+        <button type="button" class="btn btn--ghost u-py-030 u-px-070 u-fs-1" id="addSpecialEditionBtn">+ Nueva edición</button>
       </div>
       <div id="teamSpecialEditionsList" class="u-stack u-stack--xs"></div>
     </div>
@@ -567,20 +567,20 @@ function teamEditorBodyHtml() {
         <div class="panel-subheading u-c-text">
           Plantilla <span id="teamRosterYear"></span>
         </div>
-        <span class="u-fs-075 u-c-dim" id="teamRosterCount"></span>
+        <span class="u-fs-1 u-c-dim" id="teamRosterCount"></span>
         <div class="u-grow"></div>
-        <button class="btn btn--primary u-py-030 u-px-070 u-fs-076 u-nowrap" id="rosterNewRiderBtn">+ Nuevo corredor</button>
+        <button class="btn btn--primary u-py-030 u-px-070 u-fs-1 u-nowrap" id="rosterNewRiderBtn">+ Nuevo corredor</button>
       </div>
       <div id="rosterAddBox" class="panel-dashed-box u-gap-040">
         <div class="u-row u-gap-050 u-wrap">
-          <label class="u-fs-076 u-c-dim u-nowrap">Añadir corredor existente:</label>
+          <label class="u-fs-1 u-c-dim u-nowrap">Añadir corredor existente:</label>
           <input type="search" id="rosterAddSearch" placeholder="Buscar por nombre o apellido…" autocomplete="off" class="roster-add-search">
-          ${genderToggleHtml({ idMale: 'rosterAddGenderMale', idFemale: 'rosterAddGenderFemale', wrapId: 'rosterAddGenderToggle', wrapStyle: 'display:none;gap:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:2px' })}
+          ${genderToggleHtml({ idMale: 'rosterAddGenderMale', idFemale: 'rosterAddGenderFemale', wrapId: 'rosterAddGenderToggle', wrapStyle: 'display:none' })}
         </div>
-        <div id="rosterAddResults" class="roster-add-results" style="display:none"></div>
+        <div id="rosterAddResults" class="roster-add-results panel-list" style="display:none"></div>
       </div>
-      <div id="teamRosterList" class="u-flex u-col u-gap-030">
-        <div class="u-fs-085 u-c-dim">Cargando…</div>
+      <div id="teamRosterList" class="panel-list">
+        <div class="u-fs-3 u-c-dim">Cargando…</div>
       </div>
     </div>
     <div id="teamSeason27Panel" hidden class="team-editor-panel" style="display:none">
@@ -588,7 +588,7 @@ function teamEditorBodyHtml() {
         <div class="panel-subheading u-c-text">
           Temporada <span id="teamSeasonYearLabel"></span>
         </div>
-        <span class="u-fs-075 u-c-dim">identidad anual independiente de la ficha matriz</span>
+        <span class="u-fs-1 u-c-dim">identidad anual independiente de la ficha matriz</span>
       </div>
       <div class="field-row field-row--2">
         <div class="field">
@@ -619,7 +619,7 @@ function teamEditorBodyHtml() {
       <div class="field-row field-row--3">
         <div class="field">
           <label>Código UCI <span class="u-dim">— 3 caracteres</span></label>
-          <input type="text" id="ts27-uciCode" maxlength="3" class="u-w-full u-upper">
+          <input type="text" id="ts27-uciCode" maxlength="3" class="u-w-full">
         </div>
         <div class="field">
           <label>Género</label>
@@ -634,16 +634,16 @@ function teamEditorBodyHtml() {
           <textarea id="ts27-aliases" rows="3" class="u-w-full"></textarea>
         </div>
       </div>
-      <label class="panel-check-label u-gap-050 u-fs-085">
+      <label class="panel-check-label u-gap-050 u-fs-3">
         <input type="checkbox" id="ts27-badgeVisible">
         <span>Colores publicados para esta temporada</span>
       </label>
-      <label class="panel-check-label u-gap-050 u-fs-085">
+      <label class="panel-check-label u-gap-050 u-fs-3">
         <input type="checkbox" id="ts27-continuityDoubt">
         <span>Continuidad en duda <span class="u-dim">— usado por el mercado de fichajes cuando corresponde</span></span>
       </label>
       <details id="ts27-colors-details">
-        <summary class="u-pointer u-fs-080 u-c-muted">🎨 Colores de temporada</summary>
+        <summary class="u-pointer u-fs-2 u-c-muted">🎨 Colores de temporada</summary>
         <div class="team-colors-body">
           <div class="field-row">
             <div class="field">
@@ -694,9 +694,9 @@ function teamEditorBodyHtml() {
         </div>
       </details>
       <div class="u-row u-gap-075 u-wrap">
-        <button class="btn btn--primary u-py-035 u-px-080 u-fs-080" id="saveTeamSeason27Btn">Guardar temporada</button>
-        <button class="btn btn--ghost u-py-035 u-px-080 u-fs-080 u-c-red" id="ts27DiscontinueBtn" title="Elimina únicamente la temporada del mercado y deja de listar el equipo allí" style="display:none">No continúa</button>
-        <span class="u-fs-080 u-c-dim" id="ts27Status"></span>
+        <button class="btn btn--primary u-py-035 u-px-080 u-fs-2" id="saveTeamSeason27Btn">Guardar temporada</button>
+        <button class="btn btn--ghost u-py-035 u-px-080 u-fs-2 u-c-red" id="ts27DiscontinueBtn" title="Elimina únicamente la temporada del mercado y deja de listar el equipo allí" style="display:none">No continúa</button>
+        <span class="u-fs-2 u-c-dim" id="ts27Status"></span>
       </div>
     </div>
   `;

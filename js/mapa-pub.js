@@ -356,19 +356,6 @@ function render(rd, race, siblings, jornadaHref, assets = []) {
     ${keyPointsHtml}
   `;
 
-  // ── Botón de edición admin (solo si hay sesión activa) ──
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session?.user) return;
-    if (document.getElementById('editMapBtn')) return;
-    const btn = document.createElement('a');
-    btn.id        = 'editMapBtn';
-    btn.className = 'edit-jornada-btn';
-    btn.href      = '/panel/app.html?perfil=' + encodeURIComponent(rd.id);
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar';
-    content.style.position = 'relative';
-    content.appendChild(btn);
-  });
-
   // ── Mapa MapLibre (terreno 3D) ────────────────────────────────
   mountRouteMap(document.getElementById('ccRouteMapWrap'), {
     gpxUrl: rd.routeGpxUrl, distanceKm: rd.distanceKm, colorHex: race?.colorHex,

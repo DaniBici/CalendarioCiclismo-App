@@ -120,7 +120,7 @@ struct SettingsView: View {
             sectionHeader(icon: "calendar.badge.plus", title: localeService.t("Calendario iCal", "iCal Calendar"))
 
             Text(localeService.t("Añade las carreras directamente a la app Calendario de tu iPhone. Se actualiza automáticamente.", "Add races directly to your iPhone Calendar app. Updates automatically."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
                 .accessibilityIdentifier("calendar_section_description")
@@ -145,7 +145,7 @@ struct SettingsView: View {
             sectionHeader(icon: "bell.badge", title: localeService.t("Notificaciones", "Notifications"))
 
             Text(localeService.t("Recibe avisos sobre grandes actualizaciones de contenido y jornadas señaladas del calendario.", "Receive alerts about major content updates and highlighted calendar days."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -173,11 +173,9 @@ struct SettingsView: View {
     /// y aparecen deshabilitadas en Fases 1-5.
     private var notificationCategoriesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Tipos de notificación")
-                .font(.caption)
-                .fontWeight(.semibold)
+            Text(localeService.t("Tipos de notificación", "Notification types"))
+                .ccFont(.s13, weight: .semibold)
                 .foregroundStyle(.secondary)
-                .textCase(.uppercase)
                 .padding(.horizontal, 4)
                 .padding(.top, 2)
 
@@ -216,21 +214,16 @@ struct SettingsView: View {
                         .frame(width: 18, height: 11)
                 }
             }
-                .foregroundStyle(isEnabled ? .white : Color.accentColor)
+                .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
                 .frame(width: 28, height: 28)
-                .background(
-                    (isEnabled ? Color.accentColor : Color.accentColor.opacity(0.12))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(LocalizedStringKey(option.labelKey))
-                    .font(.subheadline)
-                    .fontWeight(isEnabled ? .semibold : .regular)
+                    .ccFont(.s14, weight: isEnabled ? .semibold : .regular)
                     .foregroundStyle(.primary)
                 Text(LocalizedStringKey(option.descriptionKey))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.tertiary)
             }
             .accessibilityHidden(true)
@@ -267,11 +260,9 @@ struct SettingsView: View {
 
     private var raceFollowCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Carreras y jornadas")
-                .font(.caption)
-                .fontWeight(.semibold)
+            Text(localeService.t("Carreras y jornadas", "Races and stages"))
+                .ccFont(.s13, weight: .semibold)
                 .foregroundStyle(.secondary)
-                .textCase(.uppercase)
                 .padding(.horizontal, 4)
                 .padding(.top, 2)
 
@@ -296,10 +287,10 @@ struct SettingsView: View {
                 case .followAll:
                     HStack {
                         Image(systemName: "bell.fill")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
                         Text("Recibes notificaciones de todas las carreras")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                             .foregroundStyle(.secondary)
                     }
                     .padding(12)
@@ -308,15 +299,15 @@ struct SettingsView: View {
                     NavigationLink(destination: FollowedRacesView()) {
                         HStack {
                             Image(systemName: "heart.fill")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                             if raceFollow.followedRaceIds.isEmpty {
                                 Text("Sin carreras seguidas")
-                                    .font(.subheadline)
+                                    .ccFont(.s14)
                                     .foregroundStyle(.secondary)
                             } else {
                                 Text("\(raceFollow.followedRaceIds.count) \(raceFollow.followedRaceIds.count == 1 ? "carrera seguida" : "carreras seguidas")")
-                                    .font(.subheadline)
+                                    .ccFont(.s14)
                             }
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -347,15 +338,15 @@ struct SettingsView: View {
             NavigationLink(destination: FollowedStagesView()) {
                 HStack {
                     Image(systemName: "calendar.badge.clock")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                     if raceFollow.followedStageIds.isEmpty {
                         Text("Sin jornadas seguidas")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("\(raceFollow.followedStageIds.count) \(raceFollow.followedStageIds.count == 1 ? "jornada seguida" : "jornadas seguidas")")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -374,15 +365,15 @@ struct SettingsView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 18, height: 11)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                     if raceFollow.followedCxRaceIds.isEmpty {
                         Text("Sin carreras de ciclocross seguidas")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("\(raceFollow.followedCxRaceIds.count) \(raceFollow.followedCxRaceIds.count == 1 ? "carrera de ciclocross seguida" : "carreras de ciclocross seguidas")")
-                            .font(.subheadline)
+                            .ccFont(.s14)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -401,14 +392,12 @@ struct SettingsView: View {
         return HStack(spacing: 12) {
             Image(systemName: filter.icon)
                 .font(.body)
-                .foregroundStyle(isActive ? .white : Color.accentColor)
+                .foregroundStyle(isActive ? Color.primary : Color.secondary)
                 .frame(width: 28, height: 28)
-                .background(isActive ? Color.accentColor : Color.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             Text(filter.labelKey)
-                .font(.subheadline)
+                .ccFont(.s14)
 
             Spacer(minLength: 0)
 
@@ -431,7 +420,7 @@ struct SettingsView: View {
             sectionHeader(icon: "icloud.and.arrow.down", title: localeService.t("Modo sin conexión", "Offline mode"))
 
             Text(localeService.t("Descarga automáticamente los datos de las próximas semanas para consultar el calendario sin conexión.", "Automatically downloads data for the next few weeks so you can browse the calendar offline."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -461,24 +450,18 @@ struct SettingsView: View {
         HStack(spacing: 12) {
             Image(systemName: offlineManager.isEnabled ? "checkmark.icloud.fill" : "icloud.slash")
                 .font(.title3)
-                .foregroundStyle(offlineManager.isEnabled ? Color.accentColor : .secondary)
+                .foregroundStyle(offlineManager.isEnabled ? Color.primary : Color.secondary)
                 .frame(width: 36, height: 36)
-                .background(
-                    (offlineManager.isEnabled ? Color.accentColor : Color.gray)
-                        .opacity(0.1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(localeService.t("Modo sin conexión", "Offline mode"))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .ccFont(.s14, weight: .semibold)
 
                 Text(offlineManager.isEnabled
                      ? localeService.t("Datos disponibles offline", "Data available offline")
                      : localeService.t("Activa para descargar datos", "Enable to download data"))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
             .accessibilityHidden(true)
@@ -524,13 +507,12 @@ struct SettingsView: View {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text(offlineManager.syncStatusText ?? localeService.t("Sincronizando…", "Syncing…"))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
                 .padding(12)
-                .background(AppTheme.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .ccCardSurface()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(localeService.t("Sincronización en curso", "Sync in progress"))
             } else {
@@ -543,7 +525,7 @@ struct SettingsView: View {
                                     .font(.caption2)
                                     .accessibilityHidden(true)
                                 Text(localeService.t("Última actualización: \(label)", "Last update: \(label)"))
-                                    .font(.caption)
+                                    .ccFont(.s12)
                             }
                             .foregroundStyle(.secondary)
                         }
@@ -554,7 +536,7 @@ struct SettingsView: View {
                                     .font(.caption2)
                                     .accessibilityHidden(true)
                                 Text(localeService.t("Espacio utilizado: \(cacheSize)", "Storage used: \(cacheSize)"))
-                                    .font(.caption)
+                                    .ccFont(.s12)
                             }
                             .foregroundStyle(.secondary)
                         }
@@ -572,19 +554,15 @@ struct SettingsView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                            .padding(8)
-                            .background(Color.accentColor.opacity(0.1))
-                            .clipShape(Circle())
                     }
+                    .buttonStyle(.bordered)
+                    .tint(.primary)
                     .accessibilityLabel(localeService.t("Actualizar datos offline", "Update offline data"))
                     .accessibilityHint(localeService.t("Fuerza una sincronización de los datos sin conexión", "Forces a sync of offline data"))
                     .accessibilityIdentifier(AccessibilityID.offlineSyncButton)
                 }
                 .padding(12)
-                .background(AppTheme.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .ccCardSurface()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(localeService.t("Información de sincronización offline\(offlineManager.lastSyncLabel.map { ", última actualización \($0)" } ?? "")\(!cacheSize.isEmpty ? ", espacio utilizado \(cacheSize)" : "")", "Offline sync info\(offlineManager.lastSyncLabel.map { ", last update \($0)" } ?? "")\(!cacheSize.isEmpty ? ", storage used \(cacheSize)" : "")"))
             }
@@ -595,11 +573,11 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.secondary)
                 .frame(width: 20)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.caption)
+                .ccFont(.s12)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -613,7 +591,7 @@ struct SettingsView: View {
             sectionHeader(icon: "hand.tap", title: localeService.t("Experiencia", "Experience"))
 
             Text(localeService.t("Ajustes de interacción que solo afectan a esta app.", "Interaction settings that only affect this app."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -638,7 +616,7 @@ struct SettingsView: View {
             sectionHeader(icon: "globe", title: localeService.t("Idioma", "Language"))
 
             Text(localeService.t("Elige el idioma de la aplicación.", "Choose the app language."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -648,63 +626,22 @@ struct SettingsView: View {
     }
 
     private var languageSelectorCard: some View {
-        VStack(spacing: 8) {
+        Picker(localeService.t("Idioma", "Language"), selection: Binding(
+            get: { localeService.current },
+            set: { option in
+                guard option != localeService.current else { return }
+                localeService.setLocale(option)
+                Haptics.play(.selection)
+                AccessibilityAnnouncement.announce("Idioma: \(option.label)")
+                Task { await manager.healSubscriptionIfNeeded() }
+            }
+        )) {
             ForEach(LocaleService.AppLocale.allCases) { option in
-                languageOptionRow(option)
+                Text(option.label).tag(option)
             }
         }
-        .padding(12)
-        .ccCardSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Selector de idioma de la app")
-    }
-
-    private func languageOptionRow(_ option: LocaleService.AppLocale) -> some View {
-        let isSelected = localeService.current == option
-        return Button {
-            guard !isSelected else { return }
-            localeService.setLocale(option)
-            Haptics.play(.selection)
-            AccessibilityAnnouncement.announce("Idioma: \(option.label)")
-            Task { await manager.healSubscriptionIfNeeded() }
-        } label: {
-            HStack(spacing: 12) {
-                Text(flagEmoji(for: option))
-                    .font(.body)
-                    .frame(width: 28, height: 28)
-                    .background(Color.accentColor.opacity(isSelected ? 0.18 : 0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
-
-                Text(option.label)
-                    .font(.subheadline)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(option.label)
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
-        .accessibilityIdentifier("language_option_\(option.rawValue)")
-    }
-
-    private func flagEmoji(for locale: LocaleService.AppLocale) -> String {
-        switch locale {
-        case .spanish: return "🇪🇸"
-        case .english: return "🇬🇧"
-        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("language_picker")
     }
 
     // MARK: - Apariencia
@@ -715,7 +652,7 @@ struct SettingsView: View {
             sectionHeader(icon: "paintbrush", title: localeService.t("Apariencia", "Appearance"))
 
             Text(localeService.t("Elige cómo se muestra la app: siempre en claro, siempre en oscuro, o siguiendo el ajuste del sistema.", "Choose how the app looks: always light, always dark, or following the system setting."))
-                .font(.subheadline)
+                .ccFont(.s14)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -725,84 +662,39 @@ struct SettingsView: View {
     }
 
     private var themeSelectorCard: some View {
-        VStack(spacing: 8) {
+        Picker(localeService.t("Tema", "Theme"), selection: Binding(
+            get: { themeService.preference },
+            set: { option in
+                guard option != themeService.preference else { return }
+                themeService.setPreference(option)
+                Haptics.play(.selection)
+                AccessibilityAnnouncement.announce("Tema: \(option.label)")
+            }
+        )) {
             ForEach(ThemeService.ThemePreference.allCases) { option in
-                themeOptionRow(option)
+                Text(option.label).tag(option)
             }
         }
-        .padding(12)
-        .ccCardSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Selector de tema de la app")
-    }
-
-    private func themeOptionRow(_ option: ThemeService.ThemePreference) -> some View {
-        let isSelected = themeService.preference == option
-        return Button {
-            guard !isSelected else { return }
-            themeService.setPreference(option)
-            Haptics.play(.selection)
-            AccessibilityAnnouncement.announce("Tema: \(option.label)")
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: option.icon)
-                    .font(.body)
-                    .foregroundStyle(isSelected ? .white : Color.accentColor)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        (isSelected ? Color.accentColor : Color.accentColor.opacity(0.12))
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
-
-                Text(option.label)
-                    .font(.subheadline)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(option.label)
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
-        .accessibilityHint(isSelected ? "Opción seleccionada" : "Pulsa dos veces para cambiar al tema \(option.label)")
-        .accessibilityInputLabels([option.label])
-        .accessibilityIdentifier("theme_option_\(option.rawValue)")
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("theme_picker")
     }
 
     private var hapticsToggleCard: some View {
         HStack(spacing: 12) {
             Image(systemName: hapticsEnabled ? "hand.tap.fill" : "hand.tap")
                 .font(.title3)
-                .foregroundStyle(hapticsEnabled ? Color.accentColor : .secondary)
+                .foregroundStyle(hapticsEnabled ? Color.primary : Color.secondary)
                 .frame(width: 36, height: 36)
-                .background(
-                    (hapticsEnabled ? Color.accentColor : Color.gray)
-                        .opacity(0.1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(localeService.t("Retornos hápticos", "Haptic feedback"))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .ccFont(.s14, weight: .semibold)
 
                 Text(hapticsEnabled
                      ? localeService.t("Feedback al tocar y navegar", "Feedback when tapping and navigating")
                      : localeService.t("Silenciados en esta app", "Silenced in this app"))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
             .accessibilityHidden(true)
@@ -838,24 +730,18 @@ struct SettingsView: View {
         HStack(spacing: 12) {
             Image(systemName: analyticsService.isEnabled ? "chart.bar.fill" : "chart.bar")
                 .font(.title3)
-                .foregroundStyle(analyticsService.isEnabled ? Color.accentColor : .secondary)
+                .foregroundStyle(analyticsService.isEnabled ? Color.primary : Color.secondary)
                 .frame(width: 36, height: 36)
-                .background(
-                    (analyticsService.isEnabled ? Color.accentColor : Color.gray)
-                        .opacity(0.1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(localeService.t("Estadísticas de uso", "Usage statistics"))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .ccFont(.s14, weight: .semibold)
 
                 Text(analyticsService.isEnabled
                      ? localeService.t("Ayudas a mejorar la app", "You help improve the app")
                      : localeService.t("Datos anónimos desactivados", "Anonymous data disabled"))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
             .accessibilityHidden(true)
@@ -891,8 +777,7 @@ struct SettingsView: View {
             HStack(spacing: 8) {
                 supportSectionIcon
                 Text(localeService.t("Apoyar Calendario Ciclismo", "Support Calendario Ciclismo"))
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .ccFont(.s20, weight: .bold)
             }
             .padding(.horizontal)
             .accessibilityAddTraits(.isHeader)
@@ -921,7 +806,7 @@ struct SettingsView: View {
                 "Todas las funciones son gratuitas. Las aportaciones ayudan a cubrir servidores, herramientas y mantenimiento.",
                 "Every feature is free. Contributions help cover servers, tools and maintenance."
             ))
-            .font(.caption)
+            .ccFont(.s12)
             .foregroundStyle(.secondary)
             .padding(.horizontal)
 
@@ -939,13 +824,13 @@ struct SettingsView: View {
         Link(destination: supportStoryURL) {
             HStack(spacing: 10) {
                 Image(systemName: "info.circle")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
                 Text(localeService.t(
                     "Por qué ahora es gratis y sin anuncios",
                     "Why it is now free and ad-free"
                 ))
-                .font(.subheadline)
+                .ccFont(.s14)
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.right")
                     .font(.caption)
@@ -971,15 +856,14 @@ struct SettingsView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localeService.t("Hazte Amigo de Calendario Ciclismo", "Become a Friend of Calendario Ciclismo"))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
                     Text(localeService.t("Una aportación voluntaria para sostener un proyecto abierto y gratuito.", "A voluntary contribution to sustain an open and free project."))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityHidden(true)
@@ -1012,11 +896,11 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 36, height: 36)
                     .background(Color(.tertiarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                     .accessibilityHidden(true)
 
                 Text(localeService.t("Canjear código", "Redeem code"))
-                    .font(.subheadline)
+                    .ccFont(.s14)
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: 0)
@@ -1041,15 +925,14 @@ struct SettingsView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localeService.t("Amigo activo", "Friend active"))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
                     Text(localeService.t("Gracias por ayudar a sostener el proyecto.", "Thank you for helping sustain the project."))
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -1063,7 +946,7 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     Text(localeService.t("Gestionar suscripción", "Manage subscription"))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption)
@@ -1082,7 +965,7 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     Text(localeService.t("Canjear código", "Redeem code"))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                     Spacer()
                     Image(systemName: "ticket")
                         .font(.caption)
@@ -1099,13 +982,13 @@ struct SettingsView: View {
     private var founderCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(localeService.t("Fundador", "Founder"), systemImage: "medal.fill")
-                .font(.headline)
+                .ccFont(.s16, weight: .semibold)
                 .foregroundStyle(.orange)
             Text(localeService.t(
                 "Tu Premium anterior no se convertirá en otra suscripción. Conservas para siempre el icono Fundador.",
                 "Your previous Premium plan will not become another subscription. You keep the Founder icon permanently."
             ))
-            .font(.caption)
+            .ccFont(.s12)
             .foregroundStyle(.secondary)
         }
         .padding(16)
@@ -1118,15 +1001,14 @@ struct SettingsView: View {
             .resizable()
             .scaledToFit()
             .frame(width: 28, height: 28)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control, style: .continuous))
             .accessibilityHidden(true)
     }
 
     private var supporterIconChooser: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(localeService.t("Icono de la aplicación", "App icon"))
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .ccFont(.s14, weight: .semibold)
             HStack(spacing: 8) {
                 iconChoice(.standard, label: localeService.t("Original", "Original"), imageName: "OriginalAppIcon")
                 if premium.isFounder {
@@ -1154,17 +1036,17 @@ struct SettingsView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 42, height: 42)
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 9)
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.surface)
                             .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
                     }
                 Text(label)
-                    .font(.caption2)
+                    .ccFont(.s12)
                 if premium.supporterIcon == icon {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -1178,21 +1060,19 @@ struct SettingsView: View {
     private var premiumDebugCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("DEBUG")
-                .font(.caption2)
-                .fontWeight(.bold)
+                .ccFont(.s12, weight: .bold)
                 .foregroundStyle(.orange)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.orange.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Forzar membresía Amigo")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
                     Text("Toggle solo visible en builds Debug.")
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -1226,12 +1106,12 @@ struct SettingsView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "doc.text")
                             .font(.body)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(.secondary)
                             .frame(width: 28, height: 28)
                             .accessibilityHidden(true)
 
                         Text(localeService.t("Política de privacidad", "Privacy policy"))
-                            .font(.subheadline)
+                            .ccFont(.s14)
                             .foregroundStyle(.primary)
 
                         Spacer(minLength: 0)
@@ -1263,10 +1143,10 @@ struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(localeService.t("Eliminar mis datos", "Delete my data"))
-                                .font(.subheadline)
+                                .ccFont(.s14)
                                 .foregroundStyle(.red)
                             Text(localeService.t("Borra tu token de notificaciones del servidor", "Deletes your notification token from the server"))
-                                .font(.caption)
+                                .ccFont(.s12)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -1290,11 +1170,10 @@ struct SettingsView: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(title)
-                .font(.title3)
-                .fontWeight(.bold)
+                .ccFont(.s20, weight: .bold)
         }
         .padding(.horizontal)
         .accessibilityAddTraits(.isHeader)
@@ -1304,24 +1183,18 @@ struct SettingsView: View {
         HStack(spacing: 12) {
             Image(systemName: manager.isSubscribed ? "bell.fill" : "bell.slash")
                 .font(.title3)
-                .foregroundStyle(manager.isSubscribed ? Color.accentColor : .secondary)
+                .foregroundStyle(manager.isSubscribed ? Color.primary : Color.secondary)
                 .frame(width: 36, height: 36)
-                .background(
-                    (manager.isSubscribed ? Color.accentColor : Color.gray)
-                        .opacity(0.1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(localeService.t("Notificaciones push", "Push notifications"))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .ccFont(.s14, weight: .semibold)
 
                 Text(manager.isSubscribed
                      ? localeService.t("Recibirás avisos importantes", "You will receive important alerts")
                      : localeService.t("Activa para recibir avisos", "Enable to receive alerts"))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
             .accessibilityHidden(true)
@@ -1368,7 +1241,7 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
                     .accessibilityHidden(true)
                 Text(localeService.t("Las notificaciones están bloqueadas en Ajustes del sistema. Actívalas en Ajustes → Notificaciones → Calendario Ciclismo.", "Notifications are blocked in system Settings. Enable them in Settings → Notifications → Calendario Ciclismo."))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
@@ -1384,11 +1257,11 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.secondary)
                 .frame(width: 20)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.caption)
+                .ccFont(.s12)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -1465,38 +1338,33 @@ private struct FeedCard: View {
             HStack(spacing: 12) {
                 Image(systemName: feed.icon)
                     .font(.title3)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.secondary)
                     .frame(width: 36, height: 36)
-                    .background(Color.accentColor.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(feed.label)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
                         .foregroundStyle(.primary)
 
                     Text(feed.description)
-                        .font(.caption)
+                        .ccFont(.s12)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 4) {
-                    Image(systemName: isSubscribed ? "checkmark" : "plus")
-                        .font(.caption2.weight(.bold))
-                    Text(isSubscribed ? LocaleService.t("Añadido", "Added") : LocaleService.t("Añadir", "Add"))
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
+                Label(
+                    isSubscribed ? LocaleService.t("Añadido", "Added") : LocaleService.t("Añadir", "Add"),
+                    systemImage: isSubscribed ? "checkmark" : "plus"
+                )
+                .ccFont(.s12, weight: .semibold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(isSubscribed ? Color.green.opacity(0.15) : Color.accentColor.opacity(0.15))
-                .foregroundStyle(isSubscribed ? .green : Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .background(isSubscribed ? AppTheme.green.opacity(0.15) : AppTheme.neutralFill)
+                .foregroundStyle(isSubscribed ? AppTheme.green : Color.primary)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             }
             .padding(12)
             .ccCardSurface()

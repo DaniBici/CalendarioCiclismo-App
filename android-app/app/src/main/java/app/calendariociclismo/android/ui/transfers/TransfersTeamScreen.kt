@@ -1,7 +1,6 @@
 package app.calendariociclismo.android.ui.transfers
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -44,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.RiderTransfer
@@ -54,8 +50,14 @@ import app.calendariociclismo.android.ui.adaptive.rememberAdaptiveLayoutInfo
 import app.calendariociclismo.android.ui.components.CCCard
 import app.calendariociclismo.android.ui.components.CountryFlag
 import app.calendariociclismo.android.ui.components.RouteLoadingView
+import app.calendariociclismo.android.ui.components.rememberLoadingVisible
+import app.calendariociclismo.android.ui.startlist.TeamColorBands
+import app.calendariociclismo.android.ui.theme.CCRadius
+import app.calendariociclismo.android.ui.theme.CCText
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import app.calendariociclismo.android.ui.navigation.Routes
-import app.calendariociclismo.android.ui.theme.colorFromHex
 import app.calendariociclismo.android.util.TransfersLogic
 
 private sealed class TeamState {
@@ -112,34 +114,42 @@ fun TransfersTeamScreen(teamId: String, navController: NavController) {
 
     val title = stringResource(R.string.transfers_heading, TransfersLogic.MARKET_SEASON)
 
+    val loadingVisible = rememberLoadingVisible(state is TeamState.Loading)
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
         },
     ) { padding ->
-        when (val current = state) {
-            is TeamState.Loading -> RouteLoadingView(
+        val current = state
+        when {
+            loadingVisible -> RouteLoadingView(
                 message = stringResource(R.string.loading),
+                title = (current as? TeamState.Ready)?.season?.name ?: title,
                 modifier = Modifier.padding(padding),
             )
-            is TeamState.Error -> Box(
+            current is TeamState.Error -> Box(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = current.message,
-                    color = MaterialTheme.colorScheme.error,
+                    style = CCText.S14,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(24.dp),
                 )
             }
-            is TeamState.Ready -> TeamContent(
+            current is TeamState.Ready -> TeamContent(
                 season = current.season,
                 data = current.data,
                 detail = current.detail,
@@ -165,7 +175,7 @@ private fun TeamContent(
     val adaptiveInfo = rememberAdaptiveLayoutInfo()
     val sections = buildList {
         if (detail.staying.isNotEmpty()) add(TeamSectionBlock("staying", detail.staying.size, stringResource(R.string.transfers_staying)) {
-            CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) { Column {
+            CCCard(modifier = Modifier.fillMaxWidth()) { Column {
                 detail.staying.forEachIndexed { i, row ->
                     if (i > 0) TeamRowDivider()
                     PersonRow(row.rider.nationality, row.rider.fullName.ifBlank { row.rider.id }, null, row.contractUntil, row.isRumor)
@@ -173,7 +183,7 @@ private fun TeamContent(
             } }
         })
         if (detail.doubtful.isNotEmpty()) add(TeamSectionBlock("doubtful", detail.doubtful.size, stringResource(R.string.transfers_doubtful)) {
-            CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) { Column {
+            CCCard(modifier = Modifier.fillMaxWidth()) { Column {
                 detail.doubtful.forEachIndexed { i, row ->
                     if (i > 0) TeamRowDivider()
                     PersonRow(row.rider?.nationality, row.rider?.fullName?.ifBlank { row.riderId } ?: row.riderId, null, row.contractUntil, false)
@@ -181,7 +191,7 @@ private fun TeamContent(
             } }
         })
         if (detail.contractEnds.isNotEmpty()) add(TeamSectionBlock("contract_ends", detail.contractEnds.size, stringResource(R.string.transfers_contract_ends)) {
-            CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) { Column {
+            CCCard(modifier = Modifier.fillMaxWidth()) { Column {
                 detail.contractEnds.forEachIndexed { i, transfer ->
                     if (i > 0) TeamRowDivider()
                     val rider = data.ridersById[transfer.riderId]
@@ -232,22 +242,37 @@ private data class TeamSectionBlock(
     val content: @Composable () -> Unit,
 )
 
+/** Cabecera sobre superficie neutra con las franjas de maillot de Resultados. */
 @Composable
 private fun TeamHeader(season: TeamSeason, data: TransfersLogic.MarketData) {
-    val appearance = TransfersLogic.badgeSeason(season, data.prevSeasonsByTeamId)
-    val background = colorFromHex(appearance?.headerBg, MaterialTheme.colorScheme.surfaceVariant)
-    val foreground = colorFromHex(appearance?.headerText, MaterialTheme.colorScheme.onSurface)
-    val shape = RoundedCornerShape(8.dp)
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(shape).background(background)
-            .border(0.5.dp, foreground.copy(alpha = 0.18f), shape).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(season.name.orEmpty(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = foreground,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(listOfNotNull(season.category?.takeUnless(String::isBlank), TransfersLogic.MARKET_SEASON.toString()).joinToString(" · "),
-            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = foreground)
+    CCCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TransfersLogic.stripesTeam(season, data.prevSeasonsByTeamId)?.let { TeamColorBands(it) }
+                Text(
+                    season.name.orEmpty(),
+                    style = CCText.S20,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() },
+                )
+            }
+            Text(
+                listOfNotNull(season.category?.takeUnless(String::isBlank), TransfersLogic.MARKET_SEASON.toString()).joinToString(" · "),
+                style = CCText.S13,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -266,18 +291,16 @@ private fun TeamSection(section: TeamSectionBlock) {
 
 @Composable
 private fun TeamRowDivider() {
-    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+    HorizontalDivider()
 }
 
 @Composable
 private fun TeamSectionTitle(text: String) {
     Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.8.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        text = text,
+        style = CCText.S16,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp).semantics { heading() },
     )
 }
 
@@ -285,7 +308,7 @@ private fun TeamSectionTitle(text: String) {
 private fun TeamEmptyText(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyMedium,
+        style = CCText.S14,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(vertical = 4.dp),
     )
@@ -303,7 +326,7 @@ private fun MovementCard(
     val retires = stringResource(R.string.transfers_retired)
     // Equipos con ficha en el mercado (destino enlazable de un nombre).
     val marketTeamIds = remember(data.seasons) { data.seasons.map { it.teamId }.toHashSet() }
-    CCCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12) {
+    CCCard(modifier = Modifier.fillMaxWidth()) {
         BoxWithConstraints {
             if (maxWidth >= 600.dp && moves.size > 1) {
                 val splitIndex = (moves.size + 1) / 2
@@ -346,10 +369,7 @@ private fun MovementColumn(
 ) {
     Column(modifier = modifier) {
         moves.forEachIndexed { i, t ->
-                if (i > 0) HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                )
+                if (i > 0) HorizontalDivider()
                 val rider = data.ridersById[t.riderId]
                 val detailText = when {
                     showOrigin -> TransfersLogic.teamLabel(t.fromTeamId, t.fromTeamName, data.teamNameById, unknownTeam, TransfersLogic.TeamSide.FROM, data.teamNamePrev)
@@ -394,7 +414,7 @@ private fun PersonRow(
 ) {
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
     val personLine = buildAnnotatedString {
-        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(name) }
+        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(name) }
         if (!detail.isNullOrEmpty()) {
             withStyle(SpanStyle(color = dimColor)) { append(" · $detail") }
         }
@@ -417,76 +437,18 @@ private fun PersonRow(
         // el color del nombre → nombre en Medium, sin accent.
         Text(
             text = personLine,
-            style = MaterialTheme.typography.bodySmall,
+            style = CCText.S14,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         // El año de contrato como BADGE junto al de rumor/duda (solo el año).
-        if (contractUntil != null) YearBadge(contractUntil)
-        if (isDoubt) DoubtBadge() else if (isRumor) RumorBadge()
-    }
-}
-
-/** Badge neutro del año de fin de contrato — espejo del `.tr-contract` de la web. */
-@Composable
-private fun YearBadge(year: Int) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        Text(
-            // Año centinela 9999 (contrato vitalicio) → ∞.
-            text = if (year == 9999) "∞" else stringResource(R.string.transfers_until, year),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** Badge ámbar "Rumor" — espejo del `.tr-chip--rumor` de la web. */
-@Composable
-private fun RumorBadge() {
-    val amber = Color(0xFFF59E0B)
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(amber.copy(alpha = 0.16f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.transfers_rumor).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            fontSize = 9.sp,
-            color = amber,
-        )
-    }
-}
-
-/**
- * Badge violeta "Duda" — espejo del `.tr-chip--doubt` de la web. Color propio,
- * distinto del ámbar del rumor: un rumor es una noticia sin confirmar, una
- * duda es la ausencia de noticia; no deben leerse como el mismo estado.
- */
-@Composable
-private fun DoubtBadge() {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(TRANSFERS_DOUBT_COLOR.copy(alpha = 0.16f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.transfers_doubt).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            fontSize = 9.sp,
-            color = TRANSFERS_DOUBT_COLOR,
-        )
+        if (contractUntil != null) ContractText(contractLabel(contractUntil))
+        if (isDoubt) {
+            TransferStateChip(stringResource(R.string.transfers_doubt), TransferChipKind.Doubt)
+        } else if (isRumor) {
+            TransferStateChip(stringResource(R.string.transfers_rumor), TransferChipKind.Rumor)
+        }
     }
 }
 
@@ -495,12 +457,12 @@ private fun DoubtBadge() {
 private fun TeamDoubtNotice(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall,
+        style = CCText.S13,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(CCRadius.Surface))
             .background(TRANSFERS_DOUBT_COLOR.copy(alpha = 0.10f))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
     )
 }

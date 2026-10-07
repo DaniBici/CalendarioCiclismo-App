@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   RTVE_LIVES_URL,
-  decodeHtml, desiredBroadcasts, matchObservation, parseHboCatalog, parseHboEventStart,
+  decodeHtml, desiredBroadcasts, hboSharedEventVariants, matchObservation, parseHboCatalog, parseHboEventStart,
   isMontoneraEligible, normalizedObservation,
   parseRtveGuide, parseRtvePlayLives, parseRtveStructuredGuide,
   parseRtveVueltaScheduleArticle, parseRtveVueltaVideos, rtveRaceHintMatch, rtveVueltaExternalEventId, zonedTimeToUtc,
@@ -141,6 +141,28 @@ describe('sincronización oficial de emisiones', () => {
     };
     expect(matchObservation({ ...observation, dateKey: '2026-09-25' }, [wrongDayRace]))
       .toMatchObject({ status: 'unmatched' });
+  });
+
+  it('empareja HBO con la carrera masculina cuyo nombre lleva una glosa entre paréntesis', () => {
+    const eneco = (overrides) => ({
+      raceDayId: 'men-1', raceId: 'men', dateKey: '2026-10-14', stageNumber: 1,
+      name: 'Eneco Tour (Vuelta a los Países Bajos)', nameEn: 'Eneco Tour (Tour of Holland)', gender: 'male', ...overrides,
+    });
+    const days = [eneco(), eneco({ raceDayId: 'women-1', raceId: 'women', name: 'Eneco Tour Women', nameEn: 'Eneco Tour Women', gender: 'female' })];
+    const stage = { source: 'hbo_max', dateKey: '2026-10-14', stageNumber: 1, title: 'Eneco Tour | Stage 1' };
+    expect(matchObservation({ ...stage, subtitle: 'Men | Ede (120km)' }, days)).toMatchObject({ status: 'matched', raceDayId: 'men-1' });
+    expect(matchObservation({ ...stage, subtitle: 'Women | Ede (79.5km)' }, days)).toMatchObject({ status: 'matched', raceDayId: 'women-1' });
+
+    const prologueDays = days.map((day) => ({ ...day, raceDayId: day.raceDayId.replace('-1', '-0'), dateKey: '2026-10-13', stageNumber: 0 }));
+    const prologue = normalizedObservation({
+      source: 'hbo_max', externalEventId: 'uuid', dateKey: '2026-10-13', stageNumber: null,
+      title: 'Eneco Tour | Prologue', subtitle: 'Mixed | The Hague (3.1km, ITT)', startTimeUtc: '2026-10-13T15:50:00Z',
+      broadcastUrl: 'https://play.hbomax.com/sport/uuid',
+    });
+    const variants = hboSharedEventVariants(prologue);
+    expect(variants.map((variant) => [variant.externalEventId, matchObservation(variant, prologueDays).raceDayId]))
+      .toEqual([['uuid', 'women-0'], ['uuid:men', 'men-0']]);
+    expect(hboSharedEventVariants({ ...prologue, title: 'LJUBLJANA', subtitle: 'Mixed | Relay TTT' })).toEqual([]);
   });
 
   const worldsDay = (overrides) => ({

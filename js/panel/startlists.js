@@ -61,9 +61,9 @@ async function openNewStartlist() {
             <label for="newStartlistRaceSearch" class="panel-view-label u-block u-mb-040">Carrera</label>
             <input id="newStartlistRaceSearch" type="search" placeholder="Buscar por nombre, fecha o ID…" autocomplete="off" class="panel-input u-py-055 u-px-070 u-mb-050">
             <select id="newStartlistRace" size="10" aria-label="Carrera de destino" class="panel-input u-p-035"></select>
-            <div id="newStartlistRaceCount" class="u-fs-072 u-c-dim u-mt-035"></div>
+            <div id="newStartlistRaceCount" class="u-fs-1 u-c-dim u-mt-035"></div>
           </div>
-          <div id="newStartlistStatus" class="u-fs-080 u-c-dim" role="status">Selecciona una carrera para abrir el editor de inscritos.</div>
+          <div id="newStartlistStatus" class="u-fs-2 u-c-dim" role="status">Selecciona una carrera para abrir el editor de inscritos.</div>
           <div class="u-row panel-drawer-footer">
             <button class="btn btn--ghost" id="cancelNewStartlistBtn" type="button">Cancelar</button>
             <button class="btn btn--primary" id="continueNewStartlistBtn" type="button" disabled>Abrir editor</button>
@@ -170,7 +170,7 @@ export function _slRefreshRiderMatchBtn(riderEl, rider /* opcional, para tooltip
   const id = riderEl.dataset.globalRiderId || '';
   if (id) {
     btn.textContent = '✓ BD';
-    btn.style.color = '#22c55e';
+    btn.style.color = 'var(--green)';
     btn.title = rider
       ? `Match en BD: ${rider.firstName || ''} ${rider.lastName || ''}. Click para cambiar/desligar.`
       : 'Match en BD. Click para cambiar/desligar.';
@@ -607,7 +607,7 @@ function startlistEditorBodyHtml() {
     <div id="startlistEditorContent"></div>
     <div class="u-row panel-save-row">
       <button class="btn btn--primary" id="saveStartlistBtn" disabled>Guardar cambios</button>
-      <span class="u-fs-080 u-c-dim" id="startlistSaveStatus"></span>
+      <span class="u-fs-2 u-c-dim" id="startlistSaveStatus"></span>
       <button class="btn btn--ghost u-c-red u-ml-auto" id="deleteStartlistBtn" style="display:none">Eliminar lista</button>
     </div>`;
 }
@@ -692,7 +692,7 @@ window.openStartlistEditor = async function(raceId) {
   });
 
   const toolbar = `<div class="u-mb-075">
-    <label class="panel-check-label u-gap-050 u-fs-082">
+    <label class="panel-check-label u-gap-050 u-fs-2">
       <input type="checkbox" id="slProvisionalToggle" ${panelState._editingRaceProvisional ? 'checked' : ''}>
       <span>Lista provisional</span>
     </label>
@@ -710,7 +710,7 @@ window.openStartlistEditor = async function(raceId) {
   if (!(teams || []).length) {
     html += _slTeamRowHtml({ teamName: '', teamId: null, riders: [] });
   }
-  html += `</div><button class="btn btn--ghost u-py-035 u-px-075 u-fs-075 u-mt-025" id="addTeamBtn">+ Añadir equipo</button>`;
+  html += `</div><button class="btn btn--ghost u-py-035 u-px-075 u-fs-1 u-mt-025" id="addTeamBtn">+ Añadir equipo</button>`;
   content.innerHTML = html;
   _slUpdateTeamOrderControls();
 

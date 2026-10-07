@@ -6,7 +6,7 @@ import {raceCardHtml,overviewButtonHtml} from './components/race-card.js';
 import {supabase,countryFlag,categoryBadge,buildRaceHeader,setMeta,setMetaProperty,formatDateLabel,openPhBanner,wirePhDescriptions,getPinnedFilter,renderFilterPins,handleFilterEvent,setPressed} from './shared.js';
 import {initI18n,t,getLang,getLocale} from './i18n.js';
 import {cxCategoryTiming} from './cx/timing.js';
-import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxAllRows,cxQuery,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
+import {cxMonth,cxNextDate,cxTournamentMetadata,cxSeasonRounds,cxSeasonRows,cxHiddenClasses,cxIsHidden,cxListedInAgenda,cxAllRows,cxQuery,CX_SPANISH_AUDIENCE} from './services/cx-data.js';
 import {cxEsc as esc,cxSeason,cxSeasonMonths,cxMonthDays,cxCategories,cxColor,cxRaceName,cxRaceUrl,cxTournamentUrl,cxTournamentPageUrl,cxTournamentPage,cxRacePageUrl,cxCategoryCardState,cxUsesCategoryBadges,cxTime,cxClassLabel,cxRoundBadge,cxRaceOpen,cxRacePlaceholder,cxPlaceholderMessage,cxAgendaFilterMatches,cxClassificationSelection,cxTournamentGeneralCategories,cxStandingMode} from './cx/presentation.js';
 import {cxStandingsTableHtml,cxWireStandingsScroll} from './cx/standings-table.js';
 import {CX_CATEGORIES} from './cx/editor-logic.js';
@@ -122,7 +122,9 @@ function scheduleHtml(race,c,open) {
     return open?`<a class="badge badge--results badge--icon" href="${esc(cxRacePageUrl(race,lang,'results',c.category))}" title="${esc(label)}" aria-label="${esc(label)}">${resultsTrophyHtml}<span class="badge__label">${esc(t('cx.result'))}</span></a>`:resultsTrophyHtml;
   }
   if(phase==='awaiting')return waitingResultsHtml(lang,'span');
-  if(phase==='cancelled')return `<span class="badge badge--cancelled-day">${esc(t('stage.cancelled'))}</span>`;
+  // Cancelada: aspa roja de trazo grueso, como la X del emblema de
+  // ciclocross, en la mitad central del hueco de la categoría.
+  if(phase==='cancelled')return `<svg class="cx-category-cross" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${esc(t('stage.cancelled'))}"><path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>`;
   return `<strong class="cx-category-hour"${time?'':` title="${esc(t('stage.noSchedule'))}"`}>${esc(time||'—')}</strong>`;
 }
 function refreshTiming() {
@@ -137,10 +139,10 @@ function refreshTiming() {
 }
 function card(race,date) {
   const url=cxRaceUrl(race,lang),color=cxColor(race);
-  // Sin documento (Libro de Ruta o Mapa) o sin horarios —o cancelada—, la ficha
-  // no está lista: card placeholder de Hoy, no enlaza a la carrera ni a sus
-  // categorías y abre el aviso de información (tooltip/modal).
-  const placeholder=cxRacePlaceholder(race),open=!placeholder,cancelled=race.isCancelled;
+  // Sin documento (Libro de Ruta o Mapa) o sin horarios, la ficha no está
+  // lista: card placeholder de Hoy, no enlaza a la carrera ni a sus categorías
+  // y abre el aviso de información (tooltip/modal).
+  const placeholder=cxRacePlaceholder(race),open=!placeholder;
   const href=open?`<a href="${esc(url)}">`:'<span>',hrefEnd=open?'</a>':'</span>';
   const categories=cxCategories(race,date),badges=cxUsesCategoryBadges(race,date);
   const tournament=race.cx_tournaments,tournamentUrl=tournament&&!tournamentId?cxTournamentUrl(tournament,lang):null;
@@ -148,12 +150,9 @@ function card(race,date) {
   const menu=tournamentUrl?overviewButtonHtml(esc(tournamentUrl),esc(cxRaceName(tournament,lang))):'';
   const sep='<span class="race-card__sep">·</span>';
   const meta=[tournamentUrl?esc(cxRaceName(tournament,lang)):'',round,race.venue&&race.venue!==cxRaceName(race,lang)?esc(race.venue):''].filter(Boolean).join(sep);
-  // Prueba cancelada: una sola indicación "Cancelada", sin categorías ni
-  // tachado, con la presentación de las jornadas canceladas de Hoy.
-  const cancelledBadge=cancelled?`<span class="badge badge--cancelled-day">${esc(t('stage.cancelled'))}</span>`:'';
   // Datos del aviso placeholder (mismo banner/tooltip que Hoy en Carretera).
   const phData=placeholder?` data-ph-tooltip="${esc(cxPlaceholderMessage(race))}" data-ph-name="${esc(cxRaceName(race,lang))}" data-ph-flag="${esc(countryFlag(race.countryCode))}" data-ph-sub="${esc([cxClassLabel(race.class,lang),new Date(`${date}T12:00:00Z`).toLocaleDateString(locale,{day:'numeric',month:'short'})].join(' · '))}"`:'';
-  const categoriesHtml=cancelled?'':`<div class="race-card__meta cx-category-times${badges?' cx-category-times--badges':''}" style="--cx-category-count:${categories.length||1}" aria-label="${t('cx.categories')}">${categories.map(c=>{
+  const categoriesHtml=`<div class="race-card__meta cx-category-times${badges?' cx-category-times--badges':''}" style="--cx-category-count:${categories.length||1}" aria-label="${t('cx.categories')}">${categories.map(c=>{
     const catName=t(`cx.category.${c.category}`);
     if(badges) {
       const {href:catHref,label}=cellMeta(race,c);
@@ -172,7 +171,7 @@ function card(race,date) {
     logo:`<div class="race-card__logo"><span data-cx-logo-race="${esc(race.id)}"></span><span>${countryFlag(race.countryCode)}</span></div>`,
     name:`${href}${esc(cxRaceName(race,lang))}${hrefEnd}${menu}`,
     sub:meta,
-    badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span>${cancelledBadge}`,
+    badges:`<span class="race-card__name-cat">${categoryBadge(cxClassLabel(race.class,lang))}</span>`,
     metaBlock:categoriesHtml,
   });
   return `<article class="race-card race-card--cx${placeholder?' race-card--placeholder':''}" ${color?`style="--card-color:${color}"`:''}${open?` data-href="${esc(url)}"`:''}${phData}>${inner}${open?'<span class="feed-row__chevron cx-card-chevron" aria-hidden="true">›</span>':`<a class="race-card__seo-link" href="${esc(url)}">${esc(cxRaceName(race,lang))}</a>`}</article>`;
@@ -203,7 +202,7 @@ function navState() {
 async function monthRows(key,token) {
   const cacheKey=`${season}:${key}`;
   let rows=cache.get(cacheKey);
-  if(!rows){rows=await cxMonth(supabase,season,Number(key.slice(0,4)),Number(key.slice(5)));if(token!==version)return null;rows=rows.filter(race=>!cxIsHidden(race,lang)&&(!tournamentId||race.tournamentId===tournamentId));cache.set(cacheKey,rows);}
+  if(!rows){rows=await cxMonth(supabase,season,Number(key.slice(0,4)),Number(key.slice(5)));if(token!==version)return null;rows=rows.filter(race=>cxListedInAgenda(race,lang)&&(!tournamentId||race.tournamentId===tournamentId));cache.set(cacheKey,rows);}
   if(token!==version)return null;
   return rows;
 }
@@ -273,8 +272,8 @@ async function openTournament() {
   try {
     let rows=await cxSeasonRows(supabase,season);
     if(token!==version)return;
-    const ownRows=rows.filter(race=>race.tournamentId===tournamentId);
-    const tournamentRows=ownRows.filter(race=>!cxIsHidden(race,lang));
+    const ownRows=rows.filter(race=>race.tournamentId===tournamentId&&!race.isCancelled);
+    const tournamentRows=ownRows.filter(race=>cxListedInAgenda(race,lang));
     // Torneo solo nacional en inglés: aviso con enlace a la versión en castellano.
     if(ownRows.length&&!tournamentRows.length){
       list.innerHTML=`<div class="empty-state"><div class="empty-state__text"><strong>${esc(CX_SPANISH_AUDIENCE.title)}</strong><br>${esc(CX_SPANISH_AUDIENCE.text)}</div><a class="btn btn--ghost" href="${esc(cxTournamentUrl(tournament,'es'))}">${esc(CX_SPANISH_AUDIENCE.link)}</a></div>`;

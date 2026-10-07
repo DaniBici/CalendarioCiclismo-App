@@ -118,7 +118,7 @@ export async function loadSidebar() {
   const request = ++sidebarRequest, dateKey = panelState.currentDateKey;
   const list = document.getElementById('sidebarList');
   list._featuredMount = null;
-  list.innerHTML = '<div class="u-p-100 u-fs-080 u-c-dim">Cargando…</div>';
+  list.innerHTML = '<div class="u-p-100 u-fs-2 u-c-dim">Cargando…</div>';
 
   try {
     const days = await loadPanelAgendaDay(dateKey);
@@ -130,7 +130,7 @@ export async function loadSidebar() {
   } catch (err) {
     if (request !== sidebarRequest) return;
     console.error(err);
-    list.innerHTML = `<div class="u-p-100 u-c-error u-fs-080">Error al cargar</div>`;
+    list.innerHTML = `<div class="u-p-100 u-c-error u-fs-2">Error al cargar</div>`;
   }
 }
 
@@ -172,8 +172,17 @@ export async function loadPanelAgendaDay(dateKey) {
     return days;
 }
 
+// Grupo de filas de agenda: una superficie con filas separadas por filete.
+function agendaGroup(list) {
+  const group = document.createElement('div');
+  group.className = 'panel-list';
+  list.appendChild(group);
+  return group;
+}
+
 export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace,onlyFirstStageDay=false,hideStageLabel=false}) {
     list.innerHTML = '';
+    const dayGroup = agendaGroup(list);
 
     const visibleDays = onlyFirstStageDay
       ? days.filter(rd => rd._race?.raceFormat !== 'stage_race' || rd._race.startDate === dateKey)
@@ -200,7 +209,7 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
 
       item.innerHTML = panelAgendaItemHtml({flagHtml:flag,name,detailHtml:esc(stage),badgesHtml:catBadge+(statusBadge ? ' '+statusBadge : '')});
       item.addEventListener('click', () => onRaceDay(rd.id,rd.raceId));
-      list.appendChild(item);
+      dayGroup.appendChild(item);
     });
 
     // Carreras sin jornada asignada en este día
@@ -211,6 +220,7 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
       divider.className = 'sidebar-pending-divider';
       divider.textContent = 'Por añadir';
       list.appendChild(divider);
+      const pendingGroup = agendaGroup(list);
 
       pending.forEach(race => {
         const flag = countryFlag(race.countryCode);
@@ -227,9 +237,9 @@ export function renderRoadPanelAgenda(list,days,dateKey,{onRaceDay,onPendingRace
           </div>
         `;
         item.addEventListener('click', () => onPendingRace(race.id));
-        list.appendChild(item);
+        pendingGroup.appendChild(item);
       });
-    } else if (list.innerHTML === '') {
+    } else if (!dayGroup.children.length) {
       list.innerHTML = `<div class="panel-empty u-px-100">No hay jornadas para este día</div>`;
     }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Panel de Administración — Calendario Ciclismo</title>
+  <title>Panel de administración — Calendario Ciclismo</title>
   <script src="../js/theme.js"></script>
   <link rel="stylesheet" href="../css/panel.css">
   <link rel="stylesheet" href="../css/panel-cx.css">
@@ -196,7 +196,7 @@
             </select>
             <input type="date" id="gaStartDate" class="ga-date-input" style="display:none">
             <input type="date" id="gaEndDate" class="ga-date-input" style="display:none">
-            <button class="btn btn--ghost u-py-035 u-px-075 u-fs-075" id="gaRefreshBtn">Actualizar</button>
+            <button class="btn btn--ghost u-py-035 u-px-075 u-fs-1" id="gaRefreshBtn">Actualizar</button>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@
 
         <!-- Top pages -->
         <div class="ga-section">
-          <div class="ga-section-title">Páginas más vistas <span class="u-fw-400 u-o55 u-fs-080em">(Solo Web)</span></div>
+          <div class="ga-section-title">Páginas más vistas <span class="u-fw-400 u-o55 u-fs-2">(solo web)</span></div>
           <div id="gaTopPages" class="ga-table-wrap">
             <div class="ga-placeholder">Cargando…</div>
           </div>
@@ -247,7 +247,7 @@
 
         <!-- Top stages -->
         <div class="ga-section">
-          <div class="ga-section-title">Etapas más vistas <span class="u-fw-400 u-o55 u-fs-080em">(Apps móviles)</span></div>
+          <div class="ga-section-title">Etapas más vistas <span class="u-fw-400 u-o55 u-fs-2">(apps móviles)</span></div>
           <div id="gaTopStages" class="ga-table-wrap">
             <div class="ga-placeholder">Cargando…</div>
           </div>
@@ -274,7 +274,7 @@
           <div class="ga-config-notice__icon"><svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
           <div>
             <strong>Configuración necesaria</strong><br>
-            <span class="u-fs-082 u-c-muted">Para activar Métricas, configura las siguientes variables de entorno en Supabase Edge Functions:<br>
+            <span class="u-fs-2 u-c-muted">Para activar Métricas, configura las siguientes variables de entorno en Supabase Edge Functions:<br>
             <code>GA_PROPERTY_ID</code>, <code>GA_SERVICE_ACCOUNT_EMAIL</code>, <code>GA_PRIVATE_KEY</code></span>
           </div>
         </div>
@@ -327,7 +327,7 @@
         </div>
       </div>
       <div class="panel-view-body panel-view-body--stack">
-        <div class="u-stack u-stack--xs" id="ridersSearchResults"></div>
+        <div class="panel-list" id="ridersSearchResults"></div>
       </div>
     </div><!-- /ridersView -->
 
@@ -344,7 +344,7 @@
           </label>
           <input type="search" id="teamsSearch" placeholder="Buscar equipo…" class="panel-search panel-search--fixed">
           <div class="panel-view-actions panel-view-actions--teams">
-            <button class="btn btn--ghost btn--view btn--nowrap u-c-warn" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión">🔍 Duplicados</button>
+            <button class="btn btn--ghost btn--view btn--nowrap" id="dupScanBtn" title="Detectar corredores con apellido + inicial coincidentes y proponer fusión">🔍 Duplicados</button>
             <button class="btn btn--primary btn--view" id="addTeamPanelBtn">+ Nuevo equipo</button>
           </div>
         </div>
@@ -353,10 +353,9 @@
         <div class="u-stack">
           <div class="u-flex u-items-center u-gap-075">
             <div class="u-micro u-nowrap">Equipos de <span id="teamsListYearLabel"></span></div>
-            <div class="u-grow u-hr-line"></div>
           </div>
           <div class="u-stack u-stack--xs" id="teamsList">
-            <div class="u-fs-085 u-c-dim">Cargando…</div>
+            <div class="u-fs-3 u-c-dim">Cargando…</div>
           </div>
         </div>
       </div>
@@ -381,10 +380,9 @@
         <div class="u-stack">
           <div class="u-flex u-items-center u-gap-075">
             <div class="u-micro u-nowrap">Destacados activos</div>
-            <div class="u-grow u-hr-line"></div>
           </div>
-          <div id="highlightsList" class="u-flex u-col u-gap-040">
-            <div class="u-fs-085 u-c-dim">Cargando…</div>
+          <div id="highlightsList" class="panel-list">
+            <div class="u-fs-3 u-c-dim">Cargando…</div>
           </div>
         </div>
       </div>
@@ -398,7 +396,7 @@
       <div class="panel-section-divider">
         <div class="panel-view-row panel-view-row--transfers">
           <div class="panel-view-title">
-            Fichajes <span id="fichajesSeason" class="u-dim u-fs-080em"></span>
+            Fichajes <span id="fichajesSeason" class="u-dim u-fs-2"></span>
           </div>
           <div class="panel-view-actions panel-view-actions--transfers">
             <button class="btn btn--ghost" id="allTransfersBtn" title="Ver la lista completa de movimientos (auditoría): filtrar por estado, buscar, editar suelto">Ver todos los movimientos</button>
@@ -413,7 +411,7 @@
              su editor de temporada 2027 en drawer. -->
         <div class="u-stack">
           <div class="u-flex u-gap-040 u-wrap" id="marketDivBtns"></div>
-          <div class="u-stack u-stack--xs" id="marketTeamsList"></div>
+          <div class="panel-list" id="marketTeamsList"></div>
         </div>
       </div>
     </div><!-- /fichajesView -->
@@ -428,10 +426,10 @@
       <div class="panel-section-divider">
         <div class="panel-view-row">
           <div class="panel-view-title">
-            Notificaciones Push
+            Notificaciones push
             <span id="pushAreaLabel" class="push-area-label"></span>
           </div>
-          <div class="u-fs-080 u-c-dim" id="pushSubscriberCount"></div>
+          <div class="u-fs-2 u-c-dim" id="pushSubscriberCount"></div>
         </div>
       </div>
       <div class="panel-view-body panel-view-body--stack u-gap-150">
@@ -459,7 +457,7 @@
                 <input type="checkbox" class="push-platform-cb" value="android"> Android
               </label>
             </div>
-            <div class="u-fs-072 u-c-dim u-mt-030">
+            <div class="u-fs-1 u-c-dim u-mt-030">
               Útil para avisar de una actualización solo a los usuarios de una plataforma.
             </div>
           </div>
@@ -473,18 +471,18 @@
                 <select id="push-debug-token" class="push-debug__token">
                   <option value="">— Sin debug, enviar al público objetivo —</option>
                 </select>
-                <button type="button" id="push-debug-reload" class="btn btn--ghost u-py-040 u-px-065 u-fs-075">Recargar</button>
+                <button type="button" id="push-debug-reload" class="btn btn--ghost u-py-040 u-px-065 u-fs-1">Recargar</button>
               </div>
-              <div class="u-row u-mt-040 u-fs-078 u-wrap">
+              <div class="u-row u-mt-040 u-fs-2 u-wrap">
                 <select id="push-debug-platform-filter" class="push-debug__filter">
                   <option value="ios" selected>Solo iOS</option>
                   <option value="android">Solo Android</option>
-                  <option value="web">Solo Web</option>
+                  <option value="web">Solo web</option>
                   <option value="">Todas las plataformas</option>
                 </select>
-                <span id="push-debug-token-count" class="u-c-dim u-fs-074"></span>
+                <span id="push-debug-token-count" class="u-c-dim u-fs-1"></span>
               </div>
-              <div class="u-fs-072 u-c-dim u-mt-040">
+              <div class="u-fs-1 u-c-dim u-mt-040">
                 Cuando hay un dispositivo seleccionado, la notificación se entrega solo a ese token, ignorando filtros de plataforma/región/categoría. No se registra en el historial. No es compatible con la programación diferida.
               </div>
             </div>
@@ -505,11 +503,11 @@
               <option value="tab">Pestaña de la app</option>
               <option value="race">Competición</option>
               <option value="cxRace">Carrera de ciclocross</option>
-              <option value="stage">Jornada / Etapa</option>
+              <option value="stage">Jornada / etapa</option>
               <option value="startlist">Dorsales</option>
               <option value="perfil">Perfil de etapa</option>
               <option value="startOrder">Orden de salida</option>
-              <option value="transfers">Mercado de Fichajes</option>
+              <option value="transfers">Mercado de fichajes</option>
               <option value="team">Equipo (Mercado de Fichajes)</option>
             </select>
           </div>
@@ -570,9 +568,9 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
               </div>
               <div class="u-grow u-min0">
-                <div class="u-fs-072 u-c-dim u-mb-015">CALENDARIO CICLISMO</div>
-                <div id="pushPreviewTitle" class="u-fw-600 u-fs-085 u-lh-130">Título de la notificación</div>
-                <div id="pushPreviewSubtitle" class="u-fs-080 u-c-muted u-lh-130" style="display:none"></div>
+                <div class="u-fs-1 u-c-dim u-mb-015">Calendario Ciclismo</div>
+                <div id="pushPreviewTitle" class="u-fw-600 u-fs-3 u-lh-130">Título de la notificación</div>
+                <div id="pushPreviewSubtitle" class="u-fs-2 u-c-muted u-lh-130" style="display:none"></div>
               </div>
               <div id="pushPreviewImage" class="u-shrink-0" style="display:none">
                 <img id="pushPreviewImg" src="" alt="" class="push-preview__img">
@@ -592,11 +590,11 @@
             <input type="datetime-local" id="push-scheduledAt">
           </div>
 
-          <p id="pushAudience" class="u-fs-080 u-c-muted" aria-live="polite" hidden></p>
+          <p id="pushAudience" class="u-fs-2 u-c-muted" aria-live="polite" hidden></p>
           <div id="pushSendError" class="alert alert--error" style="display:none"></div>
           <div class="u-flex u-gap-075 u-items-center">
             <button class="btn btn--primary" id="sendPushBtn">Enviar ahora</button>
-            <span class="u-fs-080 u-c-dim" id="pushSendStatus"></span>
+            <span class="u-fs-2 u-c-dim" id="pushSendStatus"></span>
           </div>
         </div>
 
@@ -605,7 +603,7 @@
           <div class="panel-view-label">
             Programadas
           </div>
-          <div id="pushScheduledList" class="u-fs-082 u-c-dim">Cargando…</div>
+          <div id="pushScheduledList" class="u-fs-2 u-c-dim">Cargando…</div>
         </div>
 
         <!-- Historial de notificaciones -->
@@ -613,7 +611,7 @@
           <div class="panel-view-label">
             Historial de envíos
           </div>
-          <div id="pushHistoryList" class="u-fs-082 u-c-dim">Cargando…</div>
+          <div id="pushHistoryList" class="u-fs-2 u-c-dim">Cargando…</div>
         </div>
 
 

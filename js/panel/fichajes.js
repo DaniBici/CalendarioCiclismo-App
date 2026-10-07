@@ -9,7 +9,7 @@ import { confirmDialog } from '../components/dialog.js';
 import {
   isInitialTransferImport, isMarketDestinationTeamEligible, MARKET_DESTINATION_DIVISIONS,
   marketDestinationTeamOptions, transferEditorAnnouncementDate,
-  transferRiderInitialGender, transferRowBorderColor,
+  transferRiderInitialGender,
 } from '../services/transfer-rider.js';
 import { panelState } from './state.js';
 import { MARKET_PREV_SEASON, MARKET_SEASON } from './constants.js';
@@ -97,7 +97,7 @@ export function renderMarketTeams() {
   btns.innerHTML = MARKET_DIVISIONS.map(d => {
     const active = d === _marketDiv;
     const n = panelState._marketSeasons.filter(s => s.category === d).length;
-    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost'} u-py-030 u-px-070 u-fs-075" data-mdiv="${d}">${d}${n ? ` <span class="u-o65">${n}</span>` : ''}</button>`;
+    return `<button class="btn ${active ? 'btn--primary' : 'btn--ghost'}" data-mdiv="${d}">${d}${n ? ` <span class="u-o65">${n}</span>` : ''}</button>`;
   }).join('');
   btns.querySelectorAll('[data-mdiv]').forEach(b =>
     b.addEventListener('click', () => { _marketDiv = b.dataset.mdiv; renderMarketTeams(); })
@@ -108,12 +108,12 @@ export function renderMarketTeams() {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
 
   if (teams.length === 0) {
-    list.innerHTML = `<div class="u-fs-085 u-c-dim u-py-050 u-px-0">Sin equipos en esta división. Usa <strong>+ Equipo ${MARKET_SEASON}</strong> para crear uno que nazca este año.</div>`;
+    list.innerHTML = `<div class="u-fs-3 u-c-dim u-py-050 u-px-0">Sin equipos en esta división. Usa <strong>+ Equipo ${MARKET_SEASON}</strong> para crear uno que nazca este año.</div>`;
     return;
   }
 
   const chip = (text, color) =>
-    `<span class="market-chip" style="--chip-color:${color};--chip-bg:${color}26">${esc(text)}</span>`;
+    `<span class="market-chip" style="--chip-color:${color}">${esc(text)}</span>`;
 
   list.innerHTML = teams.map(s => {
     // El nombre de la temporada EN CURSO cuando difiere del del mercado: es la
@@ -124,16 +124,16 @@ export function renderMarketTeams() {
     // (equipo que ya existía en la temporada previa) / vacío (equipo nuevo, sin
     // kit antiguo que enseñar). `prev` truthy = hay fila team_seasons previa.
     const badgeChip = s.badgeVisible
-      ? chip(`Colores ${MARKET_SEASON}`, 'var(--accent)')
+      ? chip(`Colores ${MARKET_SEASON}`, 'var(--green)')
       : prev
-        ? chip(`Colores ${MARKET_PREV_SEASON}`, '#6b7280')
-        : chip('Nuevo · sin colores', '#9ca3af');
+        ? chip(`Colores ${MARKET_PREV_SEASON}`, 'var(--text-muted)')
+        : chip('Nuevo · sin colores', 'var(--orange)');
     return `
-      <div class="market-team-row${s.continuityDoubt ? ' market-team-row--doubt' : ''}" data-team="${esc(s.teamId)}">
-        <span class="u-grow u-min0 u-fs-085"><strong>${esc(s.name || s.teamId)}</strong>
-          ${renamed ? `<span class="u-c-dim u-fs-072 u-ml-030">· ${MARKET_PREV_SEASON}: ${esc(prev)}</span>` : ''}
+      <div class="market-team-row" data-team="${esc(s.teamId)}">
+        <span class="u-grow u-min0 u-fs-3"><strong>${esc(s.name || s.teamId)}</strong>
+          ${renamed ? `<span class="u-c-dim u-fs-1 u-ml-030">· ${MARKET_PREV_SEASON}: ${esc(prev)}</span>` : ''}
         </span>
-        ${s.continuityDoubt ? chip('Duda', '#8b5cf6') : ''}
+        ${s.continuityDoubt ? chip('Duda', 'var(--orange)') : ''}
         ${badgeChip}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="u-c-dim u-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
@@ -186,7 +186,7 @@ function openAllTransfersDrawer() {
       body.innerHTML = `
         <div class="u-row u-gap-060 u-wrap u-mb-075">
           <input type="search" id="transfersSearch" placeholder="Buscar corredor o equipo…" class="panel-search u-grow u-minw-1200">
-          <select id="transfersStatusFilter" class="panel-search u-px-050 u-fs-080">
+          <select id="transfersStatusFilter" class="panel-search u-px-050 u-fs-2">
             <option value="all">Todos</option>
             <option value="confirmed">Confirmados</option>
             <option value="rumor">Rumores</option>
@@ -194,9 +194,9 @@ function openAllTransfersDrawer() {
             <option value="hidden">Fecha oculta</option>
           </select>
           <button class="btn btn--primary btn--view" id="addTransferBtn">+ Nuevo movimiento</button>
-          <span class="u-fs-075 u-c-dim u-self-center" id="transfersCount"></span>
+          <span class="u-fs-1 u-c-dim u-self-center" id="transfersCount"></span>
         </div>
-        <div class="u-stack u-stack--xs" id="transfersList"><div class="u-fs-085 u-c-dim">Cargando…</div></div>
+        <div class="panel-list" id="transfersList"><div class="u-fs-3 u-c-dim">Cargando…</div></div>
       `;
       document.getElementById('addTransferBtn').addEventListener('click', () => openTransferEditor(null));
       document.getElementById('transfersStatusFilter').addEventListener('change', renderTransfersList);
@@ -208,7 +208,7 @@ function openAllTransfersDrawer() {
 
 export async function loadTransfers() {
   const list = document.getElementById('transfersList');
-  if (list) list.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando…</div>';
+  if (list) list.innerHTML = '<div class="u-fs-3 u-c-dim">Cargando…</div>';
   try {
     const [transfersRes, seasonsRes, prevSeasonsRes] = await Promise.all([
       supabase.from('rider_transfers')
@@ -245,7 +245,7 @@ export async function loadTransfers() {
     panelState._transfersCache = rows.map(t => ({ ...t, rider: riderByKey.get(`${t.riderGender}:${t.riderId}`) || null }));
   } catch (err) {
     console.error('[loadTransfers]', err);
-    if (list) list.innerHTML = `<div class="u-c-red u-fs-085">Error cargando los movimientos: ${esc(err.message || String(err))}</div>`;
+    if (list) list.innerHTML = `<div class="u-c-red u-fs-3">Error cargando los movimientos: ${esc(err.message || String(err))}</div>`;
     panelState._transfersCache = [];
   }
 }
@@ -301,7 +301,7 @@ export function renderTransfersList() {
   if (countEl) countEl.textContent = filtered.length ? `${filtered.length} movimiento${filtered.length === 1 ? '' : 's'}` : '';
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="u-c-dim u-fs-085 u-py-050 u-px-0">
+    container.innerHTML = `<div class="u-c-dim u-fs-3 u-py-050 u-px-0">
       ${(panelState._transfersCache || []).length === 0
         ? 'No hay movimientos todavía. Pulsa <strong>+ Nuevo movimiento</strong> para registrar el primero.'
         : 'Sin resultados con ese filtro.'}
@@ -338,16 +338,15 @@ export function renderTransfersList() {
     const midSeasonChip = t.midSeason
       ? `<span class="tr-chip tr-chip--midseason">M. temporada</span>`
       : '';
-    const borderColor = transferRowBorderColor(t.status);
     return `
-      <div class="transfer-row" data-id="${esc(t.id)}" style="--row-border:${borderColor}">
-        <span class="u-fs-072 u-c-dim tr-date${dateHidden ? ' tr-date--hidden' : ''}" ${dateHidden ? 'title="Oculto del listado de últimos"' : ''}>${esc(dateBit)}</span>
+      <div class="transfer-row" data-id="${esc(t.id)}">
+        <span class="u-fs-1 u-c-dim tr-date${dateHidden ? ' tr-date--hidden' : ''}" ${dateHidden ? 'title="Oculto del listado de últimos"' : ''}>${esc(dateBit)}</span>
         <span class="u-shrink-0 u-w-150em u-center">${_slRiderFlagPreview(t.rider?.nationality || '')}</span>
-        <span class="u-minw-1000 u-fs-085"><strong>${esc(_trRiderLabel(t))}</strong>
-          <span class="u-c-dim u-fs-066 u-ml-025">${t.riderGender === 'female' ? '♀' : '♂'}</span>
+        <span class="u-minw-1000 u-fs-3"><strong>${esc(_trRiderLabel(t))}</strong>
+          <span class="u-c-dim u-fs-1 u-ml-025">${t.riderGender === 'female' ? '♀' : '♂'}</span>
         </span>
-        <span class="u-fs-072 u-c-dim u-nowrap">${esc(typeLabel)}</span>
-        <span class="u-grow u-minw-1200 u-fs-080">${movement} ${contractBit}</span>
+        <span class="u-fs-1 u-c-dim u-nowrap">${esc(typeLabel)}</span>
+        <span class="u-grow u-minw-1200 u-fs-2">${movement} ${contractBit}</span>
         ${statusChip}
         ${midSeasonChip}
         ${isRumor || isDoubt ? `<button class="btn btn--ghost transfer-confirm u-btn-xs u-c-accent">Confirmar</button>` : ''}
@@ -410,12 +409,12 @@ function transferEditorBodyHtml() {
       <div class="field" id="tr-rider-row">
         <label>Corredor</label>
         <input type="search" id="tr-rider-search" placeholder="Busca por nombre o apellido (mín. 3 letras)…" autocomplete="off" class="u-w-full">
-        <div id="tr-rider-results" class="tr-rider-results" style="display:none"></div>
+        <div id="tr-rider-results" class="tr-rider-results panel-list" style="display:none"></div>
         <div id="tr-rider-selected" class="tr-rider-selected" style="display:none">
           <span id="tr-rider-selected-flag" class="u-w-150em u-center"></span>
-          <span id="tr-rider-selected-name" class="u-grow u-fs-090 u-fw-600"></span>
-          <span id="tr-rider-selected-team" class="u-fs-072 u-c-dim"></span>
-          <button class="btn btn--ghost u-py-025 u-px-055 u-fs-072" id="tr-rider-clear">Cambiar</button>
+          <span id="tr-rider-selected-name" class="u-grow u-fs-3 u-fw-600"></span>
+          <span id="tr-rider-selected-team" class="u-fs-1 u-c-dim"></span>
+          <button class="btn btn--ghost u-py-025 u-px-055 u-fs-1" id="tr-rider-clear">Cambiar</button>
         </div>
       </div>
 
@@ -428,7 +427,7 @@ function transferEditorBodyHtml() {
 
       <div class="field" id="tr-from-row">
         <label>Equipo de origen <span class="u-dim" id="tr-from-hint">— solo editable si el corredor no tiene equipo asociado</span></label>
-        <div id="tr-from-associated" class="u-fs-085 tr-from-associated" style="display:none"></div>
+        <div id="tr-from-associated" class="u-fs-3 tr-from-associated" style="display:none"></div>
         <div class="u-row u-row--gap-sm" id="tr-from-inputs">
           <select id="tr-fromTeamId" class="u-grow u-minw-1000"></select>
           <input type="text" id="tr-fromTeamName" placeholder="Texto libre (júnior, amateur…)" class="u-grow u-minw-800">
@@ -460,7 +459,7 @@ function transferEditorBodyHtml() {
           <label id="tr-retired-label" class="tr-check tr-check--flag" style="display:none">
             <input type="checkbox" id="tr-retired"><span>Se retira</span>
           </label>
-          <span id="tr-doubt-label" class="u-fs-075 u-c-dim u-pt-035" style="display:none">Duda de renovación.</span>
+          <span id="tr-doubt-label" class="u-fs-1 u-c-dim u-pt-035" style="display:none">Duda de renovación.</span>
         </div>
         <div class="field">
           <label>Fecha del anuncio</label>
@@ -479,7 +478,7 @@ function transferEditorBodyHtml() {
     <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveTransferBtn">Guardar</button>
       <button class="btn btn--ghost u-c-red" id="deleteTransferBtn" style="display:none">Eliminar</button>
-      <span class="u-fs-080 u-c-dim" id="transferSaveStatus"></span>
+      <span class="u-fs-2 u-c-dim" id="transferSaveStatus"></span>
     </div>
   `;
 }
@@ -553,9 +552,8 @@ function _trRefreshTypeVisibility() {
   document.querySelectorAll('.tr-situation-btn').forEach(btn => {
     const meta = TSE_STATES.find(x => x.key === btn.dataset.state);
     const active = btn.dataset.state === state;
-    btn.style.borderColor = active ? meta.color : 'var(--border)';
-    btn.style.background = active ? meta.color + '22' : 'transparent';
-    btn.style.color = active ? meta.color : 'var(--text-muted)';
+    btn.classList.toggle('is-active', active);
+    btn.style.setProperty('--seg-color', meta.color);
   });
 }
 
@@ -585,7 +583,7 @@ async function _trSearchRiders(q) {
   if (term.length < 3) { results.style.display = 'none'; results.innerHTML = ''; return; }
   const safe = term.replace(/[%,()]/g, '');
   results.style.display = 'flex';
-  results.innerHTML = '<div class="u-c-dim u-fs-080 u-py-030 u-px-0">Buscando…</div>';
+  results.innerHTML = '<div class="u-c-dim u-fs-2 u-py-030 u-px-0">Buscando…</div>';
   try {
     const cols = 'id, firstName, lastName, nationality, birthDate, currentTeamId, contractUntil';
     const filter = `lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
@@ -599,7 +597,7 @@ async function _trSearchRiders(q) {
     ].sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
     if (rows.length === 0) {
       results.innerHTML = `
-        <div class="u-c-dim u-fs-080 u-py-030 u-px-0">Sin resultados para «${esc(term)}».</div>
+        <div class="u-c-dim u-fs-2 u-py-030 u-px-0">Sin resultados para «${esc(term)}».</div>
         ${_trCreateRiderBtnHtml(term)}`;
       _trWireCreateRiderBtn(term);
       return;
@@ -608,9 +606,9 @@ async function _trSearchRiders(q) {
       const team = r.currentTeamId ? (panelState._teamsCache || []).find(t => t.id === r.currentTeamId) : null;
       return `<div class="tr-rider-option" data-idx="${i}">
         <span class="u-w-150em u-center">${_slRiderFlagPreview(r.nationality)}</span>
-        <span class="u-grow u-min0 u-fs-082"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
-          <span class="u-c-dim u-fs-070">${r.gender === 'female' ? '♀' : '♂'}${r.birthDate ? ` '${esc(String(r.birthDate).slice(2, 4))}` : ''}</span>
-          ${team ? `<span class="u-block u-fs-066 u-c-dim">${esc(team.name)}</span>` : ''}
+        <span class="u-grow u-min0 u-fs-2"><strong>${esc(r.lastName)}</strong>, ${esc(r.firstName)}
+          <span class="u-c-dim u-fs-1">${r.gender === 'female' ? '♀' : '♂'}${r.birthDate ? ` '${esc(String(r.birthDate).slice(2, 4))}` : ''}</span>
+          ${team ? `<span class="u-block u-fs-1 u-c-dim">${esc(team.name)}</span>` : ''}
         </span>
       </div>`;
     // Con resultados también se ofrece crear: ninguno puede ser el corredor
@@ -622,7 +620,7 @@ async function _trSearchRiders(q) {
     _trWireCreateRiderBtn(term);
   } catch (err) {
     console.error('[_trSearchRiders]', err);
-    results.innerHTML = `<div class="u-c-red u-fs-080 u-py-030 u-px-0">Error: ${esc(err.message || String(err))}</div>`;
+    results.innerHTML = `<div class="u-c-red u-fs-2 u-py-030 u-px-0">Error: ${esc(err.message || String(err))}</div>`;
   }
 }
 

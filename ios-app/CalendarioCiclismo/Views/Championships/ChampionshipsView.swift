@@ -69,7 +69,7 @@ struct ChampionshipsView: View {
     @ViewBuilder private var content: some View {
         Group {
             if viewModel.isLoading && viewModel.countries.isEmpty {
-                LoadingView(message: LocaleService.t("Cargando campeonatos...", "Loading championships..."), branded: true)
+                LoadingView(branded: true, title: LocaleService.t("Campeonatos nacionales", "National championships"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.error, viewModel.countries.isEmpty {
                 ErrorView(message: error) {
@@ -83,8 +83,7 @@ struct ChampionshipsView: View {
                         // pantalla, lo lleva la barra de navegación.
                         if embedded {
                             Text(navTitle)
-                                .font(.title2)
-                                .fontWeight(.bold)
+                                .ccFont(.s20, weight: .bold)
                                 .padding(.horizontal)
                                 .padding(.top, 8)
                         }
@@ -136,23 +135,18 @@ struct ChampionshipsView: View {
             HStack(spacing: 8) {
                 ForEach(ChampionshipsConfig.visibleFilters) { filter in
                     let isActive = viewModel.activeFilter == filter
-                    Text(filter.label)
-                        .font(.caption)
-                        .fontWeight(isActive ? .semibold : .regular)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-                        .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-                        .clipShape(Capsule())
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard !isActive else { return }
-                            Haptics.play(.selection)
-                            viewModel.activeFilter = filter
-                        }
-                        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : [.isButton])
-                        .accessibilityLabel("\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
+                    Button {
+                        guard !isActive else { return }
+                        Haptics.play(.selection)
+                        viewModel.activeFilter = filter
+                    } label: {
+                        CalendarFilterChipLabel(label: filter.label, isActive: isActive)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isActive ? [.isSelected] : [])
+                    .accessibilityLabel("\(LocaleService.t("Filtro", "Filter")) \(filter.label)")
                 }
             }
             .padding(.horizontal)
@@ -177,25 +171,24 @@ private struct ChampionshipCountryCard: View {
         let rows = stride(from: 0, to: slots.count, by: columns).map {
             Array(slots[$0..<min($0 + columns, slots.count)])
         }
-        CCCard(showShadow: false) {
+        CCCard {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     CountryFlag(countryCode: country.countryCode)
                     Text(AccessibilityCountryNames.name(for: country.countryCode) ?? country.countryCode)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .ccFont(.s14, weight: .semibold)
                     if let sede = country.hostCity, !sede.isEmpty {
                         Text("· \(sede)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .ccFont(.s12)
+                            .foregroundStyle(AppTheme.textMuted)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
 
-                VStack(spacing: 6) {
+                Grid(horizontalSpacing: 6, verticalSpacing: 6) {
                     ForEach(rows.indices, id: \.self) { r in
-                        HStack(spacing: 6) {
+                        GridRow {
                             ForEach(rows[r], id: \.self) { slot in
                                 if let enriched = country.slots[slot] {
                                     ChampionshipEventCell(slot: slot, item: enriched, inhouseKeys: inhouseKeys)
@@ -204,7 +197,7 @@ private struct ChampionshipCountryCard: View {
                             // Relleno para mantener anchos uniformes en la última fila.
                             if rows[r].count < columns {
                                 ForEach(0..<(columns - rows[r].count), id: \.self) { _ in
-                                    Color.clear.frame(maxWidth: .infinity)
+                                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                                 }
                             }
                         }
@@ -238,7 +231,6 @@ private struct ChampionshipEventCell: View {
         guard let raceId = item.race?.id else { return false }
         return inhouseKeys.contains(SupabaseService.inhouseKey(raceId: raceId, stageNumber: rd.stageNumber))
     }
-    private var tint: Color { slot.isFemale ? Color.purple : Color.accentColor }
     /// Broadcasts visibles para la región del usuario. El badge de TV de la celda
     /// debe respetar la preferencia regional igual que las race cards / la web (que
     /// pre-filtra), o un usuario de España vería la TV del campeonato de Bélgica.
@@ -267,7 +259,7 @@ private struct ChampionshipEventCell: View {
                     cellDivider
                     resultsRow
                 }
-                .modifier(CellChrome(tint: tint))
+                .modifier(CellChrome())
             } else {
                 NavigationLink(value: ChampionshipStageRoute(raceDayId: rd.id)) {
                     VStack(spacing: 4) {
@@ -275,9 +267,9 @@ private struct ChampionshipEventCell: View {
                         cellDivider
                         statusRow
                     }
-                    .modifier(CellChrome(tint: tint))
+                    .modifier(CellChrome())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ChampionshipCellStyle())
             }
         }
         .accessibilityElement(children: .contain)
@@ -288,15 +280,14 @@ private struct ChampionshipEventCell: View {
     private var header: some View {
         VStack(spacing: 4) {
             Text(slot.shortLabel)
-                .font(.caption2)
-                .fontWeight(.semibold)
+                .ccFont(.s12, weight: .semibold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .foregroundStyle(.primary)
             cellDivider
             Text(dayShort)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .ccFont(.s12)
+                .foregroundStyle(AppTheme.textMuted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -304,9 +295,7 @@ private struct ChampionshipEventCell: View {
 
     /// Separador fino entre prueba/día y día/estado: línea corta y tenue centrada.
     private var cellDivider: some View {
-        Rectangle()
-            .fill(tint.opacity(0.20))
-            .frame(width: 26, height: 0.5)
+        Divider().frame(width: 26)
     }
 
     /// Trofeo de resultados propios: sustituye a hora/TV. Lleva a la pantalla
@@ -314,13 +303,14 @@ private struct ChampionshipEventCell: View {
     @ViewBuilder private var resultsRow: some View {
         if hasInhouse, let raceId = item.race?.id {
             NavigationLink(value: ChampionshipResultsRoute(raceId: raceId, stageNumber: rd.stageNumber)) {
+                // Enlace neutro: texto principal sobre el gris de las etiquetas.
                 Image(systemName: "trophy.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(tint)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(AppTheme.neutralFillPressed)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(LocaleService.t("Resultados", "Results"))
@@ -330,39 +320,42 @@ private struct ChampionshipEventCell: View {
     @ViewBuilder private var statusRow: some View {
         if concluded {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11))
+                .foregroundStyle(AppTheme.textMuted)
         } else if hasTvInfo {
             tvBadge
         } else if let finish = rd.estimatedFinishTimeUtc, let time = DateFormatting.formatTimeLocal(finish) {
             // Hora de meta con bandera a cuadros (paridad con la web).
             HStack(spacing: 2) {
                 Image(systemName: "flag.checkered")
-                    .font(.system(size: 8))
+                    .font(.system(size: 10))
                 Text(time)
-                    .font(.system(size: 9))
+                    .ccFont(.s12)
+                    .monospacedDigit()
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(AppTheme.textMuted)
         } else {
-            Color.clear.frame(height: 9)
+            Color.clear.frame(height: 12)
         }
     }
 
     /// Badge de TV: "Live" si la hora de TV ya pasó, la hora si es futura, o "TV".
     @ViewBuilder private var tvBadge: some View {
+        let state = RaceLogic.championshipTvState(broadcasts: regionBroadcasts)
         HStack(spacing: 2) {
             Image(systemName: "tv")
-                .font(.system(size: 8))
-            switch RaceLogic.championshipTvState(broadcasts: regionBroadcasts) {
+                .font(.system(size: 10))
+            switch state {
             case .live:
-                Text("Live").font(.system(size: 9, weight: .semibold))
+                Text("Live").ccFont(.s12, weight: .semibold)
             case .time(let t):
-                Text(t).font(.system(size: 9))
+                Text(t).ccFont(.s12).monospacedDigit()
             case .label:
-                Text("TV").font(.system(size: 9))
+                Text("TV").ccFont(.s12)
             }
         }
-        .foregroundStyle(tint)
+        // Verde solo en directo; el resto, texto principal neutro.
+        .foregroundStyle(state == .live ? AppTheme.green : AppTheme.textPrimary)
     }
 
     /// Día corto "EEE d" (sin mes — la semana es conocida).
@@ -376,20 +369,31 @@ private struct ChampionshipEventCell: View {
     }
 }
 
-/// Fondo, borde y padding compartidos por la celda de prueba (con o sin botones).
+/// Fondo y padding compartidos por la celda de prueba (con o sin botones):
+/// superficie gris neutra, sin tinte ni borde.
 private struct CellChrome: ViewModifier {
-    let tint: Color
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
-            .background(tint.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(tint.opacity(0.18), lineWidth: 0.5)
-            )
+            .background(AppTheme.neutralFill)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             .contentShape(Rectangle())
+    }
+}
+
+/// Pulsación neutra de la celda: gris más intenso.
+private struct ChampionshipCellStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(AppTheme.textPrimary)
+            .overlay {
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.control)
+                        .fill(AppTheme.neutralFill)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }

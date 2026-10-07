@@ -73,7 +73,7 @@ enum Constants {
             "ports": "Climbs", "pave": "Pavé", "sterrato": "Sterrato",
             "ribinou": "Ribinou", "map": "Map", "live_text": "Live text",
         ] : [
-            "technicalGuide": "Libro de Ruta", "startOrder": "Orden Salida", "roadbook": "Rutómetro", "profile": "Perfil",
+            "technicalGuide": "Libro de ruta", "startOrder": "Orden de salida", "roadbook": "Rutómetro", "profile": "Perfil",
             "ports": "Puertos", "pave": "Pavé", "sterrato": "Sterrato",
             "ribinou": "Ribinou", "map": "Mapa", "live_text": "Live texto",
         ]

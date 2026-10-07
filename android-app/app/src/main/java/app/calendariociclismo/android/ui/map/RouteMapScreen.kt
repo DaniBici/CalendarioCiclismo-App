@@ -1,5 +1,6 @@
 package app.calendariociclismo.android.ui.map
 
+import app.calendariociclismo.android.ui.components.RouteLoadingView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -16,7 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import app.calendariociclismo.android.ui.theme.CCRadius
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -162,9 +165,10 @@ fun RouteMapScreen(rdId: String, navController: NavHostController) {
     }
 
     when (state) {
-        LoadState.LOADING -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
+        LoadState.LOADING -> RouteLoadingView(
+            message = stringResource(R.string.loading),
+            title = stringResource(R.string.map_loading_title),
+        )
         LoadState.ERROR -> RouteMapError(onRetry = { reloadToken++ })
         LoadState.READY -> {
             val rd = raceDay!!
@@ -523,7 +527,11 @@ private fun RouteMapError(onRetry: () -> Unit) {
                 text = stringResource(R.string.map_load_error),
                 style = MaterialTheme.typography.titleMedium,
             )
-            Button(onClick = onRetry) { Text(stringResource(R.string.map_retry)) }
+            OutlinedButton(
+                onClick = onRetry,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(CCRadius.Control),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+            ) { Text(stringResource(R.string.map_retry)) }
         }
     }
 }

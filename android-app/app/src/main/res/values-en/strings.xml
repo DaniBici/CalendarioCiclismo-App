@@ -73,7 +73,6 @@
 
     <!-- Month screen -->
     <string name="month_title">Calendar</string>
-    <string name="calendar_loading">Loading calendar…</string>
     <string name="month_button_today">Today</string>
     <string name="month_no_races">No races</string>
 
@@ -485,7 +484,6 @@
     <string name="results_feed_heading">Results</string>
     <string name="results_feed_latest">Latest Results</string>
     <string name="uci_ranking_tab">UCI Ranking</string>
-    <string name="uci_ranking_loading">Loading UCI ranking…</string>
     <string name="uci_ranking_error">The UCI ranking could not be loaded.</string>
     <string name="uci_ranking_empty">The UCI has not published this ranking yet.</string>
     <string name="uci_ranking_men">Men</string>
@@ -516,9 +514,8 @@
 
     <!-- Transfers (2027 market, apps 4.0) -->
     <string name="transfers_heading">%1$d Transfer Market</string>
-    <string name="transfers_feed_title">Latest confirmations</string>
     <string name="transfers_feed_signings">Signings</string>
-    <string name="transfers_mid_season">MID-SEASON</string>
+    <string name="transfers_mid_season">Mid-season</string>
     <string name="transfers_feed_renewals">Renewals</string>
     <string name="transfers_feed_empty">No confirmed moves yet.</string>
     <string name="transfers_teams_title">%1$d Teams</string>
@@ -544,9 +541,6 @@
     <string name="transfers_departures_empty">No departures announced yet.</string>
     <string name="transfers_unknown_team">To be confirmed</string>
     <string name="transfers_error">Could not load the transfer market.</string>
-    <string name="transfers_info_label">Transfer information</string>
-    <string name="transfers_info_title">Transfer market</string>
-    <string name="transfers_info_text">Transfer market information — signings, departures and renewals — is cross-checked against the teams’ official announcements and the work of specialist journalists who track and break the moves season after season. We especially thank:</string>
     <string name="tab_cyclocross">Cyclocross</string>
     <string name="cx_me">Men Elite</string>
     <string name="cx_we">Women Elite</string>
@@ -640,4 +634,8 @@
     <string name="widget_preview_type">Medium mountain</string>
     <string name="widget_preview_race_1">La Vuelta</string>
     <string name="widget_preview_more">+4 more ›</string>
+
+    <!-- Rediseño: fichajes, carga, navegación y ficha de carrera -->
+    <string name="map_loading_title">Map</string>
+    <string name="race_loading_title">Race</string>
 </resources>

@@ -27,6 +27,22 @@ enum RaceLogic {
         return .scheduled
     }
 
+    /// Avance (0…1) del miniperfil de la tarjeta de Hoy. Espejo de
+    /// `profileProgress` (js/services/race-presentation.js): con resultados o
+    /// estado terminado, completo; crono en curso sin avance único (salidas
+    /// escalonadas); el resto, tiempo transcurrido entre salida real (o
+    /// neutralizada) y meta prevista.
+    static func profileProgress(rd: RaceDay, hasInhouseResults: Bool, now: Date = Date()) -> Double {
+        if rd.isCancelledDay || rd.isRestDay { return 0 }
+        if hasInhouseResults || rd.raceStatus == "finished" { return 1 }
+        if rd.primaryType == "itt" || rd.primaryType == "ttt" { return 0 }
+        let startRaw = rd.realStartTimeUtc.flatMap { $0.isEmpty ? nil : $0 } ?? rd.neutralStartTimeUtc
+        guard let start = startRaw.flatMap(DateFormatting.parseISO),
+              let finish = rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
+              finish > start else { return 0 }
+        return min(1, max(0, now.timeIntervalSince(start) / finish.timeIntervalSince(start)))
+    }
+
     /// Carreras referenciadas por las jornadas que no estaban incluidas en la
     /// consulta por solapamiento de fechas del mes.
     static func missingRaceIds(raceDays: [RaceDay], races: [Race]) -> [String] {
@@ -306,6 +322,24 @@ enum RaceLogic {
         if Constants.categoryTiers["PRO"]?.contains(uci) == true { return "pro" }
         if Constants.categoryTiers["MINOR"]?.contains(uci) == true { return "2" }
         return uci.isEmpty ? nil : "1"
+    }
+
+    /// Nombre legible de la categoría UCI para cabeceras: las siglas sin
+    /// contexto (CC, WC, NC) se escriben completas y las clases numéricas se
+    /// leen con el prefijo UCI («UCI 2.2»). Espejo de `uciCategoryName`
+    /// (`js/shared.js`).
+    static func uciCategoryName(_ uci: String?, english: Bool = LocaleService.shouldShowEnglishContent) -> String {
+        guard let uci, !uci.isEmpty else { return "" }
+        let names: [String: String] = english
+            ? ["CC": "Continental Championships", "WC": "World Championships", "NC": "National Championships",
+               "UWT": "UCI WorldTour", "WWT": "UCI Women\u{2019}s WorldTour", "Pro": "UCI ProSeries"]
+            : ["CC": "Campeonato continental", "WC": "Campeonato del mundo", "NC": "Campeonato nacional",
+               "UWT": "UCI WorldTour", "WWT": "UCI Women\u{2019}s WorldTour", "Pro": "UCI ProSeries"]
+        if let name = names[uci] { return name }
+        let parts = uci.split(separator: ".", omittingEmptySubsequences: false)
+        if parts.count > 1, let name = names[String(parts[1])] { return name }
+        if let first = uci.first, first.isNumber, parts.count > 1 { return "UCI \(uci)" }
+        return uci
     }
 
     // MARK: - Ordenación

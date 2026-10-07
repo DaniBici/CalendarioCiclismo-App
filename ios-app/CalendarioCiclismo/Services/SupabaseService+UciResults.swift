@@ -816,7 +816,12 @@ extension SupabaseService {
                        !canonName.isEmpty {
                         teamWinner = canonName
                     }
-                    if !teamWinner.isEmpty { entries[i].winner = teamWinner }
+                    if !teamWinner.isEmpty {
+                        entries[i].winner = ResultsFeedLogic.localizedNationName(
+                            teamWinner,
+                            isEnglish: LocaleService.shouldShowEnglishContent
+                        )
+                    }
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch { /* se queda el ganador que hubiera */ }

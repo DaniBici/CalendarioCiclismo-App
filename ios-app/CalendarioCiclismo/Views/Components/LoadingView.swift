@@ -1,52 +1,165 @@
 import SwiftUI
 
-/// Vista de estado de carga.
+/// Tiempos de la pantalla de carga, espejo de `js/page-loading.js`: la
+/// animación solo aparece en cargas lentas y, una vez visible, se mantiene un
+/// mínimo para no parpadear.
+enum LoadingTiming {
+    /// Espera antes de mostrar el rótulo y el perfil (`REVEAL_MS`).
+    static let reveal: TimeInterval = 0.4
+    /// Permanencia mínima una vez visible (`MIN_SHOW_MS`).
+    static let minShow: TimeInterval = 0.3
+
+    /// Tiempo que la pantalla de carga sigue visible cuando el contenido ya
+    /// está listo, según lo transcurrido desde que empezó la espera. Una carga
+    /// rápida (sin animación visible) no espera nada.
+    static func remainingHold(elapsed: TimeInterval) -> TimeInterval {
+        guard elapsed >= reveal else { return 0 }
+        return max(0, reveal + minShow - elapsed)
+    }
+}
+
+/// Vista de estado de carga. La barra superior y la de pestañas quedan
+/// visibles: la vista ocupa solo el contenido de la pantalla. El rótulo y la
+/// animación aparecen tras `LoadingTiming.reveal`; antes solo se ve el fondo.
+///
+/// `title` nombra lo que se carga (la pantalla, la carrera o la jornada; en
+/// Hoy, «Carreras de hoy»), sin repetir la marca de la cabecera. Sin título,
+/// se muestra `message` como única línea.
 struct LoadingView: View {
     var message: String = "Cargando..."
     var branded: Bool = false
-    /// `false` retira el perfil inferior (ciclocross) y mantiene la identidad
-    /// y la señal de carga.
+    /// `false` retira el perfil inferior (ciclocross) y mantiene el rótulo y
+    /// la señal de carga.
     var showProfile: Bool = true
+    /// Qué se está cargando. Con título, `message` se sustituye por «Cargando…».
+    var title: String? = nil
+
+    @State private var revealed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var loadingLine: String {
+        title == nil ? message : LocaleService.t("Cargando…", "Loading…")
+    }
 
     var body: some View {
         Group {
             if branded {
-                // En los cargadores de pantalla completa el perfil replica el
-                // comportamiento de la web: ocupa todo el ancho y descansa en
-                // el borde inferior, en lugar de quedar centrado con el texto.
+                // El perfil ocupa todo el ancho y descansa en el borde inferior,
+                // como en la web; el rótulo se centra en el espacio restante.
                 VStack(spacing: 0) {
-                    // Bloques independientes: la identidad se centra en el
-                    // espacio disponible y el perfil ocupa su propia franja
-                    // inferior, sin poder pasar por detrás de ella.
-                    VStack(spacing: 0) {
-                        BrandedLogoView()
-                            .padding(.bottom, 12)
-                        Text(message)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        PulsingDotsView()
-                            .padding(.top, 10)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    labels
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if showProfile {
                         AnimatedRouteProfile()
                             .frame(maxWidth: .infinity)
                             .frame(height: 150)
+                    } else {
+                        Spacer().frame(height: 0)
                     }
                 }
             } else {
                 VStack(spacing: 12) {
                     ProgressView()
                         .controlSize(.regular)
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    labels
                 }
             }
         }
+        .opacity(revealed ? 1 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(message)
+        .accessibilityLabel(title.map { "\($0). \(loadingLine)" } ?? loadingLine)
+        .task {
+            try? await Task.sleep(for: .seconds(LoadingTiming.reveal))
+            guard !Task.isCancelled else { return }
+            if reduceMotion {
+                revealed = true
+            } else {
+                withAnimation(.easeOut(duration: 0.25)) { revealed = true }
+            }
+        }
+    }
+
+    private var labels: some View {
+        VStack(spacing: 8) {
+            if let title {
+                Text(title)
+                    .ccFont(.s20, weight: .semibold)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+            }
+            Text(loadingLine)
+                .ccFont(.s14)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if branded && !showProfile {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+}
+
+/// Contenedor de una pantalla con carga inicial: mientras `isLoading`, muestra
+/// `LoadingView` (rótulo y perfil solo si la carga supera 400 ms) y, si la
+/// animación llegó a verse, la mantiene al menos 300 ms antes de pintar el
+/// contenido. La navegación de la pantalla no se toca.
+struct LoadingGate<Content: View>: View {
+    let isLoading: Bool
+    var title: String? = nil
+    var message: String = LocaleService.t("Cargando…", "Loading…")
+    var branded: Bool = true
+    var showProfile: Bool = true
+    @ViewBuilder var content: () -> Content
+
+    @State private var showsLoading: Bool
+    @State private var startedAt: Date?
+
+    init(
+        isLoading: Bool,
+        title: String? = nil,
+        message: String = LocaleService.t("Cargando…", "Loading…"),
+        branded: Bool = true,
+        showProfile: Bool = true,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.isLoading = isLoading
+        self.title = title
+        self.message = message
+        self.branded = branded
+        self.showProfile = showProfile
+        self.content = content
+        _showsLoading = State(initialValue: isLoading)
+        _startedAt = State(initialValue: isLoading ? Date() : nil)
+    }
+
+    var body: some View {
+        Group {
+            if showsLoading || isLoading {
+                LoadingView(message: message, branded: branded, showProfile: showProfile, title: title)
+            } else {
+                content()
+            }
+        }
+        .task(id: isLoading) {
+            if isLoading {
+                if !showsLoading || startedAt == nil {
+                    startedAt = Date()
+                    showsLoading = true
+                }
+                return
+            }
+            let elapsed = startedAt.map { Date().timeIntervalSince($0) } ?? 0
+            let hold = LoadingTiming.remainingHold(elapsed: elapsed)
+            if hold > 0 {
+                try? await Task.sleep(for: .seconds(hold))
+                guard !Task.isCancelled else { return }
+            }
+            startedAt = nil
+            showsLoading = false
+        }
     }
 }
 
@@ -246,15 +359,6 @@ struct AnimatedRouteProfile: View {
     }
 }
 
-/// Marca oficial compartida con las cabeceras de la aplicación.
-struct BrandedLogoView: View {
-    @ScaledMetric(relativeTo: .title) private var logoWidth: CGFloat = 74
-
-    var body: some View {
-        CCHeaderMarkView(width: logoWidth)
-    }
-}
-
 /// Tres puntos pulsantes animados.
 struct PulsingDotsView: View {
     var color: Color = .accentColor
@@ -291,12 +395,11 @@ struct PulsingDotsView: View {
     }
 }
 
-/// Vista de estado vacío.
+/// Vista de estado vacío: `ContentUnavailableView` nativo.
 struct EmptyStateView: View {
     let icon: String
     let title: String
     let subtitle: String?
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
 
     init(icon: String = "calendar", title: String, subtitle: String? = nil) {
         self.icon = icon
@@ -305,53 +408,33 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: iconSize))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+        ContentUnavailableView {
+            Label(title, systemImage: icon)
+        } description: {
             if let subtitle {
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-        .accessibilityElement(children: .combine)
     }
 }
 
-/// Vista de error con opción de reintentar.
+/// Vista de error con opción de reintentar: `ContentUnavailableView` nativo
+/// con un botón neutro.
 struct ErrorView: View {
     let message: String
     let retry: (() -> Void)?
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: iconSize))
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
-            Text("Error")
-                .font(.headline)
+        ContentUnavailableView {
+            Label(LocaleService.t("Error", "Error"), systemImage: "exclamationmark.triangle")
+        } description: {
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        } actions: {
             if let retry {
-                Button("Reintentar") { retry() }
+                Button(LocaleService.t("Reintentar", "Retry")) { retry() }
                     .buttonStyle(.bordered)
-                    .padding(.top, 4)
+                    .tint(.primary)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-        .accessibilityElement(children: .combine)
     }
 }

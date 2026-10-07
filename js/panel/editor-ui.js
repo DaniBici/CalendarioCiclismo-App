@@ -1,3 +1,4 @@
+const count=value=>Number(value||0).toLocaleString('es-ES',{useGrouping:'always'});
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export const panelSectionHtml=(title,body,attributes='')=>`<section class="editor-section" ${attributes}><div class="editor-section__header"><span class="editor-section__title">${esc(title)}</span></div><div class="editor-section__body">${body}</div></section>`;
@@ -21,14 +22,14 @@ export function panelTeamRowHtml(team,{meta=[]}={}) {
 export function panelTeamCatalogHtml({sections,selectedCategory=null,search='',total,rowHtml,filteredRows=null,emptyMessage='Sin resultados.'}) {
   const all=filteredRows||sections.flatMap(s=>s.items),section=sections.find(s=>s.key===selectedCategory);
   const selected=section?.key||null;
-  if(!all.length)return {selectedCategory:selected,html:`<div class="u-fs-085 u-c-dim">${esc(emptyMessage)}</div>`};
-  if(!search&&!section)return {selectedCategory:null,html:`<div class="cat-grid">${sections.map(s=>`<button type="button" class="cat-grid__btn" data-team-category="${esc(s.key)}"><span class="cat-grid__label">${esc(s.label)}</span><span class="cat-grid__count">${s.items.length}</span></button>`).join('')}</div>`};
+  if(!all.length)return {selectedCategory:selected,html:`<div class="u-fs-3 u-c-dim">${esc(emptyMessage)}</div>`};
+  if(!search&&!section)return {selectedCategory:null,html:`<div class="cat-grid">${sections.map(s=>`<button type="button" class="cat-grid__btn" data-team-category="${esc(s.key)}"><span class="cat-grid__label">${esc(s.label)}</span><span class="cat-grid__count">${count(s.items.length)}</span></button>`).join('')}</div>`};
   const rows=[...(search?all:section.items)].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  const header=search?`<div class="panel-catalog-count">${all.length} de ${esc(total)} equipos</div>`:`<div class="cat-back"><button type="button" class="cat-back__btn">← Categorías</button><div class="cat-back__title">${esc(section.label)} <span class="u-o60">(${section.items.length})</span></div></div>`;
-  return {selectedCategory:selected,html:`${header}<div class="u-stack u-stack--xs">${rows.map(rowHtml).join('')}</div>`};
+  const header=search?`<div class="panel-catalog-count">${count(all.length)} de ${count(total)} equipos</div>`:`<div class="cat-back"><button type="button" class="cat-back__btn">← Categorías</button><div class="cat-back__title">${esc(section.label)} <span class="u-c-muted u-fw-400">(${count(section.items.length)})</span></div></div>`;
+  return {selectedCategory:selected,html:`${header}<div class="panel-list">${rows.map(rowHtml).join('')}</div>`};
 }
 
 export function panelRiderRowHtml(rider,{index,flagHtml='',teamName=''}={}) {
   const female=['female','women'].includes(rider.gender);
-  return `<button type="button" class="panel-rider-row" data-rider-index="${esc(index)}"><span class="panel-rider-row__flag">${flagHtml}</span><span class="panel-rider-row__name"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)} <span class="u-c-dim u-fs-070">${female?'♀':'♂'}${rider.birthDate?` '${esc(String(rider.birthDate).slice(2,4))}`:''}</span>${teamName?`<span class="panel-rider-row__team">${esc(teamName)}</span>`:''}</span></button>`;
+  return `<button type="button" class="panel-rider-row" data-rider-index="${esc(index)}"><span class="panel-rider-row__flag">${flagHtml}</span><span class="panel-rider-row__name"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)} <span class="u-c-dim u-fs-1">${female?'♀':'♂'}${rider.birthDate?` '${esc(String(rider.birthDate).slice(2,4))}`:''}</span>${teamName?`<span class="panel-rider-row__team">${esc(teamName)}</span>`:''}</span></button>`;
 }

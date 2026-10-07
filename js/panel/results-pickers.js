@@ -33,13 +33,13 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
   const pop = document.createElement('div');
   pop.className = 'panel-popover ru-pick-popover';
   pop.innerHTML = `
-    ${currentId ? `<div class="u-fs-070 u-c-dim u-mb-035">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>` : ''}
-    ${restrictToStartlist ? '<div class="u-fs-070 u-c-dim u-mb-035">Solo inscritas e inscritos de esta carrera.</div>' : ''}
+    ${currentId ? `<div class="u-fs-1 u-c-dim u-mb-035">Match actual: <code class="u-c-text">${esc(currentId)}</code></div>` : ''}
+    ${restrictToStartlist ? '<div class="u-fs-1 u-c-dim u-mb-035">Solo inscritas e inscritos de esta carrera.</div>' : ''}
     <input type="search" class="ru-pick-input" placeholder="${restrictToStartlist ? 'Dorsal o nombre…' : 'Apellido, nombre u otherNames…'}">
     <div class="ru-pick-results"></div>
     <div class="panel-popover-footer">
-      ${currentId ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-072 u-c-dim">Desligar</button>' : '<span></span>'}
-      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-072">Cerrar</button>
+      ${currentId ? '<button data-action="unlink" type="button" class="btn btn--ghost u-btn-sm u-fs-1 u-c-dim">Desligar</button>' : '<span></span>'}
+      <button data-action="close" type="button" class="btn btn--ghost u-btn-sm u-fs-1">Cerrar</button>
     </div>`;
   document.body.appendChild(pop);
   _ruMatchPickerEl = pop;
@@ -54,7 +54,7 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
       try {
         const data = filterStartlistRiderCandidates(startlistRiders, q);
         if (!data.length) {
-          results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin inscritos coincidentes.</div>';
+          results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin inscritos coincidentes.</div>';
           return;
         }
         results.innerHTML = data.map((rider, index) => {
@@ -64,7 +64,7 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
             <div data-startlist-index="${index}" role="button" tabindex="0" class="ru-pick-row${isCurrent ? ' ru-pick-row--current' : ''}">
               <strong class="u-minw-220 u-right">#${esc(resultRiderDorsalText(rider.dorsal))}</strong>
               ${_slRiderFlagPreview(rider.countryCode)}
-              <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)}${rider.teamDisplay ? ` <span class="u-c-dim u-fs-070">· ${esc(rider.teamDisplay)}</span>` : ''}</span>
+              <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rider.lastName)}</strong>, ${esc(rider.firstName)}${rider.teamDisplay ? ` <span class="u-c-dim u-fs-1">· ${esc(rider.teamDisplay)}</span>` : ''}</span>
             </div>`;
         }).join('');
         results.querySelectorAll('[data-startlist-index]').forEach((el) => {
@@ -83,25 +83,25 @@ export function _ruOpenRiderMatchPicker(tr, gender, onChange, startlistRiders = 
         });
       } catch (error) {
         console.error('[resultados] Error mostrando candidatos de la startlist', error);
-        results.innerHTML = '<div class="u-c-red u-fs-072 u-p-030">No se han podido mostrar los inscritos.</div>';
+        results.innerHTML = '<div class="u-c-red u-fs-1 u-p-030">No se han podido mostrar los inscritos.</div>';
       }
       return;
     }
-    if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Escribe al menos 2 letras.</div>'; return; }
-    results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Buscando…</div>';
+    if (q.length < 2) { results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Escribe al menos 2 letras.</div>'; return; }
+    results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Buscando…</div>';
     const safe = riderSearchLookupToken(q).replace(/[%,()]/g, '');
     const { data, error } = await supabase.from(ridersTable)
       .select('id,firstName,lastName,otherNames,nationality,verified,identityKey')
       .or(`identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`)
       .order('lastName').limit(25);
     if (myId !== reqId) return;
-    if (error) { results.innerHTML = `<div class="u-c-red u-fs-072 u-p-030">Error: ${esc(error.message)}</div>`; return; }
+    if (error) { results.innerHTML = `<div class="u-c-red u-fs-1 u-p-030">Error: ${esc(error.message)}</div>`; return; }
     const matchingData = (data || []).filter((rider) => riderMatchesSearch(rider, q));
-    if (!matchingData.length) { results.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin resultados.</div>'; return; }
+    if (!matchingData.length) { results.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin resultados.</div>'; return; }
     results.innerHTML = matchingData.map(rd2 => `
       <div data-pick="${esc(rd2.id)}" role="button" tabindex="0" class="ru-pick-row${rd2.id === currentId ? ' ru-pick-row--current' : ''}">
         ${_slRiderFlagPreview(rd2.nationality)}
-        <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd2.lastName)}</strong>, ${esc(rd2.firstName)}${rd2.otherNames ? ` <span class="u-c-dim u-fs-070">(${esc(rd2.otherNames)})</span>` : ''}</span>
+        <span class="u-grow u-min0 u-clip u-ellipsis"><strong>${esc(rd2.lastName)}</strong>, ${esc(rd2.firstName)}${rd2.otherNames ? ` <span class="u-c-dim u-fs-1">(${esc(rd2.otherNames)})</span>` : ''}</span>
         ${rd2.verified === false ? '<span title="Sin verificar" class="sl-verify-mark u-c-warn">?</span>' : ''}
       </div>`).join('');
     results.querySelectorAll('[data-pick]').forEach(el => {
@@ -201,7 +201,7 @@ export function _openTeamCombo(opts) {
 
   const render = () => {
     if (filtered.length === 0) {
-      listEl.innerHTML = '<div class="u-c-dim u-fs-072 u-p-030">Sin equipos que coincidan.</div>';
+      listEl.innerHTML = '<div class="u-c-dim u-fs-1 u-p-030">Sin equipos que coincidan.</div>';
       return;
     }
     listEl.innerHTML = filtered.map((t, i) => rowHtml(t, i, i === active)).join('');

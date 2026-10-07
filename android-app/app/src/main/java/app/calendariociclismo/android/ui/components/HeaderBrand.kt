@@ -57,8 +57,8 @@ fun CCHeaderBrand(
             color = MaterialTheme.colorScheme.onSurface,
             fontFamily = GoogleSansMedium,
             fontWeight = FontWeight.Medium,
-            fontSize = 18.sp,
-            lineHeight = 22.sp,
+            fontSize = 20.sp,
+            lineHeight = 26.sp,
             maxLines = 1,
             overflow = TextOverflow.Clip,
         )

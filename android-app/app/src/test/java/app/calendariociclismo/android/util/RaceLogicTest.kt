@@ -7,7 +7,6 @@ import app.calendariociclismo.android.data.model.EnrichedRaceDay
 import app.calendariociclismo.android.data.model.Race
 import app.calendariociclismo.android.data.model.RaceDay
 import app.calendariociclismo.android.ui.today.TodayViewModel
-import app.calendariociclismo.android.ui.today.shouldDisplayTodayRaceAsFeatured
 import app.calendariociclismo.android.ui.today.sortTodayAgenda
 import org.junit.Assert.*
 import org.junit.Test
@@ -20,11 +19,13 @@ import java.time.Instant
 class RaceLogicTest {
 
     @Test
-    fun todayFeaturedCardsAreLimitedToCategorySortAndReturnWhenRestored() {
-        assertTrue(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.CATEGORY))
-        assertFalse(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.TV_TIME))
-        assertFalse(shouldDisplayTodayRaceAsFeatured(true, TodayViewModel.SortMode.FINISH_TIME))
-        assertFalse(shouldDisplayTodayRaceAsFeatured(false, TodayViewModel.SortMode.CATEGORY))
+    fun uciCategoryNameExpandsAcronymsAndNumericClasses() {
+        assertEquals("Campeonato continental", RaceLogic.uciCategoryName("CC", english = false))
+        assertEquals("UCI WorldTour", RaceLogic.uciCategoryName("1.UWT", english = false))
+        assertEquals("UCI ProSeries", RaceLogic.uciCategoryName("2.Pro", english = true))
+        assertEquals("UCI 2.2", RaceLogic.uciCategoryName("2.2", english = false))
+        assertEquals("NE", RaceLogic.uciCategoryName("NE", english = false))
+        assertEquals("", RaceLogic.uciCategoryName(null, english = false))
     }
 
     @Test
@@ -339,6 +340,37 @@ class RaceLogicTest {
                 Instant.parse("2026-01-01T15:00:01Z"),
             ),
         )
+    }
+
+    // ── profileProgress (espejo de js/services/race-presentation.js) ──
+
+    @Test
+    fun `avance del perfil limitado al recorrido y nulo en crono en curso`() {
+        val start = "2026-09-04T10:00:00Z"
+        val finish = "2026-09-04T14:00:00Z"
+        val day = raceDay(estimatedFinishTimeUtc = finish).copy(neutralStartTimeUtc = start)
+        assertEquals(0.5f, RaceLogic.profileProgress(day, false, Instant.parse("2026-09-04T12:00:00Z")), 1e-6f)
+        assertEquals(0f, RaceLogic.profileProgress(day, false, Instant.parse("2026-09-04T09:00:00Z")), 0f)
+        assertEquals(1f, RaceLogic.profileProgress(day, false, Instant.parse("2026-09-04T15:00:00Z")), 0f)
+        for (type in listOf("itt", "ttt")) {
+            val chrono = day.copy(primaryType = type)
+            assertEquals(0f, RaceLogic.profileProgress(chrono, false, Instant.parse("2026-09-04T12:00:00Z")), 0f)
+            assertEquals(1f, RaceLogic.profileProgress(chrono, true, Instant.parse("2026-09-04T12:00:00Z")), 0f)
+            assertEquals(1f, RaceLogic.profileProgress(chrono.copy(raceStatus = "finished"), false, Instant.parse("2026-09-04T12:00:00Z")), 0f)
+        }
+    }
+
+    @Test
+    fun `avance del perfil prioriza la salida real e ignora cancelacion y descanso`() {
+        val real = raceDay(estimatedFinishTimeUtc = "2026-09-04T14:00:00Z").copy(
+            neutralStartTimeUtc = "2026-09-04T10:00:00Z",
+            realStartTimeUtc = "2026-09-04T11:00:00Z",
+        )
+        assertEquals(0f, RaceLogic.profileProgress(real, false, Instant.parse("2026-09-04T10:30:00Z")), 0f)
+        assertEquals(0.5f, RaceLogic.profileProgress(real, false, Instant.parse("2026-09-04T12:30:00Z")), 1e-6f)
+        assertEquals(0f, RaceLogic.profileProgress(raceDay(isCancelledDay = true, raceStatus = "finished"), true), 0f)
+        assertEquals(0f, RaceLogic.profileProgress(raceDay(isRestDay = true, raceStatus = "finished"), true), 0f)
+        assertEquals(0f, RaceLogic.profileProgress(raceDay(), false), 0f)
     }
 
     // ── Helpers ────────────────────────────────────────────────────

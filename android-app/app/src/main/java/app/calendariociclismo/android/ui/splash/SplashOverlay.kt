@@ -32,7 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.ui.components.AnimatedRouteProfile
 import kotlinx.coroutines.delay
@@ -142,14 +142,14 @@ fun SplashOverlay(
         ) {
             Text(
                 text = stringResource(R.string.splash_app_name),
-                fontSize = 22.sp,
+                style = CCText.S20,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(R.string.splash_tagline),
-                fontSize = 16.sp,
+                style = CCText.S16,
                 color = Color.White.copy(alpha = 0.8f),
             )
         }

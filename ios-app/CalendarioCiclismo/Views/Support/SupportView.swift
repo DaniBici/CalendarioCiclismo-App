@@ -87,18 +87,19 @@ struct SupportView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.surface, style: .continuous))
                 .accessibilityHidden(true)
             Text(LocaleService.t(
                 "Hazte Amigo de Calendario Ciclismo",
                 "Become a Friend of Calendario Ciclismo"
             ))
-            .font(.title2.bold())
+            .ccFont(.s20, weight: .bold)
             .multilineTextAlignment(.center)
             Text(LocaleService.t(
                 "Ayuda voluntariamente a cubrir servidores, herramientas y mantenimiento.",
                 "Voluntarily help cover servers, tools and maintenance."
             ))
+            .ccFont(.s14)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
         }
@@ -115,7 +116,7 @@ struct SupportView: View {
                 systemImage: "checkmark.seal.fill"
             )
         }
-        .font(.subheadline)
+        .ccFont(.s14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .ccCardSurface()
@@ -126,12 +127,12 @@ struct SupportView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(LocaleService.t("Código y cuentas públicas", "Public code and accounts"))
-                        .font(.subheadline.bold())
+                        .ccFont(.s14, weight: .bold)
                     Text(LocaleService.t(
                         "Consulta cómo se hace y se sostiene el proyecto.",
                         "See how the project is built and sustained."
                     ))
-                    .font(.caption)
+                    .ccFont(.s12)
                     .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -149,12 +150,12 @@ struct SupportView: View {
                 .font(.title)
                 .foregroundStyle(.orange)
             Text(LocaleService.t("Eres Fundador", "You are a Founder"))
-                .font(.headline)
+                .ccFont(.s16, weight: .semibold)
             Text(LocaleService.t(
                 "Tu Premium sigue activo hasta su vencimiento y no volverá a renovarse. Cuando termine podrás hacerte Amigo. Mientras tanto, si quieres seguir apoyando el proyecto, puedes hacer una aportación puntual.",
                 "Your Premium remains active until it expires and will not renew again. Once it ends, you can become a Friend. In the meantime, if you want to keep supporting the project, you can make a one-time contribution."
             ))
-            .font(.subheadline)
+            .ccFont(.s14)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
         }
@@ -180,18 +181,19 @@ struct SupportView: View {
             HStack {
                 Image(systemName: selectedPlan == plan ? "largecircle.fill.circle" : "circle")
                 Text(product(for: plan)?.displayPrice ?? fallback)
-                    .font(.headline)
+                    .ccFont(.s16, weight: .semibold)
                 Text(period)
+                    .ccFont(.s14)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if plan == .yearly {
-                    Text(LocaleService.t("MEJOR OPCIÓN", "BEST VALUE"))
-                        .font(.caption2.bold())
+                    Text(LocaleService.t("Mejor opción", "Best value"))
+                        .ccFont(.s12, weight: .semibold)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .background(AppTheme.neutralFill)
+                        .foregroundStyle(.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
                 }
             }
             .padding(16)
@@ -207,7 +209,7 @@ struct SupportView: View {
             HStack {
                 if premium.isPurchasing { ProgressView().tint(.white) }
                 Text(LocaleService.t("Hacerme amigo", "Become a Friend"))
-                    .fontWeight(.semibold)
+                    .ccFont(.s16, weight: .semibold)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
@@ -219,12 +221,12 @@ struct SupportView: View {
     private var contributionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(LocaleService.t("Aportación puntual", "One-time contribution"))
-                .font(.headline)
+                .ccFont(.s16, weight: .semibold)
             Text(LocaleService.t(
                 "Sin suscripción y sin ventajas funcionales.",
                 "No subscription and no functional advantages."
             ))
-            .font(.caption)
+            .ccFont(.s12)
             .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
@@ -241,6 +243,7 @@ struct SupportView: View {
             premium.contribute(productID: id)
         }
         .buttonStyle(.bordered)
+        .tint(.primary)
         .frame(maxWidth: .infinity)
         .disabled(premium.isPurchasing)
     }
@@ -257,7 +260,7 @@ struct SupportView: View {
                 }
             }
         }
-        .font(.subheadline)
+        .ccFont(.s14)
     }
 
     private var legalText: some View {
@@ -270,7 +273,7 @@ struct SupportView: View {
                 "La membresía se renueva automáticamente al precio indicado hasta que la canceles desde tu cuenta de Apple. Todas las funciones permanecen gratuitas.",
                 "The membership renews automatically at the displayed price until you cancel it from your Apple account. All features remain free."
              ))
-        .font(.caption2)
+        .ccFont(.s12)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
     }

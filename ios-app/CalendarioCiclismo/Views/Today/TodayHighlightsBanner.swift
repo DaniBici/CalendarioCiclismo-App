@@ -4,11 +4,10 @@ import SwiftUI
 /// Aparece encima del selector de días en TodayView.
 /// Cada slide puede apuntar a una jornada, startlist u orden de salida.
 ///
-/// Diseño: tarjeta estilo "App Store Today" — superficie con esquinas
-/// redondeadas, márgenes laterales y material translúcido. El color de marca
-/// de la carrera se usa como ACENTO (barra lateral + tinte muy leve del
-/// material), no como fondo a sangre. Las flechas quedan contenidas en los
-/// límites laterales y no se muestran indicadores de página adicionales.
+/// Diseño: tarjeta neutra con el radio de superficie (8 pt), márgenes
+/// laterales y la sombra común; sin tinte ni filete. El color de marca solo
+/// tiñe el icono de los destinos sin logotipo. Las flechas quedan contenidas
+/// en los límites laterales y no se muestran indicadores de página.
 struct TodayHighlightsBanner: View {
     /// Navegación a la pantalla de Campeonatos: la delega el PADRE (TodayView),
     /// que la empuja por VALOR (`ChampionshipsRoute`) sobre el `NavigationStack`.
@@ -54,7 +53,7 @@ struct TodayHighlightsBanner: View {
 
     // MARK: - Métricas de diseño
 
-    private let cardCornerRadius: CGFloat = 18
+    private let cardCornerRadius: CGFloat = AppTheme.Radius.surface
     private let cardHorizontalMargin: CGFloat = 16
     private let logoSide: CGFloat = 34
 
@@ -90,13 +89,7 @@ struct TodayHighlightsBanner: View {
         }
         .background(cardSurface)
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-        .overlay(
-            // Hairline de borde para definir la tarjeta sobre fondos claros,
-            // donde el material casi se funde con systemBackground.
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
+        .ccCardShadow()
         .padding(.horizontal, cardHorizontalMargin)
         // Swipe horizontal manual para cambiar de slide. `highPriorityGesture`
         // garantiza que SwiftUI atienda primero el swipe antes que cualquier
@@ -151,16 +144,9 @@ struct TodayHighlightsBanner: View {
         }
     }
 
-    /// Superficie de la tarjeta: material translúcido con un tinte muy leve del
-    /// color de marca encima y sin barra de acento lateral.
-    @ViewBuilder
+    /// Superficie de la tarjeta: fondo neutro de tarjeta, sin tinte de carrera.
     private var cardSurface: some View {
-        ZStack {
-            Rectangle().fill(AppTheme.cardBackground)
-            if let accent = currentAccentColor {
-                accent.opacity(0.07)
-            }
-        }
+        Rectangle().fill(AppTheme.cardBackground)
     }
 
     /// Color de marca de la carrera actual, si está definido y es parseable.
@@ -179,8 +165,7 @@ struct TodayHighlightsBanner: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.secondary)
                 .frame(width: 44, height: 44)
-                // La flecha forma parte de la superficie del cintillo: replica
-                // tanto el fondo de tarjeta como su tinte de carrera.
+                // La flecha forma parte de la superficie del cintillo.
                 .background(cardSurface)
         }
         .buttonStyle(.plain)
@@ -243,14 +228,14 @@ struct TodayHighlightsBanner: View {
                 // El título utiliza todo el ancho central disponible entre el
                 // identificador y la flecha lateral del carrusel.
                 Text(item.title)
-                    .font(.subheadline.weight(.semibold))
+                    .ccFont(.s14, weight: .semibold)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 // Subtítulo + chevron en la misma fila — el chevron no compite
                 // por espacio con el título.
                 HStack(spacing: 5) {
                     Text(item.detail)
-                        .font(.caption.weight(.regular))
+                        .ccFont(.s13)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Image(systemName: "chevron.right")

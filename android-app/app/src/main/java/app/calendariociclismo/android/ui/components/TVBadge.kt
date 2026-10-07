@@ -1,36 +1,37 @@
 package app.calendariociclismo.android.ui.components
 
 import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.TvOff
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.calendariociclismo.android.util.openExternalUrl
 import app.calendariociclismo.android.R
 import app.calendariociclismo.android.data.model.Broadcast
+import app.calendariociclismo.android.ui.theme.CCText
 import app.calendariociclismo.android.ui.theme.tvStatusBadgeColor
 import app.calendariociclismo.android.util.DateFormatting
 import app.calendariociclismo.android.util.LocaleHolder
 import app.calendariociclismo.android.util.RaceLogic
 import app.calendariociclismo.android.util.RegionDetector
+import kotlinx.coroutines.delay
 
 /**
  * Badge de estado de TV con hora de emisión si está disponible.
@@ -68,7 +69,28 @@ fun TVBadge(
         s == "none" || s == "unavailable_es" || s == "pending" || (s.isEmpty() && !hasBroadcasts)
     }
 
-    val nowSec = System.currentTimeMillis() / 1000.0
+    // Reloj del badge. `System.currentTimeMillis()` no provoca recomposición: sin este
+    // estado, un badge compuesto antes de la hora de emisión no pasaba a «Live» al
+    // alcanzarla. Instantes en que cambia el estado: inicio de cada emisión accesible
+    // (→ «Live», enlace en directo) y salida neutralizada (→ chip «Live texto»).
+    val boundariesMs = (regionBroadcasts.mapNotNull { it.startTimeUtc } + listOfNotNull(neutralStartTimeUtc))
+        .mapNotNull { DateFormatting.timestampToSeconds(it) }
+        .map { (it * 1000).toLong() }
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, boundariesMs) {
+        // Avanza en cada frontera futura (tope de 60 s ante cambios de reloj o sueño
+        // profundo) y al volver a primer plano. Termina sin fronteras pendientes.
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            nowMs = System.currentTimeMillis()
+            while (true) {
+                val next = boundariesMs.filter { it > nowMs }.minOrNull() ?: break
+                delay((next - System.currentTimeMillis()).coerceIn(0L, 60_000L) + 50L)
+                nowMs = System.currentTimeMillis()
+            }
+        }
+    }
+    val nowSec = nowMs / 1000.0
     val raceStarted = neutralStartTimeUtc
         ?.let { DateFormatting.timestampToSeconds(it) }
         ?.let { it <= nowSec } ?: false
@@ -146,28 +168,21 @@ fun TVBadge(
     // URL a abrir al pulsar: la del broadcast seleccionado.
     val tappableUrl: String? = selectedBroadcast?.url
 
-    val clickModifier = tappableUrl?.let { url ->
-        Modifier.clickable(role = Role.Button) { openTvUrl(context, url) }
-    } ?: Modifier
-
-    Row(
-        modifier = modifier
-            .then(clickModifier)
-            .background(colors.background, RoundedCornerShape(3))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    CCBadgeSurface(
+        colors = colors,
+        onClick = tappableUrl?.let { url -> { openTvUrl(context, url) } },
+        modifier = modifier,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = colors.foreground,
-            modifier = Modifier.size(10.dp),
+            modifier = Modifier.size(12.dp),
         )
         Text(
-            text = label.uppercase(LocaleHolder.currentState),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
+            text = label,
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
             color = colors.foreground,
         )
     }
@@ -201,27 +216,21 @@ private fun LiveTextChip(
         isLiveText = raceStarted,
         isLiveTextPre = !raceStarted,
     )
-    val clickModifier = liveTextUrl?.takeUnless { it.isEmpty() }?.let { url ->
-        Modifier.clickable(role = Role.Button) { openTvUrl(context, url) }
-    } ?: Modifier
-    Row(
-        modifier = modifier
-            .then(clickModifier)
-            .background(colors.background, RoundedCornerShape(3))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    CCBadgeSurface(
+        colors = colors,
+        onClick = liveTextUrl?.takeUnless { it.isEmpty() }?.let { url -> { openTvUrl(context, url) } },
+        modifier = modifier,
     ) {
         Icon(
             imageVector = Icons.Filled.ChatBubbleOutline,
-            contentDescription = stringResource(R.string.tv_badge_live_text),
+            contentDescription = null,
             tint = colors.foreground,
-            modifier = Modifier.size(10.dp),
+            modifier = Modifier.size(12.dp),
         )
         Text(
-            text = stringResource(R.string.tv_badge_live_text).uppercase(LocaleHolder.currentState),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
+            text = stringResource(R.string.tv_badge_live_text),
+            style = CCText.S12,
+            fontWeight = FontWeight.SemiBold,
             color = colors.foreground,
         )
     }

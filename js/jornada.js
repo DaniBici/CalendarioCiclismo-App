@@ -5,7 +5,7 @@ import { mountStageProfile } from './stage/profile.js';
 // ─────────────────────────────────────────────────────────────────
 
 import { supabase, broadcastRegionBadgeLabel, formatTime, formatTimeUser, getUserTimezoneLabel, stageLabel,
-         TYPE_LABELS, esc,
+         resolveTypeBadges, esc,
          setMeta as setMetaJ, setMetaProperty as setMetaPropJ,
          raceUrl, jornadaUrl, buildRaceHero, buildStageNav, buildActionButtons, loadRaceTechnicalGuide, withRaceTechnicalGuide, raceName, rdLocation,
          filterBroadcastsByRegion, enBase, seoLongDateWeekday, startFinishLabels, trapFocus, setRaceRobots, setHreflangPair }
@@ -29,35 +29,6 @@ function descriptionHtml(str) {
 }
 
 // Datos de la guía de horarios de la jornada actual (para el modal).
-
-const STAGE_COLORS = {
-  flat:            '#3dba6f',
-  rolling:         '#a8e6bc',
-  cotas:           '#c7cf5e',
-  medium_mountain: '#e6b800',
-  high_mountain:   '#e63d3d',
-  cobbles:         '#8c8c8c',
-  sterrato:        '#c4975a',
-  itt:             '#1a5ca8',
-  ttt:             '#6aaee8',
-  chrono_climb:    '#1a5ca8',
-};
-function typeLabel(t) { return TYPE_LABELS[t] || t || '—'; }
-function typeColor(t) { return STAGE_COLORS[t] || null; }
-
-// ── Combinación especial: Llana + Final en alto → Monopuerto ──────
-// countryCode: código de país ISO-2 de la carrera (ej. 'fr'). Opcional.
-function resolveTypeLabel(primary, secondary, countryCode) {
-  if (primary === 'sterrato' && countryCode?.toLowerCase() === 'fr') return typeLabel('ribinou');
-  if (primary === 'flat' && secondary === 'summit_finish') return typeLabel('monopuerto');
-  if (primary === 'itt' && secondary === 'chrono_climb') return typeLabel('chrono_climb');
-  return typeLabel(primary) + (secondary ? ` · ${typeLabel(secondary)}` : '');
-}
-function resolveTypeColor(primary, secondary) {
-  if (primary === 'flat' && secondary === 'summit_finish') return STAGE_COLORS['high_mountain'];
-  if (primary === 'itt' && secondary === 'chrono_climb') return STAGE_COLORS['itt'];
-  return typeColor(primary);
-}
 
 const TV_STATUS_LABELS = new Proxy({}, {
   get(_, key) {
@@ -208,9 +179,8 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
       ? `<div class="route-block__elev">+${String(Math.round(_elevGain / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, _isEn ? ',' : '.')} m</div>`
       : '';
     const tipoHtml = rd.primaryType
-      ? `<div class="route-block__type">${resolveTypeLabel(rd.primaryType, rd.secondaryType, race.countryCode)}</div>`
+      ? `<div class="route-block__type">${resolveTypeBadges(rd.primaryType, rd.secondaryType, race.countryCode)}</div>`
       : '';
-    const stageTypeColor = resolveTypeColor(rd.primaryType, rd.secondaryType);
 
     // — Bloque 3: HORARIOS —
     // Si el usuario está en una zona diferente a Madrid, el data-tooltip muestra la hora de Madrid
@@ -249,7 +219,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
             ${recorridoHtml}
           </div>
         </div>
-        <div class="route-grid__block route-grid__block--type"${resolveTypeColor(rd.primaryType, rd.secondaryType) ? ` style="--type-color:${resolveTypeColor(rd.primaryType, rd.secondaryType)}"` : ''}>
+        <div class="route-grid__block route-grid__block--type">
           <div class="route-grid__title">${t('stage.distanceAndType')}</div>
           <div class="route-grid__body">
             ${kmHtml}
@@ -289,21 +259,24 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
     const reviveTitle = race.raceFormat === 'one_day' ? t('tv.reviveRaceTitle') : t('tv.reviveStageTitle');
     const tvSectionTitle = hasReviveBroadcast ? reviveTitle : t('tv.title');
     const toggleBtn = hasHiddenBroadcasts && !hasReviveBroadcast
-      ? `<button class="tv-filter-btn" data-tv-filter="mine">${t('tv.filterAll')}</button>`
+      ? `<button type="button" class="stage-key-toggle" data-tv-filter="mine">${t('tv.filterAll')}</button>`
       : '';
     // Reutiliza el chip naranja de Hoy, también cuando hay un canal provisional.
     // En Jornada no lo sustituye el Live texto: ambos datos son complementarios.
     const pendingBadge = !hasReviveBroadcast && _tvStatus === 'pending'
       ? `<span class="badge badge--pend"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> ${t('tv.status.pending')}</span>`
       : '';
-    html += `<div class="jornada-section">
-      <div class="jornada-section__title-row">
-        <div class="jornada-section__title-badge">
-          <h2 class="jornada-section__title">${tvSectionTitle}</h2>
+    // Mismo panel que Puntos clave: título y acciones en la cabecera, emisoras
+    // como filas separadas por filetes.
+    html += `<section class="jornada-section tv-panel">
+      <header class="stage-profile-heading">
+        <div class="tv-panel__title">
+          <h2>${tvSectionTitle}</h2>
           ${pendingBadge}
         </div>
-        ${toggleBtn}${liveText ? `<a class="tv-filter-btn tv-live-text" href="${esc(liveText.url || liveText.filePath)}" target="_blank" rel="noopener">${t('assets.live_text')}</a>` : ''}
-      </div>`;
+        <div class="tv-panel__actions">${liveText ? `<a class="stage-key-toggle tv-live-text" href="${esc(liveText.url || liveText.filePath)}" target="_blank" rel="noopener">${t('assets.live_text')}</a>` : ''}${toggleBtn}</div>
+      </header>
+      <div class="tv-panel__list">`;
 
     if (hasBroadcasts || hasHiddenBroadcasts) {
       const visibleBroadcasts = hasReviveBroadcast
@@ -326,14 +299,14 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
         // `getBroadcastEmbed` aplica la allowlist y respeta embeddable=false.
         const broadcastEmbed = getBroadcastEmbed(b.url, b.embeddable);
         return `<div class="tv-entry${hidden ? ' tv-entry--regional-hidden' : ''}"${hidden ? ' style="display:none"' : ''}>
-          <div style="flex:1;min-width:0;padding-right:0.75rem">
+          <div class="tv-entry__info">
             <div class="tv-entry__platform-row">
               <div class="tv-entry__platform">${b.channel || '—'}</div>
+              ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<button type="button" class="tv-entry__note-btn" data-tooltip="${esc(b.note)}" aria-label="${esc(b.note)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>` : ''}
               ${regionLabel ? `<span class="badge badge--uci tv-region-badge">${regionLabel}</span>` : ''}
             </div>
-            ${b.note && shouldShowBroadcastNote(hasActualResults, hasReviveBroadcast, b.showInRevive) ? `<div class="tv-entry__channel" style="font-style:italic">${esc(b.note)}</div>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:0.75rem">
+          <div class="tv-entry__actions">
             ${bTime ? `<span class="tv-entry__time${bTimeTip ? ' tv-entry__time--tz' : ''}"${bTimeTip ? ` data-tooltip="${bTimeTip}"` : ''}>${bTime}</span>` : ''}
             ${b.url  ? `<a class="tv-link-btn${broadcastEmbed ? ' tv-link-btn--embed' : ''}" href="${esc(b.url)}" target="_blank" rel="noopener"${broadcastEmbed ? ' data-tv-embed="1"' : ''}>${t('stage.watch')} ↗&#xFE0E;</a>` : ''}
           </div>
@@ -352,7 +325,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
       </div>`;
     }
 
-    html += `</div>`;
+    html += `</div></section>`;
   } // fin hasTvInfo
 
   // Editorial — en EN usar solo traducción EN (sin fallback ES)
@@ -361,14 +334,15 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const _bonuses = _isEn ? (_enTr.bonuses?.value     || '') : rd.bonuses;
   const _notes   = _isEn ? (_enTr.notes?.value       || '') : rd.notes;
   if (_desc || _bonuses || _notes) {
-    html += `<div class="jornada-section">
-      <h2 class="jornada-section__title">${race.raceFormat === 'one_day' ? t('stage.descriptionRace') : t('stage.descriptionStage')}${_isEn && _enTr.description?.status !== 'manual' ? ' <span class="jornada-section__ai-note">AI translated from Spanish, might contain errors</span>' : ''}</h2>
+    // Mismo panel que Perfil, Puntos clave y Televisión.
+    html += `<section class="jornada-section stage-panel stage-text-panel">
+      <header class="stage-profile-heading"><h2>${race.raceFormat === 'one_day' ? t('stage.descriptionRace') : t('stage.descriptionStage')}${_isEn && _enTr.description?.status !== 'manual' ? ' <span class="jornada-section__ai-note">AI translated from Spanish, might contain errors</span>' : ''}</h2></header>
       ${_desc    ? `<div class="jornada-description">${descriptionHtml(_desc)}</div>` : ''}
       ${_bonuses ? `<div class="info-row"><span class="info-row__label">${t('stage.bonuses')}</span>
                     <span class="info-row__value info-row__value--secondary">${esc(_bonuses)}</span></div>` : ''}
       ${_notes   ? `<div class="info-row"><span class="info-row__label">${t('stage.notes')}</span>
                     <span class="info-row__value info-row__value--secondary">${esc(_notes)}</span></div>` : ''}
-    </div>`;
+    </section>`;
   }
 
   // Assets ya integrados en sección Recorrido
@@ -388,12 +362,7 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
   const profileHost = document.createElement('div'); profileHost.dataset.integratedProfile = '';
   (routeSection || resourceBar || stageHeader)?.after(profileHost);
   mountStageProfile(profileHost, { day:{ ...rd, _hasInhouse:hasActualResults }, race, assets, points:true, temporal:true });
-  content.querySelectorAll('.jornada-section').forEach(section => {
-    const entries = [...section.querySelectorAll(':scope>.tv-entry')];
-    if (!entries.length) return;
-    const grid = document.createElement('div'); grid.className = 'stage-tv-grid';
-    entries[0].before(grid); entries.forEach(entry => grid.append(entry));
-  });
+  syncTvPanelWidth(content);
 
   // ── Setup report modal con datos de la jornada ─────────────────
   setupReportModal(rd.id, name, stage);
@@ -422,6 +391,25 @@ function render(rd, race, broadcasts, assets, siblings = [], hasStartlist = fals
       });
     });
   }
+
+  // ── Notas de emisión: en táctil, la nota se abre al pulsar el icono ──
+  content.querySelectorAll('.tv-entry__note-btn').forEach(btn => {
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      let tip = document.getElementById('ph-tooltip');
+      if (!tip) { tip = document.createElement('div'); tip.id = 'ph-tooltip'; document.body.appendChild(tip); }
+      const open = tip.style.display === 'block' && tip.dataset.owner === btn.dataset.tooltip;
+      if (open) { tip.style.display = 'none'; return; }
+      const box = btn.getBoundingClientRect();
+      tip.textContent = btn.dataset.tooltip;
+      tip.dataset.owner = btn.dataset.tooltip;
+      tip.style.display = 'block';
+      tip.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - tip.offsetWidth - 8))}px`;
+      tip.style.top = `${box.bottom + 6}px`;
+      const close = () => { tip.style.display = 'none'; document.removeEventListener('click', close); window.removeEventListener('scroll', close); };
+      setTimeout(() => { document.addEventListener('click', close); window.addEventListener('scroll', close, { passive:true }); }, 0);
+    });
+  });
 
   // ── Tooltips de escritorio en horarios ──────────────────────────
   if (window.innerWidth >= 600) {
@@ -841,8 +829,17 @@ document.addEventListener('click', e => {
       tvBtn.textContent = t('tv.filterAll');
       tvBtn.classList.remove('tv-filter-btn--active');
     }
+    syncTvPanelWidth(content);
   }
 });
+
+// Panel de televisión a media anchura en escritorio cuando solo se ve una fila.
+function syncTvPanelWidth(content) {
+  content.querySelectorAll('.tv-panel').forEach(panel => {
+    const rows = [...panel.querySelectorAll('.tv-panel__list>:is(.tv-entry,.info-row)')].filter(el => el.style.display !== 'none');
+    panel.classList.toggle('tv-panel--single', rows.length <= 1);
+  });
+}
 
 // ── Modal de reporte de cambios (Supabase Edge Function) ──────────
 function setupReportModal(raceDayId, raceName, stageStr) {
@@ -1003,23 +1000,6 @@ window.closeReportModal = function() {
   document.body.style.overflow = '';
 };
 
-// ── Botón de edición (solo si hay sesión activa en el panel) ──────
-function setupEditBtn(raceDayId) {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session?.user) return;
-    const existing = document.getElementById('editJornadaBtn');
-    if (existing) return;
-    const btn = document.createElement('a');
-    btn.id        = 'editJornadaBtn';
-    btn.className = 'edit-jornada-btn';
-    btn.href      = CONFIG.basePath + '/panel/app.html?edit=' + encodeURIComponent(raceDayId);
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar jornada';
-    const hero = document.querySelector('.race-header');
-    if (hero) hero.appendChild(btn);
-    else document.body.appendChild(btn);
-  });
-}
-
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
   await initI18n();
@@ -1129,7 +1109,6 @@ async function init() {
 
     render(rd, race, broadcasts, withRaceTechnicalGuide(assets, technicalGuide), siblings, hasStartlist, allBroadcasts, inhouseStages);
     if (window.gtag) gtag('event', 'page_view', { page_location: window.gaLocation(), page_title: document.title });
-    setupEditBtn(id);
     setupIcalModal(rd, race);
     const stateKey=(day,results)=>JSON.stringify([day.raceStatus,day.isCancelledDay,day.isRestDay,results.map(row=>[row.raceDayId,row.stageNumber]).sort()]);
     let previous=stateKey(rd,uciResult?.data || []), refreshing=false;
@@ -1182,6 +1161,20 @@ function closeIcalModal() {
   if (_releaseIcalFocus) { _releaseIcalFocus(); _releaseIcalFocus = null; }
 }
 
+// Escritorio con Puntos clave: las acciones van bajo ese panel; en el resto,
+// sobre el pie.
+const _sideActionsQuery = window.matchMedia('(min-width: 1024px)');
+function placeIcalBar(bar) {
+  const slot = document.querySelector('.stage-side__actions');
+  const footer = document.querySelector('footer.site-footer');
+  if (slot && _sideActionsQuery.matches) { if (bar.parentElement !== slot) slot.append(bar); }
+  else if (footer && bar.nextElementSibling !== footer) footer.before(bar);
+}
+_sideActionsQuery.addEventListener('change', () => {
+  const bar = document.getElementById('icalBar');
+  if (bar) placeIcalBar(bar);
+});
+
 function setupIcalModal(rd, race) {
   const showSubscribe = hasCalendarForYear(race?.year) && !!rd.slug && !rd.isRestDay && !rd.isCancelledDay;
 
@@ -1210,6 +1203,7 @@ function setupIcalModal(rd, race) {
   }
   barHTML += '<button type="button" class="btn-ical btn-ical--report" id="reportBarBtn">' + FLAG_SVG + ' ' + t('stage.reportChanges') + '</button>';
   bar.innerHTML = barHTML;
+  placeIcalBar(bar);
 
   const reportBarBtn = document.getElementById('reportBarBtn');
   if (reportBarBtn) reportBarBtn.onclick = openReportModal;

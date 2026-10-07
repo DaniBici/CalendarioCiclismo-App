@@ -4,6 +4,7 @@
 
 import { supabase, esc } from '../shared.js';
 import { getAuthHeaders } from './uploads.js';
+import { formatCount } from './helpers.js';
 
 // ═════════════════════════════════════════════════════════════════
 //  ANALYTICS — Google Analytics Data API (GA4)
@@ -315,7 +316,7 @@ function gaDimensionValue(row, idx) {
 }
 
 function formatNumber(n) {
-  return Number(n).toLocaleString('es-ES');
+  return formatCount(n);
 }
 
 function formatDuration(seconds) {

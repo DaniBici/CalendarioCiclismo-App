@@ -64,7 +64,7 @@ async function searchRidersForEditing(query) {
     return;
   }
 
-  results.innerHTML = '<div class="u-fs-085 u-c-dim">Buscando…</div>';
+  results.innerHTML = '<div class="u-fs-3 u-c-dim">Buscando…</div>';
   const cols = 'id, firstName, lastName, otherNames, nationality, birthDate, currentTeamId, contractUntil, verified, source, identityKey';
   const filter = `identityKey.ilike.%${safe}%,lastName.ilike.%${safe}%,firstName.ilike.%${safe}%,otherNames.ilike.%${safe}%`;
 
@@ -85,7 +85,7 @@ async function searchRidersForEditing(query) {
       .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es', { sensitivity: 'base' }));
 
     if (!rows.length) {
-      results.innerHTML = '<div class="u-fs-085 u-c-dim">Sin resultados.</div>';
+      results.innerHTML = '<div class="u-fs-3 u-c-dim">Sin resultados.</div>';
       return;
     }
 
@@ -107,7 +107,7 @@ async function searchRidersForEditing(query) {
   } catch (err) {
     if (requestId !== _ridersSearchRequest) return;
     console.error('[searchRidersForEditing]', err);
-    results.innerHTML = `<div class="u-c-red u-fs-085">Error: ${esc(err.message || String(err))}</div>`;
+    results.innerHTML = `<div class="u-c-red u-fs-3">Error: ${esc(err.message || String(err))}</div>`;
   }
 }
 
@@ -123,7 +123,7 @@ function riderEditorBodyHtml() {
     <div class="field u-mb-075" id="re-gender-row" style="display:none">
       <label>Sexo</label>
       ${genderToggleHtml({ idMale: 're-gender-male', idFemale: 're-gender-female', labels: { male: 'Masculino', female: 'Femenino' } })}
-      <span class="u-fs-075 u-c-dim u-block u-mt-025">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
+      <span class="u-fs-1 u-c-dim u-block u-mt-025">Decide en qué catálogo (riders_men / riders_women) se crea la ficha.</span>
     </div>
     <div class="field u-mb-075" id="re-slug-row" style="display:none">
       <label>Identificador/slug</label>
@@ -131,7 +131,7 @@ function riderEditorBodyHtml() {
         <input type="text" id="re-slug" readonly spellcheck="false" autocomplete="off" class="u-grow">
         <button type="button" class="btn btn--ghost" id="re-slug-edit">Editar slug</button>
       </div>
-      <span id="re-slug-hint" class="u-fs-075 u-c-dim u-block u-mt-025">Cambiar el slug re-vincula startlists, resultados, afiliaciones, transferencias, alias y orden de salida mediante una RPC transaccional. Solo minúsculas, dígitos y guiones.</span>
+      <span id="re-slug-hint" class="u-fs-1 u-c-dim u-block u-mt-025">Cambiar el slug re-vincula startlists, resultados, afiliaciones, transferencias, alias y orden de salida mediante una RPC transaccional. Solo minúsculas, dígitos y guiones.</span>
     </div>
     <div class="u-grid u-cols-2 u-gap-075">
       <div class="field">
@@ -145,7 +145,7 @@ function riderEditorBodyHtml() {
       <div class="field u-span-all">
         <label>Otros nombres <span class="u-dim">— separados por coma, para matching alternativo</span></label>
         <input type="text" id="re-otherNames" placeholder="Cano, Zapater, OConnor" class="u-w-full">
-        <div class="u-fs-072 u-c-dim u-mt-025">
+        <div class="u-fs-1 u-c-dim u-mt-025">
           Usa este campo para segundos apellidos (ej: "Cano" si el corredor se llama Rodríguez Cano), variantes ortográficas o abreviaturas que puedan aparecer en startlists importadas.
         </div>
       </div>
@@ -153,7 +153,7 @@ function riderEditorBodyHtml() {
         <label>Nacionalidad</label>
         <div class="u-row u-gap-040">
           <input type="text" id="re-nationality" placeholder="es" maxlength="5" autocomplete="off">
-          <span id="re-nationality-flag" class="u-fs-140 u-minw-180 u-center"></span>
+          <span id="re-nationality-flag" class="u-fs-5 u-minw-180 u-center"></span>
         </div>
       </div>
       <div class="field">
@@ -173,14 +173,14 @@ function riderEditorBodyHtml() {
       <div class="field u-row u-span-all">
         <input type="checkbox" id="re-verified" class="u-w-auto u-m0">
         <label for="re-verified" class="re-verified-label">Verificado <span class="u-dim">— marca cuando los datos del corredor estén revisados y completos</span></label>
-        <span id="re-source-info" class="u-ml-auto u-fs-072 u-c-dim"></span>
+        <span id="re-source-info" class="u-ml-auto u-fs-1 u-c-dim"></span>
       </div>
     </div>
     <div class="u-row u-gap-075 u-wrap u-mt-100">
       <button class="btn btn--primary" id="saveRiderBtn">Guardar</button>
-      <button class="btn btn--ghost u-c-warn" id="mergeRiderBtn" title="Fusionar este corredor con otro: las startlists del actual pasan al elegido y este se elimina." style="display:none">Fusionar con otro…</button>
+      <button class="btn btn--ghost" id="mergeRiderBtn" title="Fusionar este corredor con otro: las startlists del actual pasan al elegido y este se elimina." style="display:none">Fusionar con otro…</button>
       <button class="btn btn--ghost u-c-red" id="deleteRiderBtn" style="display:none">Eliminar</button>
-      <span class="u-fs-080 u-c-dim" id="riderSaveStatus"></span>
+      <span class="u-fs-2 u-c-dim" id="riderSaveStatus"></span>
     </div>
   `;
 }
@@ -291,7 +291,7 @@ export function openRiderEditor(riderId, { level = _riderEditorLevel, loading = 
         renderEditor(body);
         return;
       }
-      body.innerHTML = '<div class="u-fs-085 u-c-dim">Cargando corredor…</div>';
+      body.innerHTML = '<div class="u-fs-3 u-c-dim">Cargando corredor…</div>';
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (body.isConnected) renderEditor(body);
       }));

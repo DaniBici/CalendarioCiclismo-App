@@ -21,11 +21,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal fun shouldDisplayTodayRaceAsFeatured(
-    isFeatured: Boolean,
-    sortMode: TodayViewModel.SortMode,
-): Boolean = sortMode == TodayViewModel.SortMode.CATEGORY && isFeatured
-
 /**
  * Orden de la agenda de Hoy. Espejo de `sortAgenda`
  * (`js/services/today-agenda-order.js`): las destacadas encabezan solo en el

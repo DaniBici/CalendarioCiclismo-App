@@ -97,7 +97,10 @@ struct RaceDayHeading: View {
     let logoUrl: String?
     let countryCode: String?
     var showFlag = true
+    /// Clase de ciclocross, como etiqueta.
     var category: String? = nil
+    /// Categoría UCI escrita completa («UCI 2.2», «Campeonato continental»).
+    var categoryName: String? = nil
     var stageLabel = ""
     let dateLabel: String
     var body: some View {
@@ -115,9 +118,15 @@ struct RaceDayHeading: View {
                                 CountryFlag(countryCode: countryCode)
                             }
                             Text(name)
-                                .font(.headline)
+                                .ccFont(.s16, weight: .semibold)
                         }
-                        if let category { CategoryBadge(category: category) }
+                        if let categoryName, !categoryName.isEmpty {
+                            Text(categoryName)
+                                .ccFont(.s13)
+                                .foregroundStyle(.secondary)
+                        } else if let category {
+                            CategoryBadge(category: category)
+                        }
                     }
                     Spacer()
                 }
@@ -131,8 +140,7 @@ struct RaceDayHeading: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if !stageLabel.isEmpty {
                         Text(stageLabel)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                            .ccFont(.s20, weight: .bold)
                             .accessibilityAddTraits(.isHeader)
                     }
 
@@ -140,7 +148,7 @@ struct RaceDayHeading: View {
                     // que el nombre de carrera, la ruta y el km), no en el del
                     // chrome de la UI. Paridad con Android (StageInfoBlock).
                     Text(dateLabel)
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -159,10 +167,58 @@ struct RaceDayLocation: View {
             if let category { CategoryBadge(category: category) }
             if !location.isEmpty { Image(systemName: "mappin.and.ellipse").foregroundStyle(.secondary).accessibilityHidden(true) }
             VStack(alignment: .leading, spacing: 2) {
-                if !location.isEmpty { Text(location).font(.body) }
-                if let detail { Text(detail).font(.caption).foregroundStyle(.tertiary) }
+                if !location.isEmpty { Text(location).ccFont(.s16) }
+                if let detail { Text(detail).ccFont(.s13).foregroundStyle(.secondary) }
             }
         }.accessibilityElement(children: .combine)
+    }
+}
+
+/// Tipo de etapa como texto en su color, sin caja: principal y secundario
+/// unidos por un punto centrado («Alta montaña · Final en alto»). Espejo de
+/// `.route-block__type` (web).
+struct StageTypeText: View {
+    let primaryType: String?
+    let secondaryType: String?
+    var countryCode: String? = nil
+    @Environment(\.accessibilityShowButtonShapes) private var highContrast
+
+    private struct Part {
+        let label: String
+        let colorType: String
+    }
+
+    private var parts: [Part] {
+        guard let primary = primaryType, !primary.isEmpty else { return [] }
+        if primary == "sterrato" && countryCode?.uppercased() == "FR" {
+            return [Part(label: RaceLogic.resolveTypeLabel(primary: primary, secondary: secondaryType, countryCode: countryCode), colorType: "sterrato")]
+        }
+        if primary == "flat" && secondaryType == "summit_finish" {
+            return [Part(label: RaceLogic.resolveTypeLabel(primary: primary, secondary: secondaryType), colorType: "high_mountain")]
+        }
+        if primary == "itt" && (secondaryType == "chrono_climb" || secondaryType == "summit_finish") {
+            return [Part(label: RaceLogic.typeLabel("chrono_climb"), colorType: "chrono_climb")]
+        }
+        var result = [Part(label: RaceLogic.typeLabel(primary), colorType: primary)]
+        if primary != "itt", primary != "ttt", let secondary = secondaryType, !secondary.isEmpty {
+            result.append(Part(label: RaceLogic.typeLabel(secondary), colorType: secondary))
+        }
+        return result
+    }
+
+    var body: some View {
+        let parts = parts
+        if !parts.isEmpty {
+            parts.enumerated().reduce(Text("")) { text, item in
+                let colored = Text(item.element.label)
+                    .foregroundStyle(AppTheme.stageTypeBadgeColor(for: item.element.colorType, highContrast: highContrast).foreground)
+                return item.offset == 0
+                    ? colored
+                    : Text("\(text)\(Text(" · ").foregroundStyle(.secondary))\(colored)")
+            }
+            .ccFont(.s13, weight: .semibold)
+            .accessibilityLabel(AccessibilityStageType.description(primary: primaryType, secondary: secondaryType) ?? "")
+        }
     }
 }
 
@@ -173,7 +229,8 @@ struct StageInfoHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             RaceDayHeading(name: race?.localizedName, logoUrl: race?.logoUrl, countryCode: raceDay.countryCode ?? race?.countryCode,
-                           showFlag: race?.hideFlag != true || raceDay.countryCode != nil, category: race?.uciCategory,
+                           showFlag: race?.hideFlag != true || raceDay.countryCode != nil,
+                           categoryName: RaceLogic.uciCategoryName(race?.uciCategory),
                            stageLabel: raceDay.stageLabel, dateLabel: DateFormatting.formatDateLongContent(raceDay.dateKey))
 
             // Recorrido
@@ -182,24 +239,17 @@ struct StageInfoHeader: View {
                 .accessibilityLabel(LocaleService.t("Recorrido: \(route)\(raceDay.isSingleCity ? ", salida y meta en la misma ciudad" : "")", "Route: \(route)\(raceDay.isSingleCity ? ", start and finish in the same city" : "")"))
             }
 
-            // Badges
-            HStack(spacing: 6) {
-                StageTypeBadge(primaryType: raceDay.primaryType, secondaryType: raceDay.secondaryType, countryCode: race?.countryCode)
-
-                if let dist = raceDay.distanceFormatted {
-                    Text(dist)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if raceDay.distanceFormatted != nil && raceDay.elevationGainFormatted != nil {
-                    Text("·")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if let elev = raceDay.elevationGainFormatted {
-                    Text(elev)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            // Tipo, distancia y desnivel
+            let figures = [raceDay.distanceFormatted, raceDay.elevationGainFormatted].compactMap { $0 }
+            if raceDay.primaryType?.isEmpty == false || !figures.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    StageTypeText(primaryType: raceDay.primaryType, secondaryType: raceDay.secondaryType, countryCode: race?.countryCode)
+                    if !figures.isEmpty {
+                        Text((raceDay.primaryType?.isEmpty == false ? "· " : "") + figures.joined(separator: " · "))
+                            .ccFont(.s13)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -208,30 +258,64 @@ struct StageInfoHeader: View {
             // (recorrido, perfil, documentación), pero deja claro de entrada que
             // la etapa no se corrió.
             if raceDay.isCancelledDay {
-                HStack(spacing: 6) {
-                    Image(systemName: "xmark.circle")
-                        .font(.caption)
-                        .accessibilityHidden(true)
-                    Text(race?.isOneDay == true
-                         ? LocaleService.t("Carrera cancelada", "Race cancelled")
-                         : LocaleService.t("Etapa cancelada", "Stage cancelled"))
-                        .font(.caption)
-                        .fontWeight(.bold)
-                }
-                .foregroundStyle(.red)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.red.opacity(0.10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.red.opacity(0.30), lineWidth: 1)
-                        )
-                )
-                .accessibilityElement(children: .combine)
+                Label(race?.isOneDay == true
+                      ? LocaleService.t("Carrera cancelada", "Race cancelled")
+                      : LocaleService.t("Etapa cancelada", "Stage cancelled"),
+                      systemImage: "xmark.circle")
+                    .ccFont(.s13, weight: .bold)
+                    .foregroundStyle(AppTheme.red)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.red.opacity(0.10), in: RoundedRectangle(cornerRadius: AppTheme.Radius.surface))
+                    .accessibilityElement(children: .combine)
             }
         }
+    }
+}
+
+// MARK: - Paneles de la jornada
+
+/// Panel de la jornada (Perfil, Puntos clave, Televisión, Descripción):
+/// superficie de tarjeta, cabecera de altura común con filete inferior y
+/// contenido a sangre. Espejo de `.stage-profile-heading` (web).
+struct StagePanel<Header: View, Content: View>: View {
+    @ViewBuilder var header: () -> Header
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            Divider()
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ccCardSurface()
+    }
+}
+
+/// Título de panel: 16 seminegrita.
+struct StagePanelTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .ccFont(.s16, weight: .semibold)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+extension View {
+    /// Acción de texto de un panel («Ver todos», «Todas», «Ver», «Quitar»):
+    /// botón sin borde en el color de acento, a 13 seminegrita.
+    func stagePanelAction() -> some View {
+        self
+            .buttonStyle(.borderless)
+            .ccFont(.s13, weight: .semibold)
     }
 }
 
@@ -248,6 +332,15 @@ struct StageDetailView: View {
     @State private var offlineAlert: OfflineAccessAlert?
     @State private var showAllCriticalPoints = false
     @State private var showAllBroadcasts = false
+    /// Selección del perfil compartida con Puntos clave.
+    @State private var profileSelection = ProfileSelection()
+    @AppStorage("cc_profile_mode") private var preferredProfileMode = StageProfileMode.interactive.rawValue
+    /// Formato elegido en esta visita al pulsar un punto clave con el perfil
+    /// oficial a la vista; no cambia la preferencia guardada.
+    @State private var profileModeOverride: StageProfileMode?
+    /// Alto del panel de perfil: Puntos clave, a su lado, no lo supera.
+    @State private var profilePanelHeight: CGFloat = 0
+    @State private var keyListHeight: CGFloat = 0
     private let network  = NetworkMonitor.shared
     private let offline  = OfflineManager.shared
     private let manager  = NotificationManager.shared
@@ -257,7 +350,7 @@ struct StageDetailView: View {
     var body: some View {
         Group {
             if viewModel.isLoading || (viewModel.raceDay == nil && viewModel.error == nil) {
-                LoadingView(branded: true)
+                LoadingView(branded: true, title: LocaleService.t("Jornada", "Stage"))
             } else if let error = viewModel.error {
                 ErrorView(message: error) {
                     Task { await viewModel.load(raceDayId: raceDayId) }
@@ -359,41 +452,75 @@ struct StageDetailView: View {
 
     // MARK: - Secciones
 
+    /// Ancho del panel lateral de Puntos clave en pantalla ancha (web: 330 px).
+    private static let sideColumnWidth: CGFloat = 330
+
     @ViewBuilder
     private func stageContent(_ rd: RaceDay, proxy: GeometryProxy) -> some View {
         let wide = AdaptiveLayoutPolicy.usesWideDetail(
             width: proxy.size.width,
             isRegular: horizontalSizeClass == .regular
         )
+        let gap = detailColumnSpacing(in: proxy)
+        let contentWidth = max(0, proxy.size.width - 32)
+        let points = keyPoints(rd)
+        let hasPoints = wide && !points.all.isEmpty
+        // Con Puntos clave al lado, Televisión (una emisión) y Descripción
+        // toman el ancho del panel de perfil.
+        let mainWidth = hasPoints ? contentWidth - Self.sideColumnWidth - gap : contentWidth
+        let readoutInline = proxy.size.width > 600
         VStack(spacing: 16) {
             stageHeader(rd)
             if wide {
-                let gap = detailColumnSpacing(in: proxy)
-                let sideWidth = min(360, max(300, (proxy.size.width - gap - 32) * 0.38))
-                HStack(alignment: .top, spacing: gap) {
-                    VStack(spacing: 16) {
-                        profileSection(rd)
-                        editorialSections(rd)
+                if hasTimes(rd) && hasMetrics(rd) {
+                    HStack(alignment: .top, spacing: gap) {
+                        timeSection(rd).frame(maxWidth: .infinity)
+                        metricsSection(rd).frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity, alignment: .top)
-
-                    VStack(spacing: 16) {
-                        timeSection(rd)
-                        criticalPointsSection(rd)
-                        metricsSection(rd)
-                    }
-                    .frame(width: sideWidth, alignment: .top)
+                } else {
+                    timeSection(rd)
+                    metricsSection(rd)
                 }
-                broadcastSection(rd, columns: 2)
+                if hasPoints {
+                    HStack(alignment: .top, spacing: gap) {
+                        profileSection(rd, readoutInline: readoutInline)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { profilePanelHeight = $0 }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                        keyPointsSection(rd, points: points, maxHeight: max(160, profilePanelHeight))
+                            .frame(width: Self.sideColumnWidth, alignment: .top)
+                    }
+                } else {
+                    profileSection(rd, readoutInline: readoutInline)
+                    keyPointsSection(rd, points: points, maxHeight: nil)
+                }
+                broadcastSection(rd, columns: 2, singleWidth: hasPoints ? mainWidth : (contentWidth - gap) / 2)
+                if hasDescription(rd) {
+                    descriptionSection(rd)
+                        .frame(width: mainWidth)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
                 timeSection(rd)
-                profileSection(rd)
-                criticalPointsSection(rd)
+                profileSection(rd, readoutInline: readoutInline)
+                keyPointsSection(rd, points: points, maxHeight: nil)
                 metricsSection(rd)
                 broadcastSection(rd)
-                editorialSections(rd)
+                descriptionSection(rd)
             }
         }
+    }
+
+    private func hasTimes(_ rd: RaceDay) -> Bool {
+        !rd.isCancelledDay && (rd.neutralStartTimeUtc != nil || rd.estimatedFinishTimeUtc != nil)
+    }
+
+    private func hasMetrics(_ rd: RaceDay) -> Bool {
+        rd.competitiveDistanceKm != nil || rd.hasValidTimeLimit
+    }
+
+    private func hasDescription(_ rd: RaceDay) -> Bool {
+        let text = (rd.localizedDescription ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return !text.isEmpty || rd.localizedBonuses?.isEmpty == false || rd.localizedNotes?.isEmpty == false
     }
 
     private func detailColumnSpacing(in proxy: GeometryProxy) -> CGFloat {
@@ -446,21 +573,19 @@ struct StageDetailView: View {
         let finishTitle = finishLabel(rd)
 
         if hasStart || hasFinish {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localeService.t("Horario", "Schedule"))
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-
+            // Mismo panel y titular que Perfil, Puntos clave y Televisión.
+            StagePanel {
+                StagePanelTitle(localeService.t("Horario", "Schedule"))
+            } content: {
                 HStack(spacing: 20) {
                     if hasStart, let start = rd.neutralStartTimeUtc,
                        let formatted = DateFormatting.formatTimeLocal(start) {
                         VStack(spacing: 2) {
                             Text(formatted)
-                                .font(.title3)
-                                .fontWeight(.semibold)
+                                .ccFont(.s16, weight: .semibold)
+                                .monospacedDigit()
                             Text(startTitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .ccFont(.s13)
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(localeService.t("\(startTitle) a las \(formatted)", "\(startTitle) at \(formatted)"))
@@ -476,108 +601,214 @@ struct StageDetailView: View {
                        let formatted = DateFormatting.formatTimeLocal(finish) {
                         VStack(spacing: 2) {
                             Text(formatted)
-                                .font(.title3)
-                                .fontWeight(.semibold)
+                                .ccFont(.s16, weight: .semibold)
+                                .monospacedDigit()
                             Text(finishTitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .ccFont(.s13)
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(localeService.t("\(finishTitle) a las \(formatted)", "\(finishTitle) at \(formatted)"))
                     }
                 }
-
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
             .accessibilityIdentifier(AccessibilityID.timeSection)
         }
     }
 
     // MARK: - Puntos clave del recorrido
 
-    @ViewBuilder
-    private func criticalPointsSection(_ rd: RaceDay) -> some View {
-        let points = SimplifiedGuide.build(
+    /// Filas de Puntos clave: la lista completa (sin la salida) y la resumida.
+    /// Espejo de `keyRows`/`initial` (`js/stage/profile.js`).
+    private func keyPoints(_ rd: RaceDay) -> (all: [GuideRow], initial: [GuideRow], passageTimes: Bool) {
+        let hasProfile = rd.hasElevationProfile || officialProfileAsset(rd) != nil
+        guard !rd.isCancelledDay, hasProfile,
+              !(rd.profileSummits ?? []).isEmpty || !(rd.profileWaypoints ?? []).isEmpty else { return ([], [], false) }
+        let guide = SimplifiedGuide.build(
             distanceKm: rd.distanceKm ?? rd.elevationProfile?.distance,
             neutralStartTimeUtc: rd.neutralStartTimeUtc,
             estimatedFinishTimeUtc: rd.estimatedFinishTimeUtc,
             summits: rd.profileSummits ?? [],
             waypoints: rd.profileWaypoints ?? [],
             primaryType: rd.primaryType
-        ).filter { $0.type != "start" && $0.type != "finish" }
-        if !points.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localeService.t("Puntos clave", "Key points"))
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                ForEach(showAllCriticalPoints ? points : Array(points.prefix(5))) { row in
-                    guideRowView(row)
-                }
-                if points.count > 5 {
-                    Button(showAllCriticalPoints
-                           ? localeService.t("Ver menos", "Show less")
-                           : localeService.t("Ver todos", "See all")) {
-                        showAllCriticalPoints.toggle()
-                    }
-                    .font(.subheadline.weight(.semibold))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
+        )
+        let rows = SimplifiedGuide.keyPointRows(guide)
+        return (rows.all, rows.initial, SimplifiedGuide.hasGuide(guide))
+    }
+
+    /// Pie de cada puerto, por el km de su cima.
+    private func footBySummitKm(_ rd: RaceDay) -> [Double: Double] {
+        var result: [Double: Double] = [:]
+        for summit in rd.profileSummits ?? [] {
+            if let km = summit.km, let start = summit.startKm, start < km { result[km] = start }
         }
+        return result
     }
 
     @ViewBuilder
-    private func guideRowView(_ row: GuideRow) -> some View {
-        // Las horas estimadas por interpolación no se publican aquí: solo se
-        // muestra la hora explícita del rutómetro.
-        let timeStr = row.isEstimated ? nil : row.timeUtc.flatMap { DateFormatting.formatTimeLocal($0) }
-        HStack(spacing: 10) {
-            if let kmToGo = row.kmToGo {
-                let posText = kmToGo <= 0.5
-                    ? localeService.t("Meta", "Finish")
-                    : localeService.t("a \(fmtKm(kmToGo)) km", "\(fmtKm(kmToGo)) km to go")
-                Text(posText)
-                    .font(.caption.weight(.semibold))
-                    .monospacedDigit()
-                    .frame(width: 78, alignment: .leading)
-            }
-
-            HStack(spacing: -3) {
-                GuideMarkerView(type: row.type, category: row.category)
-                    .frame(width: 20, height: 20)
-                if let secondaryType = row.secondaryType {
-                    GuideMarkerView(type: secondaryType, category: nil)
-                        .frame(width: 20, height: 20)
+    private func keyPointsSection(_ rd: RaceDay, points: (all: [GuideRow], initial: [GuideRow], passageTimes: Bool), maxHeight: CGFloat?) -> some View {
+        if !points.all.isEmpty {
+            let rows = showAllCriticalPoints ? points.all : points.initial
+            let feet = footBySummitKm(rd)
+            let list = VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 { Divider() }
+                    keyPointRow(row, rd: rd, feet: feet, passageTimes: points.passageTimes)
                 }
             }
-            .accessibilityHidden(true)
-
-            Text(guideRowLabel(row))
-                .font(.subheadline)
-                .lineLimit(2)
-            Spacer(minLength: 4)
-            if let timeStr {
-                Text(timeStr)
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+            StagePanel {
+                HStack(spacing: 12) {
+                    StagePanelTitle(localeService.t("Puntos clave", "Key points"))
+                    Spacer(minLength: 8)
+                    if points.all.count > points.initial.count {
+                        Button(showAllCriticalPoints
+                               ? localeService.t("Ver menos", "Show less")
+                               : localeService.t("Ver todos", "Show all")) {
+                            showAllCriticalPoints.toggle()
+                        }
+                        .stagePanelAction()
+                    }
+                }
+            } content: {
+                if let maxHeight {
+                    // Pantalla ancha: lista con desplazamiento nativo; el
+                    // panel no supera el alto del perfil.
+                    ScrollView { list }
+                        .scrollBounceBehavior(.basedOnSize)
+                        .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, height in
+                            keyListHeight = height
+                        }
+                        .frame(height: min(keyListHeight, max(120, maxHeight - 49)))
+                } else {
+                    list
+                }
             }
-        }
-        .padding(.vertical, 6)
-        .overlay(alignment: .bottom) {
-            Divider()
         }
     }
 
-    private func guideRowLabel(_ row: GuideRow) -> String {
-        let primary = guideTypeLabel(type: row.type, label: row.label)
-        guard let secondaryType = row.secondaryType else { return primary }
-        let secondary = guideTypeLabel(type: secondaryType, label: row.secondaryLabel)
-        return secondary == primary ? primary : "\(primary) · \(secondary)"
+    private func keyPointRowLabel(_ row: GuideRow, rd: RaceDay) -> String {
+        let label: String
+        if let own = row.label, !own.isEmpty {
+            label = own
+        } else if row.type == "finish" {
+            label = finishPlace(rd) ?? guideTypeLabel(type: "finish", label: nil)
+        } else {
+            label = guideTypeLabel(type: row.type, label: nil)
+        }
+        guard let secondaryType = row.secondaryType else { return label }
+        let secondary = row.secondaryLabel.flatMap { $0.isEmpty ? nil : $0 } ?? guideTypeLabel(type: secondaryType, label: nil)
+        return secondary == label ? label : "\(label) · \(secondary)"
+    }
+
+    /// Localidad de meta (o de salida, si es la misma) en el idioma de la interfaz.
+    private func finishPlace(_ rd: RaceDay) -> String? {
+        let en = LocaleService.isEnglish
+        let finish = en && rd.finishLocationEn?.isEmpty == false ? rd.finishLocationEn : rd.finishLocation
+        let start = en && rd.startLocationEn?.isEmpty == false ? rd.startLocationEn : rd.startLocation
+        if let finish, !finish.isEmpty { return finish }
+        if let start, !start.isEmpty { return start }
+        return nil
+    }
+
+    private func isKeyRowSelected(_ row: GuideRow) -> Bool {
+        if let pressed = profileSelection.pressedRowID { return pressed == row.id }
+        guard profileSelection.range == nil, let km = profileSelection.pointKm else { return false }
+        // El punto del perfil marca las filas a ±1 km.
+        return abs(row.km - km) <= 1
+    }
+
+    /// Pulsar un punto clave marca su tramo en el perfil (el puerto entero si
+    /// es una cima) o fija el punto; pulsarlo de nuevo lo retira.
+    private func tapKeyRow(_ row: GuideRow, label: String, rd: RaceDay) {
+        let wasSelected = isKeyRowSelected(row)
+        profileSelection = ProfileSelection()
+        guard !wasSelected else { return }
+        if activeProfileMode(rd) != .interactive { profileModeOverride = .interactive }
+        if let foot = footBySummitKm(rd)[row.km] {
+            profileSelection.range = ProfileRange(a: foot, b: row.km, label: label)
+        } else {
+            profileSelection.pinnedKm = row.km
+            profileSelection.pointKm = row.km
+        }
+        profileSelection.pressedRowID = row.id
+        Haptics.play(.selection)
+    }
+
+    @ViewBuilder
+    private func keyPointRow(_ row: GuideRow, rd: RaceDay, feet: [Double: Double], passageTimes: Bool) -> some View {
+        let interactive = rd.hasElevationProfile
+        let time = passageTimes ? row.timeUtc.flatMap { DateFormatting.formatTimeLocal($0) } : nil
+        let timeText = time.map { (row.isEstimated ? "≈ " : "") + $0 }
+        let kmText = row.kmToGo.map { "\(ProfileFormat.km(max(0, $0))) km" } ?? ""
+        let isFoot = row.type == "climb_foot"
+        let label = isFoot ? "" : keyPointRowLabel(row, rd: rd)
+        let content = HStack(alignment: .center, spacing: 8) {
+            Text(kmText)
+                .ccFont(isFoot ? .s12 : .s14)
+                .monospacedDigit()
+                .foregroundStyle(isFoot ? .tertiary : .secondary)
+                .lineLimit(1)
+                .frame(width: 64, alignment: .leading)
+            if isFoot {
+                // Pie de puerto: fila secundaria, más baja y en gris, sin
+                // icono; un hueco ocupa el lugar del marcador.
+                Color.clear.frame(width: 20, height: 1)
+                Text(localeService.t("Pie de \(row.label ?? "puerto")", "Foot of \(row.label ?? "climb")") + (timeText.map { " · \($0)" } ?? ""))
+                    .ccFont(.s12)
+                    .foregroundStyle(.tertiary)
+            } else {
+                HStack(spacing: -3) {
+                    GuideMarkerView(type: row.type, category: row.category)
+                        .frame(width: 20, height: 20)
+                    if let secondaryType = row.secondaryType {
+                        GuideMarkerView(type: secondaryType, category: nil)
+                            .frame(width: 20, height: 20)
+                    }
+                }
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .ccFont(.s14)
+                        .foregroundStyle(.primary)
+                    let small = [timeText, climbSummary(row, rd: rd, feet: feet)].compactMap { $0 }.joined(separator: " · ")
+                    if !small.isEmpty {
+                        Text(small)
+                            .ccFont(.s12)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .multilineTextAlignment(.leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, isFoot ? 4 : 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isKeyRowSelected(row) ? AppTheme.neutralFill : Color.clear)
+
+        if interactive {
+            Button {
+                tapKeyRow(row, label: isFoot ? (row.label ?? localeService.t("Puerto", "Climb")) : label, rd: rd)
+            } label: {
+                content.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isKeyRowSelected(row) ? .isSelected : [])
+        } else {
+            content
+        }
+    }
+
+    /// Longitud y pendiente media del puerto, del pie a la cima
+    /// («8,3 km al 7,1 %»).
+    private func climbSummary(_ row: GuideRow, rd: RaceDay, feet: [Double: Double]) -> String? {
+        guard row.type == "summit", let foot = feet[row.km] else { return nil }
+        let length = "\(ProfileFormat.km(row.km - foot)) km"
+        guard rd.hasElevationProfile, let points = rd.elevationProfile?.points,
+              let gradient = ProfileSegment.climbGradient(points: points, footKm: foot, summitKm: row.km) else { return length }
+        return "\(length) \(localeService.t("al", "at")) \(ProfileFormat.gradient(gradient)) %"
     }
 
     private func guideTypeLabel(type: String, label: String?) -> String {
@@ -598,53 +829,61 @@ struct StageDetailView: View {
         }
     }
 
-    /// Formatea un km de la guía con el separador decimal del IDIOMA DE CONTENIDO
-    /// (ES → coma, EN → punto), igual que `RaceDay.distanceFormatted`. Espejo de la
-    /// web (_fmtGuideKm) y Android (fmtKm).
-    private func fmtKm(_ d: Double) -> String {
-        if d == d.rounded() { return String(Int(d)) }
-        let raw = String(format: "%.1f", d) // siempre con '.'
-        return LocaleService.shouldShowEnglishContent ? raw : raw.replacingOccurrences(of: ".", with: ",")
-    }
-
     @ViewBuilder
     private func metricsSection(_ rd: RaceDay) -> some View {
         let timeLimit = rd.hasValidTimeLimit ? RaceDay.formatDuration(seconds: rd.timeLimitSeconds) : nil
         if rd.competitiveDistanceKm != nil || timeLimit != nil {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(localeService.t("Datos de carrera", "Race data"))
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
+            StagePanel {
+                StagePanelTitle(localeService.t("Datos de carrera", "Race data"))
+            } content: {
                 Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                     if let distance = rd.competitiveDistanceKm {
-                        metricRow(localeService.t("Distancia competitiva", "Competitive distance"), String(format: "%.1f km", distance))
+                        metricRow(localeService.t("Distancia competitiva", "Competitive distance"), "\(ProfileFormat.km(distance)) km")
                     }
                     if let timeLimit { metricRow(localeService.t("Fuera de control", "Time limit"), timeLimit) }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
         }
     }
 
     private func metricRow(_ label: String, _ value: String) -> some View {
         GridRow {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.subheadline.weight(.semibold)).monospacedDigit()
+            Text(label).ccFont(.s13).foregroundStyle(.secondary)
+            Text(value).ccFont(.s14, weight: .semibold).monospacedDigit()
         }
     }
 
-    @ViewBuilder
-    private func profileSection(_ rd: RaceDay) -> some View {
-        let officialProfile = viewModel.sortedAssets.first {
-            $0.type == "profile" && !($0.url ?? "").isEmpty && !rd.profileNotViewable
+    // MARK: - Perfil
+
+    private func officialProfileAsset(_ rd: RaceDay) -> Asset? {
+        rd.profileNotViewable ? nil : viewModel.sortedAssets.first {
+            $0.type == "profile" && !($0.url ?? "").isEmpty
         }
+    }
+
+    private func activeProfileMode(_ rd: RaceDay) -> StageProfileMode {
+        if !rd.hasElevationProfile { return .official }
+        if officialProfileAsset(rd) == nil { return .interactive }
+        return profileModeOverride ?? StageProfileMode(rawValue: preferredProfileMode) ?? .interactive
+    }
+
+    @ViewBuilder
+    private func profileSection(_ rd: RaceDay, readoutInline: Bool) -> some View {
+        let officialProfile = officialProfileAsset(rd)
         if rd.hasElevationProfile || officialProfile != nil {
             StageProfileSection(
                 raceDay: rd,
                 race: viewModel.race,
                 officialProfile: officialProfile,
+                mode: activeProfileMode(rd),
+                readoutInline: readoutInline,
+                selection: $profileSelection,
+                onSelectMode: { mode in
+                    profileModeOverride = nil
+                    preferredProfileMode = mode.rawValue
+                },
                 onOpenOfficial: { asset in
                     guard let raw = asset.url, let url = URL(string: raw) else { return }
                     tapAsset(asset, remote: url)
@@ -653,22 +892,74 @@ struct StageDetailView: View {
         }
     }
 
+    // MARK: - Descripción
+
     @ViewBuilder
-    private func editorialSections(_ rd: RaceDay) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
-                descriptionSection(rd).frame(maxWidth: .infinity, alignment: .topLeading)
-                bonusesNotesSection(rd).frame(maxWidth: .infinity, alignment: .topLeading)
+    private func descriptionSection(_ rd: RaceDay) -> some View {
+        let desc = rd.localizedDescription ?? ""
+        let paragraphs = desc.components(separatedBy: "\n")
+            .filter {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "\u{00A0}", with: "")
+                    .isEmpty
             }
-            VStack(spacing: 16) {
-                descriptionSection(rd)
-                bonusesNotesSection(rd)
+        let bonuses = rd.localizedBonuses ?? ""
+        let notes = rd.localizedNotes ?? ""
+        let infoRows = [
+            (localeService.t("Bonificaciones", "Bonuses"), bonuses),
+            (localeService.t("Notas", "Notes"), notes),
+        ].filter { !$0.1.isEmpty }
+
+        if !paragraphs.isEmpty || !infoRows.isEmpty {
+            StagePanel {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    StagePanelTitle(viewModel.race?.isOneDay == true
+                                    ? localeService.t("Descripción de la carrera", "Race description")
+                                    : localeService.t("Descripción de la etapa", "Stage description"))
+                    if rd.isDescriptionAutoTranslated && !paragraphs.isEmpty {
+                        Text("AI translated from Spanish, might contain errors")
+                            .ccFont(.s12)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } content: {
+                if !paragraphs.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(paragraphs.indices, id: \.self) { i in
+                            MarkdownText(paragraphs[i])
+                                .ccFont(.s14)
+                                .foregroundStyle(.primary)
+                                .lineSpacing(4)
+                        }
+                    }
+                    .padding(12)
+                }
+                // Sin doble filete: la primera fila tras la cabecera no lleva
+                // el suyo.
+                ForEach(Array(infoRows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 || !paragraphs.isEmpty { Divider() }
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(row.0)
+                            .ccFont(.s13)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 160, alignment: .leading)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(row.1)
+                            .ccFont(.s14)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
             }
         }
     }
 
+    // MARK: - Televisión
+
     @ViewBuilder
-    private func broadcastSection(_ rd: RaceDay, columns: Int = 1) -> some View {
+    private func broadcastSection(_ rd: RaceDay, columns: Int = 1, singleWidth: CGFloat? = nil) -> some View {
         // Una jornada cancelada solo ofrece Revive si tiene clasificaciones
         // propias y una emisión seleccionada para su reproducción.
         let cancelledReviveBroadcasts = rd.isCancelledDay
@@ -680,16 +971,18 @@ struct StageDetailView: View {
         let regionalBroadcasts = rd.isCancelledDay ? [] : viewModel.broadcasts
         let completeBroadcasts = rd.isCancelledDay ? [] : viewModel.allBroadcasts
         let regionalIds = Set(regionalBroadcasts.map(\.id))
-        let hasHiddenBroadcasts = completeBroadcasts.contains { !regionalIds.contains($0.id) }
-        let selectedBroadcasts = showAllBroadcasts ? completeBroadcasts : regionalBroadcasts
+        let hiddenBroadcasts = completeBroadcasts.filter { !regionalIds.contains($0.id) }
+        let hasHiddenBroadcasts = !hiddenBroadcasts.isEmpty
+        // Con «Todas», las emisiones de otras regiones siguen a las propias.
+        let selectedBroadcasts = showAllBroadcasts ? regionalBroadcasts + hiddenBroadcasts : regionalBroadcasts
         let visibleBroadcasts = isRevive
             ? (rd.isCancelledDay
                 ? cancelledReviveBroadcasts
                 : RaceLogic.reviveBroadcasts(from: viewModel.broadcasts, isCancelled: false))
             : selectedBroadcasts
-        // En web, Live texto pertenece a la cabecera de Retransmisión, situado
-        // tras el selector regional. No forma parte del carril documental de la
-        // cabecera y desaparece en descansos, cancelaciones y jornadas cerradas.
+        // En web, Live texto pertenece a la cabecera de Televisión. No forma
+        // parte del carril documental de la cabecera y desaparece en
+        // descansos, cancelaciones y jornadas cerradas.
         let liveTextAsset = (!rd.isCancelledDay && !rd.isRestDay &&
             !viewModel.hasActualResults && rd.raceStatus != "finished")
             ? viewModel.sortedAssets.first { $0.type == "live_text" && !($0.url ?? "").isEmpty }
@@ -701,89 +994,80 @@ struct StageDetailView: View {
                     ? LocaleService.t("Revive la carrera", "Relive the race")
                     : LocaleService.t("Revive la etapa", "Relive the stage")
             }
-            return LocaleService.t("Retransmisión", "Broadcast")
+            return LocaleService.t("Televisión", "TV")
         }()
+        let single = visibleBroadcasts.count <= 1
+        let columnCount = single ? 1 : columns
 
         if liveTextAsset != nil || !visibleBroadcasts.isEmpty || hasHiddenBroadcasts || (!isRevive && rd.tvStatus == "pending") {
-            JornadaInfoCard {
-                HStack(spacing: 6) {
-                    Text(sectionTitle)
-                        .font(.headline)
-                        .accessibilityAddTraits(.isHeader)
-
+            StagePanel {
+                HStack(spacing: 8) {
+                    StagePanelTitle(sectionTitle)
                     if !isRevive && rd.tvStatus == "pending" {
                         TVBadge(tvStatus: "pending", broadcasts: [])
                     }
-
-                    Spacer()
-
-                    if hasHiddenBroadcasts && !isRevive {
-                        Button {
-                            showAllBroadcasts.toggle()
-                        } label: {
-                            Text(showAllBroadcasts
-                                 ? localeService.t("Mi región", "My region")
-                                 : localeService.t("Todas", "All"))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(
-                                    Capsule().fill(showAllBroadcasts
-                                        ? Color.accentColor.opacity(0.14)
-                                        : Color.secondary.opacity(0.10))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(showAllBroadcasts ? Color.accentColor : Color.secondary)
-                    }
-
+                    Spacer(minLength: 8)
                     if let asset = liveTextAsset,
                        let urlString = asset.url,
                        let url = URL(string: urlString) {
-                        Button {
+                        Button(localeService.t("Live texto", "Live text")) {
                             tapExternal(url: url)
-                        } label: {
-                            Text(localeService.t("Live texto", "Live text"))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
+                        .stagePanelAction()
                         .accessibilityHint(localeService.t("Se abrirá en el navegador", "Will open in browser"))
                     }
+                    if hasHiddenBroadcasts && !isRevive {
+                        Button(showAllBroadcasts
+                               ? localeService.t("Mi región", "My region")
+                               : localeService.t("Todas", "All")) {
+                            showAllBroadcasts.toggle()
+                        }
+                        .stagePanelAction()
+                    }
                 }
-
+            } content: {
                 if visibleBroadcasts.isEmpty && hasHiddenBroadcasts && !showAllBroadcasts {
                     Text(localeService.t("No hay TV en tu región", "No TV in your region"))
-                        .font(.subheadline)
+                        .ccFont(.s14)
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
                 }
-
-                LazyVGrid(
-                    columns: Array(
-                        repeating: GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top),
-                        count: columns
-                    ),
-                    alignment: .leading,
-                    spacing: 8
-                ) {
-                    ForEach(visibleBroadcasts) { broadcast in
-                        BroadcastRowView(
-                            broadcast: broadcast,
-                            isRevive: isRevive,
-                            hasResults: viewModel.hasActualResults,
-                            showsRegion: showAllBroadcasts && !isRevive
-                        ) { url in
-                            tapBroadcast(url: url)
+                let rows = stride(from: 0, to: visibleBroadcasts.count, by: columnCount).map {
+                    Array(visibleBroadcasts[$0..<min($0 + columnCount, visibleBroadcasts.count)])
+                }
+                // Filas separadas por filete; en dos columnas, con un filete
+                // central.
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        if index > 0 { Divider() }
+                        HStack(spacing: 0) {
+                            ForEach(Array(row.enumerated()), id: \.element.id) { column, broadcast in
+                                if column > 0 { Divider() }
+                                BroadcastRowView(
+                                    broadcast: broadcast,
+                                    isRevive: isRevive,
+                                    hasResults: viewModel.hasActualResults,
+                                    showsRegion: showAllBroadcasts && !isRevive && !regionalIds.contains(broadcast.id),
+                                    horizontalPadding: 12
+                                ) { url in
+                                    tapBroadcast(url: url)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                            if row.count < columnCount {
+                                Divider()
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
                         }
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
-
+            // Con una sola emisión, en pantalla ancha, el panel no ocupa todo
+            // el ancho.
+            .frame(width: single ? singleWidth : nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier(AccessibilityID.broadcastSection)
         }
     }
@@ -860,7 +1144,8 @@ struct StageDetailView: View {
         let showPrevResults = viewModel.areInhouseGatesResolved
             && viewModel.prevHasInhouse && !viewModel.hasInhouseResults
         let hasResultsChip = (showCurrentResults || showPrevResults) && viewModel.race != nil
-        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasGPXProfile || hasRouteMap || hasResultsChip {
+        let hasNotificationsChip = viewModel.raceDay?.isRestDay != true && viewModel.raceDay?.isCancelledDay != true
+        if !allAssets.isEmpty || viewModel.hasStartlist || viewModel.race?.websiteUrl != nil || icalSubscribeURL != nil || hasNotificationsChip || hasGPXProfile || hasRouteMap || hasResultsChip {
             Divider()
             ResultsScrollRail(height: 60, spacing: 0, framed: true) {
                 // Clasificaciones propias (in-house) — primer chip de la tira,
@@ -1050,7 +1335,9 @@ struct StageDetailView: View {
                     StageNotificationChip(raceDayId: raceDayId)
                 }
 
-                // iCal — suscripción individual a esta jornada (último)
+
+                // iCal — suscripción individual a esta jornada (último),
+                // como enlace neutro en gris.
                 if let icalURL = icalSubscribeURL {
                     Button {
                         UIApplication.shared.open(icalURL)
@@ -1058,7 +1345,8 @@ struct StageDetailView: View {
                     } label: {
                         ActionStripTile(
                             icon: "calendar.badge.plus",
-                            label: LocaleService.t("Añadir al calendario", "Add to calendar")
+                            label: LocaleService.t("Añadir al calendario", "Add to calendar"),
+                            tint: AppTheme.textMuted
                         )
                     }
                     .accessibilityLabel(LocaleService.t("Añadir al calendario", "Add to calendar"))
@@ -1070,82 +1358,6 @@ struct StageDetailView: View {
             // bloque de datos de la etapa.
             .padding(.top, 4)
             .accessibilityIdentifier(AccessibilityID.assetSection)
-        }
-    }
-
-    @ViewBuilder
-    private func descriptionSection(_ rd: RaceDay) -> some View {
-        if let desc = rd.localizedDescription, !desc.isEmpty {
-            let paragraphs = desc.components(separatedBy: "\n")
-                .filter {
-                    !$0.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .replacingOccurrences(of: "\u{00A0}", with: "")
-                        .isEmpty
-                }
-            JornadaInfoCard {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(localeService.t("Descripción", "Description"))
-                        .font(.headline)
-                        .accessibilityAddTraits(.isHeader)
-                    if rd.isDescriptionAutoTranslated {
-                        Text("AI translated from Spanish, might contain errors")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(paragraphs.indices, id: \.self) { i in
-                        MarkdownText(paragraphs[i])
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .lineSpacing(3)
-                    }
-                }
-            }
-
-        }
-    }
-
-    @ViewBuilder
-    private func bonusesNotesSection(_ rd: RaceDay) -> some View {
-        let localizedBonuses = rd.localizedBonuses
-        let localizedNotes = rd.localizedNotes
-        let hasBonuses = localizedBonuses != nil && !localizedBonuses!.isEmpty
-        let hasNotes = localizedNotes != nil && !localizedNotes!.isEmpty
-
-        if hasBonuses || hasNotes {
-            VStack(alignment: .leading, spacing: 12) {
-                if hasBonuses {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(localeService.t("Bonificaciones", "Bonuses"))
-                            .font(.headline)
-                            .accessibilityAddTraits(.isHeader)
-                        Text(localizedBonuses ?? "")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .lineSpacing(3)
-                    }
-                }
-
-                if hasBonuses && hasNotes {
-                    Divider()
-                }
-
-                if hasNotes {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(localeService.t("Notas", "Notes"))
-                            .font(.headline)
-                            .accessibilityAddTraits(.isHeader)
-                        Text(localizedNotes ?? "")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .lineSpacing(3)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .ccCardSurface()
         }
     }
 
@@ -1235,98 +1447,103 @@ struct StageDetailView: View {
     }
 }
 
-private enum StageProfileMode: String {
+enum StageProfileMode: String {
     case interactive
     case official
 }
 
-/// Visor de perfil integrado en Jornada, con la misma conmutación entre el
-/// perfil interactivo y el documento oficial que ofrece la web.
+/// Panel de perfil integrado en Jornada, con la misma conmutación entre el
+/// perfil interactivo y el documento oficial que ofrece la web. La lectura del
+/// punto o del tramo vive en la cabecera, en una línea de altura fija: entre
+/// el título y el selector en pantallas anchas y bajo el título en las
+/// estrechas.
 private struct StageProfileSection: View {
     let raceDay: RaceDay
     let race: Race?
     let officialProfile: Asset?
+    let mode: StageProfileMode
+    let readoutInline: Bool
+    @Binding var selection: ProfileSelection
+    let onSelectMode: (StageProfileMode) -> Void
     let onOpenOfficial: (Asset) -> Void
 
-    @AppStorage("cc_profile_mode") private var preferredMode = StageProfileMode.interactive.rawValue
-
     private var hasInteractive: Bool { raceDay.hasElevationProfile }
-    private var visibleOfficial: Asset? {
-        raceDay.profileNotViewable ? nil : officialProfile
-    }
-    private var activeMode: StageProfileMode {
-        if !hasInteractive { return .official }
-        if visibleOfficial == nil { return .interactive }
-        return StageProfileMode(rawValue: preferredMode) ?? .interactive
-    }
+    private var points: [ElevationPoint] { raceDay.elevationProfile?.points ?? [] }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ViewThatFits(in: .horizontal) {
+        StagePanel {
+            if readoutInline {
                 HStack(spacing: 12) {
-                    profileTitle
-                    Spacer(minLength: 8)
+                    StagePanelTitle(LocaleService.t("Perfil", "Profile"))
+                    readout(alignment: .trailing)
                     profileModePicker
                 }
+            } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    profileTitle
-                    profileModePicker
+                    HStack(spacing: 12) {
+                        StagePanelTitle(LocaleService.t("Perfil", "Profile"))
+                        Spacer(minLength: 8)
+                        profileModePicker
+                    }
+                    if hasInteractive { readout(alignment: .leading) }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-
-            Divider()
-
-            switch activeMode {
-            case .interactive:
-                if let profile = raceDay.elevationProfile {
-                    ElevationChartCard(
-                        profile: profile,
-                        summits: raceDay.profileSummits ?? [],
-                        waypoints: raceDay.profileWaypoints ?? [],
-                        profileColor: race?.colorHex.map { Color(hex: $0) } ?? .accentColor
-                    )
-                    .padding(12)
-                }
-            case .official:
-                if let asset = visibleOfficial {
-                    OfficialStageProfilePreview(asset: asset) {
-                        onOpenOfficial(asset)
+        } content: {
+            ProfileGraphicLayout {
+                switch mode {
+                case .interactive:
+                    if let profile = raceDay.elevationProfile {
+                        ElevationChartCard(
+                            profile: profile,
+                            summits: raceDay.profileSummits ?? [],
+                            waypoints: raceDay.profileWaypoints ?? [],
+                            profileColor: race?.colorHex.map { Color(hex: $0) } ?? .accentColor,
+                            selection: $selection
+                        )
+                    }
+                case .official:
+                    if let asset = officialProfile {
+                        OfficialStageProfilePreview(asset: asset) {
+                            onOpenOfficial(asset)
+                        }
                     }
                 }
             }
+            .padding(.vertical, 8)
         }
-        .ccCardSurface(cornerRadius: 12, showShadow: false)
     }
 
-    private var profileTitle: some View {
-        Text(LocaleService.t("Perfil", "Profile"))
-            .font(.headline)
-            .accessibilityAddTraits(.isHeader)
+    @ViewBuilder
+    private func readout(alignment: Alignment) -> some View {
+        if mode == .interactive {
+            ProfileReadout(points: points, selection: $selection, alignment: alignment)
+        } else {
+            Color.clear.frame(maxWidth: .infinity).frame(height: 24)
+        }
     }
 
     @ViewBuilder
     private var profileModePicker: some View {
-        if hasInteractive, visibleOfficial != nil {
+        if hasInteractive, officialProfile != nil {
             Picker(
                 LocaleService.t("Tipo de perfil", "Profile format"),
                 selection: Binding(
-                    get: { activeMode.rawValue },
-                    set: { preferredMode = $0 }
+                    get: { mode },
+                    set: { onSelectMode($0) }
                 )
             ) {
                 Text(LocaleService.t("Interactivo", "Interactive"))
-                    .tag(StageProfileMode.interactive.rawValue)
+                    .tag(StageProfileMode.interactive)
                 Text(LocaleService.t("Oficial", "Official"))
-                    .tag(StageProfileMode.official.rawValue)
+                    .tag(StageProfileMode.official)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 220)
+            .fixedSize()
         }
     }
 }
 
+/// Perfil oficial (imagen o PDF) encajado en el hueco del interactivo.
 private struct OfficialStageProfilePreview: View {
     let asset: Asset
     let onOpen: () -> Void
@@ -1343,14 +1560,12 @@ private struct OfficialStageProfilePreview: View {
                 )
             } else {
                 ProgressView()
-                    .tint(.accentColor)
             }
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onOpen)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 320)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LocaleService.t("Perfil oficial", "Official profile"))
         .accessibilityHint(LocaleService.t("Pulsa dos veces para abrirlo a tamaño completo", "Double tap to open it full size"))
@@ -1413,32 +1628,41 @@ private struct OfficialStageProfileWebView: UIViewRepresentable {
     }
 }
 
-/// Fila individual de broadcast — extraída para simplificar la inferencia de tipos en ForEach.
+/// Fila de emisión: emisora a la izquierda (hasta dos líneas, con la nota tras
+/// un botón de información y la región con «Todas»); a la derecha, en una
+/// línea, la hora y «Ver ↗». Todas las filas tienen la misma altura.
 struct BroadcastRowView: View {
     let broadcast: Broadcast
     var isRevive: Bool = false
     var hasResults: Bool = false
     var showsRegion: Bool = false
+    /// Margen lateral de la fila: 12 dentro de un panel a sangre.
+    var horizontalPadding: CGFloat = 0
     /// Callback para abrir la URL externa. Delegado al padre para centralizar
     /// la lógica de red/offline y mostrar modales cuando corresponda.
     let onTap: (URL) -> Void
-    @Environment(\.colorScheme) private var colorScheme
 
-    private var rowAccessibilityLabel: String {
-        let channel = broadcast.channel ?? "Canal"
-        var parts: [String] = []
-        if !isRevive, let time = broadcast.startTimeLocal {
-            parts.append("\(channel), a las \(time)")
-        } else {
-            parts.append(channel)
-        }
-        if RaceLogic.shouldShowBroadcastNote(
+    @State private var showsNote = false
+
+    private var note: String? {
+        guard RaceLogic.shouldShowBroadcastNote(
             hasResults: hasResults,
             isRevive: isRevive,
             showInRevive: broadcast.showInRevive == true
-        ), let note = broadcast.note, !note.isEmpty {
-            parts.append(note)
+        ), let note = broadcast.note, !note.isEmpty else { return nil }
+        return note
+    }
+
+    private var rowAccessibilityLabel: String {
+        let channel = broadcast.channel ?? LocaleService.t("Canal", "Channel")
+        var parts: [String] = []
+        if !isRevive, let time = broadcast.startTimeLocal {
+            parts.append(LocaleService.t("\(channel), a las \(time)", "\(channel), at \(time)"))
+        } else {
+            parts.append(channel)
         }
+        if let regionLabel { parts.append(regionLabel) }
+        if let note { parts.append(note) }
         return parts.joined(separator: ". ")
     }
 
@@ -1458,71 +1682,76 @@ struct BroadcastRowView: View {
     }
 
     var body: some View {
-        let urlStr = broadcast.url
-        let url = urlStr.flatMap { URL(string: $0) }
+        let url = broadcast.url.flatMap { URL(string: $0) }
 
-        return HStack(spacing: 10) {
-            Image(systemName: "tv")
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-                .accessibilityHidden(true)
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Text(broadcast.channel ?? LocaleService.t("Canal", "Channel"))
+                    .ccFont(.s14)
+                    .lineLimit(2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(broadcast.channel ?? "Canal")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    if let regionLabel {
-                        Text(regionLabel)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .textCase(.uppercase)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.12))
-                            .foregroundStyle(Color.accentColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                if let note {
+                    Button {
+                        showsNote = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
                     }
-
-                    if !isRevive, let time = broadcast.startTimeLocal {
-                        Text("·")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text(time)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    .buttonStyle(.borderless)
+                    .tint(.secondary)
+                    .accessibilityLabel(note)
+                    .popover(isPresented: $showsNote) {
+                        Text(note)
+                            .ccFont(.s14)
+                            .padding()
+                            .frame(idealWidth: 280)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .presentationCompactAdaptation(.popover)
                     }
                 }
 
-                if RaceLogic.shouldShowBroadcastNote(
-                    hasResults: hasResults,
-                    isRevive: isRevive,
-                    showInRevive: broadcast.showInRevive == true
-                ), let note = broadcast.note, !note.isEmpty {
-                    Text(note)
-                        .font(.caption)
+                if let regionLabel {
+                    Text(regionLabel)
+                        .ccFont(.s12, weight: .semibold)
+                        .foregroundStyle(AppTheme.neutralBadgeColor().foreground)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(AppTheme.neutralFill, in: RoundedRectangle(cornerRadius: AppTheme.Radius.control))
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                if !isRevive, let time = broadcast.startTimeLocal {
+                    Text(time)
+                        .ccFont(.s14)
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
+                if let url {
+                    Button("\(LocaleService.t("Ver", "Watch")) ↗") {
+                        onTap(url)
+                    }
+                    .stagePanelAction()
+                }
             }
-
-            Spacer()
-
-            if url != nil {
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(colorScheme == .dark ? .white : Color.accentColor)
-            }
+            .fixedSize()
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, 10)
+        .frame(minHeight: 48)
         .contentShape(Rectangle())
         .onTapGesture {
-            if let url = url {
-                onTap(url)
-            }
+            if let url { onTap(url) }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(rowAccessibilityLabel)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            if let url { onTap(url) }
+        }
     }
 }
 
@@ -1635,16 +1864,16 @@ struct FlowLayout: Layout {
 
 // MARK: - Action strip
 
-/// Celda de documentación agrupada, inspirada en los controles compactos de
-/// iOS: superficie clara continua, separador tenue, símbolo arriba y título
-/// truncado en una sola línea.
+/// Celda de documentación agrupada de la barra de recursos: enlace neutro,
+/// símbolo gris arriba y título en el color del texto, truncado en una línea.
+/// «Clasificaciones» se distingue con el título en acento y negrita.
 struct ActionStripTile: View {
     let icon: String
     let label: String
-    var tint: Color = .accentColor
+    /// Color del contenido; por defecto, neutro.
+    var tint: Color? = nil
     var showsTrailingSeparator = true
-    /// Invierte la celda al azul de marca con contenido blanco; lo usa el
-    /// primer chip ("Clasificaciones") de la tira de jornada.
+    /// Destaca la celda («Clasificaciones») con el texto en acento y negrita.
     var highlighted = false
 
     var body: some View {
@@ -1661,16 +1890,18 @@ struct ActionStripTile: View {
                         .font(.subheadline)
                 }
             }
+            .foregroundStyle(highlighted ? Color.accentColor : (tint ?? AppTheme.textMuted))
             Text(label)
-                .font(.caption.weight(.semibold))
+                .ccFont(.s13, weight: highlighted ? .bold : .semibold)
+                .foregroundStyle(highlighted ? Color.accentColor : (tint ?? AppTheme.textPrimary))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .foregroundStyle(highlighted ? Color.white : tint)
         // La celda destacada ("Clasificaciones") se ensancha con su etiqueta;
         // el resto conserva el ancho fijo de la tira.
         .frame(minWidth: 100, maxWidth: highlighted ? nil : 100, minHeight: 60, maxHeight: 60)
-        .background(highlighted ? AppTheme.brandAccent : AppTheme.cardBackgroundHover)
+        .padding(.horizontal, highlighted ? 8 : 0)
+        .background(AppTheme.cardBackgroundHover)
         .overlay(alignment: .trailing) {
             if showsTrailingSeparator {
                 Rectangle()

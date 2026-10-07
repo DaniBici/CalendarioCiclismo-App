@@ -8,7 +8,7 @@ struct SeasonView: View {
     var switchAction: (() -> Void)? = nil
     var embedded = false
     var onOpenStage: ((String) -> Void)?
-    var onOpenRace: ((String) -> Void)?
+    var onOpenRace: ((Race) -> Void)?
     @State private var viewModel = SeasonViewModel()
     @State private var placeholderItem: PlaceholderModalItem?
     @State private var pendingDefaultFilter: Constants.CategoryFilter? = nil
@@ -29,10 +29,14 @@ struct SeasonView: View {
             if embedded {
                 HStack(spacing: 10) {
                     Text(localeService.t("Calendario", "Calendar"))
-                        .font(.headline)
+                        .ccFont(.s16, weight: .semibold)
                     Spacer()
-                    seasonFiltersContent
+                    // Menús nativos con estilo de botón con borde: fuera de la
+                    // barra no tienen la cápsula de la barra.
+                    yearMenu
+                    countryMenu
                 }
+                .buttonStyle(.bordered)
                 .padding(.horizontal)
                 .frame(minHeight: 44)
             }
@@ -50,17 +54,7 @@ struct SeasonView: View {
                                 Haptics.play(.navigation)
                                 currentMonth = group.month
                             } label: {
-                                Text(label)
-                                    .font(.caption)
-                                    // No seleccionado en Normal (no Medium), para casar con
-                                    // los chips de filtro: solo el seleccionado lleva peso.
-                                    .fontWeight(isSelected ? .semibold : .regular)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    // Azul de marca suave (15%) + texto azul cuando activo.
-                                    .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-                                    .foregroundStyle(isSelected ? Color.accentColor : Color(.secondaryLabel))
-                                    .clipShape(Capsule())
+                                CalendarMonthChipLabel(label: label, isSelected: isSelected)
                             }
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
@@ -79,7 +73,7 @@ struct SeasonView: View {
             }
 
             if viewModel.isLoading {
-                LoadingView(message: localeService.t("Cargando temporada...", "Loading season..."), branded: true)
+                LoadingView(branded: true, title: localeService.t("Temporada", "Season"))
             } else if viewModel.isUncachedOffline {
                 VStack(spacing: 16) {
                     EmptyStateView(
@@ -95,8 +89,7 @@ struct SeasonView: View {
                             Image(systemName: "arrow.clockwise")
                             Text(localeService.t("Reintentar", "Retry"))
                         }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .ccFont(.s14, weight: .medium)
                     }
                     .buttonStyle(.bordered)
                     .accessibilityHint(localeService.t("Intenta cargar los datos de nuevo", "Try loading data again"))
@@ -145,38 +138,25 @@ struct SeasonView: View {
             ])
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationTitle(localeService.t("Calendario", "Calendar"))
         .toolbar {
-            // En iOS 26 el ToolbarItem en .topBarLeading envuelve su contenido en
-            // una cápsula de Liquid Glass con tinte de acento propio que PISA el
-            // `.background`/`.foregroundStyle` del label — de ahí que el botón
-            // «País» inactivo saliera azul sólido en vez de accent-dim, aunque
-            // `.buttonStyle(.plain)` sí desactive el estilo de botón. La cápsula
-            // la pinta el propio TOOLBAR ITEM, no el botón, así que `.plain` no
-            // basta: hay que ocultar su fondo compartido con
-            // `.sharedBackgroundVisibility(.hidden)` (iOS 26+) para que manden las
-            // cápsulas propias del año/país.
-            if #available(iOS 26, *), !embedded {
+            // Año a la izquierda, como en Mes; país y cambio de vista a la
+            // derecha. Menús nativos: el fondo es la cápsula de la barra.
+            if !embedded {
                 ToolbarItem(placement: .topBarLeading) {
-                    seasonFiltersContent
+                    yearMenu
                 }
-                .sharedBackgroundVisibility(.hidden)
-            } else if !embedded {
-                ToolbarItem(placement: .topBarLeading) {
-                    seasonFiltersContent
-                }
-            }
-            // Toggle Temporada→Mes (solo dentro de la pestaña Calendario; las
-            // acciones propias de Temporada van en topBarLeading).
-            if !embedded, let switchAction {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Haptics.play(.navigation)
-                        switchAction()
-                    } label: {
-                        Image(systemName: "calendar")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    countryMenu
+                    if let switchAction {
+                        Button {
+                            Haptics.play(.navigation)
+                            switchAction()
+                        } label: {
+                            Image(systemName: "calendar")
+                        }
+                        .accessibilityLabel(localeService.t("Cambiar a vista de mes", "Switch to month view"))
                     }
-                    .accessibilityLabel(localeService.t("Cambiar a vista de mes", "Switch to month view"))
                 }
             }
         }
@@ -331,109 +311,79 @@ struct SeasonView: View {
                     // mes con su propia cabecera. Respeta el mismo orden que
                     // las páginas mensuales individuales.
                     ForEach(allPageGroups(from: races), id: \.month) { group in
-                        Text(DateFormatting.formatMonthYear(year: viewModel.year, month: group.month - 1))
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                            .padding(.bottom, 8)
-                            .accessibilityAddTraits(.isHeader)
-
-                        ForEach(rows(for: group.races, month: group.month)) { row in
-                            seasonRowView(row)
-                                .padding(.horizontal)
-                                .padding(.bottom, 2)
-                        }
+                        monthSection(month: group.month, races: group.races)
                     }
                 } else {
-                    // Cabecera del mes dentro de la página
-                    Text(DateFormatting.formatMonthYear(year: viewModel.year, month: month - 1))
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        .padding(.bottom, 8)
-                        .accessibilityAddTraits(.isHeader)
-
-                    ForEach(rows(for: races, month: month)) { row in
-                        seasonRowView(row)
-                            .padding(.horizontal)
-                            .padding(.bottom, 6)
-                    }
+                    monthSection(month: month, races: races)
                 }
 
                 Color.clear.frame(height: 16)
             }
-            .frame(maxWidth: 760)
+            .padding(.horizontal)
         }
         .background(AppTheme.background)
         .accessibilityIdentifier("season_race_list")
     }
 
-    /// Cápsulas de Año + País del toolbar (topBarLeading). Extraído para poder
-    /// aplicar `.sharedBackgroundVisibility(.hidden)` (iOS 26+) al ToolbarItem
-    /// sin duplicar el contenido en cada rama de disponibilidad.
+    /// Un mes: rótulo en gris (13 seminegrita, como las demás fechas de grupo)
+    /// y sus carreras en una sola superficie de tarjeta, con las filas
+    /// separadas por un filete (`.temporada-races` de la web).
     @ViewBuilder
-    private var seasonFiltersContent: some View {
-        HStack(spacing: 8) {
-            Menu {
-                Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
-                    ForEach(viewModel.availableYears, id: \.self) { year in
-                        Text(String(year)).tag(year)
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "calendar")
-                    Text(String(viewModel.year))
-                }
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Año \(viewModel.year)")
-            .accessibilityHint("Pulsa dos veces para cambiar de año")
-            .accessibilityIdentifier(AccessibilityID.yearPicker)
-            .accessibilityInputLabels(["Año", "Cambiar año", "Selector de año"])
+    private func monthSection(month: Int, races: [Race]) -> some View {
+        Text(DateFormatting.formatMonthYear(year: viewModel.year, month: month - 1))
+            .ccFont(.s13, weight: .semibold)
+            .foregroundStyle(AppTheme.textMuted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            .accessibilityAddTraits(.isHeader)
 
-            Menu {
-                Picker(localeService.t("País", "Country"), selection: $viewModel.activeCountry) {
-                    Text(localeService.t("Todos los países", "All countries")).tag("all")
-                    ForEach(viewModel.availableCountries, id: \.code) { country in
-                        Text(country.label).tag(country.code)
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "globe")
-                    Text(viewModel.activeCountry == "all" ? localeService.t("País", "Country") : viewModel.activeCountry.uppercased())
-                }
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                // Idéntico al selector de año «2026» de al lado: fondo azul
-                // sólido + contenido blanco, SIN estado condicional. El aspecto
-                // "accent-dim con texto azul" para el estado inactivo hacía que
-                // en claro el texto+icono salieran del mismo color que el fondo
-                // (invisibles) y en oscuro discordaran con el pill de al lado.
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+        let items = rows(for: races, month: month)
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, row in
+                if index > 0 { Divider() }
+                seasonRowView(row)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(viewModel.activeCountry == "all" ? localeService.t("Todos los países", "All countries") : "\(localeService.t("País", "Country")): \(AccessibilityCountryNames.name(for: viewModel.activeCountry) ?? viewModel.activeCountry)")
-            .accessibilityHint("Pulsa dos veces para filtrar por país")
-            .accessibilityIdentifier(AccessibilityID.countryPicker)
-            .accessibilityInputLabels(["País", "Filtrar país", "Selector de país"])
         }
+        .ccCardSurface()
+    }
+
+    /// Selector de año de la barra (menú nativo).
+    private var yearMenu: some View {
+        Menu {
+            Picker(localeService.t("Año", "Year"), selection: $viewModel.year) {
+                ForEach(viewModel.availableYears, id: \.self) { year in
+                    Text(String(year)).tag(year)
+                }
+            }
+        } label: {
+            CalendarSelectorLabel(icon: "calendar", label: String(viewModel.year))
+        }
+        .accessibilityLabel("Año \(viewModel.year)")
+        .accessibilityHint("Pulsa dos veces para cambiar de año")
+        .accessibilityIdentifier(AccessibilityID.yearPicker)
+        .accessibilityInputLabels(["Año", "Cambiar año", "Selector de año"])
+    }
+
+    /// Selector de país de la barra (menú nativo).
+    private var countryMenu: some View {
+        Menu {
+            Picker(localeService.t("País", "Country"), selection: $viewModel.activeCountry) {
+                Text(localeService.t("Todos los países", "All countries")).tag("all")
+                ForEach(viewModel.availableCountries, id: \.code) { country in
+                    Text(country.label).tag(country.code)
+                }
+            }
+        } label: {
+            CalendarSelectorLabel(
+                icon: "globe",
+                label: viewModel.activeCountry == "all" ? localeService.t("País", "Country") : viewModel.activeCountry.uppercased()
+            )
+        }
+        .accessibilityLabel(viewModel.activeCountry == "all" ? localeService.t("Todos los países", "All countries") : "\(localeService.t("País", "Country")): \(AccessibilityCountryNames.name(for: viewModel.activeCountry) ?? viewModel.activeCountry)")
+        .accessibilityHint("Pulsa dos veces para filtrar por país")
+        .accessibilityIdentifier(AccessibilityID.countryPicker)
+        .accessibilityInputLabels(["País", "Filtrar país", "Selector de país"])
     }
 
     /// Agrupa las carreras de la página "Todos" por mes calendario, ordenadas.
@@ -452,7 +402,7 @@ struct SeasonView: View {
             NavigationLink(value: ChampionshipsRoute()) {
                 SeasonChampionshipsRow()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CalendarPressStyle())
             .simultaneousGesture(TapGesture().onEnded { Haptics.play(.navigation) })
         }
     }
@@ -464,7 +414,7 @@ struct SeasonView: View {
     @ViewBuilder
     private func challengeRowView(group: ChallengeGroup, races: [Race]) -> some View {
         let expanded = expandedChallengeIds.contains(group.id)
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
             Button {
                 Haptics.play(.selection)
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -479,13 +429,14 @@ struct SeasonView: View {
                     expanded: expanded
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CalendarPressStyle())
             .accessibilityLabel("\(group.name), \(races.count) \(localeService.t("carreras", "races"))")
             .accessibilityValue(expanded ? localeService.t("Desplegado", "Expanded") : localeService.t("Plegado", "Collapsed"))
             .accessibilityHint(localeService.t("Pulsa dos veces para ver sus carreras", "Double tap to show its races"))
 
             if expanded {
                 ForEach(races) { race in
+                    Divider().padding(.leading, 16)
                     raceRowView(race: race)
                         .padding(.leading, 16)
                 }
@@ -519,11 +470,10 @@ struct SeasonView: View {
                 SeasonRaceRow(
                     race: race,
                     displayName: displayName(for: race),
-                    showFemale: showFemaleIndicator(for: race),
-                    isLoading: loadingOneDayRaceId == race.id
+                    showFemale: showFemaleIndicator(for: race)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CalendarPressStyle())
             .disabled(loadingOneDayRaceId == race.id)
             .id(race.id)
             .accessibilityLabel(AccessibilityRaceDescription.seasonRaceLabel(race: race))
@@ -536,11 +486,10 @@ struct SeasonView: View {
                 SeasonRaceRow(
                     race: race,
                     displayName: displayName(for: race),
-                    showFemale: showFemaleIndicator(for: race),
-                    isLoading: loadingStageRaceId == race.id
+                    showFemale: showFemaleIndicator(for: race)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CalendarPressStyle())
             .disabled(loadingStageRaceId == race.id)
             .id(race.id)
             .accessibilityLabel(AccessibilityRaceDescription.seasonRaceLabel(race: race))
@@ -641,7 +590,7 @@ struct SeasonView: View {
             if days.isEmpty {
                 placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
             } else {
-                onOpenRace?(race.id)
+                onOpenRace?(race)
             }
         } catch {
             placeholderItem = PlaceholderModalItem(race: race, raceDay: nil, websiteUrl: race.websiteUrl)
@@ -657,46 +606,16 @@ struct SeasonView: View {
 /// Campeonatos. Espejo de `MonthChampionshipsRow` (Mes) y de la fila inyectada en
 /// `js/temporada.js`.
 private struct SeasonChampionshipsRow: View {
-    // Azul suave del rediseño (= CAMP.ACCENT de la web).
-    private let accent = Color(hex: "1a73e8")
-
     var body: some View {
-        CCCard(
-            accent: accent,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(accent.opacity(0.12))
-                    Image("GlobeEuropeAfrica")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 17, height: 17)
-                        .foregroundStyle(accent)
-                }
-                .frame(width: 28, height: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ChampionshipsConfig.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    CategoryBadge(category: "CN")
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 10)
-        }
+        SeasonRowLayout(
+            countryCode: nil,
+            showFlag: false,
+            logo: { CalendarChampionshipsMark() },
+            name: { Text(ChampionshipsConfig.title).ccFont(.s14, weight: .medium) },
+            dates: "",
+            category: "CN",
+            trailing: { SeasonRowChevron() }
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ChampionshipsConfig.title)
         .accessibilityHint(LocaleService.t("Pulsa dos veces para ver los campeonatos nacionales", "Double tap to see the national championships"))
@@ -705,73 +624,89 @@ private struct SeasonChampionshipsRow: View {
 
 // MARK: - Season race row
 
+/// Disposición común de una fila de Temporada (`.t-race`): bandera, logotipo,
+/// nombre completo (pasa a otra línea en lugar de cortarse), fechas y
+/// categoría. Sin superficie propia: la tarjeta es la del mes.
+private struct SeasonRowLayout<Logo: View, Name: View, Trailing: View>: View {
+    let countryCode: String?
+    var showFlag = true
+    @ViewBuilder var logo: () -> Logo
+    @ViewBuilder var name: () -> Name
+    let dates: String
+    let category: String?
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if showFlag {
+                CountryFlag(countryCode: countryCode)
+            }
+
+            logo()
+
+            // Una sola línea por fila: el nombre se recorta antes que partir la
+            // fila en dos.
+            name()
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 6) {
+                if !dates.isEmpty {
+                    Text(dates)
+                        .ccFont(.s13, weight: .semibold)
+                        .foregroundStyle(AppTheme.textMuted)
+                        .lineLimit(1)
+                }
+                CategoryBadge(category: category)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            trailing()
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SeasonRowChevron: View {
+    var expanded = false
+
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .rotationEffect(.degrees(expanded ? 90 : 0))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Nombre de carrera con el símbolo femenino a continuación.
+@MainActor private func seasonRowName(_ name: String, showFemale: Bool, cancelled: Bool = false) -> some View {
+    let title = Text(name).strikethrough(cancelled)
+    let female = Text(showFemale ? " ♀" : "").foregroundStyle(AppTheme.green)
+    return Text("\(title)\(female)").ccFont(.s14, weight: .medium)
+}
+
 /// Fila de carrera en la vista de temporada.
 private struct SeasonRaceRow: View {
     let race: Race
     var displayName: String
     var showFemale: Bool = false
-    var isLoading: Bool = false
-
-    private var raceColor: Color {
-        if let hex = race.colorHex, !hex.isEmpty {
-            return Color(hex: hex)
-        }
-        return .gray
-    }
 
     var body: some View {
-        // Tarjeta con tono de carrera (CCCard) — mismo lenguaje que Hoy y Mes.
-        CCCard(
-            accent: raceColor,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
-            HStack(spacing: 10) {
-                if race.hideFlag != true {
-                    CountryFlag(countryCode: race.countryCode)
-                }
-
-                RaceLogo(race.logoUrl, size: 28)
-
-                HStack(spacing: 4) {
-                    Text(displayName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .strikethrough(race.isCancelled)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    if showFemale {
-                        Text("♀")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.green)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: 6) {
-                    Text(DateFormatting.formatDateRange(start: race.startDate, end: race.endDate))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    CategoryBadge(category: race.uciCategory)
-                }
-                .fixedSize(horizontal: true, vertical: false)
-
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 10)
-        }
+        SeasonRowLayout(
+            countryCode: race.countryCode,
+            showFlag: race.hideFlag != true,
+            logo: { RaceLogo(race.logoUrl, size: 28) },
+            name: { seasonRowName(displayName, showFemale: showFemale, cancelled: race.isCancelled) },
+            dates: DateFormatting.formatDateRange(start: race.startDate, end: race.endDate),
+            category: race.uciCategory,
+            // Sin indicador de carga al pulsar: la navegación llega en cuanto
+            // se resuelve la jornada.
+            trailing: { SeasonRowChevron() }
+        )
         .opacity(race.isCancelled ? 0.5 : 1)
         .accessibilityElement(children: .ignore)
     }
@@ -793,50 +728,14 @@ private struct SeasonChallengeRow: View {
     }
 
     var body: some View {
-        CCCard(
-            accent: group.colorHex.flatMap { $0.isEmpty ? nil : Color(hex: $0) } ?? .gray,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            showShadow: false
-        ) {
-            HStack(spacing: 10) {
-                CountryFlag(countryCode: group.countryCode)
-
-                RaceLogo(group.logoUrl, size: 28)
-
-                HStack(spacing: 4) {
-                    Text(displayName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    if showFemale {
-                        Text("♀")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.green)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: 6) {
-                    Text(dateRange)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    CategoryBadge(category: group.uciCategory ?? races.first?.uciCategory)
-                }
-                .fixedSize(horizontal: true, vertical: false)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
-                    .accessibilityHidden(true)
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 10)
-        }
+        SeasonRowLayout(
+            countryCode: group.countryCode,
+            logo: { RaceLogo(group.logoUrl, size: 28) },
+            name: { seasonRowName(displayName, showFemale: showFemale) },
+            dates: dateRange,
+            category: group.uciCategory ?? races.first?.uciCategory,
+            trailing: { SeasonRowChevron(expanded: expanded) }
+        )
         .accessibilityElement(children: .ignore)
     }
 }
@@ -863,31 +762,12 @@ private struct SeasonFilterChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 4) {
-                Text(filter.label)
-                    .fontWeight(isActive ? .semibold : .regular)
-                switch pinDisplay {
-                case .filled:
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                case .outline:
-                    Image(systemName: "pin")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.accentColor)
-                        .opacity(0.55)
-                case .hidden:
-                    EmptyView()
-                }
-            }
-            .font(.caption)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            // Activo en azul de marca suave (15%) + texto azul — mismo gesto que el
-            // cintillo "Hoy" y el día seleccionado, en vez del azul sólido + blanco.
-            .background(isActive ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemBackground))
-            .foregroundStyle(isActive ? Color.accentColor : Color(.secondaryLabel))
-            .clipShape(Capsule())
+            CalendarFilterChipLabel(
+                label: filter.label,
+                isActive: isActive,
+                pinFilled: pinDisplay == .filled,
+                pinOutline: pinDisplay == .outline
+            )
             .frame(minHeight: 44)
         }
         // Mantener el Button estándar: los estilos primitivos basados en

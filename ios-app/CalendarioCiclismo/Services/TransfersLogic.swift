@@ -58,17 +58,37 @@ enum TransfersLogic {
     /// Lado del movimiento del que se pide el nombre de un equipo.
     enum TeamSide { case from, to }
 
-    /// Chapa EFECTIVA de un equipo del mercado (decisión Dani 2026-07-18):
+    /// Colores de equipación EFECTIVOS de un equipo del mercado (decisión Dani
+    /// 2026-07-18):
     ///  - Colores del mercado PUBLICADOS (`badgeVisible == true`) → la fila del
     ///    mercado (2027).
     ///  - Sin publicar pero el equipo YA existía la temporada anterior → su fila
     ///    ANTERIOR (2026): los colores que la gente ya conoce, hasta que se
     ///    anuncie el kit.
     ///  - Sin publicar y SIN identidad anterior (equipo nacido este año) → nil
-    ///    (chapa vacía).
+    ///    (sin franjas).
     static func badgeSeason(for season: TeamSeason, prev: [String: TeamSeason]) -> TeamSeason? {
         if season.badgeVisible == true { return season }
         return prev[season.teamId]
+    }
+
+    /// Equipo que alimenta las franjas de maillot (`TeamColorBands`) de una
+    /// tarjeta o cabecera del mercado: los colores de `badgeSeason`. Espejo de
+    /// `marketStripesHtml` en `js/fichajes.js`.
+    static func stripesTeam(for season: TeamSeason, prev: [String: TeamSeason]) -> Team? {
+        guard let source = badgeSeason(for: season, prev: prev) else { return nil }
+        return Team(
+            id: source.teamId,
+            name: source.name ?? season.name ?? source.teamId,
+            badgeTorsoCenter: source.badgeTorsoCenter ?? "#ffffff",
+            badgeTorsoSides: source.badgeTorsoSides ?? "#000000",
+            badgeShorts: source.badgeShorts ?? "#000000",
+            badgeInnerCircle: source.badgeInnerCircle,
+            headerBg: source.headerBg ?? "#1f2937",
+            headerText: source.headerText ?? "#ffffff",
+            nameAliases: nil,
+            category: source.category
+        )
     }
 
     /// Marcador de "baja sin destino conocido" en el texto libre de destino.
@@ -142,21 +162,29 @@ enum TransfersLogic {
             }
     }
 
-    /// Corte del feed "Últimas confirmaciones": hasta `maxDays` fechas distintas
-    /// O `maxItems` fichajes, lo que se alcance antes (el feed viene ordenado
-    /// cronológico inverso). No hay "cargar más": el mercado completo se ve por
-    /// equipo.
+    /// Corte del feed de Fichajes y Renovaciones: hasta `maxDays` fechas
+    /// distintas O `maxItems` movimientos, lo que se alcance antes (el feed
+    /// viene ordenado cronológico inverso). En teléfono se usa el corte corto;
+    /// en pantallas anchas la lista tiene altura fija con desplazamiento y
+    /// admite el corte largo (`feedHtml` en `js/fichajes.js`). No hay "cargar
+    /// más": el mercado completo se ve por equipo.
     static let feedMaxDays = 5
     static let feedMaxItems = 8
-    static func limitedFeed(_ feed: [RiderTransfer]) -> [RiderTransfer] {
+    static let feedScrollMaxDays = 30
+    static let feedScrollMaxItems = 60
+    static func limitedFeed(
+        _ feed: [RiderTransfer],
+        maxDays: Int = feedMaxDays,
+        maxItems: Int = feedMaxItems
+    ) -> [RiderTransfer] {
         var out: [RiderTransfer] = []
         var lastDay: String? = nil
         var daysShown = 0
         for x in feed {
             let day = x.announcedAt ?? ""
             let newDay = day != lastDay
-            if newDay && daysShown >= feedMaxDays { break }
-            if out.count >= feedMaxItems { break }
+            if newDay && daysShown >= maxDays { break }
+            if out.count >= maxItems { break }
             if newDay { lastDay = day; daysShown += 1 }
             out.append(x)
         }

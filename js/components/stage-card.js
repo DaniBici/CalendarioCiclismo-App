@@ -62,7 +62,7 @@ export function stageIsClickable(rd, isNoClickable) {
 }
 
 export function startOrderBadgeHtml(href) {
-  return `<a class="badge badge--startorder" href="${href}" onclick="event.stopPropagation()">${timerIconHtml} ${t('assets.startOrder')}</a>`;
+  return `<a class="badge badge--startorder" href="${href}" onclick="event.stopPropagation()">${timerIconHtml} <span class="badge__text">${t('assets.startOrder')}</span></a>`;
 }
 
 // Horario de la columna derecha según agendaMetaState.

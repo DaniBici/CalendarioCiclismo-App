@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {shiftPanelDay,wirePanelDayNavigation,panelCatalogModel,panelRaceListItemHtml} from '../panel/catalog-ui.js';
-import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces} from '../cx/panel-presentation.js';
+import {cxPanelAgendaDate,cxPanelSeasonForDate,cxPanelAgendaRaces,cxPanelNearestRaceDate} from '../cx/panel-presentation.js';
 
 const rows=[{name:'Beta',class:'C2',countryCode:'BE',updatedAt:'2026-09-11'}, {name:'Alfa',class:'C1',countryCode:'ES',updatedAt:'2026-09-10'}, {name:'Otra',class:'C2',countryCode:'ES',createdAt:'2026-09-12'}];
 const settings={categoryOf:r=>r.class,categoryOrder:['C1','C2']};
@@ -43,5 +43,12 @@ describe('agenda del día CX',()=>{
   it('muestra cada prueba multidía solo en los días de sus categorías',()=>{
     const races=[{id:'multi',seasonKey:'2026-27',dateKey:'2027-01-29',endDateKey:'2027-01-31',cx_race_categories:[{category:'MJ',dateKey:'2027-01-29'},{category:'ME',dateKey:'2027-01-31'}]},{id:'empty',seasonKey:'2026-27',dateKey:'2027-01-30',cx_race_categories:[]}];
     expect(cxPanelAgendaRaces(races,'2027-01-29').map(r=>r.id)).toEqual(['multi']);expect(cxPanelAgendaRaces(races,'2027-01-30').map(r=>r.id)).toEqual(['empty']);expect(cxPanelAgendaRaces(races,'2027-01-31').map(r=>r.id)).toEqual(['multi']);expect(cxPanelAgendaRaces(races,'2027-03-01')).toEqual([]);
+  });
+  it('salta al día con jornadas más cercano en el sentido de la navegación',()=>{
+    const races=[{id:'a',seasonKey:'2026-27',dateKey:'2026-10-11',cx_race_categories:[{category:'ME',dateKey:'2026-10-11'}]},{id:'b',seasonKey:'2026-27',dateKey:'2026-10-17',cx_race_categories:[{category:'MJ',dateKey:'2026-10-17'},{category:'ME',dateKey:'2026-10-18'}]}];
+    expect(cxPanelNearestRaceDate(races,'2026-10-11',1)).toBe('2026-10-11');
+    expect(cxPanelNearestRaceDate(races,'2026-10-12',1)).toBe('2026-10-17');expect(cxPanelNearestRaceDate(races,'2026-10-16',-1)).toBe('2026-10-11');
+    expect(cxPanelNearestRaceDate(races,'2026-10-19',1)).toBe('2026-10-19');expect(cxPanelNearestRaceDate(races,'2026-10-19',0)).toBe('2026-10-18');
+    expect(cxPanelNearestRaceDate(races,'2026-10-07',0)).toBe('2026-10-11');expect(cxPanelNearestRaceDate([],'2026-10-07',0)).toBe('2026-10-07');
   });
 });

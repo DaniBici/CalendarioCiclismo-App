@@ -147,12 +147,34 @@ cd android-app
 
 ## iOS: convenciones de estilo y configuración
 
-### Convenciones de estilo en dark mode
+### Escala visual común (iOS y Android)
 
-- **Botones/chips interactivos:** fondo `Color.accentColor`, texto `.white`, peso `.semibold`. NO usar `Color.accentColor.opacity(0.1)` — casi invisible en dark mode. Referencia: filtros de categoría en `SeasonView.swift` (~líneas 94-124).
-- **Textos secundarios en cards oscuras:** usar `.secondary`, no `.tertiary` (`.tertiary` es demasiado tenue). `.tertiary` solo para elementos decorativos.
-- **Iconos de acción en cards oscuras:** usar `.white`, no `Color.accentColor`.
-- Archivos: `StageDetailView.swift` (incluye `BroadcastRowView`, `FlowLayout`), `SeasonView.swift` (referencia de filtros).
+Espejo de `css/app.css` desde el rediseño de octubre de 2026 (rama
+`apps-rediseno`). Reglas de presentación de ambas apps:
+
+- Radios: 4 para controles y etiquetas, 8 para superficies; círculos solo en
+  elementos circulares. iOS `AppTheme.Radius.control`/`.surface`; Android
+  `CCRadius.Control`/`.Surface`.
+- Tipografía de siete tamaños (12, 13, 14, 16, 20, 28, 36). iOS
+  `.ccFont(.s12…)` con Dynamic Type; Android `CCText.S12…` y la `Typography`
+  de Material 3 remapeada a la escala. Sin mayúsculas forzadas ni tracking.
+  Jerarquía: título de pantalla 20 negrita, panel 16 seminegrita, rótulo de
+  fecha o grupo 13 seminegrita gris, filas 14.
+- Color solo con significado: tipo de etapa y estados (en directo verde,
+  cancelada y «No TV España» rojo, sin confirmar naranja). Categoría, género y
+  etiquetas de enlace en neutro: `AppTheme.neutralFill` / `neutralFill`
+  (texto al 8 %), `neutralBadgeColor()` y `neutralLinkBadgeColor()`. El
+  acento queda para selección y navegación; pulsación neutra.
+- Superficies: `CCCard` / `ccCardSurface` sin tinte de carrera ni filete. El
+  color de carrera solo marca el avance en directo (Hoy) y el perfil recorrido.
+- Logotipos de carrera (`RaceLogo`): solo la imagen ajustada con recorte de
+  radio 4; sin caja, fondo, margen ni borde.
+- Controles nativos de SwiftUI y Material 3 (`Picker` segmentado,
+  `SingleChoiceSegmentedButtonRow` con radio 4, `FilterChip`, `Divider`,
+  `ListItem`, `ContentUnavailableView`, `popover`/`TooltipBox`); dibujo propio
+  solo para perfiles y franjas de maillot.
+- Textos secundarios en tarjetas oscuras: `.secondary`, no `.tertiary` (solo
+  decorativo).
 
 ### `SWIFT_ACTIVE_COMPILATION_CONDITIONS`
 

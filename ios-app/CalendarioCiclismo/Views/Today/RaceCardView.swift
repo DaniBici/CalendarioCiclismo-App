@@ -1,6 +1,16 @@
 import SwiftUI
 
-/// Tarjeta de carrera en la agenda del día.
+/// Tarjeta de carrera en la agenda del día (`buildCard` de js/app.js).
+///
+/// Estructura común a todos los anchos: columna de logotipo (con la bandera
+/// debajo) a la izquierda; a su derecha, el nombre (hasta dos líneas, nunca
+/// cortado) con la hora o los accesos de jornada terminada arriba a la derecha,
+/// la línea de cifras debajo y las etiquetas a todo el ancho a 6 pt de las
+/// cifras. El miniperfil ocupa la banda inferior.
+///
+/// Superficie neutra: el color de la carrera solo marca el avance de una
+/// jornada en directo (perfil recorrido o, sin perfil, relleno del 8 % hasta el
+/// porcentaje de avance). Las destacadas no tienen diseño propio.
 struct RaceCardView: View {
     let item: EnrichedRaceDay
     /// Fuerza la evaluación con datos nuevos conservando la identidad de la tarjeta.
@@ -10,25 +20,24 @@ struct RaceCardView: View {
     /// Llamada cuando el usuario pulsa el icono de resultados (trofeo).
     /// Nil = no mostrar botón de resultados.
     var onShowResults: (() -> Void)? = nil
-    /// Llamada cuando el usuario pulsa el icono de Revive (play).
+    /// Llamada cuando el usuario pulsa el icono de Revive (TV).
     /// Nil = no mostrar botón de Revive.
     var onRevive: (() -> Void)? = nil
-    /// Llamada cuando el usuario pulsa el badge de inscritos (Premium —
-    /// Fase 4 del plan 2.0). Nil = no mostrar badge. Solo se renderiza
-    /// además si `race.startlistImportedAt` no es nulo.
+    /// Llamada cuando el usuario pulsa la etiqueta de dorsales. Nil = sin
+    /// etiqueta. Solo se renderiza además si `race.startlistImportedAt` no es nulo.
     var onShowStartlist: (() -> Void)? = nil
-    /// Llamada cuando el usuario pulsa el badge "Orden salida" en CRI/CRE.
+    /// Llamada cuando el usuario pulsa la etiqueta «Orden de salida» en CRI/CRE.
     /// Abre la vista nativa de orden de salida desde el caller.
     var onStartOrderTap: (() -> Void)? = nil
     /// Acceso directo a Competición para vueltas con más de una jornada.
     var onShowCompetition: (() -> Void)? = nil
     /// True si es la etapa final de la vuelta.
     var isFinalStage: Bool = false
-    var isFeatured: Bool = false
     var showsFinishTimeOnly: Bool = false
     var isWaitingForResults: Bool = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var premium = PremiumService.shared
 
     private var race: Race? { item.race }
@@ -45,23 +54,27 @@ struct RaceCardView: View {
         !isFemaleFilterActive && RaceLogic.shouldShowFemaleIndicator(race)
     }
 
+    /// Teléfono: etiquetas de dorsales y orden de salida solo con icono y
+    /// miniperfil de 36 pt. Pantallas anchas (iPad): con texto y 58 pt.
+    private var isPhone: Bool { horizontalSizeClass != .regular }
+
     /// URL de live texto (asset tipo live_text).
     private var liveTextUrl: String? {
         item.assets.first(where: { $0.type == "live_text" })?.url
     }
 
     /// True si la jornada es CRI/CRE y tiene asset startOrder publicado.
-    /// El badge usa este flag para decidir si renderizarse; la navegación es nativa.
+    /// La etiqueta usa este flag para decidir si renderizarse; la navegación es nativa.
     private var hasStartOrder: Bool {
         guard !rd.isCancelledDay else { return false }
-        guard rd.primaryType == "itt" || rd.primaryType == "ttt" else { return false }
+        guard isTimeTrial else { return false }
         return item.assets.contains(where: { $0.type == "startOrder" })
     }
 
-    /// Subtítulo compacto con etapa, distancia y desnivel.
-    /// Las partes ausentes se omiten; el separador es el punto medio (`·`).
-    /// "Etapa N" y la distancia se muestran en negrita.
-    private var horizontalSubtitleText: Text? {
+    /// Cifras de la jornada: etapa · distancia · desnivel. Las partes ausentes
+    /// se omiten; la etapa y la distancia van en el color de texto principal y
+    /// seminegrita, como `.race-card__stage` y `.race-card__km` de la web.
+    private var metricsText: Text? {
         let separator = Text(" · ")
         var result: Text? = nil
         func append(_ part: Text) {
@@ -69,10 +82,10 @@ struct RaceCardView: View {
         }
         if !rd.stageLabel.isEmpty {
             let label = isFinalStage ? "\(rd.stageLabel) (Final)" : rd.stageLabel
-            append(Text(label).fontWeight(.semibold))
+            append(Text(label).fontWeight(.semibold).foregroundStyle(Color.primary))
         }
         if let dist = rd.distanceFormatted, !dist.isEmpty {
-            append(Text(dist).fontWeight(.semibold))
+            append(Text(dist).fontWeight(.semibold).foregroundStyle(Color.primary))
         }
         if let elev = rd.elevationGainFormatted {
             append(Text(elev))
@@ -85,20 +98,16 @@ struct RaceCardView: View {
         dynamicTypeSize >= .accessibility1
     }
 
-    /// True cuando estamos en modo terminado (mostrar iconos en lugar de badges/tiempo).
+    /// True cuando estamos en modo terminado (mostrar iconos en lugar de horario).
     private var isFinishedMode: Bool { onShowResults != nil || onRevive != nil }
     private var isTimeTrial: Bool { rd.primaryType == "itt" || rd.primaryType == "ttt" }
-    private var isCompactPointTwo: Bool {
-        !isFeatured && RaceLogic.categoryTier(race?.uciCategory ?? "") == "2"
-    }
 
-    /// True si la jornada tiene perfil de elevación cargado y procede mostrar
-    /// el mini-perfil compacto. Feature liberada al plan gratuito: gateada por
-    /// `premium.featuresUnlocked` (siempre visible), no por la suscripción.
+    /// True si la jornada tiene perfil de elevación cargado. Feature liberada
+    /// al plan gratuito: gateada por `premium.featuresUnlocked` (siempre
+    /// visible), no por la suscripción.
     private var showsMiniProfile: Bool {
         guard premium.featuresUnlocked else { return false }
         guard !rd.isRestDay, !rd.isCancelledDay else { return false }
-        guard !isCompactPointTwo else { return false }
         guard let pts = rd.elevationProfile?.points, pts.count >= 2 else { return false }
         return true
     }
@@ -112,76 +121,104 @@ struct RaceCardView: View {
         guard onShowStartlist != nil, race?.startlistImportedAt != nil else { return false }
         // Paridad con web: clásicas siempre; vueltas por etapas solo el primer día.
         if race?.isStageRace == true, rd.dateKey != race?.startDate { return false }
+        // Crono de etapa única: el orden de salida sustituye a los dorsales.
+        if isTimeTrial, race?.isStageRace != true { return false }
         return true
     }
 
-    /// Altura de la franja del mini-perfil (a sangre, al fondo de la tarjeta).
-    /// Mayor en montaña para exacerbar las diferencias de perfil; algo más en
-    /// cotas, sinuosas y clásicas de pavé/sterrato (desnivel a baja altitud que
-    /// sin altura extra queda aplastado). Algo más altas que el sparkline inline
-    /// previo, ahora que ocupan todo el ancho de la tarjeta.
-    private var miniProfileBandHeight: CGFloat {
-        switch rd.primaryType {
-        case "high_mountain", "summit_finish", "chrono_climb": return 54
-        case "medium_mountain": return 46
-        case "cotas", "uphill_finish", "rolling", "cobbles", "sterrato": return 40
-        default: return 34
-        }
+    /// Las etiquetas de enlace (TV, dorsales, orden de salida) solo mientras la
+    /// jornada no ha terminado ni espera resultados (paridad con la web).
+    private var showsLinkBadges: Bool { !isFinishedMode && !isWaitingForResults }
+
+    /// Tipo de etapa: CRI/CRE y cronoescalada siempre; el resto solo sin
+    /// miniperfil (la silueta ya comunica el carácter de la etapa).
+    /// Etiqueta de tipo solo en contrarreloj (CRI, CRE y cronoescalada), como
+    /// la web: el resto de tipos no lleva etiqueta, haya o no miniperfil.
+    private var showsStageType: Bool {
+        !rd.isCancelledDay && (isTimeTrial || rd.secondaryType == "chrono_climb")
     }
 
-    /// Color del trazo del mini-perfil. Sigue el accent de la carrera si está
-    /// definido; si no, el accent global.
-    private var miniProfileTint: Color {
+    /// Altura de la banda del miniperfil: 36 pt en teléfono y 58 pt en
+    /// pantallas anchas, como `.race-card__profile` de la web.
+    private var miniProfileBandHeight: CGFloat { isPhone ? 36 : 58 }
+
+    /// Color de la carrera; sin color definido, el acento global.
+    private var raceColor: Color {
         if let hex = race?.colorHex, !hex.isEmpty {
             return Color(hex: hex)
         }
         return .accentColor
     }
 
-    /// Franja de perfil a sangre (edge-to-edge) al fondo de la tarjeta. Sin
-    /// padding horizontal: la `CCCard` recorta las esquinas inferiores. Lleva
-    /// las horas de salida/llegada para el relleno temporal (gris → teñido).
-    @ViewBuilder
-    private func miniProfileBand(_ profile: ElevationProfile) -> some View {
-        MiniElevationProfile(
-            profile: profile,
-            summits: rd.profileSummits ?? [],
-            waypoints: rd.profileWaypoints ?? [],
-            tint: miniProfileTint,
-            height: miniProfileBandHeight,
-            primaryType: rd.primaryType,
-            startTime: (rd.realStartTimeUtc ?? rd.neutralStartTimeUtc).flatMap(DateFormatting.parseISO),
-            endTime: rd.estimatedFinishTimeUtc.flatMap(DateFormatting.parseISO),
-            isTimeTrial: rd.primaryType == "itt" || rd.primaryType == "ttt",
-            forceCompleted: isFinishedMode
-        )
+    /// Relleno de avance de la tarjeta: solo jornadas en directo sin miniperfil
+    /// (con perfil, el avance lo marca la parte recorrida).
+    private var showsLiveFill: Bool {
+        !showsMiniProfile && !isFinishedMode && !isWaitingForResults
+            && !rd.isRestDay && !rd.isCancelledDay && !isTimeTrial
     }
 
-    /// Badge "Inscritos" tappable. Solo se muestra cuando `showsStartlistBadge`.
+    /// Franja de perfil a sangre (edge-to-edge) al fondo de la tarjeta. Sin
+    /// padding horizontal: la `CCCard` recorta las esquinas inferiores. El
+    /// avance se recalcula cada minuto (`RaceLogic.profileProgress`).
+    private func miniProfileBand(_ profile: ElevationProfile) -> some View {
+        TimelineView(.everyMinute) { context in
+            MiniElevationProfile(
+                profile: profile,
+                summits: rd.profileSummits ?? [],
+                waypoints: rd.profileWaypoints ?? [],
+                tint: raceColor,
+                height: miniProfileBandHeight,
+                primaryType: rd.primaryType,
+                fixedProgress: RaceLogic.profileProgress(
+                    rd: rd,
+                    hasInhouseResults: isFinishedMode,
+                    now: context.date
+                )
+            )
+        }
+    }
+
+    /// Relleno del 8 % del color de la carrera desde la izquierda hasta el
+    /// porcentaje de avance; nada antes de la salida ni tras la meta.
+    @ViewBuilder
+    private var liveFill: some View {
+        if showsLiveFill {
+            TimelineView(.everyMinute) { context in
+                let progress = RaceLogic.profileProgress(rd: rd, hasInhouseResults: false, now: context.date)
+                GeometryReader { geo in
+                    if progress > 0, progress < 1 {
+                        Rectangle()
+                            .fill(raceColor.opacity(0.08))
+                            .frame(width: geo.size.width * progress)
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var startlistLabel: String {
+        race?.startlistProvisional == true
+            ? LocaleService.t("Lista provisional", "Provisional startlist")
+            : LocaleService.t("Dorsales", "Startlist")
+    }
+
+    /// Etiqueta «Dorsales». Solo se muestra cuando `showsStartlistBadge`.
     @ViewBuilder
     private var startlistBadge: some View {
         if let onShowStartlist {
-            let label: String = {
-                if race?.startlistProvisional == true {
-                    return LocaleService.t("Lista provisional", "Provisional Startlist")
-                } else if race?.isFemale == true {
-                    return LocaleService.t("Dorsales", "Startlist")
-                } else {
-                    return LocaleService.t("Dorsales", "Startlist")
-                }
-            }()
             Button {
                 Haptics.play(.primaryAction)
                 onShowStartlist()
             } label: {
-                RaceActionLabel(label: label, icon: "figure.outdoor.cycle")
+                RaceActionLabel(label: startlistLabel, icon: "figure.outdoor.cycle", iconOnly: isPhone)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(label)
         }
     }
 
-    /// Badge "Orden salida" tappable para CRI/CRE. Solo cuando hay asset startOrder.
+    /// Etiqueta «Orden de salida» para CRI/CRE. Solo con asset startOrder.
     @ViewBuilder
     private var startOrderBadge: some View {
         if hasStartOrder {
@@ -189,45 +226,26 @@ struct RaceCardView: View {
                 Haptics.play(.primaryAction)
                 onStartOrderTap?()
             } label: {
-                RaceActionLabel(label: LocaleService.t("Orden salida", "Start order"), icon: "timer")
+                RaceActionLabel(label: LocaleService.t("Orden de salida", "Start order"), icon: "timer", iconOnly: isPhone)
             }
             .buttonStyle(.plain)
         }
     }
 
-    /// Badge de jornada cancelada, con el mismo tratamiento que la web.
+    /// Etiqueta de jornada cancelada, con el mismo tratamiento que la web.
     private var cancelledDayBadge: some View {
         Text(LocaleService.t("Cancelada", "Cancelled"))
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .textCase(.uppercase)
+            .ccFont(.s12, weight: .semibold)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .foregroundStyle(AppTheme.red)
             .background(AppTheme.red.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             .accessibilityLabel(LocaleService.t("Jornada cancelada", "Cancelled stage"))
     }
 
-    /// Color de la franja lateral de la tarjeta.
-    private var stripeColor: Color {
-        if let hex = race?.colorHex, !hex.isEmpty {
-            return Color(hex: hex)
-        }
-        return .gray
-    }
-
     var body: some View {
-        // Tarjeta canónica (CCCard) con el tinte base de carrera. Las destacadas
-        // y las normales comparten intensidad. Esquinas 14pt para una lista densa.
-        CCCard(
-            accent: stripeColor,
-            accentAlpha: 0.04,
-            cornerRadius: 14,
-            // Sin sombra proyectada en filas de lista: el material + hairline ya
-            // separan cada tarjeta, y N sombras apiladas cargarían el scroll.
-            showShadow: false
-        ) {
+        CCCard {
             VStack(spacing: 0) {
                 Group {
                     if rd.isRestDay {
@@ -235,22 +253,22 @@ struct RaceCardView: View {
                     } else if useVerticalLayout {
                         verticalLayout
                     } else {
-                        horizontalLayout
+                        standardLayout
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                // Cuando hay franja de perfil a sangre, el contenido cede el
-                // borde inferior a la franja (que llega de lado a lado).
-                .padding(.bottom, showsMiniProfile ? 8 : 12)
+                .padding(.horizontal, isPhone ? 16 : 20)
+                .padding(.top, isPhone ? 14 : 16)
+                // Con banda de perfil, el contenido deja 12 pt sobre ella.
+                .padding(.bottom, showsMiniProfile ? 12 : (isPhone ? 14 : 16))
 
                 if showsMiniProfile, let profile = rd.elevationProfile {
                     miniProfileBand(profile)
                 }
             }
+            .background(alignment: .leading) { liveFill }
         }
         // Solo se atenúa la CARRERA cancelada (no se corre en absoluto). Una
-        // JORNADA cancelada no: el badge "Cancelada" ya lo dice y su ficha
+        // JORNADA cancelada no: la etiqueta «Cancelada» ya lo dice y su ficha
         // (recorrido, perfil, documentación) sigue siendo accesible.
         .opacity(race?.isCancelled == true ? 0.5 : 1)
         .accessibilityElement(children: .ignore)
@@ -260,7 +278,7 @@ struct RaceCardView: View {
         ))
         .accessibilityInputLabels(raceInputLabels)
         // La tarjeta se anuncia como una sola unidad para evitar repetir toda
-        // su composición visual. Los accesos secundarios de 4.4 se mantienen
+        // su composición visual. Los accesos secundarios se mantienen
         // disponibles para VoiceOver mediante acciones personalizadas.
         .accessibilityActions {
             if let onShowResults {
@@ -272,10 +290,10 @@ struct RaceCardView: View {
             if let onShowCompetition {
                 Button(LocaleService.t("Ver competición", "View race"), action: onShowCompetition)
             }
-            if showsStartlistBadge, let onShowStartlist {
+            if showsStartlistBadge, showsLinkBadges, let onShowStartlist {
                 Button(LocaleService.t("Ver inscritos", "View startlist"), action: onShowStartlist)
             }
-            if hasStartOrder, let onStartOrderTap {
+            if hasStartOrder, showsLinkBadges, let onStartOrderTap {
                 Button(LocaleService.t("Ver orden de salida", "View start order"), action: onStartOrderTap)
             }
         }
@@ -292,171 +310,175 @@ struct RaceCardView: View {
         return labels
     }
 
+    // MARK: - Identidad (logotipo y bandera)
+
+    private var showsFlag: Bool { race?.hideFlag != true || rd.countryCode != nil }
+    private var hasLogo: Bool { race?.logoUrl.map { !$0.isEmpty } == true }
+
+    /// Columna izquierda: logotipo en caja de lista con la bandera debajo; sin
+    /// logotipo, solo la bandera (`cardLogoHtml` de la web).
+    @ViewBuilder
+    private var identityColumn: some View {
+        if hasLogo || showsFlag {
+            VStack(spacing: 4) {
+                if hasLogo {
+                    RaceLogo(race?.logoUrl, size: 32)
+                }
+                if showsFlag {
+                    CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
+                }
+            }
+            .frame(width: 32)
+        }
+    }
+
+    /// Nombre de la carrera: pasa a dos líneas si hace falta, nunca se corta.
+    private var nameRow: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Text(displayRaceName)
+                .ccFont(.s16, weight: .medium)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+
+            competitionButton
+
+            if showFemaleIndicator {
+                Text("♀")
+                    .ccFont(.s13)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(LocaleService.t("Carrera femenina", "Women's race"))
+            }
+        }
+    }
+
     // MARK: - Rest day layout
 
     private var restDayLayout: some View {
-        HStack(spacing: 10) {
-            RaceLogo(race?.logoUrl, size: 36)
+        HStack(alignment: .top, spacing: 12) {
+            identityColumn
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    if race?.hideFlag != true || rd.countryCode != nil {
-                        CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
-                    }
-                    Text(displayRaceName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-
-                    competitionButton
-
-                    if showFemaleIndicator {
-                        Text("♀")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.green)
-                    }
-                }
-
-                HStack(spacing: 4) {
-                    Image(systemName: "moon.zzz")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text(LocaleService.t("Descanso", "Rest day"))
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: - Standard horizontal layout
-
-    private var horizontalLayout: some View {
-        HStack(spacing: 10) {
-            RaceCardIdentity(logoUrl: race?.logoUrl) {
-                HStack(spacing: 4) {
-                    if race?.hideFlag != true || rd.countryCode != nil {
-                        CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
-                    }
-                    Text(displayRaceName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-
-                    competitionButton
-
-                    if showFemaleIndicator {
-                        Text("♀")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.green)
-                    }
-                }
-
-            } details: {
-                if let subtitle = horizontalSubtitleText {
-                    subtitle
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if isFeatured, let route = rd.routeDescription, !route.isEmpty {
-                    Text(route)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                // Badges de categoría + tipo + TV (ocultos en modo terminado).
-                // Cuando hay mini-perfil, los badges van por ENCIMA del perfil
-                // y se omite StageTypeBadge (primary/secondary) — la silueta
-                // de elevación ya comunica el carácter de la etapa.
-                if !isFinishedMode {
-                    FlowLayout(spacing: 4) {
-                        CategoryBadge(category: race?.uciCategory)
-                        if rd.isCancelledDay {
-                            cancelledDayBadge
-                        } else if (!isCompactPointTwo && !showsMiniProfile)
-                                    || rd.primaryType == "itt" || rd.primaryType == "ttt"
-                                    || rd.secondaryType == "chrono_climb" {
-                            StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
-                        }
-                        // Una jornada cancelada no se emite: ni TV ni Live Texto
-                    // (no hay nada que seguir). Paridad con la web y Android.
-                    if !rd.isCancelledDay {
-                        TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
-                    }
-                        if showsStartlistBadge {
-                            startlistBadge
-                        }
-                        startOrderBadge
-                    }
-                } else {
-                    // En modo terminado solo se muestra la categoría
-                    CategoryBadge(category: race?.uciCategory)
-                }
-                // El mini-perfil ya no va aquí: se renderiza como franja a
-                // sangre al fondo de la tarjeta (ver `miniProfileBand`).
-            }
-
-            Spacer(minLength: 0)
-
-            // Columna derecha: tiempos normalmente, iconos cuando terminado
-            if isFinishedMode {
-                finishedIconsColumn
-            } else if isWaitingForResults {
-                waitingResults
-            } else {
-                timesColumn
-            }
-        }
-    }
-
-    // MARK: - Columna de tiempos (modo normal)
-
-    private var timesColumn: some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            // Cancelada → sin horario: la etapa no se corre (paridad con la web).
-            if rd.isCancelledDay {
-                EmptyView()
-            } else if showsFinishTimeOnly,
-                      let finishTime = rd.estimatedFinishTimeUtc,
-                      let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                finishTimeLine(finishStr)
-            } else if let startTime = rd.neutralStartTimeUtc,
-               let startStr = DateFormatting.formatTimeLocal(startTime) {
-                scheduleLabel(isTimeTrial ? LocaleService.t("Inicio", "Start") : LocaleService.t("Salida", "Start"))
-                Text(startStr)
-                    .font(.callout)
-                    .fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: 2) {
+                nameRow
+                Label(LocaleService.t("Descanso", "Rest day"), systemImage: "moon.zzz")
+                    .ccFont(.s13, weight: .semibold)
                     .foregroundStyle(.secondary)
+                CategoryBadge(category: race?.uciCategory)
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Standard layout
+
+    private var standardLayout: some View {
+        HStack(alignment: .top, spacing: 12) {
+            identityColumn
+
+            VStack(alignment: .leading, spacing: 0) {
+                // Nombre y cifras a la izquierda; hora o accesos de jornada
+                // terminada arriba a la derecha, alineados con la primera
+                // línea del nombre.
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        nameRow
+                        if let metrics = metricsText {
+                            metrics
+                                .ccFont(.s13)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    trailingColumn
+                }
+
+                badgesRow
+                    .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Etiquetas a todo el ancho bajo las cifras, en el orden de la web:
+    /// Categoría → Cancelada → Tipo → TV → Dorsales → Orden de salida.
+    private var badgesRow: some View {
+        FlowLayout(spacing: 6) {
+            CategoryBadge(category: race?.uciCategory)
+            if rd.isCancelledDay {
+                cancelledDayBadge
+            } else if showsStageType {
+                StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
+            }
+            if showsLinkBadges {
+                // Una jornada cancelada no se emite: ni TV ni Live texto
+                // (no hay nada que seguir). Paridad con la web y Android.
+                if !rd.isCancelledDay {
+                    TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
+                }
+                if showsStartlistBadge {
+                    startlistBadge
+                }
+                startOrderBadge
+            }
+        }
+    }
+
+    /// Esquina superior derecha: accesos de jornada terminada, espera de
+    /// resultados u horario.
+    @ViewBuilder
+    private var trailingColumn: some View {
+        if isFinishedMode {
+            finishedIcons
+        } else if isWaitingForResults {
+            WaitingResultsLabel()
+        } else {
+            scheduleColumn
+        }
+    }
+
+    // MARK: - Horario
+
+    /// Rótulo (Salida/Meta/Inicio/Final) apilado sobre la hora.
+    @ViewBuilder
+    private var scheduleColumn: some View {
+        // Cancelada → sin horario: la etapa no se corre (paridad con la web).
+        if !rd.isCancelledDay {
+            if showsFinishTimeOnly,
+               let finishTime = rd.estimatedFinishTimeUtc,
+               let finishStr = DateFormatting.formatTimeLocal(finishTime) {
+                scheduleStack(label: finishLabel, value: "~\(finishStr)")
+            } else if let startTime = rd.neutralStartTimeUtc,
+                      let startStr = DateFormatting.formatTimeLocal(startTime) {
+                scheduleStack(label: startLabel, value: startStr)
             } else if let finishTime = rd.estimatedFinishTimeUtc,
                       let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                finishTimeLine(finishStr)
+                scheduleStack(label: finishLabel, value: "~\(finishStr)")
             }
         }
     }
 
-    private func finishTimeLine(_ finishTime: String) -> some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            scheduleLabel(isTimeTrial ? LocaleService.t("Final", "End") : LocaleService.t("Meta", "Finish"))
-            Text("~\(finishTime)")
-                .font(.callout)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-        }
-        .fixedSize(horizontal: true, vertical: true)
+    private var startLabel: String {
+        isTimeTrial ? LocaleService.t("Inicio", "Start") : LocaleService.t("Salida", "Start")
     }
 
-    private func scheduleLabel(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.25)
-            .foregroundStyle(.tertiary)
+    private var finishLabel: String {
+        isTimeTrial ? LocaleService.t("Final", "End") : LocaleService.t("Meta", "Finish")
+    }
+
+    private func scheduleStack(label: String, value: String) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(label)
+                .ccFont(.s12)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .ccFont(isPhone ? .s14 : .s16, weight: .semibold)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+        }
+        .fixedSize()
     }
 
     @ViewBuilder
@@ -475,144 +497,65 @@ struct RaceCardView: View {
 
     // MARK: - Iconos de resultados/revive (modo terminado)
 
-    private var finishedIconsColumn: some View {
-        HStack(spacing: 4) {
+    /// Copa y TV juntas arriba a la derecha. El glifo queda alineado con la
+    /// primera línea del nombre; el área táctil se extiende hacia abajo.
+    private var finishedIcons: some View {
+        HStack(spacing: 0) {
             if let onShowResults {
-                Button {
-                    onShowResults()
-                } label: {
-                    Image(systemName: "trophy")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(LocaleService.t("Resultados", "Results"))
+                finishedIcon("trophy", label: LocaleService.t("Resultados", "Results"), action: onShowResults)
             }
             if let onRevive {
-                Button {
-                    onRevive()
-                } label: {
-                    Image(systemName: "tv")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(LocaleService.t("Revive la carrera", "Relive the race"))
+                finishedIcon("tv", label: LocaleService.t("Revive la carrera", "Relive the race"), action: onRevive)
             }
         }
-        .frame(width: isFeatured ? 140 : 92, alignment: .trailing)
+        .padding(.trailing, -6)
     }
 
-    private var waitingResults: some View {
-        WaitingResultsLabel().frame(width: isFeatured ? 140 : 92, alignment: .center)
+    private func finishedIcon(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: symbol)
+                .labelStyle(.iconOnly)
+                .font(.system(size: isPhone ? 17 : 20))
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 40, alignment: .top)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Vertical layout for large Dynamic Type
 
     private var verticalLayout: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                if race?.hideFlag != true || rd.countryCode != nil {
-                    CountryFlag(countryCode: rd.countryCode ?? race?.countryCode)
-                }
-                Text(displayRaceName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                competitionButton
-
-                if showFemaleIndicator {
-                    Text("♀")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.green)
-                }
+            HStack(alignment: .top, spacing: 12) {
+                identityColumn
+                nameRow
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if !rd.stageLabel.isEmpty {
-                Text(isFinalStage ? "\(rd.stageLabel) (Final)" : rd.stageLabel)
-                    .font(.caption)
-                    .fontWeight(.semibold)
+            if let metrics = metricsText {
+                metrics
+                    .ccFont(.s13)
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 6) {
-                if let dist = rd.distanceFormatted {
-                    Text(dist)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                }
-                if let elev = rd.elevationGainFormatted {
-                    Text(elev)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if !isFinishedMode, !isWaitingForResults, !rd.isCancelledDay {
-                    if showsFinishTimeOnly,
-                       let finishTime = rd.estimatedFinishTimeUtc,
-                       let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                        finishTimeLine(finishStr)
-                    } else if let startTime = rd.neutralStartTimeUtc,
-                              let startStr = DateFormatting.formatTimeLocal(startTime) {
-                        Text("\(isTimeTrial ? LocaleService.t("Inicio", "Start") : LocaleService.t("Salida", "Start")) \(startStr)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if let finishTime = rd.estimatedFinishTimeUtc,
-                              let finishStr = DateFormatting.formatTimeLocal(finishTime) {
-                        finishTimeLine(finishStr)
-                    }
-                }
-            }
+            trailingColumn
 
-            // Badges encima del perfil. Cuando hay mini-perfil se omite
-            // StageTypeBadge (la silueta ya comunica el carácter de la etapa).
-            if isFinishedMode {
-                HStack(spacing: 8) {
-                    CategoryBadge(category: race?.uciCategory)
-                    Spacer()
-                    finishedIconsColumn
-                }
-            } else if isWaitingForResults {
-                waitingResults
-            } else {
-                FlowLayout(spacing: 4) {
-                    CategoryBadge(category: race?.uciCategory)
-                    if rd.isCancelledDay {
-                        cancelledDayBadge
-                    } else if (!isCompactPointTwo && !showsMiniProfile)
-                                || rd.primaryType == "itt" || rd.primaryType == "ttt"
-                                || rd.secondaryType == "chrono_climb" {
-                        StageTypeBadge(primaryType: rd.primaryType, secondaryType: rd.secondaryType, countryCode: rd.countryCode ?? race?.countryCode)
-                    }
-                    // Una jornada cancelada no se emite: ni TV ni Live Texto
-                    // (no hay nada que seguir). Paridad con la web y Android.
-                    if !rd.isCancelledDay {
-                        TVBadge(tvStatus: rd.tvStatus, broadcasts: item.broadcasts, neutralStartTimeUtc: rd.neutralStartTimeUtc, liveTextUrl: liveTextUrl)
-                    }
-                    if showsStartlistBadge {
-                        startlistBadge
-                    }
-                    startOrderBadge
-                }
-            }
-            // El mini-perfil va como franja a sangre al fondo de la tarjeta
-            // (ver `miniProfileBand`), no inline en la columna.
+            badgesRow
         }
     }
 }
 
+/// Acceso a la competición junto al nombre (`.race-card__overview-btn` de la
+/// web): glifo atenuado sobre la superficie neutra, radio 4.
 struct RaceCompetitionLabel: View {
     var body: some View {
         Image(systemName: "line.3.horizontal")
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(Color.accentColor)
-            .frame(width: 16, height: 16)
-            .background(Color.accentColor.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 20, height: 20)
+            .background(AppTheme.neutralFill)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.control))
             .contentShape(Rectangle())
     }
 }

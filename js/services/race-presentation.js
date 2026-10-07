@@ -57,8 +57,10 @@ export function waitingResultsHtml(lang = 'es', element = 'div') {
   </${tag}>`;
 }
 export function profileProgress(day, now = Date.now()) {
-  if (day.isCancelledDay || day.isRestDay || ['itt','ttt'].includes(day.primaryType)) return 0;
+  if (day.isCancelledDay || day.isRestDay) return 0;
   if (day._hasInhouse || day.raceStatus === 'finished') return 1;
+  // Crono en curso: con salidas escalonadas no hay un avance único que pintar.
+  if (['itt','ttt'].includes(day.primaryType)) return 0;
   const start = Date.parse(day.realStartTimeUtc || day.neutralStartTimeUtc), finish = Date.parse(day.estimatedFinishTimeUtc);
   return Number.isFinite(start) && finish > start ? Math.max(0, Math.min(1, (now-start)/(finish-start))) : 0;
 }

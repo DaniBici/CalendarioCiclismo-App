@@ -24,12 +24,10 @@ function safeCardColor(hex) {
   return '#' + darken(c.r) + darken(c.g) + darken(c.b);
 }
 
-// Contenedor de la tarjeta con el color de la carrera y el borde mínimo de
-// los colores claros o inválidos.
+// Contenedor de la tarjeta con el color de la carrera.
 export function createRaceCard(colorHex, extraClass = '', tag = 'div') {
   const card = document.createElement(tag);
-  const c = hexLuminance(colorHex);
-  card.className = ['race-card', extraClass, !c || c.lum > 210 ? 'race-card--light-color' : ''].filter(Boolean).join(' ');
+  card.className = ['race-card', extraClass].filter(Boolean).join(' ');
   card.style.setProperty('--card-color', safeCardColor(colorHex));
   return card;
 }

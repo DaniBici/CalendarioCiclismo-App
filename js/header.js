@@ -1,4 +1,3 @@
-import { arrowHtml, installScrollRail } from './scroll-rail.js';
 // ─────────────────────────────────────────────────────────────────
 //  HEADER — cabecera común a todas las páginas (web)
 //  Fuente ÚNICA del header del sitio. Se monta sobre el placeholder
@@ -27,6 +26,12 @@ import './page-loading.js';
 const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.25em"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
   '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.15em;margin-right:0.35em"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>';
+
+// Flecha de volver con el mismo trazo que los iconos del menú.
+const BACK_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
+// El hueco de la flecha existe siempre (invisible en Hoy): la marca y el menú
+// no cambian de posición al pasar de una sección a otra.
+const BACK_PLACEHOLDER = '<span class="back-btn back-btn--placeholder" id="backBtn" aria-hidden="true"></span>';
 
 const PRIMARY_ICONS = {
   // Mismo vector que la pestaña Hoy de Android: Icons.Filled.CalendarToday.
@@ -113,6 +118,22 @@ function ensureSkipTarget() {
   link.setAttribute('href', '#' + main.id);
 }
 
+// Destinos secundarios en el pie: tras el copyright, en la misma fila que
+// Calendario iCal y Gestión de cookies (js/cookie-consent.js la completa).
+function buildFooterNav(s) {
+  const footer = document.querySelector('.site-footer');
+  if (!footer || footer.querySelector('.footer-link--about')) return;
+  let actions = footer.querySelector('.site-footer__actions');
+  if (!actions) {
+    actions = document.createElement('p');
+    actions.className = 'site-footer__actions';
+    footer.appendChild(actions);
+  }
+  actions.insertAdjacentHTML('afterbegin',
+    `<a class="footer-link footer-link--icon footer-link--about" href="${s.aboutHref}">${PRIMARY_ICONS.about}<span>${s.aboutText}</span></a>` +
+    `<a class="footer-link footer-link--icon" href="${s.openHref}">${PRIMARY_ICONS.open}<span>${s.openText}</span></a>`);
+}
+
 function buildHeader(el) {
   const lang = el.dataset.lang || detectLang();
   const s = STRINGS[lang] || STRINGS.es;
@@ -120,8 +141,8 @@ function buildHeader(el) {
   const active = el.dataset.active || detectActive();
 
   const backBtn = hasBack
-    ? `<a class="back-btn" id="backBtn" href="${s.home}" aria-label="${s.backLabel}">←</a>`
-    : '';
+    ? `<a class="back-btn" id="backBtn" href="${s.home}" aria-label="${s.backLabel}">${BACK_ICON}</a>`
+    : BACK_PLACEHOLDER;
 
   el.innerHTML =
     // Primer elemento enfocable del documento: evita repetir cabecera,
@@ -138,30 +159,29 @@ function buildHeader(el) {
         `<button class="nav-apps-btn" id="navAppsBtn" type="button" aria-label="${s.appsLabel}"><span class="header-action-icon">${PRIMARY_ICONS.apps}</span><span>${s.appsText}</span></button>` +
         '<span class="header-actions__divider" aria-hidden="true"></span>' +
         `<a class="header-support-link" href="${s.supportHref}" aria-label="${s.supportText}" target="_blank" rel="noopener"><span class="header-action-icon">${PRIMARY_ICONS.support}</span><span>${s.supportText}</span></a>` +
-        `<button class="theme-toggle" title="${s.themeTitle}"></button>` +
+        `<button class="theme-toggle" type="button" title="${s.themeTitle}" aria-label="${s.themeTitle}"></button>` +
       '</div>' +
     '</div>';
 
+  // Cinco destinos fijos: en escritorio comparten fila con la marca y las
+  // acciones; en móvil forman la barra inferior, sin desplazamiento.
+  // «Acerca de mí» y «Datos abiertos» viven en el pie (buildFooterNav).
   const primaryItems = ['today', 'results', 'transfers', 'cyclocross', 'calendar'];
-  const primaryNav = `<nav class="primary-nav" aria-label="${s.viewsAria}"><div class="primary-nav__shell">${arrowHtml('prev', lang === 'en' ? 'Previous sections' : 'Secciones anteriores', 'hidden')}<div class="primary-nav__inner" data-scroll-rail>` +
+  const primaryNav = `<nav class="primary-nav" aria-label="${s.viewsAria}"><div class="primary-nav__inner">` +
     primaryItems.map(key => {
       const item = s[key];
       return `<a class="primary-nav__main${active === key ? ' active' : ''}" href="${item.href}"${active === key ? ' aria-current="page"' : ''}><span class="primary-nav__icon">${PRIMARY_ICONS[key]}</span><span>${item.text}</span></a>`;
     }).join('') +
-    '<span class="primary-nav__divider" aria-hidden="true"></span>' +
-    `<a class="primary-nav__secondary" href="${s.aboutHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.about}</span><span>${s.aboutText}</span></a>` +
-    `<a class="primary-nav__secondary" href="${s.openHref}"><span class="primary-nav__icon">${PRIMARY_ICONS.open}</span><span>${s.openText}</span></a>` +
-    `</div>${arrowHtml('next', lang === 'en' ? 'More sections' : 'Más secciones', 'hidden')}</div></nav>`;
-  el.insertAdjacentHTML('afterend', primaryNav);
-  const shell = el.nextElementSibling.querySelector('.primary-nav__shell');
-  installScrollRail(shell);
+    '</div></nav>';
+  el.querySelector('.site-logo').insertAdjacentHTML('afterend', primaryNav);
+  // Las barras fijas de cada página se colocan bajo la cabecera solo cuando
+  // esta es fija (escritorio y tableta); en móvil se desplaza con la página.
   const measureHeader = new ResizeObserver(() => {
-    document.documentElement.style.setProperty('--site-header-h', `${el.getBoundingClientRect().height}px`);
-    document.documentElement.style.setProperty('--primary-nav-measured-h', `${el.nextElementSibling.getBoundingClientRect().height}px`);
+    const sticky = getComputedStyle(el).position === 'sticky';
+    document.documentElement.style.setProperty('--site-header-h', `${sticky ? el.getBoundingClientRect().height : 0}px`);
   });
   measureHeader.observe(el);
-  measureHeader.observe(el.nextElementSibling);
-  requestAnimationFrame(() => shell.querySelector('[aria-current="page"]')?.scrollIntoView({ block:'nearest', inline:'nearest' }));
+  buildFooterNav(s);
 
   ensureSkipTarget();
 
@@ -190,7 +210,7 @@ window.ccHeaderBack = function ccHeaderBack(cfg) {
   const s = STRINGS[lang] || STRINGS.es;
   const existing = inner.querySelector('#backBtn');
   if (existing) existing.remove();
-  if (!cfg) return;
+  if (!cfg) { inner.insertAdjacentHTML('afterbegin', BACK_PLACEHOLDER); return; }
   const label = cfg.label || s.backLabel;
   let node;
   if (cfg.onClick) {
@@ -204,7 +224,7 @@ window.ccHeaderBack = function ccHeaderBack(cfg) {
   node.className = 'back-btn';
   node.id = 'backBtn';
   node.setAttribute('aria-label', label);
-  node.textContent = '←';
+  node.innerHTML = BACK_ICON;
   inner.insertBefore(node, inner.firstChild);
 };
 
